@@ -1,0 +1,103 @@
+import { getUserProfile, getTeamMembers } from "./settings-actions"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { Info, User, Building, Bell, Monitor, Shield, Users, UserPlus } from "lucide-react"
+import { SettingsClient } from "./settings-client"
+import { createClient } from "@/utils/supabase/server"
+
+export default async function SettingsPage() {
+  const { profile, email } = await getUserProfile()
+  const { profiles: teamMembers } = await getTeamMembers()
+
+  const supabase = await createClient()
+
+  const { data: szabalyok } = await supabase
+    .from("ertesites_szabaly")
+    .select("*")
+    .order("letrehozva", { ascending: false })
+
+  const { data: naplo } = await supabase
+    .from("ertesites_naplo")
+    .select("*")
+    .order("kikuldes_ideje", { ascending: false })
+    .limit(50)
+
+  if (!profile) {
+    return (
+      <div className="flex-1 p-8 pt-6">
+        <h2 className="text-3xl font-bold tracking-tight">Beállítások</h2>
+        <p className="text-muted-foreground">Kérjük, jelentkezz be a beállítások megtekintéséhez.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex-1 space-y-4 p-8 pt-6">
+      <div className="flex items-center space-x-2 mb-2">
+        <h2 className="text-3xl font-bold tracking-tight">Beállítások</h2>
+        <Info className="h-5 w-5 text-muted-foreground" />
+      </div>
+      <p className="text-muted-foreground mt-0 mb-6">Rendszer és üzleti beállítások kezelése</p>
+
+      <Tabs defaultValue="profil" className="space-y-4">
+        <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent mb-6">
+          <TabsTrigger 
+            value="profil" 
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
+          >
+            <User className="h-4 w-4 mr-2" />
+            Profil
+          </TabsTrigger>
+          <TabsTrigger 
+            value="csapat" 
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
+          >
+            <Users className="h-4 w-4 mr-2" />
+            Csapat
+          </TabsTrigger>
+          <TabsTrigger 
+            value="ceg" 
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
+            disabled
+          >
+            <Building className="h-4 w-4 mr-2" />
+            Cég
+          </TabsTrigger>
+          <TabsTrigger 
+            value="ertesitesek" 
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
+          >
+            <Bell className="h-4 w-4 mr-2" />
+            Értesítések
+          </TabsTrigger>
+          <TabsTrigger 
+            value="rendszer" 
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
+            disabled
+          >
+            <Monitor className="h-4 w-4 mr-2" />
+            Rendszer
+          </TabsTrigger>
+          <TabsTrigger 
+            value="biztonsag" 
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
+          >
+            <Shield className="h-4 w-4 mr-2" />
+            Biztonság
+          </TabsTrigger>
+        </TabsList>
+
+        <SettingsClient 
+          initialProfile={profile} 
+          email={email} 
+          teamMembers={teamMembers || []} 
+          szabalyok={szabalyok || []}
+          naplo={naplo || []}
+        />
+      </Tabs>
+    </div>
+  )
+}

@@ -1,65 +1,111 @@
-import Image from "next/image";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Clock, FileText, Inbox, CheckCircle2 } from "lucide-react"
+import Link from "next/link"
 
-export default function Home() {
+export default function Dashboard() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight">Áttekintés</h1>
+        <p className="text-muted-foreground">Üdvözlünk az eaisyDocs iratkezelő rendszerben. Íme a legfrissebb teendőid.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Saját feladataim */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Saját feladataim</CardTitle>
+              <CardDescription>Rád szignált, nyitott feladatok</CardDescription>
+            </div>
+            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 mt-4">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div>
+                  <p className="text-sm font-medium">Bérleti szerződés ellenőrzése</p>
+                  <p className="text-xs text-muted-foreground">PENZUGY/2026/00042-1</p>
+                </div>
+                <div className="text-xs font-semibold text-warning-foreground">Ma lejár</div>
+              </div>
+              <div className="flex items-center justify-between border-b pb-2 border-transparent">
+                <div>
+                  <p className="text-sm font-medium">Számla jóváhagyás</p>
+                  <p className="text-xs text-muted-foreground">PENZUGY/2026/00089-2</p>
+                </div>
+                <div className="text-xs text-muted-foreground">Holnap</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Lejáró határidők */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Lejáró határidők</CardTitle>
+              <CardDescription>Sürgős figyelmet igénylő ügyek</CardDescription>
+            </div>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 mt-4">
+              <div className="flex items-center justify-between border-b pb-2 border-transparent">
+                <div>
+                  <p className="text-sm font-medium text-destructive">Hatósági megkeresés (NAV)</p>
+                  <p className="text-xs text-muted-foreground">JOG/2026/00012-1</p>
+                </div>
+                <div className="text-xs font-semibold text-destructive">Lejárt!</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Érkeztetésre váró */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Új bejövő küldemények</CardTitle>
+              <CardDescription>Feldolgozásra váró e-mailek és szkennelt iratok</CardDescription>
+            </div>
+            <Inbox className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 mt-4">
+              <div className="flex items-center justify-between border-b pb-2 border-transparent">
+                <div>
+                  <p className="text-sm font-medium">iktatas@ceged.hu (3 új levél)</p>
+                  <p className="text-xs text-muted-foreground">Utolsó: 10 perce</p>
+                </div>
+                <Link href="/inbox" className="text-xs font-medium text-primary hover:underline">Megnyitás</Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Iktatásra váró */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Iktatásra váró iratok</CardTitle>
+              <CardDescription>Már érkeztetett, de ügyhöz még nem rendelt iratok</CardDescription>
+            </div>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 mt-4">
+              <div className="flex items-center justify-between border-b pb-2 border-transparent">
+                <div>
+                  <p className="text-sm font-medium">E/2026/000124 (Szerződés tervezet)</p>
+                  <p className="text-xs text-muted-foreground">Kovács Kft.</p>
+                </div>
+                <Link href="/inbox" className="text-xs font-medium text-primary hover:underline">Iktatás</Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
-  );
+  )
 }
