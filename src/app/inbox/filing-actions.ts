@@ -20,9 +20,10 @@ export async function fileIncomingDocument(formData: FormData) {
     const targy = formData.get("targy") as string
     const ugytipus_id = formData.get("ugytipus_id") as string
     const prefix = (formData.get("prefix") as string) || "NYILV"
+    const department_id = formData.get("department_id") as string
 
-    if (!targy || !ugytipus_id) {
-      return { error: "Minden mező kitöltése kötelező új ügyirat esetén!" }
+    if (!targy || !ugytipus_id || !department_id) {
+      return { error: "Minden mező kitöltése kötelező új ügyirat esetén (Osztály is)!" }
     }
 
     const { data: ugyszam, error: ugyszamError } = await supabase.rpc('generate_ugyszam', { p_ev: ev, p_prefix: prefix })
@@ -45,7 +46,8 @@ export async function fileIncomingDocument(formData: FormData) {
         ugy_id: ugyData.id,
         iktatoszam,
         irattari_tetel_id: ugytipus_id,
-        statusz: "iktatva"
+        statusz: "iktatva",
+        szervezeti_egyseg_id: department_id
       })
       .select("id")
       .single()
@@ -135,6 +137,16 @@ export async function generateAISuggestions(iratId: string) {
   else if (text.includes("apex")) suggestedPartner = "Apex Trader Funding"
   else if (text.includes("nav") || text.includes("nemzeti adó")) suggestedPartner = "Nemzeti Adó- és Vámhivatal"
 
+  // Fetch a department (e.g., Pénzügy or default)
+  let suggestedDepartmentId = ""
+  const { data: dept } = await supabase.from("szervezeti_egyseg").select("id, nev").ilike("nev", text.includes("számla") ? "%Pénzügy%" : "%").limit(1).single()
+  if (dept) suggestedDepartmentId = dept.id
+
+  // Fetch an archive item type (e.g., Szerződés)
+  let suggestedIrattariTetelId = ""
+  const { data: irattari } = await supabase.from("irattari_terv").select("id, megnevezes").ilike("megnevezes", text.includes("szerződés") ? "%szerződés%" : "%").limit(1).single()
+  if (irattari) suggestedIrattariTetelId = irattari.id
+
   // Simulate network delay for the "AI" feeling
   await new Promise(resolve => setTimeout(resolve, 1500))
 
@@ -142,7 +154,9 @@ export async function generateAISuggestions(iratId: string) {
     success: true,
     suggestions: {
       targy: suggestedTargy,
-      partner: suggestedPartner
+      partner: suggestedPartner,
+      department_id: suggestedDepartmentId,
+      irattari_tetel_id: suggestedIrattariTetelId
     }
   }
 }

@@ -46,7 +46,9 @@ export function IratokLista({ iratok }: { iratok: any[] }) {
               </TableCell>
               <TableCell>{irat.targy}</TableCell>
               <TableCell>
-                <Badge variant="outline" className="capitalize">{irat.irany}</Badge>
+                <Badge variant="outline" className="capitalize">
+                  {{ bejovo: 'Bejövő', kimeno: 'Kimenő', belso: 'Belső' }[irat.irany as string] || irat.irany}
+                </Badge>
               </TableCell>
               <TableCell>
                 <div className="flex flex-col gap-1">

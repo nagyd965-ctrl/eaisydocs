@@ -159,17 +159,85 @@ export async function updateUserPassword(formData: FormData) {
   return { success: true }
 }
 
-export async function simulateNotification() {
+export async function updateUserRole(userId: string, newRole: string, currentMinosites: string, departmentId: string | null) {
   const supabase = await createClient()
-
-  const { error } = await supabase.from("ertesites_naplo").insert({
-    csatorna: "sms",
-    statusz: "sikeres",
-    kikuldes_ideje: new Date().toISOString(),
-    szoveg: "Emlékeztető: A 'Fizetési felszólítás' tárgyú ügyirat (PENZUGY/2026/012-1) határideje holnap lejár!",
-    cimzett: "+36301234567 (Kovács János)"
+  const { error: rpcError } = await supabase.rpc('admin_update_user_profile', {
+    target_user_id: userId,
+    new_role: newRole,
+    new_minosites: currentMinosites,
+    new_department_id: departmentId
   })
 
+  if (rpcError) {
+    return { error: rpcError.message }
+  }
+
+  revalidatePath("/settings")
+  return { success: true }
+}
+
+export async function getDepartments() {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("szervezeti_egyseg")
+    .select("*")
+    .order("nev")
+
+  if (error) {
+    return []
+  }
+  return data
+}
+
+export async function createDepartment(formData: FormData) {
+  const nev = formData.get("nev") as string
+  if (!nev) return { error: "Név megadása kötelező!" }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from("szervezeti_egyseg")
+    .insert({ nev })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath("/settings")
+  return { success: true }
+}
+
+export async function deleteDepartment(id: string) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from("szervezeti_egyseg")
+    .delete()
+    .eq("id", id)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath("/settings")
+  return { success: true }
+}
+
+export async function deleteUser(userId: string) {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) {
+    return { error: "Hiányzik a SUPABASE_SERVICE_ROLE_KEY a .env.local fájlból!" }
+  }
+
+  const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey,
+    {
+      auth: { autoRefreshToken: false, persistSession: false }
+    }
+  )
+
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
+  
   if (error) {
     return { error: error.message }
   }

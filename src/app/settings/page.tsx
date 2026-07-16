@@ -1,4 +1,4 @@
-import { getUserProfile, getTeamMembers } from "./settings-actions"
+import { getUserProfile, getTeamMembers, getDepartments } from "./settings-actions"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,7 @@ import { createClient } from "@/utils/supabase/server"
 export default async function SettingsPage() {
   const { profile, email } = await getUserProfile()
   const { profiles: teamMembers } = await getTeamMembers()
+  const departments = await getDepartments()
 
   const supabase = await createClient()
 
@@ -67,6 +68,13 @@ export default async function SettingsPage() {
             Cég
           </TabsTrigger>
           <TabsTrigger 
+            value="osztalyok" 
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
+          >
+            <Building className="h-4 w-4 mr-2" />
+            Szervezeti Egységek
+          </TabsTrigger>
+          <TabsTrigger 
             value="ertesitesek" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
           >
@@ -94,6 +102,7 @@ export default async function SettingsPage() {
           initialProfile={profile} 
           email={email} 
           teamMembers={teamMembers || []} 
+          departments={departments || []}
           szabalyok={szabalyok || []}
           naplo={naplo || []}
         />

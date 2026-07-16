@@ -13,6 +13,30 @@ export function NewIncomingDialog() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  const [erkezesModja, setErkezesModja] = useState("email")
+  const [adathordozo, setAdathordozo] = useState("elektronikus_eredeti")
+  const [minosites, setMinosites] = useState("nyilt")
+
+  const erkezesModjaMap: Record<string, string> = {
+    posta: "Posta",
+    email: "E-mail",
+    szemelyes: "Személyes",
+    cegkapu: "Cégkapu",
+    fax: "Fax"
+  }
+
+  const adathordozoMap: Record<string, string> = {
+    elektronikus_eredeti: "E-Eredeti",
+    papir_digitalizalt: "Digitalizált (Szkennelt)"
+  }
+
+  const minositesMap: Record<string, string> = {
+    nyilt: "Nyílt (Normál irat)",
+    belso: "Belső használatra",
+    bizalmas: "Bizalmas",
+    szigoruan_bizalmas: "Szigorúan Bizalmas"
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -71,29 +95,29 @@ export function NewIncomingDialog() {
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="erkezes_modja">Érkezés módja</Label>
-                <Select name="erkezes_modja" defaultValue="email" required>
+                <Select name="erkezes_modja" value={erkezesModja} onValueChange={(val) => setErkezesModja(val || "")} required>
                   <SelectTrigger id="erkezes_modja">
-                    <SelectValue placeholder="Válassz..." />
+                    <SelectValue placeholder="Válassz...">{erkezesModjaMap[erkezesModja]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="posta">Posta</SelectItem>
-                    <SelectItem value="email">E-mail</SelectItem>
-                    <SelectItem value="szemelyes">Személyes</SelectItem>
-                    <SelectItem value="cegkapu">Cégkapu</SelectItem>
-                    <SelectItem value="fax">Fax</SelectItem>
+                    <SelectItem value="posta" label="Posta">Posta</SelectItem>
+                    <SelectItem value="email" label="E-mail">E-mail</SelectItem>
+                    <SelectItem value="szemelyes" label="Személyes">Személyes</SelectItem>
+                    <SelectItem value="cegkapu" label="Cégkapu">Cégkapu</SelectItem>
+                    <SelectItem value="fax" label="Fax">Fax</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="grid gap-2">
                 <Label htmlFor="adathordozo_tipus">Adathordozó</Label>
-                <Select name="adathordozo_tipus" defaultValue="elektronikus_eredeti" required>
+                <Select name="adathordozo_tipus" value={adathordozo} onValueChange={(val) => setAdathordozo(val || "")} required>
                   <SelectTrigger id="adathordozo_tipus">
-                    <SelectValue placeholder="Válassz..." />
+                    <SelectValue placeholder="Válassz...">{adathordozoMap[adathordozo]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="elektronikus_eredeti">E-Eredeti</SelectItem>
-                    <SelectItem value="papir_digitalizalt">Digitalizált (Szkennelt)</SelectItem>
+                    <SelectItem value="elektronikus_eredeti" label="E-Eredeti">E-Eredeti</SelectItem>
+                    <SelectItem value="papir_digitalizalt" label="Digitalizált (Szkennelt)">Digitalizált (Szkennelt)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -101,15 +125,15 @@ export function NewIncomingDialog() {
 
             <div className="grid gap-2">
               <Label htmlFor="minosites">Biztonsági Minősítés</Label>
-              <Select name="minosites" defaultValue="nyilt" required>
+              <Select name="minosites" value={minosites} onValueChange={(val) => setMinosites(val || "")} required>
                 <SelectTrigger id="minosites">
-                  <SelectValue placeholder="Válassz minősítést..." />
+                  <SelectValue placeholder="Válassz minősítést...">{minositesMap[minosites]}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="nyilt">Nyílt (Normál irat)</SelectItem>
-                  <SelectItem value="belso">Belső használatra</SelectItem>
-                  <SelectItem value="bizalmas">Bizalmas</SelectItem>
-                  <SelectItem value="szigoruan_bizalmas">Szigorúan Bizalmas</SelectItem>
+                  <SelectItem value="nyilt" label="Nyílt (Normál irat)">Nyílt (Normál irat)</SelectItem>
+                  <SelectItem value="belso" label="Belső használatra">Belső használatra</SelectItem>
+                  <SelectItem value="bizalmas" label="Bizalmas">Bizalmas</SelectItem>
+                  <SelectItem value="szigoruan_bizalmas" label="Szigorúan Bizalmas">Szigorúan Bizalmas</SelectItem>
                 </SelectContent>
               </Select>
             </div>

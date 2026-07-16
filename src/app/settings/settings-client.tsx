@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,11 +10,13 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { User, Users, UserPlus, ChevronRight, Key, Clock, Shield, Save, BellRing, Smartphone, Mail, CheckCircle2, AlertCircle, ShieldCheck, FileText } from "lucide-react"
 import Link from "next/link"
-import { updateProfile, createNewUser, updateUserPassword, simulateNotification } from "./settings-actions"
+import { updateProfile, createNewUser, updateUserPassword, updateUserRole } from "./settings-actions"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 
-export function SettingsClient({ initialProfile, email, teamMembers, szabalyok, naplo }: { initialProfile: any, email: string | undefined, teamMembers: any[], szabalyok?: any[], naplo?: any[] }) {
+export function SettingsClient({ initialProfile, email, teamMembers, departments, szabalyok, naplo }: { initialProfile: any, email: string | undefined, teamMembers: any[], departments?: any[], szabalyok?: any[], naplo?: any[] }) {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
@@ -21,7 +24,21 @@ export function SettingsClient({ initialProfile, email, teamMembers, szabalyok, 
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
-  const [simulateLoading, setSimulateLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [editRoleDialogOpen, setEditRoleDialogOpen] = useState(false)
+  const [selectedMember, setSelectedMember] = useState<any>(null)
+  const [selectedMemberRole, setSelectedMemberRole] = useState<string>("")
+  const [selectedMemberDepartment, setSelectedMemberDepartment] = useState<string>("")
+  const [editRoleLoading, setEditRoleLoading] = useState(false)
+  const [departmentLoading, setDepartmentLoading] = useState(false)
+
+  const roleMap: Record<string, string> = {
+    admin: "Admin",
+    rendszergazda: "Rendszergazda",
+    vezeto: "Vezető",
+    iktato: "Iktató",
+    ugyintezo: "Ügyintéző"
+  }
 
   async function handleProfileSave(formData: FormData) {
     setLoading(true)
@@ -83,21 +100,49 @@ export function SettingsClient({ initialProfile, email, teamMembers, szabalyok, 
           </CardHeader>
           <CardContent className="px-0 py-4 space-y-3">
             {teamMembers?.map((member) => (
-              <div key={member.id} className="flex items-center justify-between p-4 bg-card border rounded-xl hover:border-border/80 transition-colors">
+              <div 
+                key={member.id} 
+                className="flex items-center justify-between p-4 bg-card border rounded-xl hover:border-primary/50 hover:bg-muted/50 cursor-pointer transition-all group"
+                onClick={() => {
+                  setSelectedMember(member)
+                  setSelectedMemberRole(member.szerepkor || "")
+                  setSelectedMemberDepartment(member.szervezeti_egyseg_id || "none")
+                  setEditRoleDialogOpen(true)
+                }}
+              >
                 <div className="flex items-center space-x-4">
                   <div className="h-10 w-10 shrink-0 bg-[#02b8cc] rounded-full flex items-center justify-center font-bold text-sm text-white">
                     {member.nev?.substring(0, 1).toUpperCase() || "?"}
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-foreground">{member.nev}</p>
-                    <p className="text-xs text-muted-foreground">{member.pozicio || member.szerepkor || "Nincs megadva"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {member.pozicio || member.szerepkor || "Nincs megadva"} 
+                      {departments?.find(d => d.id === member.szervezeti_egyseg_id) && 
+                        ` • ${departments.find(d => d.id === member.szervezeti_egyseg_id)?.nev}`
+                      }
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <div className="px-2 py-1 bg-muted rounded-md text-[10px] font-semibold tracking-wider text-[#02b8cc] uppercase">
+                <div className="flex items-center space-x-4">
+                  <Badge variant="secondary" className="uppercase font-semibold text-[10px] tracking-wider">
                     {member.szerepkor}
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </Badge>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      if (confirm(`Biztosan törlöd a következő felhasználót: ${member.nev}?`)) {
+                        const { deleteUser } = await import("./settings-actions")
+                        const res = await deleteUser(member.id)
+                        if (res.error) alert(res.error)
+                      }
+                    }}
+                  >
+                    Törlés
+                  </Button>
                 </div>
               </div>
             ))}
@@ -168,9 +213,163 @@ export function SettingsClient({ initialProfile, email, teamMembers, szabalyok, 
                 </form>
               </DialogContent>
             </Dialog>
+
+            <Dialog open={editRoleDialogOpen} onOpenChange={setEditRoleDialogOpen}>
+              <DialogContent className="sm:max-w-[425px]">
+                <form action={async (formData) => {
+                  if (!selectedMember) return
+                  setEditRoleLoading(true)
+                  const newRole = formData.get("role") as string
+                  const newDept = formData.get("departmentId") as string
+                  const deptId = newDept === "none" ? null : newDept
+                  const res = await updateUserRole(selectedMember.id, newRole, selectedMember.max_minosites, deptId)
+                  setEditRoleLoading(false)
+                  if (res.error) {
+                    alert("Hiba: " + res.error)
+                  } else {
+                    setEditRoleDialogOpen(false)
+                  }
+                }}>
+                  <DialogHeader>
+                    <DialogTitle>Szerepkör Módosítása</DialogTitle>
+                    <DialogDescription>
+                      Módosíthatod a(z) <span className="font-semibold text-foreground">{selectedMember?.nev}</span> fiók jogosultságát.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-role">Új Szerepkör</Label>
+                      <Select name="role" value={selectedMemberRole} onValueChange={(val) => setSelectedMemberRole(val || "")} required>
+                        <SelectTrigger id="edit-role">
+                          <SelectValue placeholder="Válassz...">{roleMap[selectedMemberRole]}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="rendszergazda">Rendszergazda</SelectItem>
+                          <SelectItem value="vezeto">Vezető</SelectItem>
+                          <SelectItem value="iktato">Iktató</SelectItem>
+                          <SelectItem value="ugyintezo">Ügyintéző</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-dept">Szervezeti Egység</Label>
+                      <Select name="departmentId" value={selectedMemberDepartment} onValueChange={(val) => setSelectedMemberDepartment(val || "none")}>
+                        <SelectTrigger id="edit-dept">
+                          <SelectValue placeholder="Nincs beosztva">
+                            {selectedMemberDepartment === "none" ? "Nincs beosztva" : departments?.find((d: any) => d.id === selectedMemberDepartment)?.nev}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nincs beosztva</SelectItem>
+                          {departments?.map(dept => (
+                            <SelectItem key={dept.id} value={dept.id}>{dept.nev}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setEditRoleDialogOpen(false)}>Mégsem</Button>
+                    <Button type="submit" disabled={editRoleLoading}>
+                      {editRoleLoading ? "Mentés..." : "Mentés"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           </div>
         </Card>
       </TabsContent>
+
+        <TabsContent value="osztalyok" className="space-y-4">
+          <Card className="rounded-none shadow-sm">
+            <CardHeader>
+              <CardTitle>Szervezeti Egységek</CardTitle>
+              <CardDescription>
+                A cég osztályainak (részlegeinek) kezelése.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <form action={async (formData) => {
+                  setDepartmentLoading(true)
+                  const { createDepartment } = await import("./settings-actions")
+                  const res = await createDepartment(formData)
+                  setDepartmentLoading(false)
+                  if (res.error) alert(res.error)
+                  else (document.getElementById("new-dept-form") as HTMLFormElement)?.reset()
+                }} id="new-dept-form" className="flex items-end gap-4">
+                  <div className="space-y-2 flex-1 max-w-sm">
+                    <Label htmlFor="nev">Új szervezeti egység neve</Label>
+                    <Input id="nev" name="nev" placeholder="Pl. Pénzügy, HR, Értékesítés" required />
+                  </div>
+                  <Button type="submit" disabled={departmentLoading}>Hozzáadás</Button>
+                </form>
+
+                <div className="rounded-md border mt-6">
+                  <div className="grid grid-cols-1">
+                    {departments?.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">Még nincsenek szervezeti egységek.</div>
+                    ) : (
+                      <Accordion className="w-full">
+                        {departments?.map((dept) => {
+                          const deptUsers = teamMembers?.filter(m => m.szervezeti_egyseg_id === dept.id) || [];
+                          return (
+                          <AccordionItem key={dept.id} value={dept.id} className="relative">
+                            <div className="flex items-center w-full justify-between pr-4 group">
+                              <AccordionTrigger className="flex-1 hover:no-underline py-4 px-4 justify-start gap-4">
+                                <div>
+                                  <p className="text-sm font-semibold text-foreground text-left">{dept.nev}</p>
+                                  <p className="text-xs text-muted-foreground font-normal text-left">{deptUsers.length} tag</p>
+                                </div>
+                              </AccordionTrigger>
+                              <Button 
+                                variant="destructive" 
+                                size="sm"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (confirm("Biztosan törlöd ezt a szervezeti egységet?")) {
+                                    const { deleteDepartment } = await import("./settings-actions")
+                                    const res = await deleteDepartment(dept.id)
+                                    if (res.error) alert(res.error)
+                                  }
+                                }}
+                              >
+                                Törlés
+                              </Button>
+                            </div>
+                            <AccordionContent className="px-4 pb-4">
+                              {deptUsers.length > 0 ? (
+                                <ul className="space-y-2 mt-2 border-t pt-4">
+                                  {deptUsers.map(u => (
+                                    <li key={u.id} className="flex items-center gap-3 p-2 bg-muted/30 rounded-md">
+                                      <div className="h-8 w-8 shrink-0 bg-[#02b8cc] rounded-full flex items-center justify-center font-bold text-xs text-white">
+                                        {u.nev?.substring(0, 1).toUpperCase() || "?"}
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-medium">{u.nev}</p>
+                                        <p className="text-xs text-muted-foreground uppercase">{u.szerepkor}</p>
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="text-xs text-muted-foreground mt-2 border-t pt-4">Ebben az osztályban nincsenek felhasználók.</p>
+                              )}
+                            </AccordionContent>
+                          </AccordionItem>
+                        )})}
+                      </Accordion>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
       {/* 4. TAB: ÉRTESÍTÉSEK */}
       <TabsContent value="ertesitesek" className="space-y-6 outline-none">
@@ -219,18 +418,6 @@ export function SettingsClient({ initialProfile, email, teamMembers, szabalyok, 
               <CardTitle className="text-xl">Kiküldési Napló</CardTitle>
               <CardDescription>A rendszer által generált és elküldött valós üzenetek (Audit trail)</CardDescription>
             </div>
-            <Button 
-              onClick={async () => {
-                setSimulateLoading(true)
-                await simulateNotification()
-                setSimulateLoading(false)
-              }}
-              disabled={simulateLoading}
-              variant="outline" 
-              className="bg-primary/5 hover:bg-primary/10 text-primary border-primary/20"
-            >
-              {simulateLoading ? "Szimulálás..." : "Teszt SMS Szimulálása"}
-            </Button>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto rounded-md border">

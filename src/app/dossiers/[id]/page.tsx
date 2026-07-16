@@ -9,6 +9,7 @@ import { IratokLista } from "@/components/iratok-lista"
 import { createClient } from "@/utils/supabase/server"
 import { CloseDossierButton } from "@/components/close-dossier-button"
 import { PolymorphicLinksTab } from "@/components/polymorphic-links-tab"
+import { AssignDossierDialog } from "@/components/assign-dossier-dialog"
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "lezart" || status === "elintezett") return <Badge variant="outline" className="bg-success-subtle text-success border-success-subtle capitalize">{status}</Badge>
@@ -27,7 +28,8 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       id,
       iktatoszam,
       statusz,
-      ugy ( targy, hatarido, statusz ),
+      szervezeti_egyseg_id,
+      ugy ( id, targy, hatarido, statusz, felelos_user_id ),
       irat (
         id,
         erkeztetoszam,
@@ -44,6 +46,32 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
     `)
     .eq("id", id)
     .single();
+
+  const { data: users } = await supabase
+    .from("felhasznalo_profil")
+    .select("id, nev, szerepkor, szervezeti_egyseg_id")
+
+  // Current user role check
+  const { data: authUser } = await supabase.auth.getUser()
+  const { data: currentUserProfile } = await supabase
+    .from("felhasznalo_profil")
+    .select("szerepkor")
+    .eq("id", authUser?.user?.id || "")
+    .single()
+  
+  const canAssign = !!(currentUserProfile && ['admin', 'rendszergazda', 'vezeto', 'iktato'].includes(currentUserProfile.szerepkor))
+
+  // Map user names
+  const userMap = (users || []).reduce((acc: any, user: any) => {
+    acc[user.id] = user.nev
+    return acc
+  }, {})
+
+  if (dossier && (dossier.ugy as any)?.felelos_user_id) {
+    (dossier.ugy as any).felelos_user = {
+      full_name: userMap[(dossier.ugy as any).felelos_user_id]
+    }
+  }
 
   if (!dossier) {
     return (
@@ -73,7 +101,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
     .from("esemeny_naplo")
     .select("*")
     .eq("entitas_id", id)
-    .order("tortent", { ascending: false });
+    .order("tortent", { ascending: true });
 
   const timelineEvents: TimelineEvent[] = (logs || []).map((log: any) => {
     let title = log.esemeny_tipus;
@@ -86,6 +114,11 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       description = `Iktatószám kiosztva: ${log.uj_ertek?.iktatoszam || "-"}`;
       icon = FolderPlus;
       color = "text-primary";
+    } else if (log.esemeny_tipus === "szignalva" || log.esemeny_tipus === "hozzaferes_modositas") {
+      title = "Ügyirat szignálva";
+      description = log.reszletek || "";
+      icon = Users;
+      color = "text-warning";
     }
 
     return {
@@ -139,7 +172,21 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">Kiosztatlan</div>
+                <div className="text-2xl font-bold">
+                  <AssignDossierDialog 
+                    ugyirat_id={dossier.id} 
+                    ugy_id={(dossier.ugy as any)?.id} 
+                    szervezeti_egyseg_id={dossier.szervezeti_egyseg_id || null}
+                    users={users || []}
+                    currentFelelosId={(dossier.ugy as any)?.felelos_user_id}
+                    currentHatarido={(dossier.ugy as any)?.hatarido}
+                    canAssign={canAssign}
+                  >
+                    <span className={canAssign ? "cursor-pointer hover:underline" : ""}>
+                      {((dossier.ugy as any)?.felelos_user as any)?.full_name || "Kiosztatlan"}
+                    </span>
+                  </AssignDossierDialog>
+                </div>
                 <p className="text-xs text-muted-foreground">-</p>
               </CardContent>
             </Card>

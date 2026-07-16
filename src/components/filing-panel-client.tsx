@@ -15,12 +15,14 @@ export function FilingPanelClient({
   irat, 
   pdfUrl,
   tervek,
-  ugyiratok
+  ugyiratok,
+  departments
 }: { 
   irat: any, 
   pdfUrl: string | null,
   tervek: any[],
-  ugyiratok: any[]
+  ugyiratok: any[],
+  departments?: any[]
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -28,6 +30,8 @@ export function FilingPanelClient({
   const [mode, setMode] = useState<"new" | "existing">("new")
   const [aiLoading, setAiLoading] = useState(false)
   const [targy, setTargy] = useState(irat.targy || "")
+  const [ugytipusId, setUgytipusId] = useState<string>("")
+  const [departmentId, setDepartmentId] = useState<string>("")
 
   const handleAiSuggest = async () => {
     setAiLoading(true)
@@ -38,6 +42,12 @@ export function FilingPanelClient({
     } else if (result.suggestions) {
       if (result.suggestions.targy) {
         setTargy(result.suggestions.targy)
+      }
+      if (result.suggestions.irattari_tetel_id) {
+        setUgytipusId(result.suggestions.irattari_tetel_id)
+      }
+      if (result.suggestions.department_id) {
+        setDepartmentId(result.suggestions.department_id)
       }
     }
     setAiLoading(false)
@@ -171,8 +181,8 @@ export function FilingPanelClient({
 
                   <div className="space-y-2">
                     <Label htmlFor="ugytipus_id">Irattári Tétel (Ügytípus)</Label>
-                    <Select name="ugytipus_id" required={mode === "new"}>
-                      <SelectTrigger id="ugytipus_id">
+                    <Select name="ugytipus_id" required={mode === "new"} value={ugytipusId} onValueChange={(v) => setUgytipusId(v || "")}>
+                      <SelectTrigger id="ugytipus_id" className={aiLoading ? "animate-pulse bg-muted" : ""}>
                         <SelectValue placeholder="Válassz típust...">
                           {(value) => {
                             const item = tervek.find(t => t.id === value);
@@ -185,6 +195,25 @@ export function FilingPanelClient({
                           <SelectItem key={t.id} value={t.id} label={`${t.tetelszam} - ${t.megnevezes}`}>
                             {t.tetelszam} - {t.megnevezes}
                           </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="department_id">Szervezeti Egység (Osztály)</Label>
+                    <Select name="department_id" required={mode === "new"} value={departmentId} onValueChange={(v) => setDepartmentId(v || "")}>
+                      <SelectTrigger id="department_id" className={aiLoading ? "animate-pulse bg-muted" : ""}>
+                        <SelectValue placeholder="Válassz szervezeti egységet...">
+                          {(value: string) => {
+                            const dept = departments?.find((d: any) => d.id === value);
+                            return dept ? dept.nev : "Válassz szervezeti egységet...";
+                          }}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments?.map((dept: any) => (
+                          <SelectItem key={dept.id} value={dept.id}>{dept.nev}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

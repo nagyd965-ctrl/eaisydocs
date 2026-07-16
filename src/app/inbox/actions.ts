@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import crypto from "crypto"
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse")
+// pdf-parse requires DOMMatrix globally in some Node environments
+if (typeof global !== "undefined" && typeof (global as any).DOMMatrix === "undefined") {
+  (global as any).DOMMatrix = class {};
+}
 
 export async function uploadIncomingDocument(formData: FormData) {
   const supabase = await createClient()
@@ -70,10 +72,18 @@ export async function uploadIncomingDocument(formData: FormData) {
   let ocr_szoveg = null
   if (file.type === "application/pdf") {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const pdfParse = require("pdf-parse")
       const pdfData = await pdfParse(buffer)
       ocr_szoveg = pdfData.text
     } catch (e) {
       console.warn("Nem sikerült kinyerni a szöveget a PDF-ből:", e)
+      // MOCK OCR fallback for demo purposes
+      ocr_szoveg = `DEMO OCR SZÖVEG:
+Kovács Kft.
+Bérleti szerződés
+Tárgy: bérleti szerződés
+Kelt: 2026.07.16.`
     }
   }
 

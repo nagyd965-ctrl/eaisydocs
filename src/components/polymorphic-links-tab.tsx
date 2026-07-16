@@ -26,9 +26,32 @@ export function PolymorphicLinksTab({
   const [loading, setLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   
+  const [iratId, setIratId] = useState<string>("")
   const [entitasTipus, setEntitasTipus] = useState<string>("")
   const [entitasForras, setEntitasForras] = useState<string>("")
   const [kapcsolatTipus, setKapcsolatTipus] = useState<string>("")
+
+  const entitasTipusMap: Record<string, string> = {
+    partner: "Partner",
+    tranzakcio: "Tranzakció",
+    folyamat: "Folyamat",
+    projekt: "Projekt",
+    szerzodes: "Szerződés",
+    szamla: "Számla"
+  }
+
+  const entitasForrasMap: Record<string, string> = {
+    belso: "Belső (Saját)",
+    erp: "ERP",
+    crm: "CRM"
+  }
+
+  const kapcsolatTipusMap: Record<string, string> = {
+    targya: "Tárgya",
+    melleklete: "Melléklete",
+    hivatkozas: "Hivatkozás",
+    elozmeny: "Előzmény"
+  }
 
   const handleDelete = async (id: string) => {
     if (!confirm("Biztosan törlöd ezt a kapcsolatot?")) return
@@ -56,6 +79,8 @@ export function PolymorphicLinksTab({
     } else {
       setOpen(false)
       // reset form state
+      // reset form state
+      setIratId("")
       setEntitasTipus("")
       setEntitasForras("")
       setKapcsolatTipus("")
@@ -85,9 +110,14 @@ export function PolymorphicLinksTab({
             <form onSubmit={handleAdd} className="space-y-4 mt-4">
               <div className="space-y-2">
                 <Label>Kapcsolódó Irat (Opcionális)</Label>
-                <Select name="irat_id">
+                <Select name="irat_id" value={iratId} onValueChange={(val) => setIratId(val || "")}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Egész ügyiratra vonatkozik" />
+                    <SelectValue placeholder="Egész ügyiratra vonatkozik">
+                      {iratId ? (() => {
+                        const i = iratok.find(i => i.id === iratId);
+                        return i ? `${i.erkeztetoszam} - ${i.targy}` : iratId;
+                      })() : "Egész ügyiratra vonatkozik"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">Egész ügyiratra vonatkozik</SelectItem>
@@ -103,7 +133,7 @@ export function PolymorphicLinksTab({
                   <Label>Entitás Típusa</Label>
                   <Select value={entitasTipus} onValueChange={(val) => setEntitasTipus(val || "")}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Válassz..." />
+                      <SelectValue placeholder="Válassz...">{entitasTipusMap[entitasTipus]}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="partner">Partner</SelectItem>
@@ -119,7 +149,7 @@ export function PolymorphicLinksTab({
                   <Label>Forrás Rendszer</Label>
                   <Select value={entitasForras} onValueChange={(val) => setEntitasForras(val || "")}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Válassz..." />
+                      <SelectValue placeholder="Válassz...">{entitasForrasMap[entitasForras]}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="belso">Belső (Saját)</SelectItem>
@@ -139,7 +169,7 @@ export function PolymorphicLinksTab({
                 <Label>Kapcsolat Jellege</Label>
                 <Select value={kapcsolatTipus} onValueChange={(val) => setKapcsolatTipus(val || "")}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Válassz..." />
+                    <SelectValue placeholder="Válassz...">{kapcsolatTipusMap[kapcsolatTipus]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="targya">Tárgya</SelectItem>

@@ -51,6 +51,11 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
     .in("statusz", ["iktatva", "szignalt", "ugyintezes_alatt"])
     .order("iktatas_datuma", { ascending: false })
 
+  const { data: departments } = await supabase
+    .from("szervezeti_egyseg")
+    .select("id, nev")
+    .order("nev")
+
   return (
     <div className="h-[calc(100vh-6rem)] overflow-hidden rounded-md border bg-background shadow-sm">
       <FilingPanelClient 
@@ -58,6 +63,7 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
         pdfUrl={pdfUrl} 
         tervek={tervek || []} 
         ugyiratok={aktivUgyiratok || []} 
+        departments={departments || []}
       />
     </div>
   )

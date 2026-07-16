@@ -16,6 +16,21 @@ export function SearchClientPage() {
   const [loading, setLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
 
+  const iranyMap: Record<string, string> = {
+    all: "Minden irány",
+    bejovo: "Bejövő",
+    kimeno: "Kimenő",
+    belso: "Belső"
+  }
+
+  const minositesMap: Record<string, string> = {
+    all: "Minden minősítés",
+    nyilt: "Nyílt",
+    belso: "Belső",
+    bizalmas: "Bizalmas",
+    szigoruan_bizalmas: "Szigorúan bizalmas"
+  }
+
   const handleSearch = async () => {
     setLoading(true)
     setHasSearched(true)
@@ -54,7 +69,7 @@ export function SearchClientPage() {
         
         <Select value={filters.irany} onValueChange={(val) => setFilters(prev => ({ ...prev, irany: val || "all" }))}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Irány" />
+            <SelectValue placeholder="Irány">{iranyMap[filters.irany]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Minden irány</SelectItem>
@@ -66,7 +81,7 @@ export function SearchClientPage() {
 
         <Select value={filters.minosites} onValueChange={(val) => setFilters(prev => ({ ...prev, minosites: val || "all" }))}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Minősítés" />
+            <SelectValue placeholder="Minősítés">{minositesMap[filters.minosites]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Minden minősítés</SelectItem>
