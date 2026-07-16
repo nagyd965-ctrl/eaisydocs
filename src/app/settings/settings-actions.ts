@@ -72,6 +72,7 @@ export async function getTeamMembers() {
 
 export async function createNewUser(formData: FormData) {
   const email = (formData.get("email") as string)?.trim()
+  const nev = (formData.get("nev") as string)?.trim()
   const password = formData.get("password") as string
   const role = formData.get("role") as string
   const clearance = formData.get("clearance") as string
@@ -112,6 +113,14 @@ export async function createNewUser(formData: FormData) {
   const newUserId = signUpData.user?.id
   if (!newUserId) {
     return { error: "Nem sikerült létrehozni a felhasználót." }
+  }
+
+  // Update profile with the provided full name if it exists
+  if (nev) {
+    await supabaseAdmin
+      .from("felhasznalo_profil")
+      .update({ nev })
+      .eq("id", newUserId)
   }
 
   // Use the logged in admin's client to call the RPC and set roles

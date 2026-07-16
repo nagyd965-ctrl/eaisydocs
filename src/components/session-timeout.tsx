@@ -109,7 +109,7 @@ export function SessionTimeout({ timeoutMinutes }: SessionTimeoutProps) {
           </DialogDescription>
         </DialogHeader>
         <div className="flex justify-center py-6">
-          <div className="text-4xl font-bold text-orange-500">
+          <div className="text-4xl font-semibold text-warning">
             00:{countdown.toString().padStart(2, '0')}
           </div>
         </div>

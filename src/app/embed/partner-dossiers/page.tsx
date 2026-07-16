@@ -71,10 +71,12 @@ export default async function PartnerDossiersEmbed(props: { searchParams: Promis
 
   const getStatusColor = (status: string) => {
     switch(status) {
-      case 'iktatva': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-      case 'szignalt': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
-      case 'ugyintezes_alatt': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
-      case 'lezart': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+      case 'iktatva': return 'bg-info/10 text-info dark:bg-info/20 dark:text-info'
+      case 'szignalt': return 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
+      case 'ugyintezes_alatt': return 'bg-warning/10 text-warning-foreground dark:bg-warning/20 dark:text-warning'
+      case 'lezart': return 'bg-success/10 text-success dark:bg-success/20 dark:text-success'
+      case 'irattarban': return 'bg-muted text-muted-foreground dark:bg-muted/50 dark:text-muted-foreground'
+      case 'selejtezheto': return 'bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive'
       default: return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-400'
     }
   }

@@ -60,7 +60,7 @@ export function AppSidebar() {
       <SidebarHeader className="h-16 flex justify-center flex-col px-4 border-b">
         <div className="text-2xl flex items-center">
           <span className="font-medium text-foreground/80">e</span>
-          <span className="font-bold text-primary">ai</span>
+          <span className="font-semibold text-primary">ai</span>
           <span className="font-medium text-foreground/80">sy</span>
           <span className="font-medium text-primary">Docs</span>
         </div>

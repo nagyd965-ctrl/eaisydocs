@@ -13,7 +13,7 @@ export default async function LoginPage(props: {
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
       <Card className="mx-auto max-w-sm w-full">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold flex items-center justify-center gap-1 mb-2">
+          <CardTitle className="text-2xl font-semibold flex items-center justify-center gap-1 mb-2">
             <span className="text-foreground/80">e</span>
             <span className="text-primary">ai</span>
             <span className="text-foreground/80">sy</span>

@@ -23,7 +23,7 @@ export default async function ArchivePage() {
       iktatoszam,
       statusz,
       megorzesi_ido_vege,
-      ugy ( targy ),
+      ugy ( targy, statusz ),
       irat ( count )
     `)
     .in("statusz", ["lezart", "irattarban", "selejtezheto"])
@@ -32,15 +32,20 @@ export default async function ArchivePage() {
   // Categorize
   const archivedDossiers = []
   const scrappingSuggestions = []
+  const pendingApprovals = []
   const scrappedDossiers = []
 
   if (dossiers) {
     for (const d of dossiers) {
-      if (d.statusz === "selejtezheto") {
+      // @ts-ignore
+      const ugyStatusz = d.ugy?.statusz
+
+      if (ugyStatusz === "selejtezett") {
         scrappedDossiers.push(d)
+      } else if (d.statusz === "selejtezheto") {
+        pendingApprovals.push(d)
       } else {
         archivedDossiers.push(d)
-        // If it's archived/lezart and the retention date has passed, it's a suggestion
         if (d.megorzesi_ido_vege && d.megorzesi_ido_vege <= todayStr) {
           scrappingSuggestions.push(d)
         }
@@ -52,12 +57,13 @@ export default async function ArchivePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Irattár és Selejtezés</h1>
-        <p className="text-muted-foreground">Lezárt és archivált ügyiratok, valamint a selejtezésre váró dokumentumok.</p>
+        <p className="text-muted-foreground">Lezárt ügyiratok, selejtezési javaslatok és jóváhagyandó selejtezések.</p>
       </div>
 
       <ArchiveClient 
         archivedDossiers={archivedDossiers} 
         scrappingSuggestions={scrappingSuggestions} 
+        pendingApprovals={pendingApprovals}
         scrappedDossiers={scrappedDossiers} 
       />
     </div>

@@ -49,9 +49,9 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     }
   }, [pathname])
 
-  if (pathname === "/login" || pathname.startsWith("/embed")) {
+  if (pathname === "/login" || pathname.startsWith("/embed") || pathname.startsWith("/archive/print")) {
     return (
-      <main className="flex-1 w-full flex flex-col bg-background h-screen">
+      <main className="flex-1 w-full flex flex-col bg-white print:bg-white h-screen">
         {children}
       </main>
     )

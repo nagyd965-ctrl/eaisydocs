@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation"
 
 export function SidebarFooterContent() {
   const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<any>(null)
   const supabase = createClient()
   const router = useRouter()
   const { state, toggleSidebar } = useSidebar()
@@ -20,6 +21,17 @@ export function SidebarFooterContent() {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
         setUser(data.user)
+        // Keresd meg a profilt is
+        supabase
+          .from("felhasznalo_profil")
+          .select("nev")
+          .eq("id", data.user.id)
+          .single()
+          .then(({ data: profileData }) => {
+            if (profileData) {
+              setProfile(profileData)
+            }
+          })
       }
     })
   }, [])
@@ -33,10 +45,11 @@ export function SidebarFooterContent() {
 
   // Ha a sidebar össze van csukva, egy minimalista nézetet adunk vissza
   if (state === "collapsed") {
+    const initials = profile?.nev ? profile.nev.substring(0, 2).toUpperCase() : user.email?.substring(0, 2).toUpperCase()
     return (
       <div className="flex flex-col items-center gap-4 py-2 border-t mt-auto">
         <div className="h-8 w-8 bg-muted rounded-full flex items-center justify-center font-medium text-xs">
-          {user.email?.substring(0, 2).toUpperCase()}
+          {initials}
         </div>
         <Button variant="ghost" size="icon" onClick={toggleSidebar}>
           <PanelLeftOpen className="h-4 w-4 text-muted-foreground" />
@@ -51,10 +64,10 @@ export function SidebarFooterContent() {
       <div className="flex items-center justify-between p-2">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="h-10 w-10 shrink-0 bg-muted rounded-full flex items-center justify-center font-medium text-sm text-muted-foreground uppercase">
-            {user.email?.substring(0, 2)}
+            {profile?.nev ? profile.nev.substring(0, 2) : user.email?.substring(0, 2)}
           </div>
           <div className="flex flex-col overflow-hidden">
-            <span className="text-sm font-medium truncate">Felhasználó</span>
+            <span className="text-sm font-medium truncate">{profile?.nev || "Felhasználó"}</span>
             <span className="text-xs text-muted-foreground truncate">{user.email}</span>
           </div>
         </div>

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/table"
 import { Building2 } from "lucide-react"
 import Link from "next/link"
+import { PartnerDialog } from "@/components/partner-dialog"
 
 export default async function PartnersPage() {
   const supabase = await createClient()
@@ -20,6 +21,7 @@ export default async function PartnersPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Partnerek</h2>
+        <PartnerDialog />
       </div>
       <p className="text-muted-foreground">
         A rendszerben rögzített partnerek és ügyfelek listája.

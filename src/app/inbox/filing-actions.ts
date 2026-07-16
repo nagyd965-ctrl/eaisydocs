@@ -99,17 +99,22 @@ export async function generateAISuggestions(iratId: string) {
   const supabase = await createClient()
   
   // 1. Fetch the OCR text for this document
-  const { data: fileData, error } = await supabase
+  const { data: files, error } = await supabase
     .from("irat_fajl")
     .select("ocr_szoveg")
     .eq("irat_id", iratId)
-    .single()
 
-  if (error || !fileData || !fileData.ocr_szoveg) {
+  if (error || !files || files.length === 0) {
+    return { error: "Nem található fájl az ügyirathoz." }
+  }
+
+  // Megkeressük az első olyan fájlt, aminek van OCR szövege
+  const fileWithOcr = files.find(f => f.ocr_szoveg && f.ocr_szoveg.trim() !== "")
+  if (!fileWithOcr) {
     return { error: "Nem található OCR szöveg az AI elemzéshez." }
   }
 
-  const text = fileData.ocr_szoveg.toLowerCase()
+  const text = fileWithOcr.ocr_szoveg.toLowerCase()
   
   // 2. MOCK AI / Heuristics Logic
   // This simulates an LLM call parsing the document text.

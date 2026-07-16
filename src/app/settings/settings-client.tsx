@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -15,8 +15,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { useTheme } from "next-themes"
 
 export function SettingsClient({ initialProfile, email, teamMembers, departments, szabalyok, naplo }: { initialProfile: any, email: string | undefined, teamMembers: any[], departments?: any[], szabalyok?: any[], naplo?: any[] }) {
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
@@ -39,6 +42,11 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
     iktato: "Iktató",
     ugyintezo: "Ügyintéző"
   }
+
+  // Handle hydration for next-themes
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   async function handleProfileSave(formData: FormData) {
     setLoading(true)
@@ -70,16 +78,22 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="nev">Teljes név</Label>
-                  <Input id="nev" name="nev" defaultValue={initialProfile?.nev || ""} className="bg-muted/50" />
+                  <Input id="nev" name="nev" defaultValue={initialProfile?.nev || ""} className="bg-background" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="pozicio">Pozíció</Label>
-                  <Input id="pozicio" name="pozicio" defaultValue={initialProfile?.pozicio || ""} placeholder="pl. Rendszergazda-iratkezelő" className="bg-muted/50" />
+                  <Label htmlFor="email">Email cím</Label>
+                  <Input id="email" value={email || ""} disabled className="bg-muted/50 cursor-not-allowed opacity-70" />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="ceg_neve">Cég neve</Label>
-                <Input id="ceg_neve" name="ceg_neve" defaultValue={initialProfile?.ceg_neve || ""} className="bg-muted/50" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="pozicio">Pozíció</Label>
+                  <Input id="pozicio" name="pozicio" defaultValue={initialProfile?.pozicio || ""} placeholder="pl. Rendszergazda-iratkezelő" className="bg-background" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ceg_neve">Cég neve</Label>
+                  <Input id="ceg_neve" name="ceg_neve" defaultValue={initialProfile?.ceg_neve || ""} className="bg-background" />
+                </div>
               </div>
             </CardContent>
             <CardFooter>
@@ -111,7 +125,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                 }}
               >
                 <div className="flex items-center space-x-4">
-                  <div className="h-10 w-10 shrink-0 bg-[#02b8cc] rounded-full flex items-center justify-center font-bold text-sm text-white">
+                  <div className="h-10 w-10 shrink-0 bg-primary rounded-full flex items-center justify-center font-semibold text-sm text-primary-foreground">
                     {member.nev?.substring(0, 1).toUpperCase() || "?"}
                   </div>
                   <div>
@@ -176,6 +190,10 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="nev">Teljes név</Label>
+                      <Input id="nev" name="nev" placeholder="Kovács János" required />
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email cím</Label>
                       <Input id="email" name="email" type="email" placeholder="munkatars@ceg.hu" required />
@@ -346,7 +364,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                                 <ul className="space-y-2 mt-2 border-t pt-4">
                                   {deptUsers.map(u => (
                                     <li key={u.id} className="flex items-center gap-3 p-2 bg-muted/30 rounded-md">
-                                      <div className="h-8 w-8 shrink-0 bg-[#02b8cc] rounded-full flex items-center justify-center font-bold text-xs text-white">
+                                      <div className="h-8 w-8 shrink-0 bg-primary rounded-full flex items-center justify-center font-semibold text-xs text-primary-foreground">
                                         {u.nev?.substring(0, 1).toUpperCase() || "?"}
                                       </div>
                                       <div>
@@ -506,7 +524,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
               {/* Jelszó módosítás */}
             <div className="flex items-center justify-between p-4 bg-muted/30 border rounded-xl hover:bg-muted/50 transition-colors">
               <div className="flex items-center space-x-4">
-                <div className="h-10 w-10 shrink-0 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center">
+                <div className="h-10 w-10 shrink-0 bg-info/10 text-info rounded-lg flex items-center justify-center">
                   <Key className="h-5 w-5" />
                 </div>
                 <div>
@@ -593,6 +611,81 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
             </Button>
           </CardFooter>
         </form>
+        </Card>
+      </TabsContent>
+
+      {/* RENDSZER BEÁLLÍTÁSOK */}
+      <TabsContent value="rendszer" className="space-y-4 outline-none">
+        <Card className="border-border shadow-sm border-none bg-transparent shadow-none">
+          <CardHeader className="px-6 pb-6 pt-0 border-b">
+            <CardTitle className="text-xl">Rendszer beállítások</CardTitle>
+            <CardDescription>Téma és megjelenítési beállítások</CardDescription>
+          </CardHeader>
+          <CardContent className="px-6 pt-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="theme-select">Téma</Label>
+                <Select value={theme || "system"} onValueChange={setTheme}>
+                  <SelectTrigger id="theme-select" className="bg-background">
+                    <SelectValue placeholder="Válassz témát">
+                      {mounted && theme === 'light' && 'Világos'}
+                      {mounted && theme === 'dark' && 'Sötét'}
+                      {mounted && theme === 'system' && 'Rendszer alapértelmezett'}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">Világos</SelectItem>
+                    <SelectItem value="dark">Sötét</SelectItem>
+                    <SelectItem value="system">Rendszer alapértelmezett</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="language-select">Nyelv</Label>
+                <Select defaultValue="hu" disabled>
+                  <SelectTrigger id="language-select" className="bg-muted/50 cursor-not-allowed text-foreground opacity-100">
+                    <SelectValue placeholder="Magyar">Magyar</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hu">Magyar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="date-format">Dátum formátum</Label>
+                <Select defaultValue="ddmmyyyy" disabled>
+                  <SelectTrigger id="date-format" className="bg-muted/50 cursor-not-allowed text-foreground opacity-100">
+                    <SelectValue placeholder="DD/MM/YYYY">DD/MM/YYYY</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ddmmyyyy">DD/MM/YYYY</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="number-format">Szám formátum</Label>
+                <Select defaultValue="space" disabled>
+                  <SelectTrigger id="number-format" className="bg-muted/50 cursor-not-allowed text-foreground opacity-100">
+                    <SelectValue placeholder="1 234 567,89">1 234 567,89</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="space">1 234 567,89</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter className="px-6 flex justify-start pt-4">
+            <Button className="bg-[#02b8cc] hover:bg-[#029db0] text-white" onClick={() => {
+              setSuccess(true)
+              setTimeout(() => setSuccess(false), 2000)
+            }}>
+              {success ? "Sikeres mentés!" : "Rendszer beállítások mentése"}
+            </Button>
+          </CardFooter>
         </Card>
       </TabsContent>
     </>

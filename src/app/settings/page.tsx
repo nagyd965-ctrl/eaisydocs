@@ -29,7 +29,7 @@ export default async function SettingsPage() {
   if (!profile) {
     return (
       <div className="flex-1 p-8 pt-6">
-        <h2 className="text-3xl font-bold tracking-tight">Beállítások</h2>
+        <h2 className="text-3xl font-semibold tracking-tight">Beállítások</h2>
         <p className="text-muted-foreground">Kérjük, jelentkezz be a beállítások megtekintéséhez.</p>
       </div>
     )
@@ -38,7 +38,7 @@ export default async function SettingsPage() {
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center space-x-2 mb-2">
-        <h2 className="text-3xl font-bold tracking-tight">Beállítások</h2>
+        <h2 className="text-3xl font-semibold tracking-tight">Beállítások</h2>
         <Info className="h-5 w-5 text-muted-foreground" />
       </div>
       <p className="text-muted-foreground mt-0 mb-6">Rendszer és üzleti beállítások kezelése</p>
@@ -84,7 +84,6 @@ export default async function SettingsPage() {
           <TabsTrigger 
             value="rendszer" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-            disabled
           >
             <Monitor className="h-4 w-4 mr-2" />
             Rendszer

@@ -16,7 +16,7 @@ export default function SecurityPolicyPage() {
       <div className="bg-card border rounded-lg p-8 shadow-sm prose prose-slate dark:prose-invert max-w-none">
         <div className="flex items-center gap-3 mb-6 not-prose">
           <ShieldCheck className="h-10 w-10 text-primary" />
-          <h1 className="text-3xl font-bold m-0">IT Biztonsági Szabályzat</h1>
+          <h1 className="text-3xl font-semibold m-0">IT Biztonsági Szabályzat</h1>
         </div>
 
         <p className="lead text-muted-foreground">

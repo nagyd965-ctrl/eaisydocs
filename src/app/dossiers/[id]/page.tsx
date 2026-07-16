@@ -76,7 +76,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
   if (!dossier) {
     return (
       <div className="p-8 text-center">
-        <h2 className="text-2xl font-bold mb-4">Ügyirat nem található</h2>
+        <h2 className="text-2xl font-semibold mb-4">Ügyirat nem található</h2>
         <Button render={<Link href="/dossiers" />} nativeButton={false}>Vissza az iktatókönyvhöz</Button>
       </div>
     );
@@ -172,7 +172,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-semibold">
                   <AssignDossierDialog 
                     ugyirat_id={dossier.id} 
                     ugy_id={(dossier.ugy as any)?.id} 
@@ -196,7 +196,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-warning">{ugy?.hatarido || "-"}</div>
+                <div className="text-2xl font-semibold text-warning">{ugy?.hatarido || "-"}</div>
                 <p className="text-xs text-muted-foreground">-</p>
               </CardContent>
             </Card>
@@ -206,7 +206,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">Nyílt</div>
+                <div className="text-2xl font-semibold">Nyílt</div>
                 <p className="text-xs text-muted-foreground">Mindenki láthatja</p>
               </CardContent>
             </Card>
