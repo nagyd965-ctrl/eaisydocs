@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
+import { sendNotificationEmail } from "@/utils/mailer"
 
 export async function assignDossier(formData: FormData) {
   const ugy_id = formData.get("ugy_id") as string
@@ -54,6 +55,51 @@ export async function assignDossier(formData: FormData) {
       reszletek: reszletek,
       ip_cim: '127.0.0.1'
     })
+  }
+
+  // 4. Értesítés küldése, ha a szabály aktív és van új felelős
+  if (felelos_user_id && felelos_user_id !== "none") {
+    // Ellenőrizzük az értesítési szabályt
+    const { data: szabaly } = await supabase
+      .from("ertesitesi_szabaly")
+      .select("aktiv")
+      .eq("esemeny_tipus", "uj_szignalas")
+      .eq("kinek", "felelos")
+      .single()
+
+    if (szabaly?.aktiv) {
+      // Szervíz kulcs használata az email lekéréshez (auth.users tábla)
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (serviceRoleKey) {
+        const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+        const supabaseAdmin = createSupabaseClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          serviceRoleKey,
+          { auth: { autoRefreshToken: false, persistSession: false } }
+        )
+        
+        const { data: adminData } = await supabaseAdmin.auth.admin.getUserById(felelos_user_id)
+        const userEmail = adminData?.user?.email
+
+        if (userEmail) {
+          // Fetch ugyirat iktatoszam for the email body
+          const { data: ugyiratData } = await supabase.from("ugyirat").select("iktatoszam").eq("id", ugyirat_id).single()
+          
+          await sendNotificationEmail({
+            to: userEmail,
+            subject: `Új ügyirat szignálva: ${ugyiratData?.iktatoszam || "Ismeretlen"}`,
+            html: `
+              <h2>Új feladatot kaptál!</h2>
+              <p>Egy új ügyiratot szignáltak rád az eaisyDocs rendszerben.</p>
+              <p><b>Iktatószám:</b> ${ugyiratData?.iktatoszam || "N/A"}</p>
+              <p><b>Határidő:</b> ${hatarido || "Nincs megadva"}</p>
+              <p>Kérlek lépj be a rendszerbe a részletekért!</p>
+            `,
+            dossierId: ugyirat_id
+          })
+        }
+      }
+    }
   }
 
   revalidatePath("/dossiers")

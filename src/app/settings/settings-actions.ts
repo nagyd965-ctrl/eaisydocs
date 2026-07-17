@@ -254,3 +254,22 @@ export async function deleteUser(userId: string) {
   revalidatePath("/settings")
   return { success: true }
 }
+
+export async function toggleNotificationRule(id: string, active: boolean) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) return { error: "Nem vagy bejelentkezve" }
+
+  const { error } = await supabase
+    .from("ertesitesi_szabaly")
+    .update({ aktiv: active })
+    .eq("id", id)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath("/settings")
+  return { success: true }
+}

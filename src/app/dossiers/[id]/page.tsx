@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FileText, Clock, Users, ArrowLeft, FolderPlus, Eye } from "lucide-react"
+import { FileText, Clock, Users, ArrowLeft, FolderPlus, Eye, Lock, Edit, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { Timeline, TimelineEvent } from "@/components/timeline"
 import { IratokLista } from "@/components/iratok-lista"
@@ -115,10 +115,25 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       icon = FolderPlus;
       color = "text-primary";
     } else if (log.esemeny_tipus === "szignalva" || log.esemeny_tipus === "hozzaferes_modositas") {
-      title = "Ügyirat szignálva";
+      title = "Ügyirat szignálva / Módosítva";
       description = log.reszletek || "";
       icon = Users;
       color = "text-warning";
+    } else if (log.esemeny_tipus === "lezarva") {
+      title = "Ügyirat lezárva";
+      description = log.reszletek || "Az ügyirat véglegesen lezárásra került.";
+      icon = Lock;
+      color = "text-success";
+    } else if (log.esemeny_tipus === "modositva") {
+      title = "Módosítás történt";
+      description = log.indoklas || log.reszletek || "A rendszer rögzítette a változtatást.";
+      icon = Edit;
+      color = "text-info";
+    } else if (log.esemeny_tipus === "selejtezve") {
+      title = "Irat selejtezve";
+      description = log.reszletek || "Az irat megsemmisítésre került.";
+      icon = Trash2;
+      color = "text-destructive";
     }
 
     return {

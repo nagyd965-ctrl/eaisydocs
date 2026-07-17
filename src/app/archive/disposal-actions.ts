@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
+import { sendNotificationEmail } from "@/utils/mailer"
 
 // 1. Felterjesztés Selejtezésre (Iratkezelő csinálja)
 export async function proposeDisposal(ugyiratIds: string[]) {
@@ -25,6 +26,51 @@ export async function proposeDisposal(ugyiratIds: string[]) {
         user_id: user.id,
         indoklas: "Selejtezésre felterjesztve"
       })
+    }
+  }
+
+  // Értesítés a vezetőknek (Adminoknak) a selejtezési felterjesztésről
+  const { data: szabaly } = await supabase
+    .from("ertesitesi_szabaly")
+    .select("aktiv")
+    .eq("esemeny_tipus", "allapotvaltozas")
+    .eq("kinek", "vezeto")
+    .single()
+
+  if (szabaly?.aktiv && ugyiratIds.length > 0) {
+    // Lekérjük a vezetőket (admin, vezeto) a profil táblából
+    const { data: vezetok } = await supabase
+      .from("felhasznalo_profil")
+      .select("id")
+      .in("szerepkor", ["admin", "vezeto", "rendszergazda"])
+
+    if (vezetok && vezetok.length > 0) {
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (serviceRoleKey) {
+        const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+        const supabaseAdmin = createSupabaseClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          serviceRoleKey,
+          { auth: { autoRefreshToken: false, persistSession: false } }
+        )
+
+        for (const vezeto of vezetok) {
+          const { data: adminData } = await supabaseAdmin.auth.admin.getUserById(vezeto.id)
+          const userEmail = adminData?.user?.email
+
+          if (userEmail) {
+            await sendNotificationEmail({
+              to: userEmail,
+              subject: "Új iratselejtezési javaslat jóváhagyásra vár",
+              html: `
+                <h2>Iratselejtezési jóváhagyás szükséges</h2>
+                <p>Egy munkatárs felterjesztett <b>${ugyiratIds.length} db</b> ügyiratot végleges selejtezésre.</p>
+                <p>Kérlek, lépj be az Irattár felületre, vizsgáld felül az iratokat, és a "Négy Szem Elve" alapján hagyd jóvá a megsemmisítésüket és a jegyzőkönyv kiállítását.</p>
+              `
+            })
+          }
+        }
+      }
     }
   }
 

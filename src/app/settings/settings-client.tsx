@@ -16,6 +16,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useTheme } from "next-themes"
+import { NotificationSettings } from "./notification-settings"
 
 export function SettingsClient({ initialProfile, email, teamMembers, departments, szabalyok, naplo }: { initialProfile: any, email: string | undefined, teamMembers: any[], departments?: any[], szabalyok?: any[], naplo?: any[] }) {
   const { theme, setTheme } = useTheme()
@@ -36,7 +37,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
   const [departmentLoading, setDepartmentLoading] = useState(false)
 
   const roleMap: Record<string, string> = {
-    admin: "Admin",
+    admin: "Szuper Admin (Teszt)",
     rendszergazda: "Rendszergazda",
     vezeto: "Vezető",
     iktato: "Iktató",
@@ -205,6 +206,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                     <div className="space-y-2">
                       <Label htmlFor="role">Szerepkör</Label>
                       <select id="role" name="role" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                        <option value="admin">Szuper Admin (Teszt)</option>
                         <option value="rendszergazda">Rendszergazda</option>
                         <option value="iktato">Iratkezelő / iktató</option>
                         <option value="vezeto">Vezető / szignáló</option>
@@ -389,97 +391,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
           </Card>
         </TabsContent>
 
-      {/* 4. TAB: ÉRTESÍTÉSEK */}
-      <TabsContent value="ertesitesek" className="space-y-6 outline-none">
-        
-        {/* Szabályok Card */}
-        <Card className="border-border shadow-sm">
-          <CardHeader className="pb-4 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-xl">Értesítési Szabályok</CardTitle>
-              <CardDescription>Mikor, milyen csatornán küldjön a rendszer automatikus üzenetet?</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {szabalyok && szabalyok.length > 0 ? (
-                szabalyok.map((szabaly) => (
-                  <div key={szabaly.id} className="flex items-center justify-between p-4 bg-muted/30 border rounded-xl hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center space-x-4">
-                      <div className="h-10 w-10 shrink-0 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
-                        <BellRing className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground uppercase">{szabaly.trigger_tipus.replace(/_/g, ' ')}</p>
-                        <p className="text-xs text-muted-foreground">Aktív szabály</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {szabaly.csatorna === 'sms' ? <Smartphone className="h-4 w-4 text-muted-foreground" /> : <Mail className="h-4 w-4 text-muted-foreground" />}
-                      <span className="text-sm font-medium uppercase">{szabaly.csatorna}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-md">
-                  Nincs még beállítva értesítési szabály.
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Napló Card */}
-        <Card className="border-border shadow-sm">
-          <CardHeader className="pb-4 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-xl">Kiküldési Napló</CardTitle>
-              <CardDescription>A rendszer által generált és elküldött valós üzenetek (Audit trail)</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto rounded-md border">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-muted text-muted-foreground font-medium border-b">
-                  <tr>
-                    <th className="px-4 py-3">Időpont</th>
-                    <th className="px-4 py-3">Csatorna</th>
-                    <th className="px-4 py-3">Címzett</th>
-                    <th className="px-4 py-3">Státusz</th>
-                    <th className="px-4 py-3 w-1/3">Üzenet Szövege</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {naplo && naplo.length > 0 ? (
-                    naplo.map((sor) => (
-                      <tr key={sor.id} className="hover:bg-muted/50">
-                        <td className="px-4 py-3 whitespace-nowrap">{new Date(sor.kikuldes_ideje).toLocaleString("hu-HU")}</td>
-                        <td className="px-4 py-3 uppercase text-xs font-semibold">{sor.csatorna}</td>
-                        <td className="px-4 py-3">{sor.cimzett || "-"}</td>
-                        <td className="px-4 py-3">
-                          {sor.statusz === 'sikeres' ? (
-                            <span className="flex items-center text-success"><CheckCircle2 className="h-4 w-4 mr-1"/> Sikeres</span>
-                          ) : (
-                            <span className="flex items-center text-destructive"><AlertCircle className="h-4 w-4 mr-1"/> Hiba</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-xs">{sor.szoveg || "-"}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                        Nincs még kiküldött üzenet a naplóban.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-      </TabsContent>
 
       {/* 5. TAB: BIZTONSÁG */}
       <TabsContent value="biztonsag" className="space-y-4 outline-none">
@@ -614,6 +526,11 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
         </Card>
       </TabsContent>
 
+      {/* ÉRTESÍTÉSEK */}
+      <TabsContent value="ertesitesek" className="space-y-4 outline-none">
+        <NotificationSettings rules={szabalyok || []} logs={naplo || []} />
+      </TabsContent>
+
       {/* RENDSZER BEÁLLÍTÁSOK */}
       <TabsContent value="rendszer" className="space-y-4 outline-none">
         <Card className="border-border shadow-sm border-none bg-transparent shadow-none">
@@ -625,7 +542,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="theme-select">Téma</Label>
-                <Select value={theme || "system"} onValueChange={setTheme}>
+                <Select value={theme || "system"} onValueChange={(val) => setTheme(val || "system")}>
                   <SelectTrigger id="theme-select" className="bg-background">
                     <SelectValue placeholder="Válassz témát">
                       {mounted && theme === 'light' && 'Világos'}

@@ -16,14 +16,14 @@ export default async function SettingsPage() {
   const supabase = await createClient()
 
   const { data: szabalyok } = await supabase
-    .from("ertesites_szabaly")
+    .from("ertesitesi_szabaly")
     .select("*")
-    .order("letrehozva", { ascending: false })
+    .order("created_at", { ascending: false })
 
   const { data: naplo } = await supabase
     .from("ertesites_naplo")
     .select("*")
-    .order("kikuldes_ideje", { ascending: false })
+    .order("mikor", { ascending: false })
     .limit(50)
 
   if (!profile) {
