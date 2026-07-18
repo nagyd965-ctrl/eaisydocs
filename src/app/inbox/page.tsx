@@ -12,12 +12,24 @@ import { createClient } from "@/utils/supabase/server"
 import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
 import { FolderSymlink } from "lucide-react"
+import { getPermissions } from "@/utils/permissions"
+import { FilterBar } from "@/components/filter-bar"
 
-export default async function InboxPage() {
+export default async function InboxPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  const params = await searchParams
+  const q = typeof params.q === 'string' ? params.q.toLowerCase() : ""
+  
   const supabase = await createClient()
 
-  // Lekérdezzük azokat az iratokat, amikhez még nincs ügyirat rendelve (ugyirat_id is null)
-  const { data: inboxItems } = await supabase
+  const { data: { user } } = await supabase.auth.getUser()
+  let szerepkor = ''
+  if (user) {
+    const { data: profile } = await supabase.from('felhasznalo_profil').select('szerepkor').eq('id', user.id).single()
+    szerepkor = profile?.szerepkor || ''
+  }
+  const permissions = getPermissions(szerepkor)
+
+  let query = supabase
     .from("irat")
     .select(`
       id,
@@ -29,6 +41,12 @@ export default async function InboxPage() {
     `)
     .is("ugyirat_id", null)
     .order("erkezes_datuma", { ascending: false })
+
+  if (q) {
+    query = query.or(`targy.ilike.%${q}%,erkeztetoszam.ilike.%${q}%`)
+  }
+
+  const { data: inboxItems } = await query
 
   // Lekérdezzük az irattári tervet, hogy átadhassuk a felugró ablaknak
   const { data: tervek } = await supabase
@@ -49,7 +67,10 @@ export default async function InboxPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Bejövő sor</h1>
           <p className="text-muted-foreground">Érkeztetett, but not yet filed.</p>
         </div>
-        <NewIncomingDialog />
+        <div className="flex items-center gap-4">
+          <FilterBar placeholder="Keresés érkeztetőszám vagy tárgy alapján..." />
+          {permissions.canAddIncoming && <NewIncomingDialog />}
+        </div>
       </div>
 
       <div className="border rounded-md">
@@ -86,13 +107,15 @@ export default async function InboxPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Link 
-                      href={`/inbox/${item.id}`}
-                      className={buttonVariants({ variant: "outline", size: "sm" })}
-                    >
-                      <FolderSymlink className="mr-2 h-4 w-4 text-[#02b8cc]" />
-                      Iktatás
-                    </Link>
+                    {permissions.canEdit && (
+                      <Link 
+                        href={`/inbox/${item.id}`}
+                        className={buttonVariants({ variant: "outline", size: "sm" })}
+                      >
+                        <FolderSymlink className="mr-2 h-4 w-4 text-[#02b8cc]" />
+                        Iktatás
+                      </Link>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

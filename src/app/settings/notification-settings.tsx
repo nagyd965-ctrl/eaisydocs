@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Bell, List, AlertCircle, CheckCircle2, Clock } from "lucide-react"
 import { toggleNotificationRule } from "./settings-actions"
+import { toast } from "sonner"
 
 interface Rule {
   id: string
@@ -48,9 +49,11 @@ export function NotificationSettings({ rules, logs }: { rules: Rule[], logs: Log
     setLocalRules(prev => prev.map(r => r.id === id ? { ...r, aktiv: !currentStatus } : r))
     const res = await toggleNotificationRule(id, !currentStatus)
     if (res.error) {
-      alert("Hiba a módosítás során: " + res.error)
+      toast.error("Hiba", { description: "Hiba a módosítás során: " + res.error })
       // Revert on error
       setLocalRules(prev => prev.map(r => r.id === id ? { ...r, aktiv: currentStatus } : r))
+    } else {
+      toast.success("Sikeres", { description: "Értesítési szabály módosítva." })
     }
   }
 

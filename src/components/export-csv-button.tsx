@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
+import { toast } from "sonner"
 
 interface ExportCsvButtonProps {
   data: any[]
@@ -10,7 +11,7 @@ interface ExportCsvButtonProps {
 export function ExportCsvButton({ data }: ExportCsvButtonProps) {
   const handleExport = () => {
     if (!data || data.length === 0) {
-      alert("Nincs exportálható adat!")
+      toast.error("Hiba", { description: "Nincs exportálható adat!" })
       return
     }
 

@@ -10,6 +10,7 @@ import { Building2, Pencil, Plus } from "lucide-react"
 
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 export function PartnerDialog({ partner }: { partner?: any }) {
   const [open, setOpen] = useState(false)
@@ -21,8 +22,9 @@ export function PartnerDialog({ partner }: { partner?: any }) {
     const result = await savePartner(formData)
     setLoading(false)
     if (result?.error) {
-      alert(result.error)
+      toast.error("Hiba", { description: result.error })
     } else {
+      toast.success("Sikeres", { description: "Partner elmentve." })
       setOpen(false)
     }
   }

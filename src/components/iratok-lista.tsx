@@ -4,13 +4,19 @@ import { useState } from "react"
 import { DocumentViewer } from "./document-viewer"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Eye, FileText } from "lucide-react"
+import { Eye, FileText, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
-export function IratokLista({ iratok }: { iratok: any[] }) {
+interface IratokListaProps {
+  iratok: any[];
+  canEdit?: boolean;
+}
+
+export function IratokLista({ iratok, canEdit = true }: IratokListaProps) {
   const [viewerOpen, setViewerOpen] = useState(false)
   const [selectedFajl, setSelectedFajl] = useState<any>(null)
   const [selectedIratId, setSelectedIratId] = useState<string>("")
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
 
   const openViewer = (fajl: any, iratId: string) => {
     setSelectedFajl(fajl)
@@ -75,6 +81,12 @@ export function IratokLista({ iratok }: { iratok: any[] }) {
                   >
                     <Eye className="h-4 w-4 mr-2" />
                     Megtekintés
+                  </Button>
+                )}
+                {canEdit && (
+                  <Button onClick={() => setUploadDialogOpen(true)} className="ml-2" size="sm">
+                    <Upload className="mr-2 h-4 w-4" />
+                    Fájl
                   </Button>
                 )}
               </TableCell>

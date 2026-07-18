@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { assignDossier } from "@/app/dossiers/dossier-actions"
 import { Pencil } from "lucide-react"
+import { toast } from "sonner"
 
 export function AssignDossierDialog({
   ugyirat_id,
@@ -64,8 +65,9 @@ export function AssignDossierDialog({
           const res = await assignDossier(formData)
           setLoading(false)
           if (res.error) {
-            alert(res.error)
+            toast.error("Hiba", { description: res.error })
           } else {
+            toast.success("Sikeres", { description: "Ügyirat kiosztva." })
             setOpen(false)
           }
         }}>

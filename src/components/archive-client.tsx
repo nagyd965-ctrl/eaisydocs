@@ -9,7 +9,10 @@ import { AlertTriangle, CheckCircle2, ShieldAlert, FileText } from "lucide-react
 import { forceExpireAllDossiers } from "@/app/archive/actions"
 import { proposeDisposal, approveDisposal } from "@/app/archive/disposal-actions"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -38,14 +41,19 @@ export function ArchiveClient({
   // Protocol Dialog State
   const [protocolOpen, setProtocolOpen] = useState(false)
   const [protocolData, setProtocolData] = useState<any>(null)
+  
+  // Prompt Dialog State
+  const [approvePromptOpen, setApprovePromptOpen] = useState(false)
+  const [approverName, setApproverName] = useState("")
 
   const handlePropose = async () => {
     if (selectedSuggestions.length === 0) return
     setLoading(true)
     const result = await proposeDisposal(selectedSuggestions)
     if (result.error) {
-      alert(result.error)
+      toast.error("Hiba", { description: result.error })
     } else {
+      toast.success("Sikeres", { description: "Selejtezés javasolva." })
       setSelectedSuggestions([])
     }
     setLoading(false)
@@ -54,16 +62,19 @@ export function ArchiveClient({
 
   const handleApprove = async () => {
     if (selectedApprovals.length === 0) return
-    // Kérjük be a jóváhagyó nevét (pl. hitelesítésképp, a valóságban ez az auth contextből jöhet, de nyomtatáshoz szép ha ki van írva)
-    const approverName = prompt("Kérem adja meg a nevét a jegyzőkönyv aláírásához:", "")
-    if (!approverName) return
+    if (!approverName) {
+      toast.error("Hiba", { description: "Meg kell adni a jóváhagyó nevét!" })
+      return
+    }
 
+    setApprovePromptOpen(false)
     setLoading(true)
     const result = await approveDisposal(selectedApprovals, approverName)
     if (result.error) {
-      alert(result.error)
+      toast.error("Hiba", { description: result.error })
     } else {
       // Siker!
+      toast.success("Sikeres", { description: "Selejtezés jóváhagyva." })
       setSelectedApprovals([])
       // Generate Protocol
       setProtocolData({
@@ -196,7 +207,7 @@ export function ArchiveClient({
               <Button 
                 variant="destructive"
                 disabled={selectedApprovals.length === 0 || loading}
-                onClick={handleApprove}
+                onClick={() => setApprovePromptOpen(true)}
               >
                 Jóváhagyás és Jegyzőkönyv ({selectedApprovals.length})
               </Button>
@@ -351,6 +362,35 @@ export function ArchiveClient({
             >
               <FileText className="w-4 h-4" />
               Jegyzőkönyv Nyomtatása
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={approvePromptOpen} onOpenChange={setApprovePromptOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Jóváhagyó neve</DialogTitle>
+            <DialogDescription>
+              Kérem adja meg a nevét a jegyzőkönyv aláírásához.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="approver-name">Teljes Név</Label>
+              <Input 
+                id="approver-name"
+                placeholder="pl. Kovács János"
+                value={approverName}
+                onChange={(e) => setApproverName(e.target.value)}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApprovePromptOpen(false)}>Mégsem</Button>
+            <Button onClick={handleApprove} disabled={loading || !approverName}>
+              {loading ? "Folyamatban..." : "Jóváhagyás és Jegyzőkönyv"}
             </Button>
           </DialogFooter>
         </DialogContent>

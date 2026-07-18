@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { User, Users, UserPlus, ChevronRight, Key, Clock, Shield, Save, BellRing, Smartphone, Mail, CheckCircle2, AlertCircle, ShieldCheck, FileText } from "lucide-react"
@@ -17,8 +19,11 @@ import { cn } from "@/lib/utils"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useTheme } from "next-themes"
 import { NotificationSettings } from "./notification-settings"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 export function SettingsClient({ initialProfile, email, teamMembers, departments, szabalyok, naplo }: { initialProfile: any, email: string | undefined, teamMembers: any[], departments?: any[], szabalyok?: any[], naplo?: any[] }) {
+  const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -35,6 +40,27 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
   const [selectedMemberDepartment, setSelectedMemberDepartment] = useState<string>("")
   const [editRoleLoading, setEditRoleLoading] = useState(false)
   const [departmentLoading, setDepartmentLoading] = useState(false)
+  
+  // Új állapotok a szervezeti egységhez
+  const [addUsersDialogOpen, setAddUsersDialogOpen] = useState(false)
+  const [selectedDepartmentForAdd, setSelectedDepartmentForAdd] = useState<string | null>(null)
+  const [selectedUsersToAdd, setSelectedUsersToAdd] = useState<string[]>([])
+  const [addUsersLoading, setAddUsersLoading] = useState(false)
+  
+  const [profileForm, setProfileForm] = useState({
+    nev: initialProfile?.nev || "",
+    pozicio: initialProfile?.pozicio || "",
+    ceg_neve: initialProfile?.ceg_neve || ""
+  })
+  
+  // Sync if initialProfile changes from server action (e.g., after save and router.refresh)
+  useEffect(() => {
+    setProfileForm({
+      nev: initialProfile?.nev || "",
+      pozicio: initialProfile?.pozicio || "",
+      ceg_neve: initialProfile?.ceg_neve || ""
+    })
+  }, [initialProfile])
 
   const roleMap: Record<string, string> = {
     admin: "Szuper Admin (Teszt)",
@@ -54,10 +80,12 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
     const res = await updateProfile(formData)
     setLoading(false)
     if (res?.error) {
-      alert("Hiba a mentés során: " + res.error)
+      toast.error("Hiba", { description: "Hiba a mentés során: " + res.error })
     } else {
       setSuccess(true)
+      router.refresh()
       window.dispatchEvent(new Event('sessionTimeoutChanged'))
+      window.dispatchEvent(new Event('profileUpdated'))
       setTimeout(() => setSuccess(false), 2000)
     }
   }
@@ -79,21 +107,21 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="nev">Teljes név</Label>
-                  <Input id="nev" name="nev" defaultValue={initialProfile?.nev || ""} className="bg-background" />
+                  <Input id="nev" name="nev" value={profileForm.nev} onChange={(e) => setProfileForm(prev => ({...prev, nev: e.target.value}))} className="bg-background" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email cím</Label>
-                  <Input id="email" value={email || ""} disabled className="bg-muted/50 cursor-not-allowed opacity-70" />
+                  <Input id="email" value={email || ""} readOnly className="bg-muted/50 cursor-not-allowed opacity-70" />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="pozicio">Pozíció</Label>
-                  <Input id="pozicio" name="pozicio" defaultValue={initialProfile?.pozicio || ""} placeholder="pl. Rendszergazda-iratkezelő" className="bg-background" />
+                  <Input id="pozicio" name="pozicio" value={profileForm.pozicio} onChange={(e) => setProfileForm(prev => ({...prev, pozicio: e.target.value}))} placeholder="pl. Rendszergazda-iratkezelő" className="bg-background" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="ceg_neve">Cég neve</Label>
-                  <Input id="ceg_neve" name="ceg_neve" defaultValue={initialProfile?.ceg_neve || ""} className="bg-background" />
+                  <Input id="ceg_neve" name="ceg_neve" value={profileForm.ceg_neve} onChange={(e) => setProfileForm(prev => ({...prev, ceg_neve: e.target.value}))} className="bg-background" />
                 </div>
               </div>
             </CardContent>
@@ -152,7 +180,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                       if (confirm(`Biztosan törlöd a következő felhasználót: ${member.nev}?`)) {
                         const { deleteUser } = await import("./settings-actions")
                         const res = await deleteUser(member.id)
-                        if (res.error) alert(res.error)
+                        if (res.error) toast.error("Hiba", { description: res.error })
                       }
                     }}
                   >
@@ -178,9 +206,9 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                   const res = await createNewUser(formData)
                   setCreateLoading(false)
                   if (res.error) {
-                    alert("Hiba: " + res.error)
+                    toast.error("Hiba", { description: res.error })
                   } else {
-                    alert("Sikeresen létrehozva!")
+                    toast.success("Sikeres", { description: "Sikeresen létrehozva!" })
                     setOpen(false)
                   }
                 }}>
@@ -245,8 +273,9 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                   const res = await updateUserRole(selectedMember.id, newRole, selectedMember.max_minosites, deptId)
                   setEditRoleLoading(false)
                   if (res.error) {
-                    alert("Hiba: " + res.error)
+                    toast.error("Hiba", { description: res.error })
                   } else {
+                    toast.success("Sikeres", { description: "Szerepkör módosítva." })
                     setEditRoleDialogOpen(false)
                   }
                 }}>
@@ -317,7 +346,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                   const { createDepartment } = await import("./settings-actions")
                   const res = await createDepartment(formData)
                   setDepartmentLoading(false)
-                  if (res.error) alert(res.error)
+                  if (res.error) toast.error("Hiba", { description: res.error })
                   else (document.getElementById("new-dept-form") as HTMLFormElement)?.reset()
                 }} id="new-dept-form" className="flex items-end gap-4">
                   <div className="space-y-2 flex-1 max-w-sm">
@@ -354,7 +383,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                                   if (confirm("Biztosan törlöd ezt a szervezeti egységet?")) {
                                     const { deleteDepartment } = await import("./settings-actions")
                                     const res = await deleteDepartment(dept.id)
-                                    if (res.error) alert(res.error)
+                                    if (res.error) toast.error("Hiba", { description: res.error })
                                   }
                                 }}
                               >
@@ -362,6 +391,19 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                               </Button>
                             </div>
                             <AccordionContent className="px-4 pb-4">
+                              <div className="flex justify-end mb-4">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedDepartmentForAdd(dept.id)
+                                    setSelectedUsersToAdd([])
+                                    setAddUsersDialogOpen(true)
+                                  }}
+                                >
+                                  Felhasználók hozzáadása
+                                </Button>
+                              </div>
                               {deptUsers.length > 0 ? (
                                 <ul className="space-y-2 mt-2 border-t pt-4">
                                   {deptUsers.map(u => (
@@ -386,6 +428,65 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                     )}
                   </div>
                 </div>
+
+                <Dialog open={addUsersDialogOpen} onOpenChange={setAddUsersDialogOpen}>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Felhasználók Hozzáadása</DialogTitle>
+                      <DialogDescription>
+                        Jelöld ki azokat a felhasználókat, akiket be szeretnél osztani ebbe a szervezeti egységbe.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                      {teamMembers?.filter(u => u.szervezeti_egyseg_id !== selectedDepartmentForAdd).length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center">Nincs hozzáadható felhasználó.</p>
+                      ) : (
+                        teamMembers?.filter(u => u.szervezeti_egyseg_id !== selectedDepartmentForAdd).map((u) => (
+                          <div key={u.id} className="flex items-center space-x-3 bg-muted/20 p-2 rounded-md">
+                            <Checkbox 
+                              id={`user-${u.id}`} 
+                              checked={selectedUsersToAdd.includes(u.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedUsersToAdd([...selectedUsersToAdd, u.id])
+                                } else {
+                                  setSelectedUsersToAdd(selectedUsersToAdd.filter(id => id !== u.id))
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`user-${u.id}`} className="flex-1 cursor-pointer">
+                              <div className="font-medium text-sm">{u.nev}</div>
+                              <div className="text-xs text-muted-foreground uppercase">{u.szerepkor}</div>
+                            </Label>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setAddUsersDialogOpen(false)}>Mégsem</Button>
+                      <Button 
+                        disabled={addUsersLoading || selectedUsersToAdd.length === 0}
+                        onClick={async () => {
+                          if (!selectedDepartmentForAdd || selectedUsersToAdd.length === 0) return;
+                          setAddUsersLoading(true);
+                          const { addUsersToDepartment } = await import("./settings-actions");
+                          const res = await addUsersToDepartment(selectedDepartmentForAdd, selectedUsersToAdd);
+                          setAddUsersLoading(false);
+                          if (res.error) {
+                            toast.error("Hiba", { description: res.error });
+                          } else {
+                            toast.success("Sikeres hozzáadás!");
+                            setAddUsersDialogOpen(false);
+                            setSelectedUsersToAdd([]);
+                          }
+                        }}
+                      >
+                        {addUsersLoading ? "Mentés..." : "Hozzáadás"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
               </div>
             </CardContent>
           </Card>
@@ -458,7 +559,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                     const res = await updateUserPassword(formData)
                     setPasswordLoading(false)
                     if (res.error) {
-                      alert("Hiba: " + res.error)
+                      toast.error("Hiba", { description: res.error })
                     } else {
                       setPasswordSuccess(true)
                       setTimeout(() => {

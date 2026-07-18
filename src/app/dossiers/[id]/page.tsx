@@ -10,13 +10,9 @@ import { createClient } from "@/utils/supabase/server"
 import { CloseDossierButton } from "@/components/close-dossier-button"
 import { PolymorphicLinksTab } from "@/components/polymorphic-links-tab"
 import { AssignDossierDialog } from "@/components/assign-dossier-dialog"
-
-function StatusBadge({ status }: { status: string }) {
-  if (status === "lezart" || status === "elintezett") return <Badge variant="outline" className="bg-success-subtle text-success border-success-subtle capitalize">{status}</Badge>
-  if (status === "ugyintezes_alatt" || status === "iktatva") return <Badge variant="outline" className="bg-info-subtle text-info border-info-subtle capitalize">{status.replace('_', ' ')}</Badge>
-  if (status === "szignalt") return <Badge variant="outline" className="bg-warning-subtle text-warning border-warning-subtle capitalize">{status}</Badge>
-  return <Badge variant="outline" className="capitalize">{status.replace('_', ' ')}</Badge>
-}
+import { StatusBadge } from "@/components/status-badge"
+import { getPermissions } from "@/utils/permissions"
+import { TasksTab } from "@/components/tasks-tab"
 
 export default async function DossierPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -59,7 +55,9 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
     .eq("id", authUser?.user?.id || "")
     .single()
   
-  const canAssign = !!(currentUserProfile && ['admin', 'rendszergazda', 'vezeto', 'iktato'].includes(currentUserProfile.szerepkor))
+  const permissions = getPermissions(currentUserProfile?.szerepkor)
+  const canAssign = permissions.canAssign
+  const canEdit = permissions.canEdit
 
   // Map user names
   const userMap = (users || []).reduce((acc: any, user: any) => {
@@ -103,6 +101,25 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
     .eq("entitas_id", id)
     .order("tortent", { ascending: true });
 
+  // Fetch comments
+  const { data: comments } = await supabase
+    .from("ugyirat_megjegyzes")
+    .select(`
+      id,
+      szoveg,
+      created_at,
+      user_id
+    `)
+    .eq("ugyirat_id", id)
+    .order("created_at", { ascending: true });
+
+  // Map users to comments
+  const mappedComments = (comments || []).map((c: any) => ({
+    ...c,
+    user_email: c.user_id, // temporarily using id if no email is found, but we can query profile
+    user_name: userMap[c.user_id] || "Ismeretlen"
+  }))
+
   const timelineEvents: TimelineEvent[] = (logs || []).map((log: any) => {
     let title = log.esemeny_tipus;
     let description = "";
@@ -141,7 +158,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       title,
       description,
       time: new Date(log.tortent).toLocaleString("hu-HU"),
-      user: log.uj_ertek?.user_email || "Ismeretlen",
+      user: userMap[log.user_id] || log.uj_ertek?.user_email || "Ismeretlen",
       icon,
       color,
     }
@@ -164,7 +181,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      {dossier.statusz !== "lezart" && dossier.statusz !== "irattarban" && dossier.statusz !== "selejtezheto" && (
+      {permissions.canEdit && dossier.statusz !== "lezart" && dossier.statusz !== "irattarban" && dossier.statusz !== "selejtezheto" && (
         <div className="flex justify-end">
           <CloseDossierButton ugyiratId={dossier.id} />
         </div>
@@ -235,21 +252,20 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
               <CardDescription>Az ügyirathoz tartozó dokumentumok.</CardDescription>
             </CardHeader>
             <CardContent>
-              <IratokLista iratok={dossier.irat} />
+              <IratokLista iratok={dossier.irat} canEdit={canEdit} />
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="tasks">
-          <Card>
-            <CardHeader>
-              <CardTitle>Feladatok</CardTitle>
-              <CardDescription>Kiosztott munkafolyamatok és jóváhagyások.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">Hamarosan implementálva...</p>
-            </CardContent>
-          </Card>
+          <TasksTab 
+            ugyiratId={dossier.id} 
+            ugyId={(dossier.ugy as any)?.id}
+            status={dossier.statusz}
+            comments={mappedComments}
+            canEdit={canEdit}
+            currentUserEmail={authUser?.user?.email || ""}
+          />
         </TabsContent>
         
         <TabsContent value="history">

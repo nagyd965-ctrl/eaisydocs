@@ -16,10 +16,19 @@ import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { PartnerDialog } from "@/components/partner-dialog"
+import { getPermissions } from "@/utils/permissions"
 
 export default async function PartnerDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  let szerepkor = ''
+  if (user) {
+    const { data: profile } = await supabase.from('felhasznalo_profil').select('szerepkor').eq('id', user.id).single()
+    szerepkor = profile?.szerepkor || ''
+  }
+  const permissions = getPermissions(szerepkor)
 
   const { data: partner } = await supabase
     .from("partner")
@@ -73,7 +82,7 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
         
         {/* Szerkesztés gomb */}
         <div>
-          <PartnerDialog partner={partner} />
+          {permissions.canEdit && <PartnerDialog partner={partner} />}
         </div>
       </div>
 

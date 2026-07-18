@@ -10,24 +10,37 @@ import {
 import { Building2 } from "lucide-react"
 import Link from "next/link"
 import { PartnerDialog } from "@/components/partner-dialog"
+import { getPermissions } from "@/utils/permissions"
 
 export default async function PartnersPage() {
   const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  let szerepkor = ''
+  if (user) {
+    const { data: profile } = await supabase.from('felhasznalo_profil').select('szerepkor').eq('id', user.id).single()
+    szerepkor = profile?.szerepkor || ''
+  }
+  const permissions = getPermissions(szerepkor)
 
   // Fetch partners
   const { data: realPartners } = await supabase.from("partner").select("*").order("nev")
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Partnerek</h2>
-        <PartnerDialog />
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Partnerek</h1>
+          <p className="text-muted-foreground">
+            A rendszerben rögzített partnerek és ügyfelek listája.
+          </p>
+        </div>
+        <div>
+          {permissions.canEdit && <PartnerDialog />}
+        </div>
       </div>
-      <p className="text-muted-foreground">
-        A rendszerben rögzített partnerek és ügyfelek listája.
-      </p>
 
-      <div className="rounded-md border mt-6 bg-card">
+      <div className="border rounded-md">
         <Table>
           <TableHeader>
             <TableRow>

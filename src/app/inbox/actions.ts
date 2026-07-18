@@ -112,7 +112,7 @@ Kelt: 2026.07.16.`
   }
 
   // 6. Irat fájl rekord létrehozása
-  const { error: fajlError } = await supabase
+  const { data: fajlResult, error: fajlError } = await supabase
     .from("irat_fajl")
     .insert({
       irat_id: iratData.id,
@@ -123,9 +123,21 @@ Kelt: 2026.07.16.`
       sha256: hash,
       ocr_szoveg
     })
+    .select("id")
+    .single()
 
   if (fajlError) {
     return { error: "Hiba a fájl mentésekor: " + fajlError.message }
+  }
+
+  // 7. Fire-and-forget hívás a PDF/A konverternek (nem várjuk meg a végét!)
+  if (fajlResult) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    fetch(`${appUrl}/api/pdf/convert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fajl_id: fajlResult.id })
+    }).catch(err => console.error("PDF/A Worker Trigger Error:", err))
   }
 
   revalidatePath("/inbox")

@@ -51,7 +51,7 @@ export async function updateProfile(formData: FormData) {
     return { error: error.message }
   }
 
-  revalidatePath("/settings")
+  revalidatePath("/", "layout")
   return { success: true }
 }
 
@@ -269,6 +269,28 @@ export async function toggleNotificationRule(id: string, active: boolean) {
   if (error) {
     return { error: error.message }
   }
+
+  revalidatePath("/settings")
+  return { success: true }
+}
+
+export async function addUsersToDepartment(departmentId: string, userIds: string[]) {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) return { error: "Hiányzik a SUPABASE_SERVICE_ROLE_KEY." }
+
+  const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const { error } = await supabaseAdmin
+    .from("felhasznalo_profil")
+    .update({ szervezeti_egyseg_id: departmentId })
+    .in("id", userIds)
+
+  if (error) return { error: "Hiba történt a felhasználók hozzáadásakor: " + error.message }
 
   revalidatePath("/settings")
   return { success: true }

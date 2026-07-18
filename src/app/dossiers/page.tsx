@@ -11,19 +11,17 @@ import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"
 import { ExportCsvButton } from "@/components/export-csv-button"
 import { AssignDossierDialog } from "@/components/assign-dossier-dialog"
+import { StatusBadge } from "@/components/status-badge"
+import { getPermissions } from "@/utils/permissions"
+import { FilterBar } from "@/components/filter-bar"
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === "lezart" || status === "elintezett") return <Badge variant="outline" className="bg-success-subtle text-success border-success-subtle capitalize">{status}</Badge>
-  if (status === "ugyintezes_alatt" || status === "iktatva") return <Badge variant="outline" className="bg-info-subtle text-info border-info-subtle capitalize">{status.replace('_', ' ')}</Badge>
-  if (status === "szignalt") return <Badge variant="outline" className="bg-warning-subtle text-warning border-warning-subtle capitalize">{status}</Badge>
-  return <Badge variant="outline" className="capitalize">{status.replace('_', ' ')}</Badge>
-}
+export default async function DossiersPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  const params = await searchParams
+  const q = typeof params.q === 'string' ? params.q.toLowerCase() : ""
 
-export default async function DossiersPage() {
   const supabase = await createClient()
 
-  // Fetch ugyirat and joined ugy
-  const { data: dossiers } = await supabase
+  let query = supabase
     .from("ugyirat")
     .select(`
       id,
@@ -31,9 +29,19 @@ export default async function DossiersPage() {
       statusz,
       iktatas_datuma,
       szervezeti_egyseg_id,
-      ugy ( id, targy, hatarido, statusz, felelos_user_id )
+      ugy!inner ( id, targy, hatarido, statusz, felelos_user_id )
     `)
     .order("iktatas_datuma", { ascending: false })
+
+  const { data: rawDossiers } = await query
+
+  let dossiers = rawDossiers || []
+  if (q) {
+    dossiers = dossiers.filter((d: any) => 
+      d.iktatoszam?.toLowerCase().includes(q) || 
+      (d.ugy?.targy && d.ugy.targy.toLowerCase().includes(q))
+    )
+  }
 
   // Current user role check
   const { data: authUser } = await supabase.auth.getUser()
@@ -43,7 +51,8 @@ export default async function DossiersPage() {
     .eq("id", authUser?.user?.id || "")
     .single()
   
-  const canAssign = !!(currentUserProfile && ['admin', 'rendszergazda', 'vezeto', 'iktato'].includes(currentUserProfile.szerepkor))
+  const permissions = getPermissions(currentUserProfile?.szerepkor)
+  const canAssign = permissions.canAssign
 
   // Második lépés: Felhasználók lekérése memóriába, mivel hiányzik a foreign key
   const userIds = Array.from(new Set(
@@ -80,7 +89,8 @@ export default async function DossiersPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Iktatókönyv</h1>
           <p className="text-muted-foreground">Az összes iktatott ügyirat nyilvántartása.</p>
         </div>
-        <div>
+        <div className="flex items-center gap-4">
+          <FilterBar placeholder="Keresés iktatószám vagy tárgy alapján..." />
           <ExportCsvButton data={dossiers || []} />
         </div>
       </div>

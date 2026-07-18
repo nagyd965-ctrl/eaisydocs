@@ -18,22 +18,29 @@ export function SidebarFooterContent() {
   const { state, toggleSidebar } = useSidebar()
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        setUser(data.user)
-        // Keresd meg a profilt is
-        supabase
-          .from("felhasznalo_profil")
-          .select("nev")
-          .eq("id", data.user.id)
-          .single()
-          .then(({ data: profileData }) => {
-            if (profileData) {
-              setProfile(profileData)
-            }
-          })
-      }
-    })
+    const fetchProfile = () => {
+      supabase.auth.getUser().then(({ data }) => {
+        if (data.user) {
+          setUser(data.user)
+          // Keresd meg a profilt is
+          supabase
+            .from("felhasznalo_profil")
+            .select("nev")
+            .eq("id", data.user.id)
+            .single()
+            .then(({ data: profileData }) => {
+              if (profileData) {
+                setProfile(profileData)
+              }
+            })
+        }
+      })
+    }
+
+    fetchProfile()
+
+    window.addEventListener('profileUpdated', fetchProfile)
+    return () => window.removeEventListener('profileUpdated', fetchProfile)
   }, [])
 
   const handleLogout = async () => {

@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Link as LinkIcon, Trash2, Plus, Loader2 } from "lucide-react"
@@ -11,6 +12,18 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 export function PolymorphicLinksTab({ 
   links, 
@@ -54,10 +67,13 @@ export function PolymorphicLinksTab({
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Biztosan törlöd ezt a kapcsolatot?")) return
     setDeletingId(id)
     const res = await deletePolymorphicLink(id, ugyiratId)
-    if (res.error) alert(res.error)
+    if (res.error) {
+      toast.error("Hiba", { description: res.error })
+    } else {
+      toast.success("Sikeres", { description: "Kapcsolat törölve." })
+    }
     setDeletingId(null)
     router.refresh()
   }
@@ -75,8 +91,9 @@ export function PolymorphicLinksTab({
     setLoading(false)
     
     if (res.error) {
-      alert(res.error)
+      toast.error("Hiba", { description: res.error })
     } else {
+      toast.success("Sikeres", { description: "Kapcsolat hozzáadva." })
       setOpen(false)
       // reset form state
       // reset form state
@@ -225,15 +242,29 @@ export function PolymorphicLinksTab({
                   <TableCell className="font-semibold text-primary">{link.entitas_id}</TableCell>
                   <TableCell className="capitalize">{link.kapcsolat_tipusa}</TableCell>
                   <TableCell className="text-right">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      disabled={deletingId === link.id}
-                      onClick={() => handleDelete(link.id)}
-                    >
-                      {deletingId === link.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger 
+                        className={cn(
+                          buttonVariants({ variant: "ghost", size: "icon" }),
+                          "text-destructive hover:text-destructive hover:bg-destructive/10"
+                        )}
+                        disabled={deletingId === link.id}
+                      >
+                        {deletingId === link.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Kapcsolat törlése</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Biztosan törlöd ezt a külső rendszerhez fűzött kapcsolatot? A művelet nem vonható vissza.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Mégsem</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(link.id)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Törlés</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))

@@ -71,6 +71,161 @@ export async function closeDossier(ugyiratId: string) {
   return { success: true }
 }
 
+export async function addComment(ugyiratId: string, text: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve." }
+  if (!text.trim()) return { error: "A megjegyzés nem lehet üres." }
+
+  const { error } = await supabase
+    .from("ugyirat_megjegyzes")
+    .insert({
+      ugyirat_id: ugyiratId,
+      user_id: user.id,
+      szoveg: text
+    })
+
+  if (error) return { error: "Hiba a megjegyzés mentésekor." }
+
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "ugyirat",
+    entitas_id: ugyiratId,
+    esemeny_tipus: "modositva",
+    user_id: user.id,
+    indoklas: "Megjegyzés hozzáadva"
+  })
+
+  revalidatePath(`/dossiers/${ugyiratId}`)
+  return { success: true }
+}
+
+export async function updateDossierStatus(ugyiratId: string, ugyId: string, newStatus: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  // Check if valid status transition
+  if (!["ugyintezes_alatt", "elintezett"].includes(newStatus)) {
+    return { error: "Érvénytelen státusz." }
+  }
+
+  const { error: ugyiratError } = await supabase
+    .from("ugyirat")
+    .update({ statusz: newStatus })
+    .eq("id", ugyiratId)
+
+  if (ugyiratError) return { error: "Hiba az ügyirat frissítésekor." }
+
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "ugyirat",
+    entitas_id: ugyiratId,
+    esemeny_tipus: "modositva",
+    user_id: user.id,
+    indoklas: `Állapot módosítva erre: ${newStatus}`
+  })
+
+  revalidatePath(`/dossiers/${ugyiratId}`)
+  return { success: true }
+}
+
+export async function uploadReply(ugyiratId: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  const targy = formData.get("targy") as string
+  const file = formData.get("file") as File | null
+
+  if (!targy || !file || file.size === 0) {
+    return { error: "Minden mező és a fájl is kötelező!" }
+  }
+
+  // 1. Fájl feltöltése Storage-ba
+  const crypto = require("crypto")
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${crypto.randomUUID()}.${fileExt}`
+  
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+  
+  const { error: uploadError } = await supabase.storage
+    .from("irat_files")
+    .upload(fileName, buffer, {
+      contentType: file.type,
+      upsert: false
+    })
+
+  if (uploadError) return { error: "Hiba a fájl feltöltésekor: " + uploadError.message }
+
+  const hash = crypto.createHash('sha256').update(buffer).digest('hex')
+
+  // 2. Számoljuk ki az alszámot az irathoz
+  const { data: iratok } = await supabase
+    .from("irat")
+    .select("alszam")
+    .eq("ugyirat_id", ugyiratId)
+  
+  const maxAlszam = iratok?.reduce((max, i) => Math.max(max, i.alszam || 0), 0) || 0
+  const alszam = maxAlszam + 1
+
+  // 3. Irat rekord létrehozása (Kimenő)
+  const { data: iratData, error: iratError } = await supabase
+    .from("irat")
+    .insert({
+      ugyirat_id: ugyiratId,
+      targy,
+      irany: "kimeno",
+      erkezes_modja: "rendszer",
+      adathordozo_tipus: "elektronikus_eredeti",
+      minosites: "nyilt",
+      alszam
+    })
+    .select("id")
+    .single()
+
+  if (iratError || !iratData) return { error: "Hiba az irat rekord létrehozásakor." }
+
+  // 4. Irat fájl összekapcsolása
+  const { data: fajlResult, error: fajlError } = await supabase
+    .from("irat_fajl")
+    .insert({
+      irat_id: iratData.id,
+      storage_path: fileName,
+      eredeti_fajlnev: file.name,
+      mime_type: file.type,
+      meret_byte: file.size,
+      sha256: hash,
+      verzio: 1
+    })
+    .select("id")
+    .single()
+
+  // 5. Eseménynapló
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "ugyirat",
+    entitas_id: ugyiratId,
+    esemeny_tipus: "modositva",
+    user_id: user.id,
+    indoklas: `Válaszlevél feltöltve: ${file.name}`
+  })
+
+  // 6. Fire-and-forget hívás a PDF/A konverternek
+  if (fajlResult) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    fetch(`${appUrl}/api/pdf/convert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fajl_id: fajlResult.id })
+    }).catch(err => console.error("PDF/A Worker Trigger Error:", err))
+  }
+
+  revalidatePath(`/dossiers/${ugyiratId}`)
+  return { success: true }
+}
+
 export async function addPolymorphicLink(formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
