@@ -61,7 +61,7 @@ export async function sendNotificationEmail({ to, subject, html, dossierId }: Se
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function logNotification(
   supabaseClient: any,
   to: string,
@@ -100,4 +100,43 @@ async function logNotification(
   } catch (logError) {
     console.error('Kivétel az e-mail naplózása során:', logError);
   }
+}
+
+export function buildHtmlEmail(title: string, message: string, details?: { label: string, value: string }[], actionText?: string, actionUrl?: string) {
+  const detailsHtml = details && details.length > 0 ? `
+    <table style="width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px;">
+      ${details.map(d => `
+        <tr>
+          <td style="padding: 12px 0; border-bottom: 1px solid #eef2f6; color: #64748b; width: 35%; font-size: 14px;">${d.label}</td>
+          <td style="padding: 12px 0; border-bottom: 1px solid #eef2f6; color: #0f172a; font-weight: 600; font-size: 14px;">${d.value}</td>
+        </tr>
+      `).join('')}
+    </table>
+  ` : '';
+
+  const buttonHtml = actionText && actionUrl ? `
+    <div style="margin-top: 32px; text-align: center;">
+      <a href="${actionUrl}" style="background-color: #0eb39e; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block; font-size: 15px;">${actionText}</a>
+    </div>
+  ` : '';
+
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 40px 20px; color: #334155;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); overflow: hidden; border: 1px solid #e2e8f0;">
+        <div style="background-color: #0eb39e; padding: 24px 32px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">eaisyDocs</h1>
+        </div>
+        <div style="padding: 40px 32px;">
+          <h2 style="color: #0f172a; margin-top: 0; margin-bottom: 16px; font-size: 20px; font-weight: 600;">${title}</h2>
+          <p style="font-size: 15px; line-height: 1.6; color: #475569; margin-bottom: 24px;">${message}</p>
+          ${detailsHtml}
+          ${buttonHtml}
+        </div>
+        <div style="background-color: #f1f5f9; padding: 24px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
+          <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.5;">Ezt az üzenetet az eaisyDocs rendszer automatikusan generálta.</p>
+          <p style="margin: 4px 0 0; font-size: 13px; color: #94a3b8;">Kérjük, ne válaszolj erre az e-mailre!</p>
+        </div>
+      </div>
+    </div>
+  `;
 }

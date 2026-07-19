@@ -6,17 +6,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button"
 import { Eye, FileText, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { BorrowDialog } from "./borrow-dialog"
+import { PhysicalLocationDialog } from "./physical-location-dialog"
 
 interface IratokListaProps {
   iratok: any[];
   canEdit?: boolean;
+  users?: { id: string, nev: string }[];
 }
 
-export function IratokLista({ iratok, canEdit = true }: IratokListaProps) {
+export function IratokLista({ iratok, canEdit = true, users = [] }: IratokListaProps) {
   const [viewerOpen, setViewerOpen] = useState(false)
   const [selectedFajl, setSelectedFajl] = useState<any>(null)
   const [selectedIratId, setSelectedIratId] = useState<string>("")
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
+  const [, setUploadDialogOpen] = useState(false)
 
   const openViewer = (fajl: any, iratId: string) => {
     setSelectedFajl(fajl)
@@ -41,6 +44,7 @@ export function IratokLista({ iratok, canEdit = true }: IratokListaProps) {
             <TableHead>Tárgy</TableHead>
             <TableHead>Irány</TableHead>
             <TableHead>Fájlok</TableHead>
+            <TableHead>Fizikai hely</TableHead>
             <TableHead className="text-right">Műveletek</TableHead>
           </TableRow>
         </TableHeader>
@@ -69,6 +73,32 @@ export function IratokLista({ iratok, canEdit = true }: IratokListaProps) {
                     ))
                   ) : (
                     <span className="text-xs text-muted-foreground italic">Nincs fájl csatolva</span>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="flex flex-col items-start gap-1">
+                  <div className="flex items-center">
+                    {irat.irat_fizikai_hely ? (
+                      <div className="text-xs text-muted-foreground mb-1 flex items-center">
+                        <span>Polc: <span className="font-semibold">{irat.irat_fizikai_hely.polc || '-'}</span>, Doboz: <span className="font-semibold">{irat.irat_fizikai_hely.doboz || '-'}</span></span>
+                        {canEdit && <PhysicalLocationDialog iratId={irat.id} currentPolc={irat.irat_fizikai_hely.polc} currentDoboz={irat.irat_fizikai_hely.doboz} />}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground italic mb-1 flex items-center">
+                        Nincs rögzítve
+                        {canEdit && <PhysicalLocationDialog iratId={irat.id} />}
+                      </div>
+                    )}
+                  </div>
+                  {canEdit && (
+                    <BorrowDialog 
+                      iratId={irat.id} 
+                      users={users} 
+                      activeBorrowLog={
+                        irat.irat_kolcsonzes_naplo?.find((log: any) => log.statusz === "kikolcsonozve")
+                      } 
+                    />
                   )}
                 </div>
               </TableCell>

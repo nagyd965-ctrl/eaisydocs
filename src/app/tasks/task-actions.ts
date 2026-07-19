@@ -1,0 +1,71 @@
+"use server"
+
+import { revalidatePath } from "next/cache"
+import { createClient } from "@/utils/supabase/server"
+
+export async function updateTaskStatus(taskId: string, newStatus: "nyitott" | "folyamatban" | "kesz" | "elutasitott") {
+  const supabase = await createClient()
+  
+  const { error } = await supabase
+    .from("feladat")
+    .update({ allapot: newStatus, updated_at: new Date().toISOString() })
+    .eq("id", taskId)
+
+  if (error) {
+    console.error("Hiba a feladat frissítésekor:", error)
+    return { success: false, error: error.message }
+  }
+
+  // Naplózás
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) {
+    const { data: feladatData } = await supabase.from("feladat").select("ugyirat_id").eq("id", taskId).single()
+    if (feladatData?.ugyirat_id) {
+       await supabase.from("esemeny_naplo").insert({
+         entitas_tipus: "ugyirat",
+         entitas_id: feladatData.ugyirat_id,
+         esemeny_tipus: "modositva",
+         user_id: user.id,
+         indoklas: `Feladat állapota módosítva: ${newStatus}`
+       })
+    }
+  }
+
+  revalidatePath("/tasks")
+  return { success: true }
+}
+
+export async function createTask(ugyiratId: string, leiras: string, hatarido: string, felelosUserId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { success: false, error: "Nincs bejelentkezve" }
+
+  const { error } = await supabase
+    .from("feladat")
+    .insert({
+      ugyirat_id: ugyiratId,
+      leiras: leiras,
+      hatarido: hatarido,
+      felelos_user_id: felelosUserId,
+      allapot: "nyitott"
+    })
+
+  if (error) {
+    console.error("Hiba a feladat létrehozásakor:", error)
+    return { success: false, error: error.message }
+  }
+
+  // Naplózás
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "ugyirat",
+    entitas_id: ugyiratId,
+    esemeny_tipus: "modositva",
+    user_id: user.id,
+    indoklas: `Új feladat kiírva: ${leiras}`
+  })
+
+  revalidatePath(`/dossiers/${ugyiratId}`)
+  revalidatePath("/tasks")
+  return { success: true }
+}

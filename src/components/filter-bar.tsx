@@ -9,7 +9,7 @@ export function FilterBar({ placeholder = "Keresés..." }: { placeholder?: strin
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
   const [value, setValue] = useState(searchParams.get("q") || "")
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export function FilterBar({ placeholder = "Keresés..." }: { placeholder?: strin
     }, 300)
 
     return () => clearTimeout(delayDebounceFn)
-  }, [value]) // Csak a value változására fusson le, hogy elkerüljük az infinite loopot
+  }, [value, pathname, router, searchParams]) // Csak a value változására fusson le, hogy elkerüljük az infinite loopot
 
   return (
     <div className="relative w-full min-w-[300px] md:min-w-[350px] max-w-lg">

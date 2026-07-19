@@ -69,7 +69,7 @@ export function FilingPanelClient({
       } else {
         router.push("/inbox")
       }
-    } catch (err) {
+    } catch (_err: any) {
       setError("Váratlan hiba történt az iktatás során.")
     } finally {
       setLoading(false)

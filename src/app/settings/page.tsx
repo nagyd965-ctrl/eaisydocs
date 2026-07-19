@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Info, User, Building, Bell, Monitor, Shield, Users, UserPlus } from "lucide-react"
+import { Info, User, Building, Bell, Monitor, Shield, Users, Plane } from "lucide-react"
 import { SettingsClient } from "./settings-client"
 import { createClient } from "@/utils/supabase/server"
 
@@ -25,6 +25,16 @@ export default async function SettingsPage() {
     .select("*")
     .order("mikor", { ascending: false })
     .limit(50)
+
+  const { data: userData } = await supabase.auth.getUser()
+  const { data: helyettesitesek } = await supabase
+    .from("helyettesites")
+    .select(`
+      id, mettol, meddig, aktiv,
+      helyettesito:helyettesito_user_id(id, nev)
+    `)
+    .eq("kilepo_user_id", userData.user?.id || "")
+    .order("mettol", { ascending: false })
 
   if (!profile) {
     return (
@@ -60,12 +70,11 @@ export default async function SettingsPage() {
             Csapat
           </TabsTrigger>
           <TabsTrigger 
-            value="ceg" 
+            value="helyettesites" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-            disabled
           >
-            <Building className="h-4 w-4 mr-2" />
-            Cég
+            <Plane className="h-4 w-4 mr-2" />
+            Helyettesítés
           </TabsTrigger>
           <TabsTrigger 
             value="osztalyok" 
@@ -104,6 +113,7 @@ export default async function SettingsPage() {
           departments={departments || []}
           szabalyok={szabalyok || []}
           naplo={naplo || []}
+          helyettesitesek={helyettesitesek || []}
         />
       </Tabs>
     </div>

@@ -3,24 +3,28 @@
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { MessageSquare, Upload, Play, CheckCircle2, Loader2, FileUp } from "lucide-react"
+
+import { MessageSquare, Play, CheckCircle2, Loader2, FileUp } from "lucide-react"
 import { toast } from "sonner"
 import { addComment, updateDossierStatus, uploadReply } from "@/app/dossiers/[id]/actions"
+import { AddTaskDialog } from "./add-task-dialog"
+import { Badge } from "./ui/badge"
 
 interface TasksTabProps {
   ugyiratId: string;
   ugyId: string;
   status: string;
   comments: any[];
+  tasks: any[];
+  users: any[];
   canEdit: boolean;
   currentUserEmail: string;
 }
 
-export function TasksTab({ ugyiratId, ugyId, status, comments, canEdit, currentUserEmail }: TasksTabProps) {
+export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, canEdit, currentUserEmail }: TasksTabProps) {
   const [commentText, setCommentText] = useState("")
   const [commentLoading, setCommentLoading] = useState(false)
 
@@ -72,6 +76,37 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, canEdit, currentU
 
   return (
     <div className="space-y-6">
+      {/* 0. Ügyirati Feladatok (Al-feladatok) */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Ügyirati Feladatok</CardTitle>
+            <CardDescription>Konkrét tennivalók (al-feladatok) ehhez az aktához.</CardDescription>
+          </div>
+          {canEdit && <AddTaskDialog ugyiratId={ugyiratId} users={users} />}
+        </CardHeader>
+        <CardContent>
+          {tasks.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">Még nincsenek feladatok rögzítve.</p>
+          ) : (
+            <div className="space-y-4">
+              {tasks.map(task => (
+                <div key={task.id} className="flex justify-between items-center p-3 border rounded-lg">
+                  <div>
+                    <div className="font-medium text-sm">{task.leiras}</div>
+                    <div className="text-xs text-muted-foreground flex gap-4 mt-1">
+                      <span>Felelős: {users.find(u => u.id === task.felelos_user_id)?.nev || 'Ismeretlen'}</span>
+                      <span>Határidő: {new Date(task.hatarido).toLocaleDateString('hu-HU')}</span>
+                    </div>
+                  </div>
+                  <div><StatusBadge allapot={task.allapot} /></div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* 1. Státusz és Munkafolyamat Kezelés */}
       <Card>
         <CardHeader>
@@ -166,4 +201,14 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, canEdit, currentU
       </div>
     </div>
   )
+}
+
+function StatusBadge({ allapot }: { allapot: string }) {
+  switch (allapot) {
+    case 'nyitott': return <Badge variant="outline" className="text-muted-foreground border-muted-foreground">Nyitott</Badge>
+    case 'folyamatban': return <Badge variant="default" className="bg-info text-info-foreground">Folyamatban</Badge>
+    case 'kesz': return <Badge variant="default" className="bg-success text-success-foreground">Kész</Badge>
+    case 'elutasitott': return <Badge variant="destructive">Elutasítva</Badge>
+    default: return <Badge variant="outline">{allapot}</Badge>
+  }
 }

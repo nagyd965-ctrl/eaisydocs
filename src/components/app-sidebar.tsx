@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Home, Inbox, Archive, Settings, FolderOpen, Search, Users } from "lucide-react"
+import { Home, Inbox, Archive, Settings, FolderOpen, Search, Users, CheckSquare } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 
@@ -24,6 +24,11 @@ const items = [
     title: "Áttekintés",
     url: "/",
     icon: Home,
+  },
+  {
+    title: "Saját feladataim",
+    url: "/tasks",
+    icon: CheckSquare,
   },
   {
     title: "Bejövő sor",

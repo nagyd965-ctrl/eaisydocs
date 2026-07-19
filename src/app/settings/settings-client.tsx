@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { User, Users, UserPlus, ChevronRight, Key, Clock, Shield, Save, BellRing, Smartphone, Mail, CheckCircle2, AlertCircle, ShieldCheck, FileText } from "lucide-react"
+import { User, Users, UserPlus, ChevronRight, Key, Clock, Shield, Save, BellRing, Smartphone, Mail, CheckCircle2, AlertCircle, ShieldCheck, FileText, Plane } from "lucide-react"
 import Link from "next/link"
 import { updateProfile, createNewUser, updateUserPassword, updateUserRole } from "./settings-actions"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -22,7 +22,9 @@ import { NotificationSettings } from "./notification-settings"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
-export function SettingsClient({ initialProfile, email, teamMembers, departments, szabalyok, naplo }: { initialProfile: any, email: string | undefined, teamMembers: any[], departments?: any[], szabalyok?: any[], naplo?: any[] }) {
+import { createSubstitution, deleteSubstitution } from "./substitution-actions"
+
+export function SettingsClient({ initialProfile, email, teamMembers, departments, szabalyok, naplo, helyettesitesek = [] }: { initialProfile: any, email: string | undefined, teamMembers: any[], departments?: any[], szabalyok?: any[], naplo?: any[], helyettesitesek?: any[] }) {
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -41,6 +43,12 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
   const [editRoleLoading, setEditRoleLoading] = useState(false)
   const [departmentLoading, setDepartmentLoading] = useState(false)
   
+  // Helyettesítés állapotok
+  const [substituteUser, setSubstituteUser] = useState("")
+  const [substituteFrom, setSubstituteFrom] = useState("")
+  const [substituteTo, setSubstituteTo] = useState("")
+  const [substituteLoading, setSubstituteLoading] = useState(false)
+
   // Új állapotok a szervezeti egységhez
   const [addUsersDialogOpen, setAddUsersDialogOpen] = useState(false)
   const [selectedDepartmentForAdd, setSelectedDepartmentForAdd] = useState<string | null>(null)
@@ -705,6 +713,110 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
             </Button>
           </CardFooter>
         </Card>
+      </TabsContent>
+
+      {/* 7. TAB: HELYETTESÍTÉS */}
+      <TabsContent value="helyettesites" className="space-y-4 outline-none">
+        <Card className="border-border shadow-sm">
+          <CardHeader className="pb-4 border-b">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Plane className="h-5 w-5 text-primary" />
+                <CardTitle>Helyettesítés beállítása</CardTitle>
+              </div>
+            </div>
+            <CardDescription className="pt-1.5">
+              Állítsd be, hogy szabadságod vagy távolléted alatt ki lássa el a feladataidat.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6 pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <Label>Helyettesítő munkatárs</Label>
+                <Select value={substituteUser} onValueChange={(val) => val && setSubstituteUser(val)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Válassz kollégát...">
+                      {substituteUser ? teamMembers.find(u => u.id === substituteUser)?.nev : "Válassz kollégát..."}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teamMembers.filter(u => u.id !== initialProfile?.id).map((member: any) => (
+                      <SelectItem key={member.id} value={member.id}>{member.nev}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Mettől</Label>
+                <Input type="date" value={substituteFrom} onChange={e => setSubstituteFrom(e.target.value)} min={new Date().toISOString().split('T')[0]} />
+              </div>
+              <div className="space-y-2">
+                <Label>Meddig</Label>
+                <Input type="date" value={substituteTo} onChange={e => setSubstituteTo(e.target.value)} min={substituteFrom || new Date().toISOString().split('T')[0]} />
+              </div>
+            </div>
+            <Button 
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              disabled={substituteLoading || !substituteUser || !substituteFrom || !substituteTo}
+              onClick={async () => {
+                setSubstituteLoading(true)
+                const res = await createSubstitution(substituteUser, substituteFrom, substituteTo)
+                setSubstituteLoading(false)
+                if(res.success) {
+                  toast.success("Helyettesítés beállítva!")
+                  setSubstituteUser("")
+                  setSubstituteFrom("")
+                  setSubstituteTo("")
+                } else {
+                  toast.error(res.error)
+                }
+              }}
+            >
+              {substituteLoading ? "Mentés..." : "Helyettesítés rögzítése"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {helyettesitesek.length > 0 && (
+          <Card className="border-border shadow-sm mt-6">
+            <CardHeader className="pb-4 border-b">
+              <CardTitle>Aktuális és korábbi helyettesítések</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                {helyettesitesek.map((h: any) => {
+                  const isPast = new Date(h.meddig) < new Date()
+                  const isActive = !isPast && new Date(h.mettol) <= new Date()
+                  return (
+                    <div key={h.id} className="flex items-center justify-between p-4 border rounded-md bg-card">
+                      <div>
+                        <p className="font-semibold">{h.helyettesito?.nev}</p>
+                        <p className="text-sm text-muted-foreground tabular-nums">
+                          {new Date(h.mettol).toLocaleDateString("hu-HU")} - {new Date(h.meddig).toLocaleDateString("hu-HU")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <Badge variant="outline" className={isActive ? "text-primary border-primary bg-primary/5" : isPast ? "text-muted-foreground" : "text-blue-500 border-blue-200 bg-blue-50/50"}>
+                          {isActive ? "Aktív" : isPast ? "Lejárt" : "Tervezett"}
+                        </Badge>
+                        {!isPast && (
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={async () => {
+                            if(confirm("Biztosan törlöd a helyettesítést?")) {
+                              await deleteSubstitution(h.id)
+                              toast.success("Törölve")
+                            }
+                          }}>
+                            Törlés
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </TabsContent>
     </>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ArchiveX, Loader2 } from "lucide-react"
 import { closeDossier } from "@/app/dossiers/[id]/actions"

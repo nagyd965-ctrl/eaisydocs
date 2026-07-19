@@ -21,7 +21,7 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
 
   const supabase = await createClient()
 
-  let query = supabase
+  const query = supabase
     .from("ugyirat")
     .select(`
       id,

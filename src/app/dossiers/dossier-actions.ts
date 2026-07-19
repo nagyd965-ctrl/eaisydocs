@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
-import { sendNotificationEmail } from "@/utils/mailer"
+import { sendNotificationEmail, buildHtmlEmail } from "@/utils/mailer"
+import { getBaseUrl } from "@/utils/url"
 
 export async function assignDossier(formData: FormData) {
   const ugy_id = formData.get("ugy_id") as string
@@ -88,13 +89,16 @@ export async function assignDossier(formData: FormData) {
           await sendNotificationEmail({
             to: userEmail,
             subject: `Új ügyirat szignálva: ${ugyiratData?.iktatoszam || "Ismeretlen"}`,
-            html: `
-              <h2>Új feladatot kaptál!</h2>
-              <p>Egy új ügyiratot szignáltak rád az eaisyDocs rendszerben.</p>
-              <p><b>Iktatószám:</b> ${ugyiratData?.iktatoszam || "N/A"}</p>
-              <p><b>Határidő:</b> ${hatarido || "Nincs megadva"}</p>
-              <p>Kérlek lépj be a rendszerbe a részletekért!</p>
-            `,
+            html: buildHtmlEmail(
+              "Új feladatot kaptál!",
+              "Egy új ügyiratot szignáltak rád az eaisyDocs rendszerben.",
+              [
+                { label: "Iktatószám", value: ugyiratData?.iktatoszam || "N/A" },
+                { label: "Határidő", value: hatarido || "Nincs megadva" }
+              ],
+              "Ügyirat megtekintése",
+              `${getBaseUrl()}/dossiers/${ugyirat_id}`
+            ),
             dossierId: ugyirat_id
           })
         }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { sendNotificationEmail } from '@/utils/mailer';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { sendNotificationEmail, buildHtmlEmail } from '@/utils/mailer';
+import { getBaseUrl } from '@/utils/url';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
       return new NextResponse('Missing Supabase configuration', { status: 500 });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    const supabase = createSupabaseClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
     // =========================================================================
     // A) HATÁRIDŐ KÖZELEDIK (Felelősnek)
     // =========================================================================
-    const kozeledikSzabaly = szabalyok.find(sz => sz.esemeny_tipus === 'hatarido_kozeledik' && sz.kinek === 'felelos' && sz.aktiv);
+    const kozeledikSzabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 'hatarido_kozeledik' && sz.kinek === 'felelos' && sz.aktiv);
     if (kozeledikSzabaly) {
       const { data: ugyek } = await supabase
         .from('ugy')
@@ -73,13 +74,16 @@ export async function GET(request: Request) {
                 await sendNotificationEmail({
                   to: email,
                   subject: `Határidő közeledik: ${ugy.ugyirat[0].iktatoszam}`,
-                  html: `
-                    <h2>Közelgő Határidő!</h2>
-                    <p>A(z) <b>${ugy.ugyirat[0].iktatoszam}</b> azonosítójú ügyirat határideje 2 nap múlva lejár!</p>
-                    <p><b>Tárgy:</b> ${ugy.targy}</p>
-                    <p><b>Határidő:</b> ${ugy.hatarido}</p>
-                    <p>Kérlek, időben gondoskodj az elintézésről!</p>
-                  `,
+                  html: buildHtmlEmail(
+                    "Közelgő Határidő!",
+                    `A(z) <b>${ugy.ugyirat[0].iktatoszam}</b> azonosítójú ügyirat határideje 2 nap múlva lejár! Kérlek, időben gondoskodj az elintézésről!`,
+                    [
+                      { label: "Tárgy", value: ugy.targy },
+                      { label: "Határidő", value: ugy.hatarido }
+                    ],
+                    "Ügyirat megtekintése",
+                    `${getBaseUrl()}/dossiers/${ugy.ugyirat[0].id}`
+                  ),
                   dossierId: ugy.ugyirat[0].id
                 });
                 emailsSent++;
@@ -93,10 +97,10 @@ export async function GET(request: Request) {
     // =========================================================================
     // B) HATÁRIDŐ LEJÁRT (Felelősnek és/vagy Vezetőnek)
     // =========================================================================
-    const lejartFelelos = szabalyok.find(sz => sz.esemeny_tipus === 'hatarido_lejart' && sz.kinek === 'felelos' && sz.aktiv);
-    const lejartVezeto = szabalyok.find(sz => sz.esemeny_tipus === 'hatarido_lejart' && sz.kinek === 'vezeto' && sz.aktiv);
+    const lejartSzabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 'hatarido_lejart' && sz.kinek === 'felelos' && sz.aktiv);
+    const lejartFelettesSzabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 'hatarido_lejart' && sz.kinek === 'felettes' && sz.aktiv);
     
-    if (lejartFelelos || lejartVezeto) {
+    if (lejartSzabaly || lejartFelettesSzabaly) {
       const { data: lejartUgyek } = await supabase
         .from('ugy')
         .select('id, targy, hatarido, felelos_user_id, ugyirat(id, iktatoszam)')
@@ -111,19 +115,22 @@ export async function GET(request: Request) {
             if (ugyHatarido < todayIsoStr && ugy.ugyirat && ugy.ugyirat.length > 0) {
               
               // Értesítés a Felelősnek (Zargatás minden nap)
-              if (lejartFelelos && ugy.felelos_user_id) {
+              if (lejartSzabaly && ugy.felelos_user_id) {
                 const email = await getUserEmailById(ugy.felelos_user_id);
                 if (email) {
                   await sendNotificationEmail({
                     to: email,
                     subject: `Lejárt Határidő! - ${ugy.ugyirat[0].iktatoszam}`,
-                    html: `
-                      <h2 style="color: red;">Lejárt Határidő!</h2>
-                      <p>Figyelem! A(z) <b>${ugy.ugyirat[0].iktatoszam}</b> azonosítójú ügyirattal késésben vagy!</p>
-                      <p><b>Tárgy:</b> ${ugy.targy}</p>
-                      <p><b>Eredeti határidő:</b> ${ugy.hatarido}</p>
-                      <p>Kérlek, azonnal intézkedj!</p>
-                    `,
+                    html: buildHtmlEmail(
+                      "Lejárt Határidő!",
+                      `Figyelem! A(z) <b>${ugy.ugyirat[0].iktatoszam}</b> azonosítójú ügyirattal késésben vagy! Kérlek, azonnal intézkedj!`,
+                      [
+                        { label: "Tárgy", value: ugy.targy },
+                        { label: "Eredeti határidő", value: ugy.hatarido }
+                      ],
+                      "Azonnali intézkedés",
+                      `${getBaseUrl()}/dossiers/${ugy.ugyirat[0].id}`
+                    ),
                     dossierId: ugy.ugyirat[0].id
                   });
                   emailsSent++;
@@ -131,7 +138,7 @@ export async function GET(request: Request) {
               }
 
               // Értesítés a Vezetőnek (Eszkaláció)
-              if (lejartVezeto) {
+              if (lejartFelettesSzabaly) {
                 const { data: vezetok } = await supabase.from('felhasznalo_profil').select('id').in('szerepkor', ['vezeto', 'admin', 'rendszergazda']);
                 if (vezetok) {
                   for (const vezeto of vezetok) {
@@ -140,13 +147,16 @@ export async function GET(request: Request) {
                       await sendNotificationEmail({
                         to: vEmail,
                         subject: `Eszkaláció: Lejárt határidejű ügyirat! - ${ugy.ugyirat[0].iktatoszam}`,
-                        html: `
-                          <h2 style="color: red;">Vezetői Eszkaláció</h2>
-                          <p>Egy munkatárs kicsúszott a határidőből a(z) <b>${ugy.ugyirat[0].iktatoszam}</b> ügyirattal kapcsolatban.</p>
-                          <p><b>Tárgy:</b> ${ugy.targy}</p>
-                          <p><b>Lejárt határidő:</b> ${ugy.hatarido}</p>
-                          <p>Kérlek, vizsgáld ki a késés okát!</p>
-                        `
+                        html: buildHtmlEmail(
+                          "Vezetői Eszkaláció",
+                          `Egy munkatárs kicsúszott a határidőből a(z) <b>${ugy.ugyirat[0].iktatoszam}</b> ügyirattal kapcsolatban. Kérlek, vizsgáld ki a késés okát!`,
+                          [
+                            { label: "Tárgy", value: ugy.targy },
+                            { label: "Lejárt határidő", value: ugy.hatarido }
+                          ],
+                          "Ügyirat megtekintése",
+                          `${getBaseUrl()}/dossiers/${ugy.ugyirat[0].id}`
+                        )
                       });
                       emailsSent++;
                     }
@@ -162,8 +172,8 @@ export async function GET(request: Request) {
     // =========================================================================
     // C) MEGŐRZÉSI IDŐ LEJÁRT (Iratkezelőnek)
     // =========================================================================
-    const megorzesSzabaly = szabalyok.find(sz => sz.esemeny_tipus === 'megorzesi_ido_lejart' && sz.kinek === 'iratkezelo' && sz.aktiv);
-    if (megorzesSzabaly) {
+    const lejaratSzabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 'megorzes_lejar' && sz.kinek === 'iratkezelo' && sz.aktiv);
+    if (lejaratSzabaly) {
       // Itt az 'irat' táblát és a 'megorzesi_ido_vege' mezőt nézzük
       const { data: iratok } = await supabase
         .from('irat')
@@ -184,13 +194,16 @@ export async function GET(request: Request) {
                   await sendNotificationEmail({
                     to: iktEmail,
                     subject: `Iratselejtezés esedékes: ${irat.erkeztetoszam || irat.targy}`,
-                    html: `
-                      <h2>Megőrzési idő lejárt!</h2>
-                      <p>A törvényes megőrzési idő lejárt egy dokumentum esetében, így az <b>selejtezhetővé</b> vált.</p>
-                      <p><b>Irat tárgya:</b> ${irat.targy}</p>
-                      <p><b>Megőrzési idő vége:</b> ${irat.megorzesi_ido_vege}</p>
-                      <p>Kérlek, indítsd el a selejtezési folyamatot az Irattár modulban!</p>
-                    `,
+                    html: buildHtmlEmail(
+                      "Megőrzési idő lejárt!",
+                      "A törvényes megőrzési idő lejárt egy dokumentum esetében, így az <b>selejtezhetővé</b> vált. Kérlek, indítsd el a selejtezési folyamatot az Irattár modulban!",
+                      [
+                        { label: "Irat tárgya", value: irat.targy },
+                        { label: "Megőrzési idő vége", value: irat.megorzesi_ido_vege }
+                      ],
+                      "Irattár megnyitása",
+                      `${getBaseUrl()}/archive`
+                    ),
                     dossierId: irat.ugyirat_id // Opcionális
                   });
                   emailsSent++;

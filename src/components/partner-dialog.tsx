@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { savePartner } from "@/app/partners/actions"
-import { Building2, Pencil, Plus } from "lucide-react"
+import { Pencil, Plus } from "lucide-react"
 
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"

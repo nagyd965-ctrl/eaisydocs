@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
-import { sendNotificationEmail } from "@/utils/mailer"
+import { sendNotificationEmail, buildHtmlEmail } from "@/utils/mailer"
+import { getBaseUrl } from "@/utils/url"
 
 // 1. Felterjesztés Selejtezésre (Iratkezelő csinálja)
 export async function proposeDisposal(ugyiratIds: string[]) {
@@ -62,11 +63,13 @@ export async function proposeDisposal(ugyiratIds: string[]) {
             await sendNotificationEmail({
               to: userEmail,
               subject: "Új iratselejtezési javaslat jóváhagyásra vár",
-              html: `
-                <h2>Iratselejtezési jóváhagyás szükséges</h2>
-                <p>Egy munkatárs felterjesztett <b>${ugyiratIds.length} db</b> ügyiratot végleges selejtezésre.</p>
-                <p>Kérlek, lépj be az Irattár felületre, vizsgáld felül az iratokat, és a "Négy Szem Elve" alapján hagyd jóvá a megsemmisítésüket és a jegyzőkönyv kiállítását.</p>
-              `
+              html: buildHtmlEmail(
+                "Iratselejtezési jóváhagyás szükséges",
+                `Egy munkatárs felterjesztett <b>${ugyiratIds.length} db</b> ügyiratot végleges selejtezésre. Kérlek, lépj be az Irattár felületre, vizsgáld felül az iratokat, és a "Négy Szem Elve" alapján hagyd jóvá a megsemmisítésüket és a jegyzőkönyv kiállítását.`,
+                [],
+                "Irattár megnyitása",
+                `${getBaseUrl()}/archive`
+              )
             })
           }
         }

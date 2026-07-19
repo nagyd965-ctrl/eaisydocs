@@ -34,12 +34,12 @@ export async function processIncomingEmails() {
     await client.connect();
     
     // Select the INBOX
-    let lock = await client.getMailboxLock('INBOX');
+    const lock = await client.getMailboxLock('INBOX');
     try {
       // Fetch all UNSEEN emails
       const messages = client.fetch({ seen: false }, { source: true, uid: true });
       
-      for await (let message of messages) {
+      for await (const message of messages) {
         if (!message.source) continue;
         
         // Parse the email source
@@ -74,7 +74,7 @@ export async function processIncomingEmails() {
 
         // Process attachments
         if (parsed.attachments && parsed.attachments.length > 0) {
-          for (let attachment of parsed.attachments) {
+          for (const attachment of parsed.attachments) {
             const fileName = attachment.filename || 'ismeretlen_fajl.dat';
             const fileBuffer = attachment.content;
             

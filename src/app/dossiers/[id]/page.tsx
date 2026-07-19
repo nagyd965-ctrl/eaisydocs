@@ -37,7 +37,9 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
           storage_path,
           meret_byte,
           sha256
-        )
+        ),
+        irat_fizikai_hely ( doboz, polc ),
+        irat_kolcsonzes_naplo ( id, kinek_user_id, varhato_visszahozatal, statusz )
       )
     `)
     .eq("id", id)
@@ -113,6 +115,13 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
     .eq("ugyirat_id", id)
     .order("created_at", { ascending: true });
 
+  // Fetch tasks
+  const { data: tasks } = await supabase
+    .from("feladat")
+    .select("*")
+    .eq("ugyirat_id", id)
+    .order("created_at", { ascending: true });
+
   // Map users to comments
   const mappedComments = (comments || []).map((c: any) => ({
     ...c,
@@ -131,9 +140,9 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       description = `Iktatószám kiosztva: ${log.uj_ertek?.iktatoszam || "-"}`;
       icon = FolderPlus;
       color = "text-primary";
-    } else if (log.esemeny_tipus === "szignalva" || log.esemeny_tipus === "hozzaferes_modositas") {
-      title = "Ügyirat szignálva / Módosítva";
-      description = log.reszletek || "";
+    } else if (log.esemeny_tipus === "szignalva" || log.esemeny_tipus === "hozzaferes_modositas" || log.esemeny_tipus === "modositva") {
+      title = "Ügyirat módosítva";
+      description = log.reszletek || log.uj_ertek?.megjegyzes || "";
       icon = Users;
       color = "text-warning";
     } else if (log.esemeny_tipus === "lezarva") {
@@ -252,7 +261,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
               <CardDescription>Az ügyirathoz tartozó dokumentumok.</CardDescription>
             </CardHeader>
             <CardContent>
-              <IratokLista iratok={dossier.irat} canEdit={canEdit} />
+              <IratokLista iratok={dossier.irat} canEdit={canEdit} users={users || []} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -263,6 +272,8 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
             ugyId={(dossier.ugy as any)?.id}
             status={dossier.statusz}
             comments={mappedComments}
+            tasks={tasks || []}
+            users={users || []}
             canEdit={canEdit}
             currentUserEmail={authUser?.user?.email || ""}
           />

@@ -40,7 +40,7 @@ export function FilingDialog({
       } else {
         setOpen(false)
       }
-    } catch (err) {
+    } catch (_err: any) {
       setError("Váratlan hiba történt az iktatás során.")
     } finally {
       setLoading(false)

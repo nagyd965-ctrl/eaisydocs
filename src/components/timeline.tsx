@@ -1,4 +1,4 @@
-import { CheckCircle2, FileEdit, FolderPlus, Eye, Clock, LucideIcon } from "lucide-react"
+import { Clock, LucideIcon } from "lucide-react"
 
 export type TimelineEvent = {
   id: string

@@ -52,7 +52,7 @@ export function NewIncomingDialog() {
       } else {
         setOpen(false)
       }
-    } catch (err) {
+    } catch (_err: any) {
       setError("Váratlan hiba történt az érkeztetés során.")
     } finally {
       setLoading(false)
