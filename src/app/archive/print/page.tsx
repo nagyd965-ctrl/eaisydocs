@@ -22,7 +22,7 @@ export default function PrintProtocolPage() {
   return (
     <div className="p-8 bg-white text-black font-serif max-w-4xl mx-auto min-h-screen">
       <div className="text-center mb-8 border-b-2 border-black pb-4">
-        <h1 className="text-2xl font-bold uppercase tracking-wider mb-2">Selejtezési Jegyzőkönyv</h1>
+        <h1 className="text-2xl font-semibold uppercase tracking-wider mb-2">Selejtezési Jegyzőkönyv</h1>
         <p className="text-sm text-gray-600">Készült az eaisyDocs rendszer által a törvényi előírásoknak megfelelően</p>
       </div>
       
@@ -34,7 +34,7 @@ export default function PrintProtocolPage() {
 
       <div className="mb-10 text-justify text-lg leading-relaxed">
         <p className="mb-4">Alulírott <strong>{data.approver}</strong> igazolom, hogy a megőrzési idő lejártára hivatkozva a "Négy szem elvét" betartva jóváhagytam az alábbi elektronikus ügyiratok és a hozzájuk tartozó digitális fizikai állományok megsemmisítését. A javaslatot <strong>{data.proposer}</strong> terjesztette fel. A fájlok a rendszerből visszaállíthatatlanul törlésre kerültek.</p>
-        <h3 className="font-bold mb-4 mt-8 text-xl">Megsemmisített Ügyiratok Listája:</h3>
+        <h3 className="font-semibold mb-4 mt-8 text-xl">Megsemmisített Ügyiratok Listája:</h3>
         <ul className="list-decimal pl-8 space-y-2">
           {data.items?.map((ikt: string) => (
             <li key={ikt} className="font-medium">{ikt}</li>

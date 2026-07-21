@@ -33,12 +33,20 @@ export async function GET(
     return new NextResponse("Irat nem található", { status: 404 })
   }
 
+  const searchParams = request.nextUrl.searchParams
+  const fileId = searchParams.get('fileId')
+
   // 3. Fetch file details
-  const { data: fajl } = await supabase
+  let fileQuery = supabase
     .from("irat_fajl")
     .select("storage_path, mime_type")
     .eq("irat_id", iratId)
-    .single()
+
+  if (fileId) {
+    fileQuery = fileQuery.eq("id", fileId)
+  }
+
+  const { data: fajl } = await fileQuery.limit(1).single()
 
   if (!fajl || !fajl.storage_path) {
     return new NextResponse("Fájl nem található az irathoz", { status: 404 })

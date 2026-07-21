@@ -3,6 +3,7 @@ import { usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SessionTimeout } from "./session-timeout"
+import { NotificationBell } from "./notification-bell"
 import { useEffect, useState } from "react"
 import { createClient } from "@/utils/supabase/client"
 
@@ -11,11 +12,7 @@ function DynamicSidebarTrigger() {
   
   if (state === "expanded" && !isMobile) return null
 
-  return (
-    <div className="flex h-14 items-center px-4 md:px-8 shrink-0">
-      <SidebarTrigger className="-ml-2" />
-    </div>
-  )
+  return <SidebarTrigger className="-ml-2" />
 }
 
 
@@ -62,7 +59,14 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
       <AppSidebar />
       {timeoutMinutes && <SessionTimeout timeoutMinutes={timeoutMinutes} />}
       <main className="flex-1 w-full overflow-hidden flex flex-col relative">
-        <DynamicSidebarTrigger />
+        <div className="flex h-14 items-center justify-between px-4 md:px-8 shrink-0 border-b">
+          <div className="flex items-center">
+            <DynamicSidebarTrigger />
+          </div>
+          <div className="flex items-center space-x-4">
+            <NotificationBell />
+          </div>
+        </div>
         <div className="flex-1 overflow-auto p-4 md:p-8">
           {children}
         </div>

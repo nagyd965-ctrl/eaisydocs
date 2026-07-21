@@ -1,6 +1,6 @@
 -- Add ugyirat_megjegyzes table for internal communication on dossiers
 
-CREATE TABLE ugyirat_megjegyzes (
+CREATE TABLE IF NOT EXISTS ugyirat_megjegyzes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ugyirat_id UUID REFERENCES ugyirat(id) ON DELETE CASCADE,
     user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -11,18 +11,21 @@ CREATE TABLE ugyirat_megjegyzes (
 ALTER TABLE ugyirat_megjegyzes ENABLE ROW LEVEL SECURITY;
 
 -- Allow all authenticated users to insert
+DROP POLICY IF EXISTS "Allow insert for authenticated users on ugyirat_megjegyzes" ON ugyirat_megjegyzes;
 CREATE POLICY "Allow insert for authenticated users on ugyirat_megjegyzes" 
 ON ugyirat_megjegyzes FOR INSERT 
 TO authenticated 
 WITH CHECK (true);
 
 -- Allow all authenticated users to read
+DROP POLICY IF EXISTS "Allow select for authenticated users on ugyirat_megjegyzes" ON ugyirat_megjegyzes;
 CREATE POLICY "Allow select for authenticated users on ugyirat_megjegyzes" 
 ON ugyirat_megjegyzes FOR SELECT 
 TO authenticated 
 USING (true);
 
 -- Allow users to delete their own comments (optional, we might not need this right away, but good for completeness)
+DROP POLICY IF EXISTS "Allow delete own on ugyirat_megjegyzes" ON ugyirat_megjegyzes;
 CREATE POLICY "Allow delete own on ugyirat_megjegyzes" 
 ON ugyirat_megjegyzes FOR DELETE 
 TO authenticated 

@@ -2,7 +2,7 @@
 
 -- 1. Értesítési Szabályok Tábla
 CREATE TABLE IF NOT EXISTS public.ertesitesi_szabaly (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     esemeny_tipus TEXT NOT NULL, -- pl. 'hatarido_kozeledik', 'uj_szignalas'
     kinek TEXT NOT NULL,         -- pl. 'felelos', 'vezeto', 'iratkezelo'
     aktiv BOOLEAN DEFAULT true,
@@ -13,10 +13,12 @@ CREATE TABLE IF NOT EXISTS public.ertesitesi_szabaly (
 -- RLS a Szabályokon
 ALTER TABLE public.ertesitesi_szabaly ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Mindenki olvashatja a szabalyokat" ON public.ertesitesi_szabaly;
 CREATE POLICY "Mindenki olvashatja a szabalyokat"
     ON public.ertesitesi_szabaly FOR SELECT
     USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Csak admin szerkesztheti a szabalyokat" ON public.ertesitesi_szabaly;
 CREATE POLICY "Csak admin szerkesztheti a szabalyokat"
     ON public.ertesitesi_szabaly FOR ALL
     USING (
@@ -40,7 +42,7 @@ ON CONFLICT (esemeny_tipus, kinek) DO NOTHING;
 DROP TABLE IF EXISTS public.ertesites_naplo CASCADE;
 
 CREATE TABLE public.ertesites_naplo (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     mikor TIMESTAMPTZ DEFAULT now(),
     csatorna TEXT NOT NULL CHECK (csatorna IN ('email', 'sms')),
     cimzett_email TEXT NOT NULL,

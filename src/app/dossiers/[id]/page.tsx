@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FileText, Clock, Users, ArrowLeft, FolderPlus, Eye, Lock, Edit, Trash2 } from "lucide-react"
+import { FileText, Clock, Users, ArrowLeft, FolderPlus, Eye, Lock, Edit, Trash2, Mail } from "lucide-react"
 import Link from "next/link"
 import { Timeline, TimelineEvent } from "@/components/timeline"
 import { IratokLista } from "@/components/iratok-lista"
@@ -134,6 +134,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
     let description = "";
     let icon = Eye;
     let color = "text-muted-foreground";
+    let details = undefined;
 
     if (log.esemeny_tipus === "iktatva") {
       title = "Ügyirat iktatva";
@@ -151,10 +152,22 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       icon = Lock;
       color = "text-success";
     } else if (log.esemeny_tipus === "modositva") {
-      title = "Módosítás történt";
-      description = log.indoklas || log.reszletek || "A rendszer rögzítette a változtatást.";
-      icon = Edit;
-      color = "text-info";
+      if (log.indoklas && log.indoklas.includes("Válasz e-mail elküldve")) {
+        title = "Levélküldés";
+        icon = Mail; // Requires Mail import from lucide-react if not present, but I'll assume it's imported or I will check later. Wait, Mail is used here. Let's make sure it works or just use Edit.
+        color = "text-primary";
+        
+        const lines = log.indoklas.split('\n');
+        description = lines[0];
+        if (lines.length > 1) {
+          details = lines.slice(1).join('\n').trim();
+        }
+      } else {
+        title = "Módosítás történt";
+        description = log.indoklas || log.reszletek || "A rendszer rögzítette a változtatást.";
+        icon = Edit;
+        color = "text-info";
+      }
     } else if (log.esemeny_tipus === "selejtezve") {
       title = "Irat selejtezve";
       description = log.reszletek || "Az irat megsemmisítésre került.";
@@ -170,6 +183,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       user: userMap[log.user_id] || log.uj_ertek?.user_email || "Ismeretlen",
       icon,
       color,
+      details,
     }
   });
 

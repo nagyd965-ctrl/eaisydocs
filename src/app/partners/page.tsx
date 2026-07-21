@@ -11,6 +11,7 @@ import { Building2 } from "lucide-react"
 import Link from "next/link"
 import { PartnerDialog } from "@/components/partner-dialog"
 import { getPermissions } from "@/utils/permissions"
+import { DeletePartnerButton } from "@/components/delete-partner-button"
 
 export default async function PartnersPage() {
   const supabase = await createClient()
@@ -62,9 +63,14 @@ export default async function PartnersPage() {
                     </Link>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Link href={`/partners/${p.id}`} className="text-sm text-muted-foreground hover:text-primary">
-                      Adatlap megtekintése &rarr;
-                    </Link>
+                    <div className="flex items-center justify-end gap-2">
+                      <Link href={`/partners/${p.id}`} className="text-sm text-muted-foreground hover:text-primary mr-2">
+                        Adatlap megtekintése &rarr;
+                      </Link>
+                      {permissions.canEdit && (
+                        <DeletePartnerButton partnerId={p.id} partnerNev={p.nev} />
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

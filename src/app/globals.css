@@ -212,6 +212,13 @@
   }
 }
 
+/* Prevent layout shift from Radix/Base UI scroll lock */
+body[data-scroll-locked] {
+  padding-right: 0px !important;
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
 /* Hover Shadow letiltása a flat design miatt */
 *[class*="hover:shadow"]:hover {
   --tw-shadow: 0 0 #0000 !important;

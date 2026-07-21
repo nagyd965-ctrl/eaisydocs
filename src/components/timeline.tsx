@@ -1,5 +1,5 @@
 import { Clock, LucideIcon } from "lucide-react"
-
+import { TimelineItemDetails } from "./timeline-item-details"
 export type TimelineEvent = {
   id: string
   title: string
@@ -8,6 +8,7 @@ export type TimelineEvent = {
   user: string
   icon: LucideIcon
   color: string
+  details?: string
 }
 
 export function Timeline({ events }: { events: TimelineEvent[] }) {
@@ -32,8 +33,13 @@ export function Timeline({ events }: { events: TimelineEvent[] }) {
               {event.time}
             </div>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">{event.description}</p>
-          <p className="text-xs font-medium text-foreground mt-2">Felhasználó: {event.user}</p>
+          <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{event.description}</p>
+          <div className="flex items-center gap-4 mt-2">
+            <p className="text-xs font-medium text-foreground">Felhasználó: {event.user}</p>
+            {event.details && (
+              <TimelineItemDetails title={event.title} details={event.details} />
+            )}
+          </div>
         </div>
       ))}
     </div>

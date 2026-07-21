@@ -89,7 +89,11 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             {inboxItems && inboxItems.length > 0 ? (
               inboxItems.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="font-medium text-primary">{item.erkeztetoszam}</TableCell>
+                  <TableCell className="font-medium text-primary">
+                    <Link href={`/inbox/view/${item.id}`} className="hover:underline">
+                      {item.erkeztetoszam}
+                    </Link>
+                  </TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
                     {new Date(item.erkezes_datuma).toLocaleString("hu-HU", {
                       year: "numeric",
