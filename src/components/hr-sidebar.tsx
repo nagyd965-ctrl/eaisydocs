@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Home, Inbox, Archive, Settings, FolderOpen, Search, Users, CheckSquare } from "lucide-react"
+import { Home, Users, Calendar, Briefcase, FileText, Settings, UserPlus, Presentation, LayoutList, Target, FileBarChart2, ShieldAlert, FileSignature } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 
@@ -23,42 +23,62 @@ import { ModuleSwitcher } from "@/components/module-switcher"
 const items = [
   {
     title: "Áttekintés",
-    url: "/",
+    url: "/hr",
     icon: Home,
   },
   {
-    title: "Saját feladataim",
-    url: "/tasks",
-    icon: CheckSquare,
-  },
-  {
-    title: "Bejövő sor",
-    url: "/inbox",
-    icon: Inbox,
-  },
-  {
-    title: "Iktatókönyv",
-    url: "/dossiers",
-    icon: FolderOpen,
-  },
-  {
-    title: "Kereső",
-    url: "/search",
-    icon: Search,
-  },
-  {
-    title: "Irattár",
-    url: "/archive",
-    icon: Archive,
-  },
-  {
-    title: "Partnerek",
-    url: "/partners",
+    title: "Dolgozói portál",
+    url: "/hr/self-service",
     icon: Users,
   },
+  {
+    title: "Vezetői nézet",
+    url: "/hr/manager",
+    icon: Briefcase,
+  },
+  {
+    title: "Naptár & Távollét",
+    url: "/hr/time",
+    icon: Calendar,
+  },
+  {
+    title: "HR Munkaasztal",
+    url: "/hr/admin",
+    icon: FileText,
+  },
+  {
+    title: "Riportok (KSH / NAV)",
+    url: "/hr/reports",
+    icon: FileBarChart2,
+  },
+  {
+    title: "Toborzás (ATS)",
+    url: "/hr/recruitment",
+    icon: UserPlus,
+  },
+  {
+    title: "Onboarding",
+    url: "/hr/onboarding",
+    icon: Presentation,
+  },
+  {
+    title: "Compliance",
+    url: "/hr/compliance",
+    icon: FileSignature,
+  },
+  {
+    title: "Teljesítményértékelés",
+    url: "/hr/performance",
+    icon: Target,
+  },
+  {
+    title: "Eseménynapló (Audit)",
+    url: "/hr/audit",
+    icon: ShieldAlert,
+  }
 ]
 
-export function AppSidebar() {
+export function HrSidebar() {
   const pathname = usePathname()
 
   return (
@@ -68,11 +88,11 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Főmenü</SidebarGroupLabel>
+          <SidebarGroupLabel>HR Modulok</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => {
-                const isActive = pathname === item.url || (item.url !== "/" && pathname.startsWith(item.url))
+                const isActive = pathname === item.url || (item.url !== "/hr" && pathname.startsWith(item.url))
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton render={<Link href={item.url} />} isActive={isActive} tooltip={item.title}>
@@ -85,6 +105,8 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+
       </SidebarContent>
       <SidebarFooter className="p-0">
         <SidebarFooterContent />

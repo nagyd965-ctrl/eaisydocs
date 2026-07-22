@@ -8,13 +8,14 @@ import Link from "next/link"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 import { useSidebar } from "@/components/ui/sidebar"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 
 export function SidebarFooterContent() {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<any>(null)
   const supabase = createClient()
   const router = useRouter()
+  const pathname = usePathname()
   const { state, toggleSidebar } = useSidebar()
 
   useEffect(() => {
@@ -85,7 +86,7 @@ export function SidebarFooterContent() {
 
       {/* Gombok */}
       <div className="grid grid-cols-2 gap-2 px-2 pb-2">
-        <Link href="/settings" passHref>
+        <Link href={pathname.startsWith("/hr") ? "/hr/settings" : "/settings"} passHref>
           <Button variant="outline" size="sm" className="w-full text-muted-foreground hover:text-foreground">
             <Settings className="h-4 w-4" />
           </Button>

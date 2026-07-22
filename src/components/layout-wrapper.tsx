@@ -2,6 +2,7 @@
 import { usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
+import { HrSidebar } from "@/components/hr-sidebar"
 import { SessionTimeout } from "./session-timeout"
 import { NotificationBell } from "./notification-bell"
 import { useEffect, useState } from "react"
@@ -56,7 +57,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   
   return (
     <SidebarProvider>
-      <AppSidebar />
+      {pathname.startsWith("/hr") ? <HrSidebar /> : <AppSidebar />}
       {timeoutMinutes && <SessionTimeout timeoutMinutes={timeoutMinutes} />}
       <main className="flex-1 w-full overflow-hidden flex flex-col relative">
         <div className="flex h-14 items-center justify-between px-4 md:px-8 shrink-0 border-b">

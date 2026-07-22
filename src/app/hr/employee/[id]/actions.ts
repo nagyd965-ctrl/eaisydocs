@@ -1,0 +1,340 @@
+"use server"
+
+import { createClient } from "@/utils/supabase/server"
+import { revalidatePath } from "next/cache"
+
+// -----------------------------------------------------------------------------
+// Előző munkahelyek
+// -----------------------------------------------------------------------------
+
+export async function addWorkplace(employeeId: string, formData: FormData) {
+  const supabase = await createClient()
+
+  const munkaltato_neve = formData.get("munkaltato_neve") as string
+  const pozicio = formData.get("pozicio") as string
+  const jogviszony_tipusa = formData.get("jogviszony_tipusa") as string
+  const kezdet_datuma = formData.get("kezdet_datuma") as string
+  const veg_datuma = formData.get("veg_datuma") as string
+
+  if (!munkaltato_neve || !pozicio || !kezdet_datuma || !veg_datuma) {
+    return { error: "Minden kötelező mezőt ki kell tölteni!" }
+  }
+
+  const today = new Date().toISOString().split("T")[0]
+  if (kezdet_datuma > today || veg_datuma > today) {
+    return { error: "A dátumok nem lehetnek a jövőben!" }
+  }
+  if (kezdet_datuma > veg_datuma) {
+    return { error: "A kezdet dátuma nem lehet később, mint a vég dátuma!" }
+  }
+
+  const { error } = await supabase.from("hr_elozo_munkahely").insert({
+    dolgozo_id: employeeId,
+    munkaltato_neve,
+    pozicio,
+    jogviszony_tipusa,
+    kezdet_datuma,
+    veg_datuma,
+  })
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function deleteWorkplace(id: string, employeeId: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.from("hr_elozo_munkahely").delete().eq("id", id)
+  if (error) return { error: error.message }
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+// -----------------------------------------------------------------------------
+// Képzettségek
+// -----------------------------------------------------------------------------
+
+export async function addQualification(employeeId: string, formData: FormData) {
+  const supabase = await createClient()
+
+  const tipus = formData.get("tipus") as string
+  const megnevezes = formData.get("megnevezes") as string
+  const intezmeny = formData.get("intezmeny") as string
+  const bizonyitvany_szam = formData.get("bizonyitvany_szam") as string
+  const megszerzes_datuma = formData.get("megszerzes_datuma") as string
+  const fokozat = formData.get("fokozat") as string
+
+  if (!tipus || !megnevezes) {
+    return { error: "A típus és a megnevezés kitöltése kötelező!" }
+  }
+
+  if (megszerzes_datuma) {
+    const today = new Date().toISOString().split("T")[0]
+    if (megszerzes_datuma > today) {
+      return { error: "A megszerzés dátuma nem lehet a jövőben!" }
+    }
+  }
+
+  const { error } = await supabase.from("hr_kepzettseg").insert({
+    dolgozo_id: employeeId,
+    tipus,
+    megnevezes,
+    intezmeny,
+    bizonyitvany_szam,
+    megszerzes_datuma: megszerzes_datuma || null,
+    fokozat,
+  })
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function deleteQualification(id: string, employeeId: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.from("hr_kepzettseg").delete().eq("id", id)
+  if (error) return { error: error.message }
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+// -----------------------------------------------------------------------------
+// Tanulmányi szerződések
+// -----------------------------------------------------------------------------
+
+export async function addStudyContract(employeeId: string, formData: FormData) {
+  const supabase = await createClient()
+
+  const kepzes_neve = formData.get("kepzes_neve") as string
+  const koltseg = formData.get("koltseg") as string
+  const vallalt_munkaviszony_honap = formData.get("vallalt_munkaviszony_honap") as string
+  const lejarat_datuma = formData.get("lejarat_datuma") as string
+  const visszafizetesi_kotelezettseg = formData.get("visszafizetesi_kotelezettseg") === "on"
+
+  if (!kepzes_neve) {
+    return { error: "A képzés nevének kitöltése kötelező!" }
+  }
+
+  const { error } = await supabase.from("hr_tanulmanyi_szerzodes").insert({
+    dolgozo_id: employeeId,
+    kepzes_neve,
+    koltseg: koltseg ? parseFloat(koltseg) : null,
+    vallalt_munkaviszony_honap: vallalt_munkaviszony_honap ? parseInt(vallalt_munkaviszony_honap, 10) : null,
+    lejarat_datuma: lejarat_datuma || null,
+    visszafizetesi_kotelezettseg,
+  })
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function deleteStudyContract(id: string, employeeId: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.from("hr_tanulmanyi_szerzodes").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  if (error) return { error: error.message }
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function addOrvosiVizsgalat(employeeId: string, formData: FormData) {
+  const supabase = await createClient()
+
+  const tipus = formData.get("tipus") as string
+  const vizsgalat_datuma = formData.get("vizsgalat_datuma") as string
+  const ervenyesseg_datuma = formData.get("ervenyesseg_datuma") as string
+  const eredmeny = formData.get("eredmeny") as string
+  const megjegyzes = formData.get("megjegyzes") as string
+
+  if (!tipus || !vizsgalat_datuma || !ervenyesseg_datuma || !eredmeny) {
+    return { error: "Minden kötelező mezőt ki kell tölteni!" }
+  }
+
+  const today = new Date().toISOString().split("T")[0]
+  if (vizsgalat_datuma > today) {
+    return { error: "A vizsgálat dátuma nem lehet a jövőben!" }
+  }
+  if (vizsgalat_datuma > ervenyesseg_datuma) {
+    return { error: "A vizsgálat dátuma nem lehet később, mint az érvényesség dátuma!" }
+  }
+
+  const { error } = await supabase.from("hr_orvosi_vizsgalat").insert({
+    dolgozo_id: employeeId,
+    tipus,
+    vizsgalat_datuma,
+    ervenyesseg_datuma,
+    eredmeny,
+    megjegyzes: megjegyzes || null
+  })
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function deleteOrvosiVizsgalat(id: string, employeeId: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.from("hr_orvosi_vizsgalat").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  if (error) return { error: error.message }
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function addFegyelmi(employeeId: string, formData: FormData) {
+  const supabase = await createClient()
+
+  const tipus = formData.get("tipus") as string
+  const datum = formData.get("datum") as string
+  const indoklas = formData.get("indoklas") as string
+
+  if (!tipus || !datum || !indoklas) {
+    return { error: "Minden kötelező mezőt ki kell tölteni!" }
+  }
+
+  const today = new Date().toISOString().split("T")[0]
+  if (datum > today) {
+    return { error: "A dátum nem lehet a jövőben!" }
+  }
+
+  const { error } = await supabase.from("hr_fegyelmi").insert({
+    dolgozo_id: employeeId,
+    tipus,
+    datum,
+    indoklas
+  })
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function deleteFegyelmi(id: string, employeeId: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.from("hr_fegyelmi").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  if (error) return { error: error.message }
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function revealEmployeeSecretData(employeeId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data, error } = await supabase.rpc("get_decrypted_hr_data", {
+    p_dolgozo_id: employeeId
+  })
+
+  if (error) {
+    console.error("RPC error:", error)
+    return { error: "Hozzáférés megtagadva vagy nincs rögzített adat." }
+  }
+
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "irat_megtekintes", 
+    entitas_tipus: "hr_dolgozo_titkos_adat",
+    entitas_id: employeeId,
+    megjegyzes: `HR/Admin betekintett a dolgozó (${employeeId}) bizalmas adataiba.`
+  })
+
+  return { data }
+}
+
+export async function updateEmployeeSecretData(employeeId: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const taj_szam = formData.get("taj_szam") as string
+  const adoazonosito = formData.get("adoazonosito") as string
+  const bankszamla = formData.get("bankszamla") as string
+
+  const { error } = await supabase.rpc("update_decrypted_hr_data", {
+    p_dolgozo_id: employeeId,
+    p_taj_szam: taj_szam || "",
+    p_adoazonosito: adoazonosito || "",
+    p_bankszamla: bankszamla || ""
+  })
+
+  if (error) {
+    console.error("Update RPC error:", error)
+    return { error: `Hiba: ${error.message}` }
+  }
+
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "munkatars_modositas",
+    entitas_tipus: "hr_dolgozo_titkos_adat",
+    entitas_id: employeeId,
+    megjegyzes: `HR/Admin módosította a dolgozó (${employeeId}) bizalmas adatait.`
+  })
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function updateGeneralPersonalInfo(employeeId: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const szuletesi_datum = formData.get("szuletesi_datum") as string
+  const anyja_neve = formData.get("anyja_neve") as string
+  const lakcim = formData.get("lakcim") as string
+  const telefonszam = formData.get("telefonszam") as string
+
+  const { error } = await supabase
+    .from("hr_dolgozo_adatlap")
+    .update({
+      szuletesi_datum: szuletesi_datum || null,
+      anyja_neve: anyja_neve || null,
+      lakcim: lakcim || null,
+      telefonszam: telefonszam || null
+    })
+    .eq("id", employeeId)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function updateJogviszonyData(employeeId: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const belepes_datuma = formData.get("belepes_datuma") as string
+  const munkaviszony_tipusa = formData.get("munkaviszony_tipusa") as string
+  const munkaido_fte = formData.get("munkaido_fte") as string
+  const munkarend = formData.get("munkarend") as string
+  const berkategoria = formData.get("berkategoria") as string
+  const kozvetlen_vezeto = formData.get("kozvetlen_vezeto") as string
+
+  const { error } = await supabase
+    .from("hr_dolgozo_adatlap")
+    .update({
+      belepes_datuma: belepes_datuma || null,
+      munkaviszony_tipusa: munkaviszony_tipusa || null,
+      munkaido_fte: munkaido_fte ? parseFloat(munkaido_fte) : null,
+      munkarend: munkarend || null,
+      berkategoria: berkategoria || null,
+      kozvetlen_vezeto: kozvetlen_vezeto || null
+    })
+    .eq("id", employeeId)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}

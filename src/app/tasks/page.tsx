@@ -63,7 +63,7 @@ export default async function TasksPage() {
     .order("hatarido", { ascending: true })
 
   return (
-    <div className="flex flex-col gap-6 p-8 w-full max-w-7xl mx-auto">
+    <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">Saját Feladataim</h1>
         <p className="text-muted-foreground">
