@@ -68,7 +68,7 @@ export default async function HrAdminPage() {
   const newCandidates = toborzas?.filter(t => t.statusz === 'uj').length || 0
 
   // 3. Figyelmeztetések generálása (Alerts)
-  const alerts = []
+  const alerts: any[] = []
   
   // Onboarding ellenőrzés
   const { data: onboardings } = await supabase.from("hr_onboarding").select("*, hr_onboarding_feladat(*)")

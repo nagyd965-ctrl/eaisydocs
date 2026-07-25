@@ -57,7 +57,7 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
         belepes_datuma,
         hr_dolgozo_adatlap!inner (
           id,
-          felhasznalo_profil!inner (nev)
+          felhasznalo_profil!inner (nev, email)
         )
       )
     `)
@@ -158,7 +158,7 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
                           {emp.felhasznalo_profil?.nev || "Névtelen"}
                         </Link>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{emp.felhasznalo_profil?.email}</TableCell>
+                      <TableCell className="text-muted-foreground">{(emp.felhasznalo_profil as any)?.email}</TableCell>
                       <TableCell>{emp.belepes_datuma ? new Date(emp.belepes_datuma).toLocaleDateString('hu-HU') : "-"}</TableCell>
                       {isHrOrAdmin && (
                         <TableCell className="text-right pr-6">

@@ -64,7 +64,7 @@ export function AddCandidateDialog({ jobs }: { jobs: any[] }) {
           <div className="space-y-2">
             <Label htmlFor="jobId">Megpályázott Pozíció</Label>
             <input type="hidden" name="jobId" value={jobId} />
-            <Select value={jobId} onValueChange={setJobId} required>
+            <Select value={jobId} onValueChange={(val) => val && setJobId(val)} required>
               <SelectTrigger>
                 <span>{jobId ? jobs.find(j => j.id === jobId)?.megnevezes : "Válassz pozíciót..."}</span>
               </SelectTrigger>

@@ -104,7 +104,7 @@ export function JobActionMenu({ job }: JobActionMenuProps) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="besorolas">Besorolási Szint</Label>
-                  <Select value={besorolas} onValueChange={setBesorolas}>
+                  <Select value={besorolas} onValueChange={(val) => val && setBesorolas(val)}>
                     <SelectTrigger id="besorolas">
                       <SelectValue placeholder="Válassz..." />
                     </SelectTrigger>

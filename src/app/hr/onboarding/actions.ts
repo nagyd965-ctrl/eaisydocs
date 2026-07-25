@@ -37,7 +37,7 @@ export async function toggleTaskStatus(taskId: string, currentStatus: string) {
       esemeny_tipus: "adat_megtekintes", 
       entitas_tipus: "hr_onboarding_feladat",
       entitas_id: taskId,
-      megjegyzes: `Onboarding feladat (${taskData.cim}) státusza átállítva: ${statusText} - ${taskData.hr_onboarding?.nev} profilján`
+      megjegyzes: `Onboarding feladat (${taskData.cim}) státusza átállítva: ${statusText} - ${(taskData.hr_onboarding as any)?.nev} profilján`
     })
   }
 

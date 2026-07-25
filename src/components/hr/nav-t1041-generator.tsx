@@ -51,7 +51,7 @@ Munkaidő (FTE): ${selectedEmp.munkaido_fte ? selectedEmp.munkaido_fte * 40 + ' 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Bejelentendő Dolgozó</label>
-              <Select value={selectedEmpId} onValueChange={setSelectedEmpId}>
+              <Select value={selectedEmpId} onValueChange={(val) => val && setSelectedEmpId(val)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Válassz dolgozót..." />
                 </SelectTrigger>
@@ -64,7 +64,7 @@ Munkaidő (FTE): ${selectedEmp.munkaido_fte ? selectedEmp.munkaido_fte * 40 + ' 
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Bejelentés Jellege</label>
-              <Select value={bejelentesTipus} onValueChange={setBejelentesTipus}>
+              <Select value={bejelentesTipus} onValueChange={(val) => val && setBejelentesTipus(val)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Válassz jelleget...">
                     {bejelentesTipus === 'U' && "Új bejelentés (U)"}

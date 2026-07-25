@@ -75,7 +75,7 @@ export function WorkplaceTab({
                 </div>
                 <div className="space-y-2">
                   <Label>Jogviszony típusa</Label>
-                  <Select name="jogviszony_tipusa" value={jogviszony} onValueChange={setJogviszony}>
+                  <Select name="jogviszony_tipusa" value={jogviszony} onValueChange={(val) => val && setJogviszony(val)}>
                     <SelectTrigger>
                       {/* Bypassing SelectValue's internal buggy logic by passing our own text */}
                       <SelectValue placeholder="Válassz típust">{jogviszonyLabels[jogviszony]}</SelectValue>

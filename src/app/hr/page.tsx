@@ -190,7 +190,7 @@ export default async function HrOverviewPage() {
                 <div key={`med-${doc.id}`} className="flex items-start gap-4 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
                   <AlertCircle className="w-5 h-5 text-destructive mt-0.5" />
                   <div className="flex-1">
-                    <h4 className="font-semibold text-sm">Lejáró orvosi alkalmassági ({doc.felhasznalo_profil?.nev})</h4>
+                    <h4 className="font-semibold text-sm">Lejáró orvosi alkalmassági ({(doc.felhasznalo_profil as any)?.nev})</h4>
                     <p className="text-sm text-muted-foreground mt-1">Az orvosi igazolás érvényessége 30 napon belül lejár ({doc.orvosi_alkalmassag_ervenyesseg}).</p>
                   </div>
                   <Link href={`/hr/employee/${doc.id}`}>
@@ -219,7 +219,7 @@ export default async function HrOverviewPage() {
                 <div key={`prob-${prob.id}`} className="flex items-start gap-4 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500 mt-0.5" />
                   <div className="flex-1">
-                    <h4 className="font-semibold text-sm">Próbaidő lejár ({prob.felhasznalo_profil?.nev})</h4>
+                    <h4 className="font-semibold text-sm">Próbaidő lejár ({(prob.felhasznalo_profil as any)?.nev})</h4>
                     <p className="text-sm text-muted-foreground mt-1">A dolgozó 3 hónapos próbaideje hamarosan lejár. Értékelés szükséges.</p>
                   </div>
                   <Link href={`/hr/employee/${prob.id}`}>
@@ -238,12 +238,12 @@ export default async function HrOverviewPage() {
                     <div className="flex-1 space-y-1">
                       <p className="text-sm font-medium">Lejáró Munkaszerződés</p>
                       <p className="text-sm text-muted-foreground">
-                        <span className="font-semibold text-foreground">{emp.felhasznalo_profil?.nev}</span> határozott idejű szerződése hamarosan lejár ({new Date(emp.munkaviszony_vege).toLocaleDateString("hu-HU")}).
+                        <span className="font-semibold text-foreground">{(emp.felhasznalo_profil as any)?.nev}</span> határozott idejű szerződése hamarosan lejár ({new Date(emp.munkaviszony_vege).toLocaleDateString("hu-HU")}).
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/hr/employee/${emp.id}`}>Hosszabbítás</Link>
-                    </Button>
+                    <Link href={`/hr/employee/${emp.id}`}>
+                      <Button variant="outline" size="sm">Hosszabbítás</Button>
+                    </Link>
                   </div>
                 ))}
             </div>

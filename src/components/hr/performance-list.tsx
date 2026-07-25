@@ -87,7 +87,7 @@ export function PerformanceList({ employees, kpis, logs = [], cycles = [], allKp
               </div>
             </CardHeader>
             <CardContent className="pt-4">
-              <Accordion type="multiple" className="w-full">
+              <Accordion className="w-full">
                 {emp.kpis.map((kpi: any) => {
                   const percent = kpi.pontszam || 0
                   const text = kpi.celkituzes || kpi.ertekeles_szovege || "Nincs megadva"

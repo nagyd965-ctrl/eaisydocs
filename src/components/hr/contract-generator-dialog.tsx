@@ -70,7 +70,7 @@ export function ContractGeneratorDialog({ employee, adatlap }: { employee: any, 
           <div className="py-4 flex flex-col sm:flex-row gap-4 items-start sm:items-end border-b pb-6 mb-6">
             <div className="space-y-2 flex-1 w-full">
               <Label>Szerződés Sablon</Label>
-              <Select value={template} onValueChange={setTemplate} disabled={isSaving}>
+              <Select value={template} onValueChange={(val) => val && setTemplate(val)} disabled={isSaving}>
                 <SelectTrigger>
                   <SelectValue placeholder="Válassz sablont...">
                     {template === "alap_munkaszerzodes" && "Alap Munkaszerződés"}

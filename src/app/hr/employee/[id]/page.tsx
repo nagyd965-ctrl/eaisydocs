@@ -105,7 +105,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     )
   }
 
-  const adatlap = profile?.hr_dolgozo_adatlap
+  const adatlap = profile?.hr_dolgozo_adatlap as any
 
   // Cafeteria adatok
   const currentYear = new Date().getFullYear()
@@ -198,7 +198,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
           {/* Új: Távollét */}
           <TabsContent value="tavollet" className="mt-0 outline-none">
-            <LeaveTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} leaves={profile.hr_dolgozo_adatlap?.hr_tavollet || []} />
+            <LeaveTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} leaves={adatlap?.hr_tavollet || []} />
           </TabsContent>
 
           {/* Új: Jelenlét */}
@@ -221,12 +221,12 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           <TabsContent value="szakmai_hatter" className="mt-0 outline-none space-y-12">
             <div className="space-y-4">
               <h2 className="text-xl font-semibold tracking-tight border-b pb-2">Előző Munkahelyek</h2>
-              <WorkplaceTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={profile.hr_dolgozo_adatlap?.hr_elozo_munkahely || []} />
+              <WorkplaceTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_elozo_munkahely || []} />
             </div>
             
             <div className="space-y-4">
               <h2 className="text-xl font-semibold tracking-tight border-b pb-2">Képzettségek és Végzettségek</h2>
-              <QualificationTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={profile.hr_dolgozo_adatlap?.hr_kepzettseg || []} />
+              <QualificationTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_kepzettseg || []} />
             </div>
           </TabsContent>
 
@@ -239,7 +239,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                 employeeId={profile.id} 
                 isHrOrAdmin={isHrOrAdmin} 
                 adatlap={adatlap} 
-                jogviszonyok={profile.hr_dolgozo_adatlap?.hr_jogviszony || []}
+                jogviszonyok={adatlap?.hr_jogviszony || []}
                 munkakorok={munkakorok || []}
               />
             </div>

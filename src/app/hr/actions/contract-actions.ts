@@ -54,7 +54,7 @@ export async function generateAndSaveContract(
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     })
     const page = await browser.newPage()
-    await page.setContent(fullHtml, { waitUntil: 'networkidle0' })
+    await page.setContent(fullHtml, { waitUntil: 'networkidle0' as any })
     const pdfBuffer = await page.pdf({
       format: 'A4',
       margin: { top: '2cm', right: '2cm', bottom: '2cm', left: '2cm' }

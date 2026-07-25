@@ -143,7 +143,7 @@ export default async function DashboardPage() {
 
                     return (
                       <tr key={emp.id} className="hover:bg-muted/50 transition-colors">
-                        <td className="px-4 py-3 font-medium">{emp.felhasznalo_profil?.nev || "Ismeretlen"}</td>
+                        <td className="px-4 py-3 font-medium">{(emp.felhasznalo_profil as any)?.nev || "Ismeretlen"}</td>
                         <td className="px-4 py-3">{empKpis.length} db</td>
                         <td className="px-4 py-3 font-bold">{empAvg}%</td>
                         <td className={`px-4 py-3 font-medium ${bonusColor}`}>{bonusLabel}</td>

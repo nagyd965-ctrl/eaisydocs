@@ -61,7 +61,7 @@ export function AssignEmployeeDialog({ jobId, availableEmployees }: AssignEmploy
         <div className="grid gap-4 py-4">
           <div className="space-y-2">
             <Label>Válassz dolgozót</Label>
-            <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+            <Select value={selectedEmployeeId} onValueChange={(val) => val && setSelectedEmployeeId(val)}>
               <SelectTrigger>
                 <SelectValue placeholder="Kattints a választáshoz..." />
               </SelectTrigger>

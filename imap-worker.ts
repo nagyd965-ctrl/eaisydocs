@@ -20,7 +20,7 @@ async function runWorker() {
 async function checkEmails() {
   try {
     const result = await processIncomingEmails();
-    if (result.success && result.processedCount > 0) {
+    if (result.success && (result.processedCount || 0) > 0) {
       console.log(`[IMAP Worker] ${result.processedCount} új levél sikeresen érkeztetve!`);
     } else if (!result.success) {
       console.log(`[IMAP Worker] Szinkronizáció kihagyva: ${result.reason || 'ismeretlen ok'}`);

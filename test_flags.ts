@@ -9,7 +9,7 @@ async function run() {
     port: parseInt(process.env.EMAIL_IMAP_PORT || '993', 10),
     secure: true,
     auth: { user: process.env.EMAIL_USER!, pass: process.env.EMAIL_PASSWORD! },
-    logger: true // Enable logging to see what IMAP commands are sent
+    logger: false // Enable logging to see what IMAP commands are sent
   });
 
   await client.connect();

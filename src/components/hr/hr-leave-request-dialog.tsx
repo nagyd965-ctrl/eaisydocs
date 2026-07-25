@@ -56,7 +56,7 @@ export function HrLeaveRequestDialog({ employeeId }: { employeeId: string }) {
               <Label htmlFor="type" className="text-right">Típus</Label>
               <div className="col-span-3 space-y-2">
                 <input type="hidden" name="type" value={leaveType} />
-                <Select value={leaveType} onValueChange={setLeaveType}>
+                <Select value={leaveType} onValueChange={(val) => val && setLeaveType(val)}>
                   <SelectTrigger>
                     <span>{leaveType ? leaveTypeMap[leaveType] : "Válassz típust..."}</span>
                   </SelectTrigger>

@@ -32,7 +32,7 @@ export function KshReportGenerator({ employees }: { employees: any[] }) {
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-end mb-6">
           <div className="space-y-2 w-full sm:w-64">
             <label className="text-sm font-medium">Jelentési Időszak</label>
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <Select value={selectedMonth} onValueChange={(val) => val && setSelectedMonth(val)}>
               <SelectTrigger>
                 <SelectValue placeholder="Válassz hónapot..." />
               </SelectTrigger>

@@ -73,7 +73,7 @@ export function DisciplinaryTab({
                 
                 <div className="space-y-2">
                   <Label>Esemény Típusa</Label>
-                  <Select name="tipus" value={tipus} onValueChange={setTipus}>
+                  <Select name="tipus" value={tipus} onValueChange={(val) => val && setTipus(val)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Válassz típust">{tipusLabels[tipus]}</SelectValue>
                     </SelectTrigger>

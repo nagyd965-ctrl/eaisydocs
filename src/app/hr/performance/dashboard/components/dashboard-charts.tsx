@@ -62,7 +62,7 @@ export function DashboardCharts({ kpis, cycles }: { kpis: any[], cycles: any[] }
                   outerRadius={100}
                   paddingAngle={5}
                   dataKey="value"
-                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
                 >
                   {pieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -89,7 +89,7 @@ export function DashboardCharts({ kpis, cycles }: { kpis: any[], cycles: any[] }
                 <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                 <XAxis dataKey="name" fontSize={12} tickMargin={10} />
                 <YAxis domain={[0, 100]} tickFormatter={(value) => `${value}%`} fontSize={12} />
-                <RechartsTooltip formatter={(value: number) => [`${value}%`, 'Átlagos teljesítmény']} />
+                <RechartsTooltip formatter={(value: any) => [`${value}%`, 'Átlagos teljesítmény']} />
                 <Bar dataKey="average" radius={[4, 4, 0, 0]}>
                   {cycleData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill="hsl(var(--primary))" />

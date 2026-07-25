@@ -80,7 +80,7 @@ export function MedicalTab({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Vizsgálat típusa</Label>
-                    <Select name="tipus" value={tipus} onValueChange={setTipus}>
+                    <Select name="tipus" value={tipus} onValueChange={(val) => val && setTipus(val)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Válassz típust">{tipusLabels[tipus]}</SelectValue>
                       </SelectTrigger>
@@ -94,7 +94,7 @@ export function MedicalTab({
                   </div>
                   <div className="space-y-2">
                     <Label>Eredmény</Label>
-                    <Select name="eredmeny" value={eredmeny} onValueChange={setEredmeny}>
+                    <Select name="eredmeny" value={eredmeny} onValueChange={(val) => val && setEredmeny(val)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Válassz eredményt">{eredmenyLabels[eredmeny]}</SelectValue>
                       </SelectTrigger>

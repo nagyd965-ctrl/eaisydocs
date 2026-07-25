@@ -101,7 +101,7 @@ export function AddEmployeeDialog({ availableUsers, jobs, candidates = [] }: { a
                   const candidate = candidates.find(c => c.id === val)
                   setFormData({ 
                     ...formData, 
-                    candidateId: val,
+                    candidateId: val || "",
                     munkakorId: candidate?.megpalyazott_munkakor_id || "none"
                   })
                 }}
@@ -135,7 +135,7 @@ export function AddEmployeeDialog({ availableUsers, jobs, candidates = [] }: { a
           <TabsContent value="select_existing" className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="user">Regisztrált Felhasználó</Label>
-              <Select value={formData.userId} onValueChange={(val) => setFormData({ ...formData, userId: val })}>
+              <Select value={formData.userId} onValueChange={(val) => setFormData({ ...formData, userId: val || "" })}>
                 <SelectTrigger>
                   {formData.userId 
                     ? <span>{availableUsers.find(u => u.id === formData.userId)?.nev || "Kiválasztva"}</span>
@@ -196,7 +196,7 @@ export function AddEmployeeDialog({ availableUsers, jobs, candidates = [] }: { a
           
           <div className="space-y-2">
             <Label htmlFor="role">HR Rendszer Szerepkör</Label>
-            <Select value={formData.role} onValueChange={(val) => setFormData({ ...formData, role: val })}>
+            <Select value={formData.role} onValueChange={(val) => setFormData({ ...formData, role: val || "" })}>
               <SelectTrigger>
                 <span>{roleMap[formData.role] || "Válassz szerepkört..."}</span>
               </SelectTrigger>
@@ -213,7 +213,7 @@ export function AddEmployeeDialog({ availableUsers, jobs, candidates = [] }: { a
 
           <div className="space-y-2">
             <Label htmlFor="munkakor">Betöltött Munkakör (Beosztás)</Label>
-            <Select value={formData.munkakorId} onValueChange={(val) => setFormData({ ...formData, munkakorId: val })}>
+            <Select value={formData.munkakorId} onValueChange={(val) => setFormData({ ...formData, munkakorId: val || "" })}>
               <SelectTrigger>
                 {formData.munkakorId === "none" || !formData.munkakorId
                   ? <span>Nincs munkakör beállítva</span>

@@ -47,7 +47,7 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
         </div>
       </CardHeader>
       <CardContent className="pt-4 space-y-4 max-h-[500px] overflow-y-auto">
-        <Accordion type="single" className="w-full">
+        <Accordion className="w-full">
         {kpis.map((kpi) => {
           const percent = kpi.pontszam || 0
           const text = kpi.celkituzes || kpi.ertekeles_szovege || "Nincs megadva"

@@ -94,7 +94,7 @@ export function ManualUploadDialog({ employeeId }: { employeeId: string }) {
 
           <div className="space-y-2">
             <Label>Kategória *</Label>
-            <Select value={category} onValueChange={setCategory}>
+            <Select value={category} onValueChange={(val) => val && setCategory(val as any)}>
               <SelectTrigger>
                 <SelectValue placeholder="Válassz kategóriát..." />
               </SelectTrigger>

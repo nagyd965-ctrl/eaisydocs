@@ -70,7 +70,7 @@ export function QualificationTab({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Típus</Label>
-                    <Select name="tipus" value={kepzesTipus} onValueChange={setKepzesTipus}>
+                    <Select name="tipus" value={kepzesTipus} onValueChange={(val) => val && setKepzesTipus(val)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Válassz típust">{kepzesLabels[kepzesTipus]}</SelectValue>
                       </SelectTrigger>

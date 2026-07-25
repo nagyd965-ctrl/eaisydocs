@@ -113,9 +113,9 @@ export default async function ManagerPage() {
               {teamMembers && teamMembers.length > 0 ? (
                 <div className="space-y-6">
                   {teamMembers.map(member => {
-                    const nev = member.felhasznalo_profil?.nev || "Ismeretlen"
+                    const nev = (member.felhasznalo_profil as any)?.nev || "Ismeretlen"
                     const initials = nev.substring(0, 2).toUpperCase()
-                    const munkakor = member.hr_munkakor?.megnevezes || "Nincs munkakör beállítva"
+                    const munkakor = (member.hr_munkakor as any)?.megnevezes || "Nincs munkakör beállítva"
 
                     return (
                       <div key={member.id} className="flex items-center justify-between">

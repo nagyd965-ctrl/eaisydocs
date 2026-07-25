@@ -44,6 +44,7 @@ interface Candidate {
   nev: string
   email: string
   telefon?: string
+  uzenet?: string
   statusz: string
   naptar_jegyzet?: string
   cv_storage_path?: string
@@ -248,7 +249,7 @@ export function CandidateProfileSheet({
                 Bemutatkozás / Motiváció
                 <span className="h-px bg-border flex-1"></span>
               </h4>
-              <Accordion type="single" className="w-full">
+              <Accordion className="w-full">
                 <AccordionItem value="motivation" className="border rounded-xl px-4 bg-muted/20 shadow-sm overflow-hidden">
                   <AccordionTrigger className="text-sm font-semibold hover:no-underline py-3">
                     Üzenet megtekintése
