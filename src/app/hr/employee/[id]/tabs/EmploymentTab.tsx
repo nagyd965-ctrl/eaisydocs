@@ -6,26 +6,48 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Edit } from "lucide-react"
+import { Edit, Clock } from "lucide-react"
 import { toast } from "sonner"
 import { updateJogviszonyData } from "../actions"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 
 export function EmploymentTab({ 
   employeeId,
   isHrOrAdmin,
-  adatlap
+  adatlap,
+  jogviszonyok,
+  munkakorok
 }: { 
   employeeId: string,
   isHrOrAdmin: boolean,
-  adatlap: any
+  adatlap: any,
+  jogviszonyok: any[],
+  munkakorok: any[]
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  // Kontrollált állapotok a selectekhez
-  const [munkaviszonyTipusa, setMunkaviszonyTipusa] = useState(adatlap?.munkaviszony_tipusa || "")
-  const [munkarend, setMunkarend] = useState(adatlap?.munkarend || "")
+  // A jelenlegi jogviszony és beosztás kiválasztása
+  const currentJogviszony = jogviszonyok?.find(j => !j.kilepes_datuma) || jogviszonyok?.[0]
+  const beosztasok = currentJogviszony?.hr_beosztas || []
+  
+  // Rendezzük a beosztásokat időben csökkenő sorrendben (legújabb legelöl)
+  const sortedBeosztasok = [...beosztasok].sort((a, b) => new Date(b.ervenyes_tol).getTime() - new Date(a.ervenyes_tol).getTime())
+  
+  // A jelenlegi beosztás az, ami érvényes (nincs lezárva vagy a lezárás a jövőben van)
+  const currentBeosztas = sortedBeosztasok.find(b => !b.ervenyes_ig || new Date(b.ervenyes_ig) >= new Date()) || sortedBeosztasok[0]
+
+  // Kontrollált állapotok a selectekhez (alapértelmezett érték a jelenlegi beosztásból, 
+  // vagy fallback a régi adatlaphoz amíg nincs minden migrálva)
+  const [munkaviszonyTipusa, setMunkaviszonyTipusa] = useState(currentBeosztas?.munkaviszony_tipusa || adatlap?.munkaviszony_tipusa || "")
+  const [munkarend, setMunkarend] = useState(currentBeosztas?.munkarend || adatlap?.munkarend || "")
+  const [munkakorId, setMunkakorId] = useState(currentBeosztas?.munkakor_id || "")
+  
+  // Jövőbeli dátum inicializálása (alapértelmezés holnap)
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const defaultDate = tomorrow.toISOString().split("T")[0]
 
   const munkaviszonyLabels: Record<string, string> = {
     teljes: "Teljes munkaidő",
@@ -45,6 +67,12 @@ export function EmploymentTab({
     // Kézzel hozzáfűzzük a select értékeket a formData-hoz
     formData.set("munkaviszony_tipusa", munkaviszonyTipusa)
     formData.set("munkarend", munkarend)
+    if (munkakorId) formData.set("munkakor_id", munkakorId)
+    
+    // Ha a régi belepes_datuma van az adatlapon, biztosítjuk, hogy átmegy
+    if (!formData.get("belepes_datuma") && currentJogviszony?.belepes_datuma) {
+      formData.set("belepes_datuma", currentJogviszony.belepes_datuma)
+    }
     
     setLoading(true)
     const result = await updateJogviszonyData(employeeId, formData)
@@ -53,154 +81,241 @@ export function EmploymentTab({
     if (result.error) {
       toast.error(result.error)
     } else {
-      toast.success("Jogviszony adatai frissítve!")
+      toast.success("Beosztás / Jogviszony sikeresen frissítve!")
       setIsEditOpen(false)
     }
   }
 
   // Format date safely
   const formatDate = (dateString?: string) => {
-    if (!dateString) return "Nincs megadva"
+    if (!dateString) return "Jelenleg is"
     return new Date(dateString).toLocaleDateString("hu-HU")
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg">Jogviszony és Besorolás</CardTitle>
-        {isHrOrAdmin && (
-          <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-            <DialogTrigger className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-2`}>
-              <Edit className="w-4 h-4" /> Szerkesztés
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Jogviszony adatainak módosítása</DialogTitle>
-                <DialogDescription>
-                  Itt frissítheted a dolgozó besorolását és munkaidő adatait.
-                </DialogDescription>
-              </DialogHeader>
-              <form action={handleUpdate}>
-                <div className="grid gap-4 py-4">
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="belepes_datuma">Belépés Dátuma</Label>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
+          <CardTitle className="text-lg text-primary">Jelenlegi Beosztás</CardTitle>
+          {isHrOrAdmin && (
+            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+              <DialogTrigger className={`${buttonVariants({ variant: "default", size: "sm" })} gap-2`}>
+                <Edit className="w-4 h-4" /> Szerződés módosítása
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Szerződés adatainak módosítása</DialogTitle>
+                  <DialogDescription>
+                    Állítsd be az új pozíciót, munkaidőt vagy bért, és add meg az érvényesség kezdetét! 
+                    A korábbi adatok nem törlődnek, hanem megőrizzük őket az előzményekben.
+                  </DialogDescription>
+                </DialogHeader>
+                <form action={handleUpdate}>
+                  <div className="grid gap-4 py-4">
+                    
+                    <div className="space-y-2 p-3 bg-primary/5 rounded-md border border-primary/20">
+                      <Label htmlFor="ervenyes_tol" className="text-primary font-semibold">Érvényesség Kezdete (Érvényes-től) *</Label>
                       <Input 
-                        id="belepes_datuma" 
-                        name="belepes_datuma" 
+                        id="ervenyes_tol" 
+                        name="ervenyes_tol" 
                         type="date" 
-                        defaultValue={adatlap?.belepes_datuma || ""} 
+                        required
+                        defaultValue={defaultDate} 
                       />
+                      <p className="text-xs text-muted-foreground mt-1">Ettől a dátumtól lép életbe a módosítás (SCD Type 2 history bejegyzés készül).</p>
                     </div>
+
+                    <div className="space-y-2 mt-2">
+                      <Label>Munkakör (Pozíció)</Label>
+                      <Select value={munkakorId} onValueChange={setMunkakorId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Válassz munkakört...">
+                            {munkakorId ? munkakorok?.find(m => m.id === munkakorId)?.megnevezes || munkakorId : "Válassz munkakört..."}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {munkakorok?.map((mk) => (
+                            <SelectItem key={mk.id} value={mk.id}>{mk.megnevezes}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="munkaido_fte">Munkaidő (FTE)</Label>
+                        <Input 
+                          id="munkaido_fte" 
+                          name="munkaido_fte" 
+                          type="number" 
+                          step="0.1"
+                          min="0.1"
+                          max="1.0"
+                          placeholder="Pl. 1.0 vagy 0.5"
+                          defaultValue={currentBeosztas?.munkaido_fte || currentBeosztas?.fte || adatlap?.munkaido_fte || "1.0"} 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Munkaviszony típusa</Label>
+                        <Select value={munkaviszonyTipusa} onValueChange={setMunkaviszonyTipusa}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Válassz típust...">
+                              {munkaviszonyTipusa ? munkaviszonyLabels[munkaviszonyTipusa] || munkaviszonyTipusa : "Válassz típust..."}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(munkaviszonyLabels).map(([val, label]) => (
+                              <SelectItem key={val} value={val}>{label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
-                      <Label htmlFor="munkaido_fte">Munkaidő (FTE)</Label>
-                      <Input 
-                        id="munkaido_fte" 
-                        name="munkaido_fte" 
-                        type="number" 
-                        step="0.1"
-                        min="0.1"
-                        max="1.0"
-                        placeholder="Pl. 1.0 vagy 0.5"
-                        defaultValue={adatlap?.munkaido_fte || ""} 
-                      />
+                      <Label>Munkarend</Label>
+                      <Select value={munkarend} onValueChange={setMunkarend}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Válassz munkarendet...">
+                            {munkarend ? munkarendLabels[munkarend] || munkarend : "Válassz munkarendet..."}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(munkarendLabels).map(([val, label]) => (
+                            <SelectItem key={val} value={val}>{label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="berkategoria">Besorolás / Bérkategória</Label>
+                        <Input 
+                          id="berkategoria" 
+                          name="berkategoria" 
+                          placeholder="Pl. L3 vagy 650000 HUF"
+                          defaultValue={currentBeosztas?.berkategoria || adatlap?.berkategoria || ""} 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="kozvetlen_vezeto">Közvetlen Vezető neve</Label>
+                        <Input 
+                          id="kozvetlen_vezeto" 
+                          name="kozvetlen_vezeto" 
+                          placeholder="Vezető neve"
+                          defaultValue={currentBeosztas?.kozvetlen_vezeto || adatlap?.kozvetlen_vezeto || ""} 
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} disabled={loading}>Mégse</Button>
+                    <Button type="submit" disabled={loading}>{loading ? "Mentés..." : "Módosítás Létrehozása"}</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
+        </CardHeader>
+        <CardContent className="grid gap-6 md:grid-cols-2 pt-6">
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Belépés Dátuma</p>
+              <p className="font-medium">{formatDate(currentJogviszony?.belepes_datuma || adatlap?.belepes_datuma)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Munkaviszony típusa</p>
+              <p className="font-medium">
+                {munkaviszonyLabels[currentBeosztas?.munkaviszony_tipusa || adatlap?.munkaviszony_tipusa] || currentBeosztas?.munkaviszony_tipusa || adatlap?.munkaviszony_tipusa || "Nincs megadva"}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Munkaidő (FTE)</p>
+              <p className="font-medium">{currentBeosztas?.munkaido_fte || currentBeosztas?.fte || adatlap?.munkaido_fte ? `${currentBeosztas?.munkaido_fte || currentBeosztas?.fte || adatlap?.munkaido_fte} FTE` : "Nincs megadva"}</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Munkarend</p>
+              <p className="font-medium">
+                {munkarendLabels[currentBeosztas?.munkarend || adatlap?.munkarend] || currentBeosztas?.munkarend || adatlap?.munkarend || "Nincs megadva"}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Közvetlen vezető</p>
+              <p className="font-medium">{currentBeosztas?.kozvetlen_vezeto || adatlap?.kozvetlen_vezeto || "Nincs megadva"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Besorolás / Bérkategória</p>
+              <p className="font-medium">{currentBeosztas?.berkategoria || adatlap?.berkategoria || "Nincs megadva"}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* History Timeline */}
+      <Card>
+        <CardHeader className="pb-3 border-b">
+          <CardTitle className="text-md flex items-center gap-2">
+            <Clock className="w-5 h-5 text-muted-foreground" /> Előző és Jövőbeli Beosztások
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-8">
+          {sortedBeosztasok.length > 0 ? (
+            <div className="relative pl-6 border-l border-border/60 space-y-8 ml-2">
+              {sortedBeosztasok.map((beosztas) => {
+                const isFuture = new Date(beosztas.ervenyes_tol) > new Date();
+                const isCurrent = beosztas.id === currentBeosztas?.id && !isFuture;
+                const isPast = beosztas.ervenyes_ig && new Date(beosztas.ervenyes_ig) < new Date();
+                
+                return (
+                  <div key={beosztas.id} className="relative">
+                    {/* Timeline Dot */}
+                    <div className={`absolute -left-[31px] top-1.5 h-3.5 w-3.5 rounded-full ring-4 ring-background ${isFuture ? 'bg-blue-500' : isCurrent ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
+                    
+                    {/* Content Card */}
+                    <div className="bg-card border border-border/50 rounded-md p-4 hover:border-border transition-colors">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                          <span className="font-semibold text-foreground">
+                            {formatDate(beosztas.ervenyes_tol)} - {formatDate(beosztas.ervenyes_ig)}
+                          </span>
+                          <div className="flex gap-2">
+                            {isFuture && <Badge variant="outline" className="text-blue-500 border-blue-500/30 bg-blue-500/10 rounded-sm">Jövőbeli</Badge>}
+                            {isCurrent && <Badge variant="outline" className="text-emerald-600 border-emerald-600/30 bg-emerald-600/10 rounded-sm">Jelenlegi</Badge>}
+                            {isPast && <Badge variant="outline" className="text-muted-foreground border-border rounded-sm">Lezárt</Badge>}
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm mt-1">
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Munkakör & FTE</span>
+                            <span className="font-medium">{beosztas.munkakor?.megnevezes || "—"} ({beosztas.munkaido_fte || beosztas.fte || "1.0"} FTE)</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Bérkategória</span>
+                            <span className="font-medium">{beosztas.berkategoria || "—"}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Közvetlen Vezető</span>
+                            <span className="font-medium">{beosztas.kozvetlen_vezeto || "—"}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label>Munkaviszony típusa</Label>
-                    <Select value={munkaviszonyTipusa} onValueChange={setMunkaviszonyTipusa}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Válassz típust..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(munkaviszonyLabels).map(([val, label]) => (
-                          <SelectItem key={val} value={val}>{label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Munkarend</Label>
-                    <Select value={munkarend} onValueChange={setMunkarend}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Válassz munkarendet..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(munkarendLabels).map(([val, label]) => (
-                          <SelectItem key={val} value={val}>{label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="berkategoria">Bérkategória</Label>
-                      <Input 
-                        id="berkategoria" 
-                        name="berkategoria" 
-                        placeholder="Pl. L3"
-                        defaultValue={adatlap?.berkategoria || ""} 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="kozvetlen_vezeto">Közvetlen Vezető</Label>
-                      <Input 
-                        id="kozvetlen_vezeto" 
-                        name="kozvetlen_vezeto" 
-                        placeholder="Vezető neve"
-                        defaultValue={adatlap?.kozvetlen_vezeto || ""} 
-                      />
-                    </div>
-                  </div>
-
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} disabled={loading}>Mégse</Button>
-                  <Button type="submit" disabled={loading}>{loading ? "Mentés..." : "Mentés"}</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
-      </CardHeader>
-      <CardContent className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm text-muted-foreground">Belépés Dátuma</p>
-            <p className="font-medium">{formatDate(adatlap?.belepes_datuma)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Munkaviszony típusa</p>
-            <p className="font-medium">
-              {munkaviszonyLabels[adatlap?.munkaviszony_tipusa] || adatlap?.munkaviszony_tipusa || "Nincs megadva"}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Munkaidő (FTE)</p>
-            <p className="font-medium">{adatlap?.munkaido_fte ? `${adatlap.munkaido_fte} FTE` : "Nincs megadva"}</p>
-          </div>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm text-muted-foreground">Munkarend</p>
-            <p className="font-medium">
-              {munkarendLabels[adatlap?.munkarend] || adatlap?.munkarend || "Nincs megadva"}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Közvetlen vezető</p>
-            <p className="font-medium">{adatlap?.kozvetlen_vezeto || "Nincs megadva"}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Besorolás / Bérkategória</p>
-            <p className="font-medium">{adatlap?.berkategoria || "Nincs megadva"}</p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center text-muted-foreground py-6 border border-dashed rounded-md bg-muted/10">
+              Nincsenek beosztás előzmények.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { FileText, Download, FileArchive } from "lucide-react"
 
 type Document = {
@@ -41,15 +41,20 @@ export function RecentDocumentsCard({ documents }: { documents: Document[] }) {
                     </div>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" className="text-xs" asChild>
-                  {doc.url ? (
-                    <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                      Letöltés
-                    </a>
-                  ) : (
-                    <span className="text-muted-foreground">Nincs Fájl</span>
-                  )}
-                </Button>
+                {doc.url ? (
+                  <a 
+                    href={doc.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className={buttonVariants({ variant: "ghost", size: "sm", className: "text-xs" })}
+                  >
+                    Letöltés
+                  </a>
+                ) : (
+                  <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" disabled>
+                    Nincs Fájl
+                  </Button>
+                )}
               </div>
             ))}
           </div>

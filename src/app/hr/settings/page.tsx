@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -14,6 +15,10 @@ import { User, Monitor, CalendarDays, Coffee, Clock, Shield, Info, Briefcase, Bu
 import { EmployeeEditDialog } from "@/components/hr/employee-edit-dialog"
 import { OrgChartTree, EmployeeNode } from "@/components/hr/org-chart-tree"
 import { JobCreateDialog } from "@/components/hr/job-create-dialog"
+import { JobActionMenu } from "@/components/hr/job-action-menu"
+import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
+import { EmployeeDeleteDialog } from "@/components/hr/employee-delete-dialog"
+import Link from "next/link"
 
 export default async function HrSettingsPage() {
   const supabase = await createClient()
@@ -24,11 +29,11 @@ export default async function HrSettingsPage() {
   // Biztonsági ellenőrzés
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("szerepkor")
+    .select('hr_szerepkor')
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.szerepkor)) {
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">
         <div>
@@ -40,43 +45,63 @@ export default async function HrSettingsPage() {
     )
   }
 
-  // Lekérdezzük a dolgozókat a szervezeti ábrához
-  const { data: employeesData } = await supabase
-    .from("felhasznalo_profil")
+  // 1. Összes dolgozó lekérése
+  const { data: employees, error: employeesError } = await supabase
+    .from("hr_dolgozo_adatlap")
     .select(`
-      id,
-      nev,
-      hr_dolgozo_adatlap ( berkategoria, kozvetlen_vezeto )
+      *,
+      felhasznalo_profil (
+        nev,
+        hr_szerepkor,
+        szervezeti_egyseg_id,
+        szervezeti_egyseg (nev)
+      ),
+      hr_jogviszony (
+        id,
+        belepes_datuma,
+        hr_beosztas (
+          id,
+          berkategoria,
+          kozvetlen_vezeto,
+          ervenyes_ig,
+          hr_munkakor (id, megnevezes)
+        )
+      )
     `)
+    .order("created_at", { ascending: false })
+
+  if (employeesError) {
+    console.error("EMPLOYEES QUERY ERROR:", employeesError)
+  }
+
+  // A szervezeti ábrához kinyerjük a dolgozókat és a vezetőiket
+  const rawOrgChartEmployees: EmployeeNode[] = (employees || []).map(emp => {
+    const nev = Array.isArray(emp.felhasznalo_profil) ? emp.felhasznalo_profil[0]?.nev : emp.felhasznalo_profil?.nev;
     
-  const orgChartEmployees: EmployeeNode[] = (employeesData || []).map(emp => ({
-    id: emp.id,
-    nev: emp.nev,
-    pozicio: emp.hr_dolgozo_adatlap?.berkategoria || "Munkatárs",
-    kozvetlen_vezeto: emp.hr_dolgozo_adatlap?.kozvetlen_vezeto || null
-  }))
+    // Kikeressük az aktív beosztást
+    const activeJogviszony = Array.isArray(emp.hr_jogviszony) ? emp.hr_jogviszony[0] : emp.hr_jogviszony;
+    const allBeosztas = activeJogviszony?.hr_beosztas;
+    const activeBeosztas = Array.isArray(allBeosztas) 
+      ? allBeosztas.find(b => b.ervenyes_ig === null) || allBeosztas[0]
+      : allBeosztas;
+
+    return {
+      id: emp.id,
+      nev: nev || "Névtelen",
+      pozicio: activeBeosztas?.berkategoria || activeBeosztas?.hr_munkakor?.megnevezes || "Munkatárs",
+      kozvetlen_vezeto: activeBeosztas?.kozvetlen_vezeto || null
+    };
+  })
+
+  // Szűrjük ki az esetleges duplikációkat, hogy a React 'key' prop hiba megszűnjön
+  const orgChartEmployees = Array.from(new Map(rawOrgChartEmployees.map(e => [e.id, e])).values())
 
   // Munkakörök lekérése a katalógushoz
   const { data: dbJobs } = await supabase
     .from("hr_munkakor")
     .select(`
       *,
-      hr_dolgozo_adatlap ( id )
-    `)
-    .order("created_at", { ascending: false })
-
-  // 1. Összes dolgozó lekérése
-  const { data: employees } = await supabase
-    .from("hr_dolgozo_adatlap")
-    .select(`
-      *,
-      felhasznalo_profil (
-        nev,
-        szerepkor,
-        szervezeti_egyseg_id,
-        szervezeti_egyseg (nev)
-      ),
-      hr_munkakor (megnevezes)
+      hr_beosztas ( id, ervenyes_ig )
     `)
     .order("created_at", { ascending: false })
 
@@ -85,6 +110,26 @@ export default async function HrSettingsPage() {
     .from("hr_munkakor")
     .select("id, megnevezes")
     .order("megnevezes")
+
+  // 3. Olyan felhasználók lekérése, akik nincsenek benne a hr_dolgozo_adatlap-ban
+  const { data: allUsers } = await supabase.from("felhasznalo_profil").select("id, nev")
+  const assignedIds = employees?.map(e => e.id) || []
+  const unassignedUsers = allUsers?.filter(u => !assignedIds.includes(u.id)) || []
+
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  // 4. Toborzásból (ATS) elfogadott jelentkezők lekérése (akiknek az email címe még nem létezik a rendszerben)
+  const { data: elfogadottJelentkezok } = await supabaseAdmin
+    .from("hr_toborzas")
+    .select("id, nev, email, megpalyazott_munkakor_id")
+    .eq("statusz", "elfogadva")
+    
+  const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+  const userEmails = authUsers.users.map(u => u.email)
+  const availableCandidates = elfogadottJelentkezok?.filter(j => !userEmails.includes(j.email)) || []
 
   return (
     <div className="space-y-6">
@@ -117,13 +162,7 @@ export default async function HrSettingsPage() {
             <CalendarDays className="h-4 w-4 mr-2" />
             Szabadság Szabályok
           </TabsTrigger>
-          <TabsTrigger 
-            value="cafeteria" 
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-          >
-            <Coffee className="h-4 w-4 mr-2" />
-            Cafeteria Elemek
-          </TabsTrigger>
+
           <TabsTrigger 
             value="munkatarsak" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
@@ -289,33 +328,6 @@ export default async function HrSettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="cafeteria" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Cafeteria Katalógus</CardTitle>
-              <CardDescription>Az aktuális évben választható juttatások és adószabályok.</CardDescription>
-            </CardHeader>
-            <CardContent>
-               <div className="space-y-4">
-                 <div className="p-4 border rounded-md flex justify-between items-center">
-                   <div>
-                     <p className="font-semibold">SZÉP Kártya</p>
-                     <p className="text-sm text-muted-foreground">Adókulcs: 28%</p>
-                   </div>
-                   <Button variant="ghost" size="sm">Szerkesztés</Button>
-                 </div>
-                 <div className="p-4 border rounded-md flex justify-between items-center">
-                   <div>
-                     <p className="font-semibold">Helyi közlekedési bérlet</p>
-                     <p className="text-sm text-muted-foreground">Adókulcs: 0% (Adómentes)</p>
-                   </div>
-                   <Button variant="ghost" size="sm">Szerkesztés</Button>
-                 </div>
-               </div>
-               <Button className="mt-4 gap-2"><Coffee className="w-4 h-4" /> Új elem hozzáadása</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="schedules" className="space-y-6">
           <Card>
@@ -384,10 +396,14 @@ export default async function HrSettingsPage() {
                     </TableHeader>
                     <TableBody>
                       {dbJobs && dbJobs.length > 0 ? dbJobs.map((job) => {
-                        const employeeCount = job.hr_dolgozo_adatlap?.length || 0;
+                        const employeeCount = job.hr_beosztas?.filter((b: any) => b.ervenyes_ig === null).length || 0;
                         return (
-                          <TableRow key={job.id} className="hover:bg-muted/50 cursor-pointer">
-                            <TableCell className="pl-6 font-medium text-primary">{job.megnevezes}</TableCell>
+                          <TableRow key={job.id} className="hover:bg-muted/50">
+                            <TableCell className="pl-6 font-medium">
+                              <Link href={`/hr/job/${job.id}`} className="hover:underline text-primary">
+                                {job.megnevezes}
+                              </Link>
+                            </TableCell>
                             <TableCell className="text-muted-foreground tabular-nums">{job.feor_kod || "-"}</TableCell>
                             <TableCell>Nem besorolt</TableCell>
                             <TableCell>
@@ -407,8 +423,7 @@ export default async function HrSettingsPage() {
                               )}
                             </TableCell>
                             <TableCell className="text-right pr-6">
-                              <Button variant="ghost" size="sm" className="text-xs">Leírás (PDF)</Button>
-                              <Button variant="ghost" size="sm" className="text-xs text-primary">Szerkesztés</Button>
+                              <JobActionMenu job={job} />
                             </TableCell>
                           </TableRow>
                         )
@@ -442,15 +457,19 @@ export default async function HrSettingsPage() {
         {/* --- ÚJ MUNKATÁRSAK TAB (BEÁGYAZOTT TÁBLÁZAT) --- */}
         <TabsContent value="munkatarsak" className="mt-0 outline-none space-y-6">
           <Card className="border-border shadow-sm">
-            <CardHeader className="bg-muted/30 border-b">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Briefcase className="w-5 h-5 text-primary" /> Munkatársak ({employees?.length || 0} fő)
+            <CardHeader className="pb-4 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-primary" />
+                  Munkatársak ({employees?.length || 0} fő)
                 </CardTitle>
+                <CardDescription>
+                  A dolgozói nyilvántartás és a szerepkörök szerkesztése.
+                </CardDescription>
               </div>
-              <CardDescription>
-                A dolgozói nyilvántartás és a szerepkörök szerkesztése.
-              </CardDescription>
+              <div className="flex items-center gap-2">
+                <AddEmployeeDialog availableUsers={unassignedUsers} jobs={jobs || []} candidates={availableCandidates} />
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -469,24 +488,29 @@ export default async function HrSettingsPage() {
                     {employees?.map((emp) => {
                       const nev = emp.felhasznalo_profil?.nev || "Ismeretlen"
                       const initials = nev.substring(0,2).toUpperCase()
-                      const munkakor = emp.hr_munkakor?.megnevezes || "Nincs beállítva"
+                      
+                      // Új schema: dolgozo -> jogviszony -> beosztas -> munkakor
+                      const activeJogviszony = emp.hr_jogviszony?.[0]
+                      const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
+                      const munkakor = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
+                      
                       const egyseg = (emp.felhasznalo_profil as any)?.szervezeti_egyseg?.nev || "Központ"
-                      const szerepkor = emp.felhasznalo_profil?.szerepkor || "Ismeretlen"
-                      const belepes = emp.belepes_datuma ? new Date(emp.belepes_datuma).toLocaleDateString("hu-HU") : "-"
+                      const hr_szerepkor = emp.felhasznalo_profil?.hr_szerepkor || "Ismeretlen"
+                      const belepes = activeJogviszony?.belepes_datuma ? new Date(activeJogviszony.belepes_datuma).toLocaleDateString("hu-HU") : "-"
 
                       // Szerepkör badge színezés és fordítás
                       let roleColor = "bg-secondary text-secondary-foreground"
                       let roleName = "Ismeretlen"
-                      if (szerepkor === "admin") {
+                      if (hr_szerepkor === "admin") {
                         roleColor = "bg-destructive/10 text-destructive border-destructive/20 border"
                         roleName = "Rendszergazda (Admin)"
-                      } else if (szerepkor === "hr_vezeto") {
+                      } else if (hr_szerepkor === "hr_vezeto") {
                         roleColor = "bg-primary/10 text-primary border-primary/20 border"
                         roleName = "Vezető (Manager)"
-                      } else if (szerepkor === "hr_munkatars") {
+                      } else if (hr_szerepkor === "hr_munkatars") {
                         roleColor = "bg-primary/10 text-primary border-primary/20 border"
                         roleName = "HR Munkatárs"
-                      } else if (szerepkor === "munkavallalo") {
+                      } else if (hr_szerepkor === "munkavallalo") {
                         roleName = "Munkavállaló (Alap)"
                       }
 
@@ -510,8 +534,9 @@ export default async function HrSettingsPage() {
                           <td className="px-6 py-4 text-muted-foreground">
                             {belepes}
                           </td>
-                          <td className="px-6 py-4 text-right">
+                          <td className="px-6 py-4 text-right flex items-center justify-end gap-1">
                             <EmployeeEditDialog employee={emp} jobs={jobs || []} />
+                            <EmployeeDeleteDialog employeeId={emp.id} employeeName={nev} />
                           </td>
                         </tr>
                       )

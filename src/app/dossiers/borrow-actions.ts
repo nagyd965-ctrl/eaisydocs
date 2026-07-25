@@ -9,8 +9,8 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
 
   // Jogosultság ellenőrzés (csak iratkezelő/admin kölcsönözhet)
-  const { data: profile } = await supabase.from("felhasznalo_profil").select("szerepkor").eq("id", user.id).single()
-  if (!profile || !["iktato", "admin", "rendszergazda"].includes(profile.szerepkor)) {
+  const { data: profile } = await supabase.from("felhasznalo_profil").select('docs_szerepkor').eq("id", user.id).single()
+  if (!profile || !["iktato", "admin", "rendszergazda"].includes(profile.docs_szerepkor)) {
     return { success: false, error: "Nincs jogosultságod a kölcsönzés rögzítéséhez." }
   }
 
@@ -61,8 +61,8 @@ export async function returnDocument(kolcsonzesId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
 
-  const { data: profile } = await supabase.from("felhasznalo_profil").select("szerepkor").eq("id", user.id).single()
-  if (!profile || !["iktato", "admin", "rendszergazda"].includes(profile.szerepkor)) {
+  const { data: profile } = await supabase.from("felhasznalo_profil").select('docs_szerepkor').eq("id", user.id).single()
+  if (!profile || !["iktato", "admin", "rendszergazda"].includes(profile.docs_szerepkor)) {
     return { success: false, error: "Nincs jogosultság." }
   }
 
@@ -109,8 +109,8 @@ export async function setPhysicalLocation(iratId: string, doboz: string, polc: s
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
 
-  const { data: profile } = await supabase.from("felhasznalo_profil").select("szerepkor").eq("id", user.id).single()
-  if (!profile || !["iktato", "admin", "rendszergazda"].includes(profile.szerepkor)) {
+  const { data: profile } = await supabase.from("felhasznalo_profil").select('docs_szerepkor').eq("id", user.id).single()
+  if (!profile || !["iktato", "admin", "rendszergazda"].includes(profile.docs_szerepkor)) {
     return { success: false, error: "Nincs jogosultság." }
   }
 

@@ -41,11 +41,11 @@ export default async function Dashboard() {
 
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("szerepkor")
+    .select('docs_szerepkor')
     .eq("id", authUser?.user?.id || "")
     .single()
 
-  const permissions = getPermissions(userProfile?.szerepkor)
+  const permissions = getPermissions(userProfile?.docs_szerepkor)
   const userId = authUser?.user?.id
 
   // 1. Saját feladataim

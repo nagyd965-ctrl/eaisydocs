@@ -13,11 +13,11 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("szerepkor")
+    .select('hr_szerepkor')
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.szerepkor)) {
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
     return { error: "Nincs jogosultságod a toborzás kezeléséhez." }
   }
 
@@ -110,11 +110,11 @@ export async function addCandidate(formData: FormData) {
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("szerepkor")
+    .select('hr_szerepkor')
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.szerepkor)) {
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
     return { error: "Nincs jogosultságod a toborzás kezeléséhez." }
   }
 
@@ -163,11 +163,11 @@ export async function deleteCandidate(candidateId: string) {
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("szerepkor")
+    .select('hr_szerepkor')
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.szerepkor)) {
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
     return { error: "Nincs jogosultságod a toborzás kezeléséhez." }
   }
 

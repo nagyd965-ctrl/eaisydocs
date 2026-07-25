@@ -156,7 +156,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                 className="flex items-center justify-between p-4 bg-card border rounded-xl hover:border-primary/50 hover:bg-muted/50 cursor-pointer transition-all group"
                 onClick={() => {
                   setSelectedMember(member)
-                  setSelectedMemberRole(member.szerepkor || "")
+                  setSelectedMemberRole(member.docs_szerepkor || "")
                   setSelectedMemberDepartment(member.szervezeti_egyseg_id || "none")
                   setEditRoleDialogOpen(true)
                 }}
@@ -168,7 +168,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                   <div>
                     <p className="text-sm font-semibold text-foreground">{member.nev}</p>
                     <p className="text-xs text-muted-foreground">
-                      {member.pozicio || member.szerepkor || "Nincs megadva"} 
+                      {member.pozicio || member.docs_szerepkor || "Nincs megadva"} 
                       {departments?.find(d => d.id === member.szervezeti_egyseg_id) && 
                         ` • ${departments.find(d => d.id === member.szervezeti_egyseg_id)?.nev}`
                       }
@@ -177,7 +177,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                 </div>
                 <div className="flex items-center space-x-4">
                   <Badge variant="secondary" className="uppercase font-semibold text-[10px] tracking-wider">
-                    {member.szerepkor}
+                    {member.docs_szerepkor}
                   </Badge>
                   <Button
                     variant="destructive"
@@ -421,7 +421,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                                       </div>
                                       <div>
                                         <p className="text-sm font-medium">{u.nev}</p>
-                                        <p className="text-xs text-muted-foreground uppercase">{u.szerepkor}</p>
+                                        <p className="text-xs text-muted-foreground uppercase">{u.docs_szerepkor}</p>
                                       </div>
                                     </li>
                                   ))}
@@ -464,7 +464,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                             />
                             <Label htmlFor={`user-${u.id}`} className="flex-1 cursor-pointer">
                               <div className="font-medium text-sm">{u.nev}</div>
-                              <div className="text-xs text-muted-foreground uppercase">{u.szerepkor}</div>
+                              <div className="text-xs text-muted-foreground uppercase">{u.docs_szerepkor}</div>
                             </Label>
                           </div>
                         ))

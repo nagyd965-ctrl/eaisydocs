@@ -122,7 +122,7 @@ export default function HrAuditPage() {
                       {log.felhasznalo_profil ? (
                         <div>
                           <p className="font-medium">{log.felhasznalo_profil.nev}</p>
-                          <p className="text-xs text-muted-foreground">{log.felhasznalo_profil.szerepkor}</p>
+                          <p className="text-xs text-muted-foreground">{log.felhasznalo_profil.hr_szerepkor}</p>
                         </div>
                       ) : (
                         <span className="text-muted-foreground italic">Rendszer</span>

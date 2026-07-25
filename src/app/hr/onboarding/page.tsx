@@ -12,11 +12,11 @@ export default async function OnboardingPage() {
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("szerepkor")
+    .select('hr_szerepkor')
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.szerepkor)) {
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
     return (
       <div className="p-8 text-center text-muted-foreground">
         Nincs jogosultságod az Onboarding modul megtekintéséhez.

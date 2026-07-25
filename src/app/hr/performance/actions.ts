@@ -13,11 +13,11 @@ export async function addKpi(formData: FormData) {
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("szerepkor")
+    .select('hr_szerepkor')
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.szerepkor)) {
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
     return { error: "Nincs jogosultságod KPI-ok kezeléséhez." }
   }
 
@@ -37,9 +37,11 @@ export async function addKpi(formData: FormData) {
     .from("hr_teljesitmeny")
     .insert([{
       dolgozo_id: dolgozoId,
-      ertekeles_szovege: ertekelesSzovege,
+      celkituzes: ertekelesSzovege, // ez lesz a cél neve
+      ertekeles_szovege: null, // részletes értékelés később
       ertekelt_idoszak: idoszak,
-      pontszam: pontszam,
+      pontszam: pontszam, // százalék
+      kpi_statusz: "aktiv", // alapértelmezett
       ertekeles_datuma: new Date().toISOString().split('T')[0],
       ertekeles_keszito_id: user.id
     }])
@@ -58,5 +60,42 @@ export async function addKpi(formData: FormData) {
   })
 
   revalidatePath("/hr/performance")
+  return { success: true }
+}
+
+export async function updateKpiProgress(kpiId: string, percentage: number) {
+  const supabase = await createClient()
+
+  // Biztonsági ellenőrzés
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select('hr_szerepkor')
+    .eq("id", user.id)
+    .single()
+
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
+    return { error: "Nincs jogosultságod KPI-ok kezeléséhez." }
+  }
+
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { error } = await adminClient
+    .from("hr_teljesitmeny")
+    .update({ pontszam: percentage })
+    .eq("id", kpiId)
+
+  if (error) {
+    console.error("Hiba KPI frissítésekor:", error)
+    return { error: error.message }
+  }
+
+  revalidatePath("/hr/performance")
+  revalidatePath("/hr/self-service")
   return { success: true }
 }

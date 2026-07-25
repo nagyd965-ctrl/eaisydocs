@@ -17,12 +17,12 @@ export default async function PartnersPage() {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
-  let szerepkor = ''
+  let docs_szerepkor = ''
   if (user) {
-    const { data: profile } = await supabase.from('felhasznalo_profil').select('szerepkor').eq('id', user.id).single()
-    szerepkor = profile?.szerepkor || ''
+    const { data: profile } = await supabase.from('felhasznalo_profil').select('docs_szerepkor').eq('id', user.id).single()
+    docs_szerepkor = profile?.docs_szerepkor || ''
   }
-  const permissions = getPermissions(szerepkor)
+  const permissions = getPermissions(docs_szerepkor)
 
   // Fetch partners
   const { data: realPartners } = await supabase.from("partner").select("*").order("nev")

@@ -15,7 +15,13 @@ import { DisciplinaryTab } from "./tabs/DisciplinaryTab"
 import { PersonalDataTab } from "./tabs/PersonalDataTab"
 import { GeneralPersonalInfoTab } from "./tabs/GeneralPersonalInfoTab"
 import { EmploymentTab } from "./tabs/EmploymentTab"
+import { LeaveTab } from "./tabs/LeaveTab"
+import { CafeteriaTab } from "./tabs/CafeteriaTab"
+import { AttendanceTab } from "./tabs/AttendanceTab"
 import { ContractGeneratorDialog } from "@/components/hr/contract-generator-dialog"
+import { ManualUploadDialog } from "@/components/hr/manual-upload-dialog"
+import { DeleteContractButton } from "@/components/hr/delete-contract-button"
+import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params
@@ -27,11 +33,11 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
   const { data: currentUserProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("szerepkor")
+    .select('hr_szerepkor')
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin"].includes(currentUserProfile?.szerepkor || "")
+  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin"].includes(currentUserProfile?.hr_szerepkor || "")
 
   // 2. Lekérjük a profil adatokat
   const { data: profile, error } = await supabase
@@ -39,24 +45,49 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     .select(`
       id,
       nev,
-      szerepkor,
+      hr_szerepkor,
       hr_dolgozo_adatlap ( 
         *,
+        hr_tavollet ( * ),
         hr_elozo_munkahely ( * ),
         hr_kepzettseg ( * ),
         hr_tanulmanyi_szerzodes ( * ),
         hr_orvosi_vizsgalat ( * ),
-        hr_fegyelmi ( * )
+        hr_fegyelmi ( * ),
+        hr_jogviszony (
+          *,
+          hr_beosztas (
+            *,
+            munkakor: hr_munkakor ( megnevezes )
+          )
+        )
       )
     `)
     .eq("id", resolvedParams.id)
     .single()
 
-  const { data: hrDocuments } = await supabase
+  // 3. Lekérjük a választható munkaköröket
+  const { data: munkakorok } = await supabase
+    .from("hr_munkakor")
+    .select("id, megnevezes")
+    .order("megnevezes")
+
+  const { data: hrDocumentsList } = await supabase
     .from("hr_dokumentum")
     .select("*")
     .eq("dolgozo_id", resolvedParams.id)
     .order("created_at", { ascending: false })
+
+  // Aláírt URL-ek generálása a privát fájlokhoz
+  const hrDocuments = await Promise.all(
+    (hrDocumentsList || []).map(async (doc) => {
+      if (doc.url) {
+        const { data } = await supabase.storage.from("irat_files").createSignedUrl(doc.url, 3600)
+        return { ...doc, signedUrl: data?.signedUrl || doc.url }
+      }
+      return doc
+    })
+  )
 
   if (error) {
     console.error("DB Query error:", error)
@@ -74,7 +105,29 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     )
   }
 
-  const adatlap = profile.hr_dolgozo_adatlap
+  const adatlap = profile?.hr_dolgozo_adatlap
+
+  // Cafeteria adatok
+  const currentYear = new Date().getFullYear()
+  
+  const { data: cafeteriaKeret } = await supabase
+    .from("hr_cafeteria_keret")
+    .select("*")
+    .eq("dolgozo_id", resolvedParams.id)
+    .eq("ev", currentYear)
+    .single()
+
+  const { data: cafeteriaKatalogus } = await supabase
+    .from("hr_cafeteria_katalogus")
+    .select("*")
+    .eq("aktiv", true)
+    .order("nev")
+
+  const { data: cafeteriaValasztasok } = await supabase
+    .from("hr_cafeteria_valasztas")
+    .select("*")
+    .eq("dolgozo_id", resolvedParams.id)
+    .eq("ev", currentYear)
 
   return (
     <div className="space-y-6">
@@ -90,7 +143,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
             <Badge variant="default" className="text-sm">Aktív</Badge>
           </h1>
           <p className="text-muted-foreground mt-1">
-            {profile.szerepkor === 'admin' ? 'Rendszergazda' : profile.szerepkor === 'ugyintezo' ? 'Fejlesztő / Ügyintéző' : profile.szerepkor}
+            {profile.hr_szerepkor === 'admin' ? 'Rendszergazda' : profile.hr_szerepkor === 'ugyintezo' ? 'Fejlesztő / Ügyintéző' : profile.hr_szerepkor}
           </p>
         </div>
       </div>
@@ -109,7 +162,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Munkakör / Szerepkör</p>
-              <p className="font-medium">{profile.szerepkor}</p>
+              <p className="font-medium">{profile.hr_szerepkor}</p>
             </div>
           </CardContent>
         </Card>
@@ -121,6 +174,9 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           <TabsTrigger value="szemelyes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Személyes adatok</TabsTrigger>
           <TabsTrigger value="szakmai_hatter" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Szakmai háttér</TabsTrigger>
           <TabsTrigger value="munkaviszony_szerzodes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Munkaviszony & Szerződések</TabsTrigger>
+          <TabsTrigger value="tavollet" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Távollét</TabsTrigger>
+          <TabsTrigger value="jelenlet" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Jelenlét</TabsTrigger>
+          <TabsTrigger value="cafeteria" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Cafeteria</TabsTrigger>
           {isHrOrAdmin && (
             <TabsTrigger value="bizalmas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">
               Bizalmas HR adatok <ShieldAlert className="ml-2 w-3 h-3 text-destructive" />
@@ -129,6 +185,27 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
         </TabsList>
 
         <div className="pt-6">
+          {/* Új: Cafeteria */}
+          <TabsContent value="cafeteria" className="mt-0 outline-none">
+            <CafeteriaTab 
+              employeeId={profile.id} 
+              year={currentYear} 
+              budgetData={cafeteriaKeret}
+              catalog={cafeteriaKatalogus || []}
+              choices={cafeteriaValasztasok || []}
+            />
+          </TabsContent>
+
+          {/* Új: Távollét */}
+          <TabsContent value="tavollet" className="mt-0 outline-none">
+            <LeaveTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} leaves={profile.hr_dolgozo_adatlap?.hr_tavollet || []} />
+          </TabsContent>
+
+          {/* Új: Jelenlét */}
+          <TabsContent value="jelenlet" className="mt-0 outline-none">
+            <AttendanceTab employeeId={profile.id} />
+          </TabsContent>
+
           {/* 1. Személyes Adatok */}
           <TabsContent value="szemelyes" className="mt-0 outline-none space-y-6">
             <GeneralPersonalInfoTab 
@@ -162,6 +239,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                 employeeId={profile.id} 
                 isHrOrAdmin={isHrOrAdmin} 
                 adatlap={adatlap} 
+                jogviszonyok={profile.hr_dolgozo_adatlap?.hr_jogviszony || []}
+                munkakorok={munkakorok || []}
               />
             </div>
 
@@ -173,7 +252,10 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                   <p className="text-sm text-muted-foreground mt-1">Szerződések idővonala és generálása.</p>
                 </div>
                 {isHrOrAdmin && (
-                  <ContractGeneratorDialog employee={profile} adatlap={adatlap} />
+                  <div className="flex gap-2">
+                    <ManualUploadDialog employeeId={profile.id} />
+                    <ContractGeneratorDialog employee={profile} adatlap={adatlap} />
+                  </div>
                 )}
               </div>
 
@@ -190,9 +272,14 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                             <p className="text-sm text-muted-foreground mt-1">Kategória: {doc.kategoria || "Egyéb"}</p>
                             <p className="text-xs text-muted-foreground mt-2">Dátum: {new Date(doc.created_at).toLocaleString("hu-HU")}</p>
                           </div>
-                          {doc.url && (
-                            <a href={doc.url} target="_blank" rel="noreferrer" className="text-sm text-blue-500 hover:underline">Megtekintés</a>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {doc.url && (
+                              <PdfViewerDialog url={doc.signedUrl || doc.url} title={doc.nev} />
+                            )}
+                            {isHrOrAdmin && (
+                              <DeleteContractButton documentId={doc.id} fileUrl={doc.url} dolgozoId={profile.id} />
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

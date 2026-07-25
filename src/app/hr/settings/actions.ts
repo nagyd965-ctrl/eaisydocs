@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/utils/supabase/server"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 
 export async function createMunkakor(formData: FormData) {
@@ -53,26 +54,148 @@ export async function updateEmployeeInfo(formData: FormData) {
   const role = formData.get("role") as string
   const munkakorId = formData.get("munkakorId") as string
   const entryDate = formData.get("entryDate") as string
+  const jogviszonyId = formData.get("jogviszonyId") as string
 
   if (!employeeId) return { error: "Hiányzó dolgozó azonosító" }
 
-  const { error: profileError } = await supabase
-    .from("felhasznalo_profil")
-    .update({ szerepkor: role })
-    .eq("id", employeeId)
+  // 1. Szerepkör frissítése
+  if (role) {
+    const { error: profileError } = await supabase
+      .from("felhasznalo_profil")
+      .update({ hr_szerepkor: role })
+      .eq("id", employeeId)
 
-  if (profileError) return { error: "Hiba a szerepkör frissítésekor: " + profileError.message }
+    if (profileError) return { error: "Hiba a szerepkör frissítésekor: " + profileError.message }
+  }
 
-  const { error: hrError } = await supabase
-    .from("hr_dolgozo_adatlap")
-    .update({
-      munkakor_id: munkakorId === "none" ? null : munkakorId,
-      belepes_datuma: entryDate || null
-    })
-    .eq("id", employeeId)
+  if (jogviszonyId) {
+    // 2. Jogviszony frissítése (Belépés dátuma)
+    if (entryDate) {
+      const { error: hrError } = await supabase
+        .from("hr_jogviszony")
+        .update({ belepes_datuma: entryDate })
+        .eq("id", jogviszonyId)
 
-  if (hrError) return { error: "Hiba az adatok frissítésekor: " + hrError.message }
+      if (hrError) return { error: "Hiba a jogviszony frissítésekor: " + hrError.message }
+    }
+
+    // 3. Munkakör (Beosztás) frissítése
+    // Megnézzük mi az aktív beosztás
+    const { data: beosztasok } = await supabase
+      .from("hr_beosztas")
+      .select("id, munkakor_id")
+      .eq("jogviszony_id", jogviszonyId)
+      .is("ervenyes_ig", null)
+      .order("ervenyes_tol", { ascending: false })
+      .limit(1)
+
+    const activeBeosztas = beosztasok?.[0]
+    const targetMunkakor = munkakorId === "none" ? null : munkakorId
+
+    // Csak akkor változtatunk, ha módosult a munkakör
+    if (targetMunkakor !== (activeBeosztas?.munkakor_id || null)) {
+      // 1. Lezárjuk a régit a mai nappal
+      if (activeBeosztas) {
+        await supabase
+          .from("hr_beosztas")
+          .update({ ervenyes_ig: new Date().toISOString().split("T")[0] })
+          .eq("id", activeBeosztas.id)
+      }
+
+      // 2. Nyitunk egy újat, ha van megadva új
+      if (targetMunkakor) {
+        await supabase
+          .from("hr_beosztas")
+          .insert([{
+            jogviszony_id: jogviszonyId,
+            munkakor_id: targetMunkakor,
+            ervenyes_tol: new Date().toISOString().split("T")[0]
+          }])
+      }
+    }
+  }
 
   revalidatePath("/hr/settings")
+  return { success: true }
+}
+
+export async function updateMunkakor(id: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const megnevezes = formData.get("megnevezes") as string
+  const feor_kod = formData.get("feor_kod") as string
+  const besorolasi_szint = formData.get("besorolasi_szint") as string
+  const kockazat_tipusa = formData.get("kockazat_tipusa") as string
+
+  if (!megnevezes) return { error: "A megnevezés megadása kötelező" }
+
+  const { error } = await supabase
+    .from("hr_munkakor")
+    .update({
+      megnevezes,
+      feor_kod: feor_kod || null,
+      besorolasi_szint: besorolasi_szint || null,
+      kockazat_tipusa: kockazat_tipusa || null,
+    })
+    .eq("id", id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath("/hr/settings")
+  return { success: true }
+}
+
+export async function deleteMunkakor(id: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { error } = await supabase
+    .from("hr_munkakor")
+    .delete()
+    .eq("id", id)
+
+  if (error) {
+    // Ha idegen kulcs hiba van (pl. van rá dolgozó)
+    if (error.code === '23503') {
+      return { error: "Nem törölhető, mert vannak hozzárendelt dolgozók vagy jelentkezők." }
+    }
+    return { error: error.message }
+  }
+
+  revalidatePath("/hr/settings")
+  return { success: true }
+}
+
+export async function removeEmployeeFromHR(employeeId: string) {
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  // 1. Töröljük a hr_dolgozo_adatlapot
+  // (A DB szinten a CASCADE miatt elvileg a hr_jogviszony és hr_beosztas is törlődik)
+  const { error } = await supabaseAdmin
+    .from("hr_dolgozo_adatlap")
+    .delete()
+    .eq("id", employeeId)
+
+  if (error) {
+    return { error: "Hiba a HR profil törlésekor: " + error.message }
+  }
+
+  // 2. Visszaállítjuk a hr_szerepkort az alapértelmezett "ugyintezo"-re, 
+  // így az illető elveszíti az eaisyHR hozzáférését (de a sima eaisyDocs-ba be tud lépni).
+  await supabaseAdmin
+    .from("felhasznalo_profil")
+    .update({ hr_szerepkor: "ugyintezo" })
+    .eq("id", employeeId)
+
+  revalidatePath("/hr/settings")
+  revalidatePath("/hr/admin")
   return { success: true }
 }

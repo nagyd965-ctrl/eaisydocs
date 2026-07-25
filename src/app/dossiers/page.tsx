@@ -47,11 +47,11 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
   const { data: authUser } = await supabase.auth.getUser()
   const { data: currentUserProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("szerepkor")
+    .select('docs_szerepkor')
     .eq("id", authUser?.user?.id || "")
     .single()
   
-  const permissions = getPermissions(currentUserProfile?.szerepkor)
+  const permissions = getPermissions(currentUserProfile?.docs_szerepkor)
   const canAssign = permissions.canAssign
 
   // Második lépés: Felhasználók lekérése memóriába, mivel hiányzik a foreign key
@@ -63,7 +63,7 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
 
   const { data: users } = await supabase
     .from("felhasznalo_profil")
-    .select("id, nev, szerepkor, szervezeti_egyseg_id")
+    .select('id, nev, docs_docs_szerepkor, szervezeti_egyseg_id')
 
   const userMap = (users || []).reduce((acc: any, user: any) => {
     acc[user.id] = user.nev

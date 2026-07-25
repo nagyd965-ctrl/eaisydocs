@@ -7,6 +7,10 @@ import { PersonalDataCard } from "@/components/hr/personal-data-card"
 import { LeaveRequestDialog } from "@/components/hr/leave-request-dialog"
 import { TimeTrackingCard } from "@/components/hr/time-tracking-card"
 import { RecentDocumentsCard } from "@/components/hr/recent-documents-card"
+import { LeaveHistoryList } from "@/components/hr/leave-history-list"
+import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
+import { EmployeeTimesheet } from "@/components/hr/employee-timesheet"
+import { EmployeeKpiCard } from "@/components/hr/employee-kpi-card"
 import { redirect } from "next/navigation"
 
 export default async function SelfServicePage() {
@@ -24,16 +28,16 @@ export default async function SelfServicePage() {
     .eq("id", user.id)
     .single()
 
-  // 1. Szabadság egyenleg számítása
+  // 1. Szabadság egyenleg számítása és Távollétek lekérése
   const { data: tavolletek } = await supabase
     .from("hr_tavollet")
-    .select("statusz")
+    .select("*")
     .eq("dolgozo_id", user.id)
-    .eq("tipus", "szabadsag")
+    .order("created_at", { ascending: false })
 
   const totalLeave = 25
-  const usedLeave = tavolletek?.filter(t => t.statusz === "jovahagyva").length || 0
-  const plannedLeave = tavolletek?.filter(t => t.statusz === "jovahagyasra_var").length || 0
+  const usedLeave = tavolletek?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyva").length || 0
+  const plannedLeave = tavolletek?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyasra_var").length || 0
   const remainingLeave = totalLeave - usedLeave
 
   // 2. Időrögzítés státusz
@@ -57,6 +61,35 @@ export default async function SelfServicePage() {
     .eq("dolgozo_id", user.id)
     .order("created_at", { ascending: false })
     .limit(5)
+
+  // 4. Cafeteria lekérések
+  const currentYear = new Date().getFullYear()
+  
+  const { data: cafeteriaKeret } = await supabase
+    .from("hr_cafeteria_keret")
+    .select("*")
+    .eq("dolgozo_id", user.id)
+    .eq("ev", currentYear)
+    .single()
+
+  const { data: cafeteriaKatalogus } = await supabase
+    .from("hr_cafeteria_katalogus")
+    .select("*")
+    .eq("aktiv", true)
+    .order("nev")
+
+  const { data: cafeteriaValasztasok } = await supabase
+    .from("hr_cafeteria_valasztas")
+    .select("*")
+    .eq("dolgozo_id", user.id)
+    .eq("ev", currentYear)
+
+  // 5. Teljesítményértékelés (KPI-ok) lekérése
+  const { data: kpis } = await supabase
+    .from("hr_teljesitmeny")
+    .select("*")
+    .eq("dolgozo_id", user.id)
+    .order("created_at", { ascending: false })
 
   return (
     <div className="space-y-6">
@@ -137,24 +170,43 @@ export default async function SelfServicePage() {
         />
       </div>
 
+      <div className="grid gap-6 md:grid-cols-1">
+        {/* Jelenléti Ív */}
+        <EmployeeTimesheet employeeId={user.id} />
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Cafeteria Nyilatkozat */}
+        {cafeteriaKeret ? (
+          <CafeteriaDeclaration 
+            employeeId={user.id}
+            year={currentYear}
+            budget={cafeteriaKeret.osszeg}
+            isClosed={cafeteriaKeret.nyilatkozat_lezarva}
+            catalog={cafeteriaKatalogus || []}
+            existingChoices={cafeteriaValasztasok || []}
+          />
+        ) : (
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <Coffee className="w-5 h-5 text-primary" /> Cafeteria Nyilatkozat
+              </CardTitle>
+              <CardDescription>Jelenleg nincs beállítva cafeteria kereted erre az évre.</CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+        
+        {/* Távollét Előzmények */}
+        <LeaveHistoryList leaves={tavolletek || []} />
+      </div>
+
       <div className="grid gap-6 md:grid-cols-2">
         {/* Legutóbbi Dokumentumaim */}
         <RecentDocumentsCard documents={dokumentumok || []} />
 
         {/* Teljesítménycélok */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Target className="w-4 h-4" /> Aktuális Célkitűzések
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col items-center justify-center h-32 text-center space-y-3">
-              <Target className="w-8 h-8 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">Nincs aktív teljesítményértékelési ciklus.</p>
-            </div>
-          </CardContent>
-        </Card>
+        <EmployeeKpiCard kpis={kpis || []} />
       </div>
       
     </div>

@@ -1,18 +1,53 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { FileText, Printer, ChevronDown } from "lucide-react"
+import { FileText, Printer, ChevronDown, Save, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { generateAndSaveContract } from "@/app/hr/actions/contract-actions"
 
 export function ContractGeneratorDialog({ employee, adatlap }: { employee: any, adatlap: any }) {
   const [open, setOpen] = useState(false)
   const [template, setTemplate] = useState("alap_munkaszerzodes")
+  const [isSaving, setIsSaving] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   const handlePrint = () => {
     window.print()
+  }
+
+  const handleSaveToSystem = async () => {
+    if (!contentRef.current || !employee?.id) {
+      toast.error("Hiba történt az adatok betöltésekor.")
+      return
+    }
+
+    setIsSaving(true)
+    const htmlContent = contentRef.current.innerHTML
+
+    try {
+      const result = await generateAndSaveContract(
+        htmlContent,
+        employee.id,
+        template,
+        employee.nev || "Ismeretlen"
+      )
+
+      if (result.success) {
+        toast.success("Dokumentum sikeresen legenerálva és elmentve!")
+        setOpen(false)
+      } else {
+        toast.error(result.error || "Hiba történt a generálás során.")
+      }
+    } catch (error) {
+      toast.error("Váratlan hiba történt a mentés során.")
+      console.error(error)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -28,14 +63,14 @@ export function ContractGeneratorDialog({ employee, adatlap }: { employee: any, 
           <DialogHeader>
             <DialogTitle>Szerződés Generátor</DialogTitle>
             <DialogDescription>
-              Válassz sablont a dokumentum legenerálásához, majd nyomtasd ki PDF-be.
+              Válassz sablont a dokumentum legenerálásához, majd nyomtasd ki vagy mentsd el a rendszerbe.
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-4 flex flex-col sm:flex-row gap-4 items-start sm:items-end border-b pb-6 mb-6">
             <div className="space-y-2 flex-1 w-full">
               <Label>Szerződés Sablon</Label>
-              <Select value={template} onValueChange={setTemplate}>
+              <Select value={template} onValueChange={setTemplate} disabled={isSaving}>
                 <SelectTrigger>
                   <SelectValue placeholder="Válassz sablont...">
                     {template === "alap_munkaszerzodes" && "Alap Munkaszerződés"}
@@ -50,15 +85,21 @@ export function ContractGeneratorDialog({ employee, adatlap }: { employee: any, 
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handlePrint} className="gap-2 w-full sm:w-auto">
-              <Printer className="w-4 h-4" />
-              Nyomtatás / PDF mentés
-            </Button>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button variant="outline" onClick={handlePrint} disabled={isSaving} className="gap-2">
+                <Printer className="w-4 h-4" />
+                Nyomtatás
+              </Button>
+              <Button onClick={handleSaveToSystem} disabled={isSaving} className="gap-2">
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Mentés a Rendszerbe
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Nyomtatható A4-es nézet (képernyőn reszponzív, nyomtatáskor A4) */}
-        <div className="print:block bg-white text-black p-6 sm:p-12 min-h-0 sm:min-h-[297mm] w-full max-w-[210mm] mx-auto border shadow-sm print:border-none print:shadow-none">
+        {/* Nyomtatható A4-es nézet */}
+        <div ref={contentRef} className="print:block bg-white text-black p-6 sm:p-12 min-h-0 sm:min-h-[297mm] w-full max-w-[210mm] mx-auto border shadow-sm print:border-none print:shadow-none">
           {template === "alap_munkaszerzodes" && (
             <div className="space-y-6">
               <h1 className="text-2xl font-bold text-center mb-10 uppercase tracking-widest">Munkaszerződés</h1>

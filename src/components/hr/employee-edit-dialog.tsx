@@ -23,15 +23,20 @@ export function EmployeeEditDialog({ employee, jobs }: { employee: any, jobs: an
   
   const nev = employee.felhasznalo_profil?.nev || "Ismeretlen"
   
-  const [role, setRole] = useState<string>(employee.felhasznalo_profil?.szerepkor || "munkavallalo")
-  const [munkakorId, setMunkakorId] = useState<string>(employee.munkakor_id || "none")
-
   const roleMap: Record<string, string> = {
     "munkavallalo": "Munkavállaló (Alap)",
-    "hr_vezeto": "Vezető (Manager)",
+    "vezeto": "Vezető (Közvetlen)",
     "hr_munkatars": "HR Munkatárs",
+    "hr_vezeto": "HR Vezető (Igazgató)",
+    "berugyi": "Bérügyi / Bérszámfejtő",
     "admin": "Rendszergazda (Admin)"
   }
+
+  const activeJogviszony = employee.hr_jogviszony?.[0]
+  const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
+
+  const [role, setRole] = useState<string>(employee.felhasznalo_profil?.hr_szerepkor || "munkavallalo")
+  const [munkakorId, setMunkakorId] = useState<string>(activeBeosztas?.hr_munkakor?.id || "none")
 
   const getMunkakorLabel = (id: string) => {
     if (id === "none") return "Nincs munkakör beállítva"
@@ -45,6 +50,9 @@ export function EmployeeEditDialog({ employee, jobs }: { employee: any, jobs: an
 
     const formData = new FormData(e.currentTarget)
     formData.append("employeeId", employee.id)
+    if (activeJogviszony?.id) {
+      formData.append("jogviszonyId", activeJogviszony.id)
+    }
 
     const result = await updateEmployeeInfo(formData)
 
@@ -82,8 +90,10 @@ export function EmployeeEditDialog({ employee, jobs }: { employee: any, jobs: an
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="munkavallalo">Munkavállaló (Alap)</SelectItem>
-                <SelectItem value="hr_vezeto">Vezető (Manager)</SelectItem>
+                <SelectItem value="vezeto">Vezető (Közvetlen)</SelectItem>
                 <SelectItem value="hr_munkatars">HR Munkatárs</SelectItem>
+                <SelectItem value="hr_vezeto">HR Vezető (Igazgató)</SelectItem>
+                <SelectItem value="berugyi">Bérügyi / Bérszámfejtő</SelectItem>
                 <SelectItem value="admin">Rendszergazda (Admin)</SelectItem>
               </SelectContent>
             </Select>
@@ -113,7 +123,7 @@ export function EmployeeEditDialog({ employee, jobs }: { employee: any, jobs: an
               type="date" 
               name="entryDate" 
               id="entryDate" 
-              defaultValue={employee.belepes_datuma || ""} 
+              defaultValue={activeJogviszony?.belepes_datuma || ""}
             />
           </div>
 

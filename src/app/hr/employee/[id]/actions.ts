@@ -312,27 +312,147 @@ export async function updateJogviszonyData(employeeId: string, formData: FormDat
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  const ervenyes_tol = formData.get("ervenyes_tol") as string
   const belepes_datuma = formData.get("belepes_datuma") as string
   const munkaviszony_tipusa = formData.get("munkaviszony_tipusa") as string
   const munkaido_fte = formData.get("munkaido_fte") as string
   const munkarend = formData.get("munkarend") as string
   const berkategoria = formData.get("berkategoria") as string
   const kozvetlen_vezeto = formData.get("kozvetlen_vezeto") as string
+  let munkakor_id = formData.get("munkakor_id") as string | null
 
-  const { error } = await supabase
-    .from("hr_dolgozo_adatlap")
-    .update({
-      belepes_datuma: belepes_datuma || null,
-      munkaviszony_tipusa: munkaviszony_tipusa || null,
-      munkaido_fte: munkaido_fte ? parseFloat(munkaido_fte) : null,
-      munkarend: munkarend || null,
-      berkategoria: berkategoria || null,
-      kozvetlen_vezeto: kozvetlen_vezeto || null
-    })
-    .eq("id", employeeId)
+  if (!ervenyes_tol) {
+    return { error: "Az érvényesség kezdete (Érvényes-től) mező megadása kötelező!" }
+  }
+
+  // Jelenlegi munkakör lekérése, ha nem küldtek újat
+  if (!munkakor_id) {
+    const { data: currProfile } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select(`hr_jogviszony ( hr_beosztas ( munkakor_id ) )`)
+      .eq("id", employeeId)
+      .single()
+
+    const jogviszonyok = (currProfile as any)?.hr_jogviszony
+    if (jogviszonyok && jogviszonyok.length > 0) {
+      const beosztasok = jogviszonyok[0].hr_beosztas
+      if (beosztasok && beosztasok.length > 0) {
+        munkakor_id = beosztasok[0].munkakor_id
+      }
+    }
+  }
+
+  const { error } = await supabase.rpc('update_hr_beosztas_history', {
+    p_dolgozo_id: employeeId,
+    p_ervenyes_tol: ervenyes_tol,
+    p_munkakor_id: munkakor_id,
+    p_munkaviszony_tipusa: munkaviszony_tipusa || null,
+    p_munkaido_fte: munkaido_fte ? parseFloat(munkaido_fte) : null,
+    p_munkarend: munkarend || null,
+    p_berkategoria: berkategoria || null,
+    p_kozvetlen_vezeto: kozvetlen_vezeto || null,
+    p_belepes_datuma: belepes_datuma || null
+  })
 
   if (error) {
     return { error: error.message }
+  }
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function uploadHrDocument(employeeId: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const file = formData.get("file") as File
+  const nev = formData.get("nev") as string
+  const kategoria = formData.get("kategoria") as string
+
+  if (!file || file.size === 0) {
+    return { error: "Nem választottál ki fájlt a feltöltéshez!" }
+  }
+
+  if (!nev) {
+    return { error: "A dokumentum neve kötelező!" }
+  }
+
+  const timestamp = Date.now()
+  const safeFilename = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")
+  const filePath = `hr/${employeeId}/${timestamp}_${safeFilename}`
+
+  // Fájl feltöltése a Supabase Storage-ba
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from("irat_files")
+    .upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: false
+    })
+
+  if (uploadError) {
+    console.error("Storage upload error:", uploadError)
+    return { error: "Hiba történt a fájl feltöltése során: " + uploadError.message }
+  }
+
+  // Rekord létrehozása a hr_dokumentum táblában
+  const { error: insertError } = await supabase
+    .from("hr_dokumentum")
+    .insert([
+      {
+        dolgozo_id: employeeId,
+        nev: nev,
+        kategoria: kategoria || "Egyéb",
+        url: filePath
+      }
+    ])
+
+  if (insertError) {
+    console.error("DB insert error:", insertError)
+    // Ha az adatbázis mentés sikertelen, megpróbáljuk törölni a feltöltött fájlt
+    await supabase.storage.from("irat_files").remove([filePath])
+    return { error: "Hiba történt a dokumentum mentése során: " + insertError.message }
+  }
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function hrSubmitLeaveRequest(employeeId: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    return { error: "Nincs bejelentkezve" }
+  }
+
+  const type = formData.get("type") as string
+  const startDate = formData.get("startDate") as string
+  const endDate = formData.get("endDate") as string
+  
+  if (!type || !startDate || !endDate) {
+    return { error: "Minden kötelező mezőt ki kell tölteni!" }
+  }
+
+  if (startDate > endDate) {
+    return { error: "A kezdet dátuma nem lehet később, mint a vég dátuma!" }
+  }
+
+  const { error } = await supabase
+    .from("hr_tavollet")
+    .insert({
+      dolgozo_id: employeeId,
+      tipus: type,
+      kezdet_datuma: startDate,
+      veg_datuma: endDate,
+      statusz: "jovahagyva", // HR automatikusan jóváhagyottan hozza létre
+      jovahagyo_id: user.id
+    })
+
+  if (error) {
+    console.error("HR submit leave error:", error)
+    return { error: "Hiba történt a távollét rögzítésekor." }
   }
 
   revalidatePath(`/hr/employee/${employeeId}`)

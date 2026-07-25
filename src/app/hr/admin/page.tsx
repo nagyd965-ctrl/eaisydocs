@@ -7,9 +7,16 @@ import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
 import Link from "next/link"
 
 import { createClient } from "@/utils/supabase/server"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
 
 export default async function HrAdminPage() {
   const supabase = await createClient()
+
+  // Admin client for restricted tables and auth
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
   // 1. Dolgozók lekérése (felhasznalo_profil és hr_dolgozo_adatlap összekötve)
   const { data: employees } = await supabase
@@ -17,10 +24,37 @@ export default async function HrAdminPage() {
     .select(`
       id,
       nev,
-      szerepkor,
-      hr_dolgozo_adatlap ( munkakor_id, lakcim, belepes_datuma )
+      hr_szerepkor,
+      hr_dolgozo_adatlap (
+        id,
+        hr_jogviszony (
+          id,
+          belepes_datuma,
+          hr_beosztas (
+            id,
+            hr_munkakor ( megnevezes )
+          )
+        )
+      )
     `)
     .order("created_at", { ascending: true })
+
+  // 1.5. Munkakörök és szabad felhasználók a Felvétel ablakhoz
+  const { data: jobs } = await supabase.from("hr_munkakor").select("id, megnevezes")
+  const { data: allUsers } = await supabase.from("felhasznalo_profil").select("id, nev")
+  const assignedIds = employees?.filter(e => e.hr_dolgozo_adatlap !== null).map(e => e.id) || []
+  const unassignedUsers = allUsers?.filter(u => !assignedIds.includes(u.id)) || []
+  
+  // 1.6. Toborzásból (ATS) elfogadott jelentkezők lekérése (Admin klienssel az RLS miatt)
+  const { data: elfogadottJelentkezok } = await supabaseAdmin
+    .from("hr_toborzas")
+    .select("id, nev, email, megpalyazott_munkakor_id")
+    .eq("statusz", "elfogadva")
+    
+  // Összes regisztrált e-mail lekérése az Auth-ból a szűréshez
+  const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+  const userEmails = authUsers.users.map(u => u.email)
+  const availableCandidates = elfogadottJelentkezok?.filter(j => !userEmails.includes(j.email)) || []
 
   // 2. Toborzási adatok lekérése (nyitott pozik, új jelentkezők)
   const { data: toborzas } = await supabase.from("hr_toborzas").select("*")
@@ -62,7 +96,7 @@ export default async function HrAdminPage() {
             Teljes állomány áttekintése és HR adminisztráció.
           </p>
         </div>
-        <AddEmployeeDialog />
+        <AddEmployeeDialog availableUsers={unassignedUsers} jobs={jobs || []} candidates={availableCandidates} />
       </div>
 
       <div className="grid gap-6 md:grid-cols-4">
@@ -128,12 +162,17 @@ export default async function HrAdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {employees && employees.map((emp, index) => (
-                <TableRow key={emp.id} className="cursor-pointer hover:bg-muted/50">
-                  <TableCell className="font-medium text-muted-foreground">EMP-{String(index + 1).padStart(3, '0')}</TableCell>
-                  <TableCell className="font-semibold">{emp.nev}</TableCell>
-                  <TableCell>{emp.szerepkor === 'admin' ? 'Rendszergazda' : emp.szerepkor === 'ugyintezo' ? 'Fejlesztő / Ügyintéző' : emp.szerepkor}</TableCell>
-                  <TableCell>IT / Általános</TableCell>
+              {employees && employees.filter((emp: any) => emp.hr_dolgozo_adatlap !== null).map((emp: any, index: number) => {
+                const activeJogviszony = emp.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
+                const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
+                const munkakor = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
+
+                return (
+                  <TableRow key={emp.id} className="cursor-pointer hover:bg-muted/50">
+                    <TableCell className="font-medium text-muted-foreground">EMP-{String(index + 1).padStart(3, '0')}</TableCell>
+                    <TableCell className="font-semibold">{emp.nev}</TableCell>
+                    <TableCell>{munkakor}</TableCell>
+                    <TableCell>Központ</TableCell>
                   <TableCell>
                     <Badge variant="default">
                       Aktív
@@ -145,7 +184,7 @@ export default async function HrAdminPage() {
                     </Link>
                   </TableCell>
                 </TableRow>
-              ))}
+              )})}
               {(!employees || employees.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">Nincsenek dolgozók az adatbázisban.</TableCell>

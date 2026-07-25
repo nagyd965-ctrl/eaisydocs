@@ -47,17 +47,17 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
 
   const { data: users } = await supabase
     .from("felhasznalo_profil")
-    .select("id, nev, szerepkor, szervezeti_egyseg_id")
+    .select('id, nev, docs_docs_szerepkor, szervezeti_egyseg_id')
 
   // Current user role check
   const { data: authUser } = await supabase.auth.getUser()
   const { data: currentUserProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("szerepkor")
+    .select('docs_szerepkor')
     .eq("id", authUser?.user?.id || "")
     .single()
   
-  const permissions = getPermissions(currentUserProfile?.szerepkor)
+  const permissions = getPermissions(currentUserProfile?.docs_szerepkor)
   const canAssign = permissions.canAssign
   const canEdit = permissions.canEdit
 

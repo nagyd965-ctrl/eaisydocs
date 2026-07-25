@@ -62,28 +62,36 @@ export function OrgChartTree({ employees }: { employees: EmployeeNode[] }) {
   // Akihez nincs vezető írva, vagy a vezetője nincs a listában, az gyökér elem lesz.
   
   const employeeMap = new Map<string, EmployeeNode>()
+  const nameToIdMap = new Map<string, string>()
   const rootNodes: EmployeeNode[] = []
+  const assignedNodes = new Set<string>()
 
-  // Inicializáljuk a map-et
+  // Inicializáljuk a map-eket
   employees.forEach(emp => {
-    employeeMap.set(emp.nev, { ...emp, children: [] })
+    employeeMap.set(emp.id, { ...emp, children: [] })
+    nameToIdMap.set(emp.nev, emp.id)
   })
 
   // Bejárjuk az embereket és hozzácsatoljuk a vezetőjükhöz
   employees.forEach(emp => {
-    const node = employeeMap.get(emp.nev)!
+    const node = employeeMap.get(emp.id)!
     
     if (emp.kozvetlen_vezeto) {
-      const manager = employeeMap.get(emp.kozvetlen_vezeto)
-      if (manager) {
-        manager.children!.push(node)
-      } else {
-        // Ha nem találjuk a vezetőt (mert pl. el van gépelve a neve), rootként kezeljük
-        rootNodes.push(node)
+      const managerId = nameToIdMap.get(emp.kozvetlen_vezeto)
+      if (managerId) {
+        const manager = employeeMap.get(managerId)
+        if (manager) {
+          manager.children!.push(node)
+          assignedNodes.add(emp.id)
+        }
       }
-    } else {
-      // Nincs megadva vezető -> Root
-      rootNodes.push(node)
+    }
+  })
+
+  // Azok a node-ok, amiket nem csatoltunk senkihez, lesznek a root node-ok
+  employees.forEach(emp => {
+    if (!assignedNodes.has(emp.id)) {
+      rootNodes.push(employeeMap.get(emp.id)!)
     }
   })
 

@@ -5,9 +5,11 @@ interface SendEmailParams {
   subject: string;
   html: string;
   dossierId?: string; // Opcionális ügyirat azonosító a naplózáshoz
+  senderName?: string;
+  senderEmail?: string;
 }
 
-export async function sendNotificationEmail({ to, subject, html, dossierId }: SendEmailParams) {
+export async function sendNotificationEmail({ to, subject, html, dossierId, senderName, senderEmail }: SendEmailParams) {
   const apiKey = process.env.BREVO_API_KEY;
   const supabase = await createClient();
 
@@ -30,8 +32,8 @@ export async function sendNotificationEmail({ to, subject, html, dossierId }: Se
       },
       body: JSON.stringify({
         sender: {
-          name: 'eaisyDocs Rendszer',
-          email: 'ertesites@thinkai.hu' // A Brevo-ba beregisztrált domain
+          name: senderName || 'eaisyDocs Rendszer',
+          email: senderEmail || 'ertesites@thinkai.hu' // A Brevo-ba beregisztrált domain
         },
         to: [{ email: to }],
         subject: subject,

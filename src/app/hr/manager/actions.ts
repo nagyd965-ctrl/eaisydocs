@@ -22,7 +22,7 @@ export async function approveLeaveRequest(id: string) {
   }
 
   // Audit log is handled automatically by PostgreSQL triggers!
-  revalidatePath("/hr/manager")
+  revalidatePath("/hr", "layout")
   return { success: true }
 }
 
@@ -44,6 +44,6 @@ export async function rejectLeaveRequest(id: string) {
     return { error: "Nem sikerült elutasítani a kérelmet." }
   }
 
-  revalidatePath("/hr/manager")
+  revalidatePath("/hr", "layout")
   return { success: true }
 }

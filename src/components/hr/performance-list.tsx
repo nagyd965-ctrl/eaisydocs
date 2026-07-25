@@ -7,6 +7,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { toast } from "sonner"
 import { History, Target, TrendingUp, MessageSquare, Plus } from "lucide-react"
 
 export function PerformanceList({ employees, kpis }: { employees: any[], kpis: any[] }) {
@@ -60,7 +62,7 @@ export function PerformanceList({ employees, kpis }: { employees: any[], kpis: a
               <Accordion type="multiple" className="w-full">
                 {emp.kpis.map((kpi: any) => {
                   const percent = kpi.pontszam || 0
-                  const text = kpi.ertekeles_szovege || "Nincs megadva"
+                  const text = kpi.celkituzes || kpi.ertekeles_szovege || "Nincs megadva"
                   
                   let colorClass = "bg-primary"
                   let bgClass = "bg-primary/20"
@@ -120,23 +122,32 @@ export function PerformanceList({ employees, kpis }: { employees: any[], kpis: a
                               </div>
                             )}
 
-                            <div className="relative">
-                                <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
-                                <div className="flex items-center gap-2 mb-1">
-                                  <TrendingUp className="w-3 h-3 text-muted-foreground" />
-                                  <span className="font-medium text-sm">Jelenlegi Állapot frissítve</span>
-                                </div>
-                                <p className="text-sm">
-                                  Az időarányos teljesülés jelenleg <span className={`font-bold ${textClass}`}>{percent}%</span>.
-                                </p>
-                            </div>
-
+                          <div className="relative">
+                              <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
+                              <div className="flex items-center gap-2 mb-1">
+                                <TrendingUp className="w-3 h-3 text-muted-foreground" />
+                                <span className="font-medium text-sm">Jelenlegi Állapot frissítése</span>
+                              </div>
+                              <form 
+                                className="flex items-center gap-3 mt-2" 
+                                action={async (formData) => {
+                                  const newVal = parseInt(formData.get("percent") as string);
+                                  const { updateKpiProgress } = await import("@/app/hr/performance/actions");
+                                  const res = await updateKpiProgress(kpi.id, newVal);
+                                  if (res?.error) {
+                                    toast.error(res.error);
+                                  } else {
+                                    toast.success("Állapot sikeresen frissítve!");
+                                  }
+                                }}
+                              >
+                                <Input type="number" name="percent" defaultValue={percent} min={0} max={100} className="w-24 h-8 text-sm" />
+                                <span className="text-sm font-medium">%</span>
+                                <Button type="submit" size="sm" variant="secondary" className="h-8">Frissítés</Button>
+                              </form>
                           </div>
 
-                          <Button variant="outline" size="sm" className="gap-2 ml-4">
-                            <History className="w-4 h-4" />
-                            Új bejegyzés rögzítése
-                          </Button>
+                        </div>
                         </div>
                       </AccordionContent>
                     </AccordionItem>

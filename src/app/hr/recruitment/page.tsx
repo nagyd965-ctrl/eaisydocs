@@ -14,11 +14,11 @@ export default async function RecruitmentPage() {
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("szerepkor")
+    .select('hr_szerepkor')
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.szerepkor)) {
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">
         <div>
