@@ -6,12 +6,12 @@ config({ path: '.env.local' });
 
 async function run() {
   const client = new Client({
-    connectionString: "postgresql://postgres.pdthccijqnhphjbtrtwo:Nincsapellata1%27@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
+    connectionString: process.env.DATABASE_URL
   });
 
   try {
     await client.connect();
-    const sql = fs.readFileSync('supabase/migrations/20260722000004_hr_dolgozo_tabs_tables.sql', 'utf8');
+    const sql = fs.readFileSync('supabase/migrations/20260725000014_hr_dokumentum_nyugtazas.sql', 'utf8');
     await client.query(sql);
     console.log('Migration applied successfully!');
   } catch (error) {

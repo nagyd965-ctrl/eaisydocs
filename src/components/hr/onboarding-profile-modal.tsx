@@ -1,8 +1,12 @@
 import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { UserCircle, Mail, CalendarDays, Briefcase, CheckCircle2, Clock } from "lucide-react"
+import { UserCircle, Mail, CalendarDays, Briefcase, CheckCircle2, Clock, Trash2, Plus, Loader2 } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
+import { useState } from "react"
+import { addOnboardingTask, deleteOnboardingTask } from "@/app/hr/onboarding/actions"
+import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
 
 interface OnboardingProfileModalProps {
   onboarding: any
@@ -10,6 +14,10 @@ interface OnboardingProfileModalProps {
 }
 
 export function OnboardingProfileModal({ onboarding, onDateChange }: OnboardingProfileModalProps) {
+  const [newTaskName, setNewTaskName] = useState("")
+  const [newTaskResp, setNewTaskResp] = useState("")
+  const [isAdding, setIsAdding] = useState(false)
+  
   const initials = onboarding.nev
     .split(' ')
     .map((n: string) => n[0])
@@ -21,6 +29,26 @@ export function OnboardingProfileModal({ onboarding, onDateChange }: OnboardingP
   const doneCount = tasks.filter((t: any) => t.statusz === 'done').length
   const progress = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0
   const isDone = progress === 100
+
+  const handleAddTask = async () => {
+    if (!newTaskName.trim() || !newTaskResp.trim()) return
+    setIsAdding(true)
+    const res = await addOnboardingTask(onboarding.id, newTaskName, newTaskResp)
+    setIsAdding(false)
+    if (res.error) toast.error(res.error)
+    else {
+      toast.success("Feladat hozzáadva")
+      setNewTaskName("")
+      setNewTaskResp("")
+    }
+  }
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm("Biztosan törlöd ezt a feladatot?")) return
+    const res = await deleteOnboardingTask(taskId)
+    if (res.error) toast.error(res.error)
+    else toast.success("Feladat törölve")
+  }
 
   return (
     <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden border-0 shadow-2xl">
@@ -46,7 +74,7 @@ export function OnboardingProfileModal({ onboarding, onDateChange }: OnboardingP
         </div>
       </div>
 
-      <div className="px-6 py-6 space-y-8">
+      <div className="px-6 py-6 space-y-8 max-h-[80vh] overflow-y-auto">
         {/* Adatok Grid */}
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-1">
@@ -94,7 +122,7 @@ export function OnboardingProfileModal({ onboarding, onDateChange }: OnboardingP
                 ) : (
                   <Clock className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
                 )}
-                <div>
+                <div className="flex-1">
                   <p className={`text-sm font-medium leading-tight ${task.statusz === 'done' ? 'line-through' : ''}`}>
                     {task.cim}
                   </p>
@@ -102,8 +130,19 @@ export function OnboardingProfileModal({ onboarding, onDateChange }: OnboardingP
                     {task.felelos_reszleg}
                   </p>
                 </div>
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteTask(task.id)}>
+                   <Trash2 className="w-3.5 h-3.5" />
+                </Button>
               </div>
             ))}
+          </div>
+
+          <div className="flex gap-2 pt-2">
+             <Input placeholder="Új feladat neve..." value={newTaskName} onChange={e => setNewTaskName(e.target.value)} className="h-9 text-sm" />
+             <Input placeholder="Felelős (pl. IT)" value={newTaskResp} onChange={e => setNewTaskResp(e.target.value)} className="w-32 h-9 text-sm" />
+             <Button onClick={handleAddTask} disabled={isAdding || !newTaskName.trim() || !newTaskResp.trim()} className="h-9 px-3" size="sm">
+               {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+             </Button>
           </div>
         </div>
       </div>

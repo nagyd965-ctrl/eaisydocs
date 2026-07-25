@@ -7,16 +7,22 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
-import { History, Target, TrendingUp, MessageSquare, Plus } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { EditKpiDialog } from "@/components/hr/edit-kpi-dialog"
+import { History, Target, TrendingUp, MessageSquare, Plus, MoreHorizontal, Edit, Trash2, User, Link as LinkIcon } from "lucide-react"
 
-export function PerformanceList({ employees, kpis }: { employees: any[], kpis: any[] }) {
+export function PerformanceList({ employees, kpis, logs = [], cycles = [], allKpis = [] }: { employees: any[], kpis: any[], logs?: any[], cycles?: any[], allKpis?: any[] }) {
   // Csoportosítás dolgozók szerint
   const employeesWithKpis = employees.map(emp => ({
     ...emp,
     kpis: kpis.filter(k => k.dolgozo_id === emp.id)
   })).filter(emp => emp.kpis.length > 0) // Csak azokat mutatjuk, akinek van célja
+
+  const [editKpiId, setEditKpiId] = useState<string | null>(null)
 
   if (employeesWithKpis.length === 0) {
     return (
@@ -46,15 +52,37 @@ export function PerformanceList({ employees, kpis }: { employees: any[], kpis: a
                   </Avatar>
                   <div>
                     <CardTitle className="text-lg">{nev}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{emp.hr_munkakor?.megnevezes || "Nincs megadva"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {(() => {
+                        const activeJogviszony = Array.isArray(emp.hr_jogviszony) ? emp.hr_jogviszony[0] : emp.hr_jogviszony;
+                        const allBeosztas = activeJogviszony?.hr_beosztas;
+                        const activeBeosztas = Array.isArray(allBeosztas) 
+                          ? allBeosztas.find(b => b.ervenyes_ig === null) || allBeosztas[0]
+                          : allBeosztas;
+                        return activeBeosztas?.hr_munkakor?.megnevezes || "Nincs megadva";
+                      })()}
+                    </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground mb-1">Átlagos Teljesülés</p>
-                  <div className="flex items-center gap-2">
-                    <Progress value={avgScore} className="w-24 h-2" />
-                    <span className="font-bold">{avgScore}%</span>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground mb-1">Átlagos Teljesülés</p>
+                    <div className="flex items-center gap-2">
+                      <Progress value={avgScore} className="w-24 h-2" />
+                      <span className="font-bold">{avgScore}%</span>
+                    </div>
                   </div>
+                  {(() => {
+                    let bonusProps = { label: "Fejlesztendő (0%)", color: "text-destructive", border: "border-destructive/30" }
+                    if (avgScore >= 85) bonusProps = { label: "Kiváló Prémium", color: "text-success", border: "border-success/30" }
+                    else if (avgScore >= 60) bonusProps = { label: "Normál Bónusz", color: "text-warning", border: "border-warning/30" }
+                    
+                    return (
+                      <Badge variant="outline" className={`${bonusProps.color} ${bonusProps.border} bg-background font-medium text-[10px] uppercase`}>
+                        {bonusProps.label}
+                      </Badge>
+                    )
+                  })()}
                 </div>
               </div>
             </CardHeader>
@@ -79,20 +107,78 @@ export function PerformanceList({ employees, kpis }: { employees: any[], kpis: a
                   }
 
                   return (
-                    <AccordionItem key={kpi.id} value={kpi.id} className="border-b last:border-0">
+                    <AccordionItem key={kpi.id} value={kpi.id} className="border-b last:border-0 relative">
+                      <div className="absolute top-4 right-12 pt-0 z-10" onClick={(e) => e.stopPropagation()}>
+                        <AlertDialog>
+                          <DropdownMenu>
+                          <DropdownMenuTrigger 
+                            render={
+                              <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-muted/50" />
+                            }
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setEditKpiId(kpi.id)}>
+                              <Edit className="h-4 w-4 mr-2" /> Szerkesztés
+                            </DropdownMenuItem>
+                              <AlertDialogTrigger 
+                                nativeButton={false}
+                                render={
+                                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10" />
+                                }
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" /> Törlés
+                              </AlertDialogTrigger>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Biztosan törölni szeretnéd ezt a célkitűzést?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Ez a művelet nem vonható vissza. A KPI véglegesen törlődik a rendszerből.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Mégse</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={async () => {
+                                  const { deleteKpi } = await import("@/app/hr/performance/actions");
+                                  const res = await deleteKpi(kpi.id);
+                                  if (res?.error) {
+                                    toast.error(res.error);
+                                  } else {
+                                    toast.success("Célkitűzés sikeresen törölve!");
+                                  }
+                                }}
+                                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                              >
+                                Törlés
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                       <AccordionTrigger className="hover:no-underline hover:bg-muted/10 px-2 rounded-md transition-colors">
                         <div className="flex items-center justify-between w-full pr-4">
-                          <div className="flex items-center gap-3 text-left">
-                            <Target className="w-4 h-4 text-muted-foreground" />
-                            <span className="font-medium">{text}</span>
+                          <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-lg truncate">{kpi.celkituzes}</span>
                             <Badge variant="outline" className="ml-2 font-normal text-[10px] uppercase">
-                              {kpi.ertekelt_idoszak || "Ciklus"}
+                              {kpi.hr_teljesitmeny_ciklus?.megnevezes || kpi.ertekelt_idoszak || "Ciklus"}
                             </Badge>
+                            {kpi.szulo_kpi_id && (
+                              <Badge variant="secondary" className="font-normal text-[10px] uppercase text-muted-foreground flex items-center gap-1">
+                                <LinkIcon className="w-3 h-3" />
+                                Szülő célhoz csatolva
+                              </Badge>
+                            )}
                           </div>
                           <div className="flex items-center gap-4">
                             <span className={`font-semibold ${textClass}`}>{percent}%</span>
                             <Progress value={percent} className={`w-32 h-2 ${bgClass} [&>div]:${colorClass}`} />
                           </div>
+                        </div>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-2 pt-4 pb-6">
@@ -106,18 +192,44 @@ export function PerformanceList({ employees, kpis }: { employees: any[], kpis: a
                                 <span className="font-medium text-sm">Célkitűzés rögzítve</span>
                                 <span className="text-xs text-muted-foreground">{new Date(kpi.created_at).toLocaleDateString("hu-HU")}</span>
                               </div>
-                              <p className="text-sm text-muted-foreground">Kezdeti érték: 0%</p>
+                              <p className="text-sm text-muted-foreground">Kezdeti érték rögzítve.</p>
                             </div>
 
-                            {kpi.megjegyzes && (
+                            {logs?.filter(log => log.entitas_id === kpi.id).map(log => (
+                              <div key={log.id} className="relative">
+                                <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
+                                <div className="flex items-center gap-2 mb-1">
+                                  {log.esemeny_tipus === "kpi_onertekeles" ? (
+                                    <User className="w-3 h-3 text-primary" />
+                                  ) : (
+                                    <History className="w-3 h-3 text-muted-foreground" />
+                                  )}
+                                  <span className="font-medium text-sm">
+                                    {log.esemeny_tipus === "kpi_frissites" && "Állapot frissítés"}
+                                    {log.esemeny_tipus === "kpi_onertekeles" && "Dolgozói önértékelés"}
+                                    {log.esemeny_tipus === "kpi_hozzaadas" && "Rendszer bejegyzés"}
+                                    {!["kpi_frissites", "kpi_onertekeles", "kpi_hozzaadas"].includes(log.esemeny_tipus) && log.esemeny_tipus}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(log.created_at).toLocaleString("hu-HU", { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 
+                                    {log.felhasznalo_profil?.nev && ` - ${log.felhasznalo_profil.nev}`}
+                                  </span>
+                                </div>
+                                <p className="text-sm bg-muted/30 p-3 rounded-md border border-muted mt-2">
+                                  {log.megjegyzes}
+                                </p>
+                              </div>
+                            ))}
+
+                            {kpi.ertekeles_szovege && (
                               <div className="relative">
                                 <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
                                 <div className="flex items-center gap-2 mb-1">
                                   <MessageSquare className="w-3 h-3 text-muted-foreground" />
-                                  <span className="font-medium text-sm">Vezetői értékelés / Megjegyzés</span>
+                                  <span className="font-medium text-sm">Vezetői végleges értékelés</span>
                                 </div>
                                 <p className="text-sm bg-muted/30 p-3 rounded-md border border-muted mt-2">
-                                  {kpi.megjegyzes}
+                                  {kpi.ertekeles_szovege}
                                 </p>
                               </div>
                             )}
@@ -131,7 +243,11 @@ export function PerformanceList({ employees, kpis }: { employees: any[], kpis: a
                               <form 
                                 className="flex items-center gap-3 mt-2" 
                                 action={async (formData) => {
-                                  const newVal = parseInt(formData.get("percent") as string);
+                                  let newValStr = formData.get("percent") as string;
+                                  if (kpi.meroszam_tipusa === "igen_nem") {
+                                    newValStr = formData.get("igen_nem_val") === "on" ? "1" : "0";
+                                  }
+                                  const newVal = parseFloat(newValStr);
                                   const { updateKpiProgress } = await import("@/app/hr/performance/actions");
                                   const res = await updateKpiProgress(kpi.id, newVal);
                                   if (res?.error) {
@@ -141,13 +257,55 @@ export function PerformanceList({ employees, kpis }: { employees: any[], kpis: a
                                   }
                                 }}
                               >
-                                <Input type="number" name="percent" defaultValue={percent} min={0} max={100} className="w-24 h-8 text-sm" />
-                                <span className="text-sm font-medium">%</span>
+                                {kpi.meroszam_tipusa === "igen_nem" ? (
+                                  <div className="flex items-center gap-2">
+                                    <input type="checkbox" name="igen_nem_val" defaultChecked={kpi.aktualis_ertek > 0} className="h-4 w-4 rounded border-gray-300" />
+                                    <span className="text-sm">Teljesítve</span>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <Input key={`input-${kpi.id}-${kpi.aktualis_ertek}`} type="number" step="0.01" name="percent" defaultValue={kpi.aktualis_ertek || 0} min={0} className="w-32 h-8 text-sm" />
+                                    <span className="text-sm font-medium">
+                                      / {kpi.cel_ertek || 100} {kpi.meroszam_tipusa === "szazalek" ? "%" : kpi.meroszam_tipusa === "osszeg" ? "HUF" : kpi.meroszam_tipusa === "skala" ? "Pont" : "Db"}
+                                    </span>
+                                  </>
+                                )}
                                 <Button type="submit" size="sm" variant="secondary" className="h-8">Frissítés</Button>
                               </form>
                           </div>
+                          
+                          {!kpi.ertekeles_szovege && (
+                            <form 
+                              className="relative"
+                              action={async (formData) => {
+                                const evalText = formData.get("ertekelesSzovege") as string;
+                                if (!evalText) return;
+                                const { addKpiManagerEvaluation } = await import("@/app/hr/performance/actions");
+                                const res = await addKpiManagerEvaluation(kpi.id, evalText);
+                                if (res?.error) {
+                                  toast.error(res.error);
+                                } else {
+                                  toast.success("Vezetői értékelés rögzítve, célkitűzés lezárva!");
+                                }
+                              }}
+                            >
+                              <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
+                              <div className="flex items-center gap-2 mb-2">
+                                <MessageSquare className="w-3 h-3 text-primary" />
+                                <span className="font-medium text-sm">Végső vezetői értékelés és lezárás</span>
+                              </div>
+                              <Textarea 
+                                name="ertekelesSzovege" 
+                                placeholder="Add meg a végső vezetői értékelést és zárd le a célt..." 
+                                required 
+                                className="min-h-[80px] text-sm"
+                              />
+                              <Button type="submit" size="sm" className="mt-2 w-full">Értékelés beküldése és Cél lezárása</Button>
+                            </form>
+                          )}
+                          </div>
+                          
 
-                        </div>
                         </div>
                       </AccordionContent>
                     </AccordionItem>
@@ -158,6 +316,16 @@ export function PerformanceList({ employees, kpis }: { employees: any[], kpis: a
           </Card>
         )
       })}
+
+      {editKpiId && (
+        <EditKpiDialog 
+          kpi={allKpis.find(k => k.id === editKpiId)}
+          cycles={cycles}
+          allKpis={allKpis}
+          open={!!editKpiId}
+          setOpen={(open) => !open && setEditKpiId(null)}
+        />
+      )}
     </div>
   )
 }

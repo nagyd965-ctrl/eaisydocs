@@ -61,6 +61,7 @@ export async function getTeamMembers() {
   const { data: profiles, error } = await supabase
     .from("felhasznalo_profil")
     .select("*")
+    .contains("elerheto_modulok", ["docs"])
     .order("created_at", { ascending: false })
 
   if (error) {

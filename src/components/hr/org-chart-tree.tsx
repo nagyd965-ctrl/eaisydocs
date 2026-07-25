@@ -1,53 +1,105 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Users, User, Crown } from "lucide-react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 export type EmployeeNode = {
   id: string
   nev: string
   pozicio: string | null
-  kozvetlen_vezeto: string | null
-  children?: EmployeeNode[]
 }
 
-function OrgNode({ node }: { node: EmployeeNode }) {
-  const hasChildren = node.children && node.children.length > 0
+export type OrgUnitNode = {
+  id: string
+  nev: string
+  szulo_id: string | null
+  vezeto?: EmployeeNode
+  beosztottak: EmployeeNode[]
+  children: OrgUnitNode[]
+}
+
+function OrgUnitCard({ unit }: { unit: OrgUnitNode }) {
+  const hasChildren = unit.children && unit.children.length > 0
+  const vezetoNev = unit.vezeto?.nev || "Nincs kijelölt vezető"
+  const initials = unit.vezeto?.nev ? unit.vezeto.nev.substring(0, 2).toUpperCase() : "?"
 
   return (
     <div className="flex flex-col items-center">
-      {/* A dolgozó kártyája */}
-      <div className="p-4 border-2 border-primary/20 rounded-lg bg-card text-center w-64 shadow-sm z-10 relative">
-        <div className="font-semibold">{node.nev}</div>
-        <div className="text-sm text-muted-foreground">{node.pozicio || "Nincs pozíció"}</div>
-        {hasChildren && (
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <Badge variant="secondary" className="text-[10px]">
-              {node.children!.length} Beosztott
-            </Badge>
+      {/* Szervezeti Egység Kártya */}
+      <div className="p-0 border-2 border-primary/20 rounded-lg bg-card w-72 shadow-sm z-10 relative overflow-hidden">
+        
+        {/* Fejléc: Egység neve */}
+        <div className="bg-primary/5 border-b p-3 text-center">
+          <div className="font-semibold text-primary">{unit.nev}</div>
+        </div>
+
+        {/* Test: Vezető és beosztottak */}
+        <div className="p-4 flex flex-col gap-3">
+          
+          {/* Vezető szekció */}
+          <div className="flex items-center gap-3 bg-muted/30 p-2 rounded-md border border-border/50">
+            <Avatar className="w-8 h-8">
+              <AvatarFallback className={unit.vezeto ? "bg-primary text-primary-foreground text-xs font-semibold" : "bg-muted text-muted-foreground text-xs"}>
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="text-left flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{vezetoNev}</div>
+              <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                <Crown className="w-3 h-3 text-amber-500" />
+                Egységvezető
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Beosztottak statisztika / lista */}
+          <div className="pt-2 border-t flex flex-col gap-2">
+            <div className="text-xs text-muted-foreground flex items-center justify-between">
+              <span className="flex items-center gap-1"><Users className="w-3 h-3" /> Munkatársak</span>
+              <Badge variant="secondary" className="font-mono text-[10px] px-1">{unit.beosztottak.length}</Badge>
+            </div>
+            
+            {unit.beosztottak.length > 0 && (
+              <div className="text-xs text-left text-muted-foreground max-h-32 overflow-y-auto space-y-1.5 mt-1 pr-1">
+                {unit.beosztottak.map(emp => (
+                  <div key={emp.id} className="truncate flex items-center gap-1.5">
+                    <User className="w-3 h-3 opacity-50 flex-shrink-0" />
+                    <span className="truncate">{emp.nev} <span className="opacity-70">({emp.pozicio})</span></span>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {unit.beosztottak.length === 0 && (
+              <div className="text-xs text-muted-foreground/50 text-center italic py-2">
+                Nincsenek további dolgozók.
+              </div>
+            )}
+          </div>
+
+        </div>
       </div>
 
-      {/* Ha vannak beosztottjai, rajzoljuk ki őket */}
+      {/* Ha vannak alegységek, rajzoljuk ki őket */}
       {hasChildren && (
         <>
           {/* Függőleges vonal lefelé a kártyából */}
           <div className="h-8 w-px bg-border"></div>
 
           {/* Gyerekek konténere */}
-          <div className="flex gap-12 relative">
-            {/* Vízszintes összekötő vonal, ha több gyerek van (a doboz szélessége w-64 azaz 16rem/256px, a közepe 128px azaz left-32/right-32) */}
-            {node.children!.length > 1 && (
-              <div className="absolute top-0 left-32 right-32 h-px bg-border"></div>
+          <div className="flex gap-8 relative">
+            {/* Vízszintes összekötő vonal, ha több alegység van */}
+            {unit.children.length > 1 && (
+              <div className="absolute top-0 left-36 right-36 h-px bg-border"></div>
             )}
             
-            {/* Egyetlen gyerek esetén nincs szükség vízszintes vonalra */}
-            {node.children!.map((child) => (
+            {/* Alegységek renderelése */}
+            {unit.children.map((child) => (
               <div key={child.id} className="flex flex-col items-center relative pt-4">
-                {/* Függőleges vonal a vízszintes vonaltól a gyerekkártyáig */}
+                {/* Függőleges vonal a vízszintes vonaltól a kártyáig */}
                 <div className="absolute top-0 w-px h-4 bg-border"></div>
-                <OrgNode node={child} />
+                <OrgUnitCard unit={child} />
               </div>
             ))}
           </div>
@@ -57,60 +109,21 @@ function OrgNode({ node }: { node: EmployeeNode }) {
   )
 }
 
-export function OrgChartTree({ employees }: { employees: EmployeeNode[] }) {
-  // 1. Felépítjük a fát
-  // Akihez nincs vezető írva, vagy a vezetője nincs a listában, az gyökér elem lesz.
-  
-  const employeeMap = new Map<string, EmployeeNode>()
-  const nameToIdMap = new Map<string, string>()
-  const rootNodes: EmployeeNode[] = []
-  const assignedNodes = new Set<string>()
-
-  // Inicializáljuk a map-eket
-  employees.forEach(emp => {
-    employeeMap.set(emp.id, { ...emp, children: [] })
-    nameToIdMap.set(emp.nev, emp.id)
-  })
-
-  // Bejárjuk az embereket és hozzácsatoljuk a vezetőjükhöz
-  employees.forEach(emp => {
-    const node = employeeMap.get(emp.id)!
-    
-    if (emp.kozvetlen_vezeto) {
-      const managerId = nameToIdMap.get(emp.kozvetlen_vezeto)
-      if (managerId) {
-        const manager = employeeMap.get(managerId)
-        if (manager) {
-          manager.children!.push(node)
-          assignedNodes.add(emp.id)
-        }
-      }
-    }
-  })
-
-  // Azok a node-ok, amiket nem csatoltunk senkihez, lesznek a root node-ok
-  employees.forEach(emp => {
-    if (!assignedNodes.has(emp.id)) {
-      rootNodes.push(employeeMap.get(emp.id)!)
-    }
-  })
-
-  if (rootNodes.length === 0) {
+export function OrgChartTree({ rootUnits }: { rootUnits: OrgUnitNode[] }) {
+  if (!rootUnits || rootUnits.length === 0) {
     return (
       <div className="text-center p-8 border rounded-lg border-dashed text-muted-foreground">
-        Nincsenek dolgozók a szervezetben.
+        Nincsenek szervezeti egységek. Kérjük, először hozza létre a vállalati struktúrát.
       </div>
     )
   }
 
   return (
-    <div className="flex justify-center py-12">
-      {/* Ha több gyökér van (több főnök), egymás mellé tesszük őket, ha nem férnek ki, akkor új sorba tördeljük */}
-      <div className="flex flex-wrap justify-center gap-12 max-w-full">
-        {rootNodes.map(root => (
-          <div key={root.id} className="min-w-fit">
-            <OrgNode node={root} />
-          </div>
+    <div className="flex justify-center py-8 overflow-x-auto min-h-[50vh]">
+      {/* Ha több gyökéregység van, egymás mellé tesszük őket */}
+      <div className="flex flex-nowrap justify-center gap-16 min-w-max px-8 pb-8">
+        {rootUnits.map(root => (
+          <OrgUnitCard key={root.id} unit={root} />
         ))}
       </div>
     </div>

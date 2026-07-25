@@ -113,13 +113,31 @@ export async function onboardEmployee(data: {
     return { error: "Hiányzik a felhasználó azonosítója." }
   }
 
+  // 0.5. Határozzuk meg a szervezeti egységet a munkakör alapján
+  let orgUnitId = null;
+  if (data.munkakorId && data.munkakorId !== "none") {
+    const { data: jobData } = await supabaseAdmin
+      .from("hr_munkakor")
+      .select("szervezeti_egyseg_id")
+      .eq("id", data.munkakorId)
+      .single()
+    if (jobData?.szervezeti_egyseg_id) {
+      orgUnitId = jobData.szervezeti_egyseg_id
+    }
+  }
+
   // 1. Frissítjük a hr_szerepkort a felhasznalo_profilban, és KIZÁRÓLAG a HR modult adjuk hozzá a hozzáférésekhez
+  const updateData: any = {
+    hr_szerepkor: data.role,
+    elerheto_modulok: ["hr"]
+  }
+  if (orgUnitId) {
+    updateData.hr_szervezeti_egyseg_id = orgUnitId
+  }
+
   await supabaseAdmin
     .from("felhasznalo_profil")
-    .update({ 
-      hr_szerepkor: data.role,
-      elerheto_modulok: ["hr"] 
-    })
+    .update(updateData)
     .eq("id", finalUserId)
 
   // 2. Létrehozzuk a hr_dolgozo_adatlapot

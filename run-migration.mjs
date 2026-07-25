@@ -1,7 +1,9 @@
 import { Client } from 'pg';
 import fs from 'fs';
+import { config } from 'dotenv';
 
-const connectionString = "postgresql://postgres.pdthccijqnhphjbtrtwo:Nincsapellata1%27@aws-0-eu-central-1.pooler.supabase.com:6543/postgres";
+config({ path: '.env.local' });
+const connectionString = process.env.DATABASE_URL;
 
 async function runMigration() {
   const client = new Client({

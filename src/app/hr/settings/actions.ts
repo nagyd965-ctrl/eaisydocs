@@ -55,23 +55,55 @@ export async function updateEmployeeInfo(formData: FormData) {
   const munkakorId = formData.get("munkakorId") as string
   const entryDate = formData.get("entryDate") as string
   const jogviszonyId = formData.get("jogviszonyId") as string
+  const formDataOrgUnitId = formData.get("orgUnitId") as string
+
+  // 0. Szerviz kliens inicializálása (mivel RLS miatt a profilt csak admin joggal tudjuk módosítani)
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
   if (!employeeId) return { error: "Hiányzó dolgozó azonosító" }
 
-  // 1. Szerepkör frissítése
-  if (role) {
-    const { error: profileError } = await supabase
+  // 1. Megnézzük, hogy változott-e a munkakör, és ha igen, lekérjük a hozzá tartozó szervezeti egységet
+  let targetMunkakor = munkakorId === "none" ? null : munkakorId
+  let defaultOrgUnitId = null;
+  if (targetMunkakor) {
+    const { data: jobData } = await supabaseAdmin
+      .from("hr_munkakor")
+      .select("szervezeti_egyseg_id")
+      .eq("id", targetMunkakor)
+      .single()
+    if (jobData?.szervezeti_egyseg_id) {
+      defaultOrgUnitId = jobData.szervezeti_egyseg_id
+    }
+  }
+
+  const finalOrgUnitId = formDataOrgUnitId && formDataOrgUnitId !== "none"
+    ? formDataOrgUnitId
+    : (formDataOrgUnitId === "none" ? null : defaultOrgUnitId)
+
+  // 2. Profil (Szerepkör és Szervezeti Egység) frissítése admin klienssel
+  const profileUpdateData: any = {}
+  if (role) profileUpdateData.hr_szerepkor = role
+  
+  if (finalOrgUnitId !== undefined) {
+    profileUpdateData.hr_szervezeti_egyseg_id = finalOrgUnitId
+  }
+
+  if (Object.keys(profileUpdateData).length > 0) {
+    const { error: profileError } = await supabaseAdmin
       .from("felhasznalo_profil")
-      .update({ hr_szerepkor: role })
+      .update(profileUpdateData)
       .eq("id", employeeId)
 
-    if (profileError) return { error: "Hiba a szerepkör frissítésekor: " + profileError.message }
+    if (profileError) return { error: "Hiba a profil frissítésekor: " + profileError.message }
   }
 
   if (jogviszonyId) {
-    // 2. Jogviszony frissítése (Belépés dátuma)
+    // 3. Jogviszony frissítése (Belépés dátuma)
     if (entryDate) {
-      const { error: hrError } = await supabase
+      const { error: hrError } = await supabaseAdmin
         .from("hr_jogviszony")
         .update({ belepes_datuma: entryDate })
         .eq("id", jogviszonyId)
@@ -79,9 +111,9 @@ export async function updateEmployeeInfo(formData: FormData) {
       if (hrError) return { error: "Hiba a jogviszony frissítésekor: " + hrError.message }
     }
 
-    // 3. Munkakör (Beosztás) frissítése
+    // 4. Munkakör (Beosztás) frissítése
     // Megnézzük mi az aktív beosztás
-    const { data: beosztasok } = await supabase
+    const { data: beosztasok } = await supabaseAdmin
       .from("hr_beosztas")
       .select("id, munkakor_id")
       .eq("jogviszony_id", jogviszonyId)
@@ -90,13 +122,12 @@ export async function updateEmployeeInfo(formData: FormData) {
       .limit(1)
 
     const activeBeosztas = beosztasok?.[0]
-    const targetMunkakor = munkakorId === "none" ? null : munkakorId
 
-    // Csak akkor változtatunk, ha módosult a munkakör
+    // Csak akkor változtatunk beosztást, ha tényleg módosult a munkakör
     if (targetMunkakor !== (activeBeosztas?.munkakor_id || null)) {
       // 1. Lezárjuk a régit a mai nappal
       if (activeBeosztas) {
-        await supabase
+        await supabaseAdmin
           .from("hr_beosztas")
           .update({ ervenyes_ig: new Date().toISOString().split("T")[0] })
           .eq("id", activeBeosztas.id)
@@ -104,7 +135,7 @@ export async function updateEmployeeInfo(formData: FormData) {
 
       // 2. Nyitunk egy újat, ha van megadva új
       if (targetMunkakor) {
-        await supabase
+        await supabaseAdmin
           .from("hr_beosztas")
           .insert([{
             jogviszony_id: jogviszonyId,
@@ -197,5 +228,30 @@ export async function removeEmployeeFromHR(employeeId: string) {
 
   revalidatePath("/hr/settings")
   revalidatePath("/hr/admin")
+  return { success: true }
+}
+
+export async function createHrDepartment(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const nev = formData.get("nev") as string
+  if (!nev) return { error: "Név megadása kötelező!" }
+
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { error } = await supabaseAdmin
+    .from("hr_szervezeti_egyseg")
+    .insert({ nev })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath("/hr/settings")
   return { success: true }
 }

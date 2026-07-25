@@ -2,8 +2,10 @@ import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { KanbanBoard } from "./kanban-board"
 import { AddCandidateDialog } from "@/components/hr/add-candidate-dialog"
+import { JobPostingsList } from "@/components/hr/job-postings-list"
 
 export default async function RecruitmentPage() {
   const supabase = await createClient()
@@ -45,6 +47,15 @@ export default async function RecruitmentPage() {
     `)
     .order("created_at", { ascending: false })
 
+  // Álláshirdetések lekérése
+  const { data: postings } = await supabaseAdmin
+    .from("hr_allashirdetes")
+    .select(`
+      *,
+      hr_munkakor (megnevezes)
+    `)
+    .order("created_at", { ascending: false })
+
   // Munkakörök lekérése a legördülőhöz
   const { data: jobs } = await supabase.from("hr_munkakor").select("id, megnevezes").order("megnevezes")
 
@@ -55,16 +66,32 @@ export default async function RecruitmentPage() {
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Toborzás (ATS)</h1>
           <p className="text-muted-foreground mt-1">
-            Jelentkezők nyomon követése és mozgatása Drag and Drop módszerrel.
+            Jelentkezők nyomon követése és publikus álláshirdetések kezelése.
           </p>
-        </div>
-        <div className="flex gap-4">
-          <AddCandidateDialog jobs={jobs || []} />
         </div>
       </div>
 
-      {/* A Kanban tábla kliens komponense */}
-      <KanbanBoard initialCandidates={candidates || []} />
+      <Tabs defaultValue="kanban" className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex justify-between items-center shrink-0 mb-4">
+          <TabsList>
+            <TabsTrigger value="kanban">Kanban Tábla (Jelentkezők)</TabsTrigger>
+            <TabsTrigger value="postings">Álláshirdetések (Karrieroldal)</TabsTrigger>
+          </TabsList>
+          
+          {/* Csak a kanban tabon mutatjuk ezt a gombot, amúgy a komponens beépítve */}
+          <div className="flex gap-4">
+            <AddCandidateDialog jobs={jobs || []} />
+          </div>
+        </div>
+
+        <TabsContent value="kanban" className="flex-1 overflow-hidden m-0 p-0">
+          <KanbanBoard initialCandidates={candidates || []} />
+        </TabsContent>
+
+        <TabsContent value="postings" className="flex-1 overflow-auto m-0 p-0">
+          <JobPostingsList initialPostings={postings || []} jobs={jobs || []} />
+        </TabsContent>
+      </Tabs>
 
     </div>
   )

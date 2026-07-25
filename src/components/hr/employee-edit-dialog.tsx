@@ -17,7 +17,7 @@ import { Edit, Save } from "lucide-react"
 import { updateEmployeeInfo } from "@/app/hr/settings/actions"
 import { toast } from "sonner"
 
-export function EmployeeEditDialog({ employee, jobs }: { employee: any, jobs: any[] }) {
+export function EmployeeEditDialog({ employee, jobs, orgUnits = [] }: { employee: any, jobs: any[], orgUnits?: any[] }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   
@@ -37,6 +37,7 @@ export function EmployeeEditDialog({ employee, jobs }: { employee: any, jobs: an
 
   const [role, setRole] = useState<string>(employee.felhasznalo_profil?.hr_szerepkor || "munkavallalo")
   const [munkakorId, setMunkakorId] = useState<string>(activeBeosztas?.hr_munkakor?.id || "none")
+  const [orgUnitId, setOrgUnitId] = useState<string>(employee.felhasznalo_profil?.hr_szervezeti_egyseg_id || "none")
 
   const getMunkakorLabel = (id: string) => {
     if (id === "none") return "Nincs munkakör beállítva"
@@ -111,6 +112,24 @@ export function EmployeeEditDialog({ employee, jobs }: { employee: any, jobs: an
                 {jobs.map(job => (
                   <SelectItem key={job.id} value={job.id}>
                     {job.megnevezes}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="orgUnitId">Szervezeti Egység (Opcionális)</Label>
+            <input type="hidden" name="orgUnitId" value={orgUnitId} />
+            <Select value={orgUnitId} onValueChange={setOrgUnitId as any}>
+              <SelectTrigger>
+                <span>{orgUnitId === "none" ? "Nincs besorolva" : orgUnits?.find(o => o.id === orgUnitId)?.nev || "Ismeretlen"}</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nincs besorolva</SelectItem>
+                {orgUnits?.map(unit => (
+                  <SelectItem key={unit.id} value={unit.id}>
+                    {unit.nev}
                   </SelectItem>
                 ))}
               </SelectContent>

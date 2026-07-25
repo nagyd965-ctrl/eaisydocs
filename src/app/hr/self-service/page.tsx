@@ -12,6 +12,8 @@ import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
 import { EmployeeTimesheet } from "@/components/hr/employee-timesheet"
 import { EmployeeKpiCard } from "@/components/hr/employee-kpi-card"
 import { redirect } from "next/navigation"
+import Link from "next/link"
+import { FileSignature, AlertCircle } from "lucide-react"
 
 export default async function SelfServicePage() {
   const supabase = await createClient()
@@ -54,13 +56,23 @@ export default async function SelfServicePage() {
     else timeStatus = "checked_in"
   }
 
-  // 3. Dokumentumok lekérése
+  // 3. Dokumentumok lekérése (Saját fájlok)
   const { data: dokumentumok } = await supabase
     .from("hr_dokumentum")
     .select("*")
     .eq("dolgozo_id", user.id)
     .order("created_at", { ascending: false })
     .limit(5)
+
+  // 3.5 Céges dokumentumok ellenőrzése (van-e olvasatlan kötelező)
+  const { data: cegesDokumentumok } = await supabase
+    .from("hr_ceges_dokumentum")
+    .select(`id, hr_ceges_dokumentum_nyugtazas(id)`)
+    .eq("aktiv", true)
+    .eq("kotelezo_mindenkinek", true)
+    .eq("hr_ceges_dokumentum_nyugtazas.dolgozo_id", user.id)
+
+  const pendingDocsCount = cegesDokumentumok?.filter(d => !d.hr_ceges_dokumentum_nyugtazas || d.hr_ceges_dokumentum_nyugtazas.length === 0).length || 0
 
   // 4. Cafeteria lekérések
   const currentYear = new Date().getFullYear()
@@ -84,12 +96,23 @@ export default async function SelfServicePage() {
     .eq("dolgozo_id", user.id)
     .eq("ev", currentYear)
 
-  // 5. Teljesítményértékelés (KPI-ok) lekérése
-  const { data: kpis } = await supabase
+  // 5. Teljesítményértékelés (KPI-ok) lekérése (Admin kliens az RLS problémák miatt)
+  const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  const { data: kpis } = await supabaseAdmin
     .from("hr_teljesitmeny")
-    .select("*")
+    .select("*, hr_teljesitmeny_ciklus(megnevezes)")
     .eq("dolgozo_id", user.id)
     .order("created_at", { ascending: false })
+
+  const { data: kpiLogs } = await supabaseAdmin
+    .from("hr_esemeny_naplo")
+    .select("*, felhasznalo_profil(nev)")
+    .eq("entitas_tipus", "hr_teljesitmeny")
+    .order("created_at", { ascending: true })
 
   return (
     <div className="space-y-6">
@@ -101,7 +124,20 @@ export default async function SelfServicePage() {
             Üdvözlünk, {adatlap?.felhasznalo_profil?.nev || "Dolgozó"}! Itt találod a személyes HR adataidat.
           </p>
         </div>
-        <LeaveRequestDialog />
+        <div className="flex items-center gap-3">
+          <Link href="/hr/self-service/dokumentumok">
+            <Button variant="outline" className="relative">
+              <FileSignature className="w-4 h-4 mr-2 text-primary" />
+              Céges Szabályzatok
+              {pendingDocsCount > 0 && (
+                <span className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-white text-[10px] font-bold flex items-center justify-center rounded-full animate-pulse shadow-sm">
+                  {pendingDocsCount}
+                </span>
+              )}
+            </Button>
+          </Link>
+          <LeaveRequestDialog />
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -206,7 +242,7 @@ export default async function SelfServicePage() {
         <RecentDocumentsCard documents={dokumentumok || []} />
 
         {/* Teljesítménycélok */}
-        <EmployeeKpiCard kpis={kpis || []} />
+        <EmployeeKpiCard kpis={kpis || []} logs={kpiLogs || []} />
       </div>
       
     </div>

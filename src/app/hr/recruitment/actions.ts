@@ -42,7 +42,7 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
     // 1. Lekérjük a jelölt nevét és pozícióját
     const { data: candidate, error: fetchErr } = await adminClient
       .from("hr_toborzas")
-      .select(`nev, hr_munkakor(megnevezes)`)
+      .select(`nev, email, megpalyazott_munkakor_id, hr_munkakor(megnevezes)`)
       .eq("id", candidateId)
       .single()
       
@@ -51,6 +51,20 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
     }
 
     if (candidate) {
+      // Automatikusan átemeljük a munkavállalót (ami kiküldi az e-mailt)
+      try {
+        const { onboardEmployee } = await import("@/app/hr/admin/actions")
+        await onboardEmployee({
+          mode: "select_candidate",
+          candidateId: candidateId,
+          role: "munkavallalo",
+          munkakorId: candidate.megpalyazott_munkakor_id || "none",
+          belepes_datuma: new Date().toISOString()
+        })
+      } catch (e) {
+        console.error("Hiba az automatikus átemelésnél", e)
+      }
+
       // @ts-ignore - Supabase types might be tricky here
       const munkakor = candidate.hr_munkakor?.megnevezes || "Új munkatárs"
       
@@ -188,4 +202,123 @@ export async function deleteCandidate(candidateId: string) {
 
   revalidatePath("/hr/recruitment")
   return { success: true }
+}
+
+export async function generateCvSignedUrl(candidateId: string, storagePath: string) {
+  const supabase = await createClient()
+
+  // Biztonsági ellenőrzés
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select('hr_szerepkor')
+    .eq("id", user.id)
+    .single()
+
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
+    return { error: "Nincs jogosultságod a CV megtekintéséhez." }
+  }
+
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  
+  // 60 másodperces aláírt URL generálása
+  const { data, error } = await adminClient.storage
+    .from('hr_dokumentumok')
+    .createSignedUrl(storagePath, 60)
+    
+  if (error) {
+    console.error("Signed URL hiba:", error)
+    return { error: "Nem sikerült legenerálni a CV megtekintő linket." }
+  }
+
+  // Szigorú audit naplózás AGENTS.md alapján
+  await adminClient.from("esemeny_naplo").insert({
+    entitas_tipus: "hr_toborzas",
+    entitas_id: candidateId,
+    esemeny_tipus: "letoltes",
+    user_id: user.id,
+    uj_ertek: { fajl: storagePath, esemeny: "CV megtekintése" }
+  })
+
+  return { signedUrl: data.signedUrl }
+}
+
+export async function updateCandidateNote(candidateId: string, note: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select('hr_szerepkor, teljes_nev')
+    .eq("id", user.id)
+    .single()
+
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
+    return { error: "Nincs jogosultságod a jegyzet módosításához." }
+  }
+
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  
+  // 1. Fetch current notes
+  const { data: candidate } = await adminClient
+    .from("hr_toborzas")
+    .select("naptar_jegyzet")
+    .eq("id", candidateId)
+    .single()
+
+  let notes = []
+  if (candidate?.naptar_jegyzet) {
+    try {
+      notes = JSON.parse(candidate.naptar_jegyzet)
+      if (!Array.isArray(notes)) notes = []
+    } catch (e) {
+      // Ha nem JSON volt eddig, akkor az első jegyzetként elmentjük
+      notes = [{
+        date: new Date().toISOString(),
+        text: candidate.naptar_jegyzet,
+        author: "Rendszer / Korábbi"
+      }]
+    }
+  }
+
+  // 2. Append new note
+  const newNote = {
+    date: new Date().toISOString(),
+    text: note,
+    author: profile.teljes_nev || "HR Munkatárs"
+  }
+  notes.push(newNote)
+  const newNotesString = JSON.stringify(notes)
+
+  // 3. Update database
+  const { error } = await adminClient
+    .from("hr_toborzas")
+    .update({ naptar_jegyzet: newNotesString })
+    .eq("id", candidateId)
+
+  if (error) {
+    console.error("Hiba jegyzet mentésekor:", error)
+    return { error: "Nem sikerült elmenteni a jegyzetet." }
+  }
+
+  await adminClient.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "munkatars_felvetel", 
+    entitas_tipus: "hr_toborzas",
+    entitas_id: candidateId,
+    megjegyzes: "Jelölt jegyzete frissítve"
+  })
+
+  revalidatePath("/hr/recruitment")
+  return { success: true, newNotesString }
 }

@@ -52,18 +52,18 @@ Ez egy kettős funkciójú rendszer, ami egy közös alapon nyugszik:
 - [x] **Távollétek (Szabadság) kezelése:** KÉSZ.
 - [x] **Automatikus Brevo E-mail:** Új dolgozó felvételekor ideiglenes jelszó kiküldése e-mailben.
 - [/] **Szervezet és Munkakörök:** A katalógus és a szervezeti ábra listázása javítva, de a "Közvetlen vezető" és szervezeti egység bekötése az `EmployeeEditDialog`-ba még hátravan.
-- [/] **Toborzás (ATS):** Kb. 50%-os készültség.
-- [/] **Onboarding (Beléptetés):** Kb. 50%-os készültség.
-- [/] **Teljesítményértékelés:** Jelenleg fejlesztés alatt áll (nem 100%).
+- [x] **Toborzás (ATS):** KÉSZ.
+- [x] **Onboarding (Beléptetés):** KÉSZ. (Feladatlista kezelés dinamikusan, elektronikus dokumentum nyugtázás és egykattintásos átemelés a toborzásból kész).
+- [x] **Teljesítményértékelés:** KÉSZ (Ciklusok, KPI-könyvtár, kaszkádolás, önértékelés, Dashboard és Bónusz-kalkulátor megvalósítva).
 
 ---
 
 ## 4. Megmaradt / Hátralévő Taskok (MIVEL KELL FOLYTATNI?)
 
 ### 📄 EAISYDOCS (Hátralévő apróságok)
-- [ ] **Vízjelezett Előnézet:** Bizalmas iratok előnézetébe vízjel égetése (Supabase Edge Function).
-- [ ] **Selejtezési Javaslatok:** Irattári terv alapján a lejárt iratok listázása egy adminisztrációs felületen (nincs automatikus törlés, csak javaslat \+ jegyzőkönyv).
-- [ ] **Polimorf Kapcsolatok UI:** Az `irat_kapcsolat` táblára épülő UI elkészítése (iratok összekötése tranzakciókkal, partnerekkel).
+- [x] **Vízjelezett Előnézet:** Bizalmas iratok előnézetébe vízjel égetése (Supabase Edge Function).
+- [x] **Selejtezési Javaslatok:** Irattári terv alapján a lejárt iratok listázása egy adminisztrációs felületen (nincs automatikus törlés, csak javaslat \+ jegyzőkönyv).
+- [x] **Polimorf Kapcsolatok UI:** Az `irat_kapcsolat` táblára épülő UI elkészítése (iratok összekötése tranzakciókkal, partnerekkel).
 - [ ] **Postgres FTS:** Keresés optimalizálása `tsvector` és magyar szótár beállításával.
 
 ### 👥 EAISYHR (A Tényleges Fejlesztési Feladatok)
@@ -73,16 +73,16 @@ A projekt eaisyHR része már jelentősen előrehaladt! Amikkel folytatni kell:
 - [ ] `EmployeeEditDialog` kibővítése, hogy lehessen közvetlen vezetőt és szervezeti egységet választani a szervezeti ábrához.
 - [ ] Munkaköri leírások, feladatok, hatáskörök részletes nyilvántartása.
 
-**2. Toborzás (ATS) befejezése (Jelenleg ~50%)**
-- [ ] Külső (megosztható link) és belső álláshirdetések létrehozása, publikálása. Ügyfél arculatára szabható jelentkezési űrlap, CV feltöltéssel.
+**2. Toborzás (ATS) befejezése (KÉSZ)**
+- [x] Külső (megosztható link) és belső álláshirdetések létrehozása, publikálása. Ügyfél arculatára szabható jelentkezési űrlap, CV feltöltéssel, teljes idővonallal, Brevo email értesítéssel, felújított UI-jal.
 
-**3. Onboarding / Beléptetés befejezése (Jelenleg ~50%)**
-- [ ] Beléptetési feladatlista (Munkavédelem, IT eszköz igénylés, Mentor kijelölése).
-- [ ] Dolgozói dokumentumtár, ahol a szabályzatokat kötelezően, időbélyeggel "megismerésre" kell nyugtázni.
+**3. Onboarding / Beléptetés befejezése (KÉSZ)**
+- [x] Beléptetési feladatlista (Munkavédelem, IT eszköz igénylés, Mentor kijelölése).
+- [x] Dolgozói dokumentumtár, ahol a szabályzatokat kötelezően, időbélyeggel "megismerésre" kell nyugtázni.
 
-**4. Teljesítményértékelés (Folyamatban)**
-- [ ] KPI-könyvtár, egyéni/vállalati célok kaszkádolása.
-- [ ] Értékelési ciklusok (kitűzés -> felülvizsgálat -> vezetői értékelés). Bónusz javaslatok jóváhagyási workflowja.
+**4. Teljesítményértékelés (KÉSZ)**
+- [x] KPI-könyvtár, egyéni/vállalati célok kaszkádolása.
+- [x] Értékelési ciklusok (kitűzés -> felülvizsgálat -> vezetői értékelés). Bónusz javaslatok jóváhagyási workflowja.
 
 **5. Időgazdálkodás (Jelenlét)**
 - [ ] Önkiszolgáló munkaidő-rögzítés (timesheet).

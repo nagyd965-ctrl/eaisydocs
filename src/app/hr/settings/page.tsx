@@ -13,11 +13,12 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { User, Monitor, CalendarDays, Coffee, Clock, Shield, Info, Briefcase, Building2, Search, Users, Plus } from "lucide-react"
 import { EmployeeEditDialog } from "@/components/hr/employee-edit-dialog"
-import { OrgChartTree, EmployeeNode } from "@/components/hr/org-chart-tree"
+import { OrgChartTree, OrgUnitNode, EmployeeNode } from "@/components/hr/org-chart-tree"
 import { JobCreateDialog } from "@/components/hr/job-create-dialog"
 import { JobActionMenu } from "@/components/hr/job-action-menu"
 import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
 import { EmployeeDeleteDialog } from "@/components/hr/employee-delete-dialog"
+import { HrOrgUnitCreateDialog } from "@/components/hr/org-unit-create-dialog"
 import Link from "next/link"
 
 export default async function HrSettingsPage() {
@@ -53,8 +54,8 @@ export default async function HrSettingsPage() {
       felhasznalo_profil (
         nev,
         hr_szerepkor,
-        szervezeti_egyseg_id,
-        szervezeti_egyseg (nev)
+        hr_szervezeti_egyseg_id,
+        hr_szervezeti_egyseg (nev)
       ),
       hr_jogviszony (
         id,
@@ -74,27 +75,70 @@ export default async function HrSettingsPage() {
     console.error("EMPLOYEES QUERY ERROR:", employeesError)
   }
 
-  // A szervezeti ábrához kinyerjük a dolgozókat és a vezetőiket
-  const rawOrgChartEmployees: EmployeeNode[] = (employees || []).map(emp => {
-    const nev = Array.isArray(emp.felhasznalo_profil) ? emp.felhasznalo_profil[0]?.nev : emp.felhasznalo_profil?.nev;
-    
-    // Kikeressük az aktív beosztást
-    const activeJogviszony = Array.isArray(emp.hr_jogviszony) ? emp.hr_jogviszony[0] : emp.hr_jogviszony;
-    const allBeosztas = activeJogviszony?.hr_beosztas;
-    const activeBeosztas = Array.isArray(allBeosztas) 
-      ? allBeosztas.find(b => b.ervenyes_ig === null) || allBeosztas[0]
-      : allBeosztas;
+  // --- SZERVEZETI ÁBRA LOGIKA ÚJRAÍRÁSA ---
+  // 1. Lekérjük a szervezeti egységeket
+  const { data: orgUnits } = await supabase
+    .from("hr_szervezeti_egyseg")
+    .select("id, nev, szulo_id")
+    .order("nev")
 
-    return {
-      id: emp.id,
-      nev: nev || "Névtelen",
-      pozicio: activeBeosztas?.berkategoria || activeBeosztas?.hr_munkakor?.megnevezes || "Munkatárs",
-      kozvetlen_vezeto: activeBeosztas?.kozvetlen_vezeto || null
-    };
+  // 2. Felépítjük a fát
+  const orgUnitMap = new Map<string, OrgUnitNode>()
+  
+  if (orgUnits) {
+    orgUnits.forEach(unit => {
+      orgUnitMap.set(unit.id, {
+        id: unit.id,
+        nev: unit.nev,
+        szulo_id: unit.szulo_id,
+        beosztottak: [],
+        children: []
+      })
+    })
+  }
+
+  // 3. Dolgozókat szétosztjuk az egységekbe
+  if (employees) {
+    employees.forEach(emp => {
+      const p = Array.isArray(emp.felhasznalo_profil) ? emp.felhasznalo_profil[0] : emp.felhasznalo_profil;
+      const nev = p?.nev || "Névtelen";
+      const unitId = p?.hr_szervezeti_egyseg_id;
+      const isVezeto = p?.hr_szerepkor === "hr_vezeto" || p?.hr_szerepkor === "vezeto" || (p as any)?.szerepkor === "vezeto";
+
+      const activeJogviszony = Array.isArray(emp.hr_jogviszony) ? emp.hr_jogviszony[0] : emp.hr_jogviszony;
+      const allBeosztas = activeJogviszony?.hr_beosztas;
+      const activeBeosztas = Array.isArray(allBeosztas) 
+        ? allBeosztas.find(b => b.ervenyes_ig === null) || allBeosztas[0]
+        : allBeosztas;
+
+      const pozicio = activeBeosztas?.berkategoria || activeBeosztas?.hr_munkakor?.megnevezes || "Munkatárs";
+
+      const empNode: EmployeeNode = { id: emp.id, nev, pozicio };
+
+      if (unitId && orgUnitMap.has(unitId)) {
+        const unit = orgUnitMap.get(unitId)!
+        if (isVezeto && !unit.vezeto) {
+          unit.vezeto = empNode;
+        } else {
+          unit.beosztottak.push(empNode);
+        }
+      } else {
+        // Ha nincs egysége, vagy nem létezik az egység
+        // Egy virtuális "Nincs besorolva" egységbe rakhatnánk, de a fában nehéz.
+      }
+    })
+  }
+
+  // 4. Szülő-gyermek kapcsolatok kialakítása
+  const rootOrgUnits: OrgUnitNode[] = []
+  orgUnitMap.forEach(unit => {
+    if (unit.szulo_id && orgUnitMap.has(unit.szulo_id)) {
+      orgUnitMap.get(unit.szulo_id)!.children.push(unit)
+    } else {
+      rootOrgUnits.push(unit)
+    }
   })
-
-  // Szűrjük ki az esetleges duplikációkat, hogy a React 'key' prop hiba megszűnjön
-  const orgChartEmployees = Array.from(new Map(rawOrgChartEmployees.map(e => [e.id, e])).values())
+  // --- EDDIG ---
 
   // Munkakörök lekérése a katalógushoz
   const { data: dbJobs } = await supabase
@@ -355,7 +399,10 @@ export default async function HrSettingsPage() {
               <h3 className="text-2xl font-semibold tracking-tight">Szervezet és Munkakörök</h3>
               <p className="text-muted-foreground mt-1">Vállalati struktúra és munkaköri leírások (FEOR) kezelése.</p>
             </div>
-            <JobCreateDialog />
+            <div className="flex gap-2">
+              <HrOrgUnitCreateDialog />
+              <JobCreateDialog />
+            </div>
           </div>
 
           <Tabs defaultValue="jobs" className="space-y-6">
@@ -447,7 +494,7 @@ export default async function HrSettingsPage() {
                   <CardDescription>Vizuális fa-struktúra a vezetők és beosztottak megjelenítéséhez.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <OrgChartTree employees={orgChartEmployees} />
+                  <OrgChartTree rootUnits={rootOrgUnits} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -494,7 +541,7 @@ export default async function HrSettingsPage() {
                       const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
                       const munkakor = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
                       
-                      const egyseg = (emp.felhasznalo_profil as any)?.szervezeti_egyseg?.nev || "Központ"
+                      const egyseg = (emp.felhasznalo_profil as any)?.hr_szervezeti_egyseg?.nev || "Központ"
                       const hr_szerepkor = emp.felhasznalo_profil?.hr_szerepkor || "Ismeretlen"
                       const belepes = activeJogviszony?.belepes_datuma ? new Date(activeJogviszony.belepes_datuma).toLocaleDateString("hu-HU") : "-"
 
@@ -535,7 +582,7 @@ export default async function HrSettingsPage() {
                             {belepes}
                           </td>
                           <td className="px-6 py-4 text-right flex items-center justify-end gap-1">
-                            <EmployeeEditDialog employee={emp} jobs={jobs || []} />
+                            <EmployeeEditDialog employee={emp} jobs={jobs || []} orgUnits={orgUnits || []} />
                             <EmployeeDeleteDialog employeeId={emp.id} employeeName={nev} />
                           </td>
                         </tr>

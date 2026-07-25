@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { CandidateProfileSheet } from "@/components/hr/candidate-profile-sheet"
 
 const KANBAN_COLUMNS = [
   { id: "uj", title: "Új Jelentkező" },
@@ -31,7 +32,7 @@ const KANBAN_COLUMNS = [
   { id: "elutasitva", title: "Elutasítva" },
 ]
 
-function SortableItem({ id, candidate }: { id: string, candidate: any }) {
+function SortableItem({ id, candidate, onClick }: { id: string, candidate: any, onClick: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
 
   const style = {
@@ -46,6 +47,7 @@ function SortableItem({ id, candidate }: { id: string, candidate: any }) {
       style={style} 
       {...attributes} 
       {...listeners} 
+      onClick={onClick}
       className={`cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors ${isDragging ? 'z-50 shadow-lg border-primary' : ''}`}
     >
       <CardContent className="p-4 space-y-2">
@@ -62,7 +64,7 @@ function SortableItem({ id, candidate }: { id: string, candidate: any }) {
   )
 }
 
-function DroppableColumn({ id, title, candidates }: { id: string, title: string, candidates: any[] }) {
+function DroppableColumn({ id, title, candidates, onCandidateClick }: { id: string, title: string, candidates: any[], onCandidateClick: (c: any) => void }) {
   const { setNodeRef } = useSortable({ 
     id,
     data: { type: "Column", columnId: id }
@@ -81,7 +83,7 @@ function DroppableColumn({ id, title, candidates }: { id: string, title: string,
       >
         <SortableContext items={candidates.map(c => c.id)} strategy={verticalListSortingStrategy}>
           {candidates.map(candidate => (
-            <SortableItem key={candidate.id} id={candidate.id} candidate={candidate} />
+            <SortableItem key={candidate.id} id={candidate.id} candidate={candidate} onClick={() => onCandidateClick(candidate)} />
           ))}
         </SortableContext>
         
@@ -98,6 +100,29 @@ function DroppableColumn({ id, title, candidates }: { id: string, title: string,
 export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] }) {
   const [candidates, setCandidates] = useState(initialCandidates)
   const [activeId, setActiveId] = useState<string | null>(null)
+  
+  const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null)
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  
+  const [isMounted, setIsMounted] = useState(false)
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+  
+  const handleCandidateClick = (candidate: any) => {
+    setSelectedCandidate(candidate)
+    setIsSheetOpen(true)
+  }
+
+  const handleUpdateCandidate = (updatedCandidate: any) => {
+    setCandidates(prev => prev.map(c => c.id === updatedCandidate.id ? { ...c, ...updatedCandidate } : c))
+    setSelectedCandidate((prev: any) => prev?.id === updatedCandidate.id ? { ...prev, ...updatedCandidate } : prev)
+  }
+
+  const handleDeleteCandidateFromSheet = (id: string) => {
+    handleDelete(id)
+    setIsSheetOpen(false)
+  }
 
   useEffect(() => {
     setCandidates(initialCandidates)
@@ -178,6 +203,10 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
     }
   }
 
+  if (!isMounted) {
+    return <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground">Tábla betöltése...</div>
+  }
+
   return (
     <div className="flex flex-col h-full gap-4">
       <div className="flex justify-end">
@@ -210,7 +239,8 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
                 key={col.id} 
                 id={col.id} 
                 title={col.title} 
-                candidates={candidates.filter(c => c.statusz === col.id)} 
+                candidates={candidates.filter(c => c.statusz === col.id)}
+                onCandidateClick={handleCandidateClick} 
               />
             ))}
           </div>
@@ -242,7 +272,11 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
               {candidates.map(candidate => {
                 const statusName = KANBAN_COLUMNS.find(c => c.id === candidate.statusz)?.title || candidate.statusz
                 return (
-                  <tr key={candidate.id} className="border-b last:border-0 hover:bg-muted/30">
+                  <tr 
+                    key={candidate.id} 
+                    className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
+                    onClick={() => handleCandidateClick(candidate)}
+                  >
                     <td className="px-4 py-3 font-medium">{candidate.nev}</td>
                     <td className="px-4 py-3 text-muted-foreground">{candidate.hr_munkakor?.megnevezes || candidate.pozicio || "Nincs megadva"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{new Date(candidate.created_at).toLocaleDateString("hu-HU")}</td>
@@ -254,6 +288,7 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
                         <AlertDialogTrigger 
                           className={`${buttonVariants({ variant: "ghost", size: "icon" })} text-muted-foreground hover:text-destructive transition-colors`}
                           title="Törlés"
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <Trash2 className="h-4 w-4" />
                         </AlertDialogTrigger>
@@ -290,6 +325,14 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
           </table>
         </div>
       )}
+
+      <CandidateProfileSheet 
+        candidate={selectedCandidate} 
+        isOpen={isSheetOpen} 
+        onClose={() => setIsSheetOpen(false)} 
+        onUpdate={handleUpdateCandidate}
+        onDelete={handleDeleteCandidateFromSheet}
+      />
     </div>
   )
 }

@@ -74,3 +74,75 @@ export async function updateOnboardingDate(onboardingId: string, newDate: string
   revalidatePath("/hr/onboarding")
   return { success: true }
 }
+
+export async function addOnboardingTask(onboardingId: string, cim: string, felelos_reszleg: string) {
+  const supabase = await createClient()
+
+  // Biztonsági ellenőrzés
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { error } = await supabase
+    .from("hr_onboarding_feladat")
+    .insert([{
+      onboarding_id: onboardingId,
+      cim,
+      felelos_reszleg,
+      statusz: 'pending'
+    }])
+
+  if (error) {
+    console.error("Hiba a feladat hozzáadásakor:", error)
+    return { error: error.message }
+  }
+
+  // Logolás
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "adat_modositas", 
+    entitas_tipus: "hr_onboarding",
+    entitas_id: onboardingId,
+    megjegyzes: `Új feladat hozzáadva: ${cim} (${felelos_reszleg})`
+  })
+
+  revalidatePath("/hr/onboarding")
+  return { success: true }
+}
+
+export async function deleteOnboardingTask(taskId: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  // Get task info for log before delete
+  const { data: taskData } = await supabase
+    .from("hr_onboarding_feladat")
+    .select(`cim, onboarding_id`)
+    .eq("id", taskId)
+    .single()
+
+  const { error } = await supabase
+    .from("hr_onboarding_feladat")
+    .delete()
+    .eq("id", taskId)
+
+  if (error) {
+    console.error("Hiba a feladat törlésekor:", error)
+    return { error: error.message }
+  }
+
+  // Logolás
+  if (taskData) {
+    await supabase.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      esemeny_tipus: "adat_torles", 
+      entitas_tipus: "hr_onboarding",
+      entitas_id: taskData.onboarding_id,
+      megjegyzes: `Feladat törölve: ${taskData.cim}`
+    })
+  }
+
+  revalidatePath("/hr/onboarding")
+  return { success: true }
+}

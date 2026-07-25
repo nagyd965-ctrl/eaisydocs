@@ -1,8 +1,11 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
-import { Target, Info } from "lucide-react"
+import { Target, Info, BarChart3 } from "lucide-react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 import { AddKpiDialog } from "@/components/hr/add-kpi-dialog"
+import { ManageCyclesDialog } from "@/components/hr/manage-cycles-dialog"
 import { PerformanceList } from "@/components/hr/performance-list"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -38,7 +41,7 @@ export default async function PerformancePage() {
 
   const { data: kpis } = await supabaseAdmin
     .from("hr_teljesitmeny")
-    .select("*")
+    .select("*, hr_teljesitmeny_ciklus(megnevezes), hr_dolgozo_adatlap(felhasznalo_profil(nev))")
     .order("created_at", { ascending: false })
 
   const { data: employees } = await supabaseAdmin
@@ -46,8 +49,24 @@ export default async function PerformancePage() {
     .select(`
       id,
       felhasznalo_profil ( nev ),
-      hr_munkakor ( megnevezes )
+      hr_jogviszony (
+        hr_beosztas (
+          ervenyes_ig,
+          hr_munkakor ( megnevezes )
+        )
+      )
     `)
+
+  const { data: cycles } = await supabaseAdmin
+    .from("hr_teljesitmeny_ciklus")
+    .select("*")
+    .order("kezdo_datum", { ascending: false })
+
+  const { data: logs } = await supabaseAdmin
+    .from("hr_esemeny_naplo")
+    .select("*, felhasznalo_profil(nev)")
+    .eq("entitas_tipus", "hr_teljesitmeny")
+    .order("created_at", { ascending: true })
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -61,7 +80,15 @@ export default async function PerformancePage() {
             Vállalati és egyéni KPI-ok, célok nyomon követése és kiértékelése.
           </p>
         </div>
-        <AddKpiDialog employees={employees || []} />
+        <div className="flex items-center gap-3">
+          <Link href="/hr/performance/dashboard">
+            <Button variant="outline" className="gap-2">
+              <BarChart3 className="w-4 h-4" /> Riportok
+            </Button>
+          </Link>
+          <ManageCyclesDialog cycles={cycles || []} />
+          <AddKpiDialog employees={employees || []} cycles={cycles || []} allKpis={kpis || []} />
+        </div>
       </div>
 
       <Alert>
@@ -71,7 +98,7 @@ export default async function PerformancePage() {
         </AlertDescription>
       </Alert>
 
-      <PerformanceList employees={employees || []} kpis={kpis || []} />
+      <PerformanceList employees={employees || []} kpis={kpis || []} logs={logs || []} cycles={cycles || []} allKpis={kpis || []} />
 
     </div>
   )
