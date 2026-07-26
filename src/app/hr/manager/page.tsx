@@ -32,11 +32,24 @@ export default async function ManagerPage() {
     .order("kezdet_datuma", { ascending: true })
 
   // 3. Csapat (Közvetlen beosztottak) lekérése
-  // Itt is az RLS dolgozik helyettünk a hr_dolgozo_adatlap táblán!
-  const { data: teamMembers } = await supabase
-    .from("hr_dolgozo_adatlap")
-    .select("id, felhasznalo_profil!inner(nev), hr_munkakor(megnevezes)")
-    .neq("id", user.id) // Magát a vezetőt kivesszük a listából
+  // Itt is az RLS dolgozik helyettünk a hr_jogviszony táblán!
+  const { data: rawTeamMembers } = await supabase
+    .from("hr_jogviszony")
+    .select(`
+      dolgozo_id,
+      hr_dolgozo_adatlap!inner(id, felhasznalo_profil!inner(nev)),
+      hr_beosztas(hr_munkakor(megnevezes))
+    `)
+    .neq("dolgozo_id", user.id) // Magát a vezetőt kivesszük a listából
+
+  const teamMembers = (rawTeamMembers || []).map((j: any) => ({
+    id: j.dolgozo_id,
+    felhasznalo_profil: j.hr_dolgozo_adatlap?.felhasznalo_profil,
+    hr_munkakor: {
+      megnevezes: j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beosztás"
+    }
+  }))
+
   return (
     <div className="space-y-6">
       

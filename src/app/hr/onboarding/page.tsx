@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { OnboardingList } from "@/components/hr/onboarding-list"
 import { redirect } from "next/navigation"
 
@@ -6,6 +7,11 @@ export const dynamic = "force-dynamic"
 
 export default async function OnboardingPage() {
   const supabase = await createClient()
+  
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
@@ -25,7 +31,7 @@ export default async function OnboardingPage() {
   }
 
   // Lekérjük az összes folyamatban lévő és lezárt onboardingot a hozzájuk tartozó feladatokkal
-  const { data: onboardings, error } = await supabase
+  const { data: onboardings, error } = await supabaseAdmin
     .from("hr_onboarding")
     .select(`
       *,

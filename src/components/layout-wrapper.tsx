@@ -57,10 +57,12 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   
   return (
     <SidebarProvider>
-      {pathname.startsWith("/hr") ? <HrSidebar /> : <AppSidebar />}
+      <div className="print:hidden h-full flex flex-col z-50">
+        {pathname.startsWith("/hr") ? <HrSidebar /> : <AppSidebar />}
+      </div>
       {timeoutMinutes && <SessionTimeout timeoutMinutes={timeoutMinutes} />}
-      <main className="flex-1 w-full overflow-hidden flex flex-col relative">
-        <div className="flex h-14 items-center justify-between px-4 md:px-8 shrink-0 border-b">
+      <main className="flex-1 w-full overflow-hidden flex flex-col relative print:overflow-visible">
+        <div className="flex h-14 items-center justify-between px-4 md:px-8 shrink-0 border-b print:hidden">
           <div className="flex items-center">
             <DynamicSidebarTrigger />
           </div>

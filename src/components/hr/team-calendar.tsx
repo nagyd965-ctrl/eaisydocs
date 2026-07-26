@@ -4,7 +4,9 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Badge } from "@/components/ui/badge"
+import { CalendarIcon, ChevronLeft, ChevronRight, User2 } from "lucide-react"
 import { 
   addWeeks, subWeeks, addMonths, subMonths, addYears, subYears,
   startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, 
@@ -15,7 +17,7 @@ import { hu } from "date-fns/locale"
 type ViewMode = "heti" | "havi" | "eves"
 
 export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leaves: any[] }) {
-  const [viewMode, setViewMode] = useState<ViewMode>("heti")
+  const [viewMode, setViewMode] = useState<ViewMode>("havi")
   const [currentDate, setCurrentDate] = useState(new Date())
 
   // Színek definiálása típusok alapján
@@ -129,22 +131,54 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
           })
 
           return (
-            <div key={day.toISOString()} className={`min-h-[100px] bg-card p-2 flex flex-col ${!isCurrentMonth ? 'opacity-40' : ''} ${isToday ? 'bg-primary/5' : ''}`}>
-              <div className={`text-right text-xs font-medium mb-1 ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>
+            <div key={day.toISOString()} className={`min-h-[120px] bg-card p-2 flex flex-col transition-colors hover:bg-muted/20 border-border/50 ${!isCurrentMonth ? 'opacity-40 bg-muted/10' : ''} ${isToday ? 'bg-primary/5 border-primary/20 ring-1 ring-primary/20 shadow-sm rounded-md z-10' : ''}`}>
+              <div className={`text-right text-xs font-semibold mb-2 ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>
                 {format(day, "d")}
               </div>
               <div className="flex-1 flex flex-col gap-1">
-                {absentMembers.map(member => {
-                  const nev = member.felhasznalo_profil?.nev || "Ismeretlen"
-                  const leave = leaves.find(l => l.dolgozo_id === member.id && isWithinInterval(day, { start: parseISO(l.kezdet_datuma), end: parseISO(l.veg_datuma) }))
-                  if (!leave) return null
-                  
-                  return (
-                    <div key={member.id} className={`text-[9px] px-1.5 py-0.5 rounded-sm border truncate font-medium ${typeColors[leave.tipus]}`} title={`${nev} - ${leave.tipus}`}>
-                      {nev}
-                    </div>
-                  )
-                })}
+                {absentMembers.length > 0 && (
+                  <Popover>
+                    <PopoverTrigger className="text-xs w-full bg-primary/10 hover:bg-primary/20 text-primary font-semibold py-1.5 px-2 rounded-md transition-colors text-left flex items-center justify-between shadow-sm border border-primary/20">
+                        <span>{absentMembers.length} távollét</span>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-0 shadow-lg border-muted" align="start">
+                      <div className="bg-muted/50 p-3 border-b flex items-center gap-2">
+                        <CalendarIcon className="w-4 h-4 text-primary" />
+                        <h4 className="font-semibold text-sm">
+                          {format(day, "yyyy. MMMM d.", { locale: hu })}
+                        </h4>
+                      </div>
+                      <div className="p-2 max-h-[300px] overflow-y-auto space-y-1">
+                        {absentMembers.map(member => {
+                          const nev = member.felhasznalo_profil?.nev || "Ismeretlen"
+                          const munkakor = member.hr_munkakor?.megnevezes || "Nincs beosztás"
+                          const initials = nev.substring(0, 2).toUpperCase()
+                          const leave = leaves.find(l => l.dolgozo_id === member.id && isWithinInterval(day, { start: parseISO(l.kezdet_datuma), end: parseISO(l.veg_datuma) }))
+                          if (!leave) return null
+                          
+                          return (
+                            <div key={member.id} className="flex flex-col gap-1 p-2 hover:bg-muted/50 rounded-md transition-colors">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="w-9 h-9 rounded-full border shadow-sm shrink-0">
+                                  <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">{initials}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold truncate leading-tight">{nev}</p>
+                                  <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                                    <User2 className="w-3 h-3 shrink-0" /> {munkakor}
+                                  </p>
+                                </div>
+                                <Badge variant="outline" className={`text-[10px] uppercase font-bold shrink-0 shadow-sm ${typeColors[leave.tipus]}`}>
+                                  {leave.tipus}
+                                </Badge>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
               </div>
             </div>
           )

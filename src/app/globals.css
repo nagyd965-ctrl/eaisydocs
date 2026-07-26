@@ -228,4 +228,29 @@ body[data-scroll-locked] {
 
 /* Témaváltás animáció megőrzés */
 .theme-switching * { animation-play-state: paused !important; }
+
+@media print {
+  /* Hides sidebar and top bar globally in print mode */
+  [data-sidebar="sidebar"], 
+  [data-sidebar="trigger"],
+  header {
+    display: none !important;
+  }
+  
+  /* Reset layout constraints for full page print */
+  [data-sidebar="wrapper"],
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+  
+  /* Ensure backgrounds are printed if needed */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
 .no-transitions * { transition: none !important; }

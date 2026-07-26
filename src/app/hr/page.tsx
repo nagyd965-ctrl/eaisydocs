@@ -4,9 +4,15 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { Users, UserPlus, Calendar, Briefcase, AlertCircle, Clock, ChevronRight, PlusCircle, CheckCircle2 } from "lucide-react"
 import { createClient } from "@/utils/supabase/server"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
 
 export default async function HrOverviewPage() {
   const supabase = await createClient()
+
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
   // 1. Fetch data in parallel
   const today = new Date()
@@ -35,13 +41,13 @@ export default async function HrOverviewPage() {
     { data: expiringProbations },
     { data: expiringContracts }
   ] = await Promise.all([
-    supabase.from("felhasznalo_profil").select("*", { count: "exact", head: true }),
-    supabase.from("hr_toborzas").select("*", { count: "exact", head: true }).eq("statusz", "uj"),
+    supabase.from("hr_dolgozo_adatlap").select("*", { count: "exact", head: true }),
+    supabaseAdmin.from("hr_toborzas").select("*", { count: "exact", head: true }).eq("statusz", "uj"),
     supabase.from("hr_onboarding").select("*", { count: "exact", head: true }).in("statusz", ["elokeszites", "folyamatban"]),
     supabase.from("hr_tavollet").select("*", { count: "exact", head: true })
       .lte("kezdet_datuma", todayStr)
       .gte("veg_datuma", todayStr),
-    supabase.from("hr_toborzas").select("statusz"),
+    supabaseAdmin.from("hr_toborzas").select("statusz"),
     
     // INBOX QUERIES
     supabase.from("hr_tavollet")

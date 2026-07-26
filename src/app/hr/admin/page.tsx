@@ -56,16 +56,15 @@ export default async function HrAdminPage() {
   const userEmails = authUsers.users.map(u => u.email)
   const availableCandidates = elfogadottJelentkezok?.filter(j => !userEmails.includes(j.email)) || []
 
-  // 2. Toborzási adatok lekérése (nyitott pozik, új jelentkezők)
-  const { data: toborzas } = await supabase.from("hr_toborzas").select("*")
+  // 2. Toborzási adatok lekérése (nyitott pozik, jelentkezők)
+  const { data: toborzas } = await supabaseAdmin.from("hr_toborzas").select("*")
   
-  // Egyedi pozíciók száma, amik nincsenek lezárva
-  const openPositions = new Set(
-    toborzas?.filter(t => t.statusz !== 'elutasitva' && t.statusz !== 'elfogadva').map(t => t.megpalyazott_munkakor_id)
-  ).size || 0
+  // Aktív álláshirdetések száma
+  const { data: allashirdetesek } = await supabase.from("hr_allashirdetes").select("*").eq("aktiv", true).eq("publikus", true)
+  const activeAdsCount = allashirdetesek?.length || 0
   
-  // Új jelentkezők (uj státusz)
-  const newCandidates = toborzas?.filter(t => t.statusz === 'uj').length || 0
+  // Összes aktív jelentkező a Kanban táblán
+  const activeCandidatesCount = toborzas?.filter(t => t.statusz !== 'elutasitva' && t.statusz !== 'elfogadva').length || 0
 
   // 3. Figyelmeztetések generálása (Alerts)
   const alerts: any[] = []
@@ -107,7 +106,7 @@ export default async function HrAdminPage() {
             <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{employees?.length || 0} fő</div>
+            <div className="text-2xl font-bold">{employees?.filter((emp: any) => emp.hr_dolgozo_adatlap !== null).length || 0} fő</div>
             <p className="text-xs text-muted-foreground mt-1">Összes rögzített munkatárs</p>
           </CardContent>
         </Card>
@@ -117,8 +116,8 @@ export default async function HrAdminPage() {
             <UserPlus className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{openPositions} pozíció</div>
-            <p className="text-xs text-muted-foreground mt-1">{newCandidates} új jelentkező</p>
+            <div className="text-2xl font-bold">{activeAdsCount} hirdetés</div>
+            <p className="text-xs text-muted-foreground mt-1">{activeCandidatesCount} jelentkező</p>
           </CardContent>
         </Card>
         <Card className="md:col-span-2 border-destructive/20 bg-destructive/5">
@@ -147,7 +146,6 @@ export default async function HrAdminPage() {
           <CardTitle className="text-lg font-semibold flex items-center gap-2">
             <Users className="w-5 h-5" /> Dolgozói Törzsadatbázis
           </CardTitle>
-          <CardDescription>Kattints egy dolgozóra a 7-füles részletes adatlap megnyitásához.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>

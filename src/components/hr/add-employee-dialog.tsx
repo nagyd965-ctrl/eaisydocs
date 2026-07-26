@@ -238,6 +238,9 @@ export function AddEmployeeDialog({ availableUsers, jobs, candidates = [] }: { a
               value={formData.belepes_datuma}
               onChange={(e) => setFormData({ ...formData, belepes_datuma: e.target.value })}
             />
+            <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-500/10 dark:text-amber-400 p-2 rounded border border-amber-200 dark:border-amber-500/20">
+              Figyelem: A T1041 biztosítotti bejelentés határideje a munkába állás megkezdése előtt van!
+            </div>
           </div>
 
         </div>

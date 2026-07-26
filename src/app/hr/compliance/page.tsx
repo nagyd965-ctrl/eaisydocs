@@ -26,19 +26,52 @@ export default async function CompliancePage() {
     )
   }
 
-  // Lekérjük a dolgozókat a jelentésekhez
-  const { data: employees } = await supabase
-    .from("hr_dolgozo_adatlap")
+  const { data: rawEmployees } = await supabase
+    .from("hr_jogviszony")
     .select(`
       id,
-      taj_szam,
-      adoazonosito_jel,
       belepes_datuma,
-      munkaido_fte,
-      hr_munkakor ( megnevezes, feor ),
-      felhasznalo_profil ( nev )
+      dolgozo_id,
+      hr_dolgozo_adatlap (
+        id,
+        felhasznalo_profil ( nev )
+      ),
+      hr_beosztas (
+        munkaido_fte,
+        hr_munkakor ( megnevezes, feor_kod )
+      )
     `)
     .order("created_at", { ascending: false })
+
+  const { data: secretData } = await supabase
+    .from("hr_dolgozo_titkos_adat")
+    .select("*")
+    
+  const hexToAscii = (hex: string | null) => {
+    if (!hex || !hex.startsWith('\\x')) return null;
+    const h = hex.substring(2);
+    let str = '';
+    for (let i = 0; i < h.length; i += 2) {
+      str += String.fromCharCode(parseInt(h.substr(i, 2), 16));
+    }
+    return str;
+  }
+
+  const employees = (rawEmployees || []).map((j: any) => {
+    const secrets = secretData?.find(s => s.dolgozo_id === j.dolgozo_id);
+    return {
+      id: j.id,
+      hr_jogviszony: [{ belepes_datuma: j.belepes_datuma }],
+      felhasznalo_profil: j.hr_dolgozo_adatlap?.felhasznalo_profil,
+      munkaido_fte: j.hr_beosztas?.[0]?.munkaido_fte,
+      hr_munkakor: {
+        megnevezes: j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes,
+        feor: j.hr_beosztas?.[0]?.hr_munkakor?.feor_kod
+      },
+      taj_szam: secrets ? hexToAscii(secrets.taj_szam_titkositott) : null,
+      adoazonosito_jel: secrets ? hexToAscii(secrets.adoazonosito_titkositott) : null
+    }
+  })
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto pb-10">

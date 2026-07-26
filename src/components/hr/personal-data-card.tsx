@@ -82,7 +82,7 @@ export function PersonalDataCard() {
                   Az alábbi adatok mentése szintén auditálásra kerül. Kérlek, fokozottan ügyelj a pontosságra!
                 </DialogDescription>
               </DialogHeader>
-              <form ref={formRef} action={handleUpdate}>
+              <form ref={formRef} action={handleUpdate} key={JSON.stringify(secretData)}>
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="taj_szam" className="text-right text-xs">TAJ Szám</Label>

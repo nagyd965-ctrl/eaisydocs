@@ -5,23 +5,21 @@ import { buttonVariants } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Plus, UserPlus } from "lucide-react"
-import { assignEmployeeToJob } from "@/app/hr/job/[id]/actions"
+import { UserPlus } from "lucide-react"
+import { assignEmployeeToOrgUnit } from "@/app/hr/orgunit/[id]/actions"
 import { toast } from "sonner"
 
 interface Employee {
   id: string
-  felhasznalo_profil: {
-    nev: string
-  }
+  nev: string
 }
 
-interface AssignEmployeeDialogProps {
-  jobId: string
+interface AssignEmployeeOrgDialogProps {
+  orgUnitId: string
   availableEmployees: Employee[]
 }
 
-export function AssignEmployeeDialog({ jobId, availableEmployees }: AssignEmployeeDialogProps) {
+export function AssignEmployeeOrgDialog({ orgUnitId, availableEmployees }: AssignEmployeeOrgDialogProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("")
@@ -33,13 +31,13 @@ export function AssignEmployeeDialog({ jobId, availableEmployees }: AssignEmploy
     }
 
     setLoading(true)
-    const result = await assignEmployeeToJob(jobId, selectedEmployeeId)
+    const result = await assignEmployeeToOrgUnit(orgUnitId, selectedEmployeeId)
     setLoading(false)
 
     if (result.error) {
       toast.error(result.error)
     } else {
-      toast.success("Dolgozó sikeresen hozzárendelve a munkakörhöz!")
+      toast.success("Dolgozó sikeresen hozzárendelve a szervezeti egységhez!")
       setOpen(false)
       setSelectedEmployeeId("")
     }
@@ -55,7 +53,7 @@ export function AssignEmployeeDialog({ jobId, availableEmployees }: AssignEmploy
         <DialogHeader>
           <DialogTitle>Dolgozó Hozzárendelése</DialogTitle>
           <DialogDescription>
-            Válaszd ki azt a dolgozót, akit szeretnél ebbe a munkakörbe helyezni.
+            Válaszd ki azt a dolgozót, akit be szeretnél osztani ebbe a szervezeti egységbe.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -64,13 +62,13 @@ export function AssignEmployeeDialog({ jobId, availableEmployees }: AssignEmploy
             <Select value={selectedEmployeeId} onValueChange={(val) => val && setSelectedEmployeeId(val)}>
               <SelectTrigger>
                 <SelectValue placeholder="Kattints a választáshoz...">
-                  {selectedEmployeeId ? availableEmployees.find(e => e.id === selectedEmployeeId)?.felhasznalo_profil?.nev : "Kattints a választáshoz..."}
+                  {selectedEmployeeId ? availableEmployees.find(e => e.id === selectedEmployeeId)?.nev : "Kattints a választáshoz..."}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {availableEmployees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id} label={emp.felhasznalo_profil?.nev}>
-                    {emp.felhasznalo_profil?.nev}
+                  <SelectItem key={emp.id} value={emp.id} label={emp.nev}>
+                    {emp.nev}
                   </SelectItem>
                 ))}
                 {availableEmployees.length === 0 && (
@@ -84,7 +82,7 @@ export function AssignEmployeeDialog({ jobId, availableEmployees }: AssignEmploy
           <button type="button" className={buttonVariants({ variant: "outline" })} onClick={() => setOpen(false)} disabled={loading}>
             Mégse
           </button>
-          <button type="button" className={buttonVariants()} onClick={handleAssign} disabled={loading || !selectedEmployeeId}>
+          <button type="button" className={buttonVariants({ className: "bg-[#02b8cc] hover:bg-[#029db0] text-white" })} onClick={handleAssign} disabled={loading || !selectedEmployeeId}>
             {loading ? "Hozzárendelés..." : "Hozzárendelés"}
           </button>
         </DialogFooter>

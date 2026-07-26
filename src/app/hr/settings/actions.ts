@@ -185,13 +185,19 @@ export async function deleteMunkakor(id: string) {
 
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  // 1. Töröljük a beosztásokat is, amik erre a munkakörre hivatkoznak (hogy a tesztadatokat lehessen törölni)
+  await supabase
+    .from("hr_beosztas")
+    .delete()
+    .eq("munkakor_id", id)
+
+  // 2. Töröljük a munkakört
   const { error } = await supabase
     .from("hr_munkakor")
     .delete()
     .eq("id", id)
 
   if (error) {
-    // Ha idegen kulcs hiba van (pl. van rá dolgozó)
     if (error.code === '23503') {
       return { error: "Nem törölhető, mert vannak hozzárendelt dolgozók vagy jelentkezők." }
     }
@@ -247,6 +253,75 @@ export async function createHrDepartment(formData: FormData) {
   const { error } = await supabaseAdmin
     .from("hr_szervezeti_egyseg")
     .insert({ nev })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath("/hr/settings")
+  return { success: true }
+}
+
+export async function updateHrDepartment(id: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const nev = formData.get("nev") as string
+  if (!nev) return { error: "Név megadása kötelező!" }
+
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { error } = await supabaseAdmin
+    .from("hr_szervezeti_egyseg")
+    .update({ nev })
+    .eq("id", id)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath("/hr/settings")
+  return { success: true }
+}
+
+export async function deleteHrDepartment(id: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { data: employees } = await supabaseAdmin
+    .from("felhasznalo_profil")
+    .select("id")
+    .eq("hr_szervezeti_egyseg_id", id)
+    .limit(1)
+
+  if (employees && employees.length > 0) {
+    return { error: "A szervezeti egység nem törölhető, mert vannak hozzárendelt dolgozók!" }
+  }
+
+  const { data: subUnits } = await supabaseAdmin
+    .from("hr_szervezeti_egyseg")
+    .select("id")
+    .eq("szulo_id", id)
+    .limit(1)
+
+  if (subUnits && subUnits.length > 0) {
+    return { error: "A szervezeti egység nem törölhető, mert vannak alatta lévő egységek!" }
+  }
+
+  const { error } = await supabaseAdmin
+    .from("hr_szervezeti_egyseg")
+    .delete()
+    .eq("id", id)
 
   if (error) {
     return { error: error.message }

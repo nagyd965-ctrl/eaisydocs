@@ -53,11 +53,11 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
   const { data: beosztasok } = await supabase
     .from("hr_beosztas")
     .select(`
-      hr_jogviszony!inner (
+      hr_jogviszony (
         belepes_datuma,
-        hr_dolgozo_adatlap!inner (
+        hr_dolgozo_adatlap (
           id,
-          felhasznalo_profil!inner (nev, email)
+          felhasznalo_profil (nev)
         )
       )
     `)

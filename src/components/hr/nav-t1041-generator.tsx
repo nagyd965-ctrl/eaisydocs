@@ -27,7 +27,7 @@ Név: ${selectedEmp.felhasznalo_profil?.nev}
 TAJ szám: ${selectedEmp.taj_szam || 'Nincs megadva'}
 Adóazonosító jel: ${selectedEmp.adoazonosito_jel || 'Nincs megadva'}
 FEOR kód: ${selectedEmp.hr_munkakor?.feor || 'Nincs megadva'}
-Munkaviszony kezdete: ${selectedEmp.belepes_datuma ? new Date(selectedEmp.belepes_datuma).toLocaleDateString('hu-HU') : 'Nincs megadva'}
+Munkaviszony kezdete: ${selectedEmp.hr_jogviszony?.[0]?.belepes_datuma ? new Date(selectedEmp.hr_jogviszony[0].belepes_datuma).toLocaleDateString('hu-HU') : 'Nincs megadva'}
 Munkaidő (FTE): ${selectedEmp.munkaido_fte ? selectedEmp.munkaido_fte * 40 + ' óra/hét' : 'Nincs megadva'}
     `.trim()
     navigator.clipboard.writeText(text)
@@ -53,7 +53,9 @@ Munkaidő (FTE): ${selectedEmp.munkaido_fte ? selectedEmp.munkaido_fte * 40 + ' 
               <label className="text-sm font-medium">Bejelentendő Dolgozó</label>
               <Select value={selectedEmpId} onValueChange={(val) => val && setSelectedEmpId(val)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Válassz dolgozót..." />
+                  <SelectValue placeholder="Válassz dolgozót...">
+                    {selectedEmp?.felhasznalo_profil?.nev}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {employees.map(emp => (
@@ -114,7 +116,7 @@ Munkaidő (FTE): ${selectedEmp.munkaido_fte ? selectedEmp.munkaido_fte * 40 + ' 
               <div className="font-bold">{selectedEmp.hr_munkakor?.feor || "HIÁNYZIK!"} - {selectedEmp.hr_munkakor?.megnevezes}</div>
 
               <div className="font-semibold text-muted-foreground">Biztosítási jogviszony kezdete:</div>
-              <div className="font-bold">{selectedEmp.belepes_datuma ? new Date(selectedEmp.belepes_datuma).toLocaleDateString("hu-HU") : "HIÁNYZIK!"}</div>
+              <div className="font-bold">{selectedEmp.hr_jogviszony?.[0]?.belepes_datuma ? new Date(selectedEmp.hr_jogviszony[0].belepes_datuma).toLocaleDateString("hu-HU") : "HIÁNYZIK!"}</div>
 
               <div className="font-semibold text-muted-foreground">Heti munkaidő (óra):</div>
               <div className="font-bold">{selectedEmp.munkaido_fte ? selectedEmp.munkaido_fte * 40 : 40} óra/hét</div>

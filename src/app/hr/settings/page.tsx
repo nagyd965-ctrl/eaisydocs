@@ -11,15 +11,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { User, Monitor, CalendarDays, Coffee, Clock, Shield, Info, Briefcase, Building2, Search, Users, Plus } from "lucide-react"
+import { User, Monitor, CalendarDays, Coffee, Clock, Shield, Info, Briefcase, Building2, Search, Users, Plus, Network, MoreHorizontal } from "lucide-react"
 import { EmployeeEditDialog } from "@/components/hr/employee-edit-dialog"
 import { OrgChartTree, OrgUnitNode, EmployeeNode } from "@/components/hr/org-chart-tree"
 import { JobCreateDialog } from "@/components/hr/job-create-dialog"
 import { JobActionMenu } from "@/components/hr/job-action-menu"
+import { OrgUnitActionMenu } from "@/components/hr/org-unit-action-menu"
 import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
 import { EmployeeDeleteDialog } from "@/components/hr/employee-delete-dialog"
 import { HrOrgUnitCreateDialog } from "@/components/hr/org-unit-create-dialog"
 import Link from "next/link"
+import { SecuritySettingsTab } from "./security-tab"
 
 export default async function HrSettingsPage() {
   const supabase = await createClient()
@@ -30,7 +32,7 @@ export default async function HrSettingsPage() {
   // Biztonsági ellenőrzés
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select('hr_szerepkor')
+    .select('hr_szerepkor, munkamenet_idotullepes')
     .eq("id", user.id)
     .single()
 
@@ -200,13 +202,12 @@ export default async function HrSettingsPage() {
             Rendszer
           </TabsTrigger>
           <TabsTrigger 
-            value="leave" 
+            value="biztonsag" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
           >
-            <CalendarDays className="h-4 w-4 mr-2" />
-            Szabadság Szabályok
+            <Shield className="h-4 w-4 mr-2" />
+            Biztonság
           </TabsTrigger>
-
           <TabsTrigger 
             value="munkatarsak" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
@@ -214,20 +215,7 @@ export default async function HrSettingsPage() {
             <Users className="h-4 w-4 mr-2" />
             Munkatársak (HR)
           </TabsTrigger>
-          <TabsTrigger 
-            value="munkaido" 
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-          >
-            <Clock className="h-4 w-4 mr-2" />
-            Munkarendek
-          </TabsTrigger>
-          <TabsTrigger 
-            value="roles" 
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-          >
-            <Shield className="h-4 w-4 mr-2" />
-            Jogosultságok
-          </TabsTrigger>
+
           <TabsTrigger 
             value="organization" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
@@ -345,53 +333,7 @@ export default async function HrSettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* HR Specifikus Beállítások */}
-        <TabsContent value="leave" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Szabadság Paraméterek</CardTitle>
-              <CardDescription>A Munka Törvénykönyve szerinti alapszabadságok és pótszabadságok.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-               <div className="flex items-center justify-between border-b pb-4">
-                 <div className="space-y-0.5">
-                   <Label className="text-base">Életkor alapú pótszabadság automatika</Label>
-                   <p className="text-sm text-muted-foreground">A rendszer automatikusan hozzáadja a pótnapokat a dolgozó születési dátuma alapján.</p>
-                 </div>
-                 <Switch defaultChecked />
-               </div>
-               <div className="flex items-center justify-between border-b pb-4">
-                 <div className="space-y-0.5">
-                   <Label className="text-base">Előző évi szabadság áthozatala</Label>
-                   <p className="text-sm text-muted-foreground">Március 31-ig felhasználható a megmaradt szabadság.</p>
-                 </div>
-                 <Switch defaultChecked />
-               </div>
-               <Button variant="outline">Új egyedi pótszabadság jogcím felvitele</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-
-        <TabsContent value="schedules" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Munkarend Sablonok</CardTitle>
-              <CardDescription>Rendelj hozzá munkarendet a dolgozókhoz az időszámításhoz.</CardDescription>
-            </CardHeader>
-            <CardContent>
-               <div className="space-y-4">
-                 <div className="p-4 border rounded-md flex justify-between items-center">
-                   <div>
-                     <p className="font-semibold">Normál (H-P, 8 óra)</p>
-                     <p className="text-sm text-muted-foreground">08:00 - 16:30 (30p ebédidő)</p>
-                   </div>
-                   <Button variant="ghost" size="sm">Szerkesztés</Button>
-                 </div>
-               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="organization" className="space-y-6 outline-none">
           <div className="flex justify-between items-center mb-6">
@@ -411,8 +353,12 @@ export default async function HrSettingsPage() {
                 <Briefcase className="w-4 h-4 mr-2" />
                 Munkakör-katalógus
               </TabsTrigger>
-              <TabsTrigger value="orgchart" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3">
+              <TabsTrigger value="orgunits" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3">
                 <Building2 className="w-4 h-4 mr-2" />
+                Szervezeti egységek
+              </TabsTrigger>
+              <TabsTrigger value="orgchart" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3">
+                <Network className="w-4 h-4 mr-2" />
                 Szervezeti Ábra
               </TabsTrigger>
             </TabsList>
@@ -478,6 +424,71 @@ export default async function HrSettingsPage() {
                         <TableRow>
                           <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                             Még nincsenek munkakörök létrehozva.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="orgunits" className="space-y-4 outline-none">
+              <Card className="border-border shadow-sm">
+                <CardHeader className="pb-4 border-b flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg font-semibold">Szervezeti Egységek</CardTitle>
+                    <CardDescription>A vállalat szervezeti felépítését alkotó részlegek és osztályok.</CardDescription>
+                  </div>
+                  <div className="relative w-72">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input type="search" placeholder="Keresés..." className="pl-9 bg-background" />
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="pl-6">Megnevezés</TableHead>
+                        <TableHead>Szülő egység</TableHead>
+                        <TableHead className="text-center">Hozzárendelt dolgozók</TableHead>
+                        <TableHead className="text-right pr-6">Műveletek</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {orgUnits && orgUnits.length > 0 ? orgUnits.map((unit) => {
+                        const parentUnit = orgUnits.find(u => u.id === unit.szulo_id);
+                        const employeeCount = employees?.filter(e => e.felhasznalo_profil?.hr_szervezeti_egyseg_id === unit.id).length || 0;
+                        return (
+                          <TableRow key={unit.id} className="hover:bg-muted/50">
+                            <TableCell className="pl-6 font-medium">
+                              <Link href={`/hr/orgunit/${unit.id}`} className="hover:underline text-primary">
+                                {unit.nev}
+                              </Link>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {parentUnit ? parentUnit.nev : "-"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {employeeCount > 0 ? (
+                                 <Badge variant="default" className="gap-1 bg-blue-600 hover:bg-blue-700">
+                                   <Users className="w-3 h-3" /> {employeeCount} fő
+                                 </Badge>
+                              ) : (
+                                 <Badge variant="secondary" className="gap-1 text-muted-foreground">
+                                   Nincs dolgozó
+                                 </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right pr-6">
+                              <OrgUnitActionMenu unit={unit} />
+                            </TableCell>
+                          </TableRow>
+                        )
+                      }) : (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                            Még nincsenek szervezeti egységek létrehozva.
                           </TableCell>
                         </TableRow>
                       )}
@@ -600,6 +611,7 @@ export default async function HrSettingsPage() {
           </Card>
         </TabsContent>
 
+        <SecuritySettingsTab initialTimeout={profile.munkamenet_idotullepes} />
       </Tabs>
     </div>
   )

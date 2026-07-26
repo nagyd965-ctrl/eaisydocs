@@ -21,6 +21,7 @@ import { toast } from "sonner"
 export function ManagePostingDialog({ jobs, existingData = null, onSaved, children }: { jobs: any[], existingData?: any, onSaved: (data: any) => void, children?: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [munkakorId, setMunkakorId] = useState<string>(existingData?.munkakor_id || "")
   
   const isEditing = !!existingData
   const supabase = createClient()
@@ -100,13 +101,15 @@ export function ManagePostingDialog({ jobs, existingData = null, onSaved, childr
 
           <div className="space-y-2">
             <Label htmlFor="munkakor_id">Belső Munkakör <span className="text-red-500">*</span></Label>
-            <Select name="munkakor_id" defaultValue={existingData?.munkakor_id}>
+            <Select name="munkakor_id" value={munkakorId} onValueChange={(val) => val && setMunkakorId(val)}>
               <SelectTrigger>
-                <SelectValue placeholder="Válassz munkakört..." />
+                <SelectValue placeholder="Válassz munkakört...">
+                  {jobs.find(j => j.id === munkakorId)?.megnevezes}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {jobs.map(job => (
-                  <SelectItem key={job.id} value={job.id}>{job.megnevezes}</SelectItem>
+                  <SelectItem key={job.id} value={job.id} label={job.megnevezes}>{job.megnevezes}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

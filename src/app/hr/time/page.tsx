@@ -37,14 +37,29 @@ export default async function TimeAndAttendancePage() {
 
   // 2. Teljes cég dolgozóinak lekérése
   // Nincs RLS korlátozás (a HR lát mindenkit)
-  const { data: allEmployees } = await supabase
-    .from("hr_dolgozo_adatlap")
+  const { data: rawEmployees } = await supabase
+    .from("hr_jogviszony")
     .select(`
-      id, 
-      felhasznalo_profil!inner(nev), 
-      hr_munkakor(megnevezes)
+      id,
+      dolgozo_id,
+      hr_dolgozo_adatlap (
+        id,
+        felhasznalo_profil ( nev )
+      ),
+      hr_beosztas (
+        hr_munkakor ( megnevezes )
+      )
     `)
     .order("created_at", { ascending: true })
+
+  // Format to match what TeamCalendar expects
+  const allEmployees = (rawEmployees || []).map((j: any) => ({
+    id: j.dolgozo_id,
+    felhasznalo_profil: j.hr_dolgozo_adatlap?.felhasznalo_profil,
+    hr_munkakor: {
+      megnevezes: j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beosztás"
+    }
+  }))
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
