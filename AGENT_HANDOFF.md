@@ -73,26 +73,20 @@ A projekt eaisyHR része már jelentősen előrehaladt! Amikkel folytatni kell:
 - [ ] `EmployeeEditDialog` kibővítése, hogy lehessen közvetlen vezetőt és szervezeti egységet választani a szervezeti ábrához.
 - [ ] Munkaköri leírások, feladatok, hatáskörök részletes nyilvántartása.
 
-**2. Toborzás (ATS) befejezése (KÉSZ)**
-- [x] Külső (megosztható link) és belső álláshirdetések létrehozása, publikálása. Ügyfél arculatára szabható jelentkezési űrlap, CV feltöltéssel, teljes idővonallal, Brevo email értesítéssel, felújított UI-jal.
+**2. Hatósági adatszolgáltatás (NAV, KSH)**
+- [x] T1041 adatlap-előállítás és KSH munkaügyi jelentés összesítő elkészült.
+- [x] Bevallás-archívum (a beküldött PDF-ek feltöltése és tárolása) implementálva.
+- [ ] Esetleges apróbb mezők/validációk finomhangolása a generátorokban.
 
-**3. Onboarding / Beléptetés befejezése (KÉSZ)**
-- [x] Beléptetési feladatlista (Munkavédelem, IT eszköz igénylés, Mentor kijelölése).
-- [x] Dolgozói dokumentumtár, ahol a szabályzatokat kötelezően, időbélyeggel "megismerésre" kell nyugtázni.
+**3. Időgazdálkodás (Jelenlét és Túlóra)**
+- [x] Csapatnaptár és távollétek megjelenítése elkészült.
+- [x] Önkiszolgáló munkaidő-rögzítés (timesheet / becsekkolás) és annak utólagos HR korrekciója elkészült.
+- [x] Export motor a bérszámfejtő felé (CSV/XLSX) és bérszámfejtési export (`getPayrollData`) szintén működik.
+- [ ] Speciális pótlékszámítási logikák kiegészítése (opcionális).
 
-**4. Teljesítményértékelés (KÉSZ)**
-- [x] KPI-könyvtár, egyéni/vállalati célok kaszkádolása.
-- [x] Értékelési ciklusok (kitűzés -> felülvizsgálat -> vezetői értékelés). Bónusz javaslatok jóváhagyási workflowja.
-
-**5. Időgazdálkodás (Jelenlét)**
-- [ ] Önkiszolgáló munkaidő-rögzítés (timesheet).
-- [ ] Túlóra, pótlékok nyilvántartása. Vezetői jóváhagyás, lezárás.
-- [ ] Export motor a bérszámfejtő felé (konfigurálható CSV/XLSX).
-
-**6. Hatósági adatszolgáltatás (NAV, KSH)**
-- [ ] T1041 adatlap-előállítás: Be- és kilépés adataiból export generálás.
-- [ ] KSH munkaügyi jelentés összesítő.
-- [ ] Bevallás-archívum (a beküldött PDF-ek feltöltése és tárolása).
+**4. Munkaszerződés Generátor (KÉSZ)**
+- [x] Munkaszerződés és dokumentum generálása sablonok alapján (dinamikus adatkitöltéssel) a dolgozói adatlapokból.
+- [x] Beépített nyomtatás és azonnali "Mentés a Rendszerbe" funkció implementálva.
 
 ---
 

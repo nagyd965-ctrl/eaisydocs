@@ -25,6 +25,14 @@ export default async function DokumentumokPage() {
     console.error("Hiba a dokumentumok lekérésekor:", error)
   }
 
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("nev")
+    .eq("id", user.id)
+    .single()
+
+  const userName = profile?.nev || "Dolgozó"
+
   return (
     <div className="space-y-8 pb-10">
       <div>
@@ -37,7 +45,7 @@ export default async function DokumentumokPage() {
         </p>
       </div>
 
-      <DocumentList documents={documents || []} />
+      <DocumentList documents={documents || []} userName={userName} />
     </div>
   )
 }
