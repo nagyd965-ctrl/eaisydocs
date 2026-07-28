@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { User, Monitor, CalendarDays, Coffee, Clock, Shield, Info, Briefcase, Building2, Search, Users, Plus, Network, MoreHorizontal } from "lucide-react"
 import { EmployeeEditDialog } from "@/components/hr/employee-edit-dialog"
-import { OrgChartTree, OrgUnitNode, EmployeeNode } from "@/components/hr/org-chart-tree"
+import { OrgChartTree, EmployeeNode } from "@/components/hr/org-chart-tree"
 import { JobCreateDialog } from "@/components/hr/job-create-dialog"
 import { JobActionMenu } from "@/components/hr/job-action-menu"
 import { OrgUnitActionMenu } from "@/components/hr/org-unit-action-menu"
@@ -22,7 +22,8 @@ import { EmployeeDeleteDialog } from "@/components/hr/employee-delete-dialog"
 import { HrOrgUnitCreateDialog } from "@/components/hr/org-unit-create-dialog"
 import Link from "next/link"
 import { SecuritySettingsTab } from "./security-tab"
-
+import { HrNotificationSettings } from "./notification-settings"
+import { Bell } from "lucide-react"
 export default async function HrSettingsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -57,6 +58,7 @@ export default async function HrSettingsPage() {
         nev,
         hr_szerepkor,
         hr_szervezeti_egyseg_id,
+        kozvetlen_vezeto_id,
         hr_szervezeti_egyseg (nev)
       ),
       hr_jogviszony (
@@ -78,66 +80,41 @@ export default async function HrSettingsPage() {
   }
 
   // --- SZERVEZETI ÁBRA LOGIKA ÚJRAÍRÁSA ---
-  // 1. Lekérjük a szervezeti egységeket
   const { data: orgUnits } = await supabase
     .from("hr_szervezeti_egyseg")
     .select("id, nev, szulo_id")
     .order("nev")
 
-  // 2. Felépítjük a fát
-  const orgUnitMap = new Map<string, OrgUnitNode>()
-  
-  if (orgUnits) {
-    orgUnits.forEach(unit => {
-      orgUnitMap.set(unit.id, {
-        id: unit.id,
-        nev: unit.nev,
-        szulo_id: unit.szulo_id,
-        beosztottak: [],
-        children: []
+   // 2. OrgChart adatok összeállítása (új: közvetlen vezető alapján)
+  const employeeMap = new Map<string, any>()
+  if (employees) {
+    employees.forEach(emp => {
+      const p = emp.felhasznalo_profil as any;
+      const nev = p?.nev || "Névtelen";
+      const managerId = p?.kozvetlen_vezeto_id;
+      const egyseg = p?.hr_szervezeti_egyseg?.nev || "Központ";
+      
+      const activeJogviszony = emp.hr_jogviszony?.[0];
+      const activeBeosztas = activeJogviszony?.hr_beosztas?.[0];
+      const pozicio = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva";
+
+      employeeMap.set(emp.id, {
+        id: emp.id,
+        nev,
+        pozicio,
+        egyseg,
+        managerId,
+        beosztottak: []
       })
     })
   }
 
-  // 3. Dolgozókat szétosztjuk az egységekbe
-  if (employees) {
-    employees.forEach(emp => {
-      const p = Array.isArray(emp.felhasznalo_profil) ? emp.felhasznalo_profil[0] : emp.felhasznalo_profil;
-      const nev = p?.nev || "Névtelen";
-      const unitId = p?.hr_szervezeti_egyseg_id;
-      const isVezeto = p?.hr_szerepkor === "hr_vezeto" || p?.hr_szerepkor === "vezeto" || (p as any)?.szerepkor === "vezeto";
-
-      const activeJogviszony = Array.isArray(emp.hr_jogviszony) ? emp.hr_jogviszony[0] : emp.hr_jogviszony;
-      const allBeosztas = activeJogviszony?.hr_beosztas;
-      const activeBeosztas = Array.isArray(allBeosztas) 
-        ? allBeosztas.find(b => b.ervenyes_ig === null) || allBeosztas[0]
-        : allBeosztas;
-
-      const pozicio = activeBeosztas?.berkategoria || activeBeosztas?.hr_munkakor?.megnevezes || "Munkatárs";
-
-      const empNode: EmployeeNode = { id: emp.id, nev, pozicio };
-
-      if (unitId && orgUnitMap.has(unitId)) {
-        const unit = orgUnitMap.get(unitId)!
-        if (isVezeto && !unit.vezeto) {
-          unit.vezeto = empNode;
-        } else {
-          unit.beosztottak.push(empNode);
-        }
-      } else {
-        // Ha nincs egysége, vagy nem létezik az egység
-        // Egy virtuális "Nincs besorolva" egységbe rakhatnánk, de a fában nehéz.
-      }
-    })
-  }
-
-  // 4. Szülő-gyermek kapcsolatok kialakítása
-  const rootOrgUnits: OrgUnitNode[] = []
-  orgUnitMap.forEach(unit => {
-    if (unit.szulo_id && orgUnitMap.has(unit.szulo_id)) {
-      orgUnitMap.get(unit.szulo_id)!.children.push(unit)
+  const rootEmployees: any[] = []
+  employeeMap.forEach(empNode => {
+    if (empNode.managerId && employeeMap.has(empNode.managerId)) {
+      employeeMap.get(empNode.managerId).beosztottak.push(empNode)
     } else {
-      rootOrgUnits.push(unit)
+      rootEmployees.push(empNode)
     }
   })
   // --- EDDIG ---
@@ -222,6 +199,13 @@ export default async function HrSettingsPage() {
           >
             <Building2 className="h-4 w-4 mr-2" />
             Szervezet
+          </TabsTrigger>
+          <TabsTrigger 
+            value="ertesitesek" 
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
+          >
+            <Bell className="h-4 w-4 mr-2" />
+            Értesítések
           </TabsTrigger>
         </TabsList>
 
@@ -505,7 +489,7 @@ export default async function HrSettingsPage() {
                   <CardDescription>Vizuális fa-struktúra a vezetők és beosztottak megjelenítéséhez.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <OrgChartTree rootUnits={rootOrgUnits} />
+                  <OrgChartTree rootUnits={rootEmployees} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -538,6 +522,7 @@ export default async function HrSettingsPage() {
                       <th className="px-6 py-4 font-semibold">Munkakör</th>
                       <th className="px-6 py-4 font-semibold">Szervezeti Egység</th>
                       <th className="px-6 py-4 font-semibold">Szerepkör</th>
+                      <th className="px-6 py-4 font-semibold">Közvetlen vezető</th>
                       <th className="px-6 py-4 font-semibold">Belépés</th>
                       <th className="px-6 py-4 text-right font-semibold">Műveletek</th>
                     </tr>
@@ -555,6 +540,11 @@ export default async function HrSettingsPage() {
                       const egyseg = (emp.felhasznalo_profil as any)?.hr_szervezeti_egyseg?.nev || "Központ"
                       const hr_szerepkor = emp.felhasznalo_profil?.hr_szerepkor || "Ismeretlen"
                       const belepes = activeJogviszony?.belepes_datuma ? new Date(activeJogviszony.belepes_datuma).toLocaleDateString("hu-HU") : "-"
+                      
+                      // Közvetlen vezető kikeresése
+                      const managerId = (emp.felhasznalo_profil as any)?.kozvetlen_vezeto_id
+                      const manager = managerId ? employees.find(m => m.id === managerId) : null
+                      const managerName = manager?.felhasznalo_profil?.nev || "Nincs beállítva"
 
                       // Szerepkör badge színezés és fordítás
                       let roleColor = "bg-secondary text-secondary-foreground"
@@ -590,10 +580,13 @@ export default async function HrSettingsPage() {
                             <Badge variant="secondary" className={`font-normal ${roleColor}`}>{roleName}</Badge>
                           </td>
                           <td className="px-6 py-4 text-muted-foreground">
+                            {managerName}
+                          </td>
+                          <td className="px-6 py-4 text-muted-foreground">
                             {belepes}
                           </td>
                           <td className="px-6 py-4 text-right flex items-center justify-end gap-1">
-                            <EmployeeEditDialog employee={emp} jobs={jobs || []} orgUnits={orgUnits || []} />
+                            <EmployeeEditDialog employee={emp} jobs={jobs || []} orgUnits={orgUnits || []} managers={employees || []} />
                             <EmployeeDeleteDialog employeeId={emp.id} employeeName={nev} />
                           </td>
                         </tr>
@@ -612,6 +605,11 @@ export default async function HrSettingsPage() {
         </TabsContent>
 
         <SecuritySettingsTab initialTimeout={profile.munkamenet_idotullepes} />
+        {/* 6. TAB: ÉRTESÍTÉSEK (ÚJ) */}
+        <TabsContent value="ertesitesek" className="space-y-4 outline-none">
+          <HrNotificationSettings />
+        </TabsContent>
+
       </Tabs>
     </div>
   )

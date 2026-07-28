@@ -19,6 +19,75 @@ export async function submitLeaveRequest(formData: FormData) {
     return { error: "Minden mező kötelező" }
   }
 
+  // --- ESZKALÁCIÓS MOTOR ---
+  let aktualisJovahagyoId: string | null = null;
+  const today = new Date().toISOString().split('T')[0];
+
+  // 1. Lekérjük a dolgozó profilját (ki a vezetője?)
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("kozvetlen_vezeto_id")
+    .eq("id", user.id)
+    .single()
+
+  let currentManagerId = profile?.kozvetlen_vezeto_id;
+
+  if (currentManagerId) {
+    // 2. Megnézzük, hogy a vezető elérhető-e MA
+    const { data: managerLeave } = await supabase
+      .from("hr_tavollet")
+      .select("id")
+      .eq("dolgozo_id", currentManagerId)
+      .eq("statusz", "jovahagyva")
+      .lte("kezdet_datuma", today)
+      .gte("veg_datuma", today)
+      .limit(1)
+      .maybeSingle()
+
+    if (managerLeave) {
+      // A vezető távol van! 3. Van-e helyettes?
+      const { data: substitute } = await supabase
+        .from("hr_helyettesites")
+        .select("helyettes_id")
+        .eq("vezeto_id", currentManagerId)
+        .eq("aktiv", true)
+        .lte("kezdet_datuma", today)
+        .gte("veg_datuma", today)
+        .limit(1)
+        .maybeSingle()
+      
+      if (substitute) {
+        aktualisJovahagyoId = substitute.helyettes_id;
+      } else {
+        // Nincs helyettes, eszkaláljuk HR-re (később lehetne Grand-manager)
+        currentManagerId = null;
+      }
+    } else {
+      // A vezető elérhető
+      aktualisJovahagyoId = currentManagerId;
+    }
+  }
+
+  // 4. Ha nincs vezető, vagy a vezető távol van és nincs helyettes -> HR/Admin
+  if (!currentManagerId && !aktualisJovahagyoId) {
+    const { createClient: createAdminClient } = await import("@supabase/supabase-js");
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data: hrAdmin } = await supabaseAdmin
+      .from("felhasznalo_profil")
+      .select("id")
+      .in("hr_szerepkor", ["hr_vezeto", "admin"])
+      .limit(1)
+      .maybeSingle();
+    
+    if (hrAdmin) {
+      aktualisJovahagyoId = hrAdmin.id;
+    }
+  }
+
   const { error } = await supabase
     .from("hr_tavollet")
     .insert({
@@ -26,12 +95,38 @@ export async function submitLeaveRequest(formData: FormData) {
       kezdet_datuma: startDate,
       veg_datuma: endDate,
       tipus: type,
-      statusz: "jovahagyasra_var" // Azonnal jóváhagyásra vár
+      statusz: "jovahagyasra_var",
+      aktualis_jovahagyo_id: aktualisJovahagyoId
     })
 
   if (error) {
     console.error("Leave request error:", error)
     return { error: "Hiba történt az igénylés során." }
+  }
+
+  revalidatePath("/hr/self-service")
+  return { success: true }
+}
+
+export async function acknowledgeJobDescription(munkakorId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { error } = await supabase
+    .from("hr_munkakor_nyugtazas")
+    .insert({
+      user_id: user.id,
+      munkakor_id: munkakorId
+    })
+
+  if (error) {
+    if (error.code === '23505') {
+      // Already acknowledged (if we add a unique constraint, otherwise we just assume success if duplicate)
+      return { success: true }
+    }
+    return { error: error.message }
   }
 
   revalidatePath("/hr/self-service")
@@ -149,4 +244,48 @@ export async function toggleCheckIn() {
     // Already checked out today
     return { error: "Ma már becsekkoltál és kicsekkoltál. Napi limit elérve." }
   }
+}
+
+export async function saveSubstitute(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const helyettesId = formData.get("helyettes_id") as string
+  const kezdet_datuma = formData.get("kezdet_datuma") as string
+  const veg_datuma = formData.get("veg_datuma") as string
+
+  if (!helyettesId || !kezdet_datuma || !veg_datuma) {
+    return { error: "Minden mező kötelező!" }
+  }
+
+  const { error } = await supabase
+    .from("hr_helyettesites")
+    .insert({
+      vezeto_id: user.id,
+      helyettes_id: helyettesId,
+      kezdet_datuma,
+      veg_datuma,
+      aktiv: true
+    })
+
+  if (error) return { error: error.message }
+  revalidatePath("/hr/self-service")
+  return { success: true }
+}
+
+export async function deleteSubstitute(id: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { error } = await supabase
+    .from("hr_helyettesites")
+    .delete()
+    .eq("id", id)
+    .eq("vezeto_id", user.id)
+
+  if (error) return { error: error.message }
+  revalidatePath("/hr/self-service")
+  return { success: true }
 }

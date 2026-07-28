@@ -2,12 +2,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Target, TrendingUp, CheckCircle2, History, User, MessageSquare } from "lucide-react"
+import { Target, TrendingUp, CheckCircle2, History, User, MessageSquare, Plus } from "lucide-react"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
-import { addKpiSelfEvaluation } from "@/app/hr/performance/actions"
+import { addKpiSelfEvaluation, addKpiActivity } from "@/app/hr/performance/actions"
 
 export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[] }) {
   if (!kpis || kpis.length === 0) {
@@ -114,7 +115,9 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
                       <div key={log.id} className="relative">
                         <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
                         <div className="flex items-center gap-2 mb-1">
-                          {log.esemeny_tipus === "kpi_onertekeles" ? (
+                          {log.esemeny_tipus === "kpi_bejegyzes" ? (
+                            <MessageSquare className="w-3 h-3 text-primary" />
+                          ) : log.esemeny_tipus === "kpi_onertekeles" ? (
                             <User className="w-3 h-3 text-primary" />
                           ) : (
                             <History className="w-3 h-3 text-muted-foreground" />
@@ -123,7 +126,8 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
                             {log.esemeny_tipus === "kpi_frissites" && "Állapot frissítés"}
                             {log.esemeny_tipus === "kpi_onertekeles" && "Dolgozói önértékelés"}
                             {log.esemeny_tipus === "kpi_hozzaadas" && "Rendszer bejegyzés"}
-                            {!["kpi_frissites", "kpi_onertekeles", "kpi_hozzaadas"].includes(log.esemeny_tipus) && log.esemeny_tipus}
+                            {log.esemeny_tipus === "kpi_bejegyzes" && "Aktivitás / Bejegyzés"}
+                            {!["kpi_frissites", "kpi_onertekeles", "kpi_hozzaadas", "kpi_bejegyzes"].includes(log.esemeny_tipus) && log.esemeny_tipus}
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {new Date(log.created_at).toLocaleString("hu-HU", { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 
@@ -146,6 +150,73 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
                         <p className="text-sm bg-muted/30 p-3 rounded-md border border-muted mt-2">
                           {kpi.ertekeles_szovege}
                         </p>
+                      </div>
+                    )}
+
+                    {!kpi.ertekeles_szovege && (
+                      <div className="relative">
+                          <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
+                          <div className="flex items-center gap-2 mb-1">
+                            <MessageSquare className="w-3 h-3 text-muted-foreground" />
+                            <span className="font-medium text-sm">Új aktivitás / bejegyzés rögzítése</span>
+                          </div>
+                          <form 
+                            className="flex items-center gap-3 mt-2" 
+                            action={async (formData) => {
+                              const msg = formData.get("megjegyzes") as string;
+                              if (!msg) return;
+                              const res = await addKpiActivity(kpi.id, msg);
+                              if (res?.error) {
+                                toast.error(res.error);
+                              } else {
+                                toast.success("Aktivitás sikeresen rögzítve!");
+                              }
+                            }}
+                          >
+                            <Input type="text" name="megjegyzes" placeholder="Pl: Elvégeztem a feladatot..." required className="flex-1 h-8 text-sm" />
+                            <Button type="submit" size="sm" variant="outline" className="h-8">Hozzáadás</Button>
+                          </form>
+                      </div>
+                    )}
+                    {!kpi.ertekeles_szovege && (
+                      <div className="relative">
+                          <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
+                          <div className="flex items-center gap-2 mb-1">
+                            <TrendingUp className="w-3 h-3 text-muted-foreground" />
+                            <span className="font-medium text-sm">Jelenlegi Állapot frissítése</span>
+                          </div>
+                          <form 
+                            className="flex items-center gap-3 mt-2" 
+                            action={async (formData) => {
+                              let newValStr = formData.get("percent") as string;
+                              if (kpi.meroszam_tipusa === "igen_nem") {
+                                newValStr = formData.get("igen_nem_val") === "on" ? "1" : "0";
+                              }
+                              const newVal = parseFloat(newValStr);
+                              const { updateKpiProgress } = await import("@/app/hr/performance/actions");
+                              const res = await updateKpiProgress(kpi.id, newVal);
+                              if (res?.error) {
+                                toast.error(res.error);
+                              } else {
+                                toast.success("Állapot sikeresen frissítve!");
+                              }
+                            }}
+                          >
+                            {kpi.meroszam_tipusa === "igen_nem" ? (
+                              <div className="flex items-center gap-2">
+                                <input type="checkbox" name="igen_nem_val" defaultChecked={kpi.aktualis_ertek > 0} className="h-4 w-4 rounded border-gray-300" />
+                                <span className="text-sm">Teljesítve</span>
+                              </div>
+                            ) : (
+                              <>
+                                <Input key={`input-${kpi.id}-${kpi.aktualis_ertek}`} type="number" step="0.01" name="percent" defaultValue={kpi.aktualis_ertek || 0} min={0} className="w-32 h-8 text-sm" />
+                                <span className="text-sm font-medium">
+                                  / {kpi.cel_ertek || 100} {kpi.meroszam_tipusa === "szazalek" ? "%" : kpi.meroszam_tipusa === "osszeg" ? "HUF" : kpi.meroszam_tipusa === "skala" ? "Pont" : "Db"}
+                                </span>
+                              </>
+                            )}
+                            <Button type="submit" size="sm" variant="secondary" className="h-8">Frissítés</Button>
+                          </form>
                       </div>
                     )}
                   </div>

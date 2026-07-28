@@ -16,12 +16,12 @@ export default async function ManagerPage() {
     redirect("/auth/login")
   }
 
-  // 1. Jóváhagyásra váró kérelmek lekérése
-  // A varázslat itt történik: A Postgres RLS automatikusan CSAK a beosztottak kérelmeit adja vissza!
+  // 1. Jóváhagyásra váró kérelmek lekérése (amik konkrétan erre a vezetőre/helyettesre vannak szignálva)
   const { data: pendingLeaves } = await supabase
     .from("hr_tavollet")
     .select("*, hr_dolgozo_adatlap(felhasznalo_profil(nev))")
     .eq("statusz", "jovahagyasra_var")
+    .eq("aktualis_jovahagyo_id", user.id)
     .order("created_at", { ascending: false })
 
   // 2. Összes (Folyamatban/Jóváhagyott/stb) kérelem lekérése a naptárhoz

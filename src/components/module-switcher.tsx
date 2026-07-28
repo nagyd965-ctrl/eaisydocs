@@ -38,7 +38,7 @@ export function ModuleSwitcher() {
   const hasHR = modules.includes("hr")
   const canSwitch = modules.length > 1
 
-  const Logo = () => (
+  const logoContent = (
     <div className="text-2xl flex items-center select-none">
       {isHR ? (
         <>
@@ -63,7 +63,7 @@ export function ModuleSwitcher() {
   if (!canSwitch) {
     return (
       <div className="flex items-center gap-2 p-2 w-full">
-        <Logo />
+        {logoContent}
       </div>
     )
   }
@@ -71,7 +71,7 @@ export function ModuleSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-2 hover:bg-muted/50 p-2 rounded-md transition-colors outline-none w-full justify-between">
-        <Logo />
+        {logoContent}
         <ChevronDown className="h-4 w-4 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[200px]">

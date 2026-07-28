@@ -199,7 +199,9 @@ export function PerformanceList({ employees, kpis, logs = [], cycles = [], allKp
                               <div key={log.id} className="relative">
                                 <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
                                 <div className="flex items-center gap-2 mb-1">
-                                  {log.esemeny_tipus === "kpi_onertekeles" ? (
+                                  {log.esemeny_tipus === "kpi_bejegyzes" ? (
+                                    <MessageSquare className="w-3 h-3 text-primary" />
+                                  ) : log.esemeny_tipus === "kpi_onertekeles" ? (
                                     <User className="w-3 h-3 text-primary" />
                                   ) : (
                                     <History className="w-3 h-3 text-muted-foreground" />
@@ -208,7 +210,8 @@ export function PerformanceList({ employees, kpis, logs = [], cycles = [], allKp
                                     {log.esemeny_tipus === "kpi_frissites" && "Állapot frissítés"}
                                     {log.esemeny_tipus === "kpi_onertekeles" && "Dolgozói önértékelés"}
                                     {log.esemeny_tipus === "kpi_hozzaadas" && "Rendszer bejegyzés"}
-                                    {!["kpi_frissites", "kpi_onertekeles", "kpi_hozzaadas"].includes(log.esemeny_tipus) && log.esemeny_tipus}
+                                    {log.esemeny_tipus === "kpi_bejegyzes" && "Aktivitás / Bejegyzés"}
+                                    {!["kpi_frissites", "kpi_onertekeles", "kpi_hozzaadas", "kpi_bejegyzes"].includes(log.esemeny_tipus) && log.esemeny_tipus}
                                   </span>
                                   <span className="text-xs text-muted-foreground">
                                     {new Date(log.created_at).toLocaleString("hu-HU", { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 
@@ -233,6 +236,33 @@ export function PerformanceList({ employees, kpis, logs = [], cycles = [], allKp
                                 </p>
                               </div>
                             )}
+
+                          {!kpi.ertekeles_szovege && (
+                            <div className="relative">
+                                <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
+                                <div className="flex items-center gap-2 mb-1">
+                                  <MessageSquare className="w-3 h-3 text-muted-foreground" />
+                                  <span className="font-medium text-sm">Vezetői bejegyzés rögzítése</span>
+                                </div>
+                                <form 
+                                  className="flex items-center gap-3 mt-2" 
+                                  action={async (formData) => {
+                                    const msg = formData.get("megjegyzes") as string;
+                                    if (!msg) return;
+                                    const { addKpiActivity } = await import("@/app/hr/performance/actions");
+                                    const res = await addKpiActivity(kpi.id, msg);
+                                    if (res?.error) {
+                                      toast.error(res.error);
+                                    } else {
+                                      toast.success("Aktivitás sikeresen rögzítve!");
+                                    }
+                                  }}
+                                >
+                                  <Input type="text" name="megjegyzes" placeholder="Pl: Elvégeztem a feladatot..." required className="flex-1 h-8 text-sm" />
+                                  <Button type="submit" size="sm" variant="outline" className="h-8">Hozzáadás</Button>
+                                </form>
+                            </div>
+                          )}
 
                           <div className="relative">
                               <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />

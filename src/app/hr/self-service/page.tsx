@@ -14,6 +14,8 @@ import { EmployeeKpiCard } from "@/components/hr/employee-kpi-card"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { FileSignature, AlertCircle } from "lucide-react"
+import { JobDescriptionAcknowledgment } from "@/components/hr/job-description-acknowledgment"
+import { SubstituteSettingsCard } from "@/components/hr/substitute-settings-card"
 
 export default async function SelfServicePage() {
   const supabase = await createClient()
@@ -26,7 +28,7 @@ export default async function SelfServicePage() {
   // Lekérdezzük a dolgozó alapadatait és a munkakörét
   const { data: adatlap } = await supabase
     .from("hr_dolgozo_adatlap")
-    .select("*, hr_munkakor(megnevezes), felhasznalo_profil(nev)")
+    .select("*, hr_munkakor(megnevezes), felhasznalo_profil(nev, hr_szerepkor)")
     .eq("id", user.id)
     .single()
 
@@ -114,6 +116,57 @@ export default async function SelfServicePage() {
     .eq("entitas_tipus", "hr_teljesitmeny")
     .order("created_at", { ascending: true })
 
+  // 6. Munkakör és nyugtázás lekérése
+  const { data: jogviszonyInfo } = await supabase
+    .from("hr_jogviszony")
+    .select("*, hr_beosztas(*, hr_munkakor(*))")
+    .eq("dolgozo_id", user.id)
+    .is("kilepes_datuma", null)
+    .single()
+
+  const activeMunkakor = jogviszonyInfo?.hr_beosztas?.[0]?.hr_munkakor;
+
+  let needsAcknowledgment = false;
+  if (activeMunkakor) {
+    const { data: nyugtazas } = await supabase
+      .from("hr_munkakor_nyugtazas")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("munkakor_id", activeMunkakor.id)
+      .single()
+    if (!nyugtazas) needsAcknowledgment = true;
+  }
+
+  // 7. Helyettesítések lekérése
+  const { data: currentSubstituteList } = await supabase
+    .from("hr_helyettesites")
+    .select("*, helyettes_profil:felhasznalo_profil!hr_helyettesites_helyettes_id_fkey(nev)")
+    .eq("vezeto_id", user.id)
+    .eq("aktiv", true)
+    .gte("veg_datuma", new Date().toISOString().split('T')[0])
+    .order("created_at", { ascending: false })
+    .limit(1)
+
+  const currentSubstitute = currentSubstituteList?.[0] || null
+
+  const { data: availableAdatlapUsers } = await supabaseAdmin
+    .from("hr_dolgozo_adatlap")
+    .select("id, felhasznalo_profil!inner(id, nev)")
+    .neq("id", user.id)
+
+  const availableUsers = availableAdatlapUsers
+    ?.map((a: any) => a.felhasznalo_profil)
+    .sort((a: any, b: any) => a.nev.localeCompare(b.nev)) || []
+
+  // Explicitly fetch user role to avoid join issues
+  const { data: myProfile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isManagerOrAdmin = ['hr_vezeto', 'vezeto', 'admin'].includes(myProfile?.hr_szerepkor)
+
   return (
     <div className="space-y-6">
       
@@ -139,6 +192,10 @@ export default async function SelfServicePage() {
           <LeaveRequestDialog />
         </div>
       </div>
+
+      {needsAcknowledgment && activeMunkakor && (
+        <JobDescriptionAcknowledgment munkakor={activeMunkakor} />
+      )}
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Személyes Adatok */}
@@ -170,6 +227,11 @@ export default async function SelfServicePage() {
 
         {/* Titkos Adatok Kártya */}
         <PersonalDataCard />
+
+        {/* Helyettesítés Kártya */}
+        {isManagerOrAdmin && (
+          <SubstituteSettingsCard availableUsers={availableUsers || []} currentSubstitute={currentSubstitute} />
+        )}
         
         {/* Szabadság egyenleg */}
         <Card>

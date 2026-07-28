@@ -95,10 +95,6 @@ export async function updateKpiProgress(kpiId: string, newValue: number) {
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
-    return { error: "Nincs jogosultságod KPI-ok kezeléséhez." }
-  }
-
   const adminClient = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -107,11 +103,15 @@ export async function updateKpiProgress(kpiId: string, newValue: number) {
   // Először le kell kérni a meglévő KPI adatokat a százalék számításához
   const { data: kpiData } = await adminClient
     .from("hr_teljesitmeny")
-    .select("cel_ertek, meroszam_tipusa")
+    .select("dolgozo_id, cel_ertek, meroszam_tipusa")
     .eq("id", kpiId)
     .single()
 
   if (!kpiData) return { error: "Célkitűzés nem található." }
+
+  if (!profile || (!["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor) && kpiData.dolgozo_id !== user.id)) {
+    return { error: "Nincs jogosultságod a célkitűzés frissítéséhez." }
+  }
 
   let pontszam = 0;
   if (kpiData.meroszam_tipusa === "igen_nem") {
@@ -454,5 +454,34 @@ export async function editKpi(kpiId: string, formData: FormData) {
   })
 
   revalidatePath("/hr/performance")
+  return { success: true }
+}
+
+export async function addKpiActivity(kpiId: string, megjegyzes: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { error } = await adminClient.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "kpi_bejegyzes", 
+    entitas_tipus: "hr_teljesitmeny",
+    entitas_id: kpiId,
+    megjegyzes: megjegyzes
+  })
+
+  if (error) {
+    console.error("Hiba KPI bejegyzés hozzáadásakor:", error)
+    return { error: error.message }
+  }
+
+  revalidatePath("/hr/performance")
+  revalidatePath("/hr/self-service")
   return { success: true }
 }

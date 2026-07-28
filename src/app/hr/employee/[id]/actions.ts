@@ -65,6 +65,8 @@ export async function addQualification(employeeId: string, formData: FormData) {
   const megszerzes_datuma = formData.get("megszerzes_datuma") as string
   const fokozat = formData.get("fokozat") as string
 
+  const file = formData.get("file") as File | null
+
   if (!tipus || !megnevezes) {
     return { error: "A típus és a megnevezés kitöltése kötelező!" }
   }
@@ -76,6 +78,23 @@ export async function addQualification(employeeId: string, formData: FormData) {
     }
   }
 
+  let fileUrl = null
+  if (file && file.size > 0) {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `kepzettseg_${Date.now()}.${fileExt}`
+    const filePath = `dolgozo_${employeeId}/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from("irat_files")
+      .upload(filePath, file)
+
+    if (uploadError) {
+      console.error("Fájl feltöltési hiba:", uploadError)
+      return { error: "Hiba történt a fájl feltöltésekor." }
+    }
+    fileUrl = filePath
+  }
+
   const { error } = await supabase.from("hr_kepzettseg").insert({
     dolgozo_id: employeeId,
     tipus,
@@ -84,12 +103,20 @@ export async function addQualification(employeeId: string, formData: FormData) {
     bizonyitvany_szam,
     megszerzes_datuma: megszerzes_datuma || null,
     fokozat,
+    dokumentum_url: fileUrl
   })
 
   if (error) return { error: error.message }
 
   revalidatePath(`/hr/employee/${employeeId}`)
   return { success: true }
+}
+
+export async function getQualificationFileUrl(filePath: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.storage.from("irat_files").createSignedUrl(filePath, 3600)
+  if (error || !data) return { error: "Nem sikerült legenerálni a linket." }
+  return { url: data.signedUrl }
 }
 
 export async function deleteQualification(id: string, employeeId: string) {

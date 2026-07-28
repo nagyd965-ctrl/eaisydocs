@@ -46,15 +46,17 @@ Ez egy kettős funkciójú rendszer, ami egy közös alapon nyugszik:
 - [x] Fájlfeltöltés Supabase Storage-ba, automatikus SHA-256 hash generálással (integritás-védelem).
 
 ### 👥 EAISYHR (HR és Toborzás: Jelenlegi Állapot)
-- [x] **Dolgozói alapadatok:** KÉSZ (Adatlap, időbeliség kezelése megvan).
+- [x] **Dolgozói alapadatok:** KÉSZ (Adatlap, időbeliség kezelése, orvosi és bizonyítvány feltöltések megvannak).
 - [x] **Munkaszerződés-kezelés:** KÉSZ.
 - [x] **Cafeteria Modul:** KÉSZ (Nyilatkozatok, egyenlegek).
-- [x] **Távollétek (Szabadság) kezelése:** KÉSZ.
+- [x] **Távollétek (Szabadság) kezelése:** KÉSZ (Helyettesítési és eszkalációs láncokkal együtt).
 - [x] **Automatikus Brevo E-mail:** Új dolgozó felvételekor ideiglenes jelszó kiküldése e-mailben.
-- [/] **Szervezet és Munkakörök:** A katalógus és a szervezeti ábra listázása javítva, de a "Közvetlen vezető" és szervezeti egység bekötése az `EmployeeEditDialog`-ba még hátravan.
+- [/] **Szervezet és Munkakörök:** A szervezeti ábra listázása át lett dolgozva közvetlen vezetői (managerId) alapra. A katalógus működik, de a szerkesztő UI finomhangolása esetleg még hátravan.
 - [x] **Toborzás (ATS):** KÉSZ.
 - [x] **Onboarding (Beléptetés):** KÉSZ. (Feladatlista kezelés dinamikusan, elektronikus dokumentum nyugtázás és egykattintásos átemelés a toborzásból kész).
-- [x] **Teljesítményértékelés:** KÉSZ (Ciklusok, KPI-könyvtár, kaszkádolás, önértékelés, Dashboard és Bónusz-kalkulátor megvalósítva).
+- [x] **Teljesítményértékelés:** KÉSZ (Ciklusok, KPI-könyvtár, kaszkádolás, önértékelés, idővonalas aktivitások, Dashboard és Bónusz-kalkulátor megvalósítva).
+- [x] **Értesítések és Riasztások (HR):** KÉSZ. (Többcsatornás riasztások [In-app, E-mail] Frontend UI-ja elkészült a HR beállításokban a lejáratokhoz és T1041-hez).
+- [x] **PDF és Kép megjelenítő (Iratok):** KÉSZ. (Felugró ablakos (Dialog) PDF-viewer használata beágyazva, nem új lapon nyílnak a HR és Docs dokumentumok).
 
 ---
 
@@ -82,6 +84,7 @@ A projekt eaisyHR része már jelentősen előrehaladt! Amikkel folytatni kell:
 - [x] Csapatnaptár és távollétek megjelenítése elkészült.
 - [x] Önkiszolgáló munkaidő-rögzítés (timesheet / becsekkolás) és annak utólagos HR korrekciója elkészült.
 - [x] Export motor a bérszámfejtő felé (CSV/XLSX) és bérszámfejtési export (`getPayrollData`) szintén működik.
+- [ ] Beléptető import (Kritikus!): CSV import egy kártyás beléptetőből, és a rögzített vs. mért adatok eltéréslistájának generálása.
 - [ ] Speciális pótlékszámítási logikák kiegészítése (opcionális).
 
 **4. Munkaszerződés Generátor (KÉSZ)**

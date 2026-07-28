@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Users, UserPlus, Calendar, Briefcase, AlertCircle, Clock, ChevronRight, PlusCircle, CheckCircle2 } from "lucide-react"
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
+import { ReassignLeavesButton } from "@/components/hr/reassign-leaves-button"
 
 export default async function HrOverviewPage() {
   const supabase = await createClient()
@@ -180,9 +181,12 @@ export default async function HrOverviewPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         {/* 2. Teendők és Értesítések (Inbox) */}
         <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>HR Teendők & Figyelmeztetések</CardTitle>
-            <CardDescription>Aktuális feladatok, amik figyelmet igényelnek.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>HR Teendők & Figyelmeztetések</CardTitle>
+              <CardDescription>Aktuális feladatok, amik figyelmet igényelnek.</CardDescription>
+            </div>
+            <ReassignLeavesButton />
           </CardHeader>
           <CardContent>
             <div className="space-y-4">

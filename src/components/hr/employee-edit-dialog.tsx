@@ -17,7 +17,7 @@ import { Edit, Save } from "lucide-react"
 import { updateEmployeeInfo } from "@/app/hr/settings/actions"
 import { toast } from "sonner"
 
-export function EmployeeEditDialog({ employee, jobs, orgUnits = [] }: { employee: any, jobs: any[], orgUnits?: any[] }) {
+export function EmployeeEditDialog({ employee, jobs, orgUnits = [], managers = [] }: { employee: any, jobs: any[], orgUnits?: any[], managers?: any[] }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   
@@ -38,6 +38,7 @@ export function EmployeeEditDialog({ employee, jobs, orgUnits = [] }: { employee
   const [role, setRole] = useState<string>(employee.felhasznalo_profil?.hr_szerepkor || "munkavallalo")
   const [munkakorId, setMunkakorId] = useState<string>(activeBeosztas?.hr_munkakor?.id || "none")
   const [orgUnitId, setOrgUnitId] = useState<string>(employee.felhasznalo_profil?.hr_szervezeti_egyseg_id || "none")
+  const [managerId, setManagerId] = useState<string>(employee.felhasznalo_profil?.kozvetlen_vezeto_id || "none")
 
   const getMunkakorLabel = (id: string) => {
     if (id === "none") return "Nincs munkakör beállítva"
@@ -72,7 +73,7 @@ export function EmployeeEditDialog({ employee, jobs, orgUnits = [] }: { employee
       <DialogTrigger render={<Button variant="ghost" size="sm" className="h-8 w-8 p-0" />}>
         <Edit className="h-4 w-4 text-muted-foreground hover:text-primary" />
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] overflow-y-auto max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Dolgozó szerkesztése</DialogTitle>
           <DialogDescription>
@@ -130,6 +131,24 @@ export function EmployeeEditDialog({ employee, jobs, orgUnits = [] }: { employee
                 {orgUnits?.map(unit => (
                   <SelectItem key={unit.id} value={unit.id}>
                     {unit.nev}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="managerId">Közvetlen Vezető (Opcionális)</Label>
+            <input type="hidden" name="managerId" value={managerId} />
+            <Select value={managerId} onValueChange={setManagerId as any}>
+              <SelectTrigger>
+                <span>{managerId === "none" ? "Nincs beállítva" : managers?.find(m => m.id === managerId)?.felhasznalo_profil?.nev || "Ismeretlen"}</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nincs beállítva</SelectItem>
+                {managers?.filter(m => m.id !== employee.id).map(manager => (
+                  <SelectItem key={manager.id} value={manager.id}>
+                    {manager.felhasznalo_profil?.nev || "Névtelen"} ({roleMap[manager.felhasznalo_profil?.hr_szerepkor] || "Ismeretlen"})
                   </SelectItem>
                 ))}
               </SelectContent>

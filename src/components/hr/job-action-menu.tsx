@@ -122,6 +122,36 @@ export function JobActionMenu({ job }: JobActionMenuProps) {
                 <Label htmlFor="kockazat_tipusa">Kockázat Típusa (Munkavédelem)</Label>
                 <Input id="kockazat_tipusa" name="kockazat_tipusa" defaultValue={job.kockazat_tipusa || ""} />
               </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="feladatok_es_hataskorok">Feladatok és Hatáskörök (soronként egy)</Label>
+                <textarea 
+                  id="feladatok_es_hataskorok" 
+                  name="feladatok_es_hataskorok" 
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  defaultValue={job.feladatok_es_hataskorok ? job.feladatok_es_hataskorok.join('\n') : ""}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="elvart_kompetenciak">Elvárt Kompetenciák és Végzettség (soronként egy)</Label>
+                <textarea 
+                  id="elvart_kompetenciak" 
+                  name="elvart_kompetenciak" 
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  defaultValue={job.elvart_kompetenciak ? job.elvart_kompetenciak.join('\n') : ""}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="orvosi_vizsgalat_tipus">Orvosi Vizsgálat Típusa</Label>
+                  <Input id="orvosi_vizsgalat_tipus" name="orvosi_vizsgalat_tipus" defaultValue={job.orvosi_vizsgalat_tipus || ""} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="orvosi_vizsgalat_gyakorisag_ho">Gyakoriság (hónapban)</Label>
+                  <Input id="orvosi_vizsgalat_gyakorisag_ho" name="orvosi_vizsgalat_gyakorisag_ho" type="number" defaultValue={job.orvosi_vizsgalat_gyakorisag_ho || ""} />
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)} disabled={loading}>

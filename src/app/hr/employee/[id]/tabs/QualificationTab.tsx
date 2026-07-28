@@ -8,8 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, GraduationCap } from "lucide-react"
-import { addQualification, deleteQualification } from "../actions"
+import { Plus, Trash2, GraduationCap, FileText } from "lucide-react"
+import { addQualification, deleteQualification, getQualificationFileUrl } from "../actions"
 import { toast } from "sonner"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
@@ -25,6 +25,9 @@ export function QualificationTab({
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [kepzesTipus, setKepzesTipus] = useState("iskola")
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null)
+  const [viewerTitle, setViewerTitle] = useState("")
   const today = new Date().toISOString().split("T")[0]
 
   const kepzesLabels: Record<string, string> = {
@@ -106,6 +109,10 @@ export function QualificationTab({
                     <Input name="megszerzes_datuma" type="date" max={today} />
                   </div>
                 </div>
+                <div className="space-y-2 pt-2 border-t mt-4">
+                  <Label>Dokumentum feltöltése (opcionális)</Label>
+                  <Input type="file" name="file" accept=".pdf,image/*" />
+                </div>
                 <DialogFooter className="mt-6">
                   <Button type="button" variant="outline" onClick={() => setOpen(false)}>Mégse</Button>
                   <Button type="submit" disabled={loading}>{loading ? "Mentés..." : "Mentés"}</Button>
@@ -142,7 +149,26 @@ export function QualificationTab({
                   <TableCell>{item.intezmeny || "-"}</TableCell>
                   <TableCell>{item.megszerzes_datuma ? new Date(item.megszerzes_datuma).getFullYear() : "-"}</TableCell>
                   {isHrOrAdmin && (
-                    <TableCell className="text-right">
+                    <TableCell className="text-right flex items-center justify-end gap-2">
+                      {item.dokumentum_url && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          title="Dokumentum megtekintése"
+                          onClick={async () => {
+                            const res = await getQualificationFileUrl(item.dokumentum_url);
+                            if (res.error) {
+                              toast.error(res.error);
+                            } else if (res.url) {
+                              setViewerUrl(res.url);
+                              setViewerTitle(`Dokumentum: ${item.megnevezes}`);
+                              setViewerOpen(true);
+                            }
+                          }}
+                        >
+                          <FileText className="w-4 h-4 text-primary" />
+                        </Button>
+                      )}
                       <AlertDialog>
                         <AlertDialogTrigger className={`${buttonVariants({ variant: "ghost", size: "icon" })} text-destructive hover:text-destructive transition-colors`} title="Törlés">
                           <Trash2 className="w-4 h-4" />
@@ -166,6 +192,23 @@ export function QualificationTab({
           </Table>
         )}
       </CardContent>
+
+      <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
+        <DialogContent className="sm:max-w-[1000px] w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 py-4 border-b shrink-0">
+            <DialogTitle>{viewerTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 w-full bg-muted/30">
+            {viewerUrl && (
+              <iframe 
+                src={`${viewerUrl}#toolbar=0&navpanes=0`} 
+                className="w-full h-full border-none"
+                title={viewerTitle}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

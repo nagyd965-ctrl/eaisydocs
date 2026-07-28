@@ -16,10 +16,19 @@ export async function createMunkakor(formData: FormData) {
   const feor_kod = formData.get("feor_kod") as string
   const besorolasi_szint = formData.get("besorolasi_szint") as string
   const kockazat_tipusa = formData.get("kockazat_tipusa") as string
+  
+  const feladatok = formData.get("feladatok_es_hataskorok") as string
+  const kompetenciak = formData.get("elvart_kompetenciak") as string
+  const orvosi_tipus = formData.get("orvosi_vizsgalat_tipus") as string
+  const orvosi_ho = formData.get("orvosi_vizsgalat_gyakorisag_ho") as string
 
   if (!megnevezes) {
     return { error: "A megnevezés megadása kötelező" }
   }
+
+  // Parse textareas into JSON arrays by splitting newlines
+  const feladatokArray = feladatok ? feladatok.split('\n').map(s => s.trim()).filter(s => s) : []
+  const kompetenciakArray = kompetenciak ? kompetenciak.split('\n').map(s => s.trim()).filter(s => s) : []
 
   const { data, error } = await supabase
     .from("hr_munkakor")
@@ -29,6 +38,10 @@ export async function createMunkakor(formData: FormData) {
         feor_kod: feor_kod || null,
         besorolasi_szint: besorolasi_szint || null,
         kockazat_tipusa: kockazat_tipusa || null,
+        feladatok_es_hataskorok: feladatokArray,
+        elvart_kompetenciak: kompetenciakArray,
+        orvosi_vizsgalat_tipus: orvosi_tipus || null,
+        orvosi_vizsgalat_gyakorisag_ho: orvosi_ho ? parseInt(orvosi_ho, 10) : null
       }
     ])
     .select()
@@ -56,6 +69,7 @@ export async function updateEmployeeInfo(formData: FormData) {
   const entryDate = formData.get("entryDate") as string
   const jogviszonyId = formData.get("jogviszonyId") as string
   const formDataOrgUnitId = formData.get("orgUnitId") as string
+  const managerId = formData.get("managerId") as string
 
   // 0. Szerviz kliens inicializálása (mivel RLS miatt a profilt csak admin joggal tudjuk módosítani)
   const supabaseAdmin = createSupabaseClient(
@@ -89,6 +103,10 @@ export async function updateEmployeeInfo(formData: FormData) {
   
   if (finalOrgUnitId !== undefined) {
     profileUpdateData.hr_szervezeti_egyseg_id = finalOrgUnitId
+  }
+
+  if (managerId !== undefined) {
+    profileUpdateData.kozvetlen_vezeto_id = managerId === "none" ? null : managerId
   }
 
   if (Object.keys(profileUpdateData).length > 0) {
@@ -160,8 +178,16 @@ export async function updateMunkakor(id: string, formData: FormData) {
   const feor_kod = formData.get("feor_kod") as string
   const besorolasi_szint = formData.get("besorolasi_szint") as string
   const kockazat_tipusa = formData.get("kockazat_tipusa") as string
+  
+  const feladatok = formData.get("feladatok_es_hataskorok") as string
+  const kompetenciak = formData.get("elvart_kompetenciak") as string
+  const orvosi_tipus = formData.get("orvosi_vizsgalat_tipus") as string
+  const orvosi_ho = formData.get("orvosi_vizsgalat_gyakorisag_ho") as string
 
   if (!megnevezes) return { error: "A megnevezés megadása kötelező" }
+
+  const feladatokArray = feladatok ? feladatok.split('\n').map(s => s.trim()).filter(s => s) : []
+  const kompetenciakArray = kompetenciak ? kompetenciak.split('\n').map(s => s.trim()).filter(s => s) : []
 
   const { error } = await supabase
     .from("hr_munkakor")
@@ -170,6 +196,10 @@ export async function updateMunkakor(id: string, formData: FormData) {
       feor_kod: feor_kod || null,
       besorolasi_szint: besorolasi_szint || null,
       kockazat_tipusa: kockazat_tipusa || null,
+      feladatok_es_hataskorok: feladatokArray,
+      elvart_kompetenciak: kompetenciakArray,
+      orvosi_vizsgalat_tipus: orvosi_tipus || null,
+      orvosi_vizsgalat_gyakorisag_ho: orvosi_ho ? parseInt(orvosi_ho, 10) : null
     })
     .eq("id", id)
 
