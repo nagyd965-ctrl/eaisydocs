@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
+import { sendNotificationEmail, buildHtmlEmail } from "@/utils/mailer"
 
 export async function updateCandidateStatus(candidateId: string, newStatus: string) {
   const supabase = await createClient()
@@ -100,6 +101,34 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
         })
       }
     }
+  } else if (newStatus === "interju") {
+    // Ha interjúra húzták a jelöltet, azonnal küldünk egy értesítő e-mailt
+    const { data: candidate, error: fetchErr } = await adminClient
+      .from("hr_toborzas")
+      .select(`nev, email, hr_munkakor(megnevezes)`)
+      .eq("id", candidateId)
+      .single()
+
+    if (!fetchErr && candidate && candidate.email) {
+      try {
+        // @ts-ignore
+        const munkakor = candidate.hr_munkakor?.megnevezes || "megpályázott pozíció"
+        
+        await sendNotificationEmail({
+          to: candidate.email,
+          subject: "Meghívás személyes interjúra - Think AI Kft.",
+          html: buildHtmlEmail(
+            "Meghívás személyes interjúra",
+            `Kedves ${candidate.nev}!\n\nÖrömmel értesítjük, hogy jelentkezését a(z) ${munkakor} pozícióra sikeresnek értékeltük. Szeretnénk behívni egy személyes interjúra!\n\nHamarosan jelentkezni fogunk a pontos időpont egyeztetése céljából.\n\nÜdvözlettel,\nThink AI Kft. HR csapata`,
+            [],
+            "Jelentkezés megtekintése", // Button fallback
+            `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/hr/recruitment`
+          )
+        })
+      } catch (err) {
+        console.error("Nem sikerült elküldeni az interjú meghívó e-mailt:", err)
+      }
+    }
   }
 
   await supabase.from("hr_esemeny_naplo").insert({
@@ -112,6 +141,58 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
 
   revalidatePath("/hr/recruitment")
   revalidatePath("/hr/onboarding")
+  return { success: true }
+}
+
+export async function scheduleInterview(candidateId: string, idopont: string, helyszin: string, uzenet: string, smsKerve: boolean) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const adminClient = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+  const { error } = await adminClient
+    .from("hr_toborzas")
+    .update({ 
+      statusz: "interju",
+      interju_idopont: idopont,
+      interju_helyszin: helyszin,
+      sms_emlekezteto_kerve: smsKerve
+    })
+    .eq("id", candidateId)
+
+  if (error) return { error: error.message }
+
+  // E-mail küldés
+  const { data: candidate } = await adminClient.from("hr_toborzas").select(`nev, email`).eq("id", candidateId).single()
+  
+  if (candidate && candidate.email) {
+    try {
+      await sendNotificationEmail({
+        to: candidate.email,
+        subject: "Meghívás személyes interjúra - Think AI Kft.",
+        html: buildHtmlEmail(
+          "Meghívás személyes interjúra",
+          uzenet,
+          [
+            { label: "Időpont", value: new Date(idopont).toLocaleString('hu-HU', { dateStyle: 'long', timeStyle: 'short' }) },
+            { label: "Helyszín / Link", value: helyszin }
+          ],
+          "Jelentkezés megtekintése",
+          `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/hr/recruitment`
+        )
+      })
+    } catch (err) {
+      console.error("Nem sikerült elküldeni az interjú meghívó e-mailt:", err)
+    }
+  }
+
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id, esemeny_tipus: "munkatars_felvetel", entitas_tipus: "hr_toborzas", entitas_id: candidateId,
+    megjegyzes: `Interjú egyeztetve: ${new Date(idopont).toLocaleString('hu-HU')}`
+  })
+
+  revalidatePath("/hr/recruitment")
   return { success: true }
 }
 

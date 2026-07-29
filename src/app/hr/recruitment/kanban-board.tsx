@@ -21,6 +21,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button"
 import { CandidateProfileSheet } from "@/components/hr/candidate-profile-sheet"
 
 const KANBAN_COLUMNS = [
@@ -167,6 +180,13 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
     // Ha átment másik oszlopba
     const originalStatus = activeCandidate.statusz
     
+    if (newStatus === "interju") {
+      setInterviewCandidateId(activeId)
+      setInterviewCandidateName(activeCandidate.nev)
+      setIsInterviewModalOpen(true)
+      return // Várjuk meg a modal bezárását
+    }
+
     // Optimista frissítés a UI-on
     setCandidates(prev => 
       prev.map(c => c.id === activeId ? { ...c, statusz: newStatus } : c)
@@ -182,6 +202,46 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
       )
     } else {
       toast.success("Jelölt státusza frissítve!")
+    }
+  }
+
+  // Interjú modal state
+  const [isInterviewModalOpen, setIsInterviewModalOpen] = useState(false)
+  const [interviewCandidateId, setInterviewCandidateId] = useState<string | null>(null)
+  const [interviewCandidateName, setInterviewCandidateName] = useState<string>("")
+  const [interjuDate, setInterjuDate] = useState("")
+  const [interjuTime, setInterjuTime] = useState("")
+  const [interjuLocation, setInterjuLocation] = useState("")
+  const [smsRequested, setSmsRequested] = useState(false)
+  const [interjuMessage, setInterjuMessage] = useState("Örömmel értesítjük, hogy jelentkezését sikeresnek értékeltük. Szeretnénk behívni egy személyes interjúra!")
+
+  const handleInterviewSave = async () => {
+    if (!interjuDate || !interjuTime || !interjuLocation) {
+      toast.error("Kérlek adj meg minden adatot (Dátum, Időpont, Helyszín)!")
+      return
+    }
+
+    if (!interviewCandidateId) return
+
+    const fullDate = `${interjuDate}T${interjuTime}:00`
+    
+    // Optimista UI
+    const originalStatus = candidates.find(c => c.id === interviewCandidateId)?.statusz
+    setCandidates(prev => prev.map(c => c.id === interviewCandidateId ? { ...c, statusz: "interju" } : c))
+    setIsInterviewModalOpen(false)
+    
+    const { scheduleInterview } = await import("./actions")
+    const res = await scheduleInterview(interviewCandidateId, fullDate, interjuLocation, interjuMessage, smsRequested)
+    
+    if (res.error) {
+      toast.error("Hiba az interjú ütemezésekor: " + res.error)
+      setCandidates(prev => prev.map(c => c.id === interviewCandidateId ? { ...c, statusz: originalStatus } : c))
+    } else {
+      toast.success("Interjú sikeresen egyeztetve és e-mail elküldve!")
+      setInterjuDate("")
+      setInterjuTime("")
+      setInterjuLocation("")
+      setSmsRequested(false)
     }
   }
 
@@ -333,6 +393,59 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
         onUpdate={handleUpdateCandidate}
         onDelete={handleDeleteCandidateFromSheet}
       />
+
+      {/* Interjú Ütemező Modal */}
+      <Dialog open={isInterviewModalOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsInterviewModalOpen(false)
+          // Visszaállítjuk a kártyát, ha mégse kattintott a mentésre
+          setCandidates(prev => prev.map(c => c.id === interviewCandidateId ? { ...c, statusz: candidates.find(old => old.id === interviewCandidateId)?.statusz || "uj" } : c))
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Interjú ütemezése</DialogTitle>
+            <DialogDescription>
+              Add meg az interjú adatait {interviewCandidateName} számára. A mentés után a rendszer azonnal e-mailt küld a jelöltnek.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="date">Dátum</Label>
+                <Input id="date" type="date" value={interjuDate} onChange={(e) => setInterjuDate(e.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="time">Időpont</Label>
+                <Input id="time" type="time" value={interjuTime} onChange={(e) => setInterjuTime(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="location">Helyszín vagy Link (pl. Google Meet)</Label>
+              <Input id="location" placeholder="https://meet.google.com/..." value={interjuLocation} onChange={(e) => setInterjuLocation(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="message">E-mail szövege</Label>
+              <Textarea 
+                id="message" 
+                rows={4}
+                value={interjuMessage} 
+                onChange={(e) => setInterjuMessage(e.target.value)} 
+              />
+            </div>
+            <div className="flex items-center space-x-2 mt-2">
+              <Checkbox id="sms" checked={smsRequested} onCheckedChange={(c) => setSmsRequested(c as boolean)} />
+              <Label htmlFor="sms" className="font-normal cursor-pointer">
+                SMS emlékeztető küldése az interjú napján
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsInterviewModalOpen(false)}>Mégse</Button>
+            <Button onClick={handleInterviewSave}>Mentés és E-mail küldése</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
