@@ -1,13 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useTransition, useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Bell, Mail, Monitor } from "lucide-react"
+import { Bell, Mail, Monitor, Loader2, Info } from "lucide-react"
 import { toast } from "sonner"
 import { Checkbox } from "@/components/ui/checkbox"
-
+import { updateNotificationRule } from "./notification-actions"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 interface Rule {
   id: string
   esemeny_tipus: string
@@ -16,36 +21,89 @@ interface Rule {
   csatorna?: string[]
 }
 
-// Ideiglenes HR mock szabályok a frontend demóhoz
-const mockHrRules: Rule[] = [
-  { id: "hr-1", esemeny_tipus: "Orvosi vizsgálat lejárata (30 nap)", kinek: "HR, Érintett", aktiv: true, csatorna: ["in_app", "email"] },
-  { id: "hr-2", esemeny_tipus: "T1041 Bejelentési figyelmeztetés", kinek: "HR, Bérszámfejtés", aktiv: true, csatorna: ["in_app"] },
-  { id: "hr-3", esemeny_tipus: "Határozott idejű szerződés lejárata", kinek: "Vezető, HR", aktiv: false, csatorna: ["email"] },
-  { id: "hr-4", esemeny_tipus: "Távollét / Szabadság jóváhagyása", kinek: "Közvetlen Vezető", aktiv: true, csatorna: ["in_app", "email"] },
-  { id: "hr-5", esemeny_tipus: "Jelenléti Eltérés (Késés / Hiányzás)", kinek: "Vezető", aktiv: false, csatorna: ["in_app"] },
-]
+const eventTypeTranslations: Record<string, string> = {
+  'orvosi_vizsgalat_lejarat': 'Orvosi vizsgálat lejárata',
+  'tanulmanyi_szerzodes_lejarat': 'Tanulmányi szerződés lejárata',
+  'hatarozott_szerzodes_lejarat': 'Határozott idejű szerződés lejárata',
+  'probaido_lejarat': 'Próbaidő lejárata',
+  't1041_bejelentes': 'T1041 Bejelentési figyelmeztetés',
+  'szabadsag_jovahagyas': 'Távollét / Szabadság jóváhagyása',
+  'teljesitmeny_ertekeles': 'Teljesítményértékelés határidők',
+  'hatarido_kozeledik': 'Iktatott ügyirat - Határidő közeledik',
+  'hatarido_lejart': 'Iktatott ügyirat - Határidő lejárt',
+  'uj_szignalas': 'Új szignálás érkezett',
+  'allapotvaltozas': 'Ügyirat állapotváltozás',
+  'megorzesi_ido_lejart': 'Megőrzési idő lejárt'
+}
 
-export function HrNotificationSettings() {
-  const [hrRules, setHrRules] = useState<Rule[]>(mockHrRules)
+const eventTypeDescriptions: Record<string, string> = {
+  'orvosi_vizsgalat_lejarat': '30 és 7 nappal a lejárati dátum előtt küld figyelmeztetést a háttérfolyamat, a lejárat napjától pedig minden nap.',
+  'tanulmanyi_szerzodes_lejarat': '7 nappal a tanulmányi szerződés lejárata előtt küld értesítést.',
+  'hatarozott_szerzodes_lejarat': '15 nappal a határozott idejű munkaszerződés vége előtt küld figyelmeztetést.',
+  'probaido_lejarat': '7 nappal a rögzített próbaidő lejárta előtt küld figyelmeztetést a háttérfolyamat.',
+  't1041_bejelentes': '2 nappal a dolgozó belépési dátuma előtt küld figyelmeztetést, amennyiben nem rögzítetted még a T1041-et.',
+  'szabadsag_jovahagyas': 'Azonnal értesítést küld a vezetőnek, amint a dolgozó beküld egy új kérelmet a felületen.',
+  'teljesitmeny_ertekeles': 'A beállított teljesítményértékelési időszak lejárta előtt 7 nappal küld értesítést.',
+  'hatarido_kozeledik': 'Iktatott ügyiratok esetén a határidő lejárta előtt küld emlékeztetőt.',
+  'hatarido_lejart': 'Iktatott ügyiratok esetén a határidő napján vagy utána küld figyelmeztetést.',
+  'uj_szignalas': 'Azonnal értesítést küld, ha egy új iratot vagy feladatot szignálnak rád.',
+  'allapotvaltozas': 'Azonnal értesítést küld, ha egy általad követett ügyirat állapota megváltozik.',
+  'megorzesi_ido_lejart': 'Az irattári megőrzési idő lejárata napján küld figyelmeztetést selejtezésre.'
+}
 
-  const handleHrToggle = (id: string, currentStatus: boolean) => {
-    setHrRules(prev => prev.map(r => r.id === id ? { ...r, aktiv: !currentStatus } : r))
-    toast.success("Frontend Demó: Állapot mentve (csak UI)")
+export function HrNotificationSettings({ rules = [] }: { rules: Rule[] }) {
+  const [localRules, setLocalRules] = useState<Rule[]>(rules)
+  const [isPending, startTransition] = useTransition()
+
+  // Sync prop changes (e.g. from server actions revalidating path)
+  useEffect(() => {
+    setLocalRules(rules)
+  }, [rules])
+
+  const handleToggle = (id: string, currentStatus: boolean, currentChannels: string[]) => {
+    const newStatus = !currentStatus
+    // Optimistic update
+    setLocalRules(prev => prev.map(r => r.id === id ? { ...r, aktiv: newStatus } : r))
+    
+    startTransition(async () => {
+      const result = await updateNotificationRule(id, newStatus, currentChannels)
+      if (result.error) {
+        toast.error("Hiba a mentés során", { description: result.error })
+        // Revert on error
+        setLocalRules(rules)
+      } else {
+        toast.success("Beállítás elmentve")
+      }
+    })
   }
 
-  const handleHrChannelToggle = (id: string, channel: string, isChecked: boolean) => {
-    setHrRules(prev => prev.map(r => {
-      if (r.id === id) {
-        const csatorna = r.csatorna || []
-        return { ...r, csatorna: isChecked ? [...csatorna, channel] : csatorna.filter(c => c !== channel) }
+  const handleChannelToggle = (id: string, channel: string, isChecked: boolean, currentStatus: boolean, currentChannels: string[]) => {
+    const newChannels = isChecked 
+      ? [...currentChannels, channel] 
+      : currentChannels.filter(c => c !== channel)
+      
+    // Optimistic update
+    setLocalRules(prev => prev.map(r => r.id === id ? { ...r, csatorna: newChannels } : r))
+    
+    startTransition(async () => {
+      const result = await updateNotificationRule(id, currentStatus, newChannels)
+      if (result.error) {
+        toast.error("Hiba a mentés során", { description: result.error })
+        // Revert on error
+        setLocalRules(rules)
+      } else {
+        toast.success("Csatorna elmentve")
       }
-      return r
-    }))
-    toast.success("Frontend Demó: Csatorna mentve (csak UI)")
+    })
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 relative">
+      {isPending && (
+        <div className="absolute top-4 right-4 text-muted-foreground flex items-center text-sm">
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Mentés folyamatban...
+        </div>
+      )}
       {/* HR Riasztások */}
       <Card className="border-border shadow-sm border-none bg-transparent shadow-none">
         <CardHeader className="px-6 pb-6 pt-0 border-b">
@@ -57,50 +115,73 @@ export function HrNotificationSettings() {
         </CardHeader>
         <CardContent className="px-6 pt-6">
           <div className="space-y-4">
-            {hrRules.map((rule) => (
-              <div key={rule.id} className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 border rounded-lg bg-card gap-4">
-                <div className="space-y-0.5 flex-1">
-                  <Label className="text-base font-medium">
-                    {rule.esemeny_tipus}
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Címzett: {rule.kinek}
-                  </p>
-                </div>
-                
-                {/* Csatorna választó */}
-                <div className="flex items-center gap-6 bg-muted/50 p-2 rounded-md border">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id={`inapp-${rule.id}`} 
-                      checked={(rule.csatorna || []).includes("in_app")}
-                      onCheckedChange={(checked) => handleHrChannelToggle(rule.id, "in_app", checked as boolean)}
-                    />
-                    <Label htmlFor={`inapp-${rule.id}`} className="flex items-center gap-1 cursor-pointer font-normal text-sm">
-                      <Monitor className="w-3.5 h-3.5" /> Rendszeren belül
-                    </Label>
+            {localRules.map((rule) => {
+              const ruleChannels = rule.csatorna || []
+              return (
+                <div key={rule.id} className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 border rounded-lg bg-card gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <div className="text-base font-medium flex items-center gap-2">
+                      {eventTypeTranslations[rule.esemeny_tipus] || rule.esemeny_tipus}
+                      {eventTypeDescriptions[rule.esemeny_tipus] && (
+                        <Popover>
+                          <PopoverTrigger className="text-muted-foreground hover:text-foreground transition-colors outline-none focus:ring-2 focus:ring-ring rounded-full p-0.5">
+                            <Info className="h-4 w-4" />
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80 text-sm" side="top">
+                            <div className="space-y-2">
+                              <h4 className="font-medium leading-none">{eventTypeTranslations[rule.esemeny_tipus]}</h4>
+                              <p className="text-muted-foreground">
+                                {eventTypeDescriptions[rule.esemeny_tipus]}
+                              </p>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground capitalize">
+                      Címzett: {rule.kinek}
+                    </p>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id={`email-${rule.id}`} 
-                      checked={(rule.csatorna || []).includes("email")}
-                      onCheckedChange={(checked) => handleHrChannelToggle(rule.id, "email", checked as boolean)}
-                    />
-                    <Label htmlFor={`email-${rule.id}`} className="flex items-center gap-1 cursor-pointer font-normal text-sm">
-                      <Mail className="w-3.5 h-3.5" /> E-mail
-                    </Label>
+                  
+                  {/* Csatorna választó */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleChannelToggle(rule.id, "in_app", !ruleChannels.includes("in_app"), rule.aktiv, ruleChannels)}
+                      disabled={isPending}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                        ruleChannels.includes("in_app")
+                          ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+                          : "bg-transparent text-muted-foreground border-input hover:bg-accent hover:text-accent-foreground"
+                      } ${isPending ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      <Monitor className="w-3.5 h-3.5" />
+                      Rendszeren belül
+                    </button>
+                    <button
+                      onClick={() => handleChannelToggle(rule.id, "email", !ruleChannels.includes("email"), rule.aktiv, ruleChannels)}
+                      disabled={isPending}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                        ruleChannels.includes("email")
+                          ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+                          : "bg-transparent text-muted-foreground border-input hover:bg-accent hover:text-accent-foreground"
+                      } ${isPending ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      E-mail
+                    </button>
                   </div>
-                </div>
 
-                <div className="flex items-center space-x-2 min-w-[100px] justify-end">
-                  <span className="text-sm text-muted-foreground">{rule.aktiv ? 'Aktív' : 'Kikapcsolva'}</span>
-                  <Switch
-                    checked={rule.aktiv}
-                    onCheckedChange={() => handleHrToggle(rule.id, rule.aktiv)}
-                  />
+                  <div className="flex items-center space-x-2 min-w-[100px] justify-end">
+                    <span className="text-sm text-muted-foreground">{rule.aktiv ? 'Aktív' : 'Kikapcsolva'}</span>
+                    <Switch
+                      checked={rule.aktiv}
+                      onCheckedChange={() => handleToggle(rule.id, rule.aktiv, ruleChannels)}
+                      disabled={isPending}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </CardContent>
       </Card>

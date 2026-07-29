@@ -104,6 +104,58 @@ export async function submitLeaveRequest(formData: FormData) {
     return { error: "Hiba történt az igénylés során." }
   }
 
+  // Értesítés küldése az aktuális jóváhagyónak, ha van
+  if (aktualisJovahagyoId) {
+    const { data: szabaly } = await supabase
+      .from("ertesitesi_szabaly")
+      .select("aktiv, csatorna, kinek")
+      .eq("esemeny_tipus", "szabadsag_jovahagyas")
+      .maybeSingle();
+
+    if (szabaly && szabaly.aktiv) {
+      const csatornak = szabaly.csatorna || [];
+      const { data: dolgozoProfil } = await supabase.from("felhasznalo_profil").select("nev").eq("id", user.id).maybeSingle();
+      const dolgozoNev = dolgozoProfil?.nev || 'Egy munkatárs';
+
+      if (csatornak.includes('in_app')) {
+        await supabase.from('alkalmazas_ertesites').insert({
+          user_id: aktualisJovahagyoId,
+          cim: 'Új távollét kérelem',
+          szoveg: `${dolgozoNev} új távollét kérelmet nyújtott be (${startDate} - ${endDate}).`,
+          link_url: '/hr/manager'
+        });
+      }
+
+      if (csatornak.includes('email')) {
+        const { createClient: createAdminClient } = await import("@supabase/supabase-js");
+        const adminClient = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+        const { data: userResp } = await adminClient.auth.admin.getUserById(aktualisJovahagyoId);
+        if (userResp?.user?.email) {
+          try {
+            const { sendNotificationEmail, buildHtmlEmail } = await import('@/utils/mailer');
+            const { getBaseUrl } = await import('@/utils/url');
+            await sendNotificationEmail({
+              to: userResp.user.email,
+              subject: `Új távollét kérelem jóváhagyásra: ${dolgozoNev}`,
+              html: buildHtmlEmail(
+                "Távollét kérelem jóváhagyása",
+                `${dolgozoNev} új távollét kérelmet nyújtott be, amely a jóváhagyásodra vár.`,
+                [
+                  { label: "Időszak", value: `${startDate} - ${endDate}` },
+                  { label: "Típus", value: type === 'szabadsag' ? 'Szabadság' : 'Betegszabadság' }
+                ],
+                "Kérelmek megtekintése",
+                `${getBaseUrl()}/hr/manager`
+              )
+            });
+          } catch (e) {
+            console.error("Failed to send instant leave email", e);
+          }
+        }
+      }
+    }
+  }
+
   revalidatePath("/hr/self-service")
   return { success: true }
 }

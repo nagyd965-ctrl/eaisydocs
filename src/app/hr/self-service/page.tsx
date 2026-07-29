@@ -25,12 +25,36 @@ export default async function SelfServicePage() {
     redirect("/login")
   }
 
-  // Lekérdezzük a dolgozó alapadatait és a munkakörét
-  const { data: adatlap } = await supabase
-    .from("hr_dolgozo_adatlap")
-    .select("*, hr_munkakor(megnevezes), felhasznalo_profil(nev, hr_szerepkor)")
-    .eq("id", user.id)
-    .single()
+  // Lekérdezzük a dolgozó alapadatait és a kapcsolódó új táblákat
+  const [adatlapRes, jogviszonyRes, orvosiRes] = await Promise.all([
+    supabase
+      .from("hr_dolgozo_adatlap")
+      .select("*, felhasznalo_profil(nev, hr_szerepkor)")
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("hr_jogviszony")
+      .select("belepes_datuma, hr_beosztas(hr_munkakor(megnevezes))")
+      .eq("dolgozo_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("hr_orvosi_vizsgalat")
+      .select("ervenyesseg_datuma")
+      .eq("dolgozo_id", user.id)
+      .order("ervenyesseg_datuma", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  ])
+
+  const adatlap = adatlapRes.data
+  const jogviszony = jogviszonyRes.data
+  const orvosi = orvosiRes.data
+
+  const munkakorMegnevezes = jogviszony?.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beállítva"
+  const belepesDatuma = jogviszony?.belepes_datuma || null
+  const orvosiErvenyesseg = orvosi?.ervenyesseg_datuma || null
 
   // 1. Szabadság egyenleg számítása és Távollétek lekérése
   const { data: tavolletek } = await supabase
@@ -211,15 +235,15 @@ export default async function SelfServicePage() {
             <div className="mt-4 space-y-3">
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Munkakör</p>
-                <p className="font-medium text-sm mt-1">{adatlap?.hr_munkakor?.megnevezes || "Nincs beállítva"}</p>
+                <p className="font-medium text-sm mt-1">{munkakorMegnevezes}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Belépés Dátuma</p>
-                <p className="font-medium text-sm mt-1">{adatlap?.belepes_datuma ? new Date(adatlap.belepes_datuma).toLocaleDateString("hu-HU") : "Nincs megadva"}</p>
+                <p className="font-medium text-sm mt-1">{belepesDatuma ? new Date(belepesDatuma).toLocaleDateString("hu-HU") : "Nincs megadva"}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Orvosi Érvényesség</p>
-                <p className="font-medium text-sm mt-1">{adatlap?.orvosi_alkalmassag_ervenyesseg ? new Date(adatlap.orvosi_alkalmassag_ervenyesseg).toLocaleDateString("hu-HU") : "Nincs megadva"}</p>
+                <p className="font-medium text-sm mt-1">{orvosiErvenyesseg ? new Date(orvosiErvenyesseg).toLocaleDateString("hu-HU") : "Nincs megadva"}</p>
               </div>
             </div>
           </CardContent>

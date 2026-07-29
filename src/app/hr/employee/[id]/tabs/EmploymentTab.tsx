@@ -17,13 +17,15 @@ export function EmploymentTab({
   isHrOrAdmin,
   adatlap,
   jogviszonyok,
-  munkakorok
+  munkakorok,
+  vezetoNev
 }: { 
   employeeId: string,
   isHrOrAdmin: boolean,
   adatlap: any,
   jogviszonyok: any[],
-  munkakorok: any[]
+  munkakorok: any[],
+  vezetoNev?: string
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -43,6 +45,7 @@ export function EmploymentTab({
   const [munkaviszonyTipusa, setMunkaviszonyTipusa] = useState(currentBeosztas?.munkaviszony_tipusa || adatlap?.munkaviszony_tipusa || "")
   const [munkarend, setMunkarend] = useState(currentBeosztas?.munkarend || adatlap?.munkarend || "")
   const [munkakorId, setMunkakorId] = useState(currentBeosztas?.munkakor_id || "")
+  const [szerzodesTipusa, setSzerzodesTipusa] = useState(adatlap?.szerzodes_tipusa || "határozatlan")
   
   // Jövőbeli dátum inicializálása (alapértelmezés holnap)
   const tomorrow = new Date()
@@ -67,6 +70,7 @@ export function EmploymentTab({
     // Kézzel hozzáfűzzük a select értékeket a formData-hoz
     formData.set("munkaviszony_tipusa", munkaviszonyTipusa)
     formData.set("munkarend", munkarend)
+    formData.set("szerzodes_tipusa", szerzodesTipusa)
     if (munkakorId) formData.set("munkakor_id", munkakorId)
     
     // Ha a régi belepes_datuma van az adatlapon, biztosítjuk, hogy átmegy
@@ -113,16 +117,29 @@ export function EmploymentTab({
                 <form action={handleUpdate}>
                   <div className="grid gap-4 py-4">
                     
-                    <div className="space-y-2 p-3 bg-primary/5 rounded-md border border-primary/20">
-                      <Label htmlFor="ervenyes_tol" className="text-primary font-semibold">Érvényesség Kezdete (Érvényes-től) *</Label>
-                      <Input 
-                        id="ervenyes_tol" 
-                        name="ervenyes_tol" 
-                        type="date" 
-                        required
-                        defaultValue={defaultDate} 
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">Ettől a dátumtól lép életbe a módosítás (SCD Type 2 history bejegyzés készül).</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2 p-3 bg-primary/5 rounded-md border border-primary/20">
+                        <Label htmlFor="ervenyes_tol" className="text-primary font-semibold">Érvényesség Kezdete *</Label>
+                        <Input 
+                          id="ervenyes_tol" 
+                          name="ervenyes_tol" 
+                          type="date" 
+                          required
+                          defaultValue={defaultDate} 
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">SCD Type 2 history bejegyzés készül.</p>
+                      </div>
+
+                      <div className="space-y-2 p-3 bg-primary/5 rounded-md border border-primary/20">
+                        <Label htmlFor="probaido_vege" className="text-primary font-semibold">Próbaidő vége</Label>
+                        <Input 
+                          id="probaido_vege" 
+                          name="probaido_vege" 
+                          type="date" 
+                          defaultValue={currentJogviszony?.probaido_vege ? new Date(currentJogviszony.probaido_vege).toISOString().split('T')[0] : ""}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Opcionális. Ha lejár, értesítést küldünk.</p>
+                      </div>
                     </div>
 
                     <div className="space-y-2 mt-2">
@@ -172,6 +189,36 @@ export function EmploymentTab({
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Szerződés típusa</Label>
+                        <Select value={szerzodesTipusa} onValueChange={setSzerzodesTipusa}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Válassz típust...">
+                              {szerzodesTipusa === "határozott" ? "Határozott idejű" : "Határozatlan idejű"}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="határozatlan">Határozatlan idejű</SelectItem>
+                            <SelectItem value="határozott">Határozott idejű</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {szerzodesTipusa === "határozott" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="munkaviszony_vege">Szerződés / Jogviszony vége</Label>
+                          <Input 
+                            id="munkaviszony_vege" 
+                            name="munkaviszony_vege" 
+                            type="date" 
+                            defaultValue={currentJogviszony?.kilepes_datuma || adatlap?.munkaviszony_vege || ""}
+                            required
+                          />
+                        </div>
+                      )}
+                    </div>
+
                     <div className="space-y-2">
                       <Label>Munkarend</Label>
                       <Select value={munkarend} onValueChange={setMunkarend}>
@@ -188,25 +235,14 @@ export function EmploymentTab({
                       </Select>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="berkategoria">Besorolás / Bérkategória</Label>
-                        <Input 
-                          id="berkategoria" 
-                          name="berkategoria" 
-                          placeholder="Pl. L3 vagy 650000 HUF"
-                          defaultValue={currentBeosztas?.berkategoria || adatlap?.berkategoria || ""} 
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="kozvetlen_vezeto">Közvetlen Vezető neve</Label>
-                        <Input 
-                          id="kozvetlen_vezeto" 
-                          name="kozvetlen_vezeto" 
-                          placeholder="Vezető neve"
-                          defaultValue={currentBeosztas?.kozvetlen_vezeto || adatlap?.kozvetlen_vezeto || ""} 
-                        />
-                      </div>
+                    <div className="space-y-2 mt-4">
+                      <Label htmlFor="berkategoria">Besorolás / Bérkategória</Label>
+                      <Input 
+                        id="berkategoria" 
+                        name="berkategoria" 
+                        placeholder="Pl. L3 vagy 650000 HUF" 
+                        defaultValue={currentBeosztas?.berkategoria || adatlap?.berkategoria || ""}
+                      />
                     </div>
 
                   </div>
@@ -226,9 +262,19 @@ export function EmploymentTab({
               <p className="font-medium">{formatDate(currentJogviszony?.belepes_datuma || adatlap?.belepes_datuma)}</p>
             </div>
             <div>
+              <p className="text-sm text-muted-foreground">Próbaidő Vége</p>
+              <p className="font-medium">{formatDate(currentJogviszony?.probaido_vege)}</p>
+            </div>
+            <div>
               <p className="text-sm text-muted-foreground">Munkaviszony típusa</p>
               <p className="font-medium">
                 {munkaviszonyLabels[currentBeosztas?.munkaviszony_tipusa || adatlap?.munkaviszony_tipusa] || currentBeosztas?.munkaviszony_tipusa || adatlap?.munkaviszony_tipusa || "Nincs megadva"}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Szerződés típusa</p>
+              <p className="font-medium">
+                {adatlap?.szerzodes_tipusa === "határozott" ? "Határozott idejű" : "Határozatlan idejű"}
               </p>
             </div>
             <div>
@@ -243,9 +289,15 @@ export function EmploymentTab({
                 {munkarendLabels[currentBeosztas?.munkarend || adatlap?.munkarend] || currentBeosztas?.munkarend || adatlap?.munkarend || "Nincs megadva"}
               </p>
             </div>
+            {(adatlap?.szerzodes_tipusa === "határozott" || currentJogviszony?.kilepes_datuma) && (
+              <div>
+                <p className="text-sm text-muted-foreground">Szerződés lejárata</p>
+                <p className="font-medium text-destructive">{formatDate(currentJogviszony?.kilepes_datuma || adatlap?.munkaviszony_vege)}</p>
+              </div>
+            )}
             <div>
               <p className="text-sm text-muted-foreground">Közvetlen vezető</p>
-              <p className="font-medium">{currentBeosztas?.kozvetlen_vezeto || adatlap?.kozvetlen_vezeto || "Nincs megadva"}</p>
+              <p className="font-medium">{vezetoNev || currentBeosztas?.kozvetlen_vezeto || adatlap?.kozvetlen_vezeto || "Nincs megadva"}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Besorolás / Bérkategória</p>

@@ -45,6 +45,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       id,
       nev,
       hr_szerepkor,
+      kozvetlen_vezeto_id,
       hr_dolgozo_adatlap ( 
         *,
         hr_tavollet ( * ),
@@ -70,6 +71,16 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     .from("hr_munkakor")
     .select("id, megnevezes")
     .order("megnevezes")
+
+  let vezetoNev = ""
+  if (profile?.kozvetlen_vezeto_id) {
+    const { data: vData } = await supabase
+      .from("felhasznalo_profil")
+      .select("nev")
+      .eq("id", profile.kozvetlen_vezeto_id)
+      .single()
+    if (vData) vezetoNev = vData.nev
+  }
 
   const { data: hrDocumentsList } = await supabase
     .from("hr_dokumentum")
@@ -240,6 +251,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                 adatlap={adatlap} 
                 jogviszonyok={adatlap?.hr_jogviszony || []}
                 munkakorok={munkakorok || []}
+                vezetoNev={vezetoNev}
               />
             </div>
 

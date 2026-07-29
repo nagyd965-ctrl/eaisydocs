@@ -345,7 +345,6 @@ export async function updateJogviszonyData(employeeId: string, formData: FormDat
   const munkaido_fte = formData.get("munkaido_fte") as string
   const munkarend = formData.get("munkarend") as string
   const berkategoria = formData.get("berkategoria") as string
-  const kozvetlen_vezeto = formData.get("kozvetlen_vezeto") as string
   let munkakor_id = formData.get("munkakor_id") as string | null
 
   if (!ervenyes_tol) {
@@ -377,12 +376,42 @@ export async function updateJogviszonyData(employeeId: string, formData: FormDat
     p_munkaido_fte: munkaido_fte ? parseFloat(munkaido_fte) : null,
     p_munkarend: munkarend || null,
     p_berkategoria: berkategoria || null,
-    p_kozvetlen_vezeto: kozvetlen_vezeto || null,
-    p_belepes_datuma: belepes_datuma || null
+    p_kozvetlen_vezeto: null,
+    p_belepes_datuma: belepes_datuma || null,
+    p_probaido_vege: formData.get("probaido_vege") as string || null
   })
 
   if (error) {
     return { error: error.message }
+  }
+
+  // UPDATE hr_dolgozo_adatlap
+  const szerzodes_tipusa = formData.get("szerzodes_tipusa") as string
+  let munkaviszony_vege = formData.get("munkaviszony_vege") as string | null
+  
+  if (szerzodes_tipusa === "határozatlan") {
+    munkaviszony_vege = null
+  }
+
+  await supabase.from("hr_dolgozo_adatlap")
+    .update({ 
+      szerzodes_tipusa: szerzodes_tipusa || "határozatlan",
+      munkaviszony_vege: munkaviszony_vege || null
+    })
+    .eq("id", employeeId)
+
+  // Update active hr_jogviszony kilepes_datuma
+  const { data: jogviszonyData } = await supabase
+    .from("hr_jogviszony")
+    .select("id")
+    .eq("dolgozo_id", employeeId)
+    .order("belepes_datuma", { ascending: false })
+    .limit(1)
+    
+  if (jogviszonyData && jogviszonyData.length > 0) {
+    await supabase.from("hr_jogviszony")
+      .update({ kilepes_datuma: munkaviszony_vege || null })
+      .eq("id", jogviszonyData[0].id)
   }
 
   revalidatePath(`/hr/employee/${employeeId}`)

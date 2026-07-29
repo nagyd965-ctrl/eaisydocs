@@ -84,6 +84,12 @@ export default async function HrSettingsPage() {
     .select("id, nev, szulo_id")
     .order("nev")
 
+  // Szabályok lekérése az értesítésekhez
+  const { data: szabalyok } = await supabase
+    .from("ertesitesi_szabaly")
+    .select("*")
+    .order("esemeny_tipus")
+
    // 2. OrgChart adatok összeállítása (új: közvetlen vezető alapján)
   const employeeMap = new Map<string, any>()
   if (employees) {
@@ -606,7 +612,7 @@ export default async function HrSettingsPage() {
         <SecuritySettingsTab initialTimeout={profile.munkamenet_idotullepes} />
         {/* 6. TAB: ÉRTESÍTÉSEK (ÚJ) */}
         <TabsContent value="ertesitesek" className="space-y-4 outline-none">
-          <HrNotificationSettings />
+          <HrNotificationSettings rules={(szabalyok || []).filter(s => !['hatarido_kozeledik', 'hatarido_lejart', 'uj_szignalas', 'allapotvaltozas', 'megorzesi_ido_lejart'].includes(s.esemeny_tipus))} />
         </TabsContent>
 
       </Tabs>

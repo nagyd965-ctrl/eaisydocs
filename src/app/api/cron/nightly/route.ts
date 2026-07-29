@@ -9,9 +9,11 @@ export async function GET(request: Request) {
   try {
     // 1. Biztonsági ellenőrzés (CRON_SECRET)
     const authHeader = request.headers.get('authorization');
+    const { searchParams } = new URL(request.url);
+    const secretQuery = searchParams.get('secret');
     const expectedSecret = process.env.CRON_SECRET || 'teszt-cron-kulcs-123';
     
-    if (authHeader !== `Bearer ${expectedSecret}` && authHeader !== expectedSecret) {
+    if (authHeader !== `Bearer ${expectedSecret}` && authHeader !== expectedSecret && secretQuery !== expectedSecret) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
@@ -28,14 +30,15 @@ export async function GET(request: Request) {
     });
 
     // Mai dátum előkészítése keresésekhez (00:00:00)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayRaw = new Date();
+    // Normalizáljuk éjfélre, hogy a manuális (délutáni) futtatásnál is pontos legyen a napok számítása
+    const today = new Date(Date.UTC(todayRaw.getFullYear(), todayRaw.getMonth(), todayRaw.getDate()));
+    const todayIsoStr = today.toISOString().split('T')[0];
     
     // Két nap múlvai dátum (Határidő közeledik)
     const inTwoDays = new Date(today);
     inTwoDays.setDate(today.getDate() + 2);
     const inTwoDaysIsoStr = inTwoDays.toISOString().split('T')[0];
-    const todayIsoStr = today.toISOString().split('T')[0];
 
     // Segédfüggvény email lekéréshez
     const getUserEmailById = async (userId: string) => {
@@ -205,6 +208,294 @@ export async function GET(request: Request) {
                       `${getBaseUrl()}/archive`
                     ),
                     dossierId: irat.ugyirat_id // Opcionális
+                  });
+                  emailsSent++;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // =========================================================================
+    // D) HR: ORVOSI VIZSGÁLAT LEJÁRATA (30 és 7 nap)
+    // =========================================================================
+    const orvosiSzabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 'orvosi_vizsgalat_lejarat' && sz.aktiv);
+    if (orvosiSzabaly) {
+      const { data: vizsgalatok } = await supabase
+        .from('hr_orvosi_vizsgalat')
+        .select('id, ervenyesseg_datuma, dolgozo_id, hr_dolgozo_adatlap!inner(id, felhasznalo_profil!inner(nev, hr_szerepkor))')
+        .not('ervenyesseg_datuma', 'is', null);
+
+      if (vizsgalatok) {
+        for (const v of vizsgalatok) {
+          const lejarat = new Date(v.ervenyesseg_datuma);
+          const diffDays = Math.ceil((lejarat.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          const dolgozoNev = (v.hr_dolgozo_adatlap as any).felhasznalo_profil.nev;
+
+          if (diffDays === 30 || diffDays === 7 || diffDays <= 0) {
+            const csatornak = orvosiSzabaly.csatorna || [];
+            const kinek = orvosiSzabaly.kinek || '';
+            let targetUserIds: string[] = [];
+
+            if (kinek.includes('Érintett')) targetUserIds.push(v.dolgozo_id);
+            if (kinek.includes('HR')) {
+              const { data: hrUsers } = await supabase.from('felhasznalo_profil').select('id').in('hr_szerepkor', ['hr_munkatars', 'hr_vezeto']);
+              if (hrUsers) targetUserIds.push(...hrUsers.map((u: any) => u.id));
+            }
+            
+            const isExpired = diffDays <= 0;
+            const notificationTitle = isExpired ? 'Lejárt orvosi alkalmasság!' : 'Orvosi alkalmasság lejárata';
+            const notificationText = isExpired 
+              ? `${dolgozoNev} orvosi alkalmassága már ${Math.abs(diffDays)} napja lejárt (${v.ervenyesseg_datuma})!`
+              : `${dolgozoNev} orvosi alkalmassága ${diffDays} nap múlva lejár (${v.ervenyesseg_datuma}).`;
+
+            for (const targetId of Array.from(new Set(targetUserIds))) {
+              if (csatornak.includes('in_app')) {
+                await supabase.from('alkalmazas_ertesites').insert({
+                  user_id: targetId, cim: notificationTitle,
+                  szoveg: notificationText,
+                  link_url: '/hr/self-service'
+                });
+              }
+              if (csatornak.includes('email')) {
+                const email = await getUserEmailById(targetId);
+                if (email) {
+                  await sendNotificationEmail({
+                    to: email, subject: `${notificationTitle}: ${dolgozoNev}`,
+                    html: buildHtmlEmail(notificationTitle, notificationText, [{ label: "Lejárat", value: v.ervenyesseg_datuma }], "Profil megtekintése", `${getBaseUrl()}/hr`)
+                  });
+                  emailsSent++;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // =========================================================================
+    // E) HR: PRÓBAIDŐ LEJÁRATA (7 nap)
+    // =========================================================================
+    const probaidoSzabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 'probaido_lejarat' && sz.aktiv);
+    if (probaidoSzabaly) {
+      const { data: jogviszonyok } = await supabase
+        .from('hr_jogviszony')
+        .select('id, dolgozo_id, probaido_vege, hr_dolgozo_adatlap(id, felhasznalo_profil!inner(nev, kozvetlen_vezeto_id))')
+        .not('probaido_vege', 'is', null);
+
+      if (jogviszonyok) {
+        for (const jv of jogviszonyok) {
+          const lejarat = new Date(jv.probaido_vege);
+          const diffDays = Math.ceil((lejarat.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays === 7) {
+            const csatornak = probaidoSzabaly.csatorna || [];
+            const kinek = probaidoSzabaly.kinek || '';
+            let targetUserIds: string[] = [];
+
+            if (kinek.includes('HR')) {
+              const { data: hrUsers } = await supabase.from('felhasznalo_profil').select('id').in('hr_szerepkor', ['hr_munkatars', 'hr_vezeto', 'admin']);
+              if (hrUsers) targetUserIds.push(...hrUsers.map((u: any) => u.id));
+            }
+            if (kinek.includes('Vezető')) {
+              const prof = (jv.hr_dolgozo_adatlap as any)?.felhasznalo_profil;
+              const vezetoId = Array.isArray(prof) ? prof[0]?.kozvetlen_vezeto_id : prof?.kozvetlen_vezeto_id;
+              if (vezetoId) {
+                targetUserIds.push(vezetoId);
+              }
+            }
+
+            for (const targetId of Array.from(new Set(targetUserIds))) {
+              if (csatornak.includes('in_app')) {
+                const prof = (jv.hr_dolgozo_adatlap as any)?.felhasznalo_profil;
+                const dolgozoNev = Array.isArray(prof) ? prof[0]?.nev : prof?.nev;
+                await supabase.from('alkalmazas_ertesites').insert({
+                  user_id: targetId, cim: 'Próbaidő lejárata',
+                  szoveg: `${dolgozoNev} próbaideje 7 nap múlva lejár.`,
+                  link_url: '/hr'
+                });
+              }
+              if (csatornak.includes('email')) {
+                const email = await getUserEmailById(targetId);
+                if (email) {
+                  const prof = (jv.hr_dolgozo_adatlap as any)?.felhasznalo_profil;
+                  const dolgozoNev = Array.isArray(prof) ? prof[0]?.nev : prof?.nev;
+                  await sendNotificationEmail({
+                    to: email, subject: `Próbaidő lejárata: ${dolgozoNev}`,
+                    html: buildHtmlEmail("Próbaidő lejárata közeledik", `${dolgozoNev} próbaideje 7 nap múlva lejár!`, [{ label: "Próbaidő vége", value: jv.probaido_vege }], "Profil megtekintése", `${getBaseUrl()}/hr`)
+                  });
+                  emailsSent++;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // =========================================================================
+    // F) HR: T1041 BEJELENTÉS (2 nap)
+    // =========================================================================
+    const t1041Szabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 't1041_bejelentes' && sz.aktiv);
+    if (t1041Szabaly) {
+      const { data: jogviszonyok, error } = await supabase
+        .from('hr_jogviszony')
+        .select('id, belepes_datuma, hr_dolgozo_adatlap(id, felhasznalo_profil!inner(nev))')
+        .not('belepes_datuma', 'is', null);
+
+      if (error) console.error("T1041 Query Error:", error);
+
+      if (jogviszonyok) {
+        for (const jv of jogviszonyok) {
+          const belepes = new Date(jv.belepes_datuma);
+          const diffDays = Math.ceil((belepes.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays === 2) {
+            const csatornak = t1041Szabaly.csatorna || [];
+            let targetUserIds: string[] = [];
+            const { data: hrUsers } = await supabase.from('felhasznalo_profil').select('id').in('hr_szerepkor', ['hr_munkatars', 'hr_vezeto', 'admin']);
+            if (hrUsers) targetUserIds.push(...hrUsers.map((u: any) => u.id));
+
+            for (const targetId of Array.from(new Set(targetUserIds))) {
+              const prof = (jv.hr_dolgozo_adatlap as any)?.felhasznalo_profil;
+              const dolgozoNev = Array.isArray(prof) ? prof[0]?.nev : prof?.nev;
+
+              if (csatornak.includes('in_app')) {
+                await supabase.from('alkalmazas_ertesites').insert({
+                  user_id: targetId, cim: 'T1041 Bejelentés Szükséges',
+                  szoveg: `${dolgozoNev} 2 nap múlva munkába áll! Ne felejtsd el a T1041 bejelentést!`,
+                  link_url: '/hr'
+                });
+              }
+              if (csatornak.includes('email')) {
+                const email = await getUserEmailById(targetId);
+                if (email) {
+                  await sendNotificationEmail({
+                    to: email, subject: `T1041 Bejelentés szükséges: ${dolgozoNev}`,
+                    html: buildHtmlEmail("T1041 Bejelentés", `Kérjük, győződj meg róla, hogy megtörtént a T1041 bejelentés!`, [{ label: "Belépés dátuma", value: jv.belepes_datuma }], "Tovább", `${getBaseUrl()}/hr`)
+                  });
+                  emailsSent++;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    // =========================================================================
+    // G) HR: TANULMÁNYI SZERZŐDÉS LEJÁRAT (30 nap, 7 nap, lejárt)
+    // =========================================================================
+    const tanulmanyiSzabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 'tanulmanyi_szerzodes_lejarat' && sz.aktiv);
+    if (tanulmanyiSzabaly) {
+      const { data: szerzodesek, error } = await supabase
+        .from('hr_tanulmanyi_szerzodes')
+        .select('id, dolgozo_id, kepzes_neve, lejarat_datuma, hr_dolgozo_adatlap(id, felhasznalo_profil!inner(nev))')
+        .not('lejarat_datuma', 'is', null);
+
+      if (error) console.error("Tanulmányi szerződés Query Error:", error);
+
+      if (szerzodesek) {
+        for (const sz of szerzodesek) {
+          const lejarat = new Date(sz.lejarat_datuma);
+          const diffDays = Math.ceil((lejarat.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (diffDays === 30 || diffDays === 7 || diffDays <= 0) {
+            const csatornak = tanulmanyiSzabaly.csatorna || [];
+            let targetUserIds: string[] = [];
+            
+            // HR címzettek lekérése
+            const { data: hrUsers } = await supabase.from('felhasznalo_profil').select('id').in('hr_szerepkor', ['hr_munkatars', 'hr_vezeto', 'admin']);
+            if (hrUsers) targetUserIds.push(...hrUsers.map((u: any) => u.id));
+
+            // Érintett hozzáadása
+            if (sz.dolgozo_id) targetUserIds.push(sz.dolgozo_id);
+
+            for (const targetId of Array.from(new Set(targetUserIds))) {
+              const prof = (sz.hr_dolgozo_adatlap as any)?.felhasznalo_profil;
+              const dolgozoNev = Array.isArray(prof) ? prof[0]?.nev : prof?.nev;
+              const title = diffDays <= 0 ? 'Lejárt tanulmányi szerződés!' : 'Tanulmányi szerződés lejárata közeledik';
+              const text = diffDays <= 0 
+                ? `${dolgozoNev} "${sz.kepzes_neve}" tanulmányi szerződése lejárt (${sz.lejarat_datuma})!` 
+                : `${dolgozoNev} "${sz.kepzes_neve}" tanulmányi szerződése ${diffDays} nap múlva lejár!`;
+
+              if (csatornak.includes('in_app')) {
+                await supabase.from('alkalmazas_ertesites').insert({
+                  user_id: targetId, cim: title,
+                  szoveg: text,
+                  link_url: '/hr'
+                });
+              }
+              if (csatornak.includes('email')) {
+                const email = await getUserEmailById(targetId);
+                if (email) {
+                  await sendNotificationEmail({
+                    to: email, subject: `${title}: ${dolgozoNev}`,
+                    html: buildHtmlEmail(title, text, [{ label: "Lejárat dátuma", value: sz.lejarat_datuma }, { label: "Képzés neve", value: sz.kepzes_neve }], "Profil megtekintése", `${getBaseUrl()}/hr`)
+                  });
+                  emailsSent++;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    // =========================================================================
+    // H) HR: HATÁROZOTT IDEJŰ SZERZŐDÉS LEJÁRAT (15 nap)
+    // =========================================================================
+    const hatarozottSzabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 'hatarozott_szerzodes_lejarat' && sz.aktiv);
+    if (hatarozottSzabaly) {
+      const { data: jogviszonyok, error } = await supabase
+        .from('hr_jogviszony')
+        .select('id, kilepes_datuma, hr_dolgozo_adatlap(id, felhasznalo_profil!inner(nev)), hr_beosztas(kozvetlen_vezeto)')
+        .not('kilepes_datuma', 'is', null);
+
+      if (error) console.error("Határozott idejű szerződés Query Error:", error);
+
+      if (jogviszonyok) {
+        for (const jv of jogviszonyok) {
+          const lejarat = new Date(jv.kilepes_datuma);
+          const diffDays = Math.ceil((lejarat.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (diffDays === 15) {
+            const csatornak = hatarozottSzabaly.csatorna || [];
+            let targetUserIds: string[] = [];
+            
+            // HR címzettek lekérése (alapértelmezés)
+            const { data: hrUsers } = await supabase.from('felhasznalo_profil').select('id').in('hr_szerepkor', ['hr_munkatars', 'hr_vezeto', 'admin']);
+            if (hrUsers) targetUserIds.push(...hrUsers.map((u: any) => u.id));
+
+            const adatlap = jv.hr_dolgozo_adatlap as any;
+            const prof = adatlap?.felhasznalo_profil;
+            const dolgozoNev = Array.isArray(prof) ? prof[0]?.nev : prof?.nev;
+            
+            const beosztasok = jv.hr_beosztas as any[];
+            const kozvetlenVezeto = beosztasok && beosztasok.length > 0 ? beosztasok[0].kozvetlen_vezeto : null;
+
+            // Vezető lekérése név alapján, ha kérik a vezetőt is a címzettek között
+            if (hatarozottSzabaly.kinek?.includes('Vezető') && kozvetlenVezeto) {
+               const vezetoNevDb = kozvetlenVezeto;
+               const { data: vezetoProfil } = await supabase.from('felhasznalo_profil').select('id').ilike('nev', vezetoNevDb).single();
+               if (vezetoProfil) targetUserIds.push(vezetoProfil.id);
+            }
+
+            for (const targetId of Array.from(new Set(targetUserIds))) {
+              const title = 'Lejáró határozott idejű szerződés';
+              const text = `${dolgozoNev} határozott idejű szerződése (jogviszonya) 15 nap múlva lejár (${jv.kilepes_datuma})! Kérjük, egyeztessétek a hosszabbítást!`;
+
+              if (csatornak.includes('in_app')) {
+                await supabase.from('alkalmazas_ertesites').insert({
+                  user_id: targetId, cim: title,
+                  szoveg: text,
+                  link_url: '/hr'
+                });
+              }
+              if (csatornak.includes('email')) {
+                const email = await getUserEmailById(targetId);
+                if (email) {
+                  await sendNotificationEmail({
+                    to: email, subject: `${title}: ${dolgozoNev}`,
+                    html: buildHtmlEmail(title, text, [{ label: "Szerződés vége", value: jv.kilepes_datuma }], "Profil megtekintése", `${getBaseUrl()}/hr`)
                   });
                   emailsSent++;
                 }
