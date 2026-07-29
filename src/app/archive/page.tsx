@@ -1,11 +1,5 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+
+
 
 import { createClient } from "@/utils/supabase/server"
 import { ArchiveClient } from "@/components/archive-client"

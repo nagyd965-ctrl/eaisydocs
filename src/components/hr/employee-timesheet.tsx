@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, Clock, CalendarDays, Loader2, ChevronDown, ChevronUp } from "lucide-react"
+import { ChevronLeft, ChevronRight, CalendarDays, Loader2, ChevronDown, ChevronUp } from "lucide-react"
 import { getMonthlyTimesheet, type TimesheetEntry } from "@/app/hr/attendance-actions"
 import { toast } from "sonner"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"

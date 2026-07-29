@@ -3,9 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { CalendarDays, Clock, FileText, CheckCircle2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { toast } from "sonner"
+import { CalendarDays, Clock, CheckCircle2 } from "lucide-react"
 import { useState } from "react"
 import { HrLeaveRequestDialog } from "@/components/hr/hr-leave-request-dialog"
 

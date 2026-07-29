@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react"
 import { Bell } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
-import { Button } from "@/components/ui/button"
 import {
   Popover,
   PopoverContent,

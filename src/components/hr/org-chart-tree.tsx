@@ -1,7 +1,7 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
-import { Users, User, Crown, Building2 } from "lucide-react"
+import { Users, Crown, Building2 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 export type EmployeeNode = {

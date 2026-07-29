@@ -5,7 +5,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Plus, UserPlus } from "lucide-react"
+import { UserPlus } from "lucide-react"
 import { assignEmployeeToJob } from "@/app/hr/job/[id]/actions"
 import { toast } from "sonner"
 

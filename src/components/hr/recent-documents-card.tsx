@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { FileText, Download, FileArchive } from "lucide-react"
+import { FileText, FileArchive } from "lucide-react"
 
 type Document = {
   id: string

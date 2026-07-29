@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/utils/supabase/client"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Filter, ShieldAlert, FileText, UserPlus, FileEdit } from "lucide-react"
+import { Search, ShieldAlert, FileText, UserPlus, FileEdit } from "lucide-react"
 
 export default function HrAuditPage() {
   const [logs, setLogs] = useState<any[]>([])

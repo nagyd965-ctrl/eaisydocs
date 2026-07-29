@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Building2, FolderOpen, Link as LinkIcon, Calendar, FileText, Activity } from "lucide-react"
+import { ArrowLeft, Building2, FolderOpen, Link as LinkIcon, Calendar, FileText } from "lucide-react"
 import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"

@@ -28,13 +28,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+
+
 import { Mail, Phone, Calendar, Briefcase, FileText, Loader2, ExternalLink, Save, Trash2, XCircle, CheckCircle } from "lucide-react"
 import { generateCvSignedUrl, updateCandidateNote, updateCandidateStatus } from "@/app/hr/recruitment/actions"
 import { toast } from "sonner"

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Home, Inbox, Archive, Settings, FolderOpen, Search, Users, CheckSquare } from "lucide-react"
+import { Home, Inbox, Archive, FolderOpen, Search, Users, CheckSquare } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ChevronLeft, ChevronRight, Clock, CalendarDays, Loader2, Edit2, Trash2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, CalendarDays, Loader2, Edit2, Trash2 } from "lucide-react"
 import { getMonthlyTimesheet, saveAttendanceRecord, deleteAttendanceRecord, type TimesheetEntry } from "@/app/hr/attendance-actions"
 import { toast } from "sonner"
 import {

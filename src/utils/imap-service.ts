@@ -59,7 +59,7 @@ export async function processIncomingEmails() {
           ? erkezId 
           : `E/ERR-${Date.now()}`;
 
-        let { data: partnerData } = await supabase
+        const { data: partnerData } = await supabase
           .from('partner')
           .select('id')
           .eq('nev', partnerNev)

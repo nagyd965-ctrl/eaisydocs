@@ -8,7 +8,6 @@ import { Briefcase, Users, FileText, ChevronLeft, ShieldAlert } from "lucide-rea
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { AssignEmployeeDialog } from "@/components/hr/assign-employee-dialog"
-import { removeEmployeeFromJob } from "./actions"
 import { RemoveEmployeeButton } from "./remove-employee-button"
 
 export default async function JobProfilePage({ params }: { params: Promise<{ id: string }> }) {

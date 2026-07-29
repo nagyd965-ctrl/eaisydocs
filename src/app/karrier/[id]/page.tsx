@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { ArrowLeft, Briefcase, Calendar, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Briefcase, Calendar } from "lucide-react"
 import { ApplicationForm } from "./application-form"
 
 export default async function HirdetesReszletekPage({ params }: { params: Promise<{ id: string }> }) {

@@ -80,7 +80,7 @@ export async function updateEmployeeInfo(formData: FormData) {
   if (!employeeId) return { error: "Hiányzó dolgozó azonosító" }
 
   // 1. Megnézzük, hogy változott-e a munkakör, és ha igen, lekérjük a hozzá tartozó szervezeti egységet
-  let targetMunkakor = munkakorId === "none" ? null : munkakorId
+  const targetMunkakor = munkakorId === "none" ? null : munkakorId
   let defaultOrgUnitId = null;
   if (targetMunkakor) {
     const { data: jobData } = await supabaseAdmin

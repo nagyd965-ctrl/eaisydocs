@@ -1,6 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { CalendarIcon } from "lucide-react"
 import { TeamCalendar } from "@/components/hr/team-calendar"
 

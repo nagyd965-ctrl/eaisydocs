@@ -6,7 +6,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"
 import { ExportCsvButton } from "@/components/export-csv-button"

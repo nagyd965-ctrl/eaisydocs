@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Home, Users, Calendar, Briefcase, FileText, Settings, UserPlus, Presentation, LayoutList, Target, FileBarChart2, ShieldAlert, FileSignature } from "lucide-react"
+import { Home, Users, Calendar, Briefcase, FileText, UserPlus, Presentation, Target, FileBarChart2, ShieldAlert, FileSignature } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 

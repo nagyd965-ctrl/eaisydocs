@@ -1,8 +1,8 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { FileWarning, UserPlus, AlertCircle, Users, Activity, CheckCircle2 } from "lucide-react"
+import { UserPlus, AlertCircle, Users } from "lucide-react"
 import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
 import Link from "next/link"
 

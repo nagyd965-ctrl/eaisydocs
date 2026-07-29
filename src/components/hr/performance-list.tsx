@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { EditKpiDialog } from "@/components/hr/edit-kpi-dialog"
-import { History, Target, TrendingUp, MessageSquare, Plus, MoreHorizontal, Edit, Trash2, User, Link as LinkIcon } from "lucide-react"
+import { History, Target, TrendingUp, MessageSquare, MoreHorizontal, Edit, Trash2, User, Link as LinkIcon } from "lucide-react"
 
 export function PerformanceList({ employees, kpis, logs = [], cycles = [], allKpis = [] }: { employees: any[], kpis: any[], logs?: any[], cycles?: any[], allKpis?: any[] }) {
   // Csoportosítás dolgozók szerint
