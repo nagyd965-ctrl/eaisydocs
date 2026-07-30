@@ -11,6 +11,7 @@ export async function onboardEmployee(data: {
   email?: string
   password?: string
   nev?: string
+  telefon?: string
   role: string
   munkakorId: string
   belepes_datuma: string
@@ -133,6 +134,9 @@ export async function onboardEmployee(data: {
   }
   if (orgUnitId) {
     updateData.hr_szervezeti_egyseg_id = orgUnitId
+  }
+  if (data.telefon !== undefined && data.telefon !== "") {
+    updateData.telefon = data.telefon
   }
 
   await supabaseAdmin

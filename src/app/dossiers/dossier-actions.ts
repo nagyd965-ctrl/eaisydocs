@@ -63,44 +63,86 @@ export async function assignDossier(formData: FormData) {
     // Ellenőrizzük az értesítési szabályt
     const { data: szabaly } = await supabase
       .from("ertesitesi_szabaly")
-      .select("aktiv")
+      .select("aktiv, csatorna")
       .eq("esemeny_tipus", "uj_szignalas")
       .eq("kinek", "felelos")
       .single()
 
     if (szabaly?.aktiv) {
-      // Szervíz kulcs használata az email lekéréshez (auth.users tábla)
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-      if (serviceRoleKey) {
-        const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
-        const supabaseAdmin = createSupabaseClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          serviceRoleKey,
-          { auth: { autoRefreshToken: false, persistSession: false } }
-        )
-        
-        const { data: adminData } = await supabaseAdmin.auth.admin.getUserById(felelos_user_id)
-        const userEmail = adminData?.user?.email
-
-        if (userEmail) {
-          // Fetch ugyirat iktatoszam for the email body
-          const { data: ugyiratData } = await supabase.from("ugyirat").select("iktatoszam").eq("id", ugyirat_id).single()
+      const csatornak = szabaly.csatorna || ['email']
+      
+      if (csatornak.includes('email') || csatornak.includes('sms')) {
+        // Szervíz kulcs használata az email/telefon lekéréshez
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        if (serviceRoleKey) {
+          const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+          const supabaseAdmin = createSupabaseClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            serviceRoleKey,
+            { auth: { autoRefreshToken: false, persistSession: false } }
+          )
           
-          await sendNotificationEmail({
-            to: userEmail,
-            subject: `Új ügyirat szignálva: ${ugyiratData?.iktatoszam || "Ismeretlen"}`,
-            html: buildHtmlEmail(
-              "Új feladatot kaptál!",
-              "Egy új ügyiratot szignáltak rád az eaisyDocs rendszerben.",
-              [
-                { label: "Iktatószám", value: ugyiratData?.iktatoszam || "N/A" },
-                { label: "Határidő", value: hatarido || "Nincs megadva" }
-              ],
-              "Ügyirat megtekintése",
-              `${getBaseUrl()}/dossiers/${ugyirat_id}`
-            ),
-            dossierId: ugyirat_id
-          })
+          const { data: adminData } = await supabaseAdmin.auth.admin.getUserById(felelos_user_id)
+          const userEmail = adminData?.user?.email
+          
+          const { data: ugyiratData } = await supabase.from("ugyirat").select("iktatoszam").eq("id", ugyirat_id).single()
+          const iktatoszam = ugyiratData?.iktatoszam || "Ismeretlen"
+
+          if (csatornak.includes('email') && userEmail) {
+            await sendNotificationEmail({
+              to: userEmail,
+              subject: `Új ügyirat szignálva: ${iktatoszam}`,
+              html: buildHtmlEmail(
+                "Új feladatot kaptál!",
+                "Egy új ügyiratot szignáltak rád az eaisyDocs rendszerben.",
+                [
+                  { label: "Iktatószám", value: iktatoszam },
+                  { label: "Határidő", value: hatarido || "Nincs megadva" }
+                ],
+                "Ügyirat megtekintése",
+                `${getBaseUrl()}/dossiers/${ugyirat_id}`
+              ),
+              dossierId: ugyirat_id
+            })
+          }
+
+          if (csatornak.includes('sms')) {
+            try {
+              const { data: profileData } = await supabaseAdmin.from("felhasznalo_profil").select("telefon").eq("id", felelos_user_id).maybeSingle()
+              const telefon = profileData?.telefon
+              if (telefon) {
+                const { sendSmsNotification } = await import('@/utils/sms/twilio')
+                
+                // Format phone number (replace 06 with +36)
+                let formattedPhone = telefon.trim()
+                if (formattedPhone.startsWith('06')) {
+                  formattedPhone = '+36' + formattedPhone.substring(2)
+                } else if (formattedPhone.startsWith('36')) {
+                  formattedPhone = '+' + formattedPhone
+                } else if (!formattedPhone.startsWith('+')) {
+                  formattedPhone = '+36' + formattedPhone
+                }
+
+                const smsResult = await sendSmsNotification({
+                  to: formattedPhone,
+                  body: `eaisyDocs: Új ügyirat lett rád szignálva (Iktatószám: ${iktatoszam}).`
+                })
+                
+                if (smsResult.success) {
+                  await supabaseAdmin.from("ertesites_naplo").insert({
+                    csatorna: 'sms', cimzett_email: formattedPhone, targy: `Új szignálás: ${iktatoszam}`, statusz: 'sikeres'
+                  })
+                } else {
+                  console.error("SMS nem ment ki:", smsResult.error)
+                  await supabaseAdmin.from("ertesites_naplo").insert({
+                    csatorna: 'sms', cimzett_email: formattedPhone, targy: `Új szignálás: ${iktatoszam}`, statusz: 'sikertelen', reszletek: smsResult.error
+                  })
+                }
+              }
+            } catch (e) {
+              console.error("SMS küldési hiba (uj_szignalas):", e)
+            }
+          }
         }
       }
     }

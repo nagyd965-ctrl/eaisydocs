@@ -62,7 +62,7 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
 
   const { data: users } = await supabase
     .from("felhasznalo_profil")
-    .select('id, nev, docs_docs_szerepkor, szervezeti_egyseg_id')
+    .select('id, nev, docs_szerepkor, szervezeti_egyseg_id')
 
   const userMap = (users || []).reduce((acc: any, user: any) => {
     acc[user.id] = user.nev

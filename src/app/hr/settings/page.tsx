@@ -23,6 +23,8 @@ import Link from "next/link"
 import { SecuritySettingsTab } from "./security-tab"
 import { HrNotificationSettings } from "./notification-settings"
 import { Bell } from "lucide-react"
+import { updateProfile } from "@/app/settings/settings-actions"
+
 export default async function HrSettingsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -32,7 +34,7 @@ export default async function HrSettingsPage() {
   // Biztonsági ellenőrzés
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select('hr_szerepkor, munkamenet_idotullepes')
+    .select('*')
     .eq("id", user.id)
     .single()
 
@@ -224,33 +226,41 @@ export default async function HrSettingsPage() {
               </div>
               <CardDescription>Személyes információk és avatar kezelése</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="nev">Teljes név</Label>
-                  <Input id="nev" name="nev" defaultValue="Nagy Dániel" className="bg-background" />
+            <form action={updateProfile} key={profile?.telefon || 'profile-form'}>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="nev">Teljes név</Label>
+                    <Input id="nev" name="nev" defaultValue={profile?.nev || ""} key={profile?.nev || 'nev'} className="bg-background" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email cím</Label>
+                    <Input id="email" defaultValue={user.email} readOnly className="bg-muted/50 cursor-not-allowed opacity-70" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email cím</Label>
-                  <Input id="email" defaultValue="testing@gmail.com" readOnly className="bg-muted/50 cursor-not-allowed opacity-70" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="pozicio">Pozíció</Label>
+                    <Input id="pozicio" name="pozicio" defaultValue={profile?.pozicio || ""} key={profile?.pozicio || 'poz'} placeholder="pl. Rendszergazda-iratkezelő" className="bg-background" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ceg_neve">Cég neve</Label>
+                    <Input id="ceg_neve" name="ceg_neve" defaultValue={profile?.ceg_neve || ""} key={profile?.ceg_neve || 'ceg'} className="bg-background" />
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="pozicio">Pozíció</Label>
-                  <Input id="pozicio" name="pozicio" placeholder="pl. Rendszergazda-iratkezelő" className="bg-background" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="telefon">Telefonszám</Label>
+                    <Input id="telefon" name="telefon" defaultValue={profile?.telefon || ""} key={profile?.telefon || 'tel'} placeholder="+36301234567" className="bg-background" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ceg_neve">Cég neve</Label>
-                  <Input id="ceg_neve" name="ceg_neve" className="bg-background" />
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button className="bg-[#02b8cc] hover:bg-[#029db0] text-white">
-                Profil mentése
-              </Button>
-            </CardFooter>
+              </CardContent>
+              <CardFooter>
+                <Button type="submit" className="bg-[#02b8cc] hover:bg-[#029db0] text-white">
+                  Profil mentése
+                </Button>
+              </CardFooter>
+            </form>
           </Card>
         </TabsContent>
 

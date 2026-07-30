@@ -169,6 +169,18 @@ export function HrNotificationSettings({ rules = [] }: { rules: Rule[] }) {
                       <Mail className="w-3.5 h-3.5" />
                       E-mail
                     </button>
+                    <button
+                      onClick={() => handleChannelToggle(rule.id, "sms", !ruleChannels.includes("sms"), rule.aktiv, ruleChannels)}
+                      disabled={isPending}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                        ruleChannels.includes("sms")
+                          ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+                          : "bg-transparent text-muted-foreground border-input hover:bg-accent hover:text-accent-foreground"
+                      } ${isPending ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-square-text"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M13 8H7"/><path d="M17 12H7"/></svg>
+                      SMS
+                    </button>
                   </div>
 
                   <div className="flex items-center space-x-2 min-w-[100px] justify-end">

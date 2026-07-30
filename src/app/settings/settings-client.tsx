@@ -23,7 +23,7 @@ import { useRouter } from "next/navigation"
 
 import { createSubstitution, deleteSubstitution } from "./substitution-actions"
 
-export function SettingsClient({ initialProfile, email, teamMembers, departments, szabalyok, naplo, helyettesitesek = [] }: { initialProfile: any, email: string | undefined, teamMembers: any[], departments?: any[], szabalyok?: any[], naplo?: any[], helyettesitesek?: any[] }) {
+export function SettingsClient({ initialProfile, email, teamMembers, departments, szabalyok, naplo, helyettesitesek = [], isAdmin }: { initialProfile: any, email: string | undefined, teamMembers: any[], departments?: any[], szabalyok?: any[], naplo?: any[], helyettesitesek?: any[], isAdmin?: boolean }) {
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -57,7 +57,8 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
   const [profileForm, setProfileForm] = useState({
     nev: initialProfile?.nev || "",
     pozicio: initialProfile?.pozicio || "",
-    ceg_neve: initialProfile?.ceg_neve || ""
+    ceg_neve: initialProfile?.ceg_neve || "",
+    telefon: initialProfile?.telefon || ""
   })
   
   // Sync if initialProfile changes from server action (e.g., after save and router.refresh)
@@ -65,7 +66,8 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
     setProfileForm({
       nev: initialProfile?.nev || "",
       pozicio: initialProfile?.pozicio || "",
-      ceg_neve: initialProfile?.ceg_neve || ""
+      ceg_neve: initialProfile?.ceg_neve || "",
+      telefon: initialProfile?.telefon || ""
     })
   }, [initialProfile])
 
@@ -129,6 +131,12 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                 <div className="space-y-2">
                   <Label htmlFor="ceg_neve">Cég neve</Label>
                   <Input id="ceg_neve" name="ceg_neve" value={profileForm.ceg_neve} onChange={(e) => setProfileForm(prev => ({...prev, ceg_neve: e.target.value}))} className="bg-background" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="telefon">Telefonszám</Label>
+                  <Input id="telefon" name="telefon" value={profileForm.telefon} onChange={(e) => setProfileForm(prev => ({...prev, telefon: e.target.value}))} placeholder="+36301234567" className="bg-background" />
                 </div>
               </div>
             </CardContent>
@@ -634,9 +642,9 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
         </Card>
       </TabsContent>
 
-      {/* ÉRTESÍTÉSEK */}
+      {/* 5. TAB: ÉRTESÍTÉSEK */}
       <TabsContent value="ertesitesek" className="space-y-4 outline-none">
-        <NotificationSettings rules={szabalyok || []} logs={naplo || []} />
+        <NotificationSettings rules={szabalyok || []} logs={naplo || []} isAdmin={isAdmin} />
       </TabsContent>
 
       {/* RENDSZER BEÁLLÍTÁSOK */}

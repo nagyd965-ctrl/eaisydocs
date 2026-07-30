@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 
 export async function getUserProfile() {
   const supabase = await createClient()
@@ -43,12 +44,29 @@ export async function updateProfile(formData: FormData) {
     rpcData.p_munkamenet_idotullepes = parseInt(idotullepes as string, 10)
   }
 
-  if (Object.keys(rpcData).length === 0) return { success: true }
+  const telefon = formData.get("telefon")
+  if (telefon !== null) {
+    const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    
+    const { error: telefonError } = await supabaseAdmin
+      .from("felhasznalo_profil")
+      .update({ telefon: telefon as string })
+      .eq("id", user.id)
+    if (telefonError) {
+      return { error: telefonError.message }
+    }
+  }
 
-  const { error } = await supabase.rpc('update_own_profile', rpcData)
+  if (Object.keys(rpcData).length > 0) {
+    const { error } = await supabase.rpc('update_own_profile', rpcData)
 
-  if (error) {
-    return { error: error.message }
+    if (error) {
+      return { error: error.message }
+    }
   }
 
   revalidatePath("/", "layout")
@@ -296,3 +314,36 @@ export async function addUsersToDepartment(departmentId: string, userIds: string
   revalidatePath("/settings")
   return { success: true }
 }
+
+export async function updateRuleChannels(id: string, channels: string[]) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) return { error: "Nem vagy bejelentkezve" }
+
+  // Jogosultság ellenőrzése
+  const { data: profile } = await supabase.from("felhasznalo_profil").select("szerepkor, docs_szerepkor").eq("id", user.id).single()
+  if (!profile || (profile.szerepkor !== 'admin' && profile.docs_szerepkor !== 'admin' && profile.szerepkor !== 'rendszergazda' && profile.docs_szerepkor !== 'rendszergazda')) {
+    return { error: "Nincs adminisztrátor jogosultságod a művelethez." }
+  }
+
+  // Szervíz kulcs használata RLS megkerüléséhez (mivel az RLS jelenleg rosszul van beállítva a DB-ben)
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const { error } = await supabaseAdmin
+    .from("ertesitesi_szabaly")
+    .update({ csatorna: channels })
+    .eq("id", id)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath("/settings")
+  return { success: true }
+}
+

@@ -153,6 +153,21 @@ export async function submitLeaveRequest(formData: FormData) {
           }
         }
       }
+
+      if (csatornak.includes('sms')) {
+        try {
+          const { data: jovahagyoProfil } = await supabase.from("felhasznalo_profil").select("telefon").eq("id", aktualisJovahagyoId).maybeSingle();
+          if (jovahagyoProfil?.telefon) {
+            const { sendSmsNotification } = await import('@/utils/sms/twilio');
+            await sendSmsNotification({
+              to: jovahagyoProfil.telefon,
+              body: `eaisyHR: ${dolgozoNev} új távollét kérelmet nyújtott be (${startDate} - ${endDate}), amely jóváhagyásra vár.`
+            });
+          }
+        } catch (e) {
+          console.error("Failed to send instant leave sms", e);
+        }
+      }
     }
   }
 

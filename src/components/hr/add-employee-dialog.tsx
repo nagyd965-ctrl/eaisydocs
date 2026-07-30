@@ -33,6 +33,7 @@ export function AddEmployeeDialog({ availableUsers, jobs, candidates = [] }: { a
     email: "",
     password: "",
     nev: "",
+    telefon: "",
     role: "munkavallalo",
     munkakorId: "none",
     belepes_datuma: new Date().toISOString().split("T")[0]
@@ -102,7 +103,8 @@ export function AddEmployeeDialog({ availableUsers, jobs, candidates = [] }: { a
                   setFormData({ 
                     ...formData, 
                     candidateId: val || "",
-                    munkakorId: candidate?.megpalyazott_munkakor_id || "none"
+                    munkakorId: candidate?.megpalyazott_munkakor_id || "none",
+                    telefon: candidate?.telefon || ""
                   })
                 }}
               >
@@ -228,6 +230,16 @@ export function AddEmployeeDialog({ availableUsers, jobs, candidates = [] }: { a
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="telefon">Telefonszám</Label>
+            <Input 
+              id="telefon" 
+              placeholder="+36301234567" 
+              value={formData.telefon}
+              onChange={(e) => setFormData({ ...formData, telefon: e.target.value })}
+            />
           </div>
 
           <div className="space-y-2">

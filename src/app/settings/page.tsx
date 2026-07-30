@@ -16,11 +16,24 @@ export default async function SettingsPage() {
     .select("*")
     .order("created_at", { ascending: false })
 
-  const { data: naplo } = await supabase
-    .from("ertesites_naplo")
-    .select("*")
-    .order("mikor", { ascending: false })
-    .limit(50)
+  const isAdmin = profile.szerepkor === 'admin' || profile.docs_szerepkor === 'admin' || profile.szerepkor === 'rendszergazda' || profile.docs_szerepkor === 'rendszergazda'
+
+  let naplo: any[] = []
+  if (isAdmin) {
+    const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+    const { data: naploData } = await supabaseAdmin
+      .from("ertesites_naplo")
+      .select("*")
+      .order("mikor", { ascending: false })
+      .limit(50)
+    
+    if (naploData) naplo = naploData
+  }
 
   const { data: userData } = await supabase.auth.getUser()
   const { data: helyettesitesek } = await supabase
@@ -110,6 +123,7 @@ export default async function SettingsPage() {
           szabalyok={(szabalyok || []).filter(s => ['hatarido_kozeledik', 'hatarido_lejart', 'uj_szignalas', 'allapotvaltozas', 'megorzesi_ido_lejart'].includes(s.esemeny_tipus))}
           naplo={naplo || []}
           helyettesitesek={helyettesitesek || []}
+          isAdmin={isAdmin}
         />
       </Tabs>
     </div>

@@ -46,7 +46,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
 
   const { data: users } = await supabase
     .from("felhasznalo_profil")
-    .select('id, nev, docs_docs_szerepkor, szervezeti_egyseg_id')
+    .select('id, nev, docs_szerepkor, szervezeti_egyseg_id')
 
   // Current user role check
   const { data: authUser } = await supabase.auth.getUser()
