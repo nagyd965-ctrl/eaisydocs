@@ -17,7 +17,9 @@ import { Plus } from "lucide-react"
 import { toast } from "sonner"
 import { createHrDepartment } from "@/app/hr/settings/actions"
 
-export function HrOrgUnitCreateDialog() {
+import { ReactElement } from "react"
+
+export function HrOrgUnitCreateDialog({ customTrigger }: { customTrigger?: ReactElement }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -38,10 +40,14 @@ export function HrOrgUnitCreateDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" className="bg-[#02b8cc] hover:bg-[#029db0] text-white" />}>
-        <Plus className="w-4 h-4 mr-2" />
-        Új Szervezeti Egység
-      </DialogTrigger>
+      {customTrigger ? (
+        <DialogTrigger render={customTrigger} />
+      ) : (
+        <DialogTrigger render={<Button size="sm" className="bg-[#02b8cc] hover:bg-[#029db0] text-white" />}>
+          <Plus className="w-4 h-4 mr-2" />
+          Új Szervezeti Egység
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px]">
         <form action={onSubmit}>
           <DialogHeader>

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Key, Clock, Save } from "lucide-react"
+import { Key, Clock, Save, ShieldCheck } from "lucide-react"
 import { updateUserPassword, updateProfile } from "@/app/settings/settings-actions"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
@@ -39,7 +39,10 @@ export function SecuritySettingsTab({ initialTimeout }: { initialTimeout: number
       <TabsContent value="biztonsag" className="space-y-4 outline-none">
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-xl">Biztonság</CardTitle>
+            <div className="flex items-center space-x-2">
+              <ShieldCheck className="h-5 w-5" />
+              <CardTitle className="text-xl">Biztonság</CardTitle>
+            </div>
             <CardDescription>Jelszó, munkamenet és adatvédelem</CardDescription>
           </CardHeader>
           <form action={handleProfileSave}>

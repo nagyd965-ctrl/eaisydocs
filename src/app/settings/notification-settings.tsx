@@ -99,15 +99,15 @@ export function NotificationSettings({ rules, logs, isAdmin }: { rules: Rule[], 
 
   return (
     <div className="space-y-6">
-      <Card className="border-border shadow-sm border-none bg-transparent shadow-none">
-        <CardHeader className="px-6 pb-6 pt-0 border-b">
+      <Card className="border-border shadow-sm">
+        <CardHeader className="pb-4">
           <div className="flex items-center space-x-2">
-            <Bell className="h-5 w-5 text-primary" />
+            <Bell className="h-5 w-5" />
             <CardTitle className="text-xl">Értesítési Szabályok</CardTitle>
           </div>
           <CardDescription>Automatikus rendszerértesítések be- és kikapcsolása</CardDescription>
         </CardHeader>
-        <CardContent className="px-6 pt-6">
+        <CardContent>
           <div className="space-y-4">
             {localRules.map((rule) => {
               const ruleChannels = rule.csatorna || []
@@ -180,15 +180,15 @@ export function NotificationSettings({ rules, logs, isAdmin }: { rules: Rule[], 
         </CardContent>
       </Card>
 
-      <Card className="border-border shadow-sm border-none bg-transparent shadow-none mt-6">
-        <CardHeader className="px-6 pb-6 pt-0 border-b">
+      <Card className="border-border shadow-sm mt-6">
+        <CardHeader className="pb-4">
           <div className="flex items-center space-x-2">
-            <List className="h-5 w-5 text-primary" />
+            <List className="h-5 w-5" />
             <CardTitle className="text-xl">Kiküldési Napló (Audit)</CardTitle>
           </div>
           <CardDescription>A rendszer által kiküldött legutóbbi 50 értesítés állapota</CardDescription>
         </CardHeader>
-        <CardContent className="px-6 pt-6">
+        <CardContent>
           <div className="rounded-md border">
             <Table>
               <TableHeader>

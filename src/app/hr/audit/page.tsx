@@ -24,7 +24,7 @@ export default function HrAuditPage() {
       .from("hr_esemeny_naplo")
       .select(`
         *,
-        felhasznalo_profil:felhasznalo_id ( nev, szerepkor )
+        felhasznalo_profil:felhasznalo_id ( nev, hr_szerepkor )
       `)
       .order("created_at", { ascending: false })
       .limit(100)

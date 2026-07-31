@@ -105,15 +105,15 @@ export function HrNotificationSettings({ rules = [] }: { rules: Rule[] }) {
         </div>
       )}
       {/* HR Riasztások */}
-      <Card className="border-border shadow-sm border-none bg-transparent shadow-none">
-        <CardHeader className="px-6 pb-6 pt-0 border-b">
+      <Card className="border-border shadow-sm">
+        <CardHeader className="pb-4">
           <div className="flex items-center space-x-2">
-            <Bell className="h-5 w-5 text-primary" />
+            <Bell className="h-5 w-5" />
             <CardTitle className="text-xl">eaisyHR - Riasztások és Értesítések</CardTitle>
           </div>
           <CardDescription>Állítsd be, hogy a HR és munkaügyi riasztások hol jelenjenek meg.</CardDescription>
         </CardHeader>
-        <CardContent className="px-6 pt-6">
+        <CardContent>
           <div className="space-y-4">
             {localRules.map((rule) => {
               const ruleChannels = rule.csatorna || []

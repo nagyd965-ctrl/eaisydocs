@@ -10,7 +10,9 @@ import { Plus } from "lucide-react"
 import { toast } from "sonner"
 import { createMunkakor } from "@/app/hr/settings/actions"
 
-export function JobCreateDialog() {
+import { ReactElement } from "react"
+
+export function JobCreateDialog({ customTrigger }: { customTrigger?: ReactElement }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [besorolas, setBesorolas] = useState("")
@@ -32,10 +34,14 @@ export function JobCreateDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button className="gap-2 bg-[#02b8cc] hover:bg-[#029db0] text-white" />}>
-        <Plus className="w-4 h-4" />
-        Új Munkakör Létrehozása
-      </DialogTrigger>
+      {customTrigger ? (
+        <DialogTrigger render={customTrigger} />
+      ) : (
+        <DialogTrigger render={<Button className="gap-2 bg-[#02b8cc] hover:bg-[#029db0] text-white" />}>
+          <Plus className="w-4 h-4" />
+          Új Munkakör Létrehozása
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Új Munkakör Létrehozása</DialogTitle>

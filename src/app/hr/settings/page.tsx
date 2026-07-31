@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { User, Monitor, Shield, Info, Briefcase, Building2, Search, Users, Network } from "lucide-react"
+import { User, Monitor, Shield, Info, Briefcase, Building2, Search, Users, Network, UserPlus, Plus } from "lucide-react"
 import { EmployeeEditDialog } from "@/components/hr/employee-edit-dialog"
 import { OrgChartTree } from "@/components/hr/org-chart-tree"
 import { JobCreateDialog } from "@/components/hr/job-create-dialog"
@@ -268,10 +268,13 @@ export default async function HrSettingsPage() {
         <TabsContent value="rendszer" className="space-y-4 outline-none">
           <Card className="border-border shadow-sm">
             <CardHeader className="pb-4">
-              <CardTitle className="text-xl">Rendszer beállítások</CardTitle>
+              <div className="flex items-center space-x-2">
+                <Monitor className="h-5 w-5" />
+                <CardTitle className="text-xl">Rendszer beállítások</CardTitle>
+              </div>
               <CardDescription>Téma és megjelenítési beállítások</CardDescription>
             </CardHeader>
-            <CardContent className="px-6 pt-6 space-y-6">
+            <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="theme-select">Téma</Label>
@@ -324,7 +327,7 @@ export default async function HrSettingsPage() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="px-6 flex justify-start pt-4">
+            <CardFooter className="flex justify-end border-t pt-6 pb-6">
               <Button className="bg-[#02b8cc] hover:bg-[#029db0] text-white">
                 Rendszer beállítások mentése
               </Button>
@@ -339,10 +342,6 @@ export default async function HrSettingsPage() {
             <div>
               <h3 className="text-2xl font-semibold tracking-tight">Szervezet és Munkakörök</h3>
               <p className="text-muted-foreground mt-1">Vállalati struktúra és munkaköri leírások (FEOR) kezelése.</p>
-            </div>
-            <div className="flex gap-2">
-              <HrOrgUnitCreateDialog />
-              <JobCreateDialog />
             </div>
           </div>
 
@@ -429,6 +428,14 @@ export default async function HrSettingsPage() {
                     </TableBody>
                   </Table>
                 </CardContent>
+                <div className="px-0 py-2">
+                  <JobCreateDialog customTrigger={
+                    <Button variant="outline" className="w-full border-dashed border-2 py-6 text-muted-foreground hover:text-foreground">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Új munkakör létrehozása
+                    </Button>
+                  } />
+                </div>
               </Card>
             </TabsContent>
 
@@ -494,6 +501,14 @@ export default async function HrSettingsPage() {
                     </TableBody>
                   </Table>
                 </CardContent>
+                <div className="px-0 py-2">
+                  <HrOrgUnitCreateDialog customTrigger={
+                    <Button variant="outline" className="w-full border-dashed border-2 py-6 text-muted-foreground hover:text-foreground">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Új szervezeti egység létrehozása
+                    </Button>
+                  } />
+                </div>
               </Card>
             </TabsContent>
 
@@ -523,9 +538,6 @@ export default async function HrSettingsPage() {
                 <CardDescription>
                   A dolgozói nyilvántartás és a szerepkörök szerkesztése.
                 </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <AddEmployeeDialog availableUsers={unassignedUsers} jobs={jobs || []} candidates={availableCandidates} />
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -616,6 +628,19 @@ export default async function HrSettingsPage() {
                 </div>
               )}
             </CardContent>
+            <div className="px-0 py-2">
+              <AddEmployeeDialog 
+                availableUsers={unassignedUsers} 
+                jobs={jobs || []} 
+                candidates={availableCandidates} 
+                customTrigger={
+                  <Button variant="outline" className="w-full border-dashed border-2 py-6 text-muted-foreground hover:text-foreground">
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Új dolgozó felvétele
+                  </Button>
+                }
+              />
+            </div>
           </Card>
         </TabsContent>
 

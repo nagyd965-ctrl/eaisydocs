@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { User, UserPlus, Key, Clock, Save, ShieldCheck, FileText, Plane } from "lucide-react"
+import { User, Users, UserPlus, Key, Clock, Save, ShieldCheck, FileText, Plane, Building, Plus, Settings } from "lucide-react"
 import Link from "next/link"
 import { updateProfile, createNewUser, updateUserPassword, updateUserRole } from "./settings-actions"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -53,6 +53,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
   const [selectedDepartmentForAdd, setSelectedDepartmentForAdd] = useState<string | null>(null)
   const [selectedUsersToAdd, setSelectedUsersToAdd] = useState<string[]>([])
   const [addUsersLoading, setAddUsersLoading] = useState(false)
+  const [addDeptDialogOpen, setAddDeptDialogOpen] = useState(false)
   
   const [profileForm, setProfileForm] = useState({
     nev: initialProfile?.nev || "",
@@ -151,12 +152,15 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
 
       {/* 2. TAB: CSAPAT */}
       <TabsContent value="csapat" className="space-y-4 outline-none">
-        <Card className="border-border shadow-sm border-none bg-transparent shadow-none">
-          <CardHeader className="px-0 pb-6 pt-0 border-b">
-            <CardTitle className="text-xl">Csapat</CardTitle>
+        <Card className="border-border shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center space-x-2">
+              <Users className="h-5 w-5" />
+              <CardTitle className="text-xl">Csapat</CardTitle>
+            </div>
             <CardDescription>Felhasználók és hozzáférések kezelése</CardDescription>
           </CardHeader>
-          <CardContent className="px-0 py-4 space-y-3">
+          <CardContent className="space-y-3">
             {teamMembers?.map((member) => (
               <div 
                 key={member.id} 
@@ -346,104 +350,117 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
         </Card>
       </TabsContent>
 
-        <TabsContent value="osztalyok" className="space-y-4">
-          <Card className="rounded-none shadow-sm">
-            <CardHeader>
-              <CardTitle>Szervezeti Egységek</CardTitle>
+        <TabsContent value="osztalyok" className="space-y-4 outline-none">
+          <Card className="border-border shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex items-center space-x-2">
+                <Building className="h-5 w-5" />
+                <CardTitle className="text-xl">Szervezeti Egységek</CardTitle>
+              </div>
               <CardDescription>
                 A cég osztályainak (részlegeinek) kezelése.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
+              
+              {/* Osztályok listája */}
               <div className="space-y-4">
-                <form action={async (formData) => {
-                  setDepartmentLoading(true)
-                  const { createDepartment } = await import("./settings-actions")
-                  const res = await createDepartment(formData)
-                  setDepartmentLoading(false)
-                  if (res.error) toast.error("Hiba", { description: res.error })
-                  else (document.getElementById("new-dept-form") as HTMLFormElement)?.reset()
-                }} id="new-dept-form" className="flex items-end gap-4">
-                  <div className="space-y-2 flex-1 max-w-sm">
-                    <Label htmlFor="nev">Új szervezeti egység neve</Label>
-                    <Input id="nev" name="nev" placeholder="Pl. Pénzügy, HR, Értékesítés" required />
+                {departments?.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 px-4 border rounded-xl border-dashed">
+                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                      <Building className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm font-semibold text-foreground">Még nincsenek szervezeti egységek</p>
+                    <p className="text-xs text-muted-foreground mt-1 text-center max-w-sm">
+                      Hozz létre osztályokat a fenti mező segítségével, hogy a felhasználókat csoportosíthasd.
+                    </p>
                   </div>
-                  <Button type="submit" disabled={departmentLoading}>Hozzáadás</Button>
-                </form>
-
-                <div className="rounded-md border mt-6">
-                  <div className="grid grid-cols-1">
-                    {departments?.length === 0 ? (
-                      <div className="p-4 text-center text-sm text-muted-foreground">Még nincsenek szervezeti egységek.</div>
-                    ) : (
-                      <Accordion className="w-full">
-                        {departments?.map((dept) => {
-                          const deptUsers = teamMembers?.filter(m => m.szervezeti_egyseg_id === dept.id) || [];
-                          return (
-                          <AccordionItem key={dept.id} value={dept.id} className="relative">
-                            <div className="flex items-center w-full justify-between pr-4 group">
-                              <AccordionTrigger className="flex-1 hover:no-underline py-4 px-4 justify-start gap-4">
-                                <div>
-                                  <p className="text-sm font-semibold text-foreground text-left">{dept.nev}</p>
-                                  <p className="text-xs text-muted-foreground font-normal text-left">{deptUsers.length} tag</p>
-                                </div>
-                              </AccordionTrigger>
+                ) : (
+                  <Accordion type="multiple" className="w-full space-y-4">
+                    {departments?.map((dept) => {
+                      const deptUsers = teamMembers?.filter(m => m.szervezeti_egyseg_id === dept.id) || [];
+                      return (
+                      <AccordionItem key={dept.id} value={dept.id} className="border rounded-xl bg-card overflow-hidden transition-all data-[state=open]:border-primary/50 px-2">
+                        <div className="flex items-center w-full justify-between pr-4 group">
+                          <AccordionTrigger className="flex-1 hover:no-underline py-4 px-2 justify-start gap-4">
+                            <div className="flex items-center gap-4">
+                              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                                <Building className="h-5 w-5" />
+                              </div>
+                              <div className="text-left">
+                                <p className="text-sm font-semibold text-foreground">{dept.nev}</p>
+                                <p className="text-xs text-muted-foreground font-normal">{deptUsers.length} tag</p>
+                              </div>
+                            </div>
+                          </AccordionTrigger>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (confirm(`Biztosan törlöd a(z) ${dept.nev} osztályt?`)) {
+                                  const { deleteDepartment } = await import("./settings-actions")
+                                  const res = await deleteDepartment(dept.id)
+                                  if (res.error) toast.error("Hiba", { description: res.error })
+                                  else toast.success("Sikeres", { description: "Szervezeti egység törölve." })
+                                }
+                              }}
+                            >
+                              Törlés
+                            </Button>
+                          </div>
+                        </div>
+                        <AccordionContent className="px-4 pb-4 pt-0">
+                          <div className="border-t pt-4 mt-2">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Hozzárendelt tagok</h4>
                               <Button 
-                                variant="destructive" 
+                                variant="outline" 
                                 size="sm"
-                                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (confirm("Biztosan törlöd ezt a szervezeti egységet?")) {
-                                    const { deleteDepartment } = await import("./settings-actions")
-                                    const res = await deleteDepartment(dept.id)
-                                    if (res.error) toast.error("Hiba", { description: res.error })
-                                  }
+                                className="h-8 rounded-full text-xs font-semibold"
+                                onClick={() => {
+                                  setSelectedDepartmentForAdd(dept.id)
+                                  setSelectedUsersToAdd([])
+                                  setAddUsersDialogOpen(true)
                                 }}
                               >
-                                Törlés
+                                Tagok hozzáadása
                               </Button>
                             </div>
-                            <AccordionContent className="px-4 pb-4">
-                              <div className="flex justify-end mb-4">
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedDepartmentForAdd(dept.id)
-                                    setSelectedUsersToAdd([])
-                                    setAddUsersDialogOpen(true)
-                                  }}
-                                >
-                                  Felhasználók hozzáadása
-                                </Button>
-                              </div>
-                              {deptUsers.length > 0 ? (
-                                <ul className="space-y-2 mt-2 border-t pt-4">
-                                  {deptUsers.map(u => (
-                                    <li key={u.id} className="flex items-center gap-3 p-2 bg-muted/30 rounded-md">
-                                      <div className="h-8 w-8 shrink-0 bg-primary rounded-full flex items-center justify-center font-semibold text-xs text-primary-foreground">
+                            
+                            {deptUsers.length > 0 ? (
+                              <div className="grid gap-2">
+                                {deptUsers.map(u => (
+                                  <div key={u.id} className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg transition-colors group/item">
+                                    <div className="flex items-center gap-3">
+                                      <div className="h-8 w-8 shrink-0 bg-secondary rounded-full flex items-center justify-center font-semibold text-xs text-secondary-foreground">
                                         {u.nev?.substring(0, 1).toUpperCase() || "?"}
                                       </div>
                                       <div>
-                                        <p className="text-sm font-medium">{u.nev}</p>
-                                        <p className="text-xs text-muted-foreground uppercase">{u.docs_szerepkor}</p>
+                                        <p className="text-sm font-medium text-foreground">{u.nev}</p>
+                                        <p className="text-xs text-muted-foreground">{u.email || ""}</p>
                                       </div>
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : (
-                                <p className="text-xs text-muted-foreground mt-2 border-t pt-4">Ebben az osztályban nincsenek felhasználók.</p>
-                              )}
-                            </AccordionContent>
-                          </AccordionItem>
-                        )})}
-                      </Accordion>
-                    )}
-                  </div>
-                </div>
-
+                                    </div>
+                                    <Badge variant="secondary" className="uppercase font-semibold text-[10px] tracking-wider bg-background border">
+                                      {u.docs_szerepkor}
+                                    </Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="py-6 text-center">
+                                <p className="text-sm text-muted-foreground">Ebben az osztályban nincsenek felhasználók.</p>
+                              </div>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )})}
+                  </Accordion>
+                )}
                 <Dialog open={addUsersDialogOpen} onOpenChange={setAddUsersDialogOpen}>
                   <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
@@ -502,6 +519,49 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                   </DialogContent>
                 </Dialog>
 
+                <Dialog open={addDeptDialogOpen} onOpenChange={setAddDeptDialogOpen}>
+                  <DialogTrigger
+                    render={
+                      <Button variant="outline" className="w-full border-dashed border-2 py-6 text-muted-foreground hover:text-foreground mt-4" />
+                    }
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Új szervezeti egység létrehozása
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <form action={async (formData) => {
+                      setDepartmentLoading(true)
+                      const { createDepartment } = await import("./settings-actions")
+                      const res = await createDepartment(formData)
+                      setDepartmentLoading(false)
+                      if (res.error) toast.error("Hiba", { description: res.error })
+                      else {
+                        toast.success("Sikeres", { description: "Szervezeti egység létrehozva." })
+                        setAddDeptDialogOpen(false)
+                      }
+                    }}>
+                      <DialogHeader>
+                        <DialogTitle>Új Szervezeti Egység</DialogTitle>
+                        <DialogDescription>
+                          Hozz létre új osztályokat (részlegeket) a cégedben.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="nev">Osztály neve</Label>
+                          <Input id="nev" name="nev" placeholder="Pl. Pénzügy, HR, Értékesítés" required />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" type="button" onClick={() => setAddDeptDialogOpen(false)}>Mégsem</Button>
+                        <Button type="submit" disabled={departmentLoading} className="rounded-full">
+                          {departmentLoading ? "Létrehozás..." : "Létrehozás"}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+
               </div>
             </CardContent>
           </Card>
@@ -512,39 +572,12 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
       {/* 5. TAB: BIZTONSÁG */}
       <TabsContent value="biztonsag" className="space-y-4 outline-none">
         
-        {/* Hivatalos dokumentumok */}
-        <Card className="border-border shadow-sm mb-6 bg-primary/5 border-primary/20">
+        <Card className="border-border shadow-sm mb-6">
           <CardHeader className="pb-4">
-            <CardTitle className="text-xl flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-primary" />
-              Hivatalos Dokumentációk
-            </CardTitle>
-            <CardDescription>A rendszer adatkezelési és IT biztonsági garanciái (Audit dokumentumok)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between p-4 bg-background border rounded-xl shadow-sm">
-              <div className="flex items-center space-x-4">
-                <div className="h-10 w-10 shrink-0 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
-                  <FileText className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">IT Biztonsági Szabályzat</p>
-                  <p className="text-xs text-muted-foreground">Hozzáférés-szabályozás, naplózás, jelszópolitika</p>
-                </div>
-              </div>
-              <Link 
-                href="/security-policy" 
-                className={cn(buttonVariants({ variant: "outline" }), "border-primary/50 hover:bg-primary/10")}
-              >
-                Megtekintés
-              </Link>
+            <div className="flex items-center space-x-2">
+              <ShieldCheck className="h-5 w-5" />
+              <CardTitle className="text-xl">Biztonság</CardTitle>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border shadow-sm">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-xl">Biztonság</CardTitle>
             <CardDescription>Jelszó, munkamenet és adatvédelem</CardDescription>
           </CardHeader>
           <form action={handleProfileSave}>
@@ -640,6 +673,36 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
           </CardFooter>
         </form>
         </Card>
+
+        {/* Hivatalos dokumentumok */}
+        <Card className="border-border shadow-sm bg-primary/5 border-primary/20">
+          <CardHeader className="pb-4">
+            <div className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-primary" />
+              <CardTitle className="text-xl text-primary">Hivatalos Dokumentációk</CardTitle>
+            </div>
+            <CardDescription>A rendszer adatkezelési és IT biztonsági garanciái (Audit dokumentumok)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between p-4 bg-background border rounded-xl shadow-sm">
+              <div className="flex items-center space-x-4">
+                <div className="h-10 w-10 shrink-0 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">IT Biztonsági Szabályzat</p>
+                  <p className="text-xs text-muted-foreground">Hozzáférés-szabályozás, naplózás, jelszópolitika</p>
+                </div>
+              </div>
+              <Link 
+                href="/security-policy" 
+                className={cn(buttonVariants({ variant: "outline" }), "border-primary/50 hover:bg-primary/10")}
+              >
+                Megtekintés
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </TabsContent>
 
       {/* 5. TAB: ÉRTESÍTÉSEK */}
@@ -649,12 +712,15 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
 
       {/* RENDSZER BEÁLLÍTÁSOK */}
       <TabsContent value="rendszer" className="space-y-4 outline-none">
-        <Card className="border-border shadow-sm border-none bg-transparent shadow-none">
-          <CardHeader className="px-6 pb-6 pt-0 border-b">
-            <CardTitle className="text-xl">Rendszer beállítások</CardTitle>
+        <Card className="border-border shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center space-x-2">
+              <Settings className="h-5 w-5" />
+              <CardTitle className="text-xl">Rendszer beállítások</CardTitle>
+            </div>
             <CardDescription>Téma és megjelenítési beállítások</CardDescription>
           </CardHeader>
-          <CardContent className="px-6 pt-6 space-y-6">
+          <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="theme-select">Téma</Label>
@@ -711,11 +777,12 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
               </div>
             </div>
           </CardContent>
-          <CardFooter className="px-6 flex justify-start pt-4">
+          <CardFooter className="flex justify-end border-t pt-6 pb-6">
             <Button className="bg-[#02b8cc] hover:bg-[#029db0] text-white" onClick={() => {
               setSuccess(true)
               setTimeout(() => setSuccess(false), 2000)
             }}>
+              <Save className="h-4 w-4 mr-2" />
               {success ? "Sikeres mentés!" : "Rendszer beállítások mentése"}
             </Button>
           </CardFooter>
@@ -725,14 +792,12 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
       {/* 7. TAB: HELYETTESÍTÉS */}
       <TabsContent value="helyettesites" className="space-y-4 outline-none">
         <Card className="border-border shadow-sm">
-          <CardHeader className="pb-4 border-b">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Plane className="h-5 w-5 text-primary" />
-                <CardTitle>Helyettesítés beállítása</CardTitle>
-              </div>
+          <CardHeader className="pb-4">
+            <div className="flex items-center space-x-2">
+              <Plane className="h-5 w-5" />
+              <CardTitle className="text-xl">Helyettesítés beállítása</CardTitle>
             </div>
-            <CardDescription className="pt-1.5">
+            <CardDescription>
               Állítsd be, hogy szabadságod vagy távolléted alatt ki lássa el a feladataidat.
             </CardDescription>
           </CardHeader>

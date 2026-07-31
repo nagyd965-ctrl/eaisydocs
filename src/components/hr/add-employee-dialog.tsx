@@ -11,8 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UserPlus, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { onboardEmployee } from "@/app/hr/admin/actions"
+import { ReactElement } from "react"
 
-export function AddEmployeeDialog({ availableUsers, jobs, candidates = [] }: { availableUsers: any[], jobs: any[], candidates?: any[] }) {
+export function AddEmployeeDialog({ availableUsers, jobs, candidates = [], customTrigger }: { availableUsers: any[], jobs: any[], candidates?: any[], customTrigger?: ReactElement }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -70,10 +71,14 @@ export function AddEmployeeDialog({ availableUsers, jobs, candidates = [] }: { a
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className={buttonVariants({ variant: "default", className: "gap-2" })}>
-        <UserPlus className="w-4 h-4" />
-        Új Dolgozó Felvétele
-      </DialogTrigger>
+      {customTrigger ? (
+        <DialogTrigger render={customTrigger} />
+      ) : (
+        <DialogTrigger className={buttonVariants({ variant: "default", className: "gap-2" })}>
+          <UserPlus className="w-4 h-4" />
+          Új Dolgozó Felvétele
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Új Dolgozó Felvétele</DialogTitle>
