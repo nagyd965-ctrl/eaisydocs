@@ -45,7 +45,7 @@ export default async function OnboardingPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-10">
+    <div className="space-y-6 pb-10">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Onboarding</h1>

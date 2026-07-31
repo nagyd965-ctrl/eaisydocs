@@ -74,7 +74,7 @@ export default async function CompliancePage() {
   })
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto pb-10">
+    <div className="space-y-8 pb-10">
       <div className="print:hidden">
         <h1 className="text-3xl font-semibold tracking-tight">Hatósági Adatszolgáltatás</h1>
         <p className="text-muted-foreground mt-1">

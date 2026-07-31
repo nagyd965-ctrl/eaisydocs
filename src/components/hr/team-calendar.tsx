@@ -22,10 +22,10 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
 
   // Színek definiálása típusok alapján
   const typeColors: Record<string, string> = {
-    szabadsag: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800",
-    beteg: "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
-    fizetetlen: "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700",
-    tanulmanyi: "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800"
+    szabadsag: "bg-primary/10 text-primary border-primary/20",
+    beteg: "bg-destructive/10 text-destructive border-destructive/20",
+    fizetetlen: "bg-muted text-muted-foreground border-border",
+    tanulmanyi: "bg-info/10 text-info border-info/20"
   }
 
   const navigate = (direction: "prev" | "next" | "today") => {
@@ -54,7 +54,7 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
             {days.map(day => (
               <div key={day.toISOString()} className={`col-span-1 p-2 text-center border-b ${isSameDay(day, new Date()) ? 'border-primary' : ''}`}>
                 <div className="text-xs font-semibold uppercase">{format(day, "EEEE", { locale: hu })}</div>
-                <div className={`text-lg ${isSameDay(day, new Date()) ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+                <div className={`text-lg tabular-nums ${isSameDay(day, new Date()) ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
                   {format(day, "d")}
                 </div>
               </div>
@@ -131,17 +131,17 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
           })
 
           return (
-            <div key={day.toISOString()} className={`min-h-[120px] bg-card p-2 flex flex-col transition-colors hover:bg-muted/20 border-border/50 ${!isCurrentMonth ? 'opacity-40 bg-muted/10' : ''} ${isToday ? 'bg-primary/5 border-primary/20 ring-1 ring-primary/20 shadow-sm rounded-md z-10' : ''}`}>
-              <div className={`text-right text-xs font-semibold mb-2 ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>
+            <div key={day.toISOString()} className={`min-h-[120px] bg-card p-2 flex flex-col transition-colors hover:bg-muted/20 border-border/50 ${!isCurrentMonth ? 'opacity-40 bg-muted/10' : ''} ${isToday ? 'bg-primary/5 border-primary/20 ring-1 ring-primary/20 rounded-md z-10' : ''}`}>
+              <div className={`text-right tabular-nums text-xs font-semibold mb-2 ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>
                 {format(day, "d")}
               </div>
               <div className="flex-1 flex flex-col gap-1">
                 {absentMembers.length > 0 && (
                   <Popover>
-                    <PopoverTrigger className="text-xs w-full bg-primary/10 hover:bg-primary/20 text-primary font-semibold py-1.5 px-2 rounded-md transition-colors text-left flex items-center justify-between shadow-sm border border-primary/20">
+                    <PopoverTrigger className="text-xs w-full bg-primary/10 hover:bg-primary/20 text-primary font-semibold py-1.5 px-2 rounded-md transition-colors text-left flex items-center justify-between border border-primary/20">
                         <span>{absentMembers.length} távollét</span>
                     </PopoverTrigger>
-                    <PopoverContent className="w-80 p-0 shadow-lg border-muted" align="start">
+                    <PopoverContent className="w-80 p-0 border-muted" align="start">
                       <div className="bg-muted/50 p-3 border-b flex items-center gap-2">
                         <CalendarIcon className="w-4 h-4 text-primary" />
                         <h4 className="font-semibold text-sm">
@@ -159,7 +159,7 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
                           return (
                             <div key={member.id} className="flex flex-col gap-1 p-2 hover:bg-muted/50 rounded-md transition-colors">
                               <div className="flex items-center gap-3">
-                                <Avatar className="w-9 h-9 rounded-full border shadow-sm shrink-0">
+                                <Avatar className="w-9 h-9 rounded-full border shrink-0">
                                   <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">{initials}</AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1 min-w-0">
@@ -168,7 +168,7 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
                                     <User2 className="w-3 h-3 shrink-0" /> {munkakor}
                                   </p>
                                 </div>
-                                <Badge variant="outline" className={`text-[10px] uppercase font-bold shrink-0 shadow-sm ${typeColors[leave.tipus]}`}>
+                                <Badge variant="outline" className={`text-[10px] uppercase font-semibold shrink-0 ${typeColors[leave.tipus]}`}>
                                   {leave.tipus}
                                 </Badge>
                               </div>
@@ -227,15 +227,14 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
                         }
                       })
 
-                      // Hőtérkép szín: minél több nap, annál sötétebb (eaisyHR kékkel)
                       let bgClass = "bg-transparent"
-                      if (daysOff > 0 && daysOff <= 3) bgClass = "bg-blue-100 dark:bg-blue-900/30"
-                      else if (daysOff > 3 && daysOff <= 10) bgClass = "bg-blue-300 dark:bg-blue-700/50"
-                      else if (daysOff > 10) bgClass = "bg-blue-500 text-white dark:bg-blue-600"
+                      if (daysOff > 0 && daysOff <= 3) bgClass = "bg-primary/20 text-primary-foreground dark:bg-primary/30"
+                      else if (daysOff > 3 && daysOff <= 10) bgClass = "bg-primary/50 text-primary-foreground dark:bg-primary/50"
+                      else if (daysOff > 10) bgClass = "bg-primary text-primary-foreground dark:bg-primary"
 
                       return (
                         <td key={month.toISOString()} className="p-1">
-                          <div className={`h-8 w-full rounded-sm flex items-center justify-center text-xs font-semibold ${bgClass} transition-colors hover:ring-2 hover:ring-primary/50 cursor-pointer`} title={`${daysOff} nap távollét`}>
+                          <div className={`h-8 w-full rounded-sm flex items-center justify-center text-xs tabular-nums font-semibold ${bgClass} transition-colors hover:ring-2 hover:ring-primary/50 cursor-pointer`} title={`${daysOff} nap távollét`}>
                              {daysOff > 0 ? daysOff : '-'}
                           </div>
                         </td>
@@ -272,19 +271,19 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
           <div className="flex bg-muted p-1 rounded-md">
             <button 
               onClick={() => setViewMode("heti")} 
-              className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${viewMode === "heti" ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${viewMode === "heti" ? 'bg-background' : 'text-muted-foreground hover:text-foreground'}`}
             >
               Heti
             </button>
             <button 
               onClick={() => setViewMode("havi")} 
-              className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${viewMode === "havi" ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${viewMode === "havi" ? 'bg-background' : 'text-muted-foreground hover:text-foreground'}`}
             >
               Havi
             </button>
             <button 
               onClick={() => setViewMode("eves")} 
-              className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${viewMode === "eves" ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${viewMode === "eves" ? 'bg-background' : 'text-muted-foreground hover:text-foreground'}`}
             >
               Éves
             </button>

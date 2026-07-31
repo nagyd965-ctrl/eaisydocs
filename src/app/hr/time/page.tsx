@@ -61,12 +61,14 @@ export default async function TimeAndAttendancePage() {
   }))
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-          <CalendarIcon className="w-8 h-8 text-primary" /> Naptár & Távollét
-        </h1>
-        <p className="text-muted-foreground">Központi naptár a szabadságok, táppénzek és csapat szintű távollétek nyomon követésére.</p>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Naptár & Távollét</h1>
+          <p className="text-muted-foreground mt-1">
+            Központi naptár a szabadságok, táppénzek és csapat szintű távollétek nyomon követésére.
+          </p>
+        </div>
       </div>
 
       <TeamCalendar teamMembers={allEmployees || []} leaves={allLeaves || []} />

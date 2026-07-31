@@ -139,6 +139,16 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     .eq("dolgozo_id", resolvedParams.id)
     .eq("ev", currentYear)
 
+  const roleMap: Record<string, string> = {
+    admin: "Rendszergazda",
+    hr_vezeto: "HR Vezető",
+    hr_munkatars: "HR Munkatárs",
+    munkavallalo: "Munkavállaló",
+    vezeto: "Vezető",
+    ugyintezo: "Fejlesztő / Ügyintéző"
+  }
+  const displayRole = roleMap[profile.hr_szerepkor] || profile.hr_szerepkor
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -153,7 +163,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
             <Badge variant="default" className="text-sm">Aktív</Badge>
           </h1>
           <p className="text-muted-foreground mt-1">
-            {profile.hr_szerepkor === 'admin' ? 'Rendszergazda' : profile.hr_szerepkor === 'ugyintezo' ? 'Fejlesztő / Ügyintéző' : profile.hr_szerepkor}
+            {displayRole}
           </p>
         </div>
       </div>
@@ -172,7 +182,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Munkakör / Szerepkör</p>
-              <p className="font-medium">{profile.hr_szerepkor}</p>
+              <p className="font-medium">{displayRole}</p>
             </div>
           </CardContent>
         </Card>
