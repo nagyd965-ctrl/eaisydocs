@@ -69,12 +69,12 @@ export default async function PerformancePage() {
     .order("created_at", { ascending: true })
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-6 pb-10">
       
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
-            <Target className="w-8 h-8 text-primary" /> Teljesítményértékelés
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Teljesítményértékelés
           </h1>
           <p className="text-muted-foreground mt-1">
             Vállalati és egyéni KPI-ok, célok nyomon követése és kiértékelése.

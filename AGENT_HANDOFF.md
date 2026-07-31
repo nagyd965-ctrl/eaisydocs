@@ -24,8 +24,10 @@ Ez egy kettős funkciójú rendszer, ami egy közös alapon nyugszik:
 - **Ikonok:** Lucide React, egységes `h-4 w-4` méretezéssel.
 - **Sötét mód (Dark mode):** Kötelező. A Tailwind `darkMode: ["class"]` stratégiát használjuk.
 
-### 2.2. Backend és Biztonság
-- **Modul szintű elszigetelés:** A `felhasznalo_profil` tábla `elerheto_modulok` text[] tömbje dönti el a láthatóságot (`"docs"` vagy `"hr"`).
+### 2.2. Backend, Biztonság és Moduláris Függetlenség
+- **Modul szintű elszigetelés (Kritikus Szabály):** Az eaisyDocs és az eaisyHR két teljesen külön megvásárolható, önálló program! Bár közös adatbázison nyugszanak, a fejlesztés során garantálni kell, hogy egymástól teljesen függetlenül is működőképesek maradjanak.
+- **Kompatibilitás:** Egyik modul funkciója vagy lekérdezése sem omolhat össze amiatt, ha a másik modul nincs aktiválva.
+- **Láthatóság és Szerepkörök:** A `felhasznalo_profil` tábla `elerheto_modulok` text[] tömbje dönti el, melyik modul aktív az ügyfélnél (`"docs"` vagy `"hr"`). Emiatt a jogosultságok is szigorúan szét vannak választva:
 - **Kétféle Szerepkör:** 
   - `szerepkor`: (ugyintezo, vezeto, admin, ellenor) -> **eaisyDocs**
   - `hr_szerepkor`: (munkavallalo, hr_munkatars, hr_vezeto, admin) -> **eaisyHR**

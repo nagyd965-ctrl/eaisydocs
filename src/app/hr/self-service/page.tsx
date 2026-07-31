@@ -1,21 +1,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { UserCircle, CalendarDays, Coffee } from "lucide-react"
+import { CalendarDays, Clock, FileText, ArrowRight } from "lucide-react"
 import { createClient } from "@/utils/supabase/server"
-import { PersonalDataCard } from "@/components/hr/personal-data-card"
 import { LeaveRequestDialog } from "@/components/hr/leave-request-dialog"
 import { TimeTrackingCard } from "@/components/hr/time-tracking-card"
-import { RecentDocumentsCard } from "@/components/hr/recent-documents-card"
-import { LeaveHistoryList } from "@/components/hr/leave-history-list"
-import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
-import { EmployeeTimesheet } from "@/components/hr/employee-timesheet"
-import { EmployeeKpiCard } from "@/components/hr/employee-kpi-card"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { FileSignature } from "lucide-react"
-import { JobDescriptionAcknowledgment } from "@/components/hr/job-description-acknowledgment"
-import { SubstituteSettingsCard } from "@/components/hr/substitute-settings-card"
 
 export default async function SelfServicePage() {
   const supabase = await createClient()
@@ -25,38 +17,13 @@ export default async function SelfServicePage() {
     redirect("/login")
   }
 
-  // Lekérdezzük a dolgozó alapadatait és a kapcsolódó új táblákat
-  const [adatlapRes, jogviszonyRes, orvosiRes] = await Promise.all([
-    supabase
-      .from("hr_dolgozo_adatlap")
-      .select("*, felhasznalo_profil(nev, hr_szerepkor)")
-      .eq("id", user.id)
-      .single(),
-    supabase
-      .from("hr_jogviszony")
-      .select("belepes_datuma, hr_beosztas(hr_munkakor(megnevezes))")
-      .eq("dolgozo_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("hr_orvosi_vizsgalat")
-      .select("ervenyesseg_datuma")
-      .eq("dolgozo_id", user.id)
-      .order("ervenyesseg_datuma", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-  ])
+  const { data: adatlap } = await supabase
+    .from("hr_dolgozo_adatlap")
+    .select("*, felhasznalo_profil(nev)")
+    .eq("id", user.id)
+    .single()
 
-  const adatlap = adatlapRes.data
-  const jogviszony = jogviszonyRes.data
-  const orvosi = orvosiRes.data
-
-  const munkakorMegnevezes = jogviszony?.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beállítva"
-  const belepesDatuma = jogviszony?.belepes_datuma || null
-  const orvosiErvenyesseg = orvosi?.ervenyesseg_datuma || null
-
-  // 1. Szabadság egyenleg számítása és Távollétek lekérése
+  // 1. Szabadság egyenleg számítása
   const { data: tavolletek } = await supabase
     .from("hr_tavollet")
     .select("*")
@@ -67,6 +34,9 @@ export default async function SelfServicePage() {
   const usedLeave = tavolletek?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyva").length || 0
   const plannedLeave = tavolletek?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyasra_var").length || 0
   const remainingLeave = totalLeave - usedLeave
+
+  // Legutóbbi 3 távollét kérelem
+  const recentLeaves = tavolletek?.slice(0, 3) || []
 
   // 2. Időrögzítés státusz
   const { data: jelenlet } = await supabase
@@ -82,15 +52,7 @@ export default async function SelfServicePage() {
     else timeStatus = "checked_in"
   }
 
-  // 3. Dokumentumok lekérése (Saját fájlok)
-  const { data: dokumentumok } = await supabase
-    .from("hr_dokumentum")
-    .select("*")
-    .eq("dolgozo_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(5)
-
-  // 3.5 Céges dokumentumok ellenőrzése (van-e olvasatlan kötelező)
+  // 3. Céges dokumentumok ellenőrzése
   const { data: cegesDokumentumok } = await supabase
     .from("hr_ceges_dokumentum")
     .select(`id, hr_ceges_dokumentum_nyugtazas(id)`)
@@ -100,105 +62,14 @@ export default async function SelfServicePage() {
 
   const pendingDocsCount = cegesDokumentumok?.filter(d => !d.hr_ceges_dokumentum_nyugtazas || d.hr_ceges_dokumentum_nyugtazas.length === 0).length || 0
 
-  // 4. Cafeteria lekérések
-  const currentYear = new Date().getFullYear()
-  
-  const { data: cafeteriaKeret } = await supabase
-    .from("hr_cafeteria_keret")
-    .select("*")
-    .eq("dolgozo_id", user.id)
-    .eq("ev", currentYear)
-    .single()
-
-  const { data: cafeteriaKatalogus } = await supabase
-    .from("hr_cafeteria_katalogus")
-    .select("*")
-    .eq("aktiv", true)
-    .order("nev")
-
-  const { data: cafeteriaValasztasok } = await supabase
-    .from("hr_cafeteria_valasztas")
-    .select("*")
-    .eq("dolgozo_id", user.id)
-    .eq("ev", currentYear)
-
-  // 5. Teljesítményértékelés (KPI-ok) lekérése (Admin kliens az RLS problémák miatt)
-  const { createClient: createAdminClient } = await import("@supabase/supabase-js")
-  const supabaseAdmin = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const { data: kpis } = await supabaseAdmin
-    .from("hr_teljesitmeny")
-    .select("*, hr_teljesitmeny_ciklus(megnevezes)")
-    .eq("dolgozo_id", user.id)
-    .order("created_at", { ascending: false })
-
-  const { data: kpiLogs } = await supabaseAdmin
-    .from("hr_esemeny_naplo")
-    .select("*, felhasznalo_profil(nev)")
-    .eq("entitas_tipus", "hr_teljesitmeny")
-    .order("created_at", { ascending: true })
-
-  // 6. Munkakör és nyugtázás lekérése
-  const { data: jogviszonyInfo } = await supabase
-    .from("hr_jogviszony")
-    .select("*, hr_beosztas(*, hr_munkakor(*))")
-    .eq("dolgozo_id", user.id)
-    .is("kilepes_datuma", null)
-    .single()
-
-  const activeMunkakor = jogviszonyInfo?.hr_beosztas?.[0]?.hr_munkakor;
-
-  let needsAcknowledgment = false;
-  if (activeMunkakor) {
-    const { data: nyugtazas } = await supabase
-      .from("hr_munkakor_nyugtazas")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("munkakor_id", activeMunkakor.id)
-      .single()
-    if (!nyugtazas) needsAcknowledgment = true;
-  }
-
-  // 7. Helyettesítések lekérése
-  const { data: currentSubstituteList } = await supabase
-    .from("hr_helyettesites")
-    .select("*, helyettes_profil:felhasznalo_profil!hr_helyettesites_helyettes_id_fkey(nev)")
-    .eq("vezeto_id", user.id)
-    .eq("aktiv", true)
-    .gte("veg_datuma", new Date().toISOString().split('T')[0])
-    .order("created_at", { ascending: false })
-    .limit(1)
-
-  const currentSubstitute = currentSubstituteList?.[0] || null
-
-  const { data: availableAdatlapUsers } = await supabaseAdmin
-    .from("hr_dolgozo_adatlap")
-    .select("id, felhasznalo_profil!inner(id, nev)")
-    .neq("id", user.id)
-
-  const availableUsers = availableAdatlapUsers
-    ?.map((a: any) => a.felhasznalo_profil)
-    .sort((a: any, b: any) => a.nev.localeCompare(b.nev)) || []
-
-  // Explicitly fetch user role to avoid join issues
-  const { data: myProfile } = await supabase
-    .from("felhasznalo_profil")
-    .select("hr_szerepkor")
-    .eq("id", user.id)
-    .single()
-
-  const isManagerOrAdmin = ['hr_vezeto', 'vezeto', 'admin'].includes(myProfile?.hr_szerepkor)
-
   return (
     <div className="space-y-6">
       
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Dolgozói Portál</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Áttekintés</h1>
           <p className="text-muted-foreground mt-1">
-            Üdvözlünk, {adatlap?.felhasznalo_profil?.nev || "Dolgozó"}! Itt találod a személyes HR adataidat.
+            Üdvözlünk, {adatlap?.felhasznalo_profil?.nev || "Dolgozó"}! Ez a személyes irányítópultod.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -217,48 +88,16 @@ export default async function SelfServicePage() {
         </div>
       </div>
 
-      {needsAcknowledgment && activeMunkakor && (
-        <JobDescriptionAcknowledgment munkakor={activeMunkakor} />
-      )}
-
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Személyes Adatok */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div className="space-y-1">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <UserCircle className="w-4 h-4 text-primary" /> Alapadatok
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="mt-4 space-y-3">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Munkakör</p>
-                <p className="font-medium text-sm mt-1">{munkakorMegnevezes}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Belépés Dátuma</p>
-                <p className="font-medium text-sm mt-1">{belepesDatuma ? new Date(belepesDatuma).toLocaleDateString("hu-HU") : "Nincs megadva"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Orvosi Érvényesség</p>
-                <p className="font-medium text-sm mt-1">{orvosiErvenyesseg ? new Date(orvosiErvenyesseg).toLocaleDateString("hu-HU") : "Nincs megadva"}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Titkos Adatok Kártya */}
-        <PersonalDataCard />
-
-        {/* Helyettesítés Kártya */}
-        {isManagerOrAdmin && (
-          <SubstituteSettingsCard availableUsers={availableUsers || []} currentSubstitute={currentSubstitute} />
-        )}
+        {/* Időadat Rögzítés Kártya */}
+        <TimeTrackingCard 
+          initialStatus={timeStatus} 
+          checkInTime={jelenlet?.becsekkolas_ideje || null}
+          checkOutTime={jelenlet?.kicsekkolas_ideje || null}
+        />
         
         {/* Szabadság egyenleg */}
-        <Card>
+        <Card className="hover:border-primary/50 transition-colors">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div className="space-y-1">
               <CardTitle className="text-base font-semibold">Szabadság ({new Date().getFullYear()})</CardTitle>
@@ -281,56 +120,49 @@ export default async function SelfServicePage() {
               <span>Felhasznált: {usedLeave} nap</span>
               <span>Tervezett: {plannedLeave} nap</span>
             </div>
+            <Link href="/hr/self-service/time" className="mt-4 flex items-center text-sm text-primary hover:underline font-medium">
+              Részletek megtekintése <ArrowRight className="w-4 h-4 ml-1" />
+            </Link>
           </CardContent>
         </Card>
 
-        {/* Időadat Rögzítés Kártya */}
-        <TimeTrackingCard 
-          initialStatus={timeStatus} 
-          checkInTime={jelenlet?.becsekkolas_ideje || null}
-          checkOutTime={jelenlet?.kicsekkolas_ideje || null}
-        />
+        {/* Legutóbbi Kérelmek */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Clock className="w-4 h-4 text-primary" /> Legutóbbi Kérelmek
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recentLeaves.length > 0 ? (
+                recentLeaves.map((leave: any) => (
+                  <div key={leave.id} className="flex justify-between items-center text-sm border-b pb-2 last:border-0 last:pb-0">
+                    <div>
+                      <p className="font-medium capitalize">{leave.tipus === 'szabadsag' ? 'Szabadság' : leave.tipus}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(leave.kezdo_datum).toLocaleDateString("hu-HU")} - {new Date(leave.veg_datum).toLocaleDateString("hu-HU")}
+                      </p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      leave.statusz === 'jovahagyva' ? 'bg-emerald-100 text-emerald-700' :
+                      leave.statusz === 'elutasitva' ? 'bg-red-100 text-red-700' :
+                      'bg-amber-100 text-amber-700'
+                    }`}>
+                      {leave.statusz.replace('_', ' ')}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">Nincsenek kérelmek.</p>
+              )}
+            </div>
+            <Link href="/hr/self-service/time" className="mt-4 flex items-center text-sm text-primary hover:underline font-medium">
+              Összes megtekintése <ArrowRight className="w-4 h-4 ml-1" />
+            </Link>
+          </CardContent>
+        </Card>
       </div>
-
-      <div className="grid gap-6 md:grid-cols-1">
-        {/* Jelenléti Ív */}
-        <EmployeeTimesheet employeeId={user.id} />
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Cafeteria Nyilatkozat */}
-        {cafeteriaKeret ? (
-          <CafeteriaDeclaration 
-            employeeId={user.id}
-            year={currentYear}
-            budget={cafeteriaKeret.osszeg}
-            isClosed={cafeteriaKeret.nyilatkozat_lezarva}
-            catalog={cafeteriaKatalogus || []}
-            existingChoices={cafeteriaValasztasok || []}
-          />
-        ) : (
-          <Card className="border shadow-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2">
-                <Coffee className="w-5 h-5 text-primary" /> Cafeteria Nyilatkozat
-              </CardTitle>
-              <CardDescription>Jelenleg nincs beállítva cafeteria kereted erre az évre.</CardDescription>
-            </CardHeader>
-          </Card>
-        )}
-        
-        {/* Távollét Előzmények */}
-        <LeaveHistoryList leaves={tavolletek || []} />
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Legutóbbi Dokumentumaim */}
-        <RecentDocumentsCard documents={dokumentumok || []} />
-
-        {/* Teljesítménycélok */}
-        <EmployeeKpiCard kpis={kpis || []} logs={kpiLogs || []} />
-      </div>
-      
     </div>
   )
 }

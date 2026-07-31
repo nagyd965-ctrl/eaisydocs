@@ -1,56 +1,28 @@
-# eaisyHR - Hiányzó Funkciók Listája (Gap Analysis)
+# eaisyHR - Hiányzó Funkciók és Teendők Listája
 
-A szoftverterv (`eaisyhr.pdf`) alapos átvizsgálása után teljesen igazad van: bár a fő modulok működnek, a pályázati megfelelőséghez (az auditálhatósághoz) rengeteg "apró", de kritikus funkció és részlet hiányzik még. 
+Az alábbi lista azokat a kritikus funkciókat és feladatokat tartalmazza, amelyeket a szoftverterv megkövetel, de még fejlesztésre várnak. A már elkészült funkciók áthúzva szerepelnek.
 
-Az alábbi lista azokat a funkciókat tartalmazza, amiket a PDF **kifejezetten megkövetel (vagy az ellenőrzési forgatókönyvben szerepelnek)**, de jelenleg még nincsenek vagy csak részlegesen vannak implementálva a kódunkban:
+## 1. Időgazdálkodás
+- ~~**Beléptető rendszer import:** A követelmény kifejezetten kéri, hogy legyen CSV/API import egy fizikai (kártyás) beléptetőből, és a rendszer tudjon eltéréslistát generálni (rögzített munkaidő vs. kapunál mért adat). Ez most még teljesen hiányzik.~~ **[ELVETVE - Nem lesz kártyás rendszer]**
+- **Műszakbeosztás:** Időgazdálkodáson belül egy egyszerű tervező/beosztó felület. ("Nice to have")
 
-### 1. Szervezet és Munkakörök
-*Ami hiányzik a Munkakör adatlapról:*
-- **Strukturált feladatok:** Feladatok, felelősségek, hatáskörök *strukturált listaként* (nem csak egy szövegmező).
-- **Kompetenciák:** Elvárt kompetenciák, végzettség rögzítése.
-- **Orvosi vizsgálatok:** Kötelező orvosi vizsgálat típusának és gyakoriságának kötése a munkakörhöz.
-- **Munkaköri leírás nyugtázása:** A dolgozónak a portálon elektronikusan nyugtáznia kell, hogy megismerte a leírást (naplózva, időbélyeggel).
-- **Szervezeti hierarchia (Org Chart):** Közvetlen vezető kiválasztása, ami alapján a jóváhagyási útvonalak is működnek.
+## 2. Szervezet és Munkakörök
+- **Strukturált munkaköri leírások és nyugtázás:** A munkaköröknél a feladatok, hatáskörök jelenleg nincsenek strukturált listára bontva. Fontosabb: hiányzik a dolgozói nyugtázás (amikor a dolgozó a portálon elektronikusan lekattintja, hogy megismerte a munkaköri leírását, és ez naplózódik).
 
-### 2. Dolgozói alapadatok (7 blokk)
-*Ami hiányzik az adatlap füleiről:*
-- **~~Bizonyítványok feltöltése:~~ [KÉSZ]** A "Képzettségek" fülön a végzettségekhez/nyelvvizsgákhoz a PDF/kép feltöltésének lehetősége és beépített előnézeti (PDF Viewer) ablak.
-- **Orvosi vizsgálat riasztás:** Automatikus figyelmeztetés a lejárat előtt.
-- **Tanulmányi szerződés:** Lejárat és visszafizetési kötelezettség figyelése.
-- **Fegyelmi/Kitüntetés:** Külön fül a fegyelmi ügyeknek, szigorú naplózással (GDPR különleges adat).
-- **Változáskövetés (Időbeliség):** A HR adatoknál `ervenyes_tol` / `ervenyes_ig` kezelése, hogy lekérdezhető legyen a "múltbéli állapot".
+## 3. Dolgozói alapadatok (GDPR és Időbeliség)
+- **GDPR különleges adatok:**
+  - *Orvosi vizsgálat:* Hiányzik az alkalmassági vizsgálatok kötése a munkakörökhöz és az automatikus lejárat-figyelés.
+  - *Fegyelmi ügyek:* Nincs dedikált, szigorúan naplózott és elzárt felület a fegyelmi és kitüntetési adatoknak.
+- **Időbeliség (Változáskövetés):** A HR adatoknál (pl. bér, beosztás) hiányzik a jövőbeli/múltbeli hatályosság (`ervenyes_tol` / `ervenyes_ig`) kezelése. A rendszernek tudnia kellene, hogy "mi volt a dolgozó bére 3 hónappal ezelőtt".
 
-### 3. Munkaszerződés-kezelés
-*Ami hiányzik:*
-- **Határozott idejű szerződések:** Automatikus figyelmeztetés a vezetőnek és a HR-nek, ha egy határozott idejű szerződés hamarosan lejár.
+## 4. Toborzás (ATS)
+- ~~**AI CV Parsing (Differenciáló elem):** Az önéletrajzokból (strukturálatlan PDF-ből) való automatikus adatkinyerés és relevancia-értékelés.~~ **[KÉSZ]**
+- ~~**Automatikus anonimizálás:** A GDPR megőrzési idő lejárta után a rendszernek automatikusan anonimizálnia kell a jelentkezői adatokat.~~ **[KÉSZ]**
 
-### 4. Törvényi kötelezettségek (NAV, KSH)
-*Ami hiányzik:*
-- **T1041 Riasztás:** A rendszernek emlékeztetnie kell a bejelentési határidőre a *munkába állás megkezdése előtt*.
+## 5. Értesítések és Automatizmusok
+- **Szerződés és T1041 Riasztások logikája:** Bár az Értesítések UI-ját (a kapcsolókat) megcsináltuk és az RLS-t is javítottuk hozzá, maguk a háttérben futó ellenőrző és e-mail küldő folyamatok (amik ténylegesen kiküldik az e-mailt a lejárat előtt) még nem teljesek.
 
-### 5. Cafeteria
-*Ami hiányzik:*
-- **Nyilatkozatok tárolása:** A választás lezárásakor generálódnia kellene egy PDF nyilatkozatnak (pénztári belépés, adóelőleg-nyilatkozat), amit a rendszer tárol.
-
-### 6. Toborzás (ATS)
-*Ami hiányzik:*
-- **Automatikus anonimizálás:** A GDPR megőrzési idő lejárta után a rendszernek automatikusan anonimizálnia kell a jelentkezői adatokat.
-- **AI Támogatás (Differenciáló elem):** CV parsing (önéletrajz kinyerése strukturált adatra) és relevancia-összefoglaló.
-
-### 7. Beléptetés (Onboarding)
-*Ami hiányzik:*
-- **Offboarding (Kiléptetés):** Bár a követelmény nem kéri kifejezetten, a PDF "önmagában eladható értékként" hivatkozik rá. A workflow motort fel kellene készíteni a kilépési feladatokra is (eszközvisszavétel, hozzáférés-megvonás).
-
-### 8. Teljesítményértékelés
-*Ami hiányzik:*
-- **~~Aktivitások a célok alatt (Kritikus!):~~ [KÉSZ]** Az ellenőr kifejezetten a "célok teljesülése kapcsán felmerült aktivitásokat" fogja kérni. Minden cél alá fel lehet vinni bejegyzéseket, státuszváltásokat (idővonalszerűen), és a dolgozó is frissítheti a saját állását.
-- **Karriertervezés:** Fejlesztési terv és képzési igény rögzítése.
-
-### 9. Időgazdálkodás
-*Ami hiányzik:*
-- **Beléptető import (Kritikus!):** CSV/API import egy kártyás beléptetőből, és a rögzített vs. mért adatok *eltéréslistájának* generálása.
-- **Tervezés:** Műszakbeosztás, kapacitástervezés (a távollétekkel összevetve, hogy ki lesz elérhető jövő héten).
-
-### 10. Távollétek kezelése
-*Ami hiányzik:*
-- **~~Eszkaláció / Helyettesítés:~~ [KÉSZ]** Ha a jóváhagyó vezető maga is távol van, a rendszer automatikusan a helyetteshez irányítja a kérelmet a távollét idején. A helyettesítési lánc konfigurálható.
+## 6. További modulok ("Nice to have" pótlások)
+- **Cafeteria:** Nyilatkozatok (PDF) automatikus legenerálása és eltárolása a ciklus lezárásakor.
+- **Offboarding:** A beléptető (onboarding) motor megvan, de érdemes lenne felmásolni "Kiléptetés" néven az eszközvisszavételekre.
+- **Karriertervezés:** A teljesítményértékelés alatt egyéni fejlesztési terv rögzítése.

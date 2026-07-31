@@ -28,9 +28,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
 
-import { Mail, Phone, Calendar, Briefcase, FileText, Loader2, ExternalLink, Save, Trash2, XCircle, CheckCircle } from "lucide-react"
+import { Mail, Phone, Calendar, Briefcase, FileText, Loader2, ExternalLink, Save, Trash2, XCircle, CheckCircle, Info } from "lucide-react"
 import { generateCvSignedUrl, updateCandidateNote, updateCandidateStatus } from "@/app/hr/recruitment/actions"
 import { toast } from "sonner"
 
@@ -48,6 +53,10 @@ interface Candidate {
     megnevezes: string
   }
   pozicio?: string // Fallback
+  ai_summary?: string
+  ai_relevance_score?: number
+  ai_skills?: string[]
+  ai_status?: string
 }
 
 export function CandidateProfileSheet({ 
@@ -67,6 +76,7 @@ export function CandidateProfileSheet({
   const [noteText, setNoteText] = useState("")
   const [isSavingNote, setIsSavingNote] = useState(false)
   const [isChangingStatus, setIsChangingStatus] = useState(false)
+  const [isParsingAI, setIsParsingAI] = useState(false)
 
   useEffect(() => {
     if (candidate) {
@@ -149,6 +159,37 @@ export function CandidateProfileSheet({
     }
   }
 
+  const handleRunAI = async () => {
+    if (!candidate || !candidate.cv_storage_path) return
+    setIsParsingAI(true)
+    try {
+      const res = await fetch("/api/hr/parse-cv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toborzas_id: candidate.id })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Hiba az AI elemzés során")
+      toast.success("AI Elemzés sikeresen befejeződött!")
+      if (onUpdate) {
+        onUpdate({ 
+          id: candidate.id, 
+          ai_status: "completed", 
+          ai_summary: data.result.summary,
+          ai_relevance_score: data.result.relevance_score,
+          ai_skills: data.result.skills
+        })
+      }
+    } catch (e: any) {
+      toast.error(e.message)
+      if (onUpdate) {
+        onUpdate({ id: candidate.id, ai_status: "error" })
+      }
+    } finally {
+      setIsParsingAI(false)
+    }
+  }
+
   if (!candidate) return null
 
   const munkakorNev = candidate.hr_munkakor?.megnevezes || candidate.pozicio || "Nincs megadva"
@@ -194,6 +235,97 @@ export function CandidateProfileSheet({
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-8 space-y-8">
+
+          {/* AI Insights Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 w-full">
+              <span className="h-px bg-border flex-1"></span>
+              <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                AI Elemzés
+                <Popover>
+                  <PopoverTrigger className="focus:outline-none flex items-center justify-center rounded-full">
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                  </PopoverTrigger>
+                  <PopoverContent side="bottom" align="center" className="max-w-[280px] p-4 bg-background border-warning/50 shadow-lg z-[100]">
+                    <div className="flex gap-2.5 items-start">
+                      <span className="text-base mt-0.5">⚠️</span>
+                      <div className="space-y-1">
+                        <h5 className="text-sm font-semibold text-warning">Támogató funkció</h5>
+                        <p className="leading-relaxed text-xs text-muted-foreground">
+                          A rendszer automatikus döntést nem hoz, a jelentkező elutasításáról vagy továbbjuttatásáról a toborzónak kell döntenie.
+                        </p>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </h4>
+              <span className="h-px bg-border flex-1"></span>
+            </div>
+            
+            <div className="bg-muted/30 border border-border/50 rounded-xl p-4 space-y-4">
+              
+              {!candidate.cv_storage_path ? (
+                <div className="text-center py-4 text-muted-foreground text-sm">
+                  AI elemzéshez önéletrajz feltöltése szükséges.
+                </div>
+              ) : !candidate.ai_status || candidate.ai_status === 'pending' || candidate.ai_status === 'error' ? (
+                <div className="flex flex-col items-center justify-center py-2">
+                  <Button onClick={handleRunAI} disabled={isParsingAI} size="sm" className="w-fit">
+                    {isParsingAI && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Elemzés futtatása
+                  </Button>
+                </div>
+              ) : candidate.ai_status === 'processing' ? (
+                <div className="flex flex-col items-center justify-center py-8 space-y-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary/60" />
+                  <p className="text-sm font-medium text-muted-foreground">AI elemzés folyamatban...</p>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-4 bg-background p-4 rounded-lg border border-border/50 shadow-sm">
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Relevancia</p>
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 flex-1 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full ${candidate.ai_relevance_score! >= 75 ? 'bg-green-500' : candidate.ai_relevance_score! >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                            style={{ width: `${candidate.ai_relevance_score || 0}%` }}
+                          />
+                        </div>
+                        <span className="text-lg font-bold tabular-nums">{candidate.ai_relevance_score}%</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {candidate.ai_summary && (
+                    <div className="text-sm text-foreground/90 leading-relaxed bg-primary/5 p-4 rounded-lg border border-primary/10">
+                      {candidate.ai_summary}
+                    </div>
+                  )}
+
+                  {candidate.ai_skills && candidate.ai_skills.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Kinyert Kulcskompetenciák</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {candidate.ai_skills.map((skill, idx) => (
+                          <Badge key={idx} variant="secondary" className="bg-background/80 hover:bg-muted font-normal border-border/50">
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-end">
+                    <Button variant="ghost" size="sm" onClick={handleRunAI} disabled={isParsingAI} className="text-xs text-muted-foreground">
+                      {isParsingAI ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
+                      Újrafuttatás
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
           
           <div className="space-y-4">
             <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">

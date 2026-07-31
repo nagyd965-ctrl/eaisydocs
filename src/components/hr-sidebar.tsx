@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Home, Users, Calendar, Briefcase, FileText, UserPlus, Presentation, Target, FileBarChart2, ShieldAlert, FileSignature, ChevronDown } from "lucide-react"
+import { Home, Users, Calendar, Briefcase, FileText, UserPlus, Presentation, Target, FileBarChart2, ShieldAlert, FileSignature, ChevronDown, UserMinus } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 
@@ -31,9 +31,31 @@ const items = [
     icon: Home,
   },
   {
-    title: "Dolgozói portál",
+    title: "Dolgozói Portál",
     url: "/hr/self-service",
     icon: Users,
+    items: [
+      {
+        title: "Áttekintés",
+        url: "/hr/self-service",
+      },
+      {
+        title: "Profilom",
+        url: "/hr/self-service/profile",
+      },
+      {
+        title: "Jelenlét & Szabadság",
+        url: "/hr/self-service/time",
+      },
+      {
+        title: "Juttatások",
+        url: "/hr/self-service/benefits",
+      },
+      {
+        title: "Céljaim",
+        url: "/hr/self-service/goals",
+      }
+    ]
   },
   {
     title: "Vezetői nézet",
@@ -70,14 +92,23 @@ const items = [
     ]
   },
   {
-    title: "Toborzás (ATS)",
+    title: "Dolgozói Életút",
     url: "/hr/recruitment",
-    icon: UserPlus,
-  },
-  {
-    title: "Onboarding",
-    url: "/hr/onboarding",
-    icon: Presentation,
+    icon: Target,
+    items: [
+      {
+        title: "Toborzás (ATS)",
+        url: "/hr/recruitment",
+      },
+      {
+        title: "Onboarding",
+        url: "/hr/onboarding",
+      },
+      {
+        title: "Kiléptetés",
+        url: "/hr/offboarding",
+      }
+    ]
   },
   {
     title: "Compliance",
