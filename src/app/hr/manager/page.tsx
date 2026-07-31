@@ -32,15 +32,15 @@ export default async function ManagerPage() {
     .order("kezdet_datuma", { ascending: true })
 
   // 3. Csapat (Közvetlen beosztottak) lekérése
-  // Itt is az RLS dolgozik helyettünk a hr_jogviszony táblán!
+  // Kifejezetten szűrünk a közvetlen vezető azonosítójára, mert az RLS az admin/HR-nek mindent enged
   const { data: rawTeamMembers } = await supabase
     .from("hr_jogviszony")
     .select(`
       dolgozo_id,
-      hr_dolgozo_adatlap!inner(id, felhasznalo_profil!inner(nev)),
+      hr_dolgozo_adatlap!inner(id, felhasznalo_profil!inner(nev, kozvetlen_vezeto_id)),
       hr_beosztas(hr_munkakor(megnevezes))
     `)
-    .neq("dolgozo_id", user.id) // Magát a vezetőt kivesszük a listából
+    .eq("hr_dolgozo_adatlap.felhasznalo_profil.kozvetlen_vezeto_id", user.id)
 
   const teamMembers = (rawTeamMembers || []).map((j: any) => ({
     id: j.dolgozo_id,

@@ -41,7 +41,7 @@ const items = [
     icon: Briefcase,
     items: [
       {
-        title: "Áttekintés",
+        title: "Csapat áttekintés",
         url: "/hr/manager",
       },
       {
@@ -51,19 +51,23 @@ const items = [
     ]
   },
   {
-    title: "Naptár & Távollét",
-    url: "/hr/time",
-    icon: Calendar,
-  },
-  {
     title: "HR Munkaasztal",
     url: "/hr/admin",
     icon: FileText,
-  },
-  {
-    title: "Riportok (KSH / NAV)",
-    url: "/hr/reports",
-    icon: FileBarChart2,
+    items: [
+      {
+        title: "Állomány áttekintés",
+        url: "/hr/admin",
+      },
+      {
+        title: "Naptár & Távollét",
+        url: "/hr/time",
+      },
+      {
+        title: "Riportok (KSH / NAV)",
+        url: "/hr/reports",
+      }
+    ]
   },
   {
     title: "Toborzás (ATS)",

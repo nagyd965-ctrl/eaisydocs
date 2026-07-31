@@ -92,52 +92,10 @@ export function AddEmployeeDialog({ availableUsers, jobs, candidates = [], custo
           onValueChange={(val) => setFormData({ ...formData, mode: val })}
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-3 mb-4">
-            <TabsTrigger value="select_candidate">Jelentkezőből (ATS)</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 mb-4">
             <TabsTrigger value="select_existing">Meglévő fiók</TabsTrigger>
             <TabsTrigger value="create_new">Új fiók</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="select_candidate" className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="candidate">Elfogadott Jelentkező</Label>
-              <Select 
-                value={formData.candidateId} 
-                onValueChange={(val) => {
-                  const candidate = candidates.find(c => c.id === val)
-                  setFormData({ 
-                    ...formData, 
-                    candidateId: val || "",
-                    munkakorId: candidate?.megpalyazott_munkakor_id || "none",
-                    telefon: candidate?.telefon || ""
-                  })
-                }}
-              >
-                <SelectTrigger>
-                  {formData.candidateId 
-                    ? <span>{candidates.find(c => c.id === formData.candidateId)?.nev || "Kiválasztva"}</span>
-                    : <span className="text-muted-foreground">Válassz egy elfogadott jelentkezőt...</span>}
-                </SelectTrigger>
-                <SelectContent>
-                  {candidates.map(candidate => (
-                    <SelectItem key={candidate.id} value={candidate.id}>
-                      {candidate.nev} ({candidate.email})
-                    </SelectItem>
-                  ))}
-                  {candidates.length === 0 && (
-                    <SelectItem value="none" disabled>
-                      Nincs átemelhető jelentkező!
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            {formData.candidateId && (
-              <div className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-md">
-                A rendszer automatikusan létrehozza az Auth fiókot a jelentkező e-mail címével, és kiküldi neki a belépési adatokat.
-              </div>
-            )}
-          </TabsContent>
 
           <TabsContent value="select_existing" className="space-y-4">
             <div className="space-y-2">
