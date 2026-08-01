@@ -2,7 +2,10 @@ import { createClient } from "@/utils/supabase/server"
 import { LeaveHistoryList } from "@/components/hr/leave-history-list"
 import { EmployeeTimesheet } from "@/components/hr/employee-timesheet"
 import { SubstituteSettingsCard } from "@/components/hr/substitute-settings-card"
+import { LeaveRequestDialog } from "@/components/hr/leave-request-dialog"
+import { Card, CardContent } from "@/components/ui/card"
 import { redirect } from "next/navigation"
+import { Clock, CalendarDays, Umbrella } from "lucide-react"
 
 export default async function SelfServiceTimePage() {
   const supabase = await createClient()
@@ -26,6 +29,10 @@ export default async function SelfServiceTimePage() {
 
   const isManagerOrAdmin = ['hr_vezeto', 'vezeto', 'admin'].includes(myProfile?.hr_szerepkor)
 
+  // Stat számítás
+  const totalTavollet = tavolletek?.filter(t => t.statusz === "jovahagyva").length || 0
+  const pendingCount = tavolletek?.filter(t => t.statusz === "jovahagyasra_var").length || 0
+
   // Helyettesítések lekérése
   const { data: currentSubstituteList } = await supabase
     .from("hr_helyettesites")
@@ -38,7 +45,7 @@ export default async function SelfServiceTimePage() {
 
   const currentSubstitute = currentSubstituteList?.[0] || null
   
-  let availableUsers = []
+  let availableUsers: any[] = []
   if (isManagerOrAdmin) {
     const { createClient: createAdminClient } = await import("@supabase/supabase-js")
     const supabaseAdmin = createAdminClient(
@@ -56,30 +63,33 @@ export default async function SelfServiceTimePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-start">
+    <div className="space-y-6 pb-10">
+
+      {/* Fejléc */}
+      <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Jelenlét és Szabadság</h1>
           <p className="text-muted-foreground mt-1">
             Munkaidő nyilvántartás, szabadságok és helyettesítések.
           </p>
         </div>
+        <LeaveRequestDialog />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-1">
-        {isManagerOrAdmin && (
-          <SubstituteSettingsCard availableUsers={availableUsers || []} currentSubstitute={currentSubstitute} />
-        )}
-      </div>
+      {/* Jelenléti Ív + Stat kártyák (a komponensen belül, szinkronban a hónapváltással) */}
+      <EmployeeTimesheet employeeId={user.id} />
 
-      <div className="grid gap-6 md:grid-cols-1">
-        <EmployeeTimesheet employeeId={user.id} />
-      </div>
+      {/* Saját Kérelmeim */}
+      <LeaveHistoryList leaves={tavolletek || []} />
 
-      <div className="grid gap-6 md:grid-cols-1">
-        <LeaveHistoryList leaves={tavolletek || []} />
-      </div>
-      
+      {/* Helyettesítés – csak vezető/admin szerepkörnek */}
+      {isManagerOrAdmin && (
+        <SubstituteSettingsCard
+          availableUsers={availableUsers}
+          currentSubstitute={currentSubstitute}
+        />
+      )}
+
     </div>
   )
 }

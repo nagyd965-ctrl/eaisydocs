@@ -1,65 +1,117 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { CalendarDays, Clock } from "lucide-react"
+import { CalendarDays, Clock, CheckCircle2, XCircle } from "lucide-react"
+
+const tipusLabel: Record<string, string> = {
+  szabadsag: "Szabadság",
+  beteg: "Betegszabadság",
+  home_office: "Home Office",
+  rendkivuli: "Rendkívüli",
+  fizetett: "Fizetett",
+}
 
 export function LeaveHistoryList({ leaves }: { leaves: any[] }) {
   if (!leaves || leaves.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Korábbi kérelmek</CardTitle>
+          <CardTitle className="text-base font-semibold">Saját kérelmeim</CardTitle>
           <CardDescription>Még nem adtál le távolléti kérelmet.</CardDescription>
         </CardHeader>
       </Card>
     )
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusDisplay = (status: string) => {
     switch (status) {
       case "jovahagyasra_var":
-        return <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100"><Clock className="w-3 h-3 mr-1" /> Folyamatban</Badge>
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+            <Clock className="w-3 h-3" /> Folyamatban
+          </span>
+        )
       case "jovahagyva":
-        return <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100">Jóváhagyva</Badge>
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+            <CheckCircle2 className="w-3 h-3" /> Jóváhagyva
+          </span>
+        )
       case "elutasitva":
-        return <Badge variant="destructive">Elutasítva</Badge>
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-destructive/10 text-destructive">
+            <XCircle className="w-3 h-3" /> Elutasítva
+          </span>
+        )
       case "tervezet":
-        return <Badge variant="outline">Tervezet</Badge>
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border text-muted-foreground">
+            Tervezett
+          </span>
+        )
       default:
-        return <Badge variant="outline">{status}</Badge>
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border text-muted-foreground">
+            {status}
+          </span>
+        )
     }
   }
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Saját kérelmeim</CardTitle>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold">Saját kérelmeim</CardTitle>
         <CardDescription>Távollét és szabadság igénylések előzményei</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
+      <CardContent className="p-0">
+        <div className="divide-y divide-border">
           {leaves.map((leave) => {
-            const startDate = new Date(leave.kezdet_datuma)
-            const endDate = new Date(leave.veg_datuma)
-            const durationMs = endDate.getTime() - startDate.getTime()
-            const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24)) + 1
+            const startDate = leave.kezdet_datuma ? new Date(leave.kezdet_datuma) : null
+            const endDate = leave.veg_datuma ? new Date(leave.veg_datuma) : null
+            const durationDays =
+              startDate && endDate && !isNaN(startDate.getTime()) && !isNaN(endDate.getTime())
+                ? Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+                : null
+
+            const statusBg =
+              leave.statusz === "jovahagyva"
+                ? "hover:border-l-emerald-400"
+                : leave.statusz === "jovahagyasra_var"
+                ? "hover:border-l-amber-400"
+                : leave.statusz === "elutasitva"
+                ? "hover:border-l-destructive"
+                : "hover:border-l-primary"
 
             return (
-              <div key={leave.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-lg hover:bg-muted/50 transition-colors shadow-sm">
-                <div className="flex gap-4">
-                  <div className="bg-primary/10 p-3 rounded-full h-fit border border-primary/20">
-                    <CalendarDays className="w-5 h-5 text-primary" />
+              <div
+                key={leave.id}
+                className={`flex items-center justify-between px-6 py-4 border-l-4 border-l-transparent transition-colors hover:bg-muted/30 ${statusBg}`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <CalendarDays className="w-4 h-4 text-primary" />
                   </div>
                   <div>
-                    <p className="font-semibold">{String(leave.tipus).toUpperCase()}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {startDate.toLocaleDateString('hu-HU')} - {endDate.toLocaleDateString('hu-HU')} ({durationDays} nap)
+                    <p className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                      {tipusLabel[leave.tipus] ?? String(leave.tipus).toUpperCase()}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {startDate && !isNaN(startDate.getTime())
+                        ? startDate.toLocaleDateString("hu-HU")
+                        : "–"}
+                      {" – "}
+                      {endDate && !isNaN(endDate.getTime())
+                        ? endDate.toLocaleDateString("hu-HU")
+                        : "–"}
+                      {durationDays !== null && (
+                        <span className="ml-2 text-muted-foreground/60">({durationDays} nap)</span>
+                      )}
                     </p>
                   </div>
                 </div>
-                <div className="mt-4 sm:mt-0">
-                  {getStatusBadge(leave.statusz)}
+                <div className="shrink-0">
+                  {getStatusDisplay(leave.statusz)}
                 </div>
               </div>
             )

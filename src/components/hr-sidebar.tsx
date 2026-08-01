@@ -47,14 +47,6 @@ const items = [
         title: "Jelenlét & Szabadság",
         url: "/hr/self-service/time",
       },
-      {
-        title: "Juttatások",
-        url: "/hr/self-service/benefits",
-      },
-      {
-        title: "Céljaim",
-        url: "/hr/self-service/goals",
-      }
     ]
   },
   {
