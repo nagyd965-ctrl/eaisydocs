@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Users, UserPlus, Calendar, Briefcase, AlertCircle, Clock, ChevronRight, PlusCircle, CheckCircle2 } from "lucide-react"
+import { Users, UserPlus, CalendarX, Briefcase, AlertCircle, Clock, ChevronRight, PlusCircle, CheckCircle2 } from "lucide-react"
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { ReassignLeavesButton } from "@/components/hr/reassign-leaves-button"
@@ -14,21 +14,12 @@ export default async function HrOverviewPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // 1. Fetch data in parallel
   const today = new Date()
   const todayStr = today.toISOString().split("T")[0]
-  
+
   const thirtyDaysFromNow = new Date(today)
   thirtyDaysFromNow.setDate(today.getDate() + 30)
   const thirtyDaysStr = thirtyDaysFromNow.toISOString().split("T")[0]
-
-  const threeMonthsAgo = new Date(today)
-  threeMonthsAgo.setMonth(today.getMonth() - 3)
-  const threeMonthsAgoStr = threeMonthsAgo.toISOString().split("T")[0]
-  
-  const threeMonthsAnd14DaysAgo = new Date(threeMonthsAgo)
-  threeMonthsAnd14DaysAgo.setDate(threeMonthsAgo.getDate() + 14)
-  const threeMonthsAnd14DaysAgoStr = threeMonthsAnd14DaysAgo.toISOString().split("T")[0]
 
   const [
     { count: activeEmployees },
@@ -48,23 +39,17 @@ export default async function HrOverviewPage() {
       .lte("kezdet_datuma", todayStr)
       .gte("veg_datuma", todayStr),
     supabaseAdmin.from("hr_toborzas").select("statusz"),
-    
-    // INBOX QUERIES
+
     supabase.from("hr_tavollet")
-      .select(`
-        id, 
-        kezdet_datuma, 
-        veg_datuma, 
-        hr_dolgozo_adatlap(id, felhasznalo_profil(nev))
-      `)
+      .select(`id, kezdet_datuma, veg_datuma, hr_dolgozo_adatlap(id, felhasznalo_profil(nev))`)
       .eq("statusz", "jovahagyasra_var"),
-      
+
     supabase.from("hr_dolgozo_adatlap")
       .select(`id, orvosi_alkalmassag_ervenyesseg, felhasznalo_profil(nev)`)
       .not("orvosi_alkalmassag_ervenyesseg", "is", null)
       .lte("orvosi_alkalmassag_ervenyesseg", thirtyDaysStr)
       .gte("orvosi_alkalmassag_ervenyesseg", todayStr),
-      
+
     supabase.from("hr_dolgozo_adatlap")
       .select(`id, probaido_vege, felhasznalo_profil(nev)`)
       .not("probaido_vege", "is", null)
@@ -80,231 +65,258 @@ export default async function HrOverviewPage() {
   ])
 
   const hasTasks = !!(
-    (expiringMedicals && expiringMedicals.length > 0) || 
-    (pendingLeaves && pendingLeaves.length > 0) || 
+    (expiringMedicals && expiringMedicals.length > 0) ||
+    (pendingLeaves && pendingLeaves.length > 0) ||
     (expiringProbations && expiringProbations.length > 0) ||
     (expiringContracts && expiringContracts.length > 0)
   )
 
-  // Process Recruiting Data for ATS widget
   const recruitingStats = { uj: 0, interju: 0, ajanlat: 0 }
   let totalCandidates = 0
   if (recruitingData) {
     recruitingData.forEach(r => {
       totalCandidates++
-      if (r.statusz === 'uj') recruitingStats.uj++
-      if (r.statusz === 'interju') recruitingStats.interju++
-      if (r.statusz === 'ajanlat') recruitingStats.ajanlat++
+      if (r.statusz === "uj") recruitingStats.uj++
+      if (r.statusz === "interju") recruitingStats.interju++
+      if (r.statusz === "ajanlat") recruitingStats.ajanlat++
     })
   }
 
+  const pct = (n: number) =>
+    totalCandidates > 0 ? Math.round((n / totalCandidates) * 100) : 0
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-10">
+
       {/* Fejléc */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Központi Áttekintés</h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-muted-foreground mt-1">
             Üdvözlünk az eaisyHR irányítópultján. Itt áttekintheted a szervezet aktuális HR folyamatait.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <Link href="/hr/admin">
             <Button variant="outline" className="gap-2">
               <Users className="w-4 h-4" /> Dolgozók
             </Button>
           </Link>
           <Link href="/hr/recruitment">
-            <Button className="gap-2 bg-primary">
+            <Button className="gap-2">
               <PlusCircle className="w-4 h-4" /> Új Toborzás
             </Button>
           </Link>
         </div>
       </div>
-      
-      {/* 1. Napi / Heti Áttekintő Sáv (Hero Metrics) */}
+
+      {/* Stat kártyák */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aktív Dolgozók</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeEmployees || 0} fő</div>
-            <p className="text-xs text-muted-foreground mt-1 text-emerald-500 font-medium">
-              +1 fő az elmúlt hónapban
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Mai Hiányzók</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{todayAbsences || 0} fő</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Engedélyezett és függőben lévő távollétek
-            </p>
+
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="pt-5 pb-4 flex items-center gap-4">
+            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <Users className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold tabular-nums text-primary">{activeEmployees ?? 0} fő</p>
+              <p className="text-xs text-muted-foreground font-medium mt-0.5">Aktív Dolgozók</p>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Nyitott Pozíciók</CardTitle>
-            <Briefcase className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{openPositions || 0} db</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Aktív toborzási folyamat
-            </p>
+        <Card className="border-l-4 border-l-amber-500">
+          <CardContent className="pt-5 pb-4 flex items-center gap-4">
+            <div className="h-9 w-9 rounded-lg bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center shrink-0">
+              <CalendarX className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold tabular-nums text-amber-600">{todayAbsences ?? 0} fő</p>
+              <p className="text-xs text-muted-foreground font-medium mt-0.5">Mai Hiányzók</p>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aktív Onboarding</CardTitle>
-            <UserPlus className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeOnboardings || 0} fő</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Beléptetés folyamatban
-            </p>
+        <Card className="border-l-4 border-l-blue-500">
+          <CardContent className="pt-5 pb-4 flex items-center gap-4">
+            <div className="h-9 w-9 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
+              <Briefcase className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold tabular-nums text-blue-600">{openPositions ?? 0} db</p>
+              <p className="text-xs text-muted-foreground font-medium mt-0.5">Nyitott Pozíciók</p>
+            </div>
           </CardContent>
         </Card>
+
+        <Card className="border-l-4 border-l-violet-500">
+          <CardContent className="pt-5 pb-4 flex items-center gap-4">
+            <div className="h-9 w-9 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center shrink-0">
+              <UserPlus className="w-4 h-4 text-violet-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold tabular-nums text-violet-600">{activeOnboardings ?? 0} fő</p>
+              <p className="text-xs text-muted-foreground font-medium mt-0.5">Aktív Onboarding</p>
+            </div>
+          </CardContent>
+        </Card>
+
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        {/* 2. Teendők és Értesítések (Inbox) */}
+
+        {/* HR Teendők */}
         <Card className="col-span-4">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
             <div>
-              <CardTitle>HR Teendők & Figyelmeztetések</CardTitle>
-              <CardDescription>Aktuális feladatok, amik figyelmet igényelnek.</CardDescription>
+              <CardTitle className="text-base font-semibold">HR Teendők & Figyelmeztetések</CardTitle>
+              <CardDescription className="mt-0.5">Aktuális feladatok, amik figyelmet igényelnek.</CardDescription>
             </div>
             <ReassignLeavesButton />
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-2">
               {!hasTasks && (
-                <div className="text-center p-6 text-muted-foreground border rounded-lg border-dashed">
+                <div className="text-center p-6 text-sm text-muted-foreground border border-dashed rounded-lg">
                   Nincsenek aktuális, figyelmet igénylő HR teendők.
                 </div>
               )}
 
+              {/* Lejáró orvosi */}
               {expiringMedicals?.map((doc) => (
-                <div key={`med-${doc.id}`} className="flex items-start gap-4 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
-                  <AlertCircle className="w-5 h-5 text-destructive mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-sm">Lejáró orvosi alkalmassági ({(doc.felhasznalo_profil as any)?.nev})</h4>
-                    <p className="text-sm text-muted-foreground mt-1">Az orvosi igazolás érvényessége 30 napon belül lejár ({doc.orvosi_alkalmassag_ervenyesseg}).</p>
+                <div key={`med-${doc.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-destructive hover:bg-muted/40 transition-colors">
+                  <AlertCircle className="w-4 h-4 text-destructive shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Lejáró orvosi alkalmassági</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {(doc.felhasznalo_profil as any)?.nev} – érvényes: {doc.orvosi_alkalmassag_ervenyesseg}
+                    </p>
                   </div>
                   <Link href={`/hr/employee/${doc.id}`}>
-                    <Button variant="ghost" size="sm">Megtekintés</Button>
+                    <Button variant="ghost" size="sm" className="shrink-0 h-7 text-xs">Megtekintés</Button>
                   </Link>
                 </div>
               ))}
 
+              {/* Jóváhagyásra váró szabadság */}
               {pendingLeaves?.map((leave) => (
-                <div key={`leave-${leave.id}`} className="flex items-start gap-4 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
-                  <Clock className="w-5 h-5 text-amber-500 mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-sm">Jóváhagyásra váró szabadság</h4>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {/* @ts-ignore - nested join type bypass */}
-                      {leave.hr_dolgozo_adatlap?.felhasznalo_profil?.nev || "Ismeretlen"} szabadságkérelme: {leave.kezdet_datuma} - {leave.veg_datuma}.
+                <div key={`leave-${leave.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-amber-400 hover:bg-muted/40 transition-colors">
+                  <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Jóváhagyásra váró szabadság</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {/* @ts-ignore */}
+                      {leave.hr_dolgozo_adatlap?.felhasznalo_profil?.nev || "Ismeretlen"} szabadságkérelme: {leave.kezdet_datuma} – {leave.veg_datuma}
                     </p>
                   </div>
                   <Link href="/hr/manager">
-                    <Button variant="ghost" size="sm">Megtekintés</Button>
+                    <Button variant="ghost" size="sm" className="shrink-0 h-7 text-xs">Megtekintés</Button>
                   </Link>
                 </div>
               ))}
 
+              {/* Lejáró próbaidő */}
               {expiringProbations?.map((prob) => (
-                <div key={`prob-${prob.id}`} className="flex items-start gap-4 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-sm">Próbaidő lejár ({(prob.felhasznalo_profil as any)?.nev})</h4>
-                    <p className="text-sm text-muted-foreground mt-1">A dolgozó 3 hónapos próbaideje hamarosan lejár. Értékelés szükséges.</p>
+                <div key={`prob-${prob.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-emerald-400 hover:bg-muted/40 transition-colors">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Próbaidő lejár – {(prob.felhasznalo_profil as any)?.nev}</p>
+                    <p className="text-xs text-muted-foreground">Értékelés szükséges. Lejár: {prob.probaido_vege}</p>
                   </div>
                   <Link href={`/hr/employee/${prob.id}`}>
-                    <Button variant="ghost" size="sm">Értékelés</Button>
+                    <Button variant="ghost" size="sm" className="shrink-0 h-7 text-xs">Értékelés</Button>
                   </Link>
                 </div>
               ))}
 
               {/* Lejáró határozott idejű szerződések */}
-              {expiringContracts && expiringContracts.length > 0 &&
-                expiringContracts.map((emp) => (
-                  <div key={`contract-${emp.id}`} className="flex items-start gap-4 p-3 rounded-lg bg-orange-50/50 border border-orange-100">
-                    <div className="mt-0.5 rounded-full p-1 bg-orange-100">
-                      <AlertCircle className="h-4 w-4 text-orange-600" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium">Lejáró Munkaszerződés</p>
-                      <p className="text-sm text-muted-foreground">
-                        <span className="font-semibold text-foreground">{(emp.felhasznalo_profil as any)?.nev}</span> határozott idejű szerződése hamarosan lejár ({new Date(emp.munkaviszony_vege).toLocaleDateString("hu-HU")}).
-                      </p>
-                    </div>
-                    <Link href={`/hr/employee/${emp.id}`}>
-                      <Button variant="outline" size="sm">Hosszabbítás</Button>
-                    </Link>
+              {expiringContracts?.map((emp) => (
+                <div key={`contract-${emp.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-orange-400 hover:bg-muted/40 transition-colors">
+                  <AlertCircle className="w-4 h-4 text-orange-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Lejáró Munkaszerződés</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {(emp.felhasznalo_profil as any)?.nev} – lejár: {new Date(emp.munkaviszony_vege).toLocaleDateString("hu-HU")}
+                    </p>
                   </div>
-                ))}
+                  <Link href={`/hr/employee/${emp.id}`}>
+                    <Button variant="outline" size="sm" className="shrink-0 h-7 text-xs">Hosszabbítás</Button>
+                  </Link>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
 
-        {/* 3. Toborzási Tölcsér (Mini-ATS Widget) */}
+        {/* Toborzási Áttekintő */}
         <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Toborzási Áttekintő</CardTitle>
-            <CardDescription>A legfrissebb jelentkezők státusza.</CardDescription>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base font-semibold">Toborzási Áttekintő</CardTitle>
+            <CardDescription className="mt-0.5">A legfrissebb jelentkezők státusza.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
-              <div className="space-y-2">
+            <div className="space-y-5">
+
+              {/* Új jelentkezők */}
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Új jelentkezők</span>
-                  <span className="text-muted-foreground">{recruitingStats.uj} fő</span>
+                  <span className="flex items-center gap-2 font-medium">
+                    <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                    Új jelentkezők
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[11px] font-semibold tabular-nums">
+                    {recruitingStats.uj} fő
+                  </span>
                 </div>
-                <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500" style={{ width: `${totalCandidates > 0 ? (recruitingStats.uj / totalCandidates) * 100 : 0}%` }}></div>
+                <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct(recruitingStats.uj)}%` }} />
                 </div>
               </div>
 
-              <div className="space-y-2">
+              {/* Interjú fázisban */}
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-amber-500"></div> Interjú fázisban</span>
-                  <span className="text-muted-foreground">{recruitingStats.interju} fő</span>
+                  <span className="flex items-center gap-2 font-medium">
+                    <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                    Interjú fázisban
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-[11px] font-semibold tabular-nums">
+                    {recruitingStats.interju} fő
+                  </span>
                 </div>
-                <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500" style={{ width: `${totalCandidates > 0 ? (recruitingStats.interju / totalCandidates) * 100 : 0}%` }}></div>
+                <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                  <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${pct(recruitingStats.interju)}%` }} />
                 </div>
               </div>
 
-              <div className="space-y-2">
+              {/* Ajánlat kiküldve */}
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Ajánlat kiküldve</span>
-                  <span className="text-muted-foreground">{recruitingStats.ajanlat} fő</span>
+                  <span className="flex items-center gap-2 font-medium">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    Ajánlat kiküldve
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-[11px] font-semibold tabular-nums">
+                    {recruitingStats.ajanlat} fő
+                  </span>
                 </div>
-                <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500" style={{ width: `${totalCandidates > 0 ? (recruitingStats.ajanlat / totalCandidates) * 100 : 0}%` }}></div>
+                <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct(recruitingStats.ajanlat)}%` }} />
                 </div>
               </div>
 
-              <Link href="/hr/recruitment" className="block mt-6">
-                <Button variant="ghost" className="w-full justify-between text-muted-foreground hover:text-foreground">
-                  Összes jelölt megtekintése <ChevronRight className="w-4 h-4" />
-                </Button>
-              </Link>
+              <div className="pt-2 border-t border-border">
+                <Link href="/hr/recruitment">
+                  <Button variant="ghost" className="w-full justify-between text-muted-foreground hover:text-foreground h-8 text-sm">
+                    Összes jelölt megtekintése <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </div>
+
             </div>
           </CardContent>
         </Card>
+
       </div>
     </div>
   )
