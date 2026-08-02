@@ -24,6 +24,7 @@ import { SecuritySettingsTab } from "./security-tab"
 import { HrNotificationSettings } from "./notification-settings"
 import { Bell } from "lucide-react"
 import { updateProfile } from "@/app/settings/settings-actions"
+import { AvatarUploadSection } from "./avatar-upload"
 
 export default async function HrSettingsPage() {
   const supabase = await createClient()
@@ -228,6 +229,12 @@ export default async function HrSettingsPage() {
             </CardHeader>
             <form action={updateProfile} key={profile?.telefon || 'profile-form'}>
               <CardContent className="space-y-6">
+
+                <AvatarUploadSection
+                  name={profile?.nev || ""}
+                  avatarUrl={profile?.avatar_url}
+                />
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="nev">Teljes név</Label>

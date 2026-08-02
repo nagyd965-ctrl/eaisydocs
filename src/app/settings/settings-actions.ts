@@ -73,6 +73,53 @@ export async function updateProfile(formData: FormData) {
   return { success: true }
 }
 
+export async function uploadAvatar(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nem vagy bejelentkezve" }
+
+  const file = formData.get("avatar") as File
+  if (!file || file.size === 0) return { error: "Nincs fájl kiválasztva" }
+
+  if (file.size > 5 * 1024 * 1024) return { error: "A fájl maximum 5MB lehet" }
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    return { error: "Csak JPG, PNG vagy WebP formátum engedélyezett" }
+  }
+
+  const fileExt = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg"
+  const filePath = `${user.id}/avatar.${fileExt}`
+
+  const arrayBuffer = await file.arrayBuffer()
+  const uint8Array = new Uint8Array(arrayBuffer)
+
+  const { error: uploadError } = await supabase.storage
+    .from("avatars")
+    .upload(filePath, uint8Array, { contentType: file.type, upsert: true })
+
+  if (uploadError) return { error: uploadError.message }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from("avatars")
+    .getPublicUrl(filePath)
+
+  // Frissítés a profil táblában (admin klienssel, mivel az RPC nem tartalmazza)
+  const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  const { error: updateError } = await supabaseAdmin
+    .from("felhasznalo_profil")
+    .update({ avatar_url: publicUrl })
+    .eq("id", user.id)
+
+  if (updateError) return { error: updateError.message }
+
+  revalidatePath("/", "layout")
+  return { success: true, avatarUrl: publicUrl }
+}
+
 export async function getTeamMembers() {
   const supabase = await createClient()
   

@@ -1,30 +1,45 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { UserPlus, AlertCircle, Users } from "lucide-react"
+import { UserPlus, AlertCircle, Users, Briefcase, AlertTriangle, ChevronRight } from "lucide-react"
 import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
 import Link from "next/link"
-
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map(n => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
+}
+
+const szerepkorLabel: Record<string, string> = {
+  hr_munkatars: "HR Munkatárs",
+  hr_vezeto: "HR Vezető",
+  vezeto: "Vezető",
+  admin: "Admin",
+  dolgozo: "Dolgozó",
+}
 
 export default async function HrAdminPage() {
   const supabase = await createClient()
 
-  // Admin client for restricted tables and auth
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // 1. Dolgozók lekérése (felhasznalo_profil és hr_dolgozo_adatlap összekötve)
+  // 1. Dolgozók lekérése
   const { data: employees } = await supabase
     .from("felhasznalo_profil")
     .select(`
       id,
       nev,
       hr_szerepkor,
+      avatar_url,
       hr_dolgozo_adatlap (
         id,
         hr_jogviszony (
@@ -39,160 +54,251 @@ export default async function HrAdminPage() {
     `)
     .order("created_at", { ascending: true })
 
-  // 1.5. Munkakörök és szabad felhasználók a Felvétel ablakhoz
+  // 2. Felvételi adatok
   const { data: jobs } = await supabase.from("hr_munkakor").select("id, megnevezes")
   const { data: allUsers } = await supabase.from("felhasznalo_profil").select("id, nev")
   const assignedIds = employees?.filter(e => e.hr_dolgozo_adatlap !== null).map(e => e.id) || []
   const unassignedUsers = allUsers?.filter(u => !assignedIds.includes(u.id)) || []
-  
-  // 1.6. Toborzásból (ATS) elfogadott jelentkezők lekérése (Admin klienssel az RLS miatt)
+
   const { data: elfogadottJelentkezok } = await supabaseAdmin
     .from("hr_toborzas")
     .select("id, nev, email, megpalyazott_munkakor_id")
     .eq("statusz", "elfogadva")
-    
-  // Összes regisztrált e-mail lekérése az Auth-ból a szűréshez
+
   const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
   const userEmails = authUsers.users.map(u => u.email)
   const availableCandidates = elfogadottJelentkezok?.filter(j => !userEmails.includes(j.email)) || []
 
-  // 2. Toborzási adatok lekérése (nyitott pozik, jelentkezők)
+  // 3. Toborzási statisztikák
   const { data: toborzas } = await supabaseAdmin.from("hr_toborzas").select("*")
-  
-  // Aktív álláshirdetések száma
-  const { data: allashirdetesek } = await supabase.from("hr_allashirdetes").select("*").eq("aktiv", true).eq("publikus", true)
+  const { data: allashirdetesek } = await supabase
+    .from("hr_allashirdetes")
+    .select("*")
+    .eq("aktiv", true)
+    .eq("publikus", true)
   const activeAdsCount = allashirdetesek?.length || 0
-  
-  // Összes aktív jelentkező a Kanban táblán
-  const activeCandidatesCount = toborzas?.filter(t => t.statusz !== 'elutasitva' && t.statusz !== 'elfogadva').length || 0
+  const activeCandidatesCount = toborzas?.filter(
+    t => t.statusz !== "elutasitva" && t.statusz !== "elfogadva"
+  ).length || 0
 
-  // 3. Figyelmeztetések generálása (Alerts)
+  // 4. Figyelmeztetések generálása
   const alerts: any[] = []
-  
-  // Onboarding ellenőrzés
-  const { data: onboardings } = await supabase.from("hr_onboarding").select("*, hr_onboarding_feladat(*)")
+  const { data: onboardings } = await supabase
+    .from("hr_onboarding")
+    .select("*, hr_onboarding_feladat(*)")
   if (onboardings) {
     onboardings.forEach(o => {
-      const hasPending = o.hr_onboarding_feladat?.some((f: any) => f.statusz === 'pending')
+      const hasPending = o.hr_onboarding_feladat?.some((f: any) => f.statusz === "pending")
       if (hasPending) {
         alerts.push({
           id: o.id,
           type: "Onboarding",
           message: `Új belépő (${o.nev}) beléptetési feladatai folyamatban vannak.`,
-          severity: "medium"
         })
       }
     })
   }
 
+  const activeEmployees = employees?.filter((emp: any) => emp.hr_dolgozo_adatlap !== null) || []
+
   return (
-    <div className="space-y-6">
-      
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 pb-10">
+
+      {/* Fejléc */}
+      <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">HR Munkaasztal</h1>
           <p className="text-muted-foreground mt-1">
             Teljes állomány áttekintése és HR adminisztráció.
           </p>
         </div>
-        <AddEmployeeDialog availableUsers={unassignedUsers} jobs={jobs || []} candidates={availableCandidates} />
+        <AddEmployeeDialog
+          availableUsers={unassignedUsers}
+          jobs={jobs || []}
+          candidates={availableCandidates}
+        />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-4">
-        {/* Statisztika Kártyák */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Teljes Állomány</CardTitle>
-            <Users className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{employees?.filter((emp: any) => emp.hr_dolgozo_adatlap !== null).length || 0} fő</div>
-            <p className="text-xs text-muted-foreground mt-1">Összes rögzített munkatárs</p>
+      {/* Stat kártyák */}
+      <div className="grid gap-4 md:grid-cols-3">
+
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="pt-5 pb-4 flex items-center gap-4">
+            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <Users className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold tabular-nums text-primary">
+                {activeEmployees.length} fő
+              </p>
+              <p className="text-xs text-muted-foreground font-medium mt-0.5">Teljes Állomány</p>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Nyitott Keresések</CardTitle>
-            <UserPlus className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeAdsCount} hirdetés</div>
-            <p className="text-xs text-muted-foreground mt-1">{activeCandidatesCount} jelentkező</p>
+
+        <Card className="border-l-4 border-l-info">
+          <CardContent className="pt-5 pb-4 flex items-center gap-4">
+            <div className="h-9 w-9 rounded-lg bg-info-subtle flex items-center justify-center shrink-0">
+              <Briefcase className="w-4 h-4 text-info" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold tabular-nums text-info">
+                {activeAdsCount} db
+              </p>
+              <p className="text-xs text-muted-foreground font-medium mt-0.5">Nyitott Pozíciók</p>
+              {activeCandidatesCount > 0 && (
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {activeCandidatesCount} aktív jelentkező
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
-        <Card className="md:col-span-2 border-destructive/20 bg-destructive/5">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-destructive">Kritikus Figyelmeztetések</CardTitle>
-            <AlertCircle className="w-4 h-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-             <div className="space-y-2 mt-2">
-                {alerts.length > 0 ? alerts.map((alert: any) => (
-                  <div key={alert.id} className="flex items-center gap-2 text-sm">
-                    <span className="font-semibold text-destructive">{alert.type}:</span>
-                    <span>{alert.message}</span>
-                  </div>
-                )) : (
-                  <div className="text-sm text-muted-foreground">Nincsenek aktív figyelmeztetések.</div>
-                )}
-             </div>
+
+        <Card className="border-l-4 border-l-warning">
+          <CardContent className="pt-5 pb-4 flex items-center gap-4">
+            <div className="h-9 w-9 rounded-lg bg-warning-subtle flex items-center justify-center shrink-0">
+              <AlertCircle className="w-4 h-4 text-warning" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold tabular-nums text-warning">
+                {alerts.length} db
+              </p>
+              <p className="text-xs text-muted-foreground font-medium mt-0.5">Kritikus Figyelmeztetés</p>
+            </div>
           </CardContent>
         </Card>
+
       </div>
 
-      {/* Dolgozói Törzsadatbázis (Táblázat) */}
+      {/* Alert sáv – csak ha van figyelmeztetés */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((alert: any) => (
+            <div
+              key={alert.id}
+              className="flex items-center gap-3 p-4 rounded-lg border border-l-4 border-l-warning hover:bg-muted/30 transition-colors"
+            >
+              <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+              <div className="flex-1 min-w-0">
+                <span className="font-semibold text-sm text-warning">{alert.type}: </span>
+                <span className="text-sm">{alert.message}</span>
+              </div>
+              <Link href="/hr/onboarding">
+                <Button variant="ghost" size="sm" className="shrink-0 h-7 text-xs gap-1">
+                  Megtekintés <ChevronRight className="w-3 h-3" />
+                </Button>
+              </Link>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Dolgozói Törzsadatbázis */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <Users className="w-5 h-5" /> Dolgozói Törzsadatbázis
+        <CardHeader className="flex flex-row items-center justify-between pb-4">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Users className="w-4 h-4 text-primary" />
+            Dolgozói Törzsadatbázis
           </CardTitle>
+          <Link href="/hr/recruitment">
+            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+              <UserPlus className="w-3.5 h-3.5" />
+              Toborzás kezelése
+            </Button>
+          </Link>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[100px]">Azonosító</TableHead>
-                <TableHead>Név</TableHead>
-                <TableHead>Munkakör</TableHead>
-                <TableHead>Szervezeti Egység</TableHead>
-                <TableHead>Státusz</TableHead>
-                <TableHead className="text-right">Műveletek</TableHead>
+                <TableHead className="pl-6 text-xs uppercase tracking-wider text-muted-foreground font-medium w-[110px]">
+                  Azonosító
+                </TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                  Dolgozó
+                </TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                  Munkakör
+                </TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                  Szervezeti Egység
+                </TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                  Szerepkör
+                </TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                  Státusz
+                </TableHead>
+                <TableHead className="text-right pr-6 text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                  Műveletek
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {employees && employees.filter((emp: any) => emp.hr_dolgozo_adatlap !== null).map((emp: any, index: number) => {
+              {activeEmployees.map((emp: any, index: number) => {
                 const activeJogviszony = emp.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
                 const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
                 const munkakor = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
+                const initials = getInitials(emp.nev || "?")
+                const empId = `EMP-${String(index + 1).padStart(3, "0")}`
 
                 return (
-                  <TableRow key={emp.id} className="cursor-pointer hover:bg-muted/50">
-                    <TableCell className="font-medium text-muted-foreground">EMP-{String(index + 1).padStart(3, '0')}</TableCell>
-                    <TableCell className="font-semibold">{emp.nev}</TableCell>
-                    <TableCell>{munkakor}</TableCell>
-                    <TableCell>Központ</TableCell>
-                  <TableCell>
-                    <Badge variant="default">
-                      Aktív
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Link href={`/hr/employee/${emp.id}`}>
-                      <Button variant="ghost" size="sm" className="text-xs text-primary">Adatlap megnyitása</Button>
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              )})}
-              {(!employees || employees.length === 0) && (
+                  <TableRow key={emp.id} className="hover:bg-muted/30 transition-colors">
+                    <TableCell className="pl-6">
+                      <span className="font-mono text-xs text-muted-foreground">{empId}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                          {emp.avatar_url
+                            ? <img src={emp.avatar_url} alt={emp.nev} className="h-full w-full object-cover" />
+                            : <span className="text-xs font-semibold text-primary">{initials}</span>
+                          }
+                        </div>
+                        <span className="font-medium text-sm">{emp.nev}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">{munkakor}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">Központ</TableCell>
+                    <TableCell>
+                      {emp.hr_szerepkor && (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold border border-primary/40 text-primary">
+                          {szerepkorLabel[emp.hr_szerepkor] ?? emp.hr_szerepkor}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-success-subtle text-success">
+                        Aktív
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right pr-6">
+                      <Link href={`/hr/employee/${emp.id}`}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs text-primary hover:text-primary gap-1"
+                        >
+                          Adatlap <ChevronRight className="w-3 h-3" />
+                        </Button>
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+              {activeEmployees.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">Nincsenek dolgozók az adatbázisban.</TableCell>
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground text-sm">
+                    Nincsenek dolgozók az adatbázisban.
+                  </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
-      
+
     </div>
   )
 }

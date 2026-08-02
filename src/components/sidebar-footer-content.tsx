@@ -26,7 +26,7 @@ export function SidebarFooterContent() {
           // Keresd meg a profilt is
           supabase
             .from("felhasznalo_profil")
-            .select("nev")
+            .select("nev, avatar_url")
             .eq("id", data.user.id)
             .single()
             .then(({ data: profileData }) => {
@@ -56,8 +56,11 @@ export function SidebarFooterContent() {
     const initials = profile?.nev ? profile.nev.substring(0, 2).toUpperCase() : user.email?.substring(0, 2).toUpperCase()
     return (
       <div className="flex flex-col items-center gap-4 py-2 border-t mt-auto">
-        <div className="h-8 w-8 bg-muted rounded-full flex items-center justify-center font-medium text-xs">
-          {initials}
+        <div className="h-8 w-8 bg-muted rounded-full flex items-center justify-center font-medium text-xs overflow-hidden">
+          {profile?.avatar_url
+            ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+            : initials
+          }
         </div>
         <Button variant="ghost" size="icon" onClick={toggleSidebar}>
           <PanelLeftOpen className="h-4 w-4 text-muted-foreground" />
@@ -71,8 +74,11 @@ export function SidebarFooterContent() {
       {/* Felhasználó infó + Theme toggle */}
       <div className="flex items-center justify-between p-2">
         <div className="flex items-center gap-3 overflow-hidden">
-          <div className="h-10 w-10 shrink-0 bg-muted rounded-full flex items-center justify-center font-medium text-sm text-muted-foreground uppercase">
-            {profile?.nev ? profile.nev.substring(0, 2) : user.email?.substring(0, 2)}
+          <div className="h-10 w-10 shrink-0 bg-muted rounded-full flex items-center justify-center font-medium text-sm text-muted-foreground uppercase overflow-hidden">
+            {profile?.avatar_url
+              ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+              : (profile?.nev ? profile.nev.substring(0, 2) : user.email?.substring(0, 2))
+            }
           </div>
           <div className="flex flex-col overflow-hidden">
             <span className="text-sm font-medium truncate">{profile?.nev || "Felhasználó"}</span>

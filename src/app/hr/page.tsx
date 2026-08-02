@@ -125,25 +125,25 @@ export default async function HrOverviewPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-amber-500">
+        <Card className="border-l-4 border-l-warning">
           <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center shrink-0">
-              <CalendarX className="w-4 h-4 text-amber-600" />
+            <div className="h-9 w-9 rounded-lg bg-warning-subtle flex items-center justify-center shrink-0">
+              <CalendarX className="w-4 h-4 text-warning" />
             </div>
             <div>
-              <p className="text-2xl font-semibold tabular-nums text-amber-600">{todayAbsences ?? 0} fő</p>
+              <p className="text-2xl font-semibold tabular-nums text-warning">{todayAbsences ?? 0} fő</p>
               <p className="text-xs text-muted-foreground font-medium mt-0.5">Mai Hiányzók</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-blue-500">
+        <Card className="border-l-4 border-l-info">
           <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
-              <Briefcase className="w-4 h-4 text-blue-600" />
+            <div className="h-9 w-9 rounded-lg bg-info-subtle flex items-center justify-center shrink-0">
+              <Briefcase className="w-4 h-4 text-info" />
             </div>
             <div>
-              <p className="text-2xl font-semibold tabular-nums text-blue-600">{openPositions ?? 0} db</p>
+              <p className="text-2xl font-semibold tabular-nums text-info">{openPositions ?? 0} db</p>
               <p className="text-xs text-muted-foreground font-medium mt-0.5">Nyitott Pozíciók</p>
             </div>
           </CardContent>
@@ -200,8 +200,8 @@ export default async function HrOverviewPage() {
 
               {/* Jóváhagyásra váró szabadság */}
               {pendingLeaves?.map((leave) => (
-                <div key={`leave-${leave.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-amber-400 hover:bg-muted/40 transition-colors">
-                  <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+                <div key={`leave-${leave.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-warning hover:bg-muted/40 transition-colors">
+                  <Clock className="w-4 h-4 text-warning shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">Jóváhagyásra váró szabadság</p>
                     <p className="text-xs text-muted-foreground truncate">
@@ -217,8 +217,8 @@ export default async function HrOverviewPage() {
 
               {/* Lejáró próbaidő */}
               {expiringProbations?.map((prob) => (
-                <div key={`prob-${prob.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-emerald-400 hover:bg-muted/40 transition-colors">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                <div key={`prob-${prob.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-success hover:bg-muted/40 transition-colors">
+                  <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">Próbaidő lejár – {(prob.felhasznalo_profil as any)?.nev}</p>
                     <p className="text-xs text-muted-foreground">Értékelés szükséges. Lejár: {prob.probaido_vege}</p>
@@ -261,15 +261,15 @@ export default async function HrOverviewPage() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 font-medium">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                    <div className="w-2 h-2 rounded-full bg-info shrink-0" />
                     Új jelentkezők
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[11px] font-semibold tabular-nums">
+                  <span className="px-2 py-0.5 rounded-full bg-info-subtle text-info text-[11px] font-semibold tabular-nums">
                     {recruitingStats.uj} fő
                   </span>
                 </div>
                 <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct(recruitingStats.uj)}%` }} />
+                  <div className="h-full bg-info rounded-full transition-all" style={{ width: `${pct(recruitingStats.uj)}%` }} />
                 </div>
               </div>
 
@@ -277,15 +277,15 @@ export default async function HrOverviewPage() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 font-medium">
-                    <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                    <div className="w-2 h-2 rounded-full bg-warning shrink-0" />
                     Interjú fázisban
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-[11px] font-semibold tabular-nums">
+                  <span className="px-2 py-0.5 rounded-full bg-warning-subtle text-warning text-[11px] font-semibold tabular-nums">
                     {recruitingStats.interju} fő
                   </span>
                 </div>
                 <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${pct(recruitingStats.interju)}%` }} />
+                  <div className="h-full bg-warning rounded-full transition-all" style={{ width: `${pct(recruitingStats.interju)}%` }} />
                 </div>
               </div>
 
@@ -293,15 +293,15 @@ export default async function HrOverviewPage() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 font-medium">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <div className="w-2 h-2 rounded-full bg-success shrink-0" />
                     Ajánlat kiküldve
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-[11px] font-semibold tabular-nums">
+                  <span className="px-2 py-0.5 rounded-full bg-success-subtle text-success text-[11px] font-semibold tabular-nums">
                     {recruitingStats.ajanlat} fő
                   </span>
                 </div>
                 <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct(recruitingStats.ajanlat)}%` }} />
+                  <div className="h-full bg-success rounded-full transition-all" style={{ width: `${pct(recruitingStats.ajanlat)}%` }} />
                 </div>
               </div>
 

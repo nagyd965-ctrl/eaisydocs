@@ -109,11 +109,11 @@ export default async function ManagerPage() {
           </div>
           <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm ${
             pendingCount > 0
-              ? "border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700"
+              ? "border-warning/40 bg-warning-subtle"
               : "bg-card"
           }`}>
-            <Clock className={`w-3.5 h-3.5 ${pendingCount > 0 ? "text-amber-500" : "text-muted-foreground"}`} />
-            <span className={`font-medium tabular-nums ${pendingCount > 0 ? "text-amber-700 dark:text-amber-400" : ""}`}>
+            <Clock className={`w-3.5 h-3.5 ${pendingCount > 0 ? "text-warning" : "text-muted-foreground"}`} />
+            <span className={`font-medium tabular-nums ${pendingCount > 0 ? "text-warning" : ""}`}>
               {pendingCount}
             </span>
             <span className="text-muted-foreground">függő kérelem</span>
@@ -132,19 +132,19 @@ export default async function ManagerPage() {
         <div className="md:col-span-2 space-y-6">
 
           {/* Jóváhagyásra váró kérelmek */}
-          <Card className={`border-l-4 ${pendingCount > 0 ? "border-l-amber-500" : "border-l-emerald-500"}`}>
+          <Card className={`border-l-4 ${pendingCount > 0 ? "border-l-warning" : "border-l-success"}`}>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {pendingCount > 0
-                    ? <Clock className="w-4 h-4 text-amber-500" />
-                    : <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    ? <Clock className="w-4 h-4 text-warning" />
+                    : <CheckCircle2 className="w-4 h-4 text-success" />
                   }
                   <CardTitle className="text-base font-semibold">
                     Jóváhagyásra váró kérelmek
                   </CardTitle>
                   {pendingCount > 0 && (
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-white text-[11px] font-bold">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-warning text-white text-[11px] font-bold">
                       {pendingCount}
                     </span>
                   )}
@@ -167,7 +167,7 @@ export default async function ManagerPage() {
                     return (
                       <div
                         key={approval.id}
-                        className="flex items-center gap-4 p-3 rounded-lg border border-l-2 border-l-amber-400 hover:bg-muted/30 transition-colors"
+                        className="flex items-center gap-4 p-3 rounded-lg border border-l-2 border-l-warning hover:bg-muted/30 transition-colors"
                       >
                         <Avatar className="h-9 w-9 shrink-0">
                           <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
@@ -177,7 +177,7 @@ export default async function ManagerPage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold leading-none">{nev}</p>
                           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[11px] font-semibold uppercase tracking-wide">
+                            <span className="px-2 py-0.5 rounded-full bg-info-subtle text-info text-[11px] font-semibold uppercase tracking-wide">
                               {tipusLabel}
                             </span>
                             <span className="text-xs text-muted-foreground tabular-nums">
@@ -192,7 +192,7 @@ export default async function ManagerPage() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed rounded-lg bg-muted/10">
-                  <CheckCircle2 className="w-9 h-9 text-emerald-400 mb-2" />
+                  <CheckCircle2 className="w-9 h-9 text-success mb-2" />
                   <p className="text-sm font-medium text-muted-foreground">Nincs függő kérelem</p>
                 </div>
               )}
@@ -229,7 +229,7 @@ export default async function ManagerPage() {
                         <Avatar className="h-8 w-8 shrink-0">
                           <AvatarFallback className={`text-xs font-semibold ${
                             isAbsent
-                              ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                              ? "bg-destructive/10 text-destructive"
                               : "bg-muted text-muted-foreground"
                           }`}>
                             {initials}
@@ -240,15 +240,15 @@ export default async function ManagerPage() {
                           <p className="text-xs text-muted-foreground mt-0.5 truncate">{member.munkakor}</p>
                         </div>
                         {isAbsent ? (
-                          <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-[10px] font-semibold shrink-0">
+                          <span className="px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-[10px] font-semibold shrink-0">
                             Távol
                           </span>
                         ) : hasPending ? (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-[10px] font-semibold shrink-0">
+                          <span className="px-2 py-0.5 rounded-full bg-warning-subtle text-warning text-[10px] font-semibold shrink-0">
                             Függőben
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-[10px] font-semibold shrink-0">
+                          <span className="px-2 py-0.5 rounded-full bg-success-subtle text-success text-[10px] font-semibold shrink-0">
                             Irodában
                           </span>
                         )}

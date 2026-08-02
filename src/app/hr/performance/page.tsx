@@ -8,6 +8,7 @@ import { AddKpiDialog } from "@/components/hr/add-kpi-dialog"
 import { ManageCyclesDialog } from "@/components/hr/manage-cycles-dialog"
 import { PerformanceList } from "@/components/hr/performance-list"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export default async function PerformancePage() {
   const supabase = await createClient()
@@ -48,7 +49,7 @@ export default async function PerformancePage() {
     .from("hr_dolgozo_adatlap")
     .select(`
       id,
-      felhasznalo_profil ( nev ),
+      felhasznalo_profil ( nev, avatar_url ),
       hr_jogviszony (
         hr_beosztas (
           ervenyes_ig,

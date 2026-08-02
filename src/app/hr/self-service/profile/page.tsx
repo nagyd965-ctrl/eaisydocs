@@ -17,7 +17,7 @@ export default async function SelfServiceProfilePage() {
   const [adatlapRes, jogviszonyRes, orvosiRes] = await Promise.all([
     supabase
       .from("hr_dolgozo_adatlap")
-      .select("*, felhasznalo_profil(nev, hr_szerepkor)")
+      .select("*, felhasznalo_profil(nev, hr_szerepkor, avatar_url)")
       .eq("id", user.id)
       .single(),
     supabase
@@ -45,6 +45,7 @@ export default async function SelfServiceProfilePage() {
   const orvosiErvenyesseg = orvosi?.ervenyesseg_datuma || null
   const nev = adatlap?.felhasznalo_profil?.nev || "Dolgozó"
   const szerepkor = adatlap?.felhasznalo_profil?.hr_szerepkor || null
+  const avatarUrl = adatlap?.felhasznalo_profil?.avatar_url || null
 
   // Monogram generálás
   const initials = nev
@@ -109,10 +110,14 @@ export default async function SelfServiceProfilePage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             {/* Bal: Avatar + Név */}
             <div className="flex items-center gap-5">
-              <div className="h-16 w-16 rounded-full bg-primary flex items-center justify-center shrink-0">
-                <span className="text-xl font-semibold text-primary-foreground tabular-nums">
-                  {initials}
-                </span>
+              <div className="h-16 w-16 rounded-full bg-primary flex items-center justify-center shrink-0 overflow-hidden">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={nev} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-xl font-semibold text-primary-foreground tabular-nums">
+                    {initials}
+                  </span>
+                )}
               </div>
               <div>
                 <h2 className="text-xl font-semibold">{nev}</h2>
@@ -120,7 +125,7 @@ export default async function SelfServiceProfilePage() {
                   {munkakorMegnevezes || "Munkakör nincs beállítva"}
                 </p>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-success-subtle text-success">
                     Aktív
                   </span>
                   {szerepkor && (
@@ -148,13 +153,13 @@ export default async function SelfServiceProfilePage() {
               {orvosiErvenyesseg && (
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ${
                   orvosiWarning
-                    ? "border-amber-300 bg-amber-50 dark:bg-amber-900/20"
+                    ? "border-warning/40 bg-warning-subtle"
                     : "border bg-muted/40"
                 }`}>
-                  <Stethoscope className={`w-4 h-4 shrink-0 ${orvosiWarning ? "text-amber-500" : "text-primary"}`} />
+                  <Stethoscope className={`w-4 h-4 shrink-0 ${orvosiWarning ? "text-warning" : "text-primary"}`} />
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Orvosi</p>
-                    <p className={`font-medium text-xs ${orvosiWarning ? "text-amber-600 dark:text-amber-400" : ""}`}>
+                    <p className={`font-medium text-xs ${orvosiWarning ? "text-warning" : ""}`}>
                       {new Date(orvosiErvenyesseg).toLocaleDateString("hu-HU", { year: "numeric", month: "short", day: "numeric" })}
                       {orvosiWarning && " ⚠️"}
                     </p>
@@ -203,11 +208,11 @@ export default async function SelfServiceProfilePage() {
             </div>
             <div className="py-3">
               <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Orvosi Érvényesség</p>
-              <p className={`font-medium text-sm mt-1 ${orvosiWarning ? "text-amber-600 dark:text-amber-400" : ""}`}>
+              <p className={`font-medium text-sm mt-1 ${orvosiWarning ? "text-warning" : ""}`}>
                 {orvosiErvenyesseg && !isNaN(new Date(orvosiErvenyesseg).getTime())
                   ? <>
                       {new Date(orvosiErvenyesseg).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })}
-                      {orvosiWarning && <span className="ml-2 text-[11px] font-semibold text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">Hamarosan lejár</span>}
+                      {orvosiWarning && <span className="ml-2 text-[11px] font-semibold text-warning bg-warning-subtle px-1.5 py-0.5 rounded">Hamarosan lejár</span>}
                     </>
                   : <span className="text-muted-foreground italic">Nincs megadva</span>}
               </p>

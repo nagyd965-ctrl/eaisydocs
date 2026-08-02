@@ -193,9 +193,9 @@ export default async function SelfServicePage() {
           </CardContent>
         </Card>
         {/* Felhasznált */}
-        <Card className="border-l-4 border-l-amber-500">
+        <Card className="border-l-4 border-l-warning">
           <CardContent className="pt-5 pb-4">
-            <p className="text-2xl font-semibold tabular-nums text-amber-600">{usedLeave}</p>
+            <p className="text-2xl font-semibold tabular-nums text-warning">{usedLeave}</p>
             <p className="text-xs text-muted-foreground mt-1 font-medium">Felhasznált nap</p>
           </CardContent>
         </Card>
@@ -281,10 +281,10 @@ export default async function SelfServicePage() {
                     </div>
                     <span className={`px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
                       leave.statusz === "jovahagyva"
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                        ? "bg-success-subtle text-success"
                         : leave.statusz === "elutasitva"
                         ? "bg-destructive/10 text-destructive"
-                        : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                        : "bg-warning-subtle text-warning"
                     }`}>
                       {statuszLabel[leave.statusz] ?? leave.statusz}
                     </span>

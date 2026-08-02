@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -9,9 +9,9 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { User, Users, UserPlus, Key, Clock, Save, ShieldCheck, FileText, Plane, Building, Plus, Settings } from "lucide-react"
+import { User, Users, UserPlus, Key, Clock, Save, ShieldCheck, FileText, Plane, Building, Plus, Settings, Camera, Upload } from "lucide-react"
 import Link from "next/link"
-import { updateProfile, createNewUser, updateUserPassword, updateUserRole } from "./settings-actions"
+import { updateProfile, createNewUser, updateUserPassword, updateUserRole, uploadAvatar } from "./settings-actions"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -35,6 +35,9 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [editRoleDialogOpen, setEditRoleDialogOpen] = useState(false)
   const [selectedMember, setSelectedMember] = useState<any>(null)
   const [selectedMemberRole, setSelectedMemberRole] = useState<string>("")
@@ -85,14 +88,45 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
     setMounted(true)
   }, [])
 
+  function getInitials(name: string): string {
+    return (name || "?")
+      .split(" ")
+      .map(n => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "?"
+  }
+
+  function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Túl nagy fájl", { description: "A profillkép maximum 5MB lehet." })
+      return
+    }
+    setAvatarFile(file)
+    setAvatarPreview(URL.createObjectURL(file))
+  }
+
   async function handleProfileSave(formData: FormData) {
     setLoading(true)
+    if (avatarFile) {
+      const avatarData = new FormData()
+      avatarData.append("avatar", avatarFile)
+      const avatarRes = await uploadAvatar(avatarData)
+      if (avatarRes?.error) {
+        toast.error("Profilkép hiba", { description: avatarRes.error })
+        setLoading(false)
+        return
+      }
+    }
     const res = await updateProfile(formData)
     setLoading(false)
     if (res?.error) {
       toast.error("Hiba", { description: "Hiba a mentés során: " + res.error })
     } else {
       setSuccess(true)
+      setAvatarFile(null)
       router.refresh()
       window.dispatchEvent(new Event('sessionTimeoutChanged'))
       window.dispatchEvent(new Event('profileUpdated'))
@@ -114,6 +148,54 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
           </CardHeader>
           <form action={handleProfileSave}>
             <CardContent className="space-y-6">
+
+              {/* Profilkép szekció */}
+              <div className="flex items-center gap-5 pb-6 border-b border-border">
+                <div
+                  className="relative h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center cursor-pointer group border-2 border-transparent hover:border-primary/40 transition-colors shrink-0 overflow-hidden"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="Avatar" className="h-full w-full object-cover" />
+                  ) : initialProfile?.avatar_url ? (
+                    <img src={initialProfile.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-xl font-semibold text-primary">
+                      {getInitials(profileForm.nev)}
+                    </span>
+                  )}
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-full">
+                    <Camera className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Profilkép</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Kattints az avatárra vagy a gombra a feltöltéshez. JPG, PNG — max 5MB
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleAvatarSelect}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2.5 h-8 text-xs gap-1.5"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    Kép kiválasztása
+                  </Button>
+                  {avatarFile && (
+                    <p className="text-[11px] text-success mt-1.5">✓ {avatarFile.name} kiválasztva</p>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="nev">Teljes név</Label>
