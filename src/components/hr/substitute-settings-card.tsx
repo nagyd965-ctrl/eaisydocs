@@ -84,7 +84,11 @@ export function SubstituteSettingsCard({ availableUsers, currentSubstitute }: Su
               <Label>Helyettes személye</Label>
               <Select value={helyettesId} onValueChange={setHelyettesId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Válassz egy kollégát..." />
+                  <SelectValue placeholder="Válassz egy kollégát...">
+                    {helyettesId
+                      ? (availableUsers.find((u) => u.id === helyettesId)?.nev ?? "Válassz egy kollégát...")
+                      : "Válassz egy kollégát..."}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {availableUsers.map((u) => (
