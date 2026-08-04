@@ -103,15 +103,28 @@ export function CafeteriaTab({
         {/* Jobb oldal: Dolgozó nyilatkozata */}
         <Card className="border shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" /> Leadott Nyilatkozat
-            </CardTitle>
-            <CardDescription>
-              {isClosed 
-                ? <span className="flex items-center gap-1 text-green-600"><CheckCircle2 className="w-4 h-4"/> A dolgozó véglegesítette a nyilatkozatát.</span>
-                : <span className="text-amber-600">A dolgozó még nem adta le a nyilatkozatot.</span>
-              }
-            </CardDescription>
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" /> Leadott Nyilatkozat
+                </CardTitle>
+                <CardDescription className="mt-1.5">
+                  {isClosed 
+                    ? <span className="flex items-center gap-1 text-green-600"><CheckCircle2 className="w-4 h-4"/> A dolgozó véglegesítette a nyilatkozatát.</span>
+                    : <span className="text-amber-600">A dolgozó még nem adta le a nyilatkozatot.</span>
+                  }
+                </CardDescription>
+              </div>
+              {isClosed && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.open(`/api/hr/cafeteria-pdf?employeeId=${employeeId}&year=${year}`, '_blank')}
+                >
+                  <FileText className="w-4 h-4 mr-2" /> PDF letöltése
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {choices.length > 0 ? (

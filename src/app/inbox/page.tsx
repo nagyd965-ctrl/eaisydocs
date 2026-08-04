@@ -46,19 +46,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     query = query.or(`targy.ilike.%${q}%,erkeztetoszam.ilike.%${q}%`)
   }
 
-  const { data: inboxItems } = await query
-
-  // Lekérdezzük az irattári tervet, hogy átadhassuk a felugró ablaknak
-  const { data: tervek } = await supabase
-    .from("irattari_terv")
-    .select("id, tetelszam, megnevezes")
-    .order("tetelszam")
-
-  const { data: aktivUgyiratok } = await supabase
-    .from("ugyirat")
-    .select("id, iktatoszam, ugy ( targy )")
-    .in("statusz", ["iktatva", "szignalt", "ugyintezes_alatt"])
-    .order("iktatas_datuma", { ascending: false })
+  const { data: inboxItems } = await query.limit(100)
 
   return (
     <div className="space-y-6">

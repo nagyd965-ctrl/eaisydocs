@@ -99,24 +99,23 @@ export default async function Dashboard() {
     .sort((a, b) => new Date((a.ugy as any).hatarido).getTime() - new Date((b.ugy as any).hatarido).getTime())
     .slice(0, 5)
 
-  // 3. Új bejövő küldemények (Nincs érkeztetve)
+  // 3. Új bejövő küldemények (Legfrissebb bejövő, iktatatlan iratok - érkeztetve vagy anélkül)
   const { data: inboxItems } = await supabase
     .from("irat")
-    .select("id, erkezes_datuma, targy, partner(nev)")
+    .select("id, erkezes_datuma, erkeztetoszam, targy, partner(nev)")
     .eq("irany", "bejovo")
     .is("ugyirat_id", null)
-    .is("erkeztetoszam", null)
     .order("erkezes_datuma", { ascending: false })
     .limit(5)
 
-  // 4. Iktatásra váró iratok (Érkeztetve, de nincs iktatva)
+  // 4. Iktatási elmaradások (A legrégebbi érkeztetett, de még iktatásra váró iratok)
   const { data: filingItems } = await supabase
     .from("irat")
     .select("id, erkezes_datuma, erkeztetoszam, targy, partner(nev)")
     .eq("irany", "bejovo")
     .is("ugyirat_id", null)
     .not("erkeztetoszam", "is", null)
-    .order("erkezes_datuma", { ascending: true }) // Oldest first for filing
+    .order("erkezes_datuma", { ascending: true })
     .limit(5)
 
   return (
@@ -138,7 +137,7 @@ export default async function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4 mt-4">
-              {myTasks.length === 0 ? (
+              {(!myTasks || myTasks.length === 0) ? (
                 <p className="text-sm text-muted-foreground">Jelenleg nincs rád szignált nyitott feladat.</p>
               ) : (
                 myTasks.map(task => {
@@ -160,7 +159,7 @@ export default async function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Lejáró határidők */}
+        {/* Lejáró határidők (Ügyek) */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
@@ -171,34 +170,31 @@ export default async function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4 mt-4">
-              {expiringDossiers.length === 0 ? (
+              {(!expiringDossiers || expiringDossiers.length === 0) ? (
                 <p className="text-sm text-muted-foreground">Nincsenek lejáró ügyek a látókörödben.</p>
               ) : (
-                expiringDossiers.map(dossier => {
-                  const deadlineInfo = getDeadlineText((dossier.ugy as any)?.hatarido)
-                  return (
-                    <div key={dossier.id} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
-                      <div>
-                        <Link href={`/dossiers/${dossier.id}`} className="text-sm font-medium hover:underline">
-                          {(dossier.ugy as any)?.targy || "Nincs tárgy"}
-                        </Link>
-                        <p className="text-xs text-muted-foreground">{dossier.iktatoszam}</p>
-                      </div>
-                      <div className={`text-xs ${deadlineInfo.color}`}>{deadlineInfo.text}</div>
+                expiringDossiers.map(d => (
+                  <div key={d.id} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
+                    <div>
+                      <p className="text-sm font-medium">{d.targy || "Névtelen ügyirat"}</p>
+                      <p className="text-xs text-destructive font-semibold">
+                        Határidő: {new Date((d.ugy as any).hatarido).toLocaleDateString("hu-HU")}
+                      </p>
                     </div>
-                  )
-                })
+                    <Link href={`/dossiers/${d.id}`} className="text-xs font-medium text-primary hover:underline">Megtekintés</Link>
+                  </div>
+                ))
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Érkeztetésre váró */}
+        {/* Érkeztetésre váró / Legfrissebb bejövő */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
               <CardTitle>Új bejövő küldemények</CardTitle>
-              <CardDescription>Feldolgozásra váró e-mailek és postai iratok</CardDescription>
+              <CardDescription>A legfrissebb beérkezett e-mailek és postai iratok</CardDescription>
             </div>
             <Inbox className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -210,12 +206,14 @@ export default async function Dashboard() {
                 inboxItems.map(item => (
                   <div key={item.id} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
                     <div>
-                      <p className="text-sm font-medium">{item.targy || "Névtelen levél"}</p>
+                      <p className="text-sm font-medium">{item.erkeztetoszam ? `${item.erkeztetoszam} (${item.targy || "Névtelen levél"})` : (item.targy || "Névtelen levél")}</p>
                       <p className="text-xs text-muted-foreground">
                         {(item.partner as any)?.nev || "Ismeretlen feladó"} • Utolsó: {timeAgo(item.erkezes_datuma)}
                       </p>
                     </div>
-                    <Link href="/inbox" className="text-xs font-medium text-primary hover:underline">Érkeztetés</Link>
+                    <Link href="/inbox" className="text-xs font-medium text-primary hover:underline">
+                      {item.erkeztetoszam ? "Iktatás" : "Érkeztetés"}
+                    </Link>
                   </div>
                 ))
               )}
@@ -223,12 +221,12 @@ export default async function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Iktatásra váró */}
+        {/* Iktatásra váró elmaradások */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
-              <CardTitle>Iktatásra váró iratok</CardTitle>
-              <CardDescription>Már érkeztetett, de ügyhöz még nem rendelt iratok</CardDescription>
+              <CardTitle>Iktatási elmaradások</CardTitle>
+              <CardDescription>A legrégebbi, ügyhöz még nem rendelt iratok</CardDescription>
             </div>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>

@@ -25,19 +25,15 @@ import { SidebarFooterContent } from "@/components/sidebar-footer-content"
 import { ModuleSwitcher } from "@/components/module-switcher"
 
 const items = [
-  {
-    title: "Áttekintés",
-    url: "/hr",
-    icon: Home,
-  },
+
   {
     title: "Dolgozói Portál",
-    url: "/hr/self-service",
+    url: "/hr",
     icon: Users,
     items: [
       {
         title: "Áttekintés",
-        url: "/hr/self-service",
+        url: "/hr",
       },
       {
         title: "Profilom",
@@ -69,6 +65,10 @@ const items = [
     url: "/hr/admin",
     icon: FileText,
     items: [
+      {
+        title: "Központi Áttekintés",
+        url: "/hr/admin/overview",
+      },
       {
         title: "Állomány áttekintés",
         url: "/hr/admin",
@@ -128,9 +128,9 @@ export function HrSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => {
-                const isActive = pathname === item.url || (item.url !== "/hr" && pathname.startsWith(item.url))
+                const isActive = pathname === item.url || (item.url !== "/hr" && pathname.startsWith(item.url + "/"))
                 if (item.items && item.items.length > 0) {
-                  const isGroupActive = isActive || item.items.some(sub => pathname === sub.url || pathname.startsWith(sub.url))
+                  const isGroupActive = isActive || item.items.some(sub => pathname === sub.url || (sub.url !== "/hr" && pathname.startsWith(sub.url + "/")))
                   return (
                     <Collapsible key={item.title} defaultOpen={isGroupActive} className="group/collapsible">
                       <SidebarMenuItem>
@@ -144,7 +144,7 @@ export function HrSidebar() {
                         <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                           <SidebarMenuSub className="pr-0 mr-0 mt-1">
                             {item.items.map(subItem => {
-                              const isSubActive = pathname === subItem.url || pathname.startsWith(subItem.url)
+                              const isSubActive = pathname === subItem.url || (subItem.url !== "/hr" && subItem.url !== "/hr/admin" && pathname.startsWith(subItem.url + "/"))
                               return (
                                 <SidebarMenuSubItem key={subItem.title} className="relative">
                                   {isSubActive && <div className="absolute -left-4 top-1.5 bottom-1.5 w-[3px] bg-primary rounded-r-md z-10" />}

@@ -1,323 +1,336 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { Users, UserPlus, CalendarX, Briefcase, AlertCircle, Clock, ChevronRight, PlusCircle, CheckCircle2 } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { CalendarDays, ArrowRight, Coffee, FileSignature } from "lucide-react"
 import { createClient } from "@/utils/supabase/server"
-import { createClient as createAdminClient } from "@supabase/supabase-js"
-import { ReassignLeavesButton } from "@/components/hr/reassign-leaves-button"
+import { TimeTrackingCard } from "@/components/hr/time-tracking-card"
+import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
+import { EmployeeKpiCard } from "@/components/hr/employee-kpi-card"
+import { redirect } from "next/navigation"
+import Link from "next/link"
 
-export default async function HrOverviewPage() {
+export default async function SelfServicePage() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
+  if (!user) {
+    redirect("/login")
+  }
+
+  const [adatlapRes, jogviszonyRes] = await Promise.all([
+    supabase
+      .from("hr_dolgozo_adatlap")
+      .select("*, felhasznalo_profil(nev)")
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("hr_jogviszony")
+      .select("belepes_datuma, hr_beosztas(hr_munkakor(megnevezes))")
+      .eq("dolgozo_id", user.id)
+      .is("kilepes_datuma", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  const adatlap = adatlapRes.data
+  const jogviszony = jogviszonyRes.data
+  const munkakorMegnevezes = (jogviszony?.hr_beosztas as any)?.[0]?.hr_munkakor?.megnevezes || null
+  const belepesDatuma = jogviszony?.belepes_datuma || null
+
+  // 1. Szabadság egyenleg számítása
+  const { data: tavolletek } = await supabase
+    .from("hr_tavollet")
+    .select("*")
+    .eq("dolgozo_id", user.id)
+    .order("created_at", { ascending: false })
+
+  const totalLeave = 25
+  const usedLeave = tavolletek?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyva").length || 0
+  const plannedLeave = tavolletek?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyasra_var").length || 0
+  const pendingLeavesCount = tavolletek?.filter(t => t.statusz === "jovahagyasra_var").length || 0
+  const remainingLeave = totalLeave - usedLeave
+
+  // Legutóbbi 3 távollét kérelem
+  const recentLeaves = tavolletek?.slice(0, 3) || []
+
+  // 2. Időrögzítés státusz
+  const { data: jelenlet } = await supabase
+    .from("hr_jelenlet")
+    .select("becsekkolas_ideje, kicsekkolas_ideje")
+    .eq("dolgozo_id", user.id)
+    .eq("datum", new Date().toISOString().split('T')[0])
+    .single()
+  
+  let timeStatus: "none" | "checked_in" | "checked_out" = "none"
+  if (jelenlet) {
+    if (jelenlet.kicsekkolas_ideje) timeStatus = "checked_out"
+    else timeStatus = "checked_in"
+  }
+
+  // 3. Céges dokumentumok ellenőrzése
+  const { data: cegesDokumentumok } = await supabase
+    .from("hr_ceges_dokumentum")
+    .select(`id, hr_ceges_dokumentum_nyugtazas(id)`)
+    .eq("aktiv", true)
+    .eq("kotelezo_mindenkinek", true)
+    .eq("hr_ceges_dokumentum_nyugtazas.dolgozo_id", user.id)
+
+  const pendingDocsCount = cegesDokumentumok?.filter(d => !d.hr_ceges_dokumentum_nyugtazas || d.hr_ceges_dokumentum_nyugtazas.length === 0).length || 0
+
+  const currentYear = new Date().getFullYear()
+  const { data: cafeteriaKeret } = await supabase
+    .from("hr_cafeteria_keret")
+    .select("ev, osszeg, nyilatkozat_lezarva")
+    .eq("dolgozo_id", user.id)
+    .eq("ev", currentYear)
+    .maybeSingle()
+
+  const { data: cafeteriaKatalogus } = await supabase
+    .from("hr_cafeteria_katalogus")
+    .select("*")
+    .eq("aktiv", true)
+    .order("nev")
+
+  const { data: cafeteriaValasztasok } = await supabase
+    .from("hr_cafeteria_valasztas")
+    .select("*")
+    .eq("dolgozo_id", user.id)
+    .eq("ev", currentYear)
+
+  const { createClient: createAdminClient } = await import("@supabase/supabase-js")
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const today = new Date()
-  const todayStr = today.toISOString().split("T")[0]
+  const { data: kpis } = await supabaseAdmin
+    .from("hr_teljesitmeny")
+    .select("*, hr_teljesitmeny_ciklus(megnevezes)")
+    .eq("dolgozo_id", user.id)
+    .order("created_at", { ascending: false })
 
-  const thirtyDaysFromNow = new Date(today)
-  thirtyDaysFromNow.setDate(today.getDate() + 30)
-  const thirtyDaysStr = thirtyDaysFromNow.toISOString().split("T")[0]
+  const { data: kpiLogs } = await supabaseAdmin
+    .from("hr_esemeny_naplo")
+    .select("*, felhasznalo_profil(nev)")
+    .eq("entitas_tipus", "hr_teljesitmeny")
+    .order("created_at", { ascending: true })
 
-  const [
-    { count: activeEmployees },
-    { count: openPositions },
-    { count: activeOnboardings },
-    { count: todayAbsences },
-    { data: recruitingData },
-    { data: pendingLeaves },
-    { data: expiringMedicals },
-    { data: expiringProbations },
-    { data: expiringContracts }
-  ] = await Promise.all([
-    supabase.from("hr_dolgozo_adatlap").select("*", { count: "exact", head: true }),
-    supabaseAdmin.from("hr_toborzas").select("*", { count: "exact", head: true }).eq("statusz", "uj"),
-    supabase.from("hr_onboarding").select("*", { count: "exact", head: true }).in("statusz", ["elokeszites", "folyamatban"]),
-    supabase.from("hr_tavollet").select("*", { count: "exact", head: true })
-      .lte("kezdet_datuma", todayStr)
-      .gte("veg_datuma", todayStr),
-    supabaseAdmin.from("hr_toborzas").select("statusz"),
+  const nev = adatlap?.felhasznalo_profil?.nev || "Dolgozó"
 
-    supabase.from("hr_tavollet")
-      .select(`id, kezdet_datuma, veg_datuma, hr_dolgozo_adatlap(id, felhasznalo_profil(nev))`)
-      .eq("statusz", "jovahagyasra_var"),
-
-    supabase.from("hr_dolgozo_adatlap")
-      .select(`id, orvosi_alkalmassag_ervenyesseg, felhasznalo_profil(nev)`)
-      .not("orvosi_alkalmassag_ervenyesseg", "is", null)
-      .lte("orvosi_alkalmassag_ervenyesseg", thirtyDaysStr)
-      .gte("orvosi_alkalmassag_ervenyesseg", todayStr),
-
-    supabase.from("hr_dolgozo_adatlap")
-      .select(`id, probaido_vege, felhasznalo_profil(nev)`)
-      .not("probaido_vege", "is", null)
-      .lte("probaido_vege", thirtyDaysStr)
-      .gte("probaido_vege", todayStr),
-
-    supabase.from("hr_dolgozo_adatlap")
-      .select(`id, munkaviszony_vege, szerzodes_tipusa, felhasznalo_profil(nev)`)
-      .eq("szerzodes_tipusa", "határozott")
-      .not("munkaviszony_vege", "is", null)
-      .lte("munkaviszony_vege", thirtyDaysStr)
-      .gte("munkaviszony_vege", todayStr)
-  ])
-
-  const hasTasks = !!(
-    (expiringMedicals && expiringMedicals.length > 0) ||
-    (pendingLeaves && pendingLeaves.length > 0) ||
-    (expiringProbations && expiringProbations.length > 0) ||
-    (expiringContracts && expiringContracts.length > 0)
-  )
-
-  const recruitingStats = { uj: 0, interju: 0, ajanlat: 0 }
-  let totalCandidates = 0
-  if (recruitingData) {
-    recruitingData.forEach(r => {
-      totalCandidates++
-      if (r.statusz === "uj") recruitingStats.uj++
-      if (r.statusz === "interju") recruitingStats.interju++
-      if (r.statusz === "ajanlat") recruitingStats.ajanlat++
-    })
+  const statuszLabel: Record<string, string> = {
+    jovahagyva: "Jóváhagyva",
+    jovahagyasra_var: "Jóváhagyásra vár",
+    elutasitva: "Elutasítva",
   }
 
-  const pct = (n: number) =>
-    totalCandidates > 0 ? Math.round((n / totalCandidates) * 100) : 0
-
   return (
-    <div className="space-y-8 pb-10">
+    <div className="space-y-6 pb-10">
 
-      {/* Fejléc */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* Fejléc: cím + akciógombok */}
+      <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Központi Áttekintés</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Áttekintés</h1>
           <p className="text-muted-foreground mt-1">
-            Üdvözlünk az eaisyHR irányítópultján. Itt áttekintheted a szervezet aktuális HR folyamatait.
+            Üdvözlünk, {nev}! Ez a személyes irányítópultod.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <Link href="/hr/admin">
-            <Button variant="outline" className="gap-2">
-              <Users className="w-4 h-4" /> Dolgozók
-            </Button>
-          </Link>
-          <Link href="/hr/recruitment">
-            <Button className="gap-2">
-              <PlusCircle className="w-4 h-4" /> Új Toborzás
-            </Button>
-          </Link>
+        <Link href="/hr/self-service/dokumentumok">
+          <Button variant="outline" className="relative">
+            <FileSignature className="w-4 h-4 mr-2 text-primary" />
+            Céges Szabályzatok
+            {pendingDocsCount > 0 && (
+              <span className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-white text-[10px] font-bold flex items-center justify-center rounded-full animate-pulse">
+                {pendingDocsCount}
+              </span>
+            )}
+          </Button>
+        </Link>
+      </div>
+
+      {/* Hero üdvözlő banner */}
+      <div className="rounded-xl bg-gradient-to-r from-primary to-primary/80 p-6 flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-semibold text-primary-foreground">
+            Üdvözlünk, {nev}!
+          </h2>
+          <p className="text-primary-foreground/80 mt-1 text-sm">
+            {munkakorMegnevezes && (
+              <span>{munkakorMegnevezes}</span>
+            )}
+            {munkakorMegnevezes && belepesDatuma && <span> · </span>}
+            {belepesDatuma && (
+              <span>Belépés: {new Date(belepesDatuma).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })}</span>
+            )}
+            {!munkakorMegnevezes && !belepesDatuma && (
+              <span>Jó munkát kívánunk a mai napra!</span>
+            )}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <span className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
+            timeStatus === "checked_in"
+              ? "bg-emerald-500/20 text-emerald-100 border-emerald-400/40"
+              : timeStatus === "checked_out"
+              ? "bg-white/10 text-white/70 border-white/20"
+              : "bg-white/10 text-white/70 border-white/20"
+          }`}>
+            {timeStatus === "checked_in" ? "🟢 Becsekkolva" : timeStatus === "checked_out" ? "✅ Mai nap lezárva" : "⚪ Még nincs becsekkolva"}
+          </span>
+          <p className="text-primary-foreground/60 text-xs">
+            {new Date().toLocaleDateString("hu-HU", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+          </p>
         </div>
       </div>
 
-      {/* Stat kártyák */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-
+      {/* Stat kártyák sora */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        {/* Szabadság marad */}
         <Card className="border-l-4 border-l-primary">
-          <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Users className="w-4 h-4 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold tabular-nums text-primary">{activeEmployees ?? 0} fő</p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">Aktív Dolgozók</p>
-            </div>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-2xl font-semibold tabular-nums text-primary">{remainingLeave}</p>
+            <p className="text-xs text-muted-foreground mt-1 font-medium">Szabadság marad</p>
           </CardContent>
         </Card>
-
+        {/* Felhasznált */}
         <Card className="border-l-4 border-l-warning">
-          <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-warning-subtle flex items-center justify-center shrink-0">
-              <CalendarX className="w-4 h-4 text-warning" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold tabular-nums text-warning">{todayAbsences ?? 0} fő</p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">Mai Hiányzók</p>
-            </div>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-2xl font-semibold tabular-nums text-warning">{usedLeave}</p>
+            <p className="text-xs text-muted-foreground mt-1 font-medium">Felhasznált nap</p>
           </CardContent>
         </Card>
-
-        <Card className="border-l-4 border-l-info">
-          <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-info-subtle flex items-center justify-center shrink-0">
-              <Briefcase className="w-4 h-4 text-info" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold tabular-nums text-info">{openPositions ?? 0} db</p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">Nyitott Pozíciók</p>
-            </div>
+        {/* Függőben lévő kérelem */}
+        <Card className="border-l-4 border-l-destructive">
+          <CardContent className="pt-5 pb-4">
+            <p className="text-2xl font-semibold tabular-nums text-destructive">{pendingLeavesCount}</p>
+            <p className="text-xs text-muted-foreground mt-1 font-medium">Függőben lévő kérelem</p>
           </CardContent>
         </Card>
-
+        {/* Cafeteria */}
         <Card className="border-l-4 border-l-violet-500">
-          <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center shrink-0">
-              <UserPlus className="w-4 h-4 text-violet-600" />
+          <CardContent className="pt-5 pb-4">
+            <p className="text-2xl font-semibold tabular-nums text-violet-600">{cafeteriaKeret ? currentYear : "–"}</p>
+            <p className="text-xs text-muted-foreground mt-1 font-medium">Cafeteria aktív</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Főrács: Időrögzítés + Szabadság + Kérelmek */}
+      <div className="grid gap-6 md:grid-cols-3">
+
+        {/* Időadat Rögzítés */}
+        <TimeTrackingCard
+          initialStatus={timeStatus}
+          checkInTime={jelenlet?.becsekkolas_ideje || null}
+          checkOutTime={jelenlet?.kicsekkolas_ideje || null}
+        />
+
+        {/* Szabadság egyenleg */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div className="space-y-1">
+              <CardTitle className="text-base font-semibold">Szabadság ({new Date().getFullYear()})</CardTitle>
+              <p className="text-xs text-muted-foreground">Éves alapszabadság + pótszabadságok</p>
             </div>
-            <div>
-              <p className="text-2xl font-semibold tabular-nums text-violet-600">{activeOnboardings ?? 0} fő</p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">Aktív Onboarding</p>
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <CalendarDays className="w-4 h-4 text-primary" />
             </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end justify-between mt-2">
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-semibold tabular-nums">{remainingLeave}</span>
+                <span className="text-muted-foreground text-sm">nap maradt</span>
+              </div>
+              <span className="text-sm text-muted-foreground">Összesen: {totalLeave} nap</span>
+            </div>
+            <Progress value={(usedLeave / totalLeave) * 100} className="mt-4 h-2" />
+            <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+              <span>Felhasznált: {usedLeave} nap</span>
+              <span>Tervezett: {plannedLeave} nap</span>
+            </div>
+            <Link href="/hr/self-service/time" className="mt-4 flex items-center text-sm text-primary hover:underline font-medium">
+              Részletek megtekintése <ArrowRight className="w-4 h-4 ml-1" />
+            </Link>
           </CardContent>
         </Card>
 
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-
-        {/* HR Teendők */}
-        <Card className="col-span-4">
-          <CardHeader className="flex flex-row items-center justify-between pb-4">
-            <div>
-              <CardTitle className="text-base font-semibold">HR Teendők & Figyelmeztetések</CardTitle>
-              <CardDescription className="mt-0.5">Aktuális feladatok, amik figyelmet igényelnek.</CardDescription>
-            </div>
-            <ReassignLeavesButton />
+        {/* Legutóbbi Kérelmek */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Legutóbbi Kérelmek</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {!hasTasks && (
-                <div className="text-center p-6 text-sm text-muted-foreground border border-dashed rounded-lg">
-                  Nincsenek aktuális, figyelmet igénylő HR teendők.
-                </div>
+            <div className="space-y-3">
+              {recentLeaves.length > 0 ? (
+                recentLeaves.map((leave: any) => (
+                  <div key={leave.id} className="flex justify-between items-center text-sm border-b border-border pb-3 last:border-0 last:pb-0">
+                    <div>
+                      <p className="font-medium">
+                        {leave.tipus === "szabadsag" ? "Szabadság" : leave.tipus}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {leave.kezdo_datum && !isNaN(new Date(leave.kezdo_datum).getTime())
+                          ? new Date(leave.kezdo_datum).toLocaleDateString("hu-HU")
+                          : "–"}
+                        {" – "}
+                        {leave.veg_datum && !isNaN(new Date(leave.veg_datum).getTime())
+                          ? new Date(leave.veg_datum).toLocaleDateString("hu-HU")
+                          : "–"}
+                      </p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
+                      leave.statusz === "jovahagyva"
+                        ? "bg-success-subtle text-success"
+                        : leave.statusz === "elutasitva"
+                        ? "bg-destructive/10 text-destructive"
+                        : "bg-warning-subtle text-warning"
+                    }`}>
+                      {statuszLabel[leave.statusz] ?? leave.statusz}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">Nincsenek kérelmek.</p>
               )}
-
-              {/* Lejáró orvosi */}
-              {expiringMedicals?.map((doc) => (
-                <div key={`med-${doc.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-destructive hover:bg-muted/40 transition-colors">
-                  <AlertCircle className="w-4 h-4 text-destructive shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Lejáró orvosi alkalmassági</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {(doc.felhasznalo_profil as any)?.nev} – érvényes: {doc.orvosi_alkalmassag_ervenyesseg}
-                    </p>
-                  </div>
-                  <Link href={`/hr/employee/${doc.id}`}>
-                    <Button variant="ghost" size="sm" className="shrink-0 h-7 text-xs">Megtekintés</Button>
-                  </Link>
-                </div>
-              ))}
-
-              {/* Jóváhagyásra váró szabadság */}
-              {pendingLeaves?.map((leave) => (
-                <div key={`leave-${leave.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-warning hover:bg-muted/40 transition-colors">
-                  <Clock className="w-4 h-4 text-warning shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Jóváhagyásra váró szabadság</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {/* @ts-ignore */}
-                      {leave.hr_dolgozo_adatlap?.felhasznalo_profil?.nev || "Ismeretlen"} szabadságkérelme: {leave.kezdet_datuma} – {leave.veg_datuma}
-                    </p>
-                  </div>
-                  <Link href="/hr/manager">
-                    <Button variant="ghost" size="sm" className="shrink-0 h-7 text-xs">Megtekintés</Button>
-                  </Link>
-                </div>
-              ))}
-
-              {/* Lejáró próbaidő */}
-              {expiringProbations?.map((prob) => (
-                <div key={`prob-${prob.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-success hover:bg-muted/40 transition-colors">
-                  <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Próbaidő lejár – {(prob.felhasznalo_profil as any)?.nev}</p>
-                    <p className="text-xs text-muted-foreground">Értékelés szükséges. Lejár: {prob.probaido_vege}</p>
-                  </div>
-                  <Link href={`/hr/employee/${prob.id}`}>
-                    <Button variant="ghost" size="sm" className="shrink-0 h-7 text-xs">Értékelés</Button>
-                  </Link>
-                </div>
-              ))}
-
-              {/* Lejáró határozott idejű szerződések */}
-              {expiringContracts?.map((emp) => (
-                <div key={`contract-${emp.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-orange-400 hover:bg-muted/40 transition-colors">
-                  <AlertCircle className="w-4 h-4 text-orange-500 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Lejáró Munkaszerződés</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {(emp.felhasznalo_profil as any)?.nev} – lejár: {new Date(emp.munkaviszony_vege).toLocaleDateString("hu-HU")}
-                    </p>
-                  </div>
-                  <Link href={`/hr/employee/${emp.id}`}>
-                    <Button variant="outline" size="sm" className="shrink-0 h-7 text-xs">Hosszabbítás</Button>
-                  </Link>
-                </div>
-              ))}
             </div>
+            <Link href="/hr/self-service/time" className="mt-4 flex items-center text-sm text-primary hover:underline font-medium">
+              Összes megtekintése <ArrowRight className="w-4 h-4 ml-1" />
+            </Link>
           </CardContent>
         </Card>
+      </div>
 
-        {/* Toborzási Áttekintő */}
-        <Card className="col-span-3">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold">Toborzási Áttekintő</CardTitle>
-            <CardDescription className="mt-0.5">A legfrissebb jelentkezők státusza.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-5">
+      {/* Juttatások + Céljaim – valós komponensek, közvetlenül betöltve */}
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
 
-              {/* Új jelentkezők */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 font-medium">
-                    <div className="w-2 h-2 rounded-full bg-info shrink-0" />
-                    Új jelentkezők
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-info-subtle text-info text-[11px] font-semibold tabular-nums">
-                    {recruitingStats.uj} fő
-                  </span>
-                </div>
-                <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-info rounded-full transition-all" style={{ width: `${pct(recruitingStats.uj)}%` }} />
-                </div>
-              </div>
+        {cafeteriaKeret ? (
+          <CafeteriaDeclaration
+            employeeId={user.id}
+            year={currentYear}
+            budget={cafeteriaKeret.osszeg}
+            isClosed={cafeteriaKeret.nyilatkozat_lezarva}
+            catalog={cafeteriaKatalogus || []}
+            existingChoices={cafeteriaValasztasok || []}
+          />
+        ) : (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Coffee className="w-4 h-4 text-primary" /> Juttatások
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">Nincs beállítva cafeteria keret erre az évre.</p>
+            </CardContent>
+          </Card>
+        )}
 
-              {/* Interjú fázisban */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 font-medium">
-                    <div className="w-2 h-2 rounded-full bg-warning shrink-0" />
-                    Interjú fázisban
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-warning-subtle text-warning text-[11px] font-semibold tabular-nums">
-                    {recruitingStats.interju} fő
-                  </span>
-                </div>
-                <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-warning rounded-full transition-all" style={{ width: `${pct(recruitingStats.interju)}%` }} />
-                </div>
-              </div>
-
-              {/* Ajánlat kiküldve */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 font-medium">
-                    <div className="w-2 h-2 rounded-full bg-success shrink-0" />
-                    Ajánlat kiküldve
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-success-subtle text-success text-[11px] font-semibold tabular-nums">
-                    {recruitingStats.ajanlat} fő
-                  </span>
-                </div>
-                <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-success rounded-full transition-all" style={{ width: `${pct(recruitingStats.ajanlat)}%` }} />
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-border">
-                <Link href="/hr/recruitment">
-                  <Button variant="ghost" className="w-full justify-between text-muted-foreground hover:text-foreground h-8 text-sm">
-                    Összes jelölt megtekintése <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </Link>
-              </div>
-
-            </div>
-          </CardContent>
-        </Card>
+        <EmployeeKpiCard kpis={kpis || []} logs={kpiLogs || []} />
 
       </div>
+
     </div>
   )
 }
+

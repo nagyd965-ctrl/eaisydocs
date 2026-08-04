@@ -31,6 +31,7 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
       ugy!inner ( id, targy, hatarido, statusz, felelos_user_id )
     `)
     .order("iktatas_datuma", { ascending: false })
+    .limit(100)
 
   const { data: rawDossiers } = await query
 
