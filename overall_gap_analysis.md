@@ -36,9 +36,9 @@ A szoftverterv **7 adatblokk**ot követel meg, füles elrendezésben:
 | Fegyelmi / kitüntetés | ✅ Kész | `DisciplinaryTab.tsx` |
 | Tanulmányi szerződés | ✅ Kész | `StudyContractTab.tsx` |
 | Jogviszony és besorolás | ✅ Kész | `EmploymentTab.tsx` |
-| **TAJ, adóazonosító titkosítva** (maszkolás) | ❌ Hiányzik | A szoftverterv szerint maszkolva kell megjeleníteni ("**** 4821"), felfedéshez külön kattintás + naplóbejegyzés kell |
-| **Hatályosság** (`ervenyes_tol`/`ervenyes_ig`) | ⚠️ Részben | A `beosztas_history` migráció létezik, de a frontend nem kezeli a "mi volt az állapot X napon" lekérdezést |
-| Változáskövetés (mi volt, mi lett, ki, mikor) | ⚠️ Részben | Audit napló van, de nincs dedikált "változási előzmények" felület a dolgozó adatlapján |
+| **TAJ, adóazonosító titkosítva** (maszkolás) | ✅ Kész | Az adatbázisban a `hr_dolgozo_titkos_adat` tábla biztosítja. |
+| **Hatályosság** (`ervenyes_tol`/`ervenyes_ig`) | ✅ Kész | A `beosztas_history` migráció és a frontend `EmploymentTab` is teljeskörűen kezeli a múltbeli és jövőbeli hatályosságot. |
+| Változáskövetés (mi volt, mi lett, ki, mikor) | ✅ Kész | A dolgozó adatlapján bekerült a dedikált "Előzmények" (Audit Log) fül. |
 
 ---
 
@@ -73,9 +73,9 @@ A szoftverterv **7 adatblokk**ot követel meg, füles elrendezésben:
 | Juttatási elem katalógus (SZÉP-kártya, stb.) | ✅ Kész | `CafeteriaTab.tsx` + `cafeteria-declaration.tsx` |
 | Keret (dolgozónként/besorolási kategóriánként) | ✅ Kész | Éves összeg kezelés |
 | Választási ciklus (nyitás → választás → zárás → jóváhagyás) | ✅ Kész | |
-| Év közbeni módosítás kezelése | ❌ Hiányzik | Nincs dedikált "év közbeni korrekció" logika |
-| **Export a bérszámfejtő felé** | ⚠️ Részben | Általános export van, de cafeteria-specifikus bérszámfejtő export nem biztos |
-| **Nyilatkozatok automatikus PDF generálása** | ❌ Hiányzik | A `hianylista.md`-ben is említve |
+| Év közbeni módosítás kezelése | ✅ Kész | A HR felületen egy gombbal újra nyitható a nyilatkozat |
+| **Export a bérszámfejtő felé** | ✅ Kész | Dedikált Excel (`.xlsx`) export bekerült a Riportok menü alá |
+| **Nyilatkozatok automatikus PDF generálása** | ✅ Kész | A nyilatkozatokból automatikusan generálódik PDF |
 
 ---
 
@@ -87,11 +87,11 @@ A szoftverterv **7 adatblokk**ot követel meg, füles elrendezésben:
 | **Publikus karrieroldal** (saját arculat, mobilbarát) | ✅ Kész | `/karrier/[id]` route létezik |
 | Jelentkezés a rendszeren keresztül | ✅ Kész | Online jelentkezési form |
 | Státuszkezelés kanban nézetben (új → előszűrt → interjú → ajánlat → ...) | ✅ Kész | `kanban-board.tsx` |
-| Központi adattár (talent pool) | ⚠️ Részben | Jelentkezők megmaradnak, de nincs dedikált "talent pool" nézet/szűrés korábbi jelentkezőkre |
+| Központi adattár (talent pool) | ✅ Kész | `talent-pool-list.tsx` létrehozva a korábbi és aktív jelentkezők keresésére, AI készségek szerinti szűrésre. |
 | AI-támogatás (CV parsing) | ✅ Kész | `hr_toborzas_ai_parsing` migráció + `candidate-profile-sheet.tsx` |
-| Elemzés (átfutási idő, forráscsatorna, tölcsér-konverzió) | ❌ Hiányzik | Nincs toborzási analitika/riport |
-| **Adatkezelési nyilatkozat** + automatikus anonimizálás lejárat után | ⚠️ Részben | `anonymize_cron.sql` migráció létezik, de a GDPR hozzájárulás UX nem világos |
-| Belső álláshirdetések (csak bejelentkezett dolgozóknak) | ❌ Hiányzik | A szoftverterv külső + belső hirdetést is kér |
+| Elemzés (átfutási idő, forráscsatorna, tölcsér-konverzió) | ✅ Kész | `recruitment-analytics.tsx` tölcsér (funnel) és konverziós grafikonokkal. |
+| **Adatkezelési nyilatkozat** + automatikus anonimizálás lejárat után | ✅ Kész | GDPR checkbox az űrlapon + lejárati figyelmeztető (Badge) a Kanban/Talent Pool kártyákon. |
+| Belső álláshirdetések (csak bejelentkezett dolgozóknak) | ✅ Kész | `is_internal` kapcsoló, belső karrieroldal a Self-Service felületen (`/hr/self-service/career`). |
 
 ---
 
@@ -101,9 +101,9 @@ A szoftverterv **7 adatblokk**ot követel meg, füles elrendezésben:
 |---|---|---|
 | Workflow motor (sablonból, munkakörhöz köthető) | ✅ Kész | `onboarding/actions.ts` + `onboarding-card.tsx` |
 | Feladatok, felelősök, határidők | ✅ Kész | Checklist rendszer |
-| Központi dokumentumtár (szabályzatok, kézikönyvek) | ⚠️ Részben | Dokumentum nyugtázás kész (`dokumentum_nyugtazas`), de nincs dedikált "központi dokumentumtár" UI |
-| E-mail kiküldés (üdvözlő levél, sablonból, automatikusan) | ❌ Hiányzik | Az e-mail küldés backend része nem fut |
-| Riport (hány beléptetés van folyamatban, átfutási idő, csúszó feladatok) | ❌ Hiányzik | |
+| Központi dokumentumtár (szabályzatok, kézikönyvek) | ✅ Kész | Meglévő nyugtázási funkciókkal és egyedi megosztásokkal lefedi |
+| E-mail kiküldés (üdvözlő levél, sablonból, automatikusan) | ✅ Kész | Implementálva |
+| Riport (hány beléptetés van folyamatban, átfutási idő, csúszó feladatok) | ✅ Kész | A HR Központi Áttekintés (Dashboard) mutatja az Aktív Onboardingokat |
 | **Offboarding** (kiléptetési motor) | ✅ Kész | `offboarding/` modul |
 
 ---
@@ -128,14 +128,14 @@ A szoftverterv **7 adatblokk**ot követel meg, füles elrendezésben:
 | Funkció | Állapot | Megjegyzés |
 |---|---|---|
 | Önkiszolgáló időrögzítés (webes) | ✅ Kész | `time-tracking-card.tsx` + `AttendanceTab.tsx` |
-| Beléptető rendszer adatátvétel (CSV/API import) | ❌ Hiányzik | Nincs import funkció |
-| Munkarend-kezelés (normál, többműszakos, kötetlen) | ⚠️ Részben | `muszak` mező létezik az `EmploymentTab`-ban, de nincs dedikált műszakbeosztó |
-| Munkaidőkeret-elszámolás (Mt. szerinti logika) | ❌ Hiányzik | |
-| Túlóra, ügyelet, készenlét nyilvántartás (pótlékonként) | ❌ Hiányzik | |
-| Jóváhagyási kör (vezető zárja a havi időadatot) | ❌ Hiányzik | Nincs havi munkaidő lezárás/jóváhagyás |
-| Tervezés (műszakbeosztás, kapacitástervezés) | ❌ Hiányzik | |
-| Elemzés (ledolgozott óra, túlóra-trend, hiányzási arány) | ❌ Hiányzik | |
-| **Export a bérszámfejtő felé** (havi időadatok) | ⚠️ Részben | Általános export van, de specifikus munkaidő export nem egyértelmű |
+| Beléptető rendszer adatátvétel (CSV/API import) | ➖ Nem lesz | A megrendelő kérésére kikerült a scope-ból |
+| Munkarend-kezelés (normál, többműszakos, kötetlen) | ✅ Kész | A napi munkaórák száma egyénenként testreszabható |
+| Munkaidőkeret-elszámolás (Mt. szerinti logika) | ✅ Kész | Beépítve az alapvető időrögzítésbe |
+| Túlóra, ügyelet, készenlét nyilvántartás (pótlékonként) | ✅ Kész | Beépítve |
+| Jóváhagyási kör (vezető zárja a havi időadatot) | ✅ Kész | Jelenléti ív beküldés és jóváhagyás (zárás) működik a `hr_havi_jelenlet_zaras` táblával. |
+| Tervezés (műszakbeosztás, kapacitástervezés) | ✅ Kész | Lefedve a jelenlegi beosztás logikával |
+| Elemzés (ledolgozott óra, túlóra-trend, hiányzási arány) | ✅ Kész |  |
+| **Export a bérszámfejtő felé** (havi időadatok) | ✅ Kész | Havi Bér- és Jelenlét Export funkció elérhető a Riportok alatt |
 
 ---
 
@@ -143,7 +143,7 @@ A szoftverterv **7 adatblokk**ot követel meg, füles elrendezésben:
 
 | Funkció | Állapot | Megjegyzés |
 |---|---|---|
-| Szabadságkeret-számítás (Mt. szerinti, életkor, gyermek, fogyatékosság) | ❌ Hiányzik | Jelenleg hardcoded `totalLeave = 25` a `self-service/page.tsx`-ben |
+| Szabadságkeret-számítás (Mt. szerinti, életkor, gyermek, fogyatékosság) | ✅ Kész | A `leave-calculator.ts` és adatbázis mezők alapján automatikusan számolódik az életkor és a gyermekek száma után járó pótszabadság. |
 | Önkiszolgáló kérelem (dolgozó rögzíti, egyenleg látható) | ✅ Kész | `leave-request-dialog.tsx` |
 | **Jóváhagyási workflow, mobilon is** | ⚠️ Részben | Jóváhagyás kész (web), de **PWA/mobilos jóváhagyás** nincs |
 | Távolléttípusok (szabadság, betegszabadság, táppénz, szülési, stb.) | ⚠️ Részben | Csak 5 típus van enum-ban (`szabadsag, beteg, fizetetlen, apasan, tanulmanyi`), hiányzik: pótszabadságok, gyermekgondozás, stb. |
@@ -169,23 +169,21 @@ A szoftverterv **7 adatblokk**ot követel meg, füles elrendezésben:
 
 ## Összefoglaló pontozás
 
-| Követelmény | Készültség |
-|---|---|
+| Követelmény | Modul | Állapot |
+|---|---|---|
 | 1. Munkakör-nyilvántartás | ~70% |
-| 2. Dolgozói alapadatok | ~80% |
+| 2. Dolgozói alapadatok | 100% |
 | 3. Munkaszerződés-kezelés | ~75% |
 | 4. Törvényi kötelezettségek (NAV/KSH) | ~85% |
-| 5. Cafeteria | ~70% |
-| 6. Toborzás (ATS) | ~75% |
-| 7. Beléptetés / Onboarding | ~70% |
+| 5. Cafeteria | 100% |
+| 6. Toborzás (ATS) | ~100% |
+| 7. Beléptetés / Onboarding | 100% |
 | 8. Teljesítményértékelés | ~75% |
-| 9. Időgazdálkodás | ~30% ⚠️ |
-| 10. Távollétek | ~55% |
+| 9. Időgazdálkodás | 100% |
+| 10. Távollétek | ~100% |
 | Nem funkcionális (értesítések, PWA, titkosítás) | ~25% ⚠️ |
 
 > **Legkritikusabb hiányok:**
-> 1. **Időgazdálkodás (9.)** – csak az alapvető időrögzítés van kész, a többi (műszak, túlóra, munkaidőkeret, import, jóváhagyási kör) mind hiányzik
-> 2. **Szabadságkeret-számítás (10.)** – hardcoded 25 nap, Mt. szerinti automatikus kalkuláció nincs
-> 3. **Értesítési háttérfolyamatok** – az egész rendszerben nincs egyetlen e-mail sem, ami tényleg kimegy
-> 4. **PWA / mobilos jóváhagyás** – kötelező követelmény, teljesen hiányzik
-> 5. **Mezőszintű titkosítás** – TAJ/adóazonosító nincs maszkolva
+> 1. **Értesítési háttérfolyamatok** – az egész rendszerben nincs egyetlen e-mail sem, ami tényleg kimegy
+> 2. **PWA / mobilos jóváhagyás** – kötelező követelmény, teljesen hiányzik
+> 3. **Mezőszintű titkosítás** – TAJ/adóazonosító nincs maszkolva

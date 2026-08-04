@@ -5,9 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ChevronLeft, ChevronRight, CalendarDays, Loader2, Edit2, Trash2 } from "lucide-react"
-import { getMonthlyTimesheet, saveAttendanceRecord, deleteAttendanceRecord, type TimesheetEntry } from "@/app/hr/attendance-actions"
+import { ChevronLeft, ChevronRight, CalendarDays, Loader2, Edit2, Trash2, CheckCircle2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { getMonthlyTimesheet, saveAttendanceRecord, deleteAttendanceRecord, getMonthlyClosingStatus, submitMonthlyTimesheet, approveMonthlyTimesheet, type TimesheetEntry } from "@/app/hr/attendance-actions"
 import { toast } from "sonner"
+import { calculateMonthlyTimesheet } from "@/utils/hr/timesheet-calculator"
 import {
   Dialog,
   DialogContent,
@@ -47,6 +49,8 @@ const typeLabels = {
 export function AttendanceTab({ employeeId }: { employeeId: string }) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [timesheet, setTimesheet] = useState<TimesheetEntry[]>([])
+  const [closingStatus, setClosingStatus] = useState<string>("nyitott")
+  const [employeeFte, setEmployeeFte] = useState<number>(1.0)
   const [loading, setLoading] = useState(true)
 
   const [editOpen, setEditOpen] = useState(false)
@@ -61,12 +65,20 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
 
   const loadData = async () => {
     setLoading(true)
-    const { data, error } = await getMonthlyTimesheet(employeeId, year, month)
+    const { data, fte, error } = await getMonthlyTimesheet(employeeId, year, month)
+    const { data: closingData } = await getMonthlyClosingStatus(employeeId, year, month)
+    
     if (error) {
       toast.error("Hiba történt a jelenléti ív betöltésekor: " + error)
     } else if (data) {
       setTimesheet(data)
+      if (fte !== undefined) setEmployeeFte(fte)
     }
+    
+    if (closingData) {
+      setClosingStatus(closingData.statusz)
+    }
+    
     setLoading(false)
   }
 
@@ -136,10 +148,10 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
     setSaving(false)
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, datum: string) => {
     if (!id || id.startsWith("missing") || id.startsWith("weekend")) return
     
-    const result = await deleteAttendanceRecord(id)
+    const result = await deleteAttendanceRecord(id, employeeId, datum)
     if (result.error) {
       toast.error(result.error)
     } else {
@@ -148,18 +160,32 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
     }
   }
 
-  const calculateHours = (start: string | null, end: string | null) => {
-    if (!start || !end) return 0
-    const diff = new Date(end).getTime() - new Date(start).getTime()
-    return diff / (1000 * 60 * 60)
+  const handleSubmitMonth = async () => {
+    const result = await submitMonthlyTimesheet(employeeId, year, month)
+    if (result.error) toast.error(result.error)
+    else {
+      toast.success("Hónap sikeresen beküldve lezárásra!")
+      loadData()
+    }
   }
 
-  const totalHours = timesheet.reduce((sum, entry) => {
-    if (entry.type === "munka") {
-      return sum + calculateHours(entry.becsekkolas_ideje, entry.kicsekkolas_ideje)
+  const handleApproveMonth = async () => {
+    const result = await approveMonthlyTimesheet(employeeId, year, month)
+    if (result.error) toast.error(result.error)
+    else {
+      toast.success("Hónap sikeresen jóváhagyva!")
+      loadData()
     }
-    return sum
-  }, 0)
+  }
+
+  const timesheetInput = timesheet.map(t => ({
+    date: t.datum,
+    type: t.type,
+    checkIn: t.becsekkolas_ideje,
+    checkOut: t.kicsekkolas_ideje
+  }))
+
+  const { calculatedDays, totalActual, totalBalance } = calculateMonthlyTimesheet(timesheetInput, 8.0, employeeFte)
 
   const totalDaysWorked = timesheet.filter(t => t.type === "munka" && t.becsekkolas_ideje).length
   const totalLeaveDays = timesheet.filter(t => t.type === "szabadsag" || t.type === "betegseg").length
@@ -179,6 +205,21 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
             </div>
             
             <div className="flex items-center gap-4">
+              {closingStatus === "nyitott" && (
+                <Button variant="outline" size="sm" onClick={handleSubmitMonth} className="mr-2">
+                  Beküldés lezárásra
+                </Button>
+              )}
+              {closingStatus === "jovahagyasra_var" && (
+                <Button size="sm" onClick={handleApproveMonth} className="mr-2 bg-green-600 hover:bg-green-700">
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Jóváhagyás
+                </Button>
+              )}
+              {closingStatus === "jovahagyva" && (
+                <Badge className="bg-green-100 text-green-800 mr-2 hover:bg-green-100">Lezárva</Badge>
+              )}
+              
               <Button variant="outline" size="icon" onClick={prevMonth} className="h-8 w-8">
                 <ChevronLeft className="w-4 h-4" />
               </Button>
@@ -193,10 +234,16 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
         </CardHeader>
         
         <CardContent>
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-4 gap-4 mb-6">
             <div className="bg-muted/30 p-3 rounded-md border text-center">
               <div className="text-xs text-muted-foreground uppercase mb-1">Ledolgozott órák</div>
-              <div className="text-lg font-bold">{totalHours.toFixed(1)} h</div>
+              <div className="text-lg font-bold">{totalActual.toFixed(1)} h</div>
+            </div>
+            <div className="bg-muted/30 p-3 rounded-md border text-center">
+              <div className="text-xs text-muted-foreground uppercase mb-1">Munkaidő Egyenleg</div>
+              <div className={`text-lg font-bold ${totalBalance > 0 ? "text-green-600" : totalBalance < 0 ? "text-rose-600" : ""}`}>
+                {totalBalance > 0 ? "+" : ""}{totalBalance.toFixed(1)} h
+              </div>
             </div>
             <div className="bg-muted/30 p-3 rounded-md border text-center">
               <div className="text-xs text-muted-foreground uppercase mb-1">Munkanapok</div>
@@ -214,8 +261,11 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
                 <tr>
                   <th className="h-10 px-4 text-left font-medium text-muted-foreground w-32">Dátum</th>
                   <th className="h-10 px-4 text-left font-medium text-muted-foreground">Típus</th>
+                  <th className="h-10 px-4 text-center font-medium text-muted-foreground">Terv</th>
                   <th className="h-10 px-4 text-center font-medium text-muted-foreground">Becsekkolás</th>
                   <th className="h-10 px-4 text-center font-medium text-muted-foreground">Kicsekkolás</th>
+                  <th className="h-10 px-4 text-center font-medium text-muted-foreground">Tény</th>
+                  <th className="h-10 px-4 text-center font-medium text-muted-foreground">Egyenleg</th>
                   <th className="h-10 px-4 text-right font-medium text-muted-foreground">Műveletek</th>
                 </tr>
               </thead>
@@ -234,7 +284,8 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
                   </tr>
                 ) : (
                   timesheet.map((entry) => {
-                    const isEditable = entry.type === "munka"
+                    const isEditable = entry.type === "munka" && closingStatus === "nyitott"
+                    const calc = calculatedDays.find(c => c.date === entry.datum)
                     
                     return (
                       <tr 
@@ -248,11 +299,20 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
                           {typeLabels[entry.type]}
                           {entry.note && <span className="text-xs block opacity-70">{entry.note}</span>}
                         </td>
+                        <td className="p-3 text-center opacity-70">
+                          {calc?.plannedHours ? `${calc.plannedHours} h` : "-"}
+                        </td>
                         <td className="p-3 text-center">
                           {formatTime(entry.becsekkolas_ideje)}
                         </td>
                         <td className="p-3 text-center">
                           {formatTime(entry.kicsekkolas_ideje)}
+                        </td>
+                        <td className="p-3 text-center font-medium">
+                          {calc?.actualHours ? `${calc.actualHours} h` : "-"}
+                        </td>
+                        <td className={`p-3 text-center font-bold ${calc && calc.balance > 0 ? "text-green-600" : calc && calc.balance < 0 ? "text-rose-600" : "text-muted-foreground"}`}>
+                          {calc?.balance ? (calc.balance > 0 ? `+${calc.balance} h` : `${calc.balance} h`) : "-"}
                         </td>
                         <td className="p-3 text-right">
                           {isEditable && (
@@ -274,7 +334,7 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                       <AlertDialogCancel>Mégse</AlertDialogCancel>
-                                      <AlertDialogAction onClick={() => entry.record_id && handleDelete(entry.record_id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                      <AlertDialogAction onClick={() => entry.record_id && handleDelete(entry.record_id, entry.datum)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                                         Törlés
                                       </AlertDialogAction>
                                     </AlertDialogFooter>

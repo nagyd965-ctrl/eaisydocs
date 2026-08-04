@@ -18,14 +18,14 @@
 ### 3. GDPR / Időbeliség
 - [ ] **Fegyelmi ügyek dedikált felülete** – Nincs szigorúan naplózott, titkosított és elzárt felület fegyelmi és kitüntetési adatoknak.
 - [ ] **Orvosi vizsgálatok ↔ munkakör kötés** – Hiányzik az alkalmassági vizsgálatok munkakörökhöz rendelése és az automatikus lejárat-figyelés.
-- [ ] **Időbeliség (Változáskövetés)** – A HR adatoknál (bér, beosztás) hiányzik a `ervenyes_tol` / `ervenyes_ig` jövőbeli/múltbeli hatályosság kezelése. („Mi volt a bére 3 hónappal ezelőtt?")
+- ~~**Időbeliség (Változáskövetés)** – A HR adatoknál (bér, beosztás) elkészült a múltbeli és jövőbeli hatályosság kezelése és a History Timeline megjelenítés.~~ ✅ **KÉSZ**
 
 ---
 
 ## 🟡 FONTOS / RÉSZBEN KÉSZ
 
 ### 4. Időgazdálkodás
-- [ ] **Műszakbeosztás tervező UI** – Időgazdálkodáson belül egy egyszerű műszak-beosztó felület. (Nice to have, de tervezett)
+- ~~**Időgazdálkodás: Tervezett vs Tény és Hóvégi zárás** – Elkészült az FTE alapú elvárt munkaidő számítás, az egyenleg és a beküldés/jóváhagyás (Read-Only) munkafolyamat.~~ ✅ **KÉSZ**
 - [ ] **Speciális pótlékszámítási logikák** – Opcionális kiegészítés (éjszakai, hétvégi pótlékok automatikus kalkulációja).
 - ~~**Beléptető rendszer import**~~ → **ELVETVE** (nem lesz kártyás rendszer)
 

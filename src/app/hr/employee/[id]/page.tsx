@@ -17,6 +17,7 @@ import { EmploymentTab } from "./tabs/EmploymentTab"
 import { LeaveTab } from "./tabs/LeaveTab"
 import { CafeteriaTab } from "./tabs/CafeteriaTab"
 import { AttendanceTab } from "./tabs/AttendanceTab"
+import { AuditLogTab } from "./tabs/AuditLogTab"
 import { ContractGeneratorDialog } from "@/components/hr/contract-generator-dialog"
 import { ManualUploadDialog } from "@/components/hr/manual-upload-dialog"
 import { DeleteContractButton } from "@/components/hr/delete-contract-button"
@@ -199,6 +200,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           <TabsTrigger value="jelenlet" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Jelenlét</TabsTrigger>
           <TabsTrigger value="cafeteria" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Cafeteria</TabsTrigger>
           <TabsTrigger value="idp" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Fejlődés (IDP)</TabsTrigger>
+          <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Előzmények</TabsTrigger>
           {isHrOrAdmin && (
             <TabsTrigger value="bizalmas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">
               Bizalmas HR adatok <ShieldAlert className="ml-2 w-3 h-3 text-destructive" />
@@ -223,9 +225,14 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
             <IDPTab dolgozoId={profile.id} isManagerView={isHrOrAdmin} />
           </TabsContent>
 
+          {/* Új: Audit */}
+          <TabsContent value="audit" className="mt-0 outline-none">
+            <AuditLogTab employeeId={profile.id} />
+          </TabsContent>
+
           {/* Új: Távollét */}
           <TabsContent value="tavollet" className="mt-0 outline-none">
-            <LeaveTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} leaves={adatlap?.hr_tavollet || []} />
+            <LeaveTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} leaves={adatlap?.hr_tavollet || []} adatlap={adatlap} />
           </TabsContent>
 
           {/* Új: Jelenlét */}

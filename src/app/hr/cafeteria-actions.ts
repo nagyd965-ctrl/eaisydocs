@@ -107,3 +107,84 @@ export async function setCafeteriaBudget(employeeId: string, year: number, amoun
   revalidatePath(`/hr/employee/${employeeId}`)
   return { success: true }
 }
+
+// 4. Reopen declaration (mid-year modification)
+export async function reopenCafeteriaDeclaration(employeeId: string, year: number) {
+  const supabase = await createClient()
+  
+  const { error } = await supabase
+    .from("hr_cafeteria_keret")
+    .update({ nyilatkozat_lezarva: false })
+    .eq("dolgozo_id", employeeId)
+    .eq("ev", year)
+
+  if (error) {
+    console.error("Error reopening declaration:", error)
+    return { error: "Hiba történt az újranyitás során." }
+  }
+
+  // Also delete existing choices? Often in mid-year changes you want to keep them so the employee can just modify them,
+  // or maybe not. We will keep them, so the employee sees what they had and modifies it.
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+// 5. Get export data for Excel
+export async function getCafeteriaExportData(year: number) {
+  const supabase = await createClient()
+  
+  // We need to fetch employees and their choices
+  const { data: employees, error: empError } = await supabase
+    .from("felhasznalo_profil")
+    .select("id, nev")
+
+  if (empError) throw empError
+
+  const { data: choices, error: choicesError } = await supabase
+    .from("hr_cafeteria_valasztas")
+    .select(`
+      dolgozo_id,
+      kert_osszeg,
+      hr_cafeteria_katalogus(nev, kategoria)
+    `)
+    .eq("ev", year)
+
+  if (choicesError) throw choicesError
+
+  // Aggregate by employee
+  const exportData = employees.map(emp => {
+    const empChoices = choices.filter(c => c.dolgozo_id === emp.id)
+    if (empChoices.length === 0) return null
+
+    const row: any = {
+      "Név": emp.nev,
+      "Adóazonosító": "", // Adóazonosító titkosítva van a hr_dolgozo_titkos_adat táblában
+      "SZÉP Kártya - Szállás": 0,
+      "SZÉP Kártya - Vendéglátás": 0,
+      "SZÉP Kártya - Szabadidő": 0,
+      "Egészségpénztár": 0,
+      "Helyi bérlet": 0,
+      "Egyéb": 0,
+      "Összes Bruttó Kért": 0
+    }
+
+    empChoices.forEach(c => {
+      const catName = (c.hr_cafeteria_katalogus as any)?.nev || ""
+      const osszeg = c.kert_osszeg || 0
+
+      if (catName.includes("Szállás")) row["SZÉP Kártya - Szállás"] += osszeg
+      else if (catName.includes("Vendéglátás")) row["SZÉP Kártya - Vendéglátás"] += osszeg
+      else if (catName.includes("Szabadidő")) row["SZÉP Kártya - Szabadidő"] += osszeg
+      else if (catName.includes("Egészségpénztár")) row["Egészségpénztár"] += osszeg
+      else if (catName.includes("bérlet")) row["Helyi bérlet"] += osszeg
+      else row["Egyéb"] += osszeg
+
+      row["Összes Bruttó Kért"] += osszeg
+    })
+
+    return row
+  }).filter(row => row !== null)
+
+  return exportData
+}

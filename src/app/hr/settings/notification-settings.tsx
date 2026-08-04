@@ -9,10 +9,10 @@ import { toast } from "sonner"
 import { Checkbox } from "@/components/ui/checkbox"
 import { updateNotificationRule } from "./notification-actions"
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card"
 interface Rule {
   id: string
   esemeny_tipus: string
@@ -123,19 +123,19 @@ export function HrNotificationSettings({ rules = [] }: { rules: Rule[] }) {
                     <div className="text-base font-medium flex items-center gap-2">
                       {eventTypeTranslations[rule.esemeny_tipus] || rule.esemeny_tipus}
                       {eventTypeDescriptions[rule.esemeny_tipus] && (
-                        <Popover>
-                          <PopoverTrigger className="text-muted-foreground hover:text-foreground transition-colors outline-none focus:ring-2 focus:ring-ring rounded-full p-0.5">
+                        <HoverCard>
+                          <HoverCardTrigger className="text-muted-foreground hover:text-foreground transition-colors outline-none focus:ring-2 focus:ring-ring rounded-full p-0.5 cursor-help">
                             <Info className="h-4 w-4" />
-                          </PopoverTrigger>
-                          <PopoverContent className="w-80 text-sm" side="top">
+                          </HoverCardTrigger>
+                          <HoverCardContent className="w-80 text-sm" side="top">
                             <div className="space-y-2">
                               <h4 className="font-medium leading-none">{eventTypeTranslations[rule.esemeny_tipus]}</h4>
                               <p className="text-muted-foreground">
                                 {eventTypeDescriptions[rule.esemeny_tipus]}
                               </p>
                             </div>
-                          </PopoverContent>
-                        </Popover>
+                          </HoverCardContent>
+                        </HoverCard>
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground capitalize">

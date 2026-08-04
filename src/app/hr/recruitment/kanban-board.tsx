@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { updateCandidateStatus, deleteCandidate } from "./actions"
 import { toast } from "sonner"
-import { Trash2 } from "lucide-react"
+import { Trash2, AlertTriangle } from "lucide-react"
+import { differenceInDays } from "date-fns"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,7 +65,15 @@ function SortableItem({ id, candidate, onClick }: { id: string, candidate: any, 
       className={`cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors ${isDragging ? 'z-50 shadow-lg border-primary' : ''}`}
     >
       <CardContent className="p-4 space-y-2">
-        <div className="font-medium text-sm">{candidate.nev}</div>
+        <div className="font-medium text-sm flex items-center gap-2 flex-wrap">
+          {candidate.nev}
+          {differenceInDays(new Date(), new Date(candidate.created_at)) >= 150 && differenceInDays(new Date(), new Date(candidate.created_at)) < 180 && (
+            <AlertTriangle className="w-3 h-3 text-warning" title="1 hónapon belül törölni kell (GDPR)" />
+          )}
+          {differenceInDays(new Date(), new Date(candidate.created_at)) >= 180 && (
+            <AlertTriangle className="w-3 h-3 text-destructive" title="Azonnal törölni kell (GDPR lejárata túllépve)" />
+          )}
+        </div>
         <div className="text-xs text-muted-foreground">{candidate.hr_munkakor?.megnevezes || candidate.pozicio || "Nincs megadva"}</div>
         <div className="flex items-center justify-between pt-2">
           <span className="text-[10px] text-muted-foreground">{new Date(candidate.created_at).toLocaleDateString("hu-HU")}</span>

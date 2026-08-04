@@ -43,6 +43,10 @@ const items = [
         title: "Jelenlét & Szabadság",
         url: "/hr/self-service/time",
       },
+      {
+        title: "Belső Állások",
+        url: "/hr/self-service/career",
+      },
     ]
   },
   {

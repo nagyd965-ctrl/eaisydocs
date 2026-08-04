@@ -98,6 +98,26 @@ export function GeneralPersonalInfoTab({
                       defaultValue={adatlap?.telefonszam || ""} 
                     />
                   </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="gyermekek_szama">Gyermekek száma (16 év alatti)</Label>
+                    <Input 
+                      id="gyermekek_szama" 
+                      name="gyermekek_szama" 
+                      type="number"
+                      min="0"
+                      defaultValue={adatlap?.gyermekek_szama || "0"} 
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <input 
+                      type="checkbox" 
+                      id="megvaltozott_munkakepessegu" 
+                      name="megvaltozott_munkakepessegu"
+                      className="w-4 h-4 rounded border-gray-300"
+                      defaultChecked={adatlap?.megvaltozott_munkakepessegu || false}
+                    />
+                    <Label htmlFor="megvaltozott_munkakepessegu">Megváltozott munkaképességű</Label>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} disabled={loading}>Mégse</Button>
@@ -127,6 +147,13 @@ export function GeneralPersonalInfoTab({
           <div>
             <p className="text-sm text-muted-foreground">Telefonszám</p>
             <p className="font-medium">{adatlap?.telefonszam || "Nincs megadva"}</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Pótszabadság adatok</p>
+            <p className="font-medium text-sm">
+              Gyermekek (16 év alatti): {adatlap?.gyermekek_szama || 0} fő<br/>
+              Megváltozott munkaképességű: {adatlap?.megvaltozott_munkakepessegu ? "Igen" : "Nem"}
+            </p>
           </div>
         </div>
       </CardContent>

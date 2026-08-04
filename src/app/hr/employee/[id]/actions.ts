@@ -315,19 +315,46 @@ export async function updateGeneralPersonalInfo(employeeId: string, formData: Fo
   const anyja_neve = formData.get("anyja_neve") as string
   const lakcim = formData.get("lakcim") as string
   const telefonszam = formData.get("telefonszam") as string
+  const gyermekek_szama = formData.get("gyermekek_szama") as string
+  const megvaltozott_munkakepessegu = formData.get("megvaltozott_munkakepessegu") === "on"
 
+  // 1. Régi adatok lekérése a naplózáshoz
+  const { data: oldData } = await supabase
+    .from("hr_dolgozo_adatlap")
+    .select("szuletesi_datum, anyja_neve, lakcim, telefonszam, gyermekek_szama, megvaltozott_munkakepessegu")
+    .eq("id", employeeId)
+    .single()
+
+  const uj_adatok = {
+    szuletesi_datum: szuletesi_datum || null,
+    anyja_neve: anyja_neve || null,
+    lakcim: lakcim || null,
+    telefonszam: telefonszam || null,
+    gyermekek_szama: parseInt(gyermekek_szama) || 0,
+    megvaltozott_munkakepessegu: megvaltozott_munkakepessegu
+  }
+
+  // 2. Frissítés
   const { error } = await supabase
     .from("hr_dolgozo_adatlap")
-    .update({
-      szuletesi_datum: szuletesi_datum || null,
-      anyja_neve: anyja_neve || null,
-      lakcim: lakcim || null,
-      telefonszam: telefonszam || null
-    })
+    .update(uj_adatok)
     .eq("id", employeeId)
 
   if (error) {
     return { error: error.message }
+  }
+
+  // 3. Esemény naplózása
+  if (oldData) {
+    await supabase.from("hr_esemeny_naplo").insert({
+      entitas_tipus: "hr_dolgozo_adatlap",
+      entitas_id: employeeId,
+      esemeny_tipus: "modositas",
+      felhasznalo_id: user.id,
+      regi_adat: oldData,
+      uj_adat: uj_adatok,
+      megjegyzes: "Alapadatok szerkesztése a HR felületről"
+    })
   }
 
   revalidatePath(`/hr/employee/${employeeId}`)
@@ -513,4 +540,37 @@ export async function hrSubmitLeaveRequest(employeeId: string, formData: FormDat
 
   revalidatePath(`/hr/employee/${employeeId}`)
   return { success: true }
+}
+
+export async function getEmployeeAuditLogs(employeeId: string) {
+  const supabase = await createClient()
+
+  const { data: logs, error } = await supabase
+    .from("hr_esemeny_naplo")
+    .select(`
+      id,
+      created_at,
+      entitas_tipus,
+      esemeny_tipus,
+      felhasznalo_id,
+      regi_adat,
+      uj_adat,
+      megjegyzes,
+      felhasznalo_profil(nev)
+    `)
+    .eq("entitas_id", employeeId)
+    .order("created_at", { ascending: false })
+
+  if (error) {
+    console.error("Error fetching audit logs:", error)
+    return { data: [], error: error.message }
+  }
+
+  // Format the returned data to include user name directly
+  const formattedLogs = logs.map(log => ({
+    ...log,
+    user_nev: (log.felhasznalo_profil as any)?.nev || "Rendszer"
+  }))
+
+  return { data: formattedLogs, error: null }
 }

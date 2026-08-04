@@ -6,16 +6,32 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { UploadCloud, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 
 export function ApplicationForm({ allashirdetesId, munkakorId }: { allashirdetesId: string, munkakorId: string }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
+  const [gdprConsent, setGdprConsent] = useState(false)
 
   async function handleSubmit(formData: FormData) {
     setIsSubmitting(true)
     
+    if (!gdprConsent) {
+      toast.error("Az adatkezelési tájékoztató elfogadása kötelező!")
+      setIsSubmitting(false)
+      return
+    }
+
     // Alapvető validáció
     const cvFile = formData.get("cv") as File
     if (!cvFile || cvFile.size === 0) {
@@ -96,6 +112,45 @@ export function ApplicationForm({ allashirdetesId, munkakorId }: { allashirdetes
           <Input id="cv" name="cv" type="file" accept=".pdf" className="max-w-[250px] cursor-pointer" required />
           <p className="text-xs text-muted-foreground mt-2">Csak PDF formátum elfogadott.</p>
         </div>
+      </div>
+
+      <div className="flex items-start space-x-2 pt-2">
+        <Checkbox 
+          id="gdpr" 
+          className="mt-1 shrink-0"
+          checked={gdprConsent} 
+          onCheckedChange={(checked) => setGdprConsent(checked as boolean)} 
+        />
+        <label htmlFor="gdpr" className="text-sm font-normal leading-snug cursor-pointer text-slate-700">
+          Elfogadom az{" "}
+          <Dialog>
+            <DialogTrigger className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 outline-none inline">
+              Adatvédelmi Tájékoztatót
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Adatvédelmi Tájékoztató (Toborzás)</DialogTitle>
+                <DialogDescription>
+                  Kérjük, olvassa el figyelmesen adatkezelési irányelveinket.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="text-sm space-y-4 text-slate-700 mt-4">
+                <h4 className="font-semibold text-base text-slate-900">1. Az adatkezelés célja</h4>
+                <p>A megadott személyes adatokat (név, e-mail cím, telefonszám, önéletrajz) kizárólag a kiválasztási folyamat lebonyolítása, a jelentkező értékelése és kapcsolattartás céljából kezeljük.</p>
+                
+                <h4 className="font-semibold text-base text-slate-900">2. Kezelt adatok köre</h4>
+                <p>A jelentkezés során megadott kötelező adatok, valamint az önéletrajzban szereplő minden további önkéntesen megadott személyes adat. Rendszerünk mesterséges intelligenciát (AI) is használhat az önéletrajzából származó készségek (skillek) automatikus kinyerésére a hatékonyabb keresés érdekében.</p>
+
+                <h4 className="font-semibold text-base text-slate-900">3. Adatkezelés időtartama</h4>
+                <p>A személyes adatait a jelentkezés benyújtásától számított <strong>6 hónapig</strong> tároljuk (talent pool). Ezt követően adatai automatikusan törlésre vagy végleges anonimizálásra kerülnek, kivéve, ha Ön meghosszabbítja a hozzájárulását, vagy ha a sikeres felvételt követően munkaviszony jön létre (ez esetben a munkavállalói adatkezelés szabályai lépnek életbe).</p>
+
+                <h4 className="font-semibold text-base text-slate-900">4. Az Ön jogai</h4>
+                <p>Ön bármikor jogosult tájékoztatást kérni adatai kezeléséről, kérheti azok helyesbítését, vagy a 6 hónapos időtartam lejárta előtt is kérheti adatai azonnali törlését a rendszerből.</p>
+              </div>
+            </DialogContent>
+          </Dialog>
+          , és hozzájárulok ahhoz, hogy a cég az önéletrajzomat és a megadott adataimat a kiválasztási folyamat céljából <strong>6 hónapig</strong> kezelje. <span className="text-red-500">*</span>
+        </label>
       </div>
 
       <div className="pt-2 text-sm text-muted-foreground">

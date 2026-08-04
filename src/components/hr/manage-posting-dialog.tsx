@@ -17,11 +17,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus } from "lucide-react"
 import { toast } from "sonner"
+import { Switch } from "@/components/ui/switch"
 
 export function ManagePostingDialog({ jobs, existingData = null, onSaved, children }: { jobs: any[], existingData?: any, onSaved: (data: any) => void, children?: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [munkakorId, setMunkakorId] = useState<string>(existingData?.munkakor_id || "")
+  const [isInternal, setIsInternal] = useState<boolean>(existingData?.is_internal || false)
   
   const isEditing = !!existingData
   const supabase = createClient()
@@ -36,6 +38,7 @@ export function ManagePostingDialog({ jobs, existingData = null, onSaved, childr
       munkakor_id: formData.get("munkakor_id") as string,
       rovid_leiras: formData.get("rovid_leiras") as string,
       reszletes_leiras: formData.get("reszletes_leiras") as string,
+      is_internal: isInternal,
     }
 
     if (!data.cim || !data.munkakor_id) {
@@ -136,6 +139,20 @@ export function ManagePostingDialog({ jobs, existingData = null, onSaved, childr
               className="min-h-[150px]"
               placeholder="Elvárások, feladatok, juttatások..." 
             />
+          </div>
+
+          <div className="flex items-center space-x-2 pt-2 pb-2">
+            <Switch
+              id="is_internal"
+              checked={isInternal}
+              onCheckedChange={setIsInternal}
+            />
+            <Label htmlFor="is_internal" className="flex flex-col space-y-1">
+              <span>Csak Belső Hirdetés</span>
+              <span className="font-normal text-sm text-muted-foreground">
+                Ha be van kapcsolva, a hirdetés nem jelenik meg a publikus karrieroldalon, csak a belépett dolgozók láthatják.
+              </span>
+            </Label>
           </div>
 
           <div className="flex justify-end pt-4">

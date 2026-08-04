@@ -6,11 +6,12 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Edit, Clock } from "lucide-react"
+import { Edit, Clock, Info } from "lucide-react"
 import { toast } from "sonner"
 import { updateJogviszonyData } from "../actions"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 
 export function EmploymentTab({ 
   employeeId,
@@ -160,7 +161,25 @@ export function EmploymentTab({
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="munkaido_fte">Munkaidő (FTE)</Label>
+                        <Label htmlFor="munkaido_fte" className="flex items-center gap-1">
+                          Munkaidő (FTE)
+                          <HoverCard>
+                            <HoverCardTrigger type="button" className="text-muted-foreground hover:text-foreground transition-colors outline-none focus:ring-2 focus:ring-ring rounded-full p-0.5 cursor-help">
+                              <Info className="h-4 w-4" />
+                            </HoverCardTrigger>
+                            <HoverCardContent className="w-80 text-sm" side="top">
+                              <div className="space-y-2">
+                                <h4 className="font-medium leading-none">FTE (Full-Time Equivalent)</h4>
+                                <p className="text-muted-foreground">Ebből számolódik a Jelenléti ív "Terv" mezője.</p>
+                                <ul className="list-disc pl-4 mt-1 space-y-0.5 text-muted-foreground">
+                                  <li><strong>1.0:</strong> Napi 8 óra (Teljes)</li>
+                                  <li><strong>0.75:</strong> Napi 6 óra</li>
+                                  <li><strong>0.5:</strong> Napi 4 óra (Félállás)</li>
+                                </ul>
+                              </div>
+                            </HoverCardContent>
+                          </HoverCard>
+                        </Label>
                         <Input 
                           id="munkaido_fte" 
                           name="munkaido_fte" 
@@ -278,7 +297,25 @@ export function EmploymentTab({
               </p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Munkaidő (FTE)</p>
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                Munkaidő (FTE)
+                <HoverCard>
+                  <HoverCardTrigger className="text-muted-foreground hover:text-foreground transition-colors outline-none focus:ring-2 focus:ring-ring rounded-full p-0.5 cursor-help">
+                    <Info className="h-4 w-4" />
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80 text-sm" side="top">
+                    <div className="space-y-2">
+                      <h4 className="font-medium leading-none">FTE (Full-Time Equivalent)</h4>
+                      <p className="text-muted-foreground">A teljes munkaidőhöz viszonyított arány. A <strong>Jelenléti ív</strong> ebből számolja ki a napi tervezett (elvárt) munkaidőt.</p>
+                      <div className="bg-muted/50 p-2 rounded border space-y-1 text-foreground">
+                        <div className="flex justify-between"><span><strong>1.0 FTE</strong></span> <span>Napi 8 óra (Teljes)</span></div>
+                        <div className="flex justify-between"><span><strong>0.75 FTE</strong></span> <span>Napi 6 óra (Rész)</span></div>
+                        <div className="flex justify-between"><span><strong>0.5 FTE</strong></span> <span>Napi 4 óra (Félállás)</span></div>
+                      </div>
+                    </div>
+                  </HoverCardContent>
+                </HoverCard>
+              </p>
               <p className="font-medium">{currentBeosztas?.munkaido_fte || currentBeosztas?.fte || adatlap?.munkaido_fte ? `${currentBeosztas?.munkaido_fte || currentBeosztas?.fte || adatlap?.munkaido_fte} FTE` : "Nincs megadva"}</p>
             </div>
           </div>

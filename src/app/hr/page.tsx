@@ -8,7 +8,7 @@ import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
 import { EmployeeKpiCard } from "@/components/hr/employee-kpi-card"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-
+import { calculateAnnualLeave } from "@/utils/hr/leave-calculator"
 export default async function SelfServicePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -45,7 +45,13 @@ export default async function SelfServicePage() {
     .eq("dolgozo_id", user.id)
     .order("created_at", { ascending: false })
 
-  const totalLeave = 25
+  const currentYear = new Date().getFullYear()
+  const totalLeave = calculateAnnualLeave(
+    adatlap?.szuletesi_datum, 
+    adatlap?.gyermekek_szama, 
+    adatlap?.megvaltozott_munkakepessegu, 
+    currentYear
+  )
   const usedLeave = tavolletek?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyva").length || 0
   const plannedLeave = tavolletek?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyasra_var").length || 0
   const pendingLeavesCount = tavolletek?.filter(t => t.statusz === "jovahagyasra_var").length || 0
@@ -78,7 +84,8 @@ export default async function SelfServicePage() {
 
   const pendingDocsCount = cegesDokumentumok?.filter(d => !d.hr_ceges_dokumentum_nyugtazas || d.hr_ceges_dokumentum_nyugtazas.length === 0).length || 0
 
-  const currentYear = new Date().getFullYear()
+  // Cafeteria
+
   const { data: cafeteriaKeret } = await supabase
     .from("hr_cafeteria_keret")
     .select("ev, osszeg, nyilatkozat_lezarva")

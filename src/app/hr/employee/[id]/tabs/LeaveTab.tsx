@@ -6,20 +6,28 @@ import { Progress } from "@/components/ui/progress"
 import { CalendarDays, Clock, CheckCircle2 } from "lucide-react"
 import { useState } from "react"
 import { HrLeaveRequestDialog } from "@/components/hr/hr-leave-request-dialog"
+import { calculateAnnualLeave } from "@/utils/hr/leave-calculator"
 
 export function LeaveTab({ 
   employeeId, 
   isHrOrAdmin, 
-  leaves 
+  leaves,
+  adatlap
 }: { 
   employeeId: string, 
   isHrOrAdmin: boolean,
-  leaves: any[]
+  leaves: any[],
+  adatlap?: any
 }) {
   const [loading, setLoading] = useState(false)
   const currentYear = new Date().getFullYear()
 
-  const totalLeave = 25
+  const totalLeave = calculateAnnualLeave(
+    adatlap?.szuletesi_datum,
+    adatlap?.gyermekek_szama,
+    adatlap?.megvaltozott_munkakepessegu,
+    currentYear
+  )
   const usedLeave = leaves?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyva").length || 0
   const plannedLeave = leaves?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyasra_var").length || 0
   const remainingLeave = totalLeave - usedLeave

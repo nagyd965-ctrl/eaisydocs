@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { Coffee, Settings, FileText, CheckCircle2 } from "lucide-react"
-import { setCafeteriaBudget } from "@/app/hr/cafeteria-actions"
+import { Coffee, Settings, FileText, CheckCircle2, RotateCcw } from "lucide-react"
+import { setCafeteriaBudget, reopenCafeteriaDeclaration } from "@/app/hr/cafeteria-actions"
 import { toast } from "sonner"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
 export function CafeteriaTab({ 
   employeeId, 
@@ -24,6 +25,7 @@ export function CafeteriaTab({
   choices: any[]
 }) {
   const [loading, setLoading] = useState(false)
+  const [reopenLoading, setReopenLoading] = useState(false)
   const [budgetAmount, setBudgetAmount] = useState<string>(budgetData?.osszeg?.toString() || "")
   
   const budget = budgetData?.osszeg || 0
@@ -46,6 +48,18 @@ export function CafeteriaTab({
       toast.error(result.error)
     } else {
       toast.success("Keretösszeg sikeresen beállítva!")
+    }
+  }
+
+  const handleReopen = async () => {
+    setReopenLoading(true)
+    const result = await reopenCafeteriaDeclaration(employeeId, year)
+    setReopenLoading(false)
+
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      toast.success("Nyilatkozat sikeresen újranyitva!")
     }
   }
 
@@ -116,13 +130,35 @@ export function CafeteriaTab({
                 </CardDescription>
               </div>
               {isClosed && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => window.open(`/api/hr/cafeteria-pdf?employeeId=${employeeId}&year=${year}`, '_blank')}
-                >
-                  <FileText className="w-4 h-4 mr-2" /> PDF letöltése
-                </Button>
+                <div className="flex gap-2">
+                  <AlertDialog>
+                    <AlertDialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-amber-200 bg-transparent shadow-sm hover:bg-amber-50 text-amber-600 h-8 px-3" disabled={reopenLoading}>
+                      <RotateCcw className="w-4 h-4 mr-2" /> Újranyitás
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Nyilatkozat újranyitása (Év közbeni módosítás)</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Biztosan újranyitod a dolgozó nyilatkozatát? Ezzel a korábbi (már lezárt és esetleg bérszámfejtett) nyilatkozat érvényét veszti, a dolgozónak újat kell leadnia, amiről új PDF fog készülni.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Mégse</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleReopen} className="bg-amber-600 hover:bg-amber-700 text-white">
+                          Igen, Újranyitás
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => window.open(`/api/hr/cafeteria-pdf?employeeId=${employeeId}&year=${year}`, '_blank')}
+                  >
+                    <FileText className="w-4 h-4 mr-2" /> PDF letöltése
+                  </Button>
+                </div>
               )}
             </div>
           </CardHeader>

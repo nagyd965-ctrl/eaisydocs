@@ -25,7 +25,7 @@ function getDaysInMonth(year: number, month: number) {
 }
 
 // 1. Get Monthly Timesheet
-export async function getMonthlyTimesheet(employeeId: string, year: number, month: number): Promise<{ data: TimesheetEntry[] | null, error: string | null }> {
+export async function getMonthlyTimesheet(employeeId: string, year: number, month: number): Promise<{ data: TimesheetEntry[] | null, fte: number, error: string | null }> {
   try {
     const supabase = await createClient()
 
@@ -107,10 +107,49 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
       }
     }
 
-    return { data: timesheet, error: null }
+    let employeeFte = 1.0;
+    const { data: profileData } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select(`
+        hr_jogviszony (
+          hr_beosztas (
+            fte
+          )
+        )
+      `)
+      .eq("id", employeeId)
+      .single()
+
+    if (profileData && profileData.hr_jogviszony && profileData.hr_jogviszony.length > 0) {
+      const beosztasok = profileData.hr_jogviszony[0].hr_beosztas
+      if (beosztasok && beosztasok.length > 0) {
+        employeeFte = beosztasok[0].fte
+      }
+    }
+
+    return { data: timesheet, fte: employeeFte, error: null }
   } catch (err: any) {
-    return { data: null, error: err.message }
+    return { data: null, fte: 1.0, error: err.message }
   }
+}
+
+// Helper to check if month is closed
+async function checkIsMonthClosed(supabase: any, employeeId: string, datum: string) {
+  const dateObj = new Date(datum)
+  const ev = dateObj.getUTCFullYear()
+  const honap = dateObj.getUTCMonth() + 1
+  const { data } = await supabase
+    .from("hr_havi_jelenlet_zaras")
+    .select("statusz")
+    .eq("dolgozo_id", employeeId)
+    .eq("ev", ev)
+    .eq("honap", honap)
+    .single()
+  
+  if (data && data.statusz !== 'nyitott') {
+    return true
+  }
+  return false
 }
 
 // 2. Add or Update Attendance Record
@@ -122,6 +161,10 @@ export async function saveAttendanceRecord(
 ) {
   try {
     const supabase = await createClient()
+
+    if (await checkIsMonthClosed(supabase, employeeId, datum)) {
+      throw new Error("Ez a hónap már le van zárva vagy jóváhagyásra vár, nem szerkeszthető!")
+    }
 
     const { data: existing } = await supabase
       .from("hr_jelenlet")
@@ -161,13 +204,103 @@ export async function saveAttendanceRecord(
 }
 
 // 3. Delete Attendance Record
-export async function deleteAttendanceRecord(id: string) {
+export async function deleteAttendanceRecord(id: string, employeeId: string, datum: string) {
   try {
     const supabase = await createClient()
+    
+    if (await checkIsMonthClosed(supabase, employeeId, datum)) {
+      throw new Error("Ez a hónap már le van zárva, nem törölhető!")
+    }
+
     const { error } = await supabase
       .from("hr_jelenlet")
       .delete()
       .eq("id", id)
+
+    if (error) throw new Error(error.message)
+
+    revalidatePath("/hr")
+    return { error: null }
+  } catch (err: any) {
+    return { error: err.message }
+  }
+}
+
+// 4. Get Monthly Closing Status
+export async function getMonthlyClosingStatus(employeeId: string, year: number, month: number) {
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from("hr_havi_jelenlet_zaras")
+      .select("*")
+      .eq("dolgozo_id", employeeId)
+      .eq("ev", year)
+      .eq("honap", month)
+      .single()
+
+    if (error && error.code !== 'PGRST116') throw new Error(error.message)
+    return { data: data || { statusz: 'nyitott' }, error: null }
+  } catch (err: any) {
+    return { data: null, error: err.message }
+  }
+}
+
+// 5. Submit Monthly Timesheet
+export async function submitMonthlyTimesheet(employeeId: string, year: number, month: number) {
+  try {
+    const supabase = await createClient()
+    
+    const { data: existing } = await supabase
+      .from("hr_havi_jelenlet_zaras")
+      .select("id")
+      .eq("dolgozo_id", employeeId)
+      .eq("ev", year)
+      .eq("honap", month)
+      .single()
+
+    if (existing) {
+      const { error } = await supabase
+        .from("hr_havi_jelenlet_zaras")
+        .update({ statusz: 'jovahagyasra_var', bekuldve_at: new Date().toISOString() })
+        .eq("id", existing.id)
+      if (error) throw new Error(error.message)
+    } else {
+      const { error } = await supabase
+        .from("hr_havi_jelenlet_zaras")
+        .insert({
+          dolgozo_id: employeeId,
+          ev: year,
+          honap: month,
+          statusz: 'jovahagyasra_var',
+          bekuldve_at: new Date().toISOString()
+        })
+      if (error) throw new Error(error.message)
+    }
+
+    revalidatePath("/hr")
+    return { error: null }
+  } catch (err: any) {
+    return { error: err.message }
+  }
+}
+
+// 6. Approve Monthly Timesheet
+export async function approveMonthlyTimesheet(employeeId: string, year: number, month: number) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Nincs bejelentkezve")
+
+    const { error } = await supabase
+      .from("hr_havi_jelenlet_zaras")
+      .update({ 
+        statusz: 'jovahagyva', 
+        jovahagyva_at: new Date().toISOString(),
+        jovahagyo_vezeto_id: user.id
+      })
+      .eq("dolgozo_id", employeeId)
+      .eq("ev", year)
+      .eq("honap", month)
 
     if (error) throw new Error(error.message)
 

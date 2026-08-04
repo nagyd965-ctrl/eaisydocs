@@ -22,6 +22,7 @@ export default async function KarrierPage() {
     `)
     .eq("aktiv", true)
     .eq("publikus", true)
+    .eq("is_internal", false)
     .order("created_at", { ascending: false })
     .returns<any[]>()
 

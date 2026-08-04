@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Download, FileText, Calendar, Building, Landmark, Trash2 } from "lucide-react"
 import { getT1041Data, getKSHData, getPayrollData, getArchiveRecords, uploadArchiveFileAdmin, deleteArchiveRecordAdmin } from "@/app/hr/reports/actions"
+import { getCafeteriaExportData } from "@/app/hr/cafeteria-actions"
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
+import * as XLSX from "xlsx"
 
 export function ReportsTabs() {
   const [activeTab, setActiveTab] = useState("t1041")
@@ -103,6 +105,24 @@ export function ReportsTabs() {
     link.setAttribute("download", `ber_export_${month}.csv`)
     document.body.appendChild(link)
     link.click()
+  }
+
+  const handleCafeteriaExport = async () => {
+    const year = parseInt(month.split("-")[0])
+    toast.loading("Export generálása...", { id: 'caf_exp' })
+    const data = await getCafeteriaExportData(year)
+    toast.dismiss('caf_exp')
+    
+    if (data.length === 0) {
+      toast.info("Nincs cafeteria adat ebben az évben.")
+      return
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(data)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Cafeteria")
+    XLSX.writeFile(workbook, `cafeteria_export_${year}.xlsx`)
+    toast.success("Excel sikeresen letöltve!")
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
@@ -254,10 +274,17 @@ export function ReportsTabs() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={handlePayrollExport} size="lg" className="gap-2">
-                <Download className="w-4 h-4" />
-                Havi Bér- és Jelenlét Export (CSV)
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button onClick={handlePayrollExport} size="lg" className="gap-2">
+                  <Download className="w-4 h-4" />
+                  Havi Bér- és Jelenlét Export (CSV)
+                </Button>
+                
+                <Button onClick={handleCafeteriaExport} size="lg" variant="secondary" className="gap-2">
+                  <Download className="w-4 h-4" />
+                  Cafeteria Részletező Export (Excel)
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
