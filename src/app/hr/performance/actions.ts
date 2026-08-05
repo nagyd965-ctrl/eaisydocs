@@ -60,7 +60,8 @@ export async function addKpi(formData: FormData) {
       aktualis_ertek: aktualisErtek,
       sulyozas: sulyozas,
       ertekeles_datuma: new Date().toISOString().split('T')[0],
-      ertekeles_keszito_id: user.id
+      ertekeles_keszito_id: user.id,
+      workflow_fazis: "celkituzes"
     }])
     .select("id")
     .single()
@@ -336,7 +337,8 @@ export async function addKpiSelfEvaluation(kpiId: string, ertekelesSzovege: stri
   const { error } = await adminClient
     .from("hr_teljesitmeny")
     .update({ 
-      onertekeles_szovege: ertekelesSzovege
+      onertekeles_szovege: ertekelesSzovege,
+      workflow_fazis: "onertekeles"
     })
     .eq("id", kpiId)
 
@@ -374,7 +376,7 @@ export async function addKpiManagerEvaluation(kpiId: string, ertekelesSzovege: s
     .from("hr_teljesitmeny")
     .update({ 
       ertekeles_szovege: ertekelesSzovege,
-      ertekeles_lezarva_datum: new Date().toISOString()
+      workflow_fazis: "vezetoi_ertekeles"
     })
     .eq("id", kpiId)
 
@@ -386,10 +388,105 @@ export async function addKpiManagerEvaluation(kpiId: string, ertekelesSzovege: s
   // Naplózás
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
-    esemeny_tipus: "kpi_vegsodonto", 
+    esemeny_tipus: "kpi_vezetoi_ertekeles", 
     entitas_tipus: "hr_teljesitmeny",
     entitas_id: kpiId,
-    megjegyzes: `Vezetői végleges értékelés: "${ertekelesSzovege.substring(0, 50)}${ertekelesSzovege.length > 50 ? '...' : ''}"`
+    megjegyzes: `Vezetői értékelés rögzítve: "${ertekelesSzovege.substring(0, 50)}${ertekelesSzovege.length > 50 ? '...' : ''}"`
+  })
+
+  revalidatePath("/hr/performance")
+  revalidatePath("/hr/self-service")
+  return { success: true }
+}
+
+export async function confirmMeeting(kpiId: string, megjegyzes?: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select('hr_szerepkor')
+    .eq("id", user.id)
+    .single()
+
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
+    return { error: "Csak vezető jelölheti a megbeszélést megtörténtnek." }
+  }
+
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { error } = await adminClient
+    .from("hr_teljesitmeny")
+    .update({ 
+      workflow_fazis: "megbeszeles",
+      megbeszeles_datum: new Date().toISOString(),
+      megbeszeles_megjegyzes: megjegyzes || null
+    })
+    .eq("id", kpiId)
+
+  if (error) {
+    console.error("Hiba megbeszélés rögzítésekor:", error)
+    return { error: error.message }
+  }
+
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "kpi_megbeszeles", 
+    entitas_tipus: "hr_teljesitmeny",
+    entitas_id: kpiId,
+    megjegyzes: `Értékelő megbeszélés megtörtént.${megjegyzes ? ` Jegyzőkönyv: ${megjegyzes.substring(0, 100)}` : ''}`
+  })
+
+  revalidatePath("/hr/performance")
+  revalidatePath("/hr/self-service")
+  return { success: true }
+}
+
+export async function finalCloseKpi(kpiId: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select('hr_szerepkor')
+    .eq("id", user.id)
+    .single()
+
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
+    return { error: "Nincs jogosultságod a cél lezárásához." }
+  }
+
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { error } = await adminClient
+    .from("hr_teljesitmeny")
+    .update({ 
+      workflow_fazis: "lezart",
+      ertekeles_lezarva_datum: new Date().toISOString()
+    })
+    .eq("id", kpiId)
+
+  if (error) {
+    console.error("Hiba cél lezárásakor:", error)
+    return { error: error.message }
+  }
+
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "kpi_lezaras", 
+    entitas_tipus: "hr_teljesitmeny",
+    entitas_id: kpiId,
+    megjegyzes: `Célkitűzés véglegesen lezárva.`
   })
 
   revalidatePath("/hr/performance")

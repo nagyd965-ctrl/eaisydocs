@@ -12,7 +12,6 @@ import { editKpi } from "@/app/hr/performance/actions"
 export function EditKpiDialog({ kpi, cycles, allKpis, open, setOpen }: { kpi: any, cycles?: any[], allKpis?: any[], open: boolean, setOpen: (open: boolean) => void }) {
   const [loading, setLoading] = useState(false)
   const [ciklusId, setCiklusId] = useState<string>(kpi.ciklus_id || "")
-  const [szuloKpiId, setSzuloKpiId] = useState<string>(kpi.szulo_kpi_id || "")
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -21,9 +20,6 @@ export function EditKpiDialog({ kpi, cycles, allKpis, open, setOpen }: { kpi: an
     const formData = new FormData(e.currentTarget)
     if (ciklusId && !formData.has("ciklusId")) {
       formData.append("ciklusId", ciklusId)
-    }
-    if (szuloKpiId && !formData.has("szuloKpiId")) {
-      formData.append("szuloKpiId", szuloKpiId)
     }
     
     try {
@@ -69,21 +65,7 @@ export function EditKpiDialog({ kpi, cycles, allKpis, open, setOpen }: { kpi: an
             </select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="szuloKpiId">Szülő / Vállalati Célkitűzés (Kaszkádolás)</Label>
-            <select 
-              id="szuloKpiId"
-              name="szuloKpiId" 
-              value={szuloKpiId} 
-              onChange={(e) => setSzuloKpiId(e.target.value)} 
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="">Nincs szülő cél</option>
-              {allKpis?.filter(k => k.id !== kpi.id).map(k => (
-                <option key={k.id} value={k.id}>{k.celkituzes} ({k.hr_dolgozo_adatlap?.felhasznalo_profil?.nev || "Vállalati"})</option>
-              ))}
-            </select>
-          </div>
+
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

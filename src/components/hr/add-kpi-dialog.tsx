@@ -14,7 +14,6 @@ export function AddKpiDialog({ employees, cycles, allKpis }: { employees: any[],
   const [loading, setLoading] = useState(false)
   const [dolgozoId, setDolgozoId] = useState<string>("")
   const [ciklusId, setCiklusId] = useState<string>("")
-  const [szuloKpiId, setSzuloKpiId] = useState<string>("")
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -26,9 +25,6 @@ export function AddKpiDialog({ employees, cycles, allKpis }: { employees: any[],
     }
     if (ciklusId && !formData.has("ciklusId")) {
       formData.append("ciklusId", ciklusId)
-    }
-    if (szuloKpiId && !formData.has("szuloKpiId")) {
-      formData.append("szuloKpiId", szuloKpiId)
     }
     
     try {
@@ -107,21 +103,7 @@ export function AddKpiDialog({ employees, cycles, allKpis }: { employees: any[],
             </select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="szuloKpiId">Szülő / Vállalati Célkitűzés (Kaszkádolás)</Label>
-            <select 
-              id="szuloKpiId"
-              name="szuloKpiId" 
-              value={szuloKpiId} 
-              onChange={(e) => setSzuloKpiId(e.target.value)} 
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="">Nincs szülő cél</option>
-              {allKpis?.map(k => (
-                <option key={k.id} value={k.id}>{k.celkituzes} ({k.hr_dolgozo_adatlap?.felhasznalo_profil?.nev || "Vállalati"})</option>
-              ))}
-            </select>
-          </div>
+
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

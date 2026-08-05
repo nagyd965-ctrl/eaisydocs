@@ -2,13 +2,15 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Target, TrendingUp, CheckCircle2, History, User, MessageSquare } from "lucide-react"
+import { Target, TrendingUp, CheckCircle2, User, Lock, Award, CalendarCheck } from "lucide-react"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { addKpiSelfEvaluation, addKpiActivity } from "@/app/hr/performance/actions"
+import { KpiWorkflowStepper, deriveWorkflowPhase } from "@/components/hr/kpi-workflow-stepper"
 
 export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[] }) {
   if (!kpis || kpis.length === 0) {
@@ -42,7 +44,7 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
             <p className="text-[10px] text-muted-foreground uppercase mb-1">Átlagos Teljesülés</p>
             <div className="flex items-center gap-2">
               <Progress value={avgScore} className="w-20 h-2 bg-primary/20" />
-              <span className="font-bold text-sm text-primary">{avgScore}%</span>
+              <span className="font-semibold text-sm text-primary tabular-nums">{avgScore}%</span>
             </div>
           </div>
         </div>
@@ -52,20 +54,19 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
         {kpis.map((kpi) => {
           const percent = kpi.pontszam || 0
           const text = kpi.celkituzes || kpi.ertekeles_szovege || "Nincs megadva"
-          
+          const phase = deriveWorkflowPhase(kpi)
+
           let colorClass = "bg-primary"
           let bgClass = "bg-primary/20"
           let textClass = "text-primary"
-          
+
           if (percent >= 80) {
-            colorClass = "bg-green-600"
-            bgClass = "bg-green-100"
-            textClass = "text-green-600"
+            colorClass = "bg-green-600"; bgClass = "bg-green-100 dark:bg-green-950"; textClass = "text-green-600"
           } else if (percent <= 30) {
-            colorClass = "bg-orange-500"
-            bgClass = "bg-orange-100"
-            textClass = "text-orange-500"
+            colorClass = "bg-orange-500"; bgClass = "bg-orange-100 dark:bg-orange-950"; textClass = "text-orange-500"
           }
+
+          const isMyTurn = phase === "celkituzes"
 
           return (
             <AccordionItem key={kpi.id} value={kpi.id} className="border rounded-md bg-card shadow-sm px-3 mb-3">
@@ -75,22 +76,39 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
                     <h4 className="font-medium text-sm">{text}</h4>
                     <p className="text-xs text-muted-foreground mt-1">Ciklus: {kpi.hr_teljesitmeny_ciklus?.megnevezes || kpi.ertekelt_idoszak || "-"}</p>
                   </div>
-                  <div className="flex items-center justify-center bg-muted w-10 h-10 rounded-full shrink-0">
-                    {percent >= 100 ? (
-                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  <div className="flex items-center gap-2 shrink-0">
+                    {isMyTurn && (
+                      <Badge className="bg-primary/10 text-primary border-0 text-[10px] animate-pulse">Te jössz!</Badge>
+                    )}
+                    {phase === "lezart" ? (
+                      <div className="flex items-center justify-center bg-success/10 w-10 h-10 rounded-full">
+                        <Lock className="w-5 h-5 text-success" />
+                      </div>
+                    ) : percent >= 100 ? (
+                      <div className="flex items-center justify-center bg-green-100 dark:bg-green-950 w-10 h-10 rounded-full">
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      </div>
                     ) : (
-                      <TrendingUp className="w-5 h-5 text-muted-foreground" />
+                      <div className="flex items-center justify-center bg-muted w-10 h-10 rounded-full">
+                        <TrendingUp className="w-5 h-5 text-muted-foreground" />
+                      </div>
                     )}
                   </div>
                 </div>
               </AccordionTrigger>
-              
+
               <AccordionContent className="space-y-4 pt-2 pb-4">
+                {/* Workflow Stepper — teljes címkékkel */}
+                <div className="pb-3 border-b">
+                  <KpiWorkflowStepper currentPhase={phase} />
+                </div>
+
+                {/* Progress bar */}
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Folyamat:</span>
                     <span className={`font-semibold ${textClass}`}>
-                      {kpi.meroszam_tipusa === "igen_nem" 
+                      {kpi.meroszam_tipusa === "igen_nem"
                         ? (kpi.aktualis_ertek > 0 ? "Teljesítve" : "Nincs teljesítve")
                         : `${kpi.aktualis_ertek || 0} / ${kpi.cel_ertek || 100} ${kpi.meroszam_tipusa === "szazalek" ? "%" : kpi.meroszam_tipusa === "osszeg" ? "HUF" : kpi.meroszam_tipusa === "skala" ? "Pont" : "Db"}`
                       }
@@ -100,152 +118,156 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
                   <Progress value={percent} className={`h-1.5 ${bgClass} [&>div]:${colorClass}`} />
                 </div>
 
-                <div className="pl-4 space-y-4 pt-4 border-t">
-                  <div className="relative pl-4 border-l-2 border-muted space-y-6">
-                    <div className="relative">
-                      <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-primary/20 border-2 border-primary ring-4 ring-background" />
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-sm">Célkitűzés rögzítve</span>
-                        <span className="text-xs text-muted-foreground">{new Date(kpi.created_at).toLocaleDateString("hu-HU")}</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">Kezdeti érték rögzítve.</p>
+                {/* ---- Egyszerűsített dolgozói nézet (nincs részletes napló) ---- */}
+                <div className="space-y-4 pt-3 border-t">
+
+                  {/* Állapot frissítése — ha nincs lezárva */}
+                  {phase !== "lezart" && (
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-muted-foreground" /> Állapot frissítése
+                      </h5>
+                      <form
+                        className="flex items-center gap-3"
+                        action={async (formData) => {
+                          let newValStr = formData.get("percent") as string;
+                          if (kpi.meroszam_tipusa === "igen_nem") {
+                            newValStr = formData.get("igen_nem_val") === "on" ? "1" : "0";
+                          }
+                          const newVal = parseFloat(newValStr);
+                          const { updateKpiProgress } = await import("@/app/hr/performance/actions");
+                          const res = await updateKpiProgress(kpi.id, newVal);
+                          if (res?.error) toast.error(res.error);
+                          else toast.success("Állapot sikeresen frissítve!");
+                        }}
+                      >
+                        {kpi.meroszam_tipusa === "igen_nem" ? (
+                          <div className="flex items-center gap-2">
+                            <input type="checkbox" name="igen_nem_val" defaultChecked={kpi.aktualis_ertek > 0} className="h-4 w-4 rounded border-gray-300" />
+                            <span className="text-sm">Teljesítve</span>
+                          </div>
+                        ) : (
+                          <>
+                            <Input key={`input-${kpi.id}-${kpi.aktualis_ertek}`} type="number" step="0.01" name="percent" defaultValue={kpi.aktualis_ertek || 0} min={0} className="w-32 h-8 text-sm" />
+                            <span className="text-sm font-medium">
+                              / {kpi.cel_ertek || 100} {kpi.meroszam_tipusa === "szazalek" ? "%" : kpi.meroszam_tipusa === "osszeg" ? "HUF" : kpi.meroszam_tipusa === "skala" ? "Pont" : "Db"}
+                            </span>
+                          </>
+                        )}
+                        <Button type="submit" size="sm" variant="secondary" className="h-8">Frissítés</Button>
+                      </form>
                     </div>
+                  )}
 
-                    {logs?.filter(log => log.entitas_id === kpi.id).map(log => (
-                      <div key={log.id} className="relative">
-                        <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
-                        <div className="flex items-center gap-2 mb-1">
-                          {log.esemeny_tipus === "kpi_bejegyzes" ? (
-                            <MessageSquare className="w-3 h-3 text-primary" />
-                          ) : log.esemeny_tipus === "kpi_onertekeles" ? (
-                            <User className="w-3 h-3 text-primary" />
-                          ) : (
-                            <History className="w-3 h-3 text-muted-foreground" />
-                          )}
-                          <span className="font-medium text-sm">
-                            {log.esemeny_tipus === "kpi_frissites" && "Állapot frissítés"}
-                            {log.esemeny_tipus === "kpi_onertekeles" && "Dolgozói önértékelés"}
-                            {log.esemeny_tipus === "kpi_hozzaadas" && "Rendszer bejegyzés"}
-                            {log.esemeny_tipus === "kpi_bejegyzes" && "Aktivitás / Bejegyzés"}
-                            {!["kpi_frissites", "kpi_onertekeles", "kpi_hozzaadas", "kpi_bejegyzes"].includes(log.esemeny_tipus) && log.esemeny_tipus}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(log.created_at).toLocaleString("hu-HU", { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 
-                            {log.felhasznalo_profil?.nev && ` - ${log.felhasznalo_profil.nev}`}
-                          </span>
-                        </div>
-                        <p className="text-sm bg-muted/30 p-3 rounded-md border border-muted mt-2">
-                          {log.megjegyzes}
-                        </p>
-                      </div>
-                    ))}
+                  {/* Aktivitás rögzítése — ha nincs lezárva */}
+                  {phase !== "lezart" && (
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
+                        Megjegyzés hozzáfűzése
+                      </h5>
+                      <form
+                        className="flex items-center gap-3"
+                        action={async (formData) => {
+                          const msg = formData.get("megjegyzes") as string;
+                          if (!msg) return;
+                          const res = await addKpiActivity(kpi.id, msg);
+                          if (res?.error) toast.error(res.error);
+                          else toast.success("Megjegyzés sikeresen rögzítve!");
+                        }}
+                      >
+                        <Input type="text" name="megjegyzes" placeholder="Pl: Elvégeztem a feladatot..." required className="flex-1 h-8 text-sm" />
+                        <Button type="submit" size="sm" variant="outline" className="h-8">Hozzáadás</Button>
+                      </form>
+                    </div>
+                  )}
 
-                    {kpi.ertekeles_szovege && (
-                      <div className="relative">
-                        <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
-                        <div className="flex items-center gap-2 mb-1">
-                          <MessageSquare className="w-3 h-3 text-muted-foreground" />
-                          <span className="font-medium text-sm">Vezetői végleges értékelés</span>
-                        </div>
-                        <p className="text-sm bg-muted/30 p-3 rounded-md border border-muted mt-2">
-                          {kpi.ertekeles_szovege}
-                        </p>
-                      </div>
-                    )}
-
-                    {!kpi.ertekeles_szovege && (
-                      <div className="relative">
-                          <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
-                          <div className="flex items-center gap-2 mb-1">
-                            <MessageSquare className="w-3 h-3 text-muted-foreground" />
-                            <span className="font-medium text-sm">Új aktivitás / bejegyzés rögzítése</span>
-                          </div>
-                          <form 
-                            className="flex items-center gap-3 mt-2" 
-                            action={async (formData) => {
-                              const msg = formData.get("megjegyzes") as string;
-                              if (!msg) return;
-                              const res = await addKpiActivity(kpi.id, msg);
-                              if (res?.error) {
-                                toast.error(res.error);
-                              } else {
-                                toast.success("Aktivitás sikeresen rögzítve!");
-                              }
-                            }}
-                          >
-                            <Input type="text" name="megjegyzes" placeholder="Pl: Elvégeztem a feladatot..." required className="flex-1 h-8 text-sm" />
-                            <Button type="submit" size="sm" variant="outline" className="h-8">Hozzáadás</Button>
-                          </form>
-                      </div>
-                    )}
-                    {!kpi.ertekeles_szovege && (
-                      <div className="relative">
-                          <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
-                          <div className="flex items-center gap-2 mb-1">
-                            <TrendingUp className="w-3 h-3 text-muted-foreground" />
-                            <span className="font-medium text-sm">Jelenlegi Állapot frissítése</span>
-                          </div>
-                          <form 
-                            className="flex items-center gap-3 mt-2" 
-                            action={async (formData) => {
-                              let newValStr = formData.get("percent") as string;
-                              if (kpi.meroszam_tipusa === "igen_nem") {
-                                newValStr = formData.get("igen_nem_val") === "on" ? "1" : "0";
-                              }
-                              const newVal = parseFloat(newValStr);
-                              const { updateKpiProgress } = await import("@/app/hr/performance/actions");
-                              const res = await updateKpiProgress(kpi.id, newVal);
-                              if (res?.error) {
-                                toast.error(res.error);
-                              } else {
-                                toast.success("Állapot sikeresen frissítve!");
-                              }
-                            }}
-                          >
-                            {kpi.meroszam_tipusa === "igen_nem" ? (
-                              <div className="flex items-center gap-2">
-                                <input type="checkbox" name="igen_nem_val" defaultChecked={kpi.aktualis_ertek > 0} className="h-4 w-4 rounded border-gray-300" />
-                                <span className="text-sm">Teljesítve</span>
-                              </div>
-                            ) : (
-                              <>
-                                <Input key={`input-${kpi.id}-${kpi.aktualis_ertek}`} type="number" step="0.01" name="percent" defaultValue={kpi.aktualis_ertek || 0} min={0} className="w-32 h-8 text-sm" />
-                                <span className="text-sm font-medium">
-                                  / {kpi.cel_ertek || 100} {kpi.meroszam_tipusa === "szazalek" ? "%" : kpi.meroszam_tipusa === "osszeg" ? "HUF" : kpi.meroszam_tipusa === "skala" ? "Pont" : "Db"}
-                                </span>
-                              </>
-                            )}
-                            <Button type="submit" size="sm" variant="secondary" className="h-8">Frissítés</Button>
-                          </form>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {(!kpi.onertekeles_szovege && !kpi.ertekeles_szovege) && (
-                    <form 
-                      className="mt-4 pt-4 border-t space-y-3"
+                  {/* Önértékelés leadása — ha még nem adta le */}
+                  {(!kpi.onertekeles_szovege && phase === "celkituzes") && (
+                    <form
+                      className="pt-3 border-t space-y-3"
                       action={async (formData) => {
                         const evalText = formData.get("ertekelesSzovege") as string;
                         if (!evalText) return;
                         const res = await addKpiSelfEvaluation(kpi.id, evalText);
-                        if (res?.error) {
-                          toast.error(res.error);
-                        } else {
-                          toast.success("Önértékelés sikeresen elküldve!");
-                        }
+                        if (res?.error) toast.error(res.error);
+                        else toast.success("Önértékelés sikeresen elküldve!");
                       }}
                     >
-                      <h5 className="font-medium text-sm flex items-center gap-2">
-                        <User className="w-4 h-4 text-primary" /> Önértékelés leadása
-                      </h5>
-                      <Textarea 
-                        name="ertekelesSzovege" 
-                        placeholder="Írd le a célkitűzéssel kapcsolatos tapasztalataidat..." 
-                        required 
+                      <div className="flex items-center gap-2">
+                        <h5 className="font-medium text-sm flex items-center gap-2">
+                          <User className="w-4 h-4 text-primary" /> Önértékelés leadása
+                        </h5>
+                        <Badge className="bg-primary/10 text-primary border-0 text-[10px]">Te jössz!</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Értékeld a saját teljesítményedet, majd küld el a vezetődnek.</p>
+                      <Textarea
+                        name="ertekelesSzovege"
+                        placeholder="Írd le, hogyan értékeled a teljesítményedet ennél a célnál..."
+                        required
                         className="min-h-[80px]"
                       />
-                      <Button type="submit" size="sm" className="w-full">Értékelés elküldése</Button>
+                      <Button type="submit" size="sm" className="w-full">Önértékelés elküldése</Button>
                     </form>
+                  )}
+
+                  {/* Önértékelés elküldve jelzés */}
+                  {kpi.onertekeles_szovege && (
+                    <div className="pt-3 border-t space-y-2">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-blue-500" />
+                        <span className="font-medium text-sm">Önértékelésedet leadtad</span>
+                        <Badge className="bg-success/10 text-success border-0 text-[10px]">✓ Elküldve</Badge>
+                      </div>
+                      <p className="text-sm bg-blue-500/5 p-3 rounded-md border border-blue-500/20">
+                        {kpi.onertekeles_szovege}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Vezetői értékelés — ha már megérkezett */}
+                  {kpi.ertekeles_szovege && (
+                    <div className="pt-3 border-t space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Award className="w-4 h-4 text-primary" />
+                        <span className="font-medium text-sm">Vezetői értékelés</span>
+                      </div>
+                      <p className="text-sm bg-primary/5 p-3 rounded-md border border-primary/20">
+                        {kpi.ertekeles_szovege}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Megbeszélés jelzés */}
+                  {kpi.megbeszeles_datum && (
+                    <div className="pt-3 border-t">
+                      <div className="flex items-center gap-2 text-sm">
+                        <CalendarCheck className="w-4 h-4 text-purple-500" />
+                        <span className="font-medium">Értékelő megbeszélés megtörtént</span>
+                        <span className="text-xs text-muted-foreground">{new Date(kpi.megbeszeles_datum).toLocaleDateString("hu-HU")}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Státusz jelzések */}
+                  {phase === "onertekeles" && (
+                    <div className="flex items-center gap-2 justify-center py-3 rounded-md bg-muted text-muted-foreground text-sm">
+                      <Award className="w-4 h-4" /> Várakozás a vezetői értékelésre...
+                    </div>
+                  )}
+                  {phase === "vezetoi_ertekeles" && (
+                    <div className="flex items-center gap-2 justify-center py-3 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 text-sm">
+                      <CalendarCheck className="w-4 h-4" /> Várakozás az értékelő megbeszélésre...
+                    </div>
+                  )}
+                  {phase === "megbeszeles" && (
+                    <div className="flex items-center gap-2 justify-center py-3 rounded-md bg-muted text-muted-foreground text-sm">
+                      <Lock className="w-4 h-4" /> A vezető véglegesíti a lezárást...
+                    </div>
+                  )}
+                  {phase === "lezart" && (
+                    <div className="flex items-center gap-2 justify-center py-3 rounded-md bg-success/10 text-success text-sm font-medium">
+                      <Lock className="w-4 h-4" /> Ez a célkitűzés véglegesen le van zárva.
+                    </div>
                   )}
                 </div>
               </AccordionContent>

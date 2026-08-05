@@ -16,6 +16,7 @@ export async function createMunkakor(formData: FormData) {
   const feor_kod = formData.get("feor_kod") as string
   const besorolasi_szint = formData.get("besorolasi_szint") as string
   const kockazat_tipusa = formData.get("kockazat_tipusa") as string
+  const vedoeszkoz_igeny = formData.get("vedoeszkoz_igeny") as string
   
   const feladatok = formData.get("feladatok_es_hataskorok") as string
   const kompetenciak = formData.get("elvart_kompetenciak") as string
@@ -38,6 +39,7 @@ export async function createMunkakor(formData: FormData) {
         feor_kod: feor_kod || null,
         besorolasi_szint: besorolasi_szint || null,
         kockazat_tipusa: kockazat_tipusa || null,
+        vedoeszkoz_igeny: vedoeszkoz_igeny || null,
         feladatok_es_hataskorok: feladatokArray,
         elvart_kompetenciak: kompetenciakArray,
         orvosi_vizsgalat_tipus: orvosi_tipus || null,
@@ -178,6 +180,7 @@ export async function updateMunkakor(id: string, formData: FormData) {
   const feor_kod = formData.get("feor_kod") as string
   const besorolasi_szint = formData.get("besorolasi_szint") as string
   const kockazat_tipusa = formData.get("kockazat_tipusa") as string
+  const vedoeszkoz_igeny = formData.get("vedoeszkoz_igeny") as string
   
   const feladatok = formData.get("feladatok_es_hataskorok") as string
   const kompetenciak = formData.get("elvart_kompetenciak") as string
@@ -196,6 +199,7 @@ export async function updateMunkakor(id: string, formData: FormData) {
       feor_kod: feor_kod || null,
       besorolasi_szint: besorolasi_szint || null,
       kockazat_tipusa: kockazat_tipusa || null,
+      vedoeszkoz_igeny: vedoeszkoz_igeny || null,
       feladatok_es_hataskorok: feladatokArray,
       elvart_kompetenciak: kompetenciakArray,
       orvosi_vizsgalat_tipus: orvosi_tipus || null,
@@ -358,5 +362,88 @@ export async function deleteHrDepartment(id: string) {
   }
 
   revalidatePath("/hr/settings")
+  return { success: true }
+}
+
+export async function uploadJobDescription(munkakorId: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const file = formData.get("file") as File
+  const megjegyzes = formData.get("megjegyzes") as string
+
+  if (!file || file.size === 0) return { error: "Nincs fájl kiválasztva" }
+
+  // Get next version number
+  const { data: existing } = await supabase
+    .from("hr_munkakor_leiras_verzio")
+    .select("verzio_szam")
+    .eq("munkakor_id", munkakorId)
+    .order("verzio_szam", { ascending: false })
+    .limit(1)
+
+  const nextVersion = existing && existing.length > 0 ? existing[0].verzio_szam + 1 : 1
+
+  // Upload file to Supabase Storage
+  const fileExt = file.name.split('.').pop()
+  const filePath = `munkakor-leirasok/${munkakorId}/v${nextVersion}_${Date.now()}.${fileExt}`
+
+  const { error: uploadError } = await supabase.storage
+    .from("irat_files")
+    .upload(filePath, file, { upsert: false })
+
+  if (uploadError) {
+    console.error("Upload error:", uploadError)
+    return { error: "Fájl feltöltés sikertelen: " + uploadError.message }
+  }
+
+  // Save version record
+  const { error: dbError } = await supabase
+    .from("hr_munkakor_leiras_verzio")
+    .insert({
+      munkakor_id: munkakorId,
+      verzio_szam: nextVersion,
+      fajl_path: filePath,
+      fajl_nev: file.name,
+      feltolto_id: user.id,
+      megjegyzes: megjegyzes || null
+    })
+
+  if (dbError) {
+    console.error("DB error:", dbError)
+    return { error: dbError.message }
+  }
+
+  revalidatePath(`/hr/job/${munkakorId}`)
+  return { success: true, verzio: nextVersion }
+}
+
+export async function deleteJobDescriptionVersion(versionId: string, munkakorId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  // Get file path first
+  const { data: version } = await supabase
+    .from("hr_munkakor_leiras_verzio")
+    .select("fajl_path")
+    .eq("id", versionId)
+    .single()
+
+  if (version?.fajl_path) {
+    await supabase.storage.from("irat_files").remove([version.fajl_path])
+  }
+
+  const { error } = await supabase
+    .from("hr_munkakor_leiras_verzio")
+    .delete()
+    .eq("id", versionId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/hr/job/${munkakorId}`)
   return { success: true }
 }

@@ -80,6 +80,10 @@ export function JobCreateDialog({ customTrigger }: { customTrigger?: ReactElemen
               <Label htmlFor="kockazat_tipusa">Kockázat Típusa (Munkavédelem)</Label>
               <Input id="kockazat_tipusa" name="kockazat_tipusa" placeholder="pl. Képernyő előtti munkavégzés" />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="vedoeszkoz_igeny">Védőeszköz Igény</Label>
+              <Input id="vedoeszkoz_igeny" name="vedoeszkoz_igeny" placeholder="pl. Védőszemüveg, munkavédelmi cipő" />
+            </div>
             
             <div className="space-y-2">
               <Label htmlFor="feladatok_es_hataskorok">Feladatok és Hatáskörök (soronként egy)</Label>

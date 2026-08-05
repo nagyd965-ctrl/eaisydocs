@@ -1,8 +1,9 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
-import { BarChart3, TrendingUp, Users, Target } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BarChart3, TrendingUp, Users, Target, ClipboardCheck } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { DashboardCharts } from "./components/dashboard-charts"
 
 export default async function DashboardPage() {
@@ -65,6 +66,13 @@ export default async function DashboardPage() {
   })
   const avgActivePercent = activeKpis.length > 0 ? Math.round(totalActivePercent / activeKpis.length) : 0
 
+  // Workflow fázis összegés
+  const phaseCount = { celkituzes: 0, onertekeles: 0, vezetoi_ertekeles: 0, megbeszeles: 0, lezart: 0 }
+  allKpis.forEach(k => {
+    const phase = k.workflow_fazis || 'celkituzes'
+    if (phase in phaseCount) phaseCount[phase as keyof typeof phaseCount]++
+  })
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <div>
@@ -77,39 +85,79 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
+        <Card className="bg-gradient-to-br from-card to-muted/30">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Aktív Célkitűzések (Nyitott)</CardTitle>
-            <Target className="w-4 h-4 text-muted-foreground" />
+            <div className="bg-primary/10 p-2 rounded-lg">
+              <Target className="w-4 h-4 text-primary" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{activeKpis.length}</div>
+            <div className="text-3xl font-semibold">{activeKpis.length}</div>
             <p className="text-xs text-muted-foreground mt-1">Összesen: {allKpis.length} KPI rögzítve</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gradient-to-br from-card to-primary/5">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Átlagos Teljesítmény (Aktív)</CardTitle>
-            <TrendingUp className="w-4 h-4 text-muted-foreground" />
+            <div className="bg-primary/10 p-2 rounded-lg">
+              <TrendingUp className="w-4 h-4 text-primary" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-primary">{avgActivePercent}%</div>
+            <div className="text-3xl font-semibold text-primary">{avgActivePercent}%</div>
             <p className="text-xs text-muted-foreground mt-1">Várható átlagos teljesülés</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gradient-to-br from-card to-muted/30">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Értékelt Dolgozók</CardTitle>
-            <Users className="w-4 h-4 text-muted-foreground" />
+            <div className="bg-primary/10 p-2 rounded-lg">
+              <Users className="w-4 h-4 text-primary" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{totalEmployees}</div>
+            <div className="text-3xl font-semibold">{totalEmployees}</div>
             <p className="text-xs text-muted-foreground mt-1">Akik rendelkezhetnek céllal</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Workflow Előrehaladás */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <ClipboardCheck className="w-4 h-4 text-primary" /> Workflow Előrehaladás
+          </CardTitle>
+          <CardDescription>Az összes célkitűzés aktuális fázisa</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-5 gap-3">
+            <div className="text-center p-3 rounded-lg bg-muted/50">
+              <div className="text-2xl font-semibold tabular-nums">{phaseCount.celkituzes}</div>
+              <p className="text-xs text-muted-foreground mt-1">Célkitűzés</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-blue-500/10">
+              <div className="text-2xl font-semibold tabular-nums text-blue-600">{phaseCount.onertekeles}</div>
+              <p className="text-xs text-muted-foreground mt-1">Önértékelés</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-primary/10">
+              <div className="text-2xl font-semibold tabular-nums text-primary">{phaseCount.vezetoi_ertekeles}</div>
+              <p className="text-xs text-muted-foreground mt-1">Vez. értékelés</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-purple-500/10">
+              <div className="text-2xl font-semibold tabular-nums text-purple-600">{phaseCount.megbeszeles}</div>
+              <p className="text-xs text-muted-foreground mt-1">Megbeszélés</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-success/10">
+              <div className="text-2xl font-semibold tabular-nums text-success">{phaseCount.lezart}</div>
+              <p className="text-xs text-muted-foreground mt-1">Lezárt</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <DashboardCharts kpis={allKpis} cycles={cycles || []} />
 
@@ -121,7 +169,7 @@ export default async function DashboardPage() {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-muted-foreground bg-muted/50 uppercase">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Dolgozó ID</th>
+                    <th className="px-4 py-3 font-medium">Dolgozó</th>
                     <th className="px-4 py-3 font-medium">Aktív Célok Száma</th>
                     <th className="px-4 py-3 font-medium">Teljesítmény Index</th>
                     <th className="px-4 py-3 font-medium">Javasolt Prémium Sáv</th>
