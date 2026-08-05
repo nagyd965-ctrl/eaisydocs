@@ -35,3 +35,35 @@ export async function login(formData: FormData) {
   // Alapértelmezett bejelentkezés (eaisyDocs)
   redirect("/")
 }
+
+export async function loginWithProvider(provider: "google" | "azure") {
+  const { headers } = await import("next/headers")
+  const supabase = await createClient()
+  
+  const headersList = await headers()
+  const host = headersList.get("host") || "localhost:3000"
+  const proto = headersList.get("x-forwarded-proto") || "http"
+  const origin = `${proto}://${host}`
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: `${origin}/auth/callback`,
+      // Az Azure AD-hoz Entra ID specifikus beállítások
+      ...(provider === "azure" ? {
+        scopes: "openid profile email"
+      } : {})
+    }
+  })
+
+  if (error) {
+    console.error(`OAuth error for ${provider}:`, error.message)
+    redirect(`/login?message=${encodeURIComponent(`Bejelentkezési hiba: ${error.message}`)}`)
+  }
+
+  if (data?.url) {
+    redirect(data.url)
+  }
+
+  redirect("/login?message=Nem sikerült elindítani az SSO azonosítást.")
+}

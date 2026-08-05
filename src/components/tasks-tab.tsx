@@ -12,6 +12,7 @@ import { toast } from "sonner"
 import { addComment, updateDossierStatus, uploadReply } from "@/app/dossiers/[id]/actions"
 import { AddTaskDialog } from "./add-task-dialog"
 import { Badge } from "./ui/badge"
+import { TemplateDialog } from "./template-dialog"
 
 interface TasksTabProps {
   ugyiratId: string;
@@ -22,9 +23,10 @@ interface TasksTabProps {
   users: any[];
   canEdit: boolean;
   currentUserEmail: string;
+  iktatoszam?: string;
 }
 
-export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, canEdit, currentUserEmail }: TasksTabProps) {
+export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, canEdit, currentUserEmail, iktatoszam }: TasksTabProps) {
   const [commentText, setCommentText] = useState("")
   const [commentLoading, setCommentLoading] = useState(false)
 
@@ -76,22 +78,45 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
 
   return (
     <div className="space-y-6">
-      {/* 0. Ügyirati Feladatok (Al-feladatok) */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+      {/* Ügyirati Feladatok + Munkafolyamat egy sorban */}
+      <Card className="border border-border/50">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
-            <CardTitle>Ügyirati Feladatok</CardTitle>
+            <CardTitle className="text-base font-semibold">Ügyirati Feladatok</CardTitle>
             <CardDescription>Konkrét tennivalók (al-feladatok) ehhez az aktához.</CardDescription>
           </div>
-          {canEdit && <AddTaskDialog ugyiratId={ugyiratId} users={users} />}
+          <div className="flex items-center gap-2">
+            {/* Munkafolyamat gombok — kompakt, outline */}
+            <Button 
+              onClick={() => handleStatusChange("ugyintezes_alatt")}
+              disabled={!canEdit || status === "ugyintezes_alatt" || status === "elintezett" || status === "lezart" || statusLoading !== null}
+              variant="outline"
+              size="sm"
+            >
+              {statusLoading === "ugyintezes_alatt" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-2 h-3.5 w-3.5" />}
+              Ügyintézés megkezdése
+            </Button>
+
+            <Button 
+              onClick={() => handleStatusChange("elintezett")}
+              disabled={!canEdit || status === "elintezett" || status === "lezart" || statusLoading !== null}
+              variant="outline"
+              size="sm"
+            >
+              {statusLoading === "elintezett" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-2 h-3.5 w-3.5" />}
+              Elintézettnek jelölés
+            </Button>
+
+            {canEdit && <AddTaskDialog ugyiratId={ugyiratId} users={users} />}
+          </div>
         </CardHeader>
         <CardContent>
           {tasks.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">Még nincsenek feladatok rögzítve.</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {tasks.map(task => (
-                <div key={task.id} className="flex justify-between items-center p-3 border rounded-lg">
+                <div key={task.id} className="flex justify-between items-center p-3 border border-border/50 rounded-lg hover:bg-muted/50 transition-colors">
                   <div>
                     <div className="font-medium text-sm">{task.leiras}</div>
                     <div className="text-xs text-muted-foreground flex gap-4 mt-1">
@@ -99,7 +124,7 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
                       <span>Határidő: {new Date(task.hatarido).toLocaleDateString('hu-HU')}</span>
                     </div>
                   </div>
-                  <div><StatusBadge allapot={task.allapot} /></div>
+                  <div><TaskStatusBadge allapot={task.allapot} /></div>
                 </div>
               ))}
             </div>
@@ -107,40 +132,11 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
         </CardContent>
       </Card>
 
-      {/* 1. Státusz és Munkafolyamat Kezelés */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Munkafolyamat</CardTitle>
-          <CardDescription>Az ügyirat állapotának kezelése</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-4">
-          <Button 
-            onClick={() => handleStatusChange("ugyintezes_alatt")}
-            disabled={!canEdit || status === "ugyintezes_alatt" || status === "elintezett" || status === "lezart" || statusLoading !== null}
-            className="flex-1 min-w-[200px]"
-            variant={status === "ugyintezes_alatt" ? "outline" : "default"}
-          >
-            {statusLoading === "ugyintezes_alatt" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-            Ügyintézés megkezdése
-          </Button>
-
-          <Button 
-            onClick={() => handleStatusChange("elintezett")}
-            disabled={!canEdit || status === "elintezett" || status === "lezart" || statusLoading !== null}
-            className="flex-1 min-w-[200px]"
-            variant={status === "elintezett" ? "outline" : "default"}
-          >
-            {statusLoading === "elintezett" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-            Elintézettnek jelölés
-          </Button>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* 2. Válaszlevél feltöltése */}
-        <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Válaszlevél feltöltése */}
+        <Card className="border border-border/50">
           <CardHeader>
-            <CardTitle>Válaszlevél feltöltése</CardTitle>
+            <CardTitle className="text-base font-semibold">Válaszlevél feltöltése</CardTitle>
             <CardDescription>Kimenő irat csatolása az ügyirathoz</CardDescription>
           </CardHeader>
           <CardContent>
@@ -153,18 +149,22 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
                 <Label htmlFor="file">PDF Fájl</Label>
                 <Input id="file" name="file" type="file" accept="application/pdf" required disabled={!canEdit || uploadLoading} />
               </div>
-              <Button type="submit" disabled={!canEdit || uploadLoading} className="w-full">
+              <Button type="submit" disabled={!canEdit || uploadLoading} variant="outline" className="w-full">
                 {uploadLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileUp className="mr-2 h-4 w-4" />}
                 Feltöltés és csatolás
               </Button>
             </form>
+            {/* Sablonos generálás */}
+            <div className="mt-3 pt-3 border-t border-border/50">
+              <TemplateDialog ugyiratId={ugyiratId} iktatoszam={iktatoszam} />
+            </div>
           </CardContent>
         </Card>
 
-        {/* 3. Belső Megjegyzések (Chat) */}
-        <Card className="flex flex-col h-[500px]">
+        {/* Belső Megjegyzések (Chat) */}
+        <Card className="flex flex-col h-[500px] border border-border/50">
           <CardHeader>
-            <CardTitle>Belső Megjegyzések</CardTitle>
+            <CardTitle className="text-base font-semibold">Belső Megjegyzések</CardTitle>
             <CardDescription>Kommunikáció a kollégákkal</CardDescription>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto space-y-4 p-4">
@@ -203,7 +203,7 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
   )
 }
 
-function StatusBadge({ allapot }: { allapot: string }) {
+function TaskStatusBadge({ allapot }: { allapot: string }) {
   switch (allapot) {
     case 'nyitott': return <Badge variant="outline" className="text-muted-foreground border-muted-foreground">Nyitott</Badge>
     case 'folyamatban': return <Badge variant="default" className="bg-info text-info-foreground">Folyamatban</Badge>

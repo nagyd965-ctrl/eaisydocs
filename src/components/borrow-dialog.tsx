@@ -20,7 +20,7 @@ import { MapPin, ArchiveRestore } from "lucide-react"
 interface BorrowDialogProps {
   iratId: string
   activeBorrowLog?: { id: string, kinek_user_id: string, varhato_visszahozatal: string, statusz: string }
-  users: { id: string, nev: string }[]
+  users: { id: string, nev: string, docs_szerepkor?: string }[]
 }
 
 export function BorrowDialog({ iratId, activeBorrowLog, users }: BorrowDialogProps) {
@@ -98,7 +98,9 @@ export function BorrowDialog({ iratId, activeBorrowLog, users }: BorrowDialogPro
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {users.map(u => (
+                {users
+                  .filter(u => ['iktato', 'admin', 'rendszergazda'].includes(u.docs_szerepkor || ''))
+                  .map(u => (
                   <SelectItem key={u.id} value={u.id}>{u.nev}</SelectItem>
                 ))}
               </SelectContent>

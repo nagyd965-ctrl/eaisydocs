@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
     // 2. Fájl letöltése a Storage-ból
     const { data: fileData, error: downloadError } = await supabase.storage
-      .from('iratok')
+      .from('irat_files')
       .download(fajl.storage_path)
 
     if (downloadError || !fileData) {
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     const newStoragePath = fajl.storage_path.replace(`.${ext}`, `_pdfa.pdf`)
 
     const { error: uploadError } = await supabase.storage
-      .from('iratok')
+      .from('irat_files')
       .upload(newStoragePath, pdfaBuffer, {
         contentType: 'application/pdf',
         upsert: true

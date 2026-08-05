@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { sendNotificationEmail, buildHtmlEmail } from "@/utils/mailer"
 import { getBaseUrl } from "@/utils/url"
+import { getClientInfo } from "@/utils/client-info"
 
 // 1. Felterjesztés Selejtezésre (Iratkezelő csinálja)
 export async function proposeDisposal(ugyiratIds: string[]) {
@@ -20,12 +21,15 @@ export async function proposeDisposal(ugyiratIds: string[]) {
       .eq("id", id)
 
     if (!updateError) {
+      const { ip, userAgent } = await getClientInfo()
       await supabase.from("esemeny_naplo").insert({
         entitas_tipus: "ugyirat",
         entitas_id: id,
         esemeny_tipus: "modositva",
         user_id: user.id,
-        indoklas: "Selejtezésre felterjesztve"
+        indoklas: "Selejtezésre felterjesztve",
+        ip_cim: ip,
+        user_agent: userAgent
       })
     }
   }
@@ -142,12 +146,15 @@ export async function approveDisposal(ugyiratIds: string[], approverName: string
     }
 
     // 3. Eseménynapló rögzítés "selejtezve"
+    const { ip, userAgent } = await getClientInfo()
     await supabase.from("esemeny_naplo").insert({
       entitas_tipus: "ugyirat",
       entitas_id: id,
       esemeny_tipus: "selejtezve",
       user_id: user.id,
-      indoklas: `A megőrzési idő lejárt, az ügyiratot leselejteztük, a fizikai fájlokat véglegesen töröltük a rendszerből. Jóváhagyta: ${approverName}`
+      indoklas: `A megőrzési idő lejárt, az ügyiratot leselejteztük, a fizikai fájlokat véglegesen töröltük a rendszerből. Jóváhagyta: ${approverName}`,
+      ip_cim: ip,
+      user_agent: userAgent
     })
   }
 

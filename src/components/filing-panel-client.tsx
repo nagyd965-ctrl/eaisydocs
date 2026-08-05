@@ -140,32 +140,11 @@ export function FilingPanelClient({
                 </TabsList>
                 
                 <TabsContent value="new" className="space-y-6 pt-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="prefix">Szervezeti Egység Prefix</Label>
-                    <Select name="prefix" defaultValue="PENZUGY" required={mode === "new"}>
-                      <SelectTrigger id="prefix">
-                        <SelectValue placeholder="Válassz...">
-                          {(value) => {
-                            const map: Record<string, string> = {
-                              PENZUGY: "Pénzügy (PENZUGY)",
-                              HR: "HR és Munkaügy (HR)",
-                              JOGI: "Jogi osztály (JOGI)",
-                              UGYFELSZOLGALAT: "Ügyfélszolgálat (UGYFELSZOLGALAT)",
-                              IT: "Informatika (IT)"
-                            };
-                            return map[value as string] || "Válassz...";
-                          }}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PENZUGY" label="Pénzügy (PENZUGY)">Pénzügy (PENZUGY)</SelectItem>
-                        <SelectItem value="HR" label="HR és Munkaügy (HR)">HR és Munkaügy (HR)</SelectItem>
-                        <SelectItem value="JOGI" label="Jogi osztály (JOGI)">Jogi osztály (JOGI)</SelectItem>
-                        <SelectItem value="UGYFELSZOLGALAT" label="Ügyfélszolgálat (UGYFELSZOLGALAT)">Ügyfélszolgálat (UGYFELSZOLGALAT)</SelectItem>
-                        <SelectItem value="IT" label="Informatika (IT)">Informatika (IT)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <input 
+                    type="hidden" 
+                    name="prefix" 
+                    value={departments?.find((d: any) => d.id === departmentId)?.iktato_prefix || "NYILV"} 
+                  />
 
                   <div className="space-y-2">
                     <Label htmlFor="targy">Ügy tárgya</Label>
@@ -249,7 +228,7 @@ export function FilingPanelClient({
             </form>
           </div>
           <div className="border-t bg-muted/30 px-6 py-4 mt-auto">
-            <Button form="filing-form" type="submit" disabled={loading} className="w-full bg-[#02b8cc] hover:bg-[#029db0] text-white">
+            <Button form="filing-form" type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
               {loading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (

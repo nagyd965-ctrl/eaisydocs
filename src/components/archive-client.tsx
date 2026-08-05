@@ -5,13 +5,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, CheckCircle2, ShieldAlert, FileText } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ShieldAlert, FileText, RefreshCw } from "lucide-react"
 import { forceExpireAllDossiers } from "@/app/archive/actions"
 import { proposeDisposal, approveDisposal } from "@/app/archive/disposal-actions"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import Link from "next/link"
 import { Label } from "@/components/ui/label"
 import {
   Dialog,
@@ -126,8 +127,8 @@ export function ArchiveClient({
         </TabsList>
 
         <TabsContent value="suggestions" className="mt-6">
-          <div className="border rounded-md bg-card mb-4">
-            <div className="p-4 bg-muted/30 border-b flex items-start justify-between gap-3">
+          <div className="border border-border/50 rounded-md bg-card mb-4">
+            <div className="p-4 bg-muted/30 border-b border-border/50 flex items-start justify-between gap-3">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                 <div className="text-sm">
@@ -135,15 +136,18 @@ export function ArchiveClient({
                   <p className="text-muted-foreground">Ezek az ügyiratok elérték a megőrzési idejük végét. Válaszd ki azokat, amiket felterjesztesz selejtezésre a vezető felé (Négy szem elve).</p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <Button 
                   variant="outline" 
                   size="sm" 
                   onClick={async () => { await forceExpireAllDossiers(); router.refresh(); }}
                 >
-                  🛠 Lejárt generálás
+                  <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                  Lejárt generálás
                 </Button>
                 <Button 
+                  variant="outline"
+                  size="sm"
                   disabled={selectedSuggestions.length === 0 || loading}
                   onClick={handlePropose}
                 >
@@ -164,14 +168,16 @@ export function ArchiveClient({
               <TableBody>
                 {scrappingSuggestions.length > 0 ? (
                   scrappingSuggestions.map((item) => (
-                    <TableRow key={item.id} className={selectedSuggestions.includes(item.id) ? "bg-muted/50" : ""}>
+                    <TableRow key={item.id} className={`hover:bg-muted/50 transition-colors ${selectedSuggestions.includes(item.id) ? "bg-muted/50" : ""}`}>
                       <TableCell>
                         <Checkbox 
                           checked={selectedSuggestions.includes(item.id)}
                           onCheckedChange={() => toggleSuggestion(item.id)}
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-primary">{item.iktatoszam}</TableCell>
+                      <TableCell className="font-medium">
+                        <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline">{item.iktatoszam}</Link>
+                      </TableCell>
                       <TableCell>{item.ugy?.targy}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{item.irat[0]?.count || 0} db irat</Badge>
@@ -195,19 +201,21 @@ export function ArchiveClient({
         </TabsContent>
 
         <TabsContent value="approvals" className="mt-6">
-          <div className="border rounded-md bg-card mb-4 border-warning/50">
-            <div className="p-4 bg-warning/5 border-b border-warning/20 flex items-start justify-between gap-3">
+          <div className="border border-border/50 rounded-md bg-card mb-4">
+            <div className="p-4 bg-muted/30 border-b border-border/50 flex items-start justify-between gap-3">
               <div className="flex items-start gap-3">
                 <ShieldAlert className="h-5 w-5 text-warning shrink-0 mt-0.5" />
                 <div className="text-sm">
-                  <p className="font-semibold mb-1 text-warning-foreground">Jóváhagyásra Váró Csomagok (Vezető)</p>
+                  <p className="font-semibold mb-1">Jóváhagyásra Váró Csomagok (Vezető)</p>
                   <p className="text-muted-foreground">Az iratkezelő által felterjesztett ügyiratok. A jóváhagyás után a fájlok fizikailag is véglegesen törlésre kerülnek és létrejön a hivatalos Selejtezési Jegyzőkönyv. Nem hagyhatod jóvá a saját felterjesztésedet!</p>
                 </div>
               </div>
               <Button 
-                variant="destructive"
+                variant="outline"
+                size="sm"
                 disabled={selectedApprovals.length === 0 || loading}
                 onClick={() => setApprovePromptOpen(true)}
+                className="shrink-0"
               >
                 Jóváhagyás és Jegyzőkönyv ({selectedApprovals.length})
               </Button>
@@ -225,14 +233,16 @@ export function ArchiveClient({
               <TableBody>
                 {pendingApprovals.length > 0 ? (
                   pendingApprovals.map((item) => (
-                    <TableRow key={item.id} className={selectedApprovals.includes(item.id) ? "bg-muted/50" : ""}>
+                    <TableRow key={item.id} className={`hover:bg-muted/50 transition-colors ${selectedApprovals.includes(item.id) ? "bg-muted/50" : ""}`}>
                       <TableCell>
                         <Checkbox 
                           checked={selectedApprovals.includes(item.id)}
                           onCheckedChange={() => toggleApproval(item.id)}
                         />
                       </TableCell>
-                      <TableCell className="font-medium">{item.iktatoszam}</TableCell>
+                      <TableCell className="font-medium">
+                        <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline">{item.iktatoszam}</Link>
+                      </TableCell>
                       <TableCell>{item.ugy?.targy}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{item.irat[0]?.count || 0} db irat</Badge>
@@ -256,7 +266,7 @@ export function ArchiveClient({
         </TabsContent>
 
         <TabsContent value="archived" className="mt-6">
-          <div className="border rounded-md bg-card">
+          <div className="border border-border/50 rounded-md bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -270,8 +280,10 @@ export function ArchiveClient({
               <TableBody>
                 {archivedDossiers.length > 0 ? (
                   archivedDossiers.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.iktatoszam}</TableCell>
+                    <TableRow key={item.id} className="hover:bg-muted/50 transition-colors">
+                      <TableCell className="font-medium">
+                        <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline">{item.iktatoszam}</Link>
+                      </TableCell>
                       <TableCell>{item.ugy?.targy}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="capitalize">{item.statusz}</Badge>
@@ -297,7 +309,7 @@ export function ArchiveClient({
         </TabsContent>
 
         <TabsContent value="scrapped" className="mt-6">
-          <div className="border rounded-md bg-card">
+          <div className="border border-border/50 rounded-md bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -310,13 +322,13 @@ export function ArchiveClient({
               <TableBody>
                 {scrappedDossiers.length > 0 ? (
                   scrappedDossiers.map((item) => (
-                    <TableRow key={item.id} className="opacity-70">
-                      <TableCell className="font-medium line-through">{item.iktatoszam}</TableCell>
-                      <TableCell>{item.ugy?.targy}</TableCell>
+                    <TableRow key={item.id} className="opacity-60">
+                      <TableCell className="font-medium line-through text-muted-foreground">{item.iktatoszam}</TableCell>
+                      <TableCell className="text-muted-foreground">{item.ugy?.targy}</TableCell>
                       <TableCell>
                         <Badge variant="destructive">Véglegesen törölve</Badge>
                       </TableCell>
-                      <TableCell>Fájlok megsemmisítve</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">Fájlok megsemmisítve</TableCell>
                     </TableRow>
                   ))
                 ) : (

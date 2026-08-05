@@ -25,18 +25,35 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
     notFound()
   }
 
-  // 2. Fetch the associated file (irat_fajl)
-  const { data: fajl } = await supabase
+  // 2. Fetch the associated files (irat_fajl)
+  const { data: fajlok } = await supabase
     .from("irat_fajl")
-    .select("storage_path, mime_type, eredeti_fajlnev")
+    .select("id, storage_path, mime_type, eredeti_fajlnev")
     .eq("irat_id", resolvedParams.id)
-    .single()
 
   let pdfUrl = null
   
-  if (fajl && fajl.storage_path) {
-    // Instead of a signed URL, we use our secure API route which handles watermarking
-    pdfUrl = `/api/pdf/${resolvedParams.id}`
+  if (fajlok && fajlok.length > 0) {
+    // 1. Megpróbálunk találni egy olyan PDF-et, ami NEM az e-mail törzse (nem 'email_torzs'-el kezdődik)
+    let fajl = fajlok.find(f => 
+      (f.mime_type === 'application/pdf' || (f.eredeti_fajlnev && f.eredeti_fajlnev.toLowerCase().endsWith('.pdf'))) &&
+      !(f.eredeti_fajlnev && f.eredeti_fajlnev.toLowerCase().startsWith('email_torzs'))
+    );
+    
+    // 2. Ha nincs ilyen, akkor jöhet bármilyen PDF (pl. ha csak az e-mail törzse van)
+    if (!fajl) {
+      fajl = fajlok.find(f => f.mime_type === 'application/pdf' || (f.eredeti_fajlnev && f.eredeti_fajlnev.toLowerCase().endsWith('.pdf')));
+    }
+    
+    // 3. Ha az sincs, akkor az első fájl
+    if (!fajl) {
+      fajl = fajlok[0];
+    }
+    
+    if (fajl && fajl.storage_path) {
+      // Pass the specific file ID to the API to ensure we preview the correct attachment
+      pdfUrl = `/api/pdf/${resolvedParams.id}?fileId=${fajl.id}`
+    }
   }
 
   // 3. Fetch data needed for the filing form
@@ -53,11 +70,11 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
 
   const { data: departments } = await supabase
     .from("szervezeti_egyseg")
-    .select("id, nev")
+    .select("id, nev, iktato_prefix")
     .order("nev")
 
   return (
-    <div className="h-[calc(100vh-6rem)] overflow-hidden rounded-md border bg-background shadow-sm">
+    <div className="h-[calc(100vh-6rem)] overflow-hidden rounded-md border bg-background">
       <FilingPanelClient 
         irat={irat} 
         pdfUrl={pdfUrl} 

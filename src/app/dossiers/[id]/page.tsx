@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FileText, Clock, Users, ArrowLeft, FolderPlus, Eye, Lock, Edit, Trash2, Mail } from "lucide-react"
+import { FileText, Clock, Users, ArrowLeft, FolderPlus, Eye, Lock, Edit, Trash2, Mail, Building2, Shield, CalendarDays, Files } from "lucide-react"
 import Link from "next/link"
 import { Timeline, TimelineEvent } from "@/components/timeline"
 import { IratokLista } from "@/components/iratok-lista"
@@ -12,6 +12,7 @@ import { AssignDossierDialog } from "@/components/assign-dossier-dialog"
 import { StatusBadge } from "@/components/status-badge"
 import { getPermissions } from "@/utils/permissions"
 import { TasksTab } from "@/components/tasks-tab"
+import { LifecycleExportButton } from "@/components/lifecycle-export-button"
 
 export default async function DossierPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,7 +24,9 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       id,
       iktatoszam,
       statusz,
+      iktatas_datuma,
       szervezeti_egyseg_id,
+      szervezeti_egyseg ( id, nev ),
       ugy ( id, targy, hatarido, statusz, felelos_user_id ),
       irat (
         id,
@@ -35,7 +38,9 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
           eredeti_fajlnev,
           storage_path,
           meret_byte,
-          sha256
+          sha256,
+          verzio,
+          pdfa_path
         ),
         irat_fizikai_hely ( doboz, polc ),
         irat_kolcsonzes_naplo ( id, kinek_user_id, varhato_visszahozatal, statusz )
@@ -124,7 +129,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
   // Map users to comments
   const mappedComments = (comments || []).map((c: any) => ({
     ...c,
-    user_email: c.user_id, // temporarily using id if no email is found, but we can query profile
+    user_email: c.user_id,
     user_name: userMap[c.user_id] || "Ismeretlen"
   }))
 
@@ -140,9 +145,9 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       description = `Iktatószám kiosztva: ${log.uj_ertek?.iktatoszam || "-"}`;
       icon = FolderPlus;
       color = "text-primary";
-    } else if (log.esemeny_tipus === "szignalva" || log.esemeny_tipus === "hozzaferes_modositas" || log.esemeny_tipus === "modositva") {
-      title = "Ügyirat módosítva";
-      description = log.reszletek || log.uj_ertek?.megjegyzes || "";
+    } else if (log.esemeny_tipus === "szignalva" || log.esemeny_tipus === "hozzaferes_modositas") {
+      title = "Hozzáférés módosítva";
+      description = log.indoklas || log.reszletek || log.uj_ertek?.megjegyzes || "";
       icon = Users;
       color = "text-warning";
     } else if (log.esemeny_tipus === "lezarva") {
@@ -153,17 +158,31 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
     } else if (log.esemeny_tipus === "modositva") {
       if (log.indoklas && log.indoklas.includes("Válasz e-mail elküldve")) {
         title = "Levélküldés";
-        icon = Mail; // Requires Mail import from lucide-react if not present, but I'll assume it's imported or I will check later. Wait, Mail is used here. Let's make sure it works or just use Edit.
+        icon = Mail;
         color = "text-primary";
-        
         const lines = log.indoklas.split('\n');
         description = lines[0];
         if (lines.length > 1) {
           details = lines.slice(1).join('\n').trim();
         }
+      } else if (log.indoklas && log.indoklas.includes("Válaszlevél feltöltve")) {
+        title = "Válaszlevél feltöltve";
+        description = log.indoklas;
+        icon = FileText;
+        color = "text-primary";
+      } else if (log.indoklas && log.indoklas.includes("Állapot módosítva")) {
+        title = "Állapot változás";
+        description = log.indoklas;
+        icon = Edit;
+        color = "text-warning";
+      } else if (log.indoklas && log.indoklas.includes("Megjegyzés")) {
+        title = "Megjegyzés hozzáadva";
+        description = log.indoklas;
+        icon = Edit;
+        color = "text-info";
       } else {
-        title = "Módosítás történt";
-        description = log.indoklas || log.reszletek || "A rendszer rögzítette a változtatást.";
+        title = "Ügyirat módosítva";
+        description = log.indoklas || log.reszletek || log.uj_ertek?.megjegyzes || "";
         icon = Edit;
         color = "text-info";
       }
@@ -187,90 +206,141 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
   });
 
   const ugy = dossier.ugy as any;
+  const szervEgyseg = dossier.szervezeti_egyseg as any;
+  const iratokSzama = Array.isArray(dossier.irat) ? dossier.irat.length : 0;
+  const felelosNev = (ugy?.felelos_user as any)?.full_name || null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center space-x-4">
-        <Button variant="ghost" size="icon" render={<Link href="/dossiers" />} nativeButton={false}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <div className="flex items-center space-x-2">
-            <h1 className="text-3xl font-semibold tracking-tight">{dossier.iktatoszam}</h1>
-            <StatusBadge status={dossier.statusz} />
+    <div className="page-animate space-y-6">
+      {/* Fejléc — iktatószám + státusz + lezárás gomb */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" render={<Link href="/dossiers" />} nativeButton={false} className="shrink-0 mt-0.5">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-semibold tracking-tight">{dossier.iktatoszam}</h1>
+              <StatusBadge status={dossier.statusz} />
+            </div>
+            <p className="text-muted-foreground text-sm mt-0.5">{ugy?.targy}</p>
           </div>
-          <p className="text-muted-foreground">{ugy?.targy}</p>
         </div>
-      </div>
-
-      {permissions.canEdit && dossier.statusz !== "lezart" && dossier.statusz !== "irattarban" && dossier.statusz !== "selejtezheto" && (
-        <div className="flex justify-end">
+        {permissions.canEdit && dossier.statusz !== "lezart" && dossier.statusz !== "irattarban" && dossier.statusz !== "selejtezheto" && (
           <CloseDossierButton ugyiratId={dossier.id} />
-        </div>
-      )}
+        )}
+      </div>
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="overview">Áttekintés</TabsTrigger>
-          <TabsTrigger value="documents">Iratok</TabsTrigger>
           <TabsTrigger value="tasks">Feladatok</TabsTrigger>
           <TabsTrigger value="history">Napló</TabsTrigger>
           <TabsTrigger value="links">Külső Kapcsolatok</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Felelős</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold">
-                  <AssignDossierDialog 
-                    ugyirat_id={dossier.id} 
-                    ugy_id={(dossier.ugy as any)?.id} 
-                    szervezeti_egyseg_id={dossier.szervezeti_egyseg_id || null}
-                    users={users || []}
-                    currentFelelosId={(dossier.ugy as any)?.felelos_user_id}
-                    currentHatarido={(dossier.ugy as any)?.hatarido}
-                    canAssign={canAssign}
-                  >
-                    <span className={canAssign ? "cursor-pointer hover:underline" : ""}>
-                      {((dossier.ugy as any)?.felelos_user as any)?.full_name || "Kiosztatlan"}
-                    </span>
-                  </AssignDossierDialog>
+        {/* Összevont Áttekintés + Iratok tab */}
+        <TabsContent value="overview" className="space-y-6">
+          {/* Metaadat grid — kompakt definition list */}
+          <Card className="border border-border/50">
+            <CardContent className="p-0">
+              <dl className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y divide-border/50">
+                {/* Felelős */}
+                <div className="p-4">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
+                    <Users className="h-3.5 w-3.5" />
+                    Felelős
+                  </dt>
+                  <dd className="text-sm font-semibold">
+                    <AssignDossierDialog 
+                      ugyirat_id={dossier.id} 
+                      ugy_id={ugy?.id} 
+                      szervezeti_egyseg_id={dossier.szervezeti_egyseg_id || null}
+                      users={users || []}
+                      currentFelelosId={ugy?.felelos_user_id}
+                      currentHatarido={ugy?.hatarido}
+                      canAssign={canAssign}
+                    >
+                      <span className={canAssign ? "cursor-pointer hover:text-primary transition-colors" : ""}>
+                        {felelosNev || <span className="italic text-muted-foreground font-normal">Kiosztatlan</span>}
+                      </span>
+                    </AssignDossierDialog>
+                  </dd>
                 </div>
-                <p className="text-xs text-muted-foreground">-</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Határidő</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold text-warning">{ugy?.hatarido || "-"}</div>
-                <p className="text-xs text-muted-foreground">-</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Minősítés</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold">Nyílt</div>
-                <p className="text-xs text-muted-foreground">Mindenki láthatja</p>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="documents">
-          <Card>
-            <CardHeader>
-              <CardTitle>Iratok és Fájlok</CardTitle>
+
+                {/* Határidő */}
+                <div className="p-4">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    Határidő
+                  </dt>
+                  <dd className={`text-sm font-semibold tabular-nums ${ugy?.hatarido && new Date(ugy.hatarido) < new Date() ? "text-destructive" : "text-foreground"}`}>
+                    {ugy?.hatarido 
+                      ? new Date(ugy.hatarido).toLocaleDateString("hu-HU") 
+                      : <span className="text-muted-foreground font-normal">—</span>}
+                  </dd>
+                </div>
+
+                {/* Szervezeti egység */}
+                <div className="p-4">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
+                    <Building2 className="h-3.5 w-3.5" />
+                    Szervezeti egység
+                  </dt>
+                  <dd className="text-sm font-semibold">
+                    {szervEgyseg?.nev || <span className="text-muted-foreground font-normal">—</span>}
+                  </dd>
+                </div>
+
+                {/* Minősítés */}
+                <div className="p-4">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
+                    <Shield className="h-3.5 w-3.5" />
+                    Minősítés
+                  </dt>
+                  <dd className="text-sm font-semibold">Nyílt</dd>
+                </div>
+
+                {/* Iktatás dátuma */}
+                <div className="p-4">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    Iktatás dátuma
+                  </dt>
+                  <dd className="text-sm font-semibold tabular-nums">
+                    {(dossier as any).iktatas_datuma 
+                      ? new Date((dossier as any).iktatas_datuma).toLocaleDateString("hu-HU") 
+                      : <span className="text-muted-foreground font-normal">—</span>}
+                  </dd>
+                </div>
+
+                {/* Iratok száma */}
+                <div className="p-4">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
+                    <Files className="h-3.5 w-3.5" />
+                    Iratok száma
+                  </dt>
+                  <dd className="text-sm font-semibold tabular-nums">{iratokSzama} db</dd>
+                </div>
+
+                {/* Állapot */}
+                <div className="p-4">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
+                    <FileText className="h-3.5 w-3.5" />
+                    Állapot
+                  </dt>
+                  <dd className="text-sm">
+                    <StatusBadge status={dossier.statusz} />
+                  </dd>
+                </div>
+              </dl>
+            </CardContent>
+          </Card>
+
+          {/* Iratok tábla — közvetlenül alatta */}
+          <Card className="border border-border/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Iratok és fájlok</CardTitle>
               <CardDescription>Az ügyirathoz tartozó dokumentumok.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -282,21 +352,25 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
         <TabsContent value="tasks">
           <TasksTab 
             ugyiratId={dossier.id} 
-            ugyId={(dossier.ugy as any)?.id}
+            ugyId={ugy?.id}
             status={dossier.statusz}
             comments={mappedComments}
             tasks={tasks || []}
             users={users || []}
             canEdit={canEdit}
             currentUserEmail={authUser?.user?.email || ""}
+            iktatoszam={dossier.iktatoszam}
           />
         </TabsContent>
         
         <TabsContent value="history">
-          <Card>
-            <CardHeader>
-              <CardTitle>Eseménynapló</CardTitle>
-              <CardDescription>Minden módosítás és megtekintés auditált naplója.</CardDescription>
+          <Card className="border border-border/50">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-semibold">Eseménynapló</CardTitle>
+                <CardDescription>Minden módosítás és megtekintés auditált naplója.</CardDescription>
+              </div>
+              <LifecycleExportButton ugyiratId={dossier.id} />
             </CardHeader>
             <CardContent>
               <Timeline events={timelineEvents} />
@@ -305,9 +379,9 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
         </TabsContent>
 
         <TabsContent value="links">
-          <Card>
+          <Card className="border border-border/50">
             <CardHeader>
-              <CardTitle>Kapcsolódó Rendszerek</CardTitle>
+              <CardTitle className="text-base font-semibold">Kapcsolódó Rendszerek</CardTitle>
               <CardDescription>Külső hivatkozások kezelése ehhez az ügyirathoz és irataihoz.</CardDescription>
             </CardHeader>
             <CardContent>

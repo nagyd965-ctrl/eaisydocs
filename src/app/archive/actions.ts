@@ -57,12 +57,16 @@ export async function scrapDossier(ugyiratId: string) {
   }
 
   // Bejegyzés az eseménynaplóba
+  const { getClientInfo } = await import("@/utils/client-info")
+  const { ip, userAgent } = await getClientInfo()
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
     esemeny_tipus: "selejtezve",
     user_id: user.id,
-    indoklas: "A megőrzési idő lejárt, az ügyiratot leselejteztük, a fizikai fájlokat véglegesen töröltük a rendszerből."
+    indoklas: "A megőrzési idő lejárt, az ügyiratot leselejteztük, a fizikai fájlokat véglegesen töröltük a rendszerből.",
+    ip_cim: ip,
+    user_agent: userAgent
   })
 
   revalidatePath("/archive")

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
+import { getClientInfo } from "@/utils/client-info"
 
 export async function borrowDocument(iratId: string, kinekUserId: string, varhatoVisszahozatal: string) {
   const supabase = await createClient()
@@ -43,13 +44,15 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
   const { data: irat } = await supabase.from("irat").select("ugyirat_id, targy").eq("id", iratId).single()
   const { data: kinek } = await supabase.from("felhasznalo_profil").select("nev").eq("id", kinekUserId).single()
   
+  const { ip, userAgent } = await getClientInfo()
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: 'ugyirat',
     entitas_id: irat?.ugyirat_id,
     user_id: user.id,
     esemeny_tipus: 'modositva',
     uj_ertek: { megjegyzes: `Irat kikölcsönözve. Kinek: ${kinek?.nev}. Várható visszahozatal: ${new Date(varhatoVisszahozatal).toLocaleDateString('hu-HU')}.` },
-    ip_cim: '127.0.0.1'
+    ip_cim: ip,
+    user_agent: userAgent
   })
 
   revalidatePath(`/dossiers/${irat?.ugyirat_id}`)
@@ -86,13 +89,15 @@ export async function returnDocument(kolcsonzesId: string) {
     ugyiratId = irat?.ugyirat_id;
     const { data: kinek } = await supabase.from("felhasznalo_profil").select("nev").eq("id", log.kinek_user_id).single()
     
+    const { ip, userAgent } = await getClientInfo()
     await supabase.from("esemeny_naplo").insert({
       entitas_tipus: 'ugyirat',
       entitas_id: irat?.ugyirat_id,
       user_id: user.id,
       esemeny_tipus: 'modositva',
       uj_ertek: { megjegyzes: `Irat visszavéve tőle: ${kinek?.nev || 'Ismeretlen'}.` },
-      ip_cim: '127.0.0.1'
+      ip_cim: ip,
+      user_agent: userAgent
     })
   }
 
@@ -129,13 +134,15 @@ export async function setPhysicalLocation(iratId: string, doboz: string, polc: s
 
   // Eseménynapló
   const { data: irat } = await supabase.from("irat").select("ugyirat_id").eq("id", iratId).single()
+  const { ip, userAgent } = await getClientInfo()
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: 'ugyirat',
     entitas_id: irat?.ugyirat_id,
     user_id: user.id,
     esemeny_tipus: 'modositva',
     uj_ertek: { megjegyzes: `Fizikai helyzet módosítva: Polc: ${polc || '-'}, Doboz: ${doboz || '-'}` },
-    ip_cim: '127.0.0.1'
+    ip_cim: ip,
+    user_agent: userAgent
   })
 
   revalidatePath(`/dossiers/${irat?.ugyirat_id}`)

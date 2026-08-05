@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
+import { getClientInfo } from "@/utils/client-info"
 
 export async function closeDossier(ugyiratId: string) {
   const supabase = await createClient()
@@ -48,12 +49,16 @@ export async function closeDossier(ugyiratId: string) {
   }
 
   // 3. Eseménynapló
+  const { ip, userAgent } = await getClientInfo()
+
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
     esemeny_tipus: "lezarva",
     user_id: user.id,
-    indoklas: "Ügyirat lezárva és irattározva."
+    indoklas: "Ügyirat lezárva és irattározva.",
+    ip_cim: ip,
+    user_agent: userAgent
   })
   
   await supabase.from("esemeny_naplo").insert({
@@ -61,7 +66,9 @@ export async function closeDossier(ugyiratId: string) {
     entitas_id: ugyiratId,
     esemeny_tipus: "irattarozva",
     user_id: user.id,
-    uj_ertek: { megorzesi_ido_vege: endDateStr }
+    uj_ertek: { megorzesi_ido_vege: endDateStr },
+    ip_cim: ip,
+    user_agent: userAgent
   })
 
   revalidatePath("/dossiers")
@@ -88,12 +95,16 @@ export async function addComment(ugyiratId: string, text: string) {
 
   if (error) return { error: "Hiba a megjegyzés mentésekor." }
 
+  const { ip, userAgent } = await getClientInfo()
+
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
     esemeny_tipus: "modositva",
     user_id: user.id,
-    indoklas: "Megjegyzés hozzáadva"
+    indoklas: "Megjegyzés hozzáadva",
+    ip_cim: ip,
+    user_agent: userAgent
   })
 
   revalidatePath(`/dossiers/${ugyiratId}`)
@@ -118,12 +129,16 @@ export async function updateDossierStatus(ugyiratId: string, ugyId: string, newS
 
   if (ugyiratError) return { error: "Hiba az ügyirat frissítésekor." }
 
+  const { ip, userAgent } = await getClientInfo()
+
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
     esemeny_tipus: "modositva",
     user_id: user.id,
-    indoklas: `Állapot módosítva erre: ${newStatus}`
+    indoklas: `Állapot módosítva erre: ${newStatus}`,
+    ip_cim: ip,
+    user_agent: userAgent
   })
 
   revalidatePath(`/dossiers/${ugyiratId}`)
@@ -204,12 +219,16 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
     .single()
 
   // 5. Eseménynapló
+  const { ip, userAgent } = await getClientInfo()
+
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
     esemeny_tipus: "modositva",
     user_id: user.id,
-    indoklas: `Válaszlevél feltöltve: ${file.name}`
+    indoklas: `Válaszlevél feltöltve: ${file.name}`,
+    ip_cim: ip,
+    user_agent: userAgent
   })
 
   // 6. Fire-and-forget hívás a PDF/A konverternek
@@ -258,12 +277,16 @@ export async function addPolymorphicLink(formData: FormData) {
     return { error: "Hiba történt a kapcsolat létrehozásakor: " + insertError.message }
   }
 
+  const { ip, userAgent } = await getClientInfo()
+
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyirat_id,
     esemeny_tipus: "modositva",
     user_id: user.id,
-    indoklas: `Új ${entitas_tipus} (${entitas_forras}: ${entitas_id}) kapcsolat hozzáadva.`
+    indoklas: `Új ${entitas_tipus} (${entitas_forras}: ${entitas_id}) kapcsolat hozzáadva.`,
+    ip_cim: ip,
+    user_agent: userAgent
   })
 
   revalidatePath(`/dossiers/${ugyirat_id}`)
@@ -285,12 +308,16 @@ export async function deletePolymorphicLink(id: string, ugyirat_id: string) {
     return { error: "Hiba történt a kapcsolat törlésekor." }
   }
 
+  const { ip, userAgent } = await getClientInfo()
+
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyirat_id,
     esemeny_tipus: "modositva",
     user_id: user.id,
-    indoklas: "Polimorf kapcsolat törölve."
+    indoklas: "Polimorf kapcsolat törölve.",
+    ip_cim: ip,
+    user_agent: userAgent
   })
 
   revalidatePath(`/dossiers/${ugyirat_id}`)

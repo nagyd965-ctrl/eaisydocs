@@ -254,3 +254,16 @@ body[data-scroll-locked] {
   }
 }
 .no-transitions * { transition: none !important; }
+
+/* Page fade-in animation (design system: 08-interactions-animations.md) */
+.page-animate {
+  animation: pageFadeIn 0.4s ease-out both;
+}
+
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Freeze all animations during theme switch (pause, don't reset) */
+.theme-switching * { animation-play-state: paused !important; }

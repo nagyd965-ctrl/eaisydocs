@@ -83,7 +83,7 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
   })
 
   return (
-    <div className="space-y-6">
+    <div className="page-animate space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Iktatókönyv</h1>
@@ -109,7 +109,7 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
           <TableBody>
             {mappedDossiers && mappedDossiers.length > 0 ? (
               mappedDossiers.map((dossier) => (
-                <TableRow key={dossier.id} className="hover:bg-accent/50">
+                <TableRow key={dossier.id} className="hover:bg-muted/50">
                   <TableCell className="font-medium text-primary hover:underline">
                     <Link href={`/dossiers/${dossier.id}`}>{dossier.iktatoszam}</Link>
                   </TableCell>
@@ -130,7 +130,11 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
                       </span>
                     </AssignDossierDialog>
                   </TableCell>
-                  <TableCell className="tabular-nums">{(dossier.ugy as any)?.hatarido || "-"}</TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">
+                    {(dossier.ugy as any)?.hatarido 
+                      ? new Date((dossier.ugy as any).hatarido).toLocaleDateString("hu-HU") 
+                      : "-"}
+                  </TableCell>
                 </TableRow>
               ))
             ) : (

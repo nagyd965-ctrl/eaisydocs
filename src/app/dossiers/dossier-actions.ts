@@ -48,13 +48,16 @@ export async function assignDossier(formData: FormData) {
   if (user?.user) {
     let reszletek = `Felelős frissítve.`
     if (hatarido) reszletek += ` Határidő: ${hatarido}.`
+    const { getClientInfo } = await import("@/utils/client-info")
+    const { ip, userAgent } = await getClientInfo()
     await supabase.from("esemeny_naplo").insert({
       irat_id: null,
       ugyirat_id: ugyirat_id,
       felhasznalo_id: user.user.id,
       esemeny_tipus: 'hozzaferes_modositas',
       reszletek: reszletek,
-      ip_cim: '127.0.0.1'
+      ip_cim: ip,
+      user_agent: userAgent
     })
   }
 

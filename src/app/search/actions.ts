@@ -24,12 +24,24 @@ export async function searchDocuments(query: string, filters: any = {}) {
       partner:kuldo_partner_id(nev)
     `)
 
-  // Ha van szabadszavas keresés, ráengedjük a magyar FTS motort
+  // Ha van szabadszavas keresés, ráengedjük az okos szűrőt (FTS helyett / mellett partner név kereséssel)
   if (query && query.trim() !== "") {
-    dbQuery = dbQuery.textSearch("kereso_vektor", query, {
-      config: 'hungarian',
-      type: 'websearch'
-    })
+    // 1. Megkeressük az egyező partnereket
+    const { data: matchingPartners } = await supabase
+      .from("partner")
+      .select("id")
+      .ilike("nev", `%${query}%`)
+    
+    const partnerIds = matchingPartners?.map(p => p.id) || []
+    
+    // 2. Összeállítjuk az OR feltételt (tárgy, leírás, érkeztetőszám vagy partner)
+    let orConditions = `targy.ilike.%${query}%,leiras.ilike.%${query}%,erkeztetoszam.ilike.%${query}%`
+    
+    if (partnerIds.length > 0) {
+      orConditions += `,kuldo_partner_id.in.(${partnerIds.join(",")})`
+    }
+    
+    dbQuery = dbQuery.or(orConditions)
   }
 
   // Metaadat szűrések

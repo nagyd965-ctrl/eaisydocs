@@ -108,22 +108,31 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
     }
 
     let employeeFte = 1.0;
-    const { data: profileData } = await supabase
-      .from("hr_dolgozo_adatlap")
-      .select(`
-        hr_jogviszony (
-          hr_beosztas (
-            fte
-          )
-        )
-      `)
-      .eq("id", employeeId)
+    const today = new Date().toISOString().split('T')[0];
+
+    // Az aktuálisan érvényes beosztásból kell az FTE-t kiolvasni
+    const { data: jogviszonyData } = await supabase
+      .from("hr_jogviszony")
+      .select("id")
+      .eq("dolgozo_id", employeeId)
+      .is("kilepes_datuma", null) // aktív jogviszony (kilepes_datuma IS NULL)
+      .order("belepes_datuma", { ascending: false })
+      .limit(1)
       .single()
 
-    if (profileData && profileData.hr_jogviszony && profileData.hr_jogviszony.length > 0) {
-      const beosztasok = profileData.hr_jogviszony[0].hr_beosztas
-      if (beosztasok && beosztasok.length > 0) {
-        employeeFte = beosztasok[0].fte
+    if (jogviszonyData) {
+      const { data: beosztasData } = await supabase
+        .from("hr_beosztas")
+        .select("fte, munkaido_fte")
+        .eq("jogviszony_id", jogviszonyData.id)
+        .or(`ervenyes_ig.is.null,ervenyes_ig.gte.${today}`)
+        .order("ervenyes_tol", { ascending: false })
+        .limit(1)
+        .single()
+
+      if (beosztasData) {
+        // munkaido_fte az RPC által frissített érték, fte az eredeti oszlop – a frissebbet használjuk
+        employeeFte = beosztasData.munkaido_fte ?? beosztasData.fte ?? 1.0
       }
     }
 

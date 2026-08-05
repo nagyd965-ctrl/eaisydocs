@@ -2,15 +2,17 @@ import { ArrowLeft, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { PolicyExportButton } from "@/components/policy-export-button"
 
 export default function SecurityPolicyPage() {
   return (
     <div className="flex-1 space-y-6 p-8 pt-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-4">
         <Link href="/settings" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Vissza a Beállításokhoz
         </Link>
+        <PolicyExportButton />
       </div>
 
       <div className="bg-card border rounded-lg p-8 shadow-sm prose prose-slate dark:prose-invert max-w-none">

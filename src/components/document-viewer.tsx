@@ -32,7 +32,7 @@ export function DocumentViewer({
         setUrl(null);
       }, 0)
       
-      getDocumentSignedUrl(fajl.storage_path, iratId)
+      getDocumentSignedUrl(fajl.storage_path, iratId, fajl.id)
         .then(res => {
           if (!isMounted) return;
           if (res.error) setError(res.error)

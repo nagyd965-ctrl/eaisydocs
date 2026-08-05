@@ -49,11 +49,11 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const { data: inboxItems } = await query.limit(100)
 
   return (
-    <div className="space-y-6">
+    <div className="page-animate space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Bejövő sor</h1>
-          <p className="text-muted-foreground">Érkeztetett, but not yet filed.</p>
+          <p className="text-muted-foreground">Érkeztetett, de még nem iktatott iratok.</p>
         </div>
         <div className="flex items-center gap-4">
           <FilterBar placeholder="Keresés érkeztetőszám vagy tárgy alapján..." />
@@ -104,7 +104,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                         href={`/inbox/${item.id}`}
                         className={buttonVariants({ variant: "outline", size: "sm" })}
                       >
-                        <FolderSymlink className="mr-2 h-4 w-4 text-[#02b8cc]" />
+                        <FolderSymlink className="mr-2 h-4 w-4 text-primary" />
                         Iktatás
                       </Link>
                     )}

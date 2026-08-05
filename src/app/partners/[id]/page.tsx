@@ -11,10 +11,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Building2, FolderOpen, Link as LinkIcon, Calendar, FileText } from "lucide-react"
+import { ArrowLeft, Building2, FolderOpen, Link as LinkIcon, Calendar, FileText, User, Mail, MapPin } from "lucide-react"
 import Link from "next/link"
-import { buttonVariants } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import { PartnerDialog } from "@/components/partner-dialog"
 import { getPermissions } from "@/utils/permissions"
 
@@ -64,82 +63,102 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
     .eq("entitas_tipus", "partner")
     .eq("entitas_id", partner.id)
 
+  const isCeg = partner.tipus === "ceg"
+
   return (
-    <div className="flex-1 space-y-6 p-8 pt-6 max-w-7xl mx-auto">
+    <div className="page-animate space-y-6">
       {/* Fejléc */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <Link href="/partners" className={cn(buttonVariants({ variant: "outline", size: "icon" }), "h-10 w-10 shrink-0 rounded-full")}>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" render={<Link href="/partners" />} nativeButton={false} className="shrink-0 mt-0.5">
             <ArrowLeft className="h-4 w-4" />
-          </Link>
+          </Button>
           <div>
-            <h2 className="text-3xl font-semibold tracking-tight">{partner.nev}</h2>
-            <p className="text-muted-foreground flex items-center gap-2 mt-1">
-              <Building2 className="h-4 w-4" /> Adatlap és partneri előzmények
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-semibold tracking-tight">{partner.nev}</h1>
+              <Badge variant="outline" className="text-xs">
+                {isCeg ? "Cég" : "Magánszemély"}
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
+              {isCeg ? <Building2 className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
+              Adatlap és partneri előzmények
             </p>
           </div>
         </div>
         
-        {/* Szerkesztés gomb */}
-        <div>
-          {permissions.canEdit && <PartnerDialog partner={partner} />}
-        </div>
+        {permissions.canEdit && <PartnerDialog partner={partner} />}
       </div>
 
-      {/* Áttekintés kártyák */}
-      <div className="grid gap-4 md:grid-cols-3 mb-8">
-        <Card className="shadow-none border-border bg-card/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <FileText className="h-4 w-4" /> Adószám
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{partner.adoszam || <span className="text-muted-foreground font-normal text-lg">Nincs megadva</span>}</div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-none border-border bg-card/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Building2 className="h-4 w-4" /> Cégjegyzékszám
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{partner.cegjegyzekszam || <span className="text-muted-foreground font-normal text-lg">Nincs megadva</span>}</div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-none border-border bg-card/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Calendar className="h-4 w-4" /> Rendszerbe rögzítve
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{new Date(partner.created_at).toLocaleDateString("hu-HU")}</div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Metaadat grid — kompakt definition list */}
+      <Card className="border border-border/50">
+        <CardContent className="p-0">
+          <dl className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y divide-border/50">
+            <div className="p-4">
+              <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
+                <FileText className="h-3.5 w-3.5" />
+                Adószám
+              </dt>
+              <dd className="text-sm font-semibold tabular-nums">
+                {partner.adoszam || <span className="text-muted-foreground font-normal">—</span>}
+              </dd>
+            </div>
+            <div className="p-4">
+              <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
+                <Building2 className="h-3.5 w-3.5" />
+                Cégjegyzékszám
+              </dt>
+              <dd className="text-sm font-semibold tabular-nums">
+                {partner.cegjegyzekszam || <span className="text-muted-foreground font-normal">—</span>}
+              </dd>
+            </div>
+            <div className="p-4">
+              <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
+                <Mail className="h-3.5 w-3.5" />
+                E-mail
+              </dt>
+              <dd className="text-sm font-semibold">
+                {partner.email || <span className="text-muted-foreground font-normal">—</span>}
+              </dd>
+            </div>
+            <div className="p-4">
+              <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
+                <Calendar className="h-3.5 w-3.5" />
+                Rendszerbe rögzítve
+              </dt>
+              <dd className="text-sm font-semibold tabular-nums">
+                {new Date(partner.created_at).toLocaleDateString("hu-HU")}
+              </dd>
+            </div>
+            {partner.cim && (
+              <div className="p-4 col-span-2">
+                <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
+                  <MapPin className="h-3.5 w-3.5" />
+                  Cím
+                </dt>
+                <dd className="text-sm font-semibold">
+                  {partner.cim}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </CardContent>
+      </Card>
 
       {/* Részletek fülek */}
       <Tabs defaultValue="documents" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
-          <TabsTrigger value="documents">
-            <FolderOpen className="h-4 w-4 mr-2" />
-            Küldött Iratok
-          </TabsTrigger>
-          <TabsTrigger value="links">
-            <LinkIcon className="h-4 w-4 mr-2" />
-            Csatolt Ügyek
-          </TabsTrigger>
+        <TabsList className="mb-4">
+          <TabsTrigger value="documents">Küldött Iratok</TabsTrigger>
+          <TabsTrigger value="links">Csatolt Ügyek</TabsTrigger>
         </TabsList>
 
         <TabsContent value="documents" className="space-y-4">
-          <Card className="shadow-none border-border">
-            <CardHeader>
-              <CardTitle>Partner által küldött iratok</CardTitle>
+          <Card className="border border-border/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Partner által küldött iratok</CardTitle>
               <CardDescription>A partnerhez rendelt összes bejövő érkeztetés listája.</CardDescription>
             </CardHeader>
-            <CardContent className="px-0 sm:px-6">
+            <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -151,24 +170,24 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
                 <TableBody>
                   {iratokMintKuldo && iratokMintKuldo.length > 0 ? (
                     iratokMintKuldo.map((irat) => (
-                      <TableRow key={`kuldo-${irat.id}`}>
+                      <TableRow key={`kuldo-${irat.id}`} className="hover:bg-muted/50 transition-colors">
                         <TableCell className="font-medium">
                           {irat.ugyirat_id ? (
                             <Link href={`/dossiers/${irat.ugyirat_id}`} className="hover:underline text-primary">
                               {irat.erkeztetoszam}
                             </Link>
                           ) : (
-                            <span>{irat.erkeztetoszam} <Badge variant="outline" className="ml-2">Iktatatlan</Badge></span>
+                            <span>{irat.erkeztetoszam} <Badge variant="outline" className="ml-2">Iktatlan</Badge></span>
                           )}
                         </TableCell>
                         <TableCell>{irat.targy}</TableCell>
-                        <TableCell className="text-muted-foreground">{new Date(irat.erkezes_datuma).toLocaleDateString("hu-HU")}</TableCell>
+                        <TableCell className="text-muted-foreground tabular-nums">{new Date(irat.erkezes_datuma).toLocaleDateString("hu-HU")}</TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={3} className="h-32 text-center text-muted-foreground">
-                        <FolderOpen className="h-8 w-8 mx-auto mb-3 opacity-20" />
+                      <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                        <FolderOpen className="h-8 w-8 mx-auto mb-2 opacity-20" />
                         Nem található a partnerhez rendelt irat.
                       </TableCell>
                     </TableRow>
@@ -180,12 +199,12 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
         </TabsContent>
 
         <TabsContent value="links" className="space-y-4">
-          <Card className="shadow-none border-border">
-            <CardHeader>
-              <CardTitle>Manuális Kapcsolatok (Polimorf)</CardTitle>
+          <Card className="border border-border/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Csatolt ügyek</CardTitle>
               <CardDescription>Olyan ügyiratok és iratok, ahol ez a partner hivatkozásként lett megjelölve.</CardDescription>
             </CardHeader>
-            <CardContent className="px-0 sm:px-6">
+            <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -202,7 +221,7 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
                       const ir = kapcs.irat as any;
 
                       return (
-                        <TableRow key={`kapcs-${i}`}>
+                        <TableRow key={`kapcs-${i}`} className="hover:bg-muted/50 transition-colors">
                           <TableCell>
                             <Badge variant="secondary" className="capitalize">
                               {kapcs.kapcsolat_tipusa}
@@ -231,8 +250,8 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={3} className="h-32 text-center text-muted-foreground">
-                        <LinkIcon className="h-8 w-8 mx-auto mb-3 opacity-20" />
+                      <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                        <LinkIcon className="h-8 w-8 mx-auto mb-2 opacity-20" />
                         Nincsenek csatolt ügyiratok.
                       </TableCell>
                     </TableRow>

@@ -48,10 +48,10 @@ export default async function ArchivePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="page-animate space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Irattár és Selejtezés</h1>
-        <p className="text-muted-foreground">Lezárt ügyiratok, selejtezési javaslatok és jóváhagyandó selejtezések.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Irattár és Selejtezés</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Lezárt ügyiratok, selejtezési javaslatok és jóváhagyandó selejtezések.</p>
       </div>
 
       <ArchiveClient 

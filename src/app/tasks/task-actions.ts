@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
+import { getClientInfo } from "@/utils/client-info"
 
 export async function updateTaskStatus(taskId: string, newStatus: "nyitott" | "folyamatban" | "kesz" | "elutasitott") {
   const supabase = await createClient()
@@ -21,13 +22,16 @@ export async function updateTaskStatus(taskId: string, newStatus: "nyitott" | "f
   if (user) {
     const { data: feladatData } = await supabase.from("feladat").select("ugyirat_id").eq("id", taskId).single()
     if (feladatData?.ugyirat_id) {
-       await supabase.from("esemeny_naplo").insert({
-         entitas_tipus: "ugyirat",
-         entitas_id: feladatData.ugyirat_id,
-         esemeny_tipus: "modositva",
-         user_id: user.id,
-         indoklas: `Feladat állapota módosítva: ${newStatus}`
-       })
+        const { ip, userAgent } = await getClientInfo()
+        await supabase.from("esemeny_naplo").insert({
+          entitas_tipus: "ugyirat",
+          entitas_id: feladatData.ugyirat_id,
+          esemeny_tipus: "modositva",
+          user_id: user.id,
+          indoklas: `Feladat állapota módosítva: ${newStatus}`,
+          ip_cim: ip,
+          user_agent: userAgent
+        })
     }
   }
 
@@ -57,12 +61,15 @@ export async function createTask(ugyiratId: string, leiras: string, hatarido: st
   }
 
   // Naplózás
+  const { ip, userAgent } = await getClientInfo()
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
     esemeny_tipus: "modositva",
     user_id: user.id,
-    indoklas: `Új feladat kiírva: ${leiras}`
+    indoklas: `Új feladat kiírva: ${leiras}`,
+    ip_cim: ip,
+    user_agent: userAgent
   })
 
   revalidatePath(`/dossiers/${ugyiratId}`)

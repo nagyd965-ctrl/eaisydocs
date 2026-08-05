@@ -61,14 +61,32 @@ export function IratokLista({ iratok, canEdit = true, users = [] }: IratokListaP
                 </Badge>
               </TableCell>
               <TableCell>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1.5">
                   {irat.irat_fajl && irat.irat_fajl.length > 0 ? (
                     irat.irat_fajl.map((fajl: any) => (
-                      <div key={fajl.id} className="flex items-center text-sm text-muted-foreground gap-2">
-                        <FileText className="h-3 w-3" />
+                      <div key={fajl.id} className="flex items-center text-sm text-muted-foreground gap-2 group">
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate max-w-[200px]" title={fajl.eredeti_fajlnev}>
                           {fajl.eredeti_fajlnev}
                         </span>
+                        {fajl.verzio > 1 && (
+                          <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 shrink-0">
+                            v{fajl.verzio}
+                          </Badge>
+                        )}
+                        {fajl.pdfa_path && (
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 shrink-0" title="PDF/A archív példány elérhető">
+                            PDF/A ✓
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => openViewer(fajl, irat.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted shrink-0"
+                          title="Megtekintés"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-primary" />
+                        </button>
                       </div>
                     ))
                   ) : (
@@ -103,19 +121,9 @@ export function IratokLista({ iratok, canEdit = true, users = [] }: IratokListaP
                 </div>
               </TableCell>
               <TableCell className="text-right">
-                {irat.irat_fajl && irat.irat_fajl.length > 0 && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => openViewer(irat.irat_fajl[0], irat.id)}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Megtekintés
-                  </Button>
-                )}
                 {canEdit && (
-                  <Button onClick={() => setUploadDialogOpen(true)} className="ml-2" size="sm">
-                    <Upload className="mr-2 h-4 w-4" />
+                  <Button onClick={() => setUploadDialogOpen(true)} variant="outline" size="sm">
+                    <Upload className="mr-2 h-3.5 w-3.5" />
                     Fájl
                   </Button>
                 )}
