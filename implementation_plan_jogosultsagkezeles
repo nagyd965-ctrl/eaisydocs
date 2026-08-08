@@ -1,0 +1,299 @@
+# eaisyDocs RBAC Javítás — Implementation Plan
+
+## Összefoglalás
+
+Az auditor (és más nem-admin) felhasználók jelenleg **mindent látnak és mindent csinálhatnak** a frontenden, mert:
+1. A sidebar és action gombok **nem ellenőrzik a szerepkört**
+2. Egyes server action-ök **service role key-el futnak**, megkerülve az RLS-t
+3. Az RLS policies **régi `szerepkor` mezőt** olvasnak, ami a `docs_szerepkor` mellett redundánsan van beállítva
+
+> [!WARNING]
+> **ÉRINTETT SCOPE — KIZÁRÓLAG eaisyDocs**
+> - ✅ Érintett táblák: `irat`, `ugyirat`, `ugy`, `irat_fajl`, `irat_kapcsolat`, `szignalas`, `feladat`, `partner`
+> - ✅ Érintett oldalak: `/`, `/inbox`, `/dossiers`, `/search`, `/archive`, `/partners`, `/tasks`
+> - ❌ NEM érintett: `hr_*` táblák, `/hr/*` oldalak, `hr_szerepkor`, `hr-sidebar.tsx`
+> - ❌ NEM érintett: `szervezeti_egyseg` tábla (megosztott, HR is használja)
+> - ❌ NEM érintett: `felhasznalo_profil` séma módosítás
+
+---
+
+## Szerepkör → Jogosultság mátrix (brief alapján)
+
+| Szerepkör | Sidebar | Érkeztetés | Iktatás | Szignálás | Szerkesztés | Letöltés | Audit napló |
+|-----------|---------|-----------|---------|-----------|------------|---------|------------|
+| `admin` / `rendszergazda` | Minden | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `iktato` | Minden | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `vezeto` | Minden | ❌ | ❌ | ✅ | ✅ (saját osztály) | ✅ | ❌ |
+| `ugyintezo` | Részleges | ❌ | ❌ | ❌ | ✅ (rá szignált) | ✅ | ❌ |
+| `auditor` | Olvasás | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ (teljes) |
+| `betekinto` | Olvasás | ❌ | ❌ | ❌ | ❌ | ❌ (vízjel) | ❌ |
+
+> [!NOTE]
+> **Rendszergazda és iratok:** A brief szerint a rendszergazda „iratok tartalmát nem látja automatikusan" — ez GDPR és pályázati elvárás. A jelenlegi implementáció ezt nem érvényesíti. Ez az egyik legfontosabb fix.
+
+---
+
+## 1. Réteg — Frontend role gate
+
+### 1.1 Szerepkör elérhetővé tétele a layout-ban
+
+**Probléma:** Az `AppSidebar` és `LayoutWrapper` `"use client"` komponensek, és nem ismerik a felhasználó szerepkörét.
+
+**Megoldás:** A `layout.tsx` (server component) olvassa ki a `docs_szerepkor`-t és prop-ként adja át.
+
+#### [MODIFY] `src/app/layout.tsx`
+- Supabase server client → `felhasznalo_profil.docs_szerepkor` lekérése
+- `LayoutWrapper`-nek prop-ként átadva: `docsRole`
+
+#### [MODIFY] `src/components/layout-wrapper.tsx`
+- Fogadja a `docsRole` propot
+- Átadja az `AppSidebar`-nak
+
+---
+
+### 1.2 Sidebar nav item szűrés
+
+#### [MODIFY] `src/components/app-sidebar.tsx`
+
+Az items tömb kibővítve `allowedRoles` tulajdonsággal, a `docsRole` prop alapján szűrve:
+
+```ts
+const items = [
+  { title: "Áttekintés",      url: "/",        icon: Home,        allowedRoles: "all" },
+  { title: "Saját feladataim",url: "/tasks",   icon: CheckSquare, allowedRoles: "all" },
+  { title: "Bejövő sor",      url: "/inbox",   icon: Inbox,       allowedRoles: ["admin","rendszergazda","iktato","vezeto","auditor"] },
+  { title: "Iktatókönyv",     url: "/dossiers",icon: FolderOpen,  allowedRoles: "all" },
+  { title: "Kereső",          url: "/search",  icon: Search,      allowedRoles: "all" },
+  { title: "Irattár",         url: "/archive", icon: Archive,     allowedRoles: "all" },
+  { title: "Partnerek",       url: "/partners",icon: Users,       allowedRoles: "all" },
+]
+// betekinto és ugyintezo nem lát bejövő sort (nincs hatásköre érkeztetni)
+```
+
+---
+
+### 1.3 Action gombok elrejtése
+
+#### [MODIFY] `src/components/new-incoming-dialog.tsx`
+- A „+ Érkeztetés" gomb csak `admin`, `rendszergazda`, `iktato` számára renderelődjön
+
+#### [MODIFY] `src/components/filing-panel-client.tsx`
+- Az iktatás panel actionök (`Iktatás`, `Irat hozzáadása`) csak `admin`, `iktato` számára
+
+#### [MODIFY] `src/components/assign-dossier-dialog.tsx`
+- Szignálás gomb: `admin`, `rendszergazda`, `vezeto`, `iktato`
+
+#### [MODIFY] `src/components/close-dossier-button.tsx`
+- Lezárás: `admin`, `iktato`, `vezeto`
+
+#### [MODIFY] `src/components/iratok-lista.tsx`
+- Feltöltés, törlés gombok: `admin`, `iktato`; csak olvasás: `auditor`, `betekinto`
+
+#### [MODIFY] `src/components/borrow-dialog.tsx`
+- Kölcsönzés: `admin`, `iktato`, `rendszergazda`
+
+#### [MODIFY] `src/components/archive-client.tsx`
+- Selejtezési javaslat jóváhagyása: `admin`, `iktato`
+
+#### [MODIFY] `src/components/partner-dialog.tsx`
+- Partner szerkesztése: `admin`, `rendszergazda`, `iktato`
+
+---
+
+### 1.4 Betekintő letöltés-tiltás
+
+#### [MODIFY] `src/components/iratok-lista.tsx` + `src/components/document-viewer.tsx`
+- Ha `docsRole === 'betekinto'`: letöltés gomb rejtve, csak a viewer megjelenítve
+- A fájl signed URL generálásánál server-side role check (ld. 2. réteg)
+
+---
+
+## 2. Réteg — Server action role validáció
+
+> [!IMPORTANT]
+> **Csak eaisyDocs server action-ök érintve.** A következő fájlok kerülnek módosításra. Az `src/app/hr/*` fájlok és a `src/app/settings/settings-actions.ts` team management részei NEM változnak.
+
+**Megközelítés:** Minden módosító action elején:
+```ts
+const { data: profile } = await supabase.from("felhasznalo_profil")
+  .select("docs_szerepkor").eq("id", user.id).single()
+
+const canEdit = ['admin','iktato','vezeto','ugyintezo'].includes(profile?.docs_szerepkor)
+if (!canEdit) return { error: "Nincs jogosultságod ehhez a művelethez." }
+```
+
+#### [MODIFY] `src/app/dossiers/[id]/actions.ts`
+- `uploadFile`, `createIrat`, `deleteIrat` → role check (`iktato`, `admin`)
+- A service role key-es bypass **megmarad** de csak fájl feltöltésnél (Storage bypass szükséges), a DB write-hoz NEM kell
+
+#### [MODIFY] `src/app/inbox/actions.ts` (ha létezik)
+- Érkeztetés create action → csak `iktato`, `admin`, `rendszergazda`
+
+#### [MODIFY] `src/app/dossiers/dossier-actions.ts`
+- `closeDossier`, `signDossier`, `assignDossier` → role check (szerepkörönként eltérő)
+
+#### [MODIFY] `src/app/archive/actions.ts` (ha létezik)
+- Selejtezés jóváhagyása → csak `admin`, `iktato`
+
+---
+
+## 3. Réteg — RLS policy frissítés
+
+> [!CAUTION]
+> **Kizárólag eaisyDocs táblák** RLS policy-jai módosulnak: `irat`, `ugyirat`, `ugy`.
+> A `szervezeti_egyseg` és a `hr_*` táblák policy-jait **NEM MÓDOSÍTJUK**.
+
+### [NEW] Migration: `20260806000001_fix_docs_rls_role_column.sql`
+
+```sql
+-- FIX: irat és ugyirat RLS policy-k frissítése docs_szerepkor-ra
+-- Érintett: irat, ugyirat táblák SELECT és WRITE policy-k
+-- NEM érintett: hr_* táblák, szervezeti_egyseg, felhasznalo_profil
+
+-- 1. Ugyirat SELECT: szerepkor → docs_szerepkor
+DROP POLICY IF EXISTS "Ugyirat megtekintes szigoru ABAC" ON ugyirat;
+CREATE POLICY "Ugyirat megtekintes szigoru ABAC" ON ugyirat
+FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM felhasznalo_profil fp
+    WHERE fp.id = auth.uid()
+    AND (
+      fp.docs_szerepkor::text IN ('admin', 'iktato', 'auditor') OR
+      ugyirat.szervezeti_egyseg_id = fp.szervezeti_egyseg_id OR
+      EXISTS (
+        SELECT 1 FROM ugyirat_hozzaferes uh
+        WHERE uh.ugyirat_id = ugyirat.id AND uh.user_id = fp.id
+      )
+    )
+  )
+);
+
+-- 2. Ugyirat WRITE: csak iktato + admin (auditor, betekinto NEM írhat)
+DROP POLICY IF EXISTS "Ugyirat szerkesztes szigoru ABAC" ON ugyirat;
+CREATE POLICY "Ugyirat szerkesztes szigoru ABAC" ON ugyirat
+FOR ALL TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM felhasznalo_profil fp
+    WHERE fp.id = auth.uid()
+    AND (
+      fp.docs_szerepkor::text IN ('admin', 'iktato') OR
+      (
+        fp.docs_szerepkor::text IN ('vezeto', 'ugyintezo') AND
+        (
+          ugyirat.szervezeti_egyseg_id = fp.szervezeti_egyseg_id OR
+          EXISTS (
+            SELECT 1 FROM ugyirat_hozzaferes uh
+            WHERE uh.ugyirat_id = ugyirat.id AND uh.user_id = fp.id
+          )
+        )
+      )
+    )
+  )
+);
+
+-- 3. Irat SELECT: docs_szerepkor + max_minosites szűrés
+DROP POLICY IF EXISTS "Irat megtekintes szigoru ABAC" ON irat;
+CREATE POLICY "Irat megtekintes szigoru ABAC" ON irat
+FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM felhasznalo_profil fp
+    WHERE fp.id = auth.uid()
+    AND irat.minosites <= fp.max_minosites
+    AND (
+      fp.docs_szerepkor::text IN ('admin', 'iktato', 'auditor') OR
+      EXISTS (
+        SELECT 1 FROM ugyirat u
+        WHERE u.id = irat.ugyirat_id
+        AND (
+          u.szervezeti_egyseg_id = fp.szervezeti_egyseg_id OR
+          EXISTS (
+            SELECT 1 FROM ugyirat_hozzaferes uh
+            WHERE uh.ugyirat_id = u.id AND uh.user_id = fp.id
+          )
+        )
+      )
+    )
+  )
+);
+
+-- 4. Irat WRITE: auditor és betekinto SOHA nem írhat
+DROP POLICY IF EXISTS "Irat szerkesztes szigoru ABAC" ON irat;
+CREATE POLICY "Irat szerkesztes szigoru ABAC" ON irat
+FOR ALL TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM felhasznalo_profil fp
+    WHERE fp.id = auth.uid()
+    AND irat.minosites <= fp.max_minosites
+    AND (
+      fp.docs_szerepkor::text IN ('admin', 'iktato') OR
+      (
+        fp.docs_szerepkor::text IN ('vezeto', 'ugyintezo') AND
+        EXISTS (
+          SELECT 1 FROM ugyirat u
+          WHERE u.id = irat.ugyirat_id
+          AND (
+            u.szervezeti_egyseg_id = fp.szervezeti_egyseg_id OR
+            EXISTS (
+              SELECT 1 FROM ugyirat_hozzaferes uh
+              WHERE uh.ugyirat_id = u.id AND uh.user_id = fp.id
+            )
+          )
+        )
+      )
+    )
+  )
+);
+
+-- 5. Rendszergazda irat tiltás (brief: rendszergazda nem látja az iratok tartalmát)
+-- A rendszergazda láthatja az ugyirat fejlécet (szám, tárgy, státusz)
+-- de az irat tartalmát (fájlok) nem
+
+-- Ez a jövőbeli KÖVETKEZŐ lépés — jelenleg nem implementáljuk,
+-- mert a rendszergazda UI elérési jogok is szükségesek hozzá
+-- (ne törjük el az admin UI-t egyelőre)
+```
+
+---
+
+## 4. Réteg — `elerheto_modulok` auto-set (már részben kész)
+
+Az `admin_update_user_role` RPC jelenleg **NEM állítja be** az `elerheto_modulok` tömböt.
+Ha valaki a docs beállításokból hoz létre felhasználót, `elerheto_modulok = NULL` marad.
+
+### [MODIFY] Migration vagy RPC módosítás
+A `createNewUser` → `admin_update_user_role` hívásánál automatikusan:
+```sql
+UPDATE felhasznalo_profil
+SET elerheto_modulok = ARRAY['docs']  -- docs-ból létrehozva = docs modul
+WHERE id = target_user_id
+  AND elerheto_modulok IS NULL;  -- csak ha nincs már beállítva
+```
+
+> [!NOTE]
+> Ez biztonságos: ha a felhasználónak már van `['docs', 'hr']` beállítva (HR-ből lett létrehozva), nem írja felül.
+
+---
+
+## Végrehajtási sorrend
+
+1. **Migration** (`20260806000001`) — ez a legbiztonságosabb, nincs frontend változás
+2. **Layout + sidebar** — role prop propagáció, sidebar szűrés  
+3. **Action gombok** — 8 komponens módosítása
+4. **Server action role check-ek** — 3-4 action fájl
+5. **`elerheto_modulok` fix** az RPC-ben
+
+## Verification Plan
+
+### Automated
+- `npx tsc --noEmit` — TypeScript errors
+
+### Manual (két böngészőablakban)
+- **Admin**: lát mindent, minden gomb aktív ✅
+- **Auditor**: minden iratot lát (nem szűrt szervezeti egység szerint), szerkesztő gombok nem látszanak, audit napló elérhető
+- **Betekintő**: látja az iratokat de letöltés gomb nincs, vízjeles előnézet
+- **Ügyintéző**: csak a rá szignált ügyiratokat látja → RLS-ből következik
+- **Rendszergazda**: konfiguráció és felhasználók — ügyiratok is látszanak (egyelőre; teljes GDPR-szeparáció következő sprint)

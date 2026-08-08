@@ -18,6 +18,13 @@ export async function login(formData: FormData) {
     redirect("/login?message=Hibás e-mail vagy jelszó")
   }
 
+  // MFA ellenőrzés — ha a user kétlépcsős azonosítást állított be,
+  // az AAL szint aal1 → aal2 átmenetet igényel, átirányítjuk a kód bekérő oldalra
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
+    redirect("/login/mfa-verify")
+  }
+
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
     .select("elerheto_modulok, hr_szerepkor")

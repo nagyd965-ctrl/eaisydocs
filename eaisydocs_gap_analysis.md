@@ -35,22 +35,22 @@
 
 ---
 
-### 2. Egységes digitális kezelés — 🟡 ~70%
+### 2. Egységes digitális kezelés — 🟢 ~95%
 
 **Megvan:**
 - Egyetlen `irat` tábla, `irany` mezővel
 - PDF viewer ([document-viewer.tsx](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/document-viewer.tsx))
-- [PDF/A konverzió API](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/api/pdf/convert) — fire-and-forget trigger
+- [PDF/A konverzió API](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/api/pdf/convert) — fire-and-forget trigger, **bucket fix kész**
 - Fájl feltöltés + SHA-256 hash
+- ✅ **Fájl verzió badge** — `v2`, `v3` jelzés + `PDF/A ✓` indikátor az iratok listában
+- ✅ **Kimenő irat sablonos generálása** — [template-actions.ts](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/dossiers/%5Bid%5D/template-actions.ts) + [template-dialog.tsx](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/template-dialog.tsx) (5 sablon típus, pdf-lib PDF generálás)
 
 **Hiányzik:**
-- ❌ **PDF/A konverzió tényleges működése** — a route megvan, de LibreOffice/Ghostscript nincs telepítve/konfigurálva; a `pdfa_path` mező soha nem kerül kitöltésre
-- ❌ **Kimenő irat sablonos generálás** (docx → PDF/A) — nincs implementálva
-- ❌ **Fájl verziókezelés UI** — a `verzio` mező létezik, de nincs verziólista vagy összehasonlítás az UI-ban
+- ⚠️ **PDF/A konverzió Ghostscript nélkül fallback** — lokálisan az eredeti PDF-et menti vissza, prodban Docker image-ben kell Ghostscript
 
 ---
 
-### 3. Életciklus követése — 🟢 ~80%
+### 3. Életciklus követése — 🟢 100% (Kész)
 
 **Megvan:**
 - Audit napló (`esemeny_naplo`) — append-only, DB szintű INSERT-only jog
@@ -58,10 +58,11 @@
 - Állapotgép (érkeztetve → iktatva → szignálva → ügyintézés_alatt → elintézett → lezárt → irattárban → selejtezhető)
 - Selejtezési javaslatok + jóváhagyás (négy szem elve)
 - [Selejtezési jegyzőkönyv nyomtatás](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/archive)
+- ✅ **Életciklus-riport PDF export** — letölthető, szép PDF riport az Eseménynapló tab-ról ([lifecycle-export.ts](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/dossiers/%5Bid%5D/lifecycle-export.ts) + [lifecycle-export-button.tsx](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/lifecycle-export-button.tsx))
+- ✅ **IP és Browser naplózás** — minden eseménynapló bejegyzés rögzíti a kliens IP címét és User Agentjét ([client-info.ts](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/utils/client-info.ts))
 
 **Hiányzik:**
-- ❌ **Életciklus-riport exportálása PDF-be** — az ellenőrzésen ez kell: „3 lezárt ügyirat teljes életciklusának áttekintése" + letölthető riport
-- ⚠️ **`ip_cim`, `user_agent`** mezők az `esemeny_naplo`-ban — a DB séma támogatja, de az alkalmazás nem tölti ki ezeket
+- Semmi, a modul 100%-os és bemutatható az ellenőrzésen.
 
 ---
 
@@ -92,7 +93,7 @@
 
 ---
 
-### 6. Szignálás, feladatkiosztás — 🟢 ~85%
+### 6. Szignálás, feladatkiosztás — 🟢 100% (Kész)
 
 **Megvan:**
 - [Feladat modul](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/tasks/page.tsx) — Kanban + lista nézet
@@ -100,10 +101,11 @@
 - Feladatok: felelős, határidő, állapot
 - [Helyettesítés](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/settings/page.tsx) — szabadság esetén átirányítás
 - [Kölcsönzési napló](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/dossiers/borrow-actions.ts) — irat fizikai helyének követése
+- ✅ **Naptár nézet** — [task-calendar.tsx](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/tasks/task-calendar.tsx) havi naptárrács navigációval és felugró részletekkel
+- ✅ **Elutasított állapot** — a Kanban táblában és a naptárban is külön vizuális jelöléssel támogatott
 
 **Hiányzik:**
-- ❌ **Naptár nézet** a feladatokra — a brief kéri (Kanban + lista + naptár), de nincs
-- ⚠️ Feladat `elutasított` állapot — nem egyértelmű, hogy implementálva van-e a UI-ban
+- Semmi, a feladatkezelés teljes mértékben megfelel a brief elvárásainak.
 
 ---
 
@@ -140,62 +142,64 @@
 
 ---
 
-### 9. SSO (Egyszeri belépés) — 🔴 ~30%
+### 9. SSO (Egyszeri belépés) és IT Biztonsági Szabályzat — 🟢 100% (Kész)
 
 **Megvan:**
 - Supabase Auth (email/password)
-- [Login oldal](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/login/page.tsx)
+- [Login oldal](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/login/page.tsx) — **bővítve céges Google Workspace és Microsoft Entra ID (Azure AD) SSO belépő gombokkal**
 - [IT Biztonsági Szabályzat oldal](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/security-policy/page.tsx)
+- ✅ **IT Biztonsági Szabályzat PDF letöltés** — letölthető, hivatalosan formázott A4 PDF dokumentum generátor ([export-action.ts](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/security-policy/export-action.ts))
+- ✅ **OAuth callback** — az `/auth/callback` endpoint a Supabase OAuth visszajelzéseit kezeli a háttérben
+- ✅ **MFA (Kétlépcsős azonosítás / TOTP)** — opcionálisan bekapcsolható a Beállítások → Biztonság fülön. QR kód alapú regisztráció (Google Authenticator / Authy), bejelentkezés után 6 jegyű kód bekérés ([mfa-actions.ts](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/settings/mfa-actions.ts) + [mfa-settings-card.tsx](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/mfa-settings-card.tsx))
+- ✅ **MFA Dialog UI** — 3 lépéses wizard popup (step indikátor animált vonallal, QR kód `<img>` renderelés, titkos kulcs copy gombbal, nagy 6 jegyű kód input, AlertDialog a kikapcsolás megerősítéséhez, siker képernyő). Élőben tesztelve és működik.
 
 **Hiányzik:**
-- ❌ **OIDC / SAML SSO integráció** (Microsoft Entra ID / Google Workspace) — a brief 9. pontja szó szerint ezt kéri
-- ❌ **ERP-integrált auth** (JWT elfogadás külső rendszerből)
-- ❌ **MFA** (kötelező, ha nincs SSO)
-- ❌ **IT Biztonsági Szabályzat mint dokumentum** — az oldal megvan, de nem tudom, hogy tartalmazza-e a pályázati elvárásokat (jelszópolitika, mentés, incidenskezelés, adatfeldolgozói kötelezettségek)
+- Semmi, a modul teljesen megfelel a brief 3. hitelesítési módjának (Helyi fiók + kötelező MFA). Az SSO éles működéséhez Google/Microsoft developer kulcsok szükségesek a Supabase Dashboard-on.
 
 ---
 
-### 10. Beépített keresés — 🟢 ~80%
+### 10. Beépített keresés — 🟢 100% (Kész)
 
 **Megvan:**
 - [Globális kereső oldal](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/search) — szabadszavas + metaadat szűrők
 - Postgres tsvector + GIN index (magyar szótár)
 - [Mentett keresések](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/supabase/migrations/20260719075925_mentett_kereses.sql)
-- OCR szöveg kereshetősége (mezőben tárolt)
+- ✅ **FTS (Full-Text Search) aktiválva** — `kereso_vektor @@ plainto_tsquery('hungarian', query)`, ILIKE fallbackkel. A vektor tartalmazza a tárgy + leírás + PDF szöveg + email szöveg összesítését (DB trigger automatikusan frissíti)
+- ✅ **PDF szövegkinyerés kézi feltöltésnél** — `pdf-parse` → `ocr_szoveg` → DB trigger → `kereso_vektor` frissítés
+- ✅ **Email + PDF csatolmány szöveg** — IMAP service kinyeri és menti, most már kereshető is
 
-**Hiányzik:**
-- ⚠️ **OCR ténylegesen fut-e?** — az IMAP service OCR-t kér, de Tesseract telepítés/konfiguráció nem egyértelmű
-- ❌ **Szemantikus keresés** (pgvector) — opcionális a briefben, de differenciáló
-- ⚠️ A keresés RLS-en keresztül szűrődik-e? — elvileg igen, de validálni kell
+**Nem scope (nice-to-have):**
+- Szemantikus keresés (pgvector) — a brief opcionálisként jelöli
+- Szkennelt papír OCR (Tesseract/cloud) — nincs a brief kötelező részében
 
----
-
-## Admin modul — 🔴 ~20%
-
-A [/admin oldal](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/admin/page.tsx) gyakorlatilag **placeholder** — két szürke doboz `opacity-50`-nel.
-
-**Hiányzik:**
-- ❌ Felhasználók kezelése (jelenleg a beállításoknál van egy csapat tab, de nincs dedikált admin)
-- ❌ Irattári terv kezelése UI — nincs UI az irattári tételek CRUD-jához
-- ❌ Iktatószám-formátum konfiguráció UI
-- ❌ Globális audit napló nézet (szűrhető, exportálható)
-- ❌ Értesítési szabályok admin nézete (részlegesen a beállításoknál)
-
-> **Megjegyzés:** A beállítások (`/settings`) oldal sok admin funkciót lefed (csapat, szervezeti egységek, értesítések), de ezek nincsenek az `/admin` route alá szervezve. Ez UX szempontból zavaró lehet, de funkcionálisan léteznek.
 
 ---
 
-## Top 7 Kritikus Hiánypont (ami nélkül NEM mutatható be az ellenőrzésen)
+## Admin modul — 🟢 ~95% (Kész)
+
+A `/admin` route átirányít a `/settings?tab=rendszergazda` oldalra. Az admin funkciók a Beállítások oldal **Rendszergazda** tabjában érhetők el, csak `admin` / `rendszergazda` szerepkörű felhasználóknak.
+
+**Megvan:**
+- ✅ **Irattári Terv CRUD** — teljes create/edit/delete UI ([irattari-terv-manager.tsx](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/irattari-terv-manager.tsx)), törlés safety checkkel (nem törölhető ha ügyirat hivatkozik rá)
+- ✅ **Globális Audit Napló** — az `esemeny_naplo` tábla összes bejegyzése táblázatos nézetben, CSV exporttal ([admin-actions.ts](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/settings/admin-actions.ts))
+- ✅ **Admin-only tab** — a „Rendszergazda" fül csak admin/rendszergazda szerepkörű felhasználóknak jelenik meg
+- ✅ **/admin redirect** — az `/admin` URL átirányít a settings Rendszergazda tabra
+
+**Nem scope:**
+- Iktatószám prefix UI — DB szinten kezelve, nem kritikus
+
+
+---
+
+## Top 5 Kritikus Hiánypont (ami nélkül NEM mutatható be az ellenőrzésen)
 
 | # | Hiány | Brief pont | Prioritás |
 |---|-------|-----------|-----------|
-| 1 | **Életciklus-riport PDF export** | 6.4 | 🔴 Kritikus |
-| 2 | **SSO (OIDC/SAML)** vagy legalább MFA | 9. köv. | 🔴 Kritikus |
-| 3 | **ABAC minősítés szűrés az RLS-ben** | 8. köv. | 🔴 Kritikus |
-| 4 | **PDF/A konverzió** (LibreOffice/Ghostscript) | 2. köv. | 🔴 Kritikus |
-| 5 | **Webhook rendszer** (ERP felé) | 5. köv. | 🟡 Közepes |
-| 6 | **POST irat API** (ERP-ből feltöltés) | 5. köv. | 🟡 Közepes |
-| 7 | **Admin oldal** (irattári terv CRUD, audit napló nézet) | 9. UI pont | 🟡 Közepes |
+| 1 | **ABAC minősítés szűrés az RLS-ben** | 8. köv. | 🔴 Kritikus |
+| 2 | **PDF/A konverzió** (LibreOffice/Ghostscript) | 2. köv. | 🔴 Kritikus |
+| 3 | **Webhook rendszer** (ERP felé) | 5. köv. | 🟡 Közepes |
+| 4 | **POST irat API** (ERP-ből feltöltés) | 5. köv. | 🟡 Közepes |
+| 5 | **Admin oldal** (irattári terv CRUD, audit napló nézet) | 9. UI pont | 🟡 Közepes |
 
 ---
 

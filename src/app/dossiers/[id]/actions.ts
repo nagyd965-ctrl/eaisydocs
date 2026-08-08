@@ -177,6 +177,19 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
 
   const hash = crypto.createHash('sha256').update(buffer).digest('hex')
 
+  // PDF szöveg kinyerése a teljes szöveges kereséshez (FTS)
+  let ocr_szoveg: string | null = null
+  if (file.type === "application/pdf") {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const pdfParse = require("pdf-parse")
+      const pdfData = await pdfParse(buffer)
+      ocr_szoveg = pdfData.text || null
+    } catch (e) {
+      console.warn("Nem sikerült kinyerni a szöveget a PDF-ből (dossier upload):", e)
+    }
+  }
+
   // 2. Számoljuk ki az alszámot az irathoz
   const { data: iratok } = await supabase
     .from("irat")
@@ -213,7 +226,8 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
       mime_type: file.type,
       meret_byte: file.size,
       sha256: hash,
-      verzio: 1
+      verzio: 1,
+      ocr_szoveg
     })
     .select("id")
     .single()

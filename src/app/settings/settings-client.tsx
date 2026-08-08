@@ -22,8 +22,11 @@ import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
 import { createSubstitution, deleteSubstitution } from "./substitution-actions"
+import { MfaSettingsCard } from "@/components/mfa-settings-card"
+import { IrattariTervManager } from "@/components/irattari-terv-manager"
+import { Archive, ScrollText, Download, Filter } from "lucide-react"
 
-export function SettingsClient({ initialProfile, email, teamMembers, departments, szabalyok, naplo, helyettesitesek = [], isAdmin }: { initialProfile: any, email: string | undefined, teamMembers: any[], departments?: any[], szabalyok?: any[], naplo?: any[], helyettesitesek?: any[], isAdmin?: boolean }) {
+export function SettingsClient({ initialProfile, email, teamMembers, departments, szabalyok, naplo, helyettesitesek = [], isAdmin, totpFactor, irattariTervek = [], adminAuditNaplo = [] }: { initialProfile: any, email: string | undefined, teamMembers: any[], departments?: any[], szabalyok?: any[], naplo?: any[], helyettesitesek?: any[], isAdmin?: boolean, totpFactor?: any, irattariTervek?: any[], adminAuditNaplo?: any[] }) {
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -756,6 +759,9 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
         </form>
         </Card>
 
+        {/* Kétlépcsős azonosítás (MFA) */}
+        <MfaSettingsCard totpFactor={totpFactor ?? null} />
+
         {/* Hivatalos dokumentumok */}
         <Card className="border-border shadow-sm bg-primary/5 border-primary/20">
           <CardHeader className="pb-4">
@@ -972,6 +978,113 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
           </Card>
         )}
       </TabsContent>
+
+      {/* RENDSZERGAZDA TAB — csak adminoknak */}
+      {isAdmin && (
+        <TabsContent value="rendszergazda" className="space-y-6 outline-none">
+
+          {/* Irattári terv */}
+          <Card className="border-border/50 shadow-none">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <Archive className="h-5 w-5 text-primary" />
+                <CardTitle className="text-xl">Irattári Terv</CardTitle>
+              </div>
+              <CardDescription>
+                Irányadó megőrzési idők és selejtezési szabályok kezelése. Az iktatásnál és selejtezésnél ezekre hivatkoznak az ügyiratok.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <IrattariTervManager initialTervek={irattariTervek} />
+            </CardContent>
+          </Card>
+
+          {/* Globális Audit Napló */}
+          <Card className="border-border/50 shadow-none">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ScrollText className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-xl">Globális Audit Napló</CardTitle>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-border/50"
+                  onClick={() => {
+                    const rows = adminAuditNaplo.map((e: any) => [
+                      e.letrehozva,
+                      e.esemeny_tipus,
+                      e.felhasznalo_nev || e.user_id,
+                      e.entitas_tipus,
+                      e.entitas_id,
+                      e.ip_cim || "",
+                      e.indoklas || "",
+                    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n")
+                    const csv = `Dátum,Esemény,Felhasználó,Entìtás típus,Entìtás ID,IP cím,Indoklás\n` + rows
+                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement("a")
+                    a.href = url
+                    a.download = `audit_naplo_${new Date().toISOString().slice(0,10)}.csv`
+                    a.click()
+                  }}
+                >
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  CSV export
+                </Button>
+              </div>
+              <CardDescription>
+                Az összes rendszeresemény naplója — append-only, nem módosítható. (Legutolsó 200 bejegyzés)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {adminAuditNaplo.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <ScrollText className="h-8 w-8 text-muted-foreground/40 mb-3" />
+                  <p className="text-sm text-muted-foreground">Nem található naplóbejegyzés.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border/50 bg-muted/30">
+                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Dátum</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Esemény</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Felhasználó</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Entìtás</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">IP cím</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Indoklás</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminAuditNaplo.map((e: any) => (
+                        <tr key={e.id} className="border-b border-border/20 last:border-0 hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-2.5 tabular-nums text-muted-foreground whitespace-nowrap">
+                            {new Date(e.letrehozva).toLocaleString("hu-HU", { dateStyle: "short", timeStyle: "short" })}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <Badge className="text-[10px] px-1.5 py-0 h-4 border-0 bg-primary/10 text-primary font-mono">
+                              {e.esemeny_tipus}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-2.5 font-medium">{e.felhasznalo_nev || e.user_id?.slice(0,8)}</td>
+                          <td className="px-4 py-2.5 text-muted-foreground">
+                            <span className="font-mono">{e.entitas_tipus}</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-muted-foreground font-mono">{e.ip_cim || "—"}</td>
+                          <td className="px-4 py-2.5 text-muted-foreground max-w-[200px] truncate">{e.indoklas || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+        </TabsContent>
+      )}
     </>
   )
 }

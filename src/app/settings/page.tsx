@@ -1,6 +1,7 @@
 import { getUserProfile, getTeamMembers, getDepartments } from "./settings-actions"
+import { getIrattariTervek, getGlobalisAuditNaplo } from "./admin-actions"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Info, User, Building, Bell, Monitor, Shield, Users, Plane } from "lucide-react"
+import { Info, User, Building, Bell, Monitor, Shield, Users, Plane, Settings2 } from "lucide-react"
 import { SettingsClient } from "./settings-client"
 import { createClient } from "@/utils/supabase/server"
 
@@ -36,6 +37,15 @@ export default async function SettingsPage() {
   }
 
   const { data: userData } = await supabase.auth.getUser()
+
+  // MFA faktorok lekérése
+  const { data: mfaData } = await supabase.auth.mfa.listFactors()
+  const totpFactor = mfaData?.totp?.find((f: any) => f.status === "verified") ?? null
+
+  // Admin adatok (csak adminoknak)
+  const irattariTervek = isAdmin ? await getIrattariTervek() : []
+  const adminAuditNaplo = isAdmin ? await getGlobalisAuditNaplo() : []
+
   const { data: helyettesitesek } = await supabase
     .from("helyettesites")
     .select(`
@@ -113,6 +123,15 @@ export default async function SettingsPage() {
             <Shield className="h-4 w-4 mr-2" />
             Biztonság
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger 
+              value="rendszergazda" 
+              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3 ml-auto text-primary"
+            >
+              <Settings2 className="h-4 w-4 mr-2" />
+              Rendszergazda
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <SettingsClient 
@@ -124,6 +143,9 @@ export default async function SettingsPage() {
           naplo={naplo || []}
           helyettesitesek={helyettesitesek || []}
           isAdmin={isAdmin}
+          totpFactor={totpFactor}
+          irattariTervek={irattariTervek}
+          adminAuditNaplo={adminAuditNaplo}
         />
       </Tabs>
     </div>

@@ -5,58 +5,86 @@ import { createClient } from "@/utils/supabase/server"
 export async function searchDocuments(query: string, filters: any = {}) {
   const supabase = await createClient()
 
-  let dbQuery = supabase
-    .from("irat")
-    .select(`
-      id, 
-      targy, 
-      leiras, 
-      erkeztetoszam, 
-      irany, 
-      minosites, 
-      erkezes_datuma,
-      ugyirat_id,
-      ugyirat!inner(
-        iktatoszam, 
-        statusz,
-        ugy!inner(targy, felelos_user_id)
-      ),
-      partner:kuldo_partner_id(nev)
-    `)
+  const baseSelect = `
+    id, 
+    targy, 
+    leiras, 
+    erkeztetoszam, 
+    irany, 
+    minosites, 
+    erkezes_datuma,
+    ugyirat_id,
+    ugyirat!inner(
+      iktatoszam, 
+      statusz,
+      ugy!inner(targy, felelos_user_id)
+    ),
+    partner:kuldo_partner_id(nev)
+  `
 
-  // Ha van szabadszavas keresés, ráengedjük az okos szűrőt (FTS helyett / mellett partner név kereséssel)
+  // ── 1. Szöveges keresés: FTS (kereso_vektor) → ILIKE fallback ──
+  let searchResults: any[] | null = null
+
   if (query && query.trim() !== "") {
-    // 1. Megkeressük az egyező partnereket
-    const { data: matchingPartners } = await supabase
-      .from("partner")
-      .select("id")
-      .ilike("nev", `%${query}%`)
-    
-    const partnerIds = matchingPartners?.map(p => p.id) || []
-    
-    // 2. Összeállítjuk az OR feltételt (tárgy, leírás, érkeztetőszám vagy partner)
-    let orConditions = `targy.ilike.%${query}%,leiras.ilike.%${query}%,erkeztetoszam.ilike.%${query}%`
-    
-    if (partnerIds.length > 0) {
-      orConditions += `,kuldo_partner_id.in.(${partnerIds.join(",")})`
+    const cleanQuery = query.trim()
+
+    // Elsődleges: Postgres FTS (tsvector) — GIN index, kereso_vektor tartalmazza
+    // a targy + leiras + ocr_szoveg (PDF szöveg, email szöveg) összesítését
+    const { data: ftsData, error: ftsError } = await supabase
+      .from("irat")
+      .select(baseSelect)
+      .textSearch("kereso_vektor", cleanQuery, {
+        type: "plain",       // plainto_tsquery — kezeli a szóközöket, egyszerű
+        config: "hungarian", // magyar szótár (ékezetek, toldalékok)
+      })
+      .order("erkezes_datuma", { ascending: false })
+      .limit(50)
+
+    if (!ftsError && ftsData && ftsData.length > 0) {
+      searchResults = ftsData
+    } else {
+      // Fallback: ILIKE a tárgy, leírás, érkeztetőszám mezőkön
+      // (ha a kereso_vektor üres, vagy a szó nem szerepel a szótárban)
+      const { data: matchingPartners } = await supabase
+        .from("partner")
+        .select("id")
+        .ilike("nev", `%${cleanQuery}%`)
+
+      const partnerIds = matchingPartners?.map(p => p.id) || []
+      let orConditions = `targy.ilike.%${cleanQuery}%,leiras.ilike.%${cleanQuery}%,erkeztetoszam.ilike.%${cleanQuery}%`
+      if (partnerIds.length > 0) {
+        orConditions += `,kuldo_partner_id.in.(${partnerIds.join(",")})`
+      }
+
+      const { data: ilikeData } = await supabase
+        .from("irat")
+        .select(baseSelect)
+        .or(orConditions)
+        .order("erkezes_datuma", { ascending: false })
+        .limit(50)
+
+      searchResults = ilikeData ?? []
     }
-    
-    dbQuery = dbQuery.or(orConditions)
   }
 
-  // Metaadat szűrések
+  // ── 2. Metaadat szűrők (a szöveges találatokra, vagy az összes iratra) ──
+  let dbQuery = supabase.from("irat").select(baseSelect)
+
+  if (searchResults !== null) {
+    // Van szöveges keresés — a találatokat az ID-k alapján szűrjük tovább
+    const ids = searchResults.map(r => r.id)
+    if (ids.length === 0) return { data: [], error: null }
+    dbQuery = dbQuery.in("id", ids)
+  }
+
   if (filters.minosites && filters.minosites !== "all") {
     dbQuery = dbQuery.eq("minosites", filters.minosites)
   }
   if (filters.irany && filters.irany !== "all") {
     dbQuery = dbQuery.eq("irany", filters.irany)
   }
-  
   if (filters.iktatoszam) {
     dbQuery = dbQuery.ilike("ugyirat.iktatoszam", `%${filters.iktatoszam}%`)
-    // IMPORTANT: Since iktatoszam is on ugyirat, we need to make sure the join filters inner rows if we want to exclude irat. 
-    // Supabase JS ilike on joined tables filters the inner joined object (sets it to null if no match). 
-    // To filter the parent rows, we must use !inner in the select string.
   }
   if (filters.erkeztetoszam) {
     dbQuery = dbQuery.ilike("erkeztetoszam", `%${filters.erkeztetoszam}%`)
@@ -70,8 +98,7 @@ export async function searchDocuments(query: string, filters: any = {}) {
   if (filters.partner) {
     dbQuery = dbQuery.ilike("partner.nev", `%${filters.partner}%`)
   }
-  
-  // Alapértelmezetten a legújabb elöl
+
   const { data, error } = await dbQuery.order("erkezes_datuma", { ascending: false }).limit(50)
 
   if (error) {
@@ -81,6 +108,8 @@ export async function searchDocuments(query: string, filters: any = {}) {
 
   return { data, error: null }
 }
+
+
 
 export async function saveSearch(name: string, query: string, filters: any) {
   const supabase = await createClient()
