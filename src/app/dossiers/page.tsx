@@ -47,7 +47,7 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
   const { data: authUser } = await supabase.auth.getUser()
   const { data: currentUserProfile } = await supabase
     .from("felhasznalo_profil")
-    .select('docs_szerepkor')
+    .select('docs_szerepkor, szervezeti_egyseg_id')
     .eq("id", authUser?.user?.id || "")
     .single()
   
@@ -116,19 +116,27 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
                   <TableCell>{(dossier.ugy as any)?.targy}</TableCell>
                   <TableCell><StatusBadge status={dossier.statusz} /></TableCell>
                   <TableCell>
-                    <AssignDossierDialog 
-                      ugyirat_id={dossier.id} 
-                      ugy_id={(dossier.ugy as any)?.id} 
-                      szervezeti_egyseg_id={dossier.szervezeti_egyseg_id}
-                      users={users || []}
-                      currentFelelosId={(dossier.ugy as any)?.felelos_user_id}
-                      currentHatarido={(dossier.ugy as any)?.hatarido}
-                      canAssign={canAssign}
-                    >
-                      <span className={canAssign ? "cursor-pointer hover:underline" : ""}>
-                        {((dossier.ugy as any)?.felelos_user as any)?.full_name || <span className="italic text-muted-foreground">Kiosztatlan</span>}
-                      </span>
-                    </AssignDossierDialog>
+                    {(() => {
+                      const isVezeto = currentUserProfile?.docs_szerepkor === "vezeto"
+                      const userCanAssign = isVezeto 
+                        ? (dossier.szervezeti_egyseg_id === currentUserProfile?.szervezeti_egyseg_id) 
+                        : canAssign
+                      return (
+                        <AssignDossierDialog 
+                          ugyirat_id={dossier.id} 
+                          ugy_id={(dossier.ugy as any)?.id} 
+                          szervezeti_egyseg_id={dossier.szervezeti_egyseg_id}
+                          users={users || []}
+                          currentFelelosId={(dossier.ugy as any)?.felelos_user_id}
+                          currentHatarido={(dossier.ugy as any)?.hatarido}
+                          canAssign={userCanAssign}
+                        >
+                          <span className={userCanAssign ? "cursor-pointer hover:underline" : ""}>
+                            {((dossier.ugy as any)?.felelos_user as any)?.full_name || <span className="italic text-muted-foreground">Kiosztatlan</span>}
+                          </span>
+                        </AssignDossierDialog>
+                      )
+                    })()}
                   </TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
                     {(dossier.ugy as any)?.hatarido 

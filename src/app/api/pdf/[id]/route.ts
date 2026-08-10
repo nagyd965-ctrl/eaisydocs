@@ -22,6 +22,14 @@ export async function GET(
     return new NextResponse("Nincs bejelentkezve", { status: 401 })
   }
 
+  // Fetch user role
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+  const isBetekinto = profile?.docs_szerepkor === "betekinto"
+
   // 2. Fetch document details
   const { data: irat } = await supabase
     .from("irat")
@@ -54,6 +62,9 @@ export async function GET(
 
   // Only handle PDFs
   if (fajl.mime_type !== "application/pdf") {
+    if (isBetekinto) {
+      return new NextResponse("Betekinto szerepkorrel csak PDF előnézet érhető el (letöltés tiltott).", { status: 403 })
+    }
     // If not a PDF, redirect to a standard signed URL (we only watermark PDFs for now)
     const { data: signedUrlData } = await supabase.storage
       .from("irat_files")
@@ -66,7 +77,7 @@ export async function GET(
   }
 
   // 4. Determine if watermarking is needed
-  const isConfidential = irat.minosites === "bizalmas" || irat.minosites === "szigoruan_bizalmas"
+  const isConfidential = isBetekinto || irat.minosites === "bizalmas" || irat.minosites === "szigoruan_bizalmas"
 
   // We need to bypass RLS to download the file if we want to modify it server-side, 
   // or we can use the user's client if they have RLS access. 
@@ -90,16 +101,16 @@ export async function GET(
       if (adminDownloadError || !adminFileData) {
         return new NextResponse("Fájl letöltése sikertelen", { status: 500 })
       }
-      return await processPdf(adminFileData, isConfidential, user.email || user.id)
+      return await processPdf(adminFileData, isConfidential, isBetekinto, user.email || user.id)
     }
     
     return new NextResponse("Fájl letöltése sikertelen (RLS / Jogosultság hiba)", { status: 403 })
   }
 
-  return await processPdf(fileData, isConfidential, user.email || user.id)
+  return await processPdf(fileData, isConfidential, isBetekinto, user.email || user.id)
 }
 
-async function processPdf(fileBlob: Blob, isConfidential: boolean, userIdentifier: string) {
+async function processPdf(fileBlob: Blob, isConfidential: boolean, isBetekinto: boolean, userIdentifier: string) {
   const arrayBuffer = await fileBlob.arrayBuffer()
   
   if (!isConfidential) {
@@ -125,7 +136,9 @@ async function processPdf(fileBlob: Blob, isConfidential: boolean, userIdentifie
     
     // Replace hungarian accents with english counterparts to avoid font rendering errors in default Helvetica
     const safeIdentifier = userIdentifier.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    const watermarkText = `BIZALMAS\n${safeIdentifier}\n${timestamp}`
+    const watermarkText = isBetekinto 
+      ? `BETEKINTO\n${safeIdentifier}\n${timestamp}`
+      : `BIZALMAS\n${safeIdentifier}\n${timestamp}`
 
     // Add watermark to each page
     pages.forEach((page) => {

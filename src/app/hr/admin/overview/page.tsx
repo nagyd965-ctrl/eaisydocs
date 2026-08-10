@@ -5,9 +5,23 @@ import { Users, UserPlus, CalendarX, Briefcase, AlertCircle, Clock, ChevronRight
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { ReassignLeavesButton } from "@/components/hr/reassign-leaves-button"
+import { redirect } from "next/navigation"
 
 export default async function HrOverviewPage() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect("/login")
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda", "auditor"].includes(profile?.hr_szerepkor || "")
+  if (!isHrOrAdmin) {
+    redirect("/hr/self-service/profile")
+  }
 
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

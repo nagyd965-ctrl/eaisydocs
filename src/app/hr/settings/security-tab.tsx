@@ -11,8 +11,9 @@ import { Key, Clock, Save, ShieldCheck } from "lucide-react"
 import { updateUserPassword, updateProfile } from "@/app/settings/settings-actions"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { MfaSettingsCard } from "@/components/mfa-settings-card"
 
-export function SecuritySettingsTab({ initialTimeout }: { initialTimeout: number }) {
+export function SecuritySettingsTab({ initialTimeout, totpFactor }: { initialTimeout: number, totpFactor: any }) {
   const router = useRouter()
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
@@ -36,7 +37,8 @@ export function SecuritySettingsTab({ initialTimeout }: { initialTimeout: number
   }
 
   return (
-      <TabsContent value="biztonsag" className="space-y-4 outline-none">
+      <TabsContent value="biztonsag" className="space-y-6 outline-none">
+        <div className="space-y-6">
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-4">
             <div className="flex items-center space-x-2">
@@ -133,7 +135,9 @@ export function SecuritySettingsTab({ initialTimeout }: { initialTimeout: number
             </Button>
           </CardFooter>
         </form>
-        </Card>
+         </Card>
+         <MfaSettingsCard totpFactor={totpFactor} />
+        </div>
       </TabsContent>
   )
 }

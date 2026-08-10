@@ -15,6 +15,43 @@ export async function assignDossier(formData: FormData) {
 
   const supabase = await createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("docs_szerepkor, szervezeti_egyseg_id")
+    .eq("id", user.id)
+    .single()
+
+  const userRole = profile?.docs_szerepkor || "ugyintezo"
+  const isAllowed = ["admin", "rendszergazda", "iktato", "vezeto"].includes(userRole)
+  if (!isAllowed) {
+    return { error: "Nincs jogosultságod az ügyirat kiosztásához/szignálásához." }
+  }
+
+  if (userRole === "vezeto") {
+    const { data: ugyirat } = await supabase
+      .from("ugyirat")
+      .select("szervezeti_egyseg_id")
+      .eq("id", ugyirat_id)
+      .single()
+
+    const { data: explicitAccess } = await supabase
+      .from("ugyirat_hozzaferes")
+      .select("id")
+      .eq("ugyirat_id", ugyirat_id)
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    const hasExplicit = !!explicitAccess
+    const inDept = ugyirat?.szervezeti_egyseg_id === profile?.szervezeti_egyseg_id
+
+    if (!inDept && !hasExplicit) {
+      return { error: "Vezetőként csak a saját osztályodhoz tartozó ügyiratokat oszthatod ki." }
+    }
+  }
+
   // 1. Update the ugy table
   const updateData: any = {}
   if (felelos_user_id) {
@@ -44,8 +81,7 @@ export async function assignDossier(formData: FormData) {
   }
 
   // 3. Log event
-  const { data: user } = await supabase.auth.getUser()
-  if (user?.user) {
+  if (user) {
     let reszletek = `Felelős frissítve.`
     if (hatarido) reszletek += ` Határidő: ${hatarido}.`
     const { getClientInfo } = await import("@/utils/client-info")
@@ -53,7 +89,7 @@ export async function assignDossier(formData: FormData) {
     await supabase.from("esemeny_naplo").insert({
       irat_id: null,
       ugyirat_id: ugyirat_id,
-      felhasznalo_id: user.user.id,
+      felhasznalo_id: user.id,
       esemeny_tipus: 'hozzaferes_modositas',
       reszletek: reszletek,
       ip_cim: ip,

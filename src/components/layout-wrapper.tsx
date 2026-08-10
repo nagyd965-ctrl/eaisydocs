@@ -17,7 +17,15 @@ function DynamicSidebarTrigger() {
 }
 
 
-export function LayoutWrapper({ children }: { children: React.ReactNode }) {
+export function LayoutWrapper({ 
+  children, 
+  docsRole,
+  hrRole
+}: { 
+  children: React.ReactNode; 
+  docsRole?: string;
+  hrRole?: string;
+}) {
   const pathname = usePathname()
   const [timeoutMinutes, setTimeoutMinutes] = useState<number | null>(null)
   
@@ -58,7 +66,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <div className="print:hidden h-full flex flex-col z-50">
-        {pathname.startsWith("/hr") ? <HrSidebar /> : <AppSidebar />}
+        {pathname.startsWith("/hr") ? <HrSidebar hrRole={hrRole} /> : <AppSidebar docsRole={docsRole} />}
       </div>
       {timeoutMinutes && <SessionTimeout timeoutMinutes={timeoutMinutes} />}
       <main className="flex-1 w-full overflow-hidden flex flex-col relative print:overflow-visible">

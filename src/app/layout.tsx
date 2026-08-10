@@ -16,11 +16,36 @@ export const metadata: Metadata = {
   description: "Elektronikus iratkezelő rendszer",
 };
 
-export default function RootLayout({
+import { createClient } from "@/utils/supabase/server";
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabase = await createClient();
+  let docsRole = "ugyintezo";
+  let hrRole = "munkavallalo";
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("felhasznalo_profil")
+        .select("docs_szerepkor, hr_szerepkor")
+        .eq("id", user.id)
+        .single();
+      if (profile?.docs_szerepkor) {
+        docsRole = profile.docs_szerepkor;
+      }
+      if (profile?.hr_szerepkor) {
+        hrRole = profile.hr_szerepkor;
+      }
+    }
+  } catch (e) {
+    console.error("Error fetching user role in layout:", e);
+  }
+
   return (
     <html
       lang="hu"
@@ -35,7 +60,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider>
-            <LayoutWrapper>
+            <LayoutWrapper docsRole={docsRole} hrRole={hrRole}>
               {children}
             </LayoutWrapper>
             <Toaster />

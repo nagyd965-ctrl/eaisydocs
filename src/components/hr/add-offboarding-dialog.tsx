@@ -66,7 +66,7 @@ export function AddOffboardingDialog({ employees }: AddOffboardingDialogProps) {
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="employee">Dolgozó kiválasztása</Label>
-              <Select value={selectedId} onValueChange={setSelectedId} required>
+              <Select value={selectedId} onValueChange={(val) => setSelectedId(val || "")} required>
                 <SelectTrigger id="employee">
                   <SelectValue placeholder="Válassz dolgozót..." />
                 </SelectTrigger>

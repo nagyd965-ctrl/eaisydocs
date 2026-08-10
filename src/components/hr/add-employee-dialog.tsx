@@ -24,7 +24,11 @@ export function AddEmployeeDialog({ availableUsers, jobs, candidates = [], custo
     "hr_munkatars": "HR Munkatárs",
     "hr_vezeto": "HR Vezető (Igazgató)",
     "berugyi": "Bérügyi / Bérszámfejtő",
-    "admin": "Rendszergazda (Admin)"
+    "admin": "Admin",
+    "toborzo": "Toborzó (ATS)",
+    "munkavedelmi": "Munkavédelmi Felelős",
+    "rendszergazda": "Rendszergazda (IT)",
+    "auditor": "Auditor (Könyvvizsgáló)"
   }
 
   const [formData, setFormData] = useState({
@@ -171,7 +175,11 @@ export function AddEmployeeDialog({ availableUsers, jobs, candidates = [], custo
                 <SelectItem value="hr_munkatars">HR Munkatárs</SelectItem>
                 <SelectItem value="hr_vezeto">HR Vezető (Igazgató)</SelectItem>
                 <SelectItem value="berugyi">Bérügyi / Bérszámfejtő</SelectItem>
-                <SelectItem value="admin">Rendszergazda (Admin)</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="toborzo">Toborzó (ATS)</SelectItem>
+                <SelectItem value="munkavedelmi">Munkavédelmi Felelős</SelectItem>
+                <SelectItem value="rendszergazda">Rendszergazda (IT)</SelectItem>
+                <SelectItem value="auditor">Auditor (Könyvvizsgáló)</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -4,12 +4,68 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { getClientInfo } from "@/utils/client-info"
 
+async function checkDossierWritePermission(supabase: any, user: any, ugyiratId: string) {
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("docs_szerepkor, szervezeti_egyseg_id")
+    .eq("id", user.id)
+    .single()
+
+  if (!profile) {
+    return { error: "Felhasználói profil nem található." }
+  }
+
+  const userRole = profile.docs_szerepkor || "ugyintezo"
+  const isSzuper = ["admin", "iktato"].includes(userRole)
+  
+  if (isSzuper) {
+    return { success: true, profile }
+  }
+
+  const { data: ugyirat } = await supabase
+    .from("ugyirat")
+    .select("szervezeti_egyseg_id, ugy ( felelos_user_id )")
+    .eq("id", ugyiratId)
+    .single()
+
+  const { data: explicitAccess } = await supabase
+    .from("ugyirat_hozzaferes")
+    .select("id")
+    .eq("ugyirat_id", ugyiratId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+  
+  const hasExplicit = !!explicitAccess
+
+  if (userRole === "vezeto") {
+    const inDept = ugyirat?.szervezeti_egyseg_id === profile.szervezeti_egyseg_id
+    if (!inDept && !hasExplicit) {
+      return { error: "Nincs jogosultságod ehhez a művelethez a szervezeti egységeden kívül." }
+    }
+  } else if (userRole === "ugyintezo") {
+    const isAssigned = (ugyirat?.ugy as any)?.felelos_user_id === user.id
+    if (!isAssigned && !hasExplicit) {
+      return { error: "Nincs jogosultságod ehhez a művelethez, mivel nem vagy felelőse az ügyiratnak." }
+    }
+  } else {
+    return { error: "Nincs jogosultságod ehhez a művelethez." }
+  }
+
+  return { success: true, profile }
+}
+
 export async function closeDossier(ugyiratId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     return { error: "Nincs bejelentkezve." }
+  }
+
+  const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
+  if (permCheck.error) return { error: permCheck.error }
+  if (permCheck.profile.docs_szerepkor === "ugyintezo") {
+    return { error: "Ügyintéző nem zárhat le ügyiratot." }
   }
 
   // Lekérjük az ügyiratot és az irattári tervet
@@ -83,6 +139,9 @@ export async function addComment(ugyiratId: string, text: string) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return { error: "Nincs bejelentkezve." }
+
+  const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
+  if (permCheck.error) return { error: permCheck.error }
   if (!text.trim()) return { error: "A megjegyzés nem lehet üres." }
 
   const { error } = await supabase
@@ -117,6 +176,9 @@ export async function updateDossierStatus(ugyiratId: string, ugyId: string, newS
 
   if (!user) return { error: "Nincs bejelentkezve." }
 
+  const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
+  if (permCheck.error) return { error: permCheck.error }
+
   // Check if valid status transition
   if (!["ugyintezes_alatt", "elintezett"].includes(newStatus)) {
     return { error: "Érvénytelen státusz." }
@@ -150,6 +212,9 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return { error: "Nincs bejelentkezve." }
+
+  const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
+  if (permCheck.error) return { error: permCheck.error }
 
   const targy = formData.get("targy") as string
   const file = formData.get("file") as File | null
@@ -266,6 +331,10 @@ export async function addPolymorphicLink(formData: FormData) {
   if (!user) return { error: "Nincs bejelentkezve." }
 
   const ugyirat_id = formData.get("ugyirat_id") as string
+
+  const permCheck = await checkDossierWritePermission(supabase, user, ugyirat_id)
+  if (permCheck.error) return { error: permCheck.error }
+
   const irat_id = formData.get("irat_id") as string || null
   const entitas_tipus = formData.get("entitas_tipus") as string
   const entitas_forras = formData.get("entitas_forras") as string
@@ -312,6 +381,9 @@ export async function deletePolymorphicLink(id: string, ugyirat_id: string) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return { error: "Nincs bejelentkezve." }
+
+  const permCheck = await checkDossierWritePermission(supabase, user, ugyirat_id)
+  if (permCheck.error) return { error: permCheck.error }
 
   const { error: deleteError } = await supabase
     .from("irat_kapcsolat")

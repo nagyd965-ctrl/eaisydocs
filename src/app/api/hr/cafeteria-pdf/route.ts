@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
   try {
     const browser = await puppeteer.launch({ headless: true })
     const page = await browser.newPage()
-    await page.setContent(html, { waitUntil: 'networkidle0' })
+    await page.setContent(html, { waitUntil: 'networkidle0' as any })
     const pdfBuffer = await page.pdf({ 
       format: 'A4',
       printBackground: true,
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
     })
     await browser.close()
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(pdfBuffer as any, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="cafeteria_nyilatkozat_${employeeId}_${year}.pdf"`

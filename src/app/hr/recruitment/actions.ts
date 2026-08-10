@@ -18,7 +18,7 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(profile.hr_szerepkor)) {
     return { error: "Nincs jogosultságod a toborzás kezeléséhez." }
   }
 
@@ -209,7 +209,7 @@ export async function addCandidate(formData: FormData) {
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(profile.hr_szerepkor)) {
     return { error: "Nincs jogosultságod a toborzás kezeléséhez." }
   }
 
@@ -262,7 +262,7 @@ export async function deleteCandidate(candidateId: string) {
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(profile.hr_szerepkor)) {
     return { error: "Nincs jogosultságod a toborzás kezeléséhez." }
   }
 
@@ -298,7 +298,7 @@ export async function generateCvSignedUrl(candidateId: string, storagePath: stri
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(profile.hr_szerepkor)) {
     return { error: "Nincs jogosultságod a CV megtekintéséhez." }
   }
 
@@ -337,11 +337,11 @@ export async function updateCandidateNote(candidateId: string, note: string) {
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select('hr_szerepkor, teljes_nev')
+    .select('hr_szerepkor, nev')
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
+  if (!profile || !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(profile.hr_szerepkor)) {
     return { error: "Nincs jogosultságod a jegyzet módosításához." }
   }
 
@@ -376,7 +376,7 @@ export async function updateCandidateNote(candidateId: string, note: string) {
   const newNote = {
     date: new Date().toISOString(),
     text: note,
-    author: profile.teljes_nev || "HR Munkatárs"
+    author: profile.nev || "HR Munkatárs"
   }
   notes.push(newNote)
   const newNotesString = JSON.stringify(notes)

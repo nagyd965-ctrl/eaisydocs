@@ -1,10 +1,21 @@
 import { createClient } from "@/utils/supabase/server"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { FilingPanelClient } from "@/components/filing-panel-client"
 
 export default async function InboxItemPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params
   const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  let docs_szerepkor = 'ugyintezo'
+  if (user) {
+    const { data: profile } = await supabase.from('felhasznalo_profil').select('docs_szerepkor').eq('id', user.id).single()
+    docs_szerepkor = profile?.docs_szerepkor || 'ugyintezo'
+  }
+
+  if (docs_szerepkor === 'betekinto' || docs_szerepkor === 'ugyintezo') {
+    redirect("/dossiers")
+  }
 
   // 1. Fetch the irat details
   const { data: irat } = await supabase

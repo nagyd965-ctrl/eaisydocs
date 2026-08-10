@@ -68,10 +68,14 @@ function SortableItem({ id, candidate, onClick }: { id: string, candidate: any, 
         <div className="font-medium text-sm flex items-center gap-2 flex-wrap">
           {candidate.nev}
           {differenceInDays(new Date(), new Date(candidate.created_at)) >= 150 && differenceInDays(new Date(), new Date(candidate.created_at)) < 180 && (
-            <AlertTriangle className="w-3 h-3 text-warning" title="1 hónapon belül törölni kell (GDPR)" />
+            <span title="1 hónapon belül törölni kell (GDPR)">
+              <AlertTriangle className="w-3 h-3 text-warning" />
+            </span>
           )}
           {differenceInDays(new Date(), new Date(candidate.created_at)) >= 180 && (
-            <AlertTriangle className="w-3 h-3 text-destructive" title="Azonnal törölni kell (GDPR lejárata túllépve)" />
+            <span title="Azonnal törölni kell (GDPR lejárata túllépve)">
+              <AlertTriangle className="w-3 h-3 text-destructive" />
+            </span>
           )}
         </div>
         <div className="text-xs text-muted-foreground">{candidate.hr_munkakor?.megnevezes || candidate.pozicio || "Nincs megadva"}</div>

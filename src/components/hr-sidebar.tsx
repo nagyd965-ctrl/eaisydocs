@@ -118,8 +118,34 @@ const items = [
   }
 ]
 
-export function HrSidebar() {
+export function HrSidebar({ hrRole = "munkavallalo" }: { hrRole?: string }) {
   const pathname = usePathname()
+
+  // Szerepkör alapú menüszűrés
+  const filteredItems = items.filter(item => {
+    // Admin, HR vezető, HR munkatárs, rendszergazda, auditor mindent lát
+    if (["admin", "hr_vezeto", "hr_munkatars", "rendszergazda", "auditor"].includes(hrRole)) {
+      return true
+    }
+    
+    // Munkavállaló és munkavédelmi felelős csak a Dolgozói Portált látja
+    if (["munkavallalo", "munkavedelmi"].includes(hrRole)) {
+      return item.title === "Dolgozói Portál"
+    }
+
+    // Vezető csak a Dolgozói Portált és a Vezetői nézetet látja
+    if (hrRole === "vezeto") {
+      return item.title === "Dolgozói Portál" || item.title === "Vezetői nézet"
+    }
+
+    // Toborzó csak a Dolgozói Portált és a Dolgozói Életutat látja
+    if (hrRole === "toborzo") {
+      return item.title === "Dolgozói Portál" || item.title === "Dolgozói Életút"
+    }
+
+    // Biztonsági fallback
+    return item.title === "Dolgozói Portál"
+  })
 
   return (
     <Sidebar>
@@ -131,7 +157,7 @@ export function HrSidebar() {
           <SidebarGroupLabel>HR Modulok</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => {
+              {filteredItems.map((item) => {
                 const isActive = pathname === item.url || (item.url !== "/hr" && pathname.startsWith(item.url + "/"))
                 if (item.items && item.items.length > 0) {
                   const isGroupActive = isActive || item.items.some(sub => pathname === sub.url || (sub.url !== "/hr" && pathname.startsWith(sub.url + "/")))

@@ -144,7 +144,7 @@ export function TalentPoolList({ candidates }: { candidates: any[] }) {
           candidate={selectedCandidate}
           isOpen={!!selectedCandidate}
           onClose={() => setSelectedCandidate(null)}
-          onUpdated={() => {}}
+          onUpdate={() => {}}
         />
       )}
     </div>

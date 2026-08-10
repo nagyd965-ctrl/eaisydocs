@@ -204,7 +204,7 @@ export function MfaSettingsCard({ totpFactor: initialFactor }: MfaSettingsCardPr
             {/* Jobb oldal: gomb */}
             {isEnabled ? (
               <AlertDialog>
-                <AlertDialogTrigger asChild>
+                <AlertDialogTrigger render={
                   <Button
                     size="sm"
                     variant="outline"
@@ -214,7 +214,7 @@ export function MfaSettingsCard({ totpFactor: initialFactor }: MfaSettingsCardPr
                     {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
                     Kikapcsolás
                   </Button>
-                </AlertDialogTrigger>
+                } />
                 <AlertDialogContent className="border-border/50 shadow-none">
                   <AlertDialogHeader>
                     <AlertDialogTitle>Kikapcsolod a 2FA-t?</AlertDialogTitle>

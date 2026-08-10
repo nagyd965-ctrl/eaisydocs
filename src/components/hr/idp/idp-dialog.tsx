@@ -84,7 +84,7 @@ export function IdpDialog({ tervId, dolgozoId, buttonVariant = "default" }: { te
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="tipus">Cél Típusa</Label>
-            <Select value={tipus} onValueChange={setTipus}>
+            <Select value={tipus} onValueChange={(val) => setTipus(val || "")}>
               <SelectTrigger id="tipus">
                 <SelectValue placeholder="Válasszon típust" />
               </SelectTrigger>

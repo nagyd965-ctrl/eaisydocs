@@ -17,12 +17,15 @@ import { Badge } from "@/components/ui/badge"
 export function MedicalTab({ 
   employeeId, 
   isHrOrAdmin, 
+  currentUserRole,
   initialData 
 }: { 
   employeeId: string, 
   isHrOrAdmin: boolean,
+  currentUserRole: string,
   initialData: any[]
 }) {
+  const showDetails = currentUserRole !== 'munkavedelmi';
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [tipus, setTipus] = useState("idoszakos")
@@ -161,11 +164,15 @@ export function MedicalTab({
                       {isExpired && " (Lejárt!)"}
                     </TableCell>
                     <TableCell>
-                      {item.eredmeny === "alkalmas" ? <Badge variant="default" className="bg-green-600 hover:bg-green-700">Alkalmas</Badge> : 
-                       item.eredmeny === "fetelekkel_alkalmas" ? <Badge variant="secondary">Feltételes</Badge> : 
-                       <Badge variant="destructive">Nem alkalmas</Badge>}
+                      {showDetails ? (
+                        item.eredmeny === "alkalmas" ? <Badge variant="default" className="bg-green-600 hover:bg-green-700">Alkalmas</Badge> : 
+                        item.eredmeny === "fetelekkel_alkalmas" ? <Badge variant="secondary">Feltételes</Badge> : 
+                        <Badge variant="destructive">Nem alkalmas</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs italic">— (Rejtett)</span>
+                      )}
                     </TableCell>
-                    <TableCell>{item.megjegyzes || "-"}</TableCell>
+                    <TableCell>{showDetails ? (item.megjegyzes || "-") : <span className="text-muted-foreground text-xs italic">— (Rejtett)</span>}</TableCell>
                     {isHrOrAdmin && (
                       <TableCell className="text-right">
                         <AlertDialog>

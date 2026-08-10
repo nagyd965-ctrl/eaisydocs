@@ -57,13 +57,38 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
   const { data: authUser } = await supabase.auth.getUser()
   const { data: currentUserProfile } = await supabase
     .from("felhasznalo_profil")
-    .select('docs_szerepkor')
+    .select('docs_szerepkor, szervezeti_egyseg_id')
     .eq("id", authUser?.user?.id || "")
     .single()
   
+  // Check for explicit access
+  const { data: explicitAccess } = await supabase
+    .from("ugyirat_hozzaferes")
+    .select("id")
+    .eq("ugyirat_id", id)
+    .eq("user_id", authUser?.user?.id || "")
+    .maybeSingle()
+  
+  const hasExplicitAccess = !!explicitAccess
   const permissions = getPermissions(currentUserProfile?.docs_szerepkor)
-  const canAssign = permissions.canAssign
-  const canEdit = permissions.canEdit
+  
+  const isUgyintezo = currentUserProfile?.docs_szerepkor === 'ugyintezo'
+  const isVezeto = currentUserProfile?.docs_szerepkor === 'vezeto'
+
+  let canEdit = permissions.canEdit
+  if (isUgyintezo) {
+    const isAssigned = (dossier?.ugy as any)?.felelos_user_id === authUser?.user?.id
+    canEdit = isAssigned || hasExplicitAccess
+  } else if (isVezeto) {
+    const inDepartment = dossier?.szervezeti_egyseg_id === currentUserProfile?.szervezeti_egyseg_id
+    canEdit = inDepartment || hasExplicitAccess
+  }
+
+  let canAssign = permissions.canAssign
+  if (isVezeto) {
+    const inDepartment = dossier?.szervezeti_egyseg_id === currentUserProfile?.szervezeti_egyseg_id
+    canAssign = inDepartment || hasExplicitAccess
+  }
 
   // Map user names
   const userMap = (users || []).reduce((acc: any, user: any) => {

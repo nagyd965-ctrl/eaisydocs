@@ -12,6 +12,7 @@ import { createClient } from "@/utils/supabase/server"
 import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
 import { FolderSymlink } from "lucide-react"
+import { redirect } from "next/navigation"
 import { getPermissions } from "@/utils/permissions"
 import { FilterBar } from "@/components/filter-bar"
 
@@ -27,6 +28,11 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     const { data: profile } = await supabase.from('felhasznalo_profil').select('docs_szerepkor').eq('id', user.id).single()
     docs_szerepkor = profile?.docs_szerepkor || ''
   }
+
+  if (docs_szerepkor === 'betekinto' || docs_szerepkor === 'ugyintezo') {
+    redirect("/dossiers")
+  }
+
   const permissions = getPermissions(docs_szerepkor)
 
   let query = supabase

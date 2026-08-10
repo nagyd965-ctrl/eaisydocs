@@ -35,6 +35,7 @@ const items = [
     title: "Bejövő sor",
     url: "/inbox",
     icon: Inbox,
+    allowedRoles: ["admin", "rendszergazda", "iktato", "vezeto", "auditor"],
   },
   {
     title: "Iktatókönyv",
@@ -58,8 +59,13 @@ const items = [
   },
 ]
 
-export function AppSidebar() {
+export function AppSidebar({ docsRole = "ugyintezo" }: { docsRole?: string }) {
   const pathname = usePathname()
+
+  const filteredItems = items.filter((item) => {
+    if (!item.allowedRoles) return true
+    return item.allowedRoles.includes(docsRole)
+  })
 
   return (
     <Sidebar>
@@ -71,7 +77,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Főmenü</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => {
+              {filteredItems.map((item) => {
                 const isActive = pathname === item.url || (item.url !== "/" && pathname.startsWith(item.url))
                 return (
                   <SidebarMenuItem key={item.title}>

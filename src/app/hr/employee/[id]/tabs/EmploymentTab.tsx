@@ -16,6 +16,8 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 export function EmploymentTab({ 
   employeeId,
   isHrOrAdmin,
+  loggedInUserId,
+  currentUserRole,
   adatlap,
   jogviszonyok,
   munkakorok,
@@ -23,6 +25,8 @@ export function EmploymentTab({
 }: { 
   employeeId: string,
   isHrOrAdmin: boolean,
+  loggedInUserId: string,
+  currentUserRole: string,
   adatlap: any,
   jogviszonyok: any[],
   munkakorok: any[],
@@ -30,6 +34,8 @@ export function EmploymentTab({
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  const canViewSalary = ["hr_vezeto", "admin"].includes(currentUserRole) || employeeId === loggedInUserId;
 
   // A jelenlegi jogviszony és beosztás kiválasztása
   const currentJogviszony = jogviszonyok?.find(j => !j.kilepes_datuma) || jogviszonyok?.[0]
@@ -254,15 +260,17 @@ export function EmploymentTab({
                       </Select>
                     </div>
 
-                    <div className="space-y-2 mt-4">
-                      <Label htmlFor="berkategoria">Besorolás / Bérkategória</Label>
-                      <Input 
-                        id="berkategoria" 
-                        name="berkategoria" 
-                        placeholder="Pl. L3 vagy 650000 HUF" 
-                        defaultValue={currentBeosztas?.berkategoria || adatlap?.berkategoria || ""}
-                      />
-                    </div>
+                    {canViewSalary && (
+                      <div className="space-y-2 mt-4">
+                        <Label htmlFor="berkategoria">Besorolás / Bérkategória</Label>
+                        <Input 
+                          id="berkategoria" 
+                          name="berkategoria" 
+                          placeholder="Pl. L3 vagy 650000 HUF" 
+                          defaultValue={currentBeosztas?.berkategoria || adatlap?.berkategoria || ""}
+                        />
+                      </div>
+                    )}
 
                   </div>
                   <DialogFooter>
@@ -338,7 +346,7 @@ export function EmploymentTab({
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Besorolás / Bérkategória</p>
-              <p className="font-medium">{currentBeosztas?.berkategoria || adatlap?.berkategoria || "Nincs megadva"}</p>
+              <p className="font-medium">{canViewSalary ? (currentBeosztas?.berkategoria || adatlap?.berkategoria || "Nincs megadva") : "— (Rejtett)"}</p>
             </div>
           </div>
         </CardContent>
@@ -385,7 +393,7 @@ export function EmploymentTab({
                           </div>
                           <div className="flex flex-col">
                             <span className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Bérkategória</span>
-                            <span className="font-medium">{beosztas.berkategoria || "—"}</span>
+                            <span className="font-medium">{canViewSalary ? (beosztas.berkategoria || "—") : "— (Rejtett)"}</span>
                           </div>
                           <div className="flex flex-col">
                             <span className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Közvetlen Vezető</span>

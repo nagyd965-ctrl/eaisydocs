@@ -68,6 +68,15 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     .eq("id", resolvedParams.id)
     .single()
 
+  const isSelf = user.id === resolvedParams.id
+  const isSubordinate = profile?.kozvetlen_vezeto_id === user.id
+  const isManager = currentUserProfile?.hr_szerepkor === 'vezeto' && isSubordinate
+  const isAllowed = isHrOrAdmin || isSelf || isManager || ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "")
+
+  if (profile && !isAllowed) {
+    redirect("/hr/self-service/profile")
+  }
+
   // 3. Lekérjük a választható munkaköröket
   const { data: munkakorok } = await supabase
     .from("hr_munkakor")
@@ -205,6 +214,11 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               Bizalmas HR adatok <ShieldAlert className="ml-2 w-3 h-3 text-destructive" />
             </TabsTrigger>
           )}
+          {!isHrOrAdmin && ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "") && (
+            <TabsTrigger value="bizalmas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">
+              Bizalmas HR adatok <ShieldAlert className="ml-2 w-3 h-3 text-destructive" />
+            </TabsTrigger>
+          )}
           <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Előzmények</TabsTrigger>
         </TabsList>
 
@@ -272,6 +286,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               <EmploymentTab 
                 employeeId={profile.id} 
                 isHrOrAdmin={isHrOrAdmin} 
+                loggedInUserId={user.id}
+                currentUserRole={currentUserProfile?.hr_szerepkor || "munkavallalo"}
                 adatlap={adatlap} 
                 jogviszonyok={adatlap?.hr_jogviszony || []}
                 munkakorok={munkakorok || []}
@@ -333,21 +349,30 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           </TabsContent>
 
           {/* 4. Bizalmas HR Adatok (Összevont) */}
-          {isHrOrAdmin && (
+          {(isHrOrAdmin || ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "")) && (
             <TabsContent value="bizalmas" className="mt-0 outline-none space-y-12">
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold tracking-tight text-destructive flex items-center gap-2 border-b pb-2">
-                  <ShieldAlert className="w-5 h-5" /> Orvosi Alkalmassági Vizsgálatok
-                </h2>
-                <MedicalTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_orvosi_vizsgalat || []} />
-              </div>
+              {(isHrOrAdmin || ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "")) && (
+                <div className="space-y-4">
+                  <h2 className="text-xl font-semibold tracking-tight text-destructive flex items-center gap-2 border-b pb-2">
+                    <ShieldAlert className="w-5 h-5" /> Orvosi Alkalmassági Vizsgálatok
+                  </h2>
+                  <MedicalTab 
+                    employeeId={profile.id} 
+                    isHrOrAdmin={isHrOrAdmin} 
+                    currentUserRole={currentUserProfile?.hr_szerepkor || "munkavallalo"}
+                    initialData={adatlap?.hr_orvosi_vizsgalat || []} 
+                  />
+                </div>
+              )}
 
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold tracking-tight text-destructive flex items-center gap-2 border-b pb-2">
-                  <ShieldAlert className="w-5 h-5" /> Fegyelmi és Kitüntetési Ügyek
-                </h2>
-                <DisciplinaryTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_fegyelmi || []} />
-              </div>
+              {(isHrOrAdmin || ["auditor"].includes(currentUserProfile?.hr_szerepkor || "")) && (
+                <div className="space-y-4">
+                  <h2 className="text-xl font-semibold tracking-tight text-destructive flex items-center gap-2 border-b pb-2">
+                    <ShieldAlert className="w-5 h-5" /> Fegyelmi és Kitüntetési Ügyek
+                  </h2>
+                  <DisciplinaryTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_fegyelmi || []} />
+                </div>
+              )}
             </TabsContent>
           )}
 

@@ -12,10 +12,12 @@ export function RecruitmentTabs({
   candidates,
   postings,
   jobs,
+  isReadOnly,
 }: {
   candidates: any[]
   postings: any[]
   jobs: any[]
+  isReadOnly: boolean
 }) {
   const [tab, setTab] = useState("postings")
 
@@ -30,7 +32,7 @@ export function RecruitmentTabs({
         </TabsList>
 
         {/* Jelentkező hozzáadása csak a Kanban tabon releváns */}
-        {tab === "kanban" && (
+        {tab === "kanban" && !isReadOnly && (
           <div className="flex gap-4">
             <AddCandidateDialog jobs={jobs} />
           </div>

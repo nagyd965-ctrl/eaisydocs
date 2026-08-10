@@ -6,6 +6,7 @@ import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
 import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
+import { redirect } from "next/navigation"
 
 function getInitials(name: string): string {
   return name
@@ -26,6 +27,19 @@ const szerepkorLabel: Record<string, string> = {
 
 export default async function HrAdminPage() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect("/login")
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda", "auditor"].includes(profile?.hr_szerepkor || "")
+  if (!isHrOrAdmin) {
+    redirect("/hr/self-service/profile")
+  }
 
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

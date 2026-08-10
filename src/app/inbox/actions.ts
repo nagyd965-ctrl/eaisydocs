@@ -11,6 +11,21 @@ if (typeof global !== "undefined" && typeof (global as any).DOMMatrix === "undef
 export async function uploadIncomingDocument(formData: FormData) {
   const supabase = await createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const userRole = profile?.docs_szerepkor || "ugyintezo"
+  const isAllowed = ["admin", "rendszergazda", "iktato"].includes(userRole)
+  if (!isAllowed) {
+    return { error: "Nincs jogosultságod új irat érkeztetéséhez." }
+  }
+
   const targy = formData.get("targy") as string
   const kuldo_nev = formData.get("kuldo_nev") as string
   const erkezes_modja = formData.get("erkezes_modja") as string
