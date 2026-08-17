@@ -6,7 +6,7 @@ export default function HrReportsPage() {
     <div className="space-y-6 pb-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Riportok (KSH / NAV)</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Riportok</h1>
           <p className="text-muted-foreground mt-1">
             Törvényi kötelezettségek, adatszolgáltatási exportok és beküldött bevallások archívuma.
           </p>

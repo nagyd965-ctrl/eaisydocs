@@ -68,7 +68,10 @@ export function AddOffboardingDialog({ employees }: AddOffboardingDialogProps) {
               <Label htmlFor="employee">Dolgozó kiválasztása</Label>
               <Select value={selectedId} onValueChange={(val) => setSelectedId(val || "")} required>
                 <SelectTrigger id="employee">
-                  <SelectValue placeholder="Válassz dolgozót..." />
+                  {selectedId
+                    ? <span>{employees.find(e => e.id === selectedId)?.nev || "Ismeretlen dolgozó"}</span>
+                    : <span className="text-muted-foreground">Válassz dolgozót...</span>
+                  }
                 </SelectTrigger>
                 <SelectContent>
                   {employees.map((emp) => (

@@ -277,21 +277,21 @@ export default async function SelfServicePage() {
                         {leave.tipus === "szabadsag" ? "Szabadság" : leave.tipus}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {leave.kezdo_datum && !isNaN(new Date(leave.kezdo_datum).getTime())
-                          ? new Date(leave.kezdo_datum).toLocaleDateString("hu-HU")
+                        {leave.kezdet_datuma && !isNaN(new Date(leave.kezdet_datuma).getTime())
+                          ? new Date(leave.kezdet_datuma).toLocaleDateString("hu-HU")
                           : "–"}
                         {" – "}
-                        {leave.veg_datum && !isNaN(new Date(leave.veg_datum).getTime())
-                          ? new Date(leave.veg_datum).toLocaleDateString("hu-HU")
+                        {leave.veg_datuma && !isNaN(new Date(leave.veg_datuma).getTime())
+                          ? new Date(leave.veg_datuma).toLocaleDateString("hu-HU")
                           : "–"}
                       </p>
                     </div>
                     <span className={`px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
                       leave.statusz === "jovahagyva"
-                        ? "bg-success-subtle text-success"
+                        ? "bg-emerald-500/10 text-emerald-600"
                         : leave.statusz === "elutasitva"
                         ? "bg-destructive/10 text-destructive"
-                        : "bg-warning-subtle text-warning"
+                        : "bg-amber-500/10 text-amber-600"
                     }`}>
                       {statuszLabel[leave.statusz] ?? leave.statusz}
                     </span>

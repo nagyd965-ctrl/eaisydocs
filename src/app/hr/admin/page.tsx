@@ -1,29 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { UserPlus, AlertCircle, Users, Briefcase, AlertTriangle, ChevronRight } from "lucide-react"
 import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
+import { EmployeeTable } from "@/components/hr/employee-table"
 import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map(n => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2)
-}
 
-const szerepkorLabel: Record<string, string> = {
-  hr_munkatars: "HR Munkatárs",
-  hr_vezeto: "HR Vezető",
-  vezeto: "Vezető",
-  admin: "Admin",
-  dolgozo: "Dolgozó",
-}
 
 export default async function HrAdminPage() {
   const supabase = await createClient()
@@ -223,93 +208,7 @@ export default async function HrAdminPage() {
           </Link>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-6 text-xs uppercase tracking-wider text-muted-foreground font-medium w-[110px]">
-                  Azonosító
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-                  Dolgozó
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-                  Munkakör
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-                  Szervezeti Egység
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-                  Szerepkör
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-                  Státusz
-                </TableHead>
-                <TableHead className="text-right pr-6 text-xs uppercase tracking-wider text-muted-foreground font-medium">
-                  Műveletek
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {activeEmployees.map((emp: any, index: number) => {
-                const activeJogviszony = emp.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
-                const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
-                const munkakor = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
-                const initials = getInitials(emp.nev || "?")
-                const empId = `EMP-${String(index + 1).padStart(3, "0")}`
-
-                return (
-                  <TableRow key={emp.id} className="hover:bg-muted/30 transition-colors">
-                    <TableCell className="pl-6">
-                      <span className="font-mono text-xs text-muted-foreground">{empId}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-                          {emp.avatar_url
-                            ? <img src={emp.avatar_url} alt={emp.nev} className="h-full w-full object-cover" />
-                            : <span className="text-xs font-semibold text-primary">{initials}</span>
-                          }
-                        </div>
-                        <span className="font-medium text-sm">{emp.nev}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm">{munkakor}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Központ</TableCell>
-                    <TableCell>
-                      {emp.hr_szerepkor && (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold border border-primary/40 text-primary">
-                          {szerepkorLabel[emp.hr_szerepkor] ?? emp.hr_szerepkor}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-success-subtle text-success">
-                        Aktív
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right pr-6">
-                      <Link href={`/hr/employee/${emp.id}`}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs text-primary hover:text-primary gap-1"
-                        >
-                          Adatlap <ChevronRight className="w-3 h-3" />
-                        </Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-              {activeEmployees.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground text-sm">
-                    Nincsenek dolgozók az adatbázisban.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+          <EmployeeTable employees={activeEmployees} />
         </CardContent>
       </Card>
 

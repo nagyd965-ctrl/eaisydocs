@@ -68,7 +68,7 @@ export default function HrAuditPage() {
       
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Audit Napló (Eseménynapló)</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Eseménynapló</h1>
           <p className="text-muted-foreground mt-1">
             Minden kritikus rendszeresemény, adatmódosítás és megtekintés visszakövethető listája (Append-only).
           </p>

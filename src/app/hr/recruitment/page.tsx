@@ -52,7 +52,7 @@ export default async function RecruitmentPage() {
   return (
     <div className="space-y-6 h-[calc(100vh-6rem)] flex flex-col overflow-hidden">
       <div className="shrink-0">
-        <h1 className="text-3xl font-semibold tracking-tight">Toborzás (ATS)</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Toborzás</h1>
         <p className="text-muted-foreground mt-1">
           Jelentkezők nyomon követése és publikus álláshirdetések kezelése.
         </p>

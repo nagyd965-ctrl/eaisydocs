@@ -223,3 +223,67 @@ export async function deleteOffboardingProcess(offboardingId: string) {
   revalidatePath("/hr/offboarding")
   return { success: true }
 }
+
+// ---------------------------------------------------------------------------
+// Kilépési Interjú
+// ---------------------------------------------------------------------------
+
+export async function getExitInterview(offboardingId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data, error } = await supabase
+    .from("hr_kilepes_interju")
+    .select("*")
+    .eq("offboarding_id", offboardingId)
+    .maybeSingle()
+
+  if (error) {
+    console.error("Hiba az exit interjú lekérésekor:", error)
+    return { error: error.message }
+  }
+
+  return { data }
+}
+
+export async function saveExitInterview(offboardingId: string, formData: {
+  kilepes_kategoria: string
+  kilepes_oka: string
+  altalanos_elegedettseg: number | null
+  vezeto_kapcsolat: number | null
+  munkakornyezet_ertekeles: number | null
+  csapat_ertekeles: number | null
+  mi_tetszett: string
+  mit_valtoztatna: string
+  ajanlana: boolean | null
+  kovetkezo_allomashely: string
+}) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { error } = await supabase
+    .from("hr_kilepes_interju")
+    .upsert({
+      offboarding_id: offboardingId,
+      ...formData,
+      rogzito_id: user.id,
+    }, { onConflict: "offboarding_id" })
+
+  if (error) {
+    console.error("Hiba az exit interjú mentésekor:", error)
+    return { error: error.message }
+  }
+
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "munkatars_modositas",
+    entitas_tipus: "hr_kilepes_interju",
+    entitas_id: offboardingId,
+    megjegyzes: `Kilépési interjú rögzítve / frissítve az offboarding folyamathoz`
+  })
+
+  revalidatePath("/hr/offboarding")
+  return { success: true }
+}

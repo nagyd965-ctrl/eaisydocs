@@ -14,7 +14,7 @@ export function PersonalDataCard() {
   const [isRevealed, setIsRevealed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
-  const [secretData, setSecretData] = useState<{ taj_szam?: string, adoazonosito?: string, bankszamla?: string } | null>(null)
+  const [secretData, setSecretData] = useState<{ taj_szam?: string, adoazonosito?: string, bankszamla?: string, brutto_ber?: string, netto_ber?: string } | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
   const handleReveal = async () => {
@@ -58,6 +58,13 @@ export function PersonalDataCard() {
         setTimeout(handleReveal, 100) // open it again
       }
     }
+  }
+
+  const formatBer = (raw?: string) => {
+    if (!raw) return "Nincs megadva"
+    const num = parseInt(raw.replace(/\D/g, ""), 10)
+    if (isNaN(num)) return raw
+    return new Intl.NumberFormat("hu-HU", { style: "currency", currency: "HUF", maximumFractionDigits: 0 }).format(num)
   }
 
   return (
@@ -130,6 +137,24 @@ export function PersonalDataCard() {
             <div className="col-span-2">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Bankszámlaszám</p>
               <p className="font-mono text-sm mt-1">{isRevealed ? (secretData?.bankszamla || "Nincs megadva") : "•••• •••• •••• •••• •••• ••••"}</p>
+            </div>
+          </div>
+          {/* Béradatok – read-only, a dolgozó csak megtekintheti, nem módosíthatja */}
+          <div className="border-t pt-4">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">Béradatok</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Bruttó Bér</p>
+                <p className="font-mono tabular-nums text-sm mt-1">
+                  {isRevealed ? formatBer(secretData?.brutto_ber) : "•••••• Ft"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Nettó Bér</p>
+                <p className="font-mono tabular-nums text-sm mt-1">
+                  {isRevealed ? formatBer(secretData?.netto_ber) : "•••••• Ft"}
+                </p>
+              </div>
             </div>
           </div>
           {!isRevealed && (

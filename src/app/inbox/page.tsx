@@ -15,6 +15,8 @@ import { FolderSymlink } from "lucide-react"
 import { redirect } from "next/navigation"
 import { getPermissions } from "@/utils/permissions"
 import { FilterBar } from "@/components/filter-bar"
+import { getImportableEaisyBillInvoices } from "@/app/inbox/eaisybill-actions"
+import { EaisyBillImportPanel } from "@/components/eaisybill-import-panel"
 
 export default async function InboxPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
@@ -35,6 +37,12 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 
   const permissions = getPermissions(docs_szerepkor)
 
+  // eaisyBill importálható számlák lekérése (csak iktató/admin látja)
+  let billInvoices: Awaited<ReturnType<typeof getImportableEaisyBillInvoices>> = { invoices: [] }
+  if (permissions.canAddIncoming) {
+    billInvoices = await getImportableEaisyBillInvoices()
+  }
+
   let query = supabase
     .from("irat")
     .select(`
@@ -43,6 +51,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       erkezes_datuma,
       targy,
       erkezes_modja,
+      kulso_forras,
       partner ( nev )
     `)
     .is("ugyirat_id", null)
@@ -66,6 +75,14 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           {permissions.canAddIncoming && <NewIncomingDialog />}
         </div>
       </div>
+
+      {/* eaisyBill számla import panel */}
+      {permissions.canAddIncoming && (
+        <EaisyBillImportPanel
+          invoices={billInvoices.invoices}
+          fetchError={billInvoices.error}
+        />
+      )}
 
       <div className="border rounded-md">
         <Table>
@@ -100,8 +117,10 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                   <TableCell>{(item.partner as any)?.nev || "-"}</TableCell>
                   <TableCell>{item.targy}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="font-normal capitalize">
-                      {item.erkezes_modja}
+                    <Badge variant="secondary" className="font-normal">
+                      {(item as any).kulso_forras === "eaisybill"
+                        ? "eaisyBill"
+                        : (item.erkezes_modja ? item.erkezes_modja.charAt(0).toUpperCase() + item.erkezes_modja.slice(1) : "-")}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">

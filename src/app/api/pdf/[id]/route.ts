@@ -47,7 +47,7 @@ export async function GET(
   // 3. Fetch file details
   let fileQuery = supabase
     .from("irat_fajl")
-    .select("storage_path, mime_type")
+    .select("storage_path, mime_type, kulso_fajl_url")
     .eq("irat_id", iratId)
 
   if (fileId) {
@@ -56,7 +56,7 @@ export async function GET(
 
   const { data: fajl } = await fileQuery.limit(1).single()
 
-  if (!fajl || !fajl.storage_path) {
+  if (!fajl || (!fajl.storage_path && !fajl.kulso_fajl_url)) {
     return new NextResponse("Fájl nem található az irathoz", { status: 404 })
   }
 
@@ -65,13 +65,17 @@ export async function GET(
     if (isBetekinto) {
       return new NextResponse("Betekinto szerepkorrel csak PDF előnézet érhető el (letöltés tiltott).", { status: 403 })
     }
-    // If not a PDF, redirect to a standard signed URL (we only watermark PDFs for now)
-    const { data: signedUrlData } = await supabase.storage
-      .from("irat_files")
-      .createSignedUrl(fajl.storage_path, 60)
-      
-    if (signedUrlData?.signedUrl) {
-      return NextResponse.redirect(signedUrlData.signedUrl)
+    if (fajl.kulso_fajl_url) {
+      return NextResponse.redirect(fajl.kulso_fajl_url)
+    }
+    if (fajl.storage_path) {
+      const { data: signedUrlData } = await supabase.storage
+        .from("irat_files")
+        .createSignedUrl(fajl.storage_path, 60)
+        
+      if (signedUrlData?.signedUrl) {
+        return NextResponse.redirect(signedUrlData.signedUrl)
+      }
     }
     return new NextResponse("Nem lehet megnyitni a fájlt", { status: 500 })
   }
@@ -79,9 +83,23 @@ export async function GET(
   // 4. Determine if watermarking is needed
   const isConfidential = isBetekinto || irat.minosites === "bizalmas" || irat.minosites === "szigoruan_bizalmas"
 
-  // We need to bypass RLS to download the file if we want to modify it server-side, 
-  // or we can use the user's client if they have RLS access. 
-  // Since the user is authenticated and passed RLS on `irat`, let's try with user's client first.
+  // Ha külső forrásból származik a fájl (pl. eaisyBill)
+  if (fajl.kulso_fajl_url) {
+    try {
+      const resp = await fetch(fajl.kulso_fajl_url)
+      if (!resp.ok) {
+        console.error(`Külső fájl letöltési hiba HTTP ${resp.status}:`, fajl.kulso_fajl_url)
+        return new NextResponse(`Külső fájl letöltése sikertelen (${resp.status})`, { status: 502 })
+      }
+      const externalBlob = await resp.blob()
+      return await processPdf(externalBlob, isConfidential, isBetekinto, user.email || user.id)
+    } catch (err: any) {
+      console.error("Hiba a külső fájl letöltésekor:", err)
+      return new NextResponse("Külső fájl letöltése sikertelen: " + err.message, { status: 500 })
+    }
+  }
+
+  // Helyi Supabase Storage fájl
   const { data: fileData, error: downloadError } = await supabase.storage
     .from("irat_files")
     .download(fajl.storage_path)

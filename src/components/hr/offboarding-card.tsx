@@ -1,7 +1,7 @@
 import { toggleOffboardingTaskStatus, updateOffboardingDate, deleteOffboardingProcess } from "@/app/hr/offboarding/actions"
 import { OffboardingProfileModal } from "./offboarding-profile-modal"
 import { Progress } from "@/components/ui/progress"
-import { Calendar, User, Trash2 } from "lucide-react"
+import { Calendar, Trash2, MessageSquare } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -73,7 +73,14 @@ export function OffboardingCard({ offboarding }: OffboardingCardProps) {
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs text-muted-foreground font-medium px-1">
             <span>Állapot</span>
-            <span>{doneTasks} / {tasks.length} feladat</span>
+            <div className="flex items-center gap-2">
+              {offboarding.hr_kilepes_interju?.[0]?.kilepes_kategoria && (
+                <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                  <MessageSquare className="w-2.5 h-2.5" /> Interjú kitöltve
+                </span>
+              )}
+              <span>{doneTasks} / {tasks.length} feladat</span>
+            </div>
           </div>
           <Progress value={progress} className="h-1.5" />
         </div>

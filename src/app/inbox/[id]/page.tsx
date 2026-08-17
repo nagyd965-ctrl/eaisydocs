@@ -39,7 +39,7 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
   // 2. Fetch the associated files (irat_fajl)
   const { data: fajlok } = await supabase
     .from("irat_fajl")
-    .select("id, storage_path, mime_type, eredeti_fajlnev")
+    .select("id, storage_path, mime_type, eredeti_fajlnev, kulso_fajl_url")
     .eq("irat_id", resolvedParams.id)
 
   let pdfUrl = null
@@ -61,8 +61,8 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
       fajl = fajlok[0];
     }
     
-    if (fajl && fajl.storage_path) {
-      // Pass the specific file ID to the API to ensure we preview the correct attachment
+    if (fajl) {
+      // Mindig az API route-ot használjuk, ami támogatja mind a helyi, mind a külső fájlokat
       pdfUrl = `/api/pdf/${resolvedParams.id}?fileId=${fajl.id}`
     }
   }

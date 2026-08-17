@@ -264,13 +264,13 @@ export async function revealEmployeeSecretData(employeeId: string) {
 
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
-    esemeny_tipus: "irat_megtekintes", 
+    esemeny_tipus: "irat_megtekintes",
     entitas_tipus: "hr_dolgozo_titkos_adat",
     entitas_id: employeeId,
     megjegyzes: `HR/Admin betekintett a dolgozó (${employeeId}) bizalmas adataiba.`
   })
 
-  return { data }
+  return { data: data as { taj_szam?: string; adoazonosito?: string; bankszamla?: string; brutto_ber?: string; netto_ber?: string } }
 }
 
 export async function updateEmployeeSecretData(employeeId: string, formData: FormData) {
@@ -278,15 +278,19 @@ export async function updateEmployeeSecretData(employeeId: string, formData: For
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const taj_szam = formData.get("taj_szam") as string
-  const adoazonosito = formData.get("adoazonosito") as string
-  const bankszamla = formData.get("bankszamla") as string
+  const taj_szam     = formData.get("taj_szam")     as string | null
+  const adoazonosito = formData.get("adoazonosito") as string | null
+  const bankszamla   = formData.get("bankszamla")   as string | null
+  const brutto_ber   = formData.get("brutto_ber")   as string | null
+  const netto_ber    = formData.get("netto_ber")    as string | null
 
   const { error } = await supabase.rpc("update_decrypted_hr_data", {
-    p_dolgozo_id: employeeId,
-    p_taj_szam: taj_szam || "",
-    p_adoazonosito: adoazonosito || "",
-    p_bankszamla: bankszamla || ""
+    p_dolgozo_id:   employeeId,
+    p_taj_szam:     taj_szam     ?? "",
+    p_adoazonosito: adoazonosito ?? "",
+    p_bankszamla:   bankszamla   ?? "",
+    p_brutto_ber:   brutto_ber   ?? "",
+    p_netto_ber:    netto_ber    ?? "",
   })
 
   if (error) {

@@ -44,6 +44,10 @@ const items = [
         url: "/hr/self-service/time",
       },
       {
+        title: "Fejlődési Tervem",
+        url: "/hr/self-service/idp",
+      },
+      {
         title: "Belső Állások",
         url: "/hr/self-service/career",
       },
@@ -82,7 +86,7 @@ const items = [
         url: "/hr/time",
       },
       {
-        title: "Riportok (KSH / NAV)",
+        title: "Riportok",
         url: "/hr/reports",
       }
     ]
@@ -93,7 +97,7 @@ const items = [
     icon: Target,
     items: [
       {
-        title: "Toborzás (ATS)",
+        title: "Toborzás",
         url: "/hr/recruitment",
       },
       {
@@ -112,7 +116,7 @@ const items = [
     icon: FileSignature,
   },
   {
-    title: "Eseménynapló (Audit)",
+    title: "Eseménynapló",
     url: "/hr/audit",
     icon: ShieldAlert,
   }

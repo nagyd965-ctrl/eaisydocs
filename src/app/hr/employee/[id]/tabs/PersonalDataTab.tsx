@@ -20,7 +20,7 @@ export function PersonalDataTab({
   const [isRevealed, setIsRevealed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
-  const [secretData, setSecretData] = useState<{ taj_szam?: string, adoazonosito?: string, bankszamla?: string } | null>(null)
+  const [secretData, setSecretData] = useState<{ taj_szam?: string, adoazonosito?: string, bankszamla?: string, brutto_ber?: string, netto_ber?: string } | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
   const handleReveal = async () => {
@@ -65,6 +65,13 @@ export function PersonalDataTab({
     }
   }
 
+  const formatBer = (raw?: string) => {
+    if (!raw) return "Nincs megadva"
+    const num = parseInt(raw.replace(/\D/g, ""), 10)
+    if (isNaN(num)) return raw
+    return new Intl.NumberFormat("hu-HU", { style: "currency", currency: "HUF", maximumFractionDigits: 0 }).format(num)
+  }
+
   if (!isHrOrAdmin) {
     return (
       <Card>
@@ -91,14 +98,14 @@ export function PersonalDataTab({
             <DialogTrigger className={buttonVariants({ variant: "outline", size: "icon", className: "h-8 w-8" })}>
               <Edit2 className="w-4 h-4" />
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[480px]">
               <DialogHeader>
                 <DialogTitle>Különleges Adatok Szerkesztése</DialogTitle>
                 <DialogDescription>
                   Az alábbi adatok mentése HR szintű jogosultsággal történik és szigorúan auditált!
                 </DialogDescription>
               </DialogHeader>
-              <form ref={formRef} action={handleUpdate}>
+              <form ref={formRef} action={handleUpdate} key={JSON.stringify(secretData)}>
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="taj_szam" className="text-right text-xs">TAJ Szám</Label>
@@ -111,6 +118,20 @@ export function PersonalDataTab({
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="bankszamla" className="text-right text-xs">Bankszámla</Label>
                     <Input id="bankszamla" name="bankszamla" defaultValue={secretData?.bankszamla || ""} className="col-span-3 font-mono" placeholder="xxxx-xxxx-xxxx-xxxx" />
+                  </div>
+                  {/* Béradatok – csak HR írhatja */}
+                  <div className="border-t pt-4 mt-1">
+                    <p className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wider">Béradatok</p>
+                    <div className="grid gap-4">
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="brutto_ber" className="text-right text-xs">Bruttó Bér</Label>
+                        <Input id="brutto_ber" name="brutto_ber" type="number" defaultValue={secretData?.brutto_ber || ""} className="col-span-3 tabular-nums" placeholder="pl. 500000" />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="netto_ber" className="text-right text-xs">Nettó Bér</Label>
+                        <Input id="netto_ber" name="netto_ber" type="number" defaultValue={secretData?.netto_ber || ""} className="col-span-3 tabular-nums" placeholder="pl. 335000" />
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <DialogFooter>
@@ -146,6 +167,24 @@ export function PersonalDataTab({
             <div className="col-span-2">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Bankszámlaszám</p>
               <p className="font-mono text-sm mt-1">{isRevealed ? (secretData?.bankszamla || "Nincs megadva") : "•••• •••• •••• •••• •••• ••••"}</p>
+            </div>
+          </div>
+          {/* Béradatok szekció */}
+          <div className="border-t pt-4">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">Béradatok</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Bruttó Bér</p>
+                <p className="font-mono tabular-nums text-sm mt-1">
+                  {isRevealed ? formatBer(secretData?.brutto_ber) : "•••••• Ft"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Nettó Bér</p>
+                <p className="font-mono tabular-nums text-sm mt-1">
+                  {isRevealed ? formatBer(secretData?.netto_ber) : "•••••• Ft"}
+                </p>
+              </div>
             </div>
           </div>
           {!isRevealed && (

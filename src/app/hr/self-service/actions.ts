@@ -218,7 +218,7 @@ export async function revealSecretData() {
     return { error: "Hozzáférés megtagadva vagy nincs rögzített adat." }
   }
 
-  // Explicit logolás az új hr_esemeny_naplo táblába is (a régi eaisyDocs esemeny_naplo mellett)
+  // Explicit logolás az új hr_esemeny_naplo táblába is
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "adat_megtekintes",
@@ -227,7 +227,7 @@ export async function revealSecretData() {
     megjegyzes: "Szigorúan bizalmas dolgozói adatok feloldása és megtekintése"
   })
 
-  return { data }
+  return { data: data as { taj_szam?: string; adoazonosito?: string; bankszamla?: string; brutto_ber?: string; netto_ber?: string } }
 }
 
 export async function updateSecretData(formData: FormData) {
@@ -238,15 +238,18 @@ export async function updateSecretData(formData: FormData) {
     return { error: "Nincs bejelentkezve" }
   }
 
-  const taj_szam = formData.get("taj_szam") as string
+  const taj_szam     = formData.get("taj_szam")     as string
   const adoazonosito = formData.get("adoazonosito") as string
-  const bankszamla = formData.get("bankszamla") as string
+  const bankszamla   = formData.get("bankszamla")   as string
+  // Bzéradatékat a dolgozó NEM módosíthatja – null-ként küldjük, 
+  // az RPC CASE logika megőrzi az adatbázisban lévő értéket.
 
   const { error } = await supabase.rpc("update_decrypted_hr_data", {
-    p_dolgozo_id: user.id,
-    p_taj_szam: taj_szam || "",
+    p_dolgozo_id:   user.id,
+    p_taj_szam:     taj_szam     || "",
     p_adoazonosito: adoazonosito || "",
-    p_bankszamla: bankszamla || ""
+    p_bankszamla:   bankszamla   || "",
+    // p_brutto_ber és p_netto_ber szándékosan nincs küldve – NULL marad, RPC nem írja felül
   })
 
   if (error) {
@@ -257,7 +260,7 @@ export async function updateSecretData(formData: FormData) {
   // Explicit logolás az új hr_esemeny_naplo táblába
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
-    esemeny_tipus: "munkatars_felvetel", // modification
+    esemeny_tipus: "munkatars_felvetel",
     entitas_tipus: "hr_dolgozo_titkos_adat",
     entitas_id: user.id,
     megjegyzes: "Szigorúan bizalmas dolgozói adatok módosítása"

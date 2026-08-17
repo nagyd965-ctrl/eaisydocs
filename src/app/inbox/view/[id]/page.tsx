@@ -22,6 +22,7 @@ export default async function DocumentDetailedView({ params }: { params: Promise
       erkezes_datuma,
       targy,
       erkezes_modja,
+      kulso_forras,
       leiras,
       partner ( nev, email )
     `)
@@ -137,7 +138,11 @@ export default async function DocumentDetailedView({ params }: { params: Promise
                 {new Date(irat.erkezes_datuma).toLocaleString("hu-HU")}
               </span>
               <span>•</span>
-              <Badge variant="secondary" className="font-normal capitalize text-xs">{irat.erkezes_modja}</Badge>
+              <Badge variant="secondary" className="font-normal text-xs">
+                {(irat as any).kulso_forras === "eaisybill"
+                  ? "eaisyBill"
+                  : (irat.erkezes_modja ? irat.erkezes_modja.charAt(0).toUpperCase() + irat.erkezes_modja.slice(1) : "-")}
+              </Badge>
             </div>
           </div>
         </div>
