@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/utils/supabase/server"
-import puppeteer from "puppeteer"
+import { launchPdfBrowser } from "@/utils/pdf-browser"
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
   `
 
   try {
-    const browser = await puppeteer.launch({ headless: true })
+    const browser = await launchPdfBrowser()
     const page = await browser.newPage()
     await page.setContent(html, { waitUntil: 'networkidle0' as any })
     const pdfBuffer = await page.pdf({ 

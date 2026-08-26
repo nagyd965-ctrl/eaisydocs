@@ -1,6 +1,6 @@
 "use server"
 
-import puppeteer from 'puppeteer'
+import { launchPdfBrowser } from '@/utils/pdf-browser'
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 
@@ -49,10 +49,7 @@ export async function generateAndSaveContract(
     `
 
     // Generate PDF using Puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    })
+    const browser = await launchPdfBrowser()
     const page = await browser.newPage()
     await page.setContent(fullHtml, { waitUntil: 'networkidle0' as any })
     const pdfBuffer = await page.pdf({

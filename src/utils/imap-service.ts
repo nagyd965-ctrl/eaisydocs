@@ -1,6 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { createClient } from '@supabase/supabase-js';
+import { launchPdfBrowser } from './pdf-browser';
 
 // Note: Ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set
 const supabase = createClient(
@@ -102,12 +103,7 @@ export async function processIncomingEmails() {
 
         // --- EMAIL BODY PDF GENERATION ---
         try {
-          const puppeteer = require('puppeteer');
-          // Start headless browser
-          const browser = await puppeteer.launch({
-            headless: 'new',
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
-          });
+          const browser = await launchPdfBrowser();
           const page = await browser.newPage();
           
           const emailHtml = parsed.html || `<pre style="white-space: pre-wrap; font-family: inherit;">${parsed.text || 'Üres üzenet'}</pre>`;
@@ -137,7 +133,7 @@ export async function processIncomingEmails() {
             </html>
           `;
           
-          await page.setContent(finalHtml, { waitUntil: 'networkidle0' });
+          await page.setContent(finalHtml, { waitUntil: 'networkidle0' as any });
           const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20px', bottom: '20px' } });
           await browser.close();
 
