@@ -447,3 +447,147 @@ export async function deleteJobDescriptionVersion(versionId: string, munkakorId:
   revalidatePath(`/hr/job/${munkakorId}`)
   return { success: true }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CÉGES DOKUMENTUM NYUGTÁZÁS – Admin server actions
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Lekéri az összes céges dokumentumot a nyugtázási státusszal együtt (HR admin nézethez) */
+export async function getCegesDokumentumokAdmin() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve", data: null }
+
+  // Az összes aktív céges dokumentum lekérése a nyugtázásokkal
+  const { data: dokumentumok, error } = await supabase
+    .from("hr_ceges_dokumentum")
+    .select(`
+      id,
+      cim,
+      leiras,
+      fajl_path,
+      kotelezo_mindenkinek,
+      aktiv,
+      created_at,
+      hr_ceges_dokumentum_nyugtazas (
+        id,
+        dolgozo_id,
+        nyugtazva_mikor,
+        ip_cim,
+        hr_dolgozo_adatlap (
+          id,
+          felhasznalo_profil ( id, nev, email )
+        )
+      )
+    `)
+    .eq("aktiv", true)
+    .order("created_at", { ascending: false })
+
+  if (error) return { error: error.message, data: null }
+
+  // Az összes aktív dolgozó lekérése (hogy tudjuk, ki NEM nyugtázott)
+  const { data: osszesDolgozo } = await supabase
+    .from("hr_dolgozo_adatlap")
+    .select("id, felhasznalo_profil(id, nev, email)")
+
+  return { data: { dokumentumok, osszesDolgozo }, error: null }
+}
+
+/** Új céges dokumentum létrehozása */
+export async function createCegesDokumentum(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const cim = formData.get("cim") as string
+  const leiras = formData.get("leiras") as string | null
+  const fajl_path = formData.get("fajl_path") as string | null
+  const kotelezo = formData.get("kotelezo_mindenkinek") === "true"
+
+  if (!cim) return { error: "A cím megadása kötelező" }
+
+  const { error } = await supabase
+    .from("hr_ceges_dokumentum")
+    .insert({ cim, leiras, fajl_path, kotelezo_mindenkinek: kotelezo, feltolto_id: user.id })
+
+  if (error) return { error: error.message }
+
+  revalidatePath("/hr/settings")
+  return { success: true }
+}
+
+/** Céges dokumentum törlése (csak inaktívvá teszi, nem fizikailag törli) */
+export async function deleteCegesDokumentum(id: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { error } = await supabase
+    .from("hr_ceges_dokumentum")
+    .update({ aktiv: false })
+    .eq("id", id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath("/hr/settings")
+  return { success: true }
+}
+
+/** Emlékeztető e-mail küldése azoknak, akik még nem nyugtázták a dokumentumot */
+export async function sendAcknowledgmentReminder(dokumentumId: string, dokumentumCim: string, nemNyugtazottak: { nev: string; email: string }[]) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const apiKey = process.env.BREVO_API_KEY
+  if (!apiKey) return { error: "Hiányzó BREVO_API_KEY" }
+
+  let sikerCount = 0
+  let hibaCount = 0
+
+  for (const dolgozo of nemNyugtazottak) {
+    if (!dolgozo.email) { hibaCount++; continue }
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #0f766e;">Dokumentum nyugtázás emlékeztető</h2>
+        <p>Kedves <strong>${dolgozo.nev}</strong>!</p>
+        <p>Kérjük, tekintsd meg és nyugtázd az alábbi céges dokumentumot az eaisyHR rendszerben:</p>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+          <strong>${dokumentumCim}</strong>
+        </div>
+        <p>Bejelentkezés után a főoldalon találod a teendők között.</p>
+        <p style="color: #64748b; font-size: 12px;">Ez egy automatikus értesítés az eaisyHR rendszerből.</p>
+      </div>
+    `
+
+    try {
+      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: { "accept": "application/json", "api-key": apiKey, "content-type": "application/json" },
+        body: JSON.stringify({
+          sender: { name: "eaisyHR Rendszer", email: "ertesites@thinkai.hu" },
+          to: [{ email: dolgozo.email, name: dolgozo.nev }],
+          subject: `Emlékeztető: "${dokumentumCim}" nyugtázása szükséges`,
+          htmlContent: html
+        })
+      })
+      if (res.ok) sikerCount++
+      else hibaCount++
+    } catch {
+      hibaCount++
+    }
+  }
+
+  // Naplózás
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "dokumentum_emlekezteto_kuldve",
+    entitas_tipus: "hr_ceges_dokumentum",
+    entitas_id: dokumentumId,
+    megjegyzes: `Emlékeztető elküldve ${sikerCount} főnek (${hibaCount} hiba)`
+  })
+
+  revalidatePath("/hr/settings")
+  return { success: true, sikerCount, hibaCount }
+}

@@ -1,7 +1,8 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { CalendarDays, Clock, CheckCircle2, XCircle } from "lucide-react"
+import { CalendarDays, Clock, CheckCircle2, XCircle, FileDown } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 const tipusLabel: Record<string, string> = {
   szabadsag: "Szabadság",
@@ -110,7 +111,18 @@ export function LeaveHistoryList({ leaves }: { leaves: any[] }) {
                     </p>
                   </div>
                 </div>
-                <div className="shrink-0">
+                <div className="shrink-0 flex items-center gap-2">
+                  {leave.statusz === "jovahagyva" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1.5"
+                      onClick={() => window.open(`/api/hr/leave-pdf?tavolletId=${leave.id}`, "_blank")}
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                      Igazolás
+                    </Button>
+                  )}
                   {getStatusDisplay(leave.statusz)}
                 </div>
               </div>

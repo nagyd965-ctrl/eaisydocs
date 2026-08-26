@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/server"
 import { TimeTrackingCard } from "@/components/hr/time-tracking-card"
 import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
 import { EmployeeKpiCard } from "@/components/hr/employee-kpi-card"
+import { OvertimeBalanceCard } from "@/components/hr/overtime-balance-card"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { calculateAnnualLeave } from "@/utils/hr/leave-calculator"
@@ -334,6 +335,8 @@ export default async function SelfServicePage() {
         )}
 
         <EmployeeKpiCard kpis={kpis || []} logs={kpiLogs || []} />
+
+        <OvertimeBalanceCard employeeId={user.id} />
 
       </div>
 

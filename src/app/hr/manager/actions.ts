@@ -13,7 +13,7 @@ export async function approveLeaveRequest(id: string) {
 
   const { error } = await supabase
     .from("hr_tavollet")
-    .update({ statusz: "jovahagyva" })
+    .update({ statusz: "jovahagyva", jovahagyo_id: user.id })
     .eq("id", id)
 
   if (error) {

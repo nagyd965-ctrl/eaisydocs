@@ -8,6 +8,8 @@ import { LeaveActionButtons } from "@/components/hr/leave-action-buttons"
 import { TeamCalendar } from "@/components/hr/team-calendar"
 import { redirect } from "next/navigation"
 import Link from "next/link"
+import { SubstituteAlertBanner } from "@/components/hr/substitute-alert-banner"
+import { OvertimeRequestsPanel } from "@/components/hr/overtime-requests-panel"
 
 const TIPUS_LABEL: Record<string, string> = {
   szabadsag: "Szabadság",
@@ -126,6 +128,9 @@ export default async function ManagerPage() {
         </div>
       </div>
 
+      {/* Helyettesítési figyelmeztető banner */}
+      <SubstituteAlertBanner managerId={user.id} pendingApprovalsCount={pendingCount} />
+
       <div className="grid gap-6 md:grid-cols-3">
 
         {/* Bal oszlop: Jóváhagyások + Naptár */}
@@ -199,8 +204,11 @@ export default async function ManagerPage() {
             </CardContent>
           </Card>
 
-          {/* Csapatnaptár */}
+          {/* Csápatnáptár */}
           <TeamCalendar teamMembers={teamMembers || []} leaves={allLeaves || []} />
+
+          {/* Túlóra jóváhagyási kérelmek */}
+          <OvertimeRequestsPanel managerId={user.id} />
         </div>
 
         {/* Jobb oszlop: Csapatlista */}

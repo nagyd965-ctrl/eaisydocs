@@ -52,6 +52,17 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
 
     if (tavolletError) throw new Error(tavolletError.message)
 
+    // Munkaszüneti napok lekérése az adott hónapra
+    const { data: unnepnapData } = await supabase
+      .from("hr_munkaszuneti_nap")
+      .select("datum, megnevezes, athelye_munkanap")
+      .gte("datum", startDate)
+      .lte("datum", endDate)
+      .eq("athelye_munkanap", false)
+
+    const unnepnapok = new Set((unnepnapData || []).map(n => n.datum as string))
+    const unnepNevek = new Map((unnepnapData || []).map(n => [n.datum as string, n.megnevezes as string]))
+
     const days = getDaysInMonth(year, month)
     const timesheet: TimesheetEntry[] = []
 
@@ -70,13 +81,23 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
 
       if (tavollet) {
         timesheet.push({
-          id: dateStr, // Unique key for the day
+          id: dateStr,
           datum: dateStr,
           becsekkolas_ideje: null,
           kicsekkolas_ideje: null,
           type: tavollet.tipus === "betegszabadsag" || tavollet.tipus === "tappenz" ? "betegseg" : "szabadsag",
           note: tavollet.indoklas,
           tavollet_id: tavollet.id
+        })
+      } else if (unnepnapok.has(dateStr)) {
+        // Magyar munkaszüneti nap
+        timesheet.push({
+          id: dateStr,
+          datum: dateStr,
+          becsekkolas_ideje: null,
+          kicsekkolas_ideje: null,
+          type: "unnep",
+          note: unnepNevek.get(dateStr)
         })
       } else if (munka) {
         timesheet.push({

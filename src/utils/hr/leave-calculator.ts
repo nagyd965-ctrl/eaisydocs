@@ -32,3 +32,39 @@ export function calculateAnnualLeave(
 
   return baseLeave + ageExtra + childrenExtra + vulnerableExtra;
 }
+
+/**
+ * Kiszámítja a munkanapokon eltöltött napok számát két dátum között,
+ * figyelembe véve a hétvégéket ÉS a magyar munkaszüneti napokat.
+ *
+ * @param startDate - Kezdő dátum (ISO string vagy Date)
+ * @param endDate   - Záró dátum (ISO string vagy Date), inkluzív
+ * @param unnepnapok - A hr_munkaszuneti_nap táblából lekért dátumok tömbje ('YYYY-MM-DD' formátumban)
+ * @returns A munkanapok száma
+ */
+export function calculateWorkingDays(
+  startDate: string | Date,
+  endDate: string | Date,
+  unnepnapok: string[] = []
+): number {
+  const unnepSet = new Set(unnepnapok)
+  let count = 0
+  const cur = new Date(startDate)
+  const end = new Date(endDate)
+
+  // Normalizálás (időzóna-semleges összehasonlítás)
+  cur.setHours(0, 0, 0, 0)
+  end.setHours(0, 0, 0, 0)
+
+  while (cur <= end) {
+    const dow = cur.getDay()
+    const dateStr = cur.toISOString().split("T")[0]
+    // Munkanap: nem hétvége ÉS nem munkaszüneti nap
+    if (dow !== 0 && dow !== 6 && !unnepSet.has(dateStr)) {
+      count++
+    }
+    cur.setDate(cur.getDate() + 1)
+  }
+
+  return count
+}
