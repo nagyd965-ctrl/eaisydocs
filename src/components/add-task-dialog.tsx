@@ -29,6 +29,9 @@ export function AddTaskDialog({ ugyiratId, users }: AddTaskDialogProps) {
   const [felelos, setFelelos] = useState("")
   const [hatarido, setHatarido] = useState("")
 
+  // Kiválasztott felhasználó neve megjelenítéshez
+  const selectedUserName = users.find(u => u.id === felelos)?.nev || ""
+
   const handleSave = async () => {
     if (!leiras || !felelos || !hatarido) {
       toast.error("Minden mezőt ki kell tölteni!")
@@ -75,7 +78,9 @@ export function AddTaskDialog({ ugyiratId, users }: AddTaskDialogProps) {
             <Label>Felelős</Label>
             <Select value={felelos} onValueChange={(val) => val && setFelelos(val)}>
               <SelectTrigger>
-                <SelectValue placeholder="Válassz felelőst..." />
+                <SelectValue placeholder="Válassz felelőst...">
+                  {selectedUserName || undefined}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {users.map((user) => (

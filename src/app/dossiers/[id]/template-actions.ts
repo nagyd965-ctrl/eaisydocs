@@ -134,7 +134,9 @@ export async function generateFromTemplate(ugyiratId: string, formData: FormData
   y -= lineHeight * 1.5
 
   // --- Törzs szöveg (sortörés kezelésével) ---
-  const lines = tartalom.split("\n")
+  // Normalizáljuk a sortöréseket (Windows \r\n → \n) és eltávolítjuk a nem nyomtatható karaktereket
+  const cleanTartalom = tartalom.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/[^\x20-\x7E\xA0-\xFF\n]/g, "")
+  const lines = cleanTartalom.split("\n")
   for (const line of lines) {
     if (line.trim() === "") {
       y -= lineHeight * 0.7

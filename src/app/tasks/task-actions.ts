@@ -35,6 +35,14 @@ export async function updateTaskStatus(taskId: string, newStatus: "nyitott" | "f
     }
   }
 
+  // Revalidate dossier page too so task progress updates
+  if (user) {
+    const { data: feladatForPath } = await supabase.from("feladat").select("ugyirat_id").eq("id", taskId).single()
+    if (feladatForPath?.ugyirat_id) {
+      revalidatePath(`/dossiers/${feladatForPath.ugyirat_id}`)
+    }
+  }
+
   revalidatePath("/tasks")
   return { success: true }
 }
@@ -71,6 +79,34 @@ export async function createTask(ugyiratId: string, leiras: string, hatarido: st
     ip_cim: ip,
     user_agent: userAgent
   })
+
+  // --- Értesítés a felelősnek ---
+  {
+    // Küldő neve
+    const { data: senderProfile } = await supabase
+      .from("felhasznalo_profil")
+      .select("nev")
+      .eq("id", user.id)
+      .single()
+    
+    // Ügyirat iktatószáma
+    const { data: ugyiratData } = await supabase
+      .from("ugyirat")
+      .select("iktatoszam")
+      .eq("id", ugyiratId)
+      .single()
+
+    const senderName = senderProfile?.nev || "Valaki"
+    const iktatoszam = ugyiratData?.iktatoszam || ""
+    const hataridoFormatted = new Date(hatarido).toLocaleDateString("hu-HU")
+
+    await supabase.from("alkalmazas_ertesites").insert({
+      user_id: felelosUserId,
+      cim: `Új feladat szignálva${iktatoszam ? ` (${iktatoszam})` : ""}`,
+      szoveg: `${senderName} feladatot írt ki: ${leiras} — Határidő: ${hataridoFormatted}`,
+      link_url: `/dossiers/${ugyiratId}?tab=feladatok`
+    })
+  }
 
   revalidatePath(`/dossiers/${ugyiratId}`)
   revalidatePath("/tasks")

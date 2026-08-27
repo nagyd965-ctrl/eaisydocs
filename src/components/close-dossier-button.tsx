@@ -41,10 +41,8 @@ export function CloseDossierButton({ ugyiratId }: { ugyiratId: string }) {
         )}
         disabled={loading}
       >
-        {loading ? (
+        {loading && (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <ArchiveX className="mr-2 h-4 w-4" />
         )}
         Lezárás és Irattározás
       </AlertDialogTrigger>

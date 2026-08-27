@@ -4,10 +4,12 @@ import { useState } from "react"
 import { DocumentViewer } from "./document-viewer"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Eye, FileText, Upload } from "lucide-react"
+import { Eye, FileText, Download, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { BorrowDialog } from "./borrow-dialog"
 import { PhysicalLocationDialog } from "./physical-location-dialog"
+import { toast } from "sonner"
+import { getDocumentSignedUrl } from "@/app/dossiers/[id]/viewer-actions"
 
 interface IratokListaProps {
   iratok: any[];
@@ -19,12 +21,52 @@ export function IratokLista({ iratok, canEdit = true, users = [] }: IratokListaP
   const [viewerOpen, setViewerOpen] = useState(false)
   const [selectedFajl, setSelectedFajl] = useState<any>(null)
   const [selectedIratId, setSelectedIratId] = useState<string>("")
-  const [, setUploadDialogOpen] = useState(false)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const openViewer = (fajl: any, iratId: string) => {
     setSelectedFajl(fajl)
     setSelectedIratId(iratId)
     setViewerOpen(true)
+  }
+
+  const handleDownload = async (irat: any) => {
+    // Az első fájlt töltjük le (legújabb verzió)
+    const fajl = irat.irat_fajl?.sort((a: any, b: any) => (b.verzio || 1) - (a.verzio || 1))?.[0]
+    if (!fajl) {
+      toast.error("Nincs letölthető fájl ehhez az irathoz.")
+      return
+    }
+
+    setDownloadingId(irat.id)
+    try {
+      const result = await getDocumentSignedUrl(fajl.storage_path, irat.id, fajl.id)
+      if (result.error) {
+        toast.error(result.error)
+        return
+      }
+
+      // Fetch the PDF blob from our secure API
+      const response = await fetch(result.signedUrl!)
+      if (!response.ok) {
+        toast.error("Hiba a fájl letöltésekor.")
+        return
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = fajl.eredeti_fajlnev || "letoltes.pdf"
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success("Fájl letöltve!")
+    } catch {
+      toast.error("Hiba a fájl letöltésekor.")
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
   if (!iratok || iratok.length === 0) {
@@ -121,9 +163,17 @@ export function IratokLista({ iratok, canEdit = true, users = [] }: IratokListaP
                 </div>
               </TableCell>
               <TableCell className="text-right">
-                {canEdit && (
-                  <Button onClick={() => setUploadDialogOpen(true)} variant="outline" size="sm">
-                    <Upload className="mr-2 h-3.5 w-3.5" />
+                {irat.irat_fajl && irat.irat_fajl.length > 0 && (
+                  <Button 
+                    onClick={() => handleDownload(irat)} 
+                    variant="outline" 
+                    size="sm"
+                    disabled={downloadingId === irat.id}
+                  >
+                    {downloadingId === irat.id 
+                      ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      : <Download className="mr-2 h-3.5 w-3.5" />
+                    }
                     Fájl
                   </Button>
                 )}

@@ -166,6 +166,42 @@ export async function addComment(ugyiratId: string, text: string) {
     user_agent: userAgent
   })
 
+  // --- @mention értesítések ---
+  // Felhasználók kikeresése név alapján — a szövegben @FelhasználóNév mintákat keresünk
+  const { data: allUsers } = await supabase
+    .from("felhasznalo_profil")
+    .select("id, nev")
+
+  if (allUsers && allUsers.length > 0) {
+    // Küldő neve
+    const senderProfile = allUsers.find(u => u.id === user.id)
+    const senderName = senderProfile?.nev || "Valaki"
+
+    // Ügyirat iktatószámának lekérése
+    const { data: ugyiratData } = await supabase
+      .from("ugyirat")
+      .select("iktatoszam")
+      .eq("id", ugyiratId)
+      .single()
+
+    const iktatoszam = ugyiratData?.iktatoszam || ""
+
+    // Ismert felhasználóneveket keresünk a szövegben (hosszabb nevek először, 
+    // hogy "Nagy Dániel" ne matcheljen "Nagy"-ként ha van egy "Nagy" nevű user is)
+    const sortedUsers = [...allUsers].sort((a, b) => b.nev.length - a.nev.length)
+
+    for (const u of sortedUsers) {
+      if (text.includes(`@${u.nev}`)) {
+        await supabase.from("alkalmazas_ertesites").insert({
+          user_id: u.id,
+          cim: `Megemlítettek egy megjegyzésben${iktatoszam ? ` (${iktatoszam})` : ""}`,
+          szoveg: `${senderName}: ${text.length > 120 ? text.substring(0, 120) + "…" : text}`,
+          link_url: `/dossiers/${ugyiratId}?tab=feladatok`
+        })
+      }
+    }
+  }
+
   revalidatePath(`/dossiers/${ugyiratId}`)
   return { success: true }
 }
