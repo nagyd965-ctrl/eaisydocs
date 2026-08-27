@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Building2, FolderOpen, Link as LinkIcon, Calendar, FileText, User, Mail, MapPin } from "lucide-react"
+import { ArrowLeft, Building2, FolderOpen, Link as LinkIcon, Calendar, FileText, User, Mail, MapPin, Briefcase, Landmark } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { PartnerDialog } from "@/components/partner-dialog"
