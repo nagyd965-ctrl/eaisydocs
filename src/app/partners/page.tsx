@@ -7,12 +7,26 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Building2, User } from "lucide-react"
+import { Building2, User, Briefcase, Landmark } from "lucide-react"
 import Link from "next/link"
 import { PartnerDialog } from "@/components/partner-dialog"
 import { getPermissions } from "@/utils/permissions"
 import { DeletePartnerButton } from "@/components/delete-partner-button"
 import { Badge } from "@/components/ui/badge"
+
+function getPartnerTypeInfo(tipus?: string | null) {
+  switch (tipus) {
+    case "maganszemely":
+      return { label: "Magánszemély", icon: User, variant: "secondary" as const }
+    case "egyeni_vallalkozo":
+      return { label: "Egyéni vállalkozó", icon: Briefcase, variant: "outline" as const }
+    case "intezmeny":
+      return { label: "Intézmény / Hivatal", icon: Landmark, variant: "outline" as const }
+    case "ceg":
+    default:
+      return { label: "Cég", icon: Building2, variant: "default" as const }
+  }
+}
 
 export default async function PartnersPage() {
   const supabase = await createClient()
@@ -50,21 +64,20 @@ export default async function PartnersPage() {
               <TableHead>Név</TableHead>
               <TableHead>Típus</TableHead>
               <TableHead>E-mail</TableHead>
+              <TableHead>Telefonszám</TableHead>
               <TableHead>Adószám</TableHead>
-              {permissions.canEdit && <TableHead className="w-[50px]"></TableHead>}
+              {permissions.canEdit && <TableHead className="w-[90px] text-right">Műveletek</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {realPartners && realPartners.length > 0 ? (
               realPartners.map((p) => {
-                const isCeg = p.tipus === "ceg"
+                const typeInfo = getPartnerTypeInfo(p.tipus)
+                const Icon = typeInfo.icon
                 return (
                   <TableRow key={p.id} className="hover:bg-muted/50 transition-colors">
                     <TableCell>
-                      {isCeg 
-                        ? <Building2 className="h-4 w-4 text-muted-foreground" />
-                        : <User className="h-4 w-4 text-muted-foreground" />
-                      }
+                      <Icon className="h-4 w-4 text-muted-foreground" />
                     </TableCell>
                     <TableCell className="font-medium">
                       <Link href={`/partners/${p.id}`} className="hover:underline text-primary">
@@ -73,18 +86,24 @@ export default async function PartnersPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
-                        {isCeg ? "Cég" : "Magánszemély"}
+                        {typeInfo.label}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {p.email || "—"}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground tabular-nums">
+                      {p.telefonszam || "—"}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground tabular-nums">
                       {p.adoszam || "—"}
                     </TableCell>
                     {permissions.canEdit && (
-                      <TableCell>
-                        <DeletePartnerButton partnerId={p.id} partnerNev={p.nev} />
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <PartnerDialog partner={p} iconOnly />
+                          <DeletePartnerButton partnerId={p.id} partnerNev={p.nev} />
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -92,7 +111,7 @@ export default async function PartnersPage() {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={permissions.canEdit ? 6 : 5} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={permissions.canEdit ? 7 : 6} className="h-24 text-center text-muted-foreground">
                   Nincs rögzített partner.
                 </TableCell>
               </TableRow>

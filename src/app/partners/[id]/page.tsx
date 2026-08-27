@@ -63,7 +63,22 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
     .eq("entitas_tipus", "partner")
     .eq("entitas_id", partner.id)
 
-  const isCeg = partner.tipus === "ceg"
+  function getPartnerTypeInfo(tipus?: string | null) {
+    switch (tipus) {
+      case "maganszemely":
+        return { label: "Magánszemély", icon: User }
+      case "egyeni_vallalkozo":
+        return { label: "Egyéni vállalkozó", icon: Briefcase }
+      case "intezmeny":
+        return { label: "Intézmény / Hivatal", icon: Landmark }
+      case "ceg":
+      default:
+        return { label: "Cég", icon: Building2 }
+    }
+  }
+
+  const typeInfo = getPartnerTypeInfo(partner.tipus)
+  const TypeIcon = typeInfo.icon
 
   return (
     <div className="page-animate space-y-6">
@@ -77,11 +92,11 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-semibold tracking-tight">{partner.nev}</h1>
               <Badge variant="outline" className="text-xs">
-                {isCeg ? "Cég" : "Magánszemély"}
+                {typeInfo.label}
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
-              {isCeg ? <Building2 className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
+              <TypeIcon className="h-3.5 w-3.5" />
               Adatlap és partneri előzmények
             </p>
           </div>
@@ -106,7 +121,7 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
             <div className="p-4">
               <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
                 <Building2 className="h-3.5 w-3.5" />
-                Cégjegyzékszám
+                Cégjegyzékszám / Nyilv. szám
               </dt>
               <dd className="text-sm font-semibold tabular-nums">
                 {partner.cegjegyzekszam || <span className="text-muted-foreground font-normal">—</span>}
@@ -124,17 +139,17 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
             <div className="p-4">
               <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
                 <Calendar className="h-3.5 w-3.5" />
-                Rendszerbe rögzítve
+                Telefonszám
               </dt>
               <dd className="text-sm font-semibold tabular-nums">
-                {new Date(partner.created_at).toLocaleDateString("hu-HU")}
+                {partner.telefonszam || <span className="text-muted-foreground font-normal">—</span>}
               </dd>
             </div>
             {partner.cim && (
-              <div className="p-4 col-span-2">
+              <div className="p-4 col-span-2 lg:col-span-4">
                 <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
                   <MapPin className="h-3.5 w-3.5" />
-                  Cím
+                  Cím / Székhely
                 </dt>
                 <dd className="text-sm font-semibold">
                   {partner.cim}
