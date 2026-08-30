@@ -60,21 +60,17 @@ export async function processIncomingEmails() {
           ? erkezId 
           : `E/ERR-${Date.now()}`;
 
-        const { data: partnerData } = await supabase
-          .from('partner')
-          .select('id')
-          .eq('nev', partnerNev)
-          .single();
-
-        let partnerId = partnerData?.id;
-
-        if (!partnerId) {
-          const { data: newPartner } = await supabase
-            .from('partner')
-            .insert({ nev: partnerNev, email: partnerEmail })
-            .select('id')
-            .single();
-          if (newPartner) partnerId = newPartner.id;
+        const { findOrCreatePartner } = await import("@/utils/partner-matcher");
+        let partnerId = null;
+        try {
+          const partnerRes = await findOrCreatePartner(supabase, {
+            nev: partnerNev,
+            email: partnerEmail || null,
+            tipus: "ceg"
+          });
+          partnerId = partnerRes.id;
+        } catch (err) {
+          console.warn("IMAP partner match error:", err);
         }
 
         // Insert into the 'irat' table

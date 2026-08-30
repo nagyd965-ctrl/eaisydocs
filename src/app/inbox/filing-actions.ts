@@ -97,71 +97,200 @@ export async function fileIncomingDocument(formData: FormData) {
 
 export async function generateAISuggestions(iratId: string) {
   const supabase = await createClient()
-  
-  // 1. Fetch the OCR text for this document
-  const { data: files, error } = await supabase
+
+  // 1. Lekérjük az iratot és a kapcsolódó fájlokat
+  const { data: irat } = await supabase
+    .from("irat")
+    .select(`
+      id,
+      targy,
+      kulso_forras,
+      kulso_hivatkozas_id,
+      partner ( nev )
+    `)
+    .eq("id", iratId)
+    .single()
+
+  if (!irat) {
+    return { error: "Az irat nem található." }
+  }
+
+  const { data: files } = await supabase
     .from("irat_fajl")
-    .select("ocr_szoveg")
+    .select("id, storage_path, kulso_fajl_url, mime_type, eredeti_fajlnev, ocr_szoveg")
     .eq("irat_id", iratId)
 
-  if (error || !files || files.length === 0) {
-    return { error: "Nem található fájl az ügyirathoz." }
+  // 2. Fájl letöltése és szöveg kinyerése
+  let docText = ""
+  let pdfBase64: string | null = null
+  const firstFile = files?.[0]
+
+  if (firstFile) {
+    let fileBuf: Buffer | null = null
+
+    if (firstFile.kulso_fajl_url) {
+      try {
+        const res = await fetch(firstFile.kulso_fajl_url)
+        if (res.ok) {
+          fileBuf = Buffer.from(await res.arrayBuffer())
+        }
+      } catch (err) {
+        console.warn("Nem sikerült letölteni a külső PDF-et:", err)
+      }
+    } else if (firstFile.storage_path && !firstFile.storage_path.startsWith("eaisybill:")) {
+      try {
+        const { data: fileData } = await supabase.storage.from("irat_files").download(firstFile.storage_path)
+        if (fileData) {
+          fileBuf = Buffer.from(await fileData.arrayBuffer())
+        }
+      } catch (err) {
+        console.warn("Nem sikerült storage-ból letölteni a PDF-et:", err)
+      }
+    }
+
+    if (fileBuf) {
+      const { extractPdfText } = await import("@/utils/pdf-extractor")
+      docText = await extractPdfText(fileBuf)
+      
+      // Ha a PDF mérete ésszerű (< 10MB), átadjuk base64-ként is a Gemini multimodális kép/PDF olvasójának
+      if (fileBuf.length < 10 * 1024 * 1024) {
+        pdfBase64 = fileBuf.toString("base64")
+      }
+
+      if (docText && docText.trim()) {
+        // Frissítjük az adatbázisban az OCR szöveget
+        await supabase.from("irat_fajl").update({ ocr_szoveg: docText }).eq("id", firstFile.id)
+      }
+    }
   }
 
-  // Megkeressük az első olyan fájlt, aminek van OCR szövege
-  const fileWithOcr = files.find(f => f.ocr_szoveg && f.ocr_szoveg.trim() !== "")
-  if (!fileWithOcr) {
-    return { error: "Nem található OCR szöveg az AI elemzéshez." }
+  // Ha korábbról volt érvényes OCR szöveg (és nem a régi mock szöveg)
+  if (!docText) {
+    const existingWithOcr = files?.find(f => f.ocr_szoveg && !f.ocr_szoveg.includes("DEMO OCR SZÖVEG"))
+    if (existingWithOcr?.ocr_szoveg) {
+      docText = existingWithOcr.ocr_szoveg
+    }
   }
 
-  const text = fileWithOcr.ocr_szoveg.toLowerCase()
-  
-  // 2. MOCK AI / Heuristics Logic
-  // This simulates an LLM call parsing the document text.
-  let suggestedTargy = ""
-  let suggestedPartner = ""
+  // 3. Lekérjük a dinamikus adatbázis adatokat (Szervezeti Egységek + Irattári Terv)
+  const { data: departments } = await supabase
+    .from("szervezeti_egyseg")
+    .select("id, nev, iktato_prefix")
+    .order("nev")
 
-  // Tárgy (Subject) heuristics
-  if (text.includes("számla") || text.includes("szamla") || text.includes("invoice")) {
-    suggestedTargy = "Bejövő számla"
-  } else if (text.includes("szerződés") || text.includes("szerzodes") || text.includes("megállapodás")) {
-    suggestedTargy = "Szerződés"
-  } else if (text.includes("igazolás") || text.includes("certificate")) {
-    suggestedTargy = "Igazolás / Bizonyítvány"
-  } else if (text.includes("felszólítás") || text.includes("fizetési")) {
-    suggestedTargy = "Fizetési felszólítás"
-  } else {
-    suggestedTargy = "Általános beadvány"
+  const { data: tervek } = await supabase
+    .from("irattari_terv")
+    .select("id, tetelszam, megnevezes")
+    .order("tetelszam")
+
+  const deptsList = departments || []
+  const plansList = tervek || []
+
+  // 4. LLM hívás Gemini API-val
+  let aiResult: any = null
+  const googleApiKey = process.env.GOOGLE_API_KEY
+
+  if (googleApiKey) {
+    try {
+      const { GoogleGenAI } = await import("@google/genai")
+      const ai = new GoogleGenAI({ apiKey: googleApiKey })
+
+      const prompt = `Te egy magyar elektronikus iratkezelő rendszer (eaisyDocs) automatikus dokumentum-osztályozó és iktatási AI asszisztense vagy.
+Feladatod: elemezd a beérkezett dokumentum tartalmát (a csatolt PDF-et vagy kinyert szövegét) és metaadatait, majd rendeld hozzá a legmegfelelőbb Szervezeti Egységet és Irattári Tételt a megadott listákból!
+
+ELÉRHETŐ SZERVEZETI EGYSÉGEK (Osztályok):
+${deptsList.map(d => `- ID: "${d.id}", Név: "${d.nev}"`).join("\n")}
+
+ÉRVÉNYES IRATTÁRI TERV TÉTELEI:
+${plansList.map(p => `- ID: "${p.id}", Tételszám: "${p.tetelszam}", Megnevezés: "${p.megnevezes}"`).join("\n")}
+
+ÉRKEZTETÉSI ÉS RÖGZÍTÉSI METAADATOK:
+- Érkeztetési tárgy: ${irat.targy || "Nincs megadva"}
+- Rögzített partner: ${(irat.partner as any)?.nev || "Nincs megadva"}
+- Fájlnév: ${files?.[0]?.eredeti_fajlnev || "dokumentum.pdf"}
+${docText ? `\nKINYERT SZÖVEG:\n"""\n${docText.slice(0, 10000)}\n"""` : ""}
+
+Kérlek, válaszolj kizárólag érvényes JSON formátumban az alábbi mezőkkel:
+{
+  "targy": "tömör és pontos hivatalos magyar irattárgy (pl. Munkaszerződés – Nagy Dániel, vagy Celonis Inc. előfizetési számla)",
+  "partner": "partner vagy személy neve",
+  "department_id": "a fenti listából kiválasztott legmegfelelőbb osztály pontos ID-ja (UUID)",
+  "irattari_tetel_id": "a fenti listából kiválasztott legmegfelelőbb irattári tétel pontos ID-ja (UUID)",
+  "indoklas": "1 rövid magyar mondat az indoklásról"
+}`
+
+      const contents: any[] = [prompt]
+      if (pdfBase64) {
+        contents.push({
+          inlineData: {
+            mimeType: "application/pdf",
+            data: pdfBase64
+          }
+        })
+      }
+
+      const res = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents,
+        config: {
+          responseMimeType: "application/json"
+        }
+      })
+
+      if (res.text) {
+        aiResult = JSON.parse(res.text)
+      }
+    } catch (llmErr) {
+      console.warn("Gemini AI classification error, falling back to smart heuristics:", llmErr)
+    }
   }
 
-  // Partner heuristics
-  if (text.includes("telekom")) suggestedPartner = "Magyar Telekom Nyrt."
-  else if (text.includes("vodafone")) suggestedPartner = "Vodafone Magyarország Zrt."
-  else if (text.includes("e.on") || text.includes("eon")) suggestedPartner = "E.ON Energiamegoldások Kft."
-  else if (text.includes("otp")) suggestedPartner = "OTP Bank Nyrt."
-  else if (text.includes("apex")) suggestedPartner = "Apex Trader Funding"
-  else if (text.includes("nav") || text.includes("nemzeti adó")) suggestedPartner = "Nemzeti Adó- és Vámhivatal"
+  // 5. Fallback heurisztika ha az LLM nem adott választ
+  if (!aiResult) {
+    const textLower = docText.toLowerCase()
+    let suggestedTargy = irat?.targy || "Általános beadvány"
+    let suggestedDeptId = deptsList[0]?.id || ""
+    let suggestedPlanId = plansList[0]?.id || ""
 
-  // Fetch a department (e.g., Pénzügy or default)
-  let suggestedDepartmentId = ""
-  const { data: dept } = await supabase.from("szervezeti_egyseg").select("id, nev").ilike("nev", text.includes("számla") ? "%Pénzügy%" : "%").limit(1).single()
-  if (dept) suggestedDepartmentId = dept.id
+    if (textLower.includes("munkaszerz") || textLower.includes("munkaviszony") || textLower.includes("munkavállaló") || textLower.includes("távollét") || textLower.includes("szabadság")) {
+      suggestedTargy = "Munkaszerződés"
+      const hrDept = deptsList.find(d => d.nev.toLowerCase().includes("hr") || d.nev.toLowerCase().includes("humán"))
+      if (hrDept) suggestedDeptId = hrDept.id
+      const hrPlan = plansList.find(p => p.megnevezes.toLowerCase().includes("hr") || p.megnevezes.toLowerCase().includes("munkaügy"))
+      if (hrPlan) suggestedPlanId = hrPlan.id
+    } else if (textLower.includes("számla") || textLower.includes("szamla") || textLower.includes("invoice") || textLower.includes("díjbekérő")) {
+      suggestedTargy = "Bejövő számla"
+      const finDept = deptsList.find(d => d.nev.toLowerCase().includes("pénz") || d.nev.toLowerCase().includes("számv"))
+      if (finDept) suggestedDeptId = finDept.id
+      const finPlan = plansList.find(p => p.megnevezes.toLowerCase().includes("számla") || p.megnevezes.toLowerCase().includes("pénzügy"))
+      if (finPlan) suggestedPlanId = finPlan.id
+    } else if (textLower.includes("szerződés") || textLower.includes("megállapodás")) {
+      suggestedTargy = "Szerződés"
+      const contractPlan = plansList.find(p => p.megnevezes.toLowerCase().includes("szerződés") || p.megnevezes.toLowerCase().includes("jogi"))
+      if (contractPlan) suggestedPlanId = contractPlan.id
+    }
 
-  // Fetch an archive item type (e.g., Szerződés)
-  let suggestedIrattariTetelId = ""
-  const { data: irattari } = await supabase.from("irattari_terv").select("id, megnevezes").ilike("megnevezes", text.includes("szerződés") ? "%szerződés%" : "%").limit(1).single()
-  if (irattari) suggestedIrattariTetelId = irattari.id
+    aiResult = {
+      targy: suggestedTargy,
+      partner: (irat?.partner as any)?.nev || "",
+      department_id: suggestedDeptId,
+      irattari_tetel_id: suggestedPlanId,
+      indoklas: "Automatikus szabályalapú besorolás."
+    }
+  }
 
-  // Simulate network delay for the "AI" feeling
-  await new Promise(resolve => setTimeout(resolve, 1500))
+  // 6. Validáljuk, hogy a kapott ID-k tényleg léteznek az adatbázisban
+  const validDept = deptsList.find(d => d.id === aiResult.department_id) || deptsList[0]
+  const validPlan = plansList.find(p => p.id === aiResult.irattari_tetel_id) || plansList[0]
 
   return {
     success: true,
     suggestions: {
-      targy: suggestedTargy,
-      partner: suggestedPartner,
-      department_id: suggestedDepartmentId,
-      irattari_tetel_id: suggestedIrattariTetelId
+      targy: aiResult.targy || irat?.targy || "Irat",
+      partner: aiResult.partner || (irat?.partner as any)?.nev || "",
+      department_id: validDept?.id || "",
+      irattari_tetel_id: validPlan?.id || "",
+      indoklas: aiResult.indoklas || "AI besorolás elkészült."
     }
   }
 }

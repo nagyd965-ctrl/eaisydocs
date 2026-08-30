@@ -38,12 +38,13 @@ export async function savePartner(formData: FormData) {
       
     if (error) return { error: error.message }
   } else {
-    // Insert
-    const { error } = await supabase
-      .from("partner")
-      .insert(payload)
-      
-    if (error) return { error: error.message }
+    // Insert with intelligent deduplication
+    const { findOrCreatePartner } = await import("@/utils/partner-matcher")
+    try {
+      await findOrCreatePartner(supabase, payload)
+    } catch (err: any) {
+      return { error: err.message }
+    }
   }
 
   revalidatePath("/partners")
@@ -52,4 +53,13 @@ export async function savePartner(formData: FormData) {
   }
   
   return { success: true }
+}
+
+export async function getPartnersLookup() {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("partner")
+    .select("id, nev, tipus, email, adoszam")
+    .order("nev")
+  return data || []
 }

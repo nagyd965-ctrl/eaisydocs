@@ -1,22 +1,68 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { uploadIncomingDocument } from "@/app/inbox/actions"
+import { getPartnersLookup } from "@/app/partners/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PlusCircle, Loader2 } from "lucide-react"
+import { PlusCircle, Loader2, Building2, User, Check, Briefcase, Landmark } from "lucide-react"
 
 export function NewIncomingDialog() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
+  const [partners, setPartners] = useState<any[]>([])
+  const [kuldoNev, setKuldoNev] = useState("")
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [kuldoTipus, setKuldoTipus] = useState("ceg")
   const [erkezesModja, setErkezesModja] = useState("email")
   const [adathordozo, setAdathordozo] = useState("elektronikus_eredeti")
   const [minosites, setMinosites] = useState("nyilt")
+
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (open) {
+      getPartnersLookup().then(setPartners).catch(console.error)
+    } else {
+      setKuldoNev("")
+      setShowSuggestions(false)
+      setError(null)
+    }
+  }, [open])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const filteredPartners = kuldoNev.trim()
+    ? partners.filter(p => p.nev.toLowerCase().includes(kuldoNev.toLowerCase()))
+    : partners.slice(0, 8)
+
+  const handleSelectPartner = (p: any) => {
+    setKuldoNev(p.nev)
+    if (p.tipus) {
+      setKuldoTipus(p.tipus)
+    }
+    setShowSuggestions(false)
+  }
+
+  const partnerTipusMap: Record<string, string> = {
+    ceg: "Cég / Gazdasági társaság",
+    maganszemely: "Magánszemély",
+    egyeni_vallalkozo: "Egyéni vállalkozó (EV)",
+    intezmeny: "Hivatal / Intézmény"
+  }
 
   const erkezesModjaMap: Record<string, string> = {
     posta: "Posta",
@@ -87,9 +133,67 @@ export function NewIncomingDialog() {
               <Input id="targy" name="targy" placeholder="Pl. Bérleti szerződés aláírva" required />
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="kuldo_nev">Küldő (Partner neve)</Label>
-              <Input id="kuldo_nev" name="kuldo_nev" placeholder="Kovács Kft." />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="kuldo_tipus">Küldő típusa</Label>
+                <Select name="kuldo_tipus" value={kuldoTipus} onValueChange={(val) => setKuldoTipus(val || "ceg")}>
+                  <SelectTrigger id="kuldo_tipus">
+                    <SelectValue placeholder="Válassz típust...">{partnerTipusMap[kuldoTipus]}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ceg" label="Cég / Gazdasági társaság">Cég / Gazdasági társaság</SelectItem>
+                    <SelectItem value="maganszemely" label="Magánszemély">Magánszemély</SelectItem>
+                    <SelectItem value="egyeni_vallalkozo" label="Egyéni vállalkozó (EV)">Egyéni vállalkozó (EV)</SelectItem>
+                    <SelectItem value="intezmeny" label="Hivatal / Intézmény">Hivatal / Intézmény</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2 relative" ref={containerRef}>
+                <Label htmlFor="kuldo_nev">
+                  {kuldoTipus === "maganszemely" ? "Küldő neve (Magánszemély)" : "Küldő cég / partner neve"}
+                </Label>
+                <Input 
+                  id="kuldo_nev" 
+                  name="kuldo_nev" 
+                  value={kuldoNev}
+                  onChange={(e) => {
+                    setKuldoNev(e.target.value)
+                    setShowSuggestions(true)
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  placeholder={kuldoTipus === "maganszemely" ? "Pl. Nagy Dániel" : "Pl. Kovács Autó Kft."} 
+                  autoComplete="off"
+                />
+
+                {showSuggestions && filteredPartners.length > 0 && (
+                  <div className="absolute top-[100%] left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md p-1">
+                    <div className="text-[10px] font-semibold text-muted-foreground uppercase px-2 py-1 tracking-wider">
+                      {kuldoNev.trim() ? "Mentett partnerek közül" : "Gyakori / Mentett partnerek"}
+                    </div>
+                    {filteredPartners.map((p: any) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleSelectPartner(p)}
+                        className="w-full flex items-center justify-between text-left px-2 py-1.5 text-xs rounded hover:bg-muted/80 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          {p.tipus === "maganszemely" ? (
+                            <User className="h-3.5 w-3.5 text-primary shrink-0" />
+                          ) : (
+                            <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                          )}
+                          <span className="font-medium truncate">{p.nev}</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground ml-2 shrink-0">
+                          {p.tipus === "maganszemely" ? "Magánszemély" : "Cég"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

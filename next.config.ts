@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "50mb",
+    },
+  },
   // Ezeket a csomagokat a Next.js NE próbálja meg bundleolni –
   // natív Node.js modulokként kell futniuk a Serverless Functionben.
   serverExternalPackages: [

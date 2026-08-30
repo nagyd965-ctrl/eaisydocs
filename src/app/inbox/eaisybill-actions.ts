@@ -161,21 +161,16 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
   // Partner keresés / létrehozás
   let partner_id: string | null = null
   if (invoice.elado_nev) {
-    const { data: existingPartner } = await docsClient
-      .from("partner")
-      .select("id")
-      .eq("nev", invoice.elado_nev)
-      .maybeSingle()
-
-    if (existingPartner) {
-      partner_id = existingPartner.id
-    } else {
-      const { data: newPartner } = await docsClient
-        .from("partner")
-        .insert({ nev: invoice.elado_nev })
-        .select("id")
-        .single()
-      partner_id = newPartner?.id ?? null
+    const { findOrCreatePartner } = await import("@/utils/partner-matcher")
+    try {
+      const partnerResult = await findOrCreatePartner(docsClient, {
+        nev: invoice.elado_nev,
+        tipus: "ceg",
+        adoszam: invoice.elado_vat_id
+      })
+      partner_id = partnerResult.id
+    } catch (err) {
+      console.warn("eaisyBill partner match error:", err)
     }
   }
 

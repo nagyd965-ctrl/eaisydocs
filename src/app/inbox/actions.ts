@@ -27,7 +27,8 @@ export async function uploadIncomingDocument(formData: FormData) {
   }
 
   const targy = formData.get("targy") as string
-  const kuldo_nev = formData.get("kuldo_nev") as string
+  const kuldo_nev = (formData.get("kuldo_nev") as string)?.trim()
+  const kuldo_tipus = (formData.get("kuldo_tipus") as string)?.trim() || "ceg"
   const erkezes_modja = formData.get("erkezes_modja") as string
   const adathordozo_tipus = formData.get("adathordozo_tipus") as string
   const minosites = (formData.get("minosites") as string) || "nyilt"
@@ -40,26 +41,15 @@ export async function uploadIncomingDocument(formData: FormData) {
   // 1. Partner kezelés
   let partner_id = null
   if (kuldo_nev) {
-    // Keresünk ilyen nevű partnert
-    const { data: existingPartner } = await supabase
-      .from("partner")
-      .select("id")
-      .eq("nev", kuldo_nev)
-      .single()
-
-    if (existingPartner) {
-      partner_id = existingPartner.id
-    } else {
-      // Új partner beszúrása
-      const { data: newPartner, error: partnerError } = await supabase
-        .from("partner")
-        .insert({ nev: kuldo_nev })
-        .select("id")
-        .single()
-      
-      if (!partnerError && newPartner) {
-        partner_id = newPartner.id
-      }
+    const { findOrCreatePartner } = await import("@/utils/partner-matcher")
+    try {
+      const partnerResult = await findOrCreatePartner(supabase, {
+        nev: kuldo_nev,
+        tipus: kuldo_tipus
+      })
+      partner_id = partnerResult.id
+    } catch (err) {
+      console.warn("Partner keresési / létrehozási hiba:", err)
     }
   }
 
@@ -84,22 +74,10 @@ export async function uploadIncomingDocument(formData: FormData) {
   // 3. SHA256 számítás és PDF OCR/szöveg kinyerés
   const hash = crypto.createHash('sha256').update(buffer).digest('hex')
   
-  let ocr_szoveg = null
-  if (file.type === "application/pdf") {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require("pdf-parse")
-      const pdfData = await pdfParse(buffer)
-      ocr_szoveg = pdfData.text
-    } catch (e) {
-      console.warn("Nem sikerült kinyerni a szöveget a PDF-ből:", e)
-      // MOCK OCR fallback for demo purposes
-      ocr_szoveg = `DEMO OCR SZÖVEG:
-Kovács Kft.
-Bérleti szerződés
-Tárgy: bérleti szerződés
-Kelt: 2026.07.16.`
-    }
+  let ocr_szoveg: string | null = null
+  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+    const { extractPdfText } = await import("@/utils/pdf-extractor")
+    ocr_szoveg = await extractPdfText(buffer)
   }
 
   // 4. Érkeztetőszám generálás (éves szintű, pl. E/2026/0714-1234)

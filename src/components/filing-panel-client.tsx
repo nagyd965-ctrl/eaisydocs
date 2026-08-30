@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, ArrowLeft, FileText, CheckCircle2, Sparkles } from "lucide-react"
+import { Loader2, ArrowLeft, FileText, CheckCircle2, Sparkles, X } from "lucide-react"
 
 export function FilingPanelClient({ 
   irat, 
@@ -29,13 +29,18 @@ export function FilingPanelClient({
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<"new" | "existing">("new")
   const [aiLoading, setAiLoading] = useState(false)
+  const [aiReasoning, setAiReasoning] = useState<string | null>(null)
   const [targy, setTargy] = useState(irat.targy || "")
   const [ugytipusId, setUgytipusId] = useState<string>("")
   const [departmentId, setDepartmentId] = useState<string>("")
 
+  const selectedPlan = tervek.find(t => t.id === ugytipusId)
+  const selectedDept = departments?.find((d: any) => d.id === departmentId)
+
   const handleAiSuggest = async () => {
     setAiLoading(true)
     setError(null)
+    setAiReasoning(null)
     const result = await generateAISuggestions(irat.id)
     if (result.error) {
       setError(result.error)
@@ -48,6 +53,9 @@ export function FilingPanelClient({
       }
       if (result.suggestions.department_id) {
         setDepartmentId(result.suggestions.department_id)
+      }
+      if (result.suggestions.indoklas) {
+        setAiReasoning(result.suggestions.indoklas)
       }
     }
     setAiLoading(false)
@@ -132,6 +140,28 @@ export function FilingPanelClient({
               {error && (
                 <div className="text-sm font-medium text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>
               )}
+
+              {aiReasoning && (
+                <div className="relative rounded-lg border border-primary/25 bg-primary/5 p-4 dark:bg-primary/10 transition-all animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                      <Sparkles className="h-4 w-4" />
+                      <span>AI Asszisztens javaslata</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAiReasoning(null)}
+                      className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-primary/10"
+                      title="Bezárás"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed">
+                    {aiReasoning}
+                  </p>
+                </div>
+              )}
               
               <Tabs defaultValue="new" value={mode} onValueChange={(v) => setMode(v as any)}>
                 <TabsList className="grid w-full grid-cols-2">
@@ -163,10 +193,7 @@ export function FilingPanelClient({
                     <Select name="ugytipus_id" required={mode === "new"} value={ugytipusId} onValueChange={(v) => setUgytipusId(v || "")}>
                       <SelectTrigger id="ugytipus_id" className={aiLoading ? "animate-pulse bg-muted" : ""}>
                         <SelectValue placeholder="Válassz típust...">
-                          {(value) => {
-                            const item = tervek.find(t => t.id === value);
-                            return item ? `${item.tetelszam} - ${item.megnevezes}` : "Válassz típust...";
-                          }}
+                          {selectedPlan ? `${selectedPlan.tetelszam} - ${selectedPlan.megnevezes}` : undefined}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
@@ -184,15 +211,14 @@ export function FilingPanelClient({
                     <Select name="department_id" required={mode === "new"} value={departmentId} onValueChange={(v) => setDepartmentId(v || "")}>
                       <SelectTrigger id="department_id" className={aiLoading ? "animate-pulse bg-muted" : ""}>
                         <SelectValue placeholder="Válassz szervezeti egységet...">
-                          {(value: string) => {
-                            const dept = departments?.find((d: any) => d.id === value);
-                            return dept ? dept.nev : "Válassz szervezeti egységet...";
-                          }}
+                          {selectedDept ? selectedDept.nev : undefined}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {departments?.map((dept: any) => (
-                          <SelectItem key={dept.id} value={dept.id}>{dept.nev}</SelectItem>
+                          <SelectItem key={dept.id} value={dept.id} label={dept.nev}>
+                            {dept.nev}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

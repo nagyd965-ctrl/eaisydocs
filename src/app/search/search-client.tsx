@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { searchDocuments } from "./actions"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -8,11 +9,12 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Search, FileText, ChevronDown, ChevronUp, Save, Trash2, FolderSearch, Check } from "lucide-react"
+import { Loader2, Search, FileText, ChevronDown, ChevronUp, Save, Trash2, FolderSearch, Check, ExternalLink, ArrowRight } from "lucide-react"
 import { saveSearch, getSavedSearches, deleteSavedSearch } from "./actions"
 import { toast } from "sonner"
 
 export function SearchClientPage() {
+  const router = useRouter()
   const [query, setQuery] = useState("")
   const [filters, setFilters] = useState({ 
     minosites: "all", 
@@ -272,53 +274,74 @@ export function SearchClientPage() {
 
       {/* Találati lista */}
       {hasSearched && (
-        <div className="border rounded-md">
+        <div className="border rounded-md overflow-hidden shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Iktatószám (Érkeztető)</TableHead>
+                <TableHead>Iktatószám / Érkeztető</TableHead>
                 <TableHead>Tárgy</TableHead>
                 <TableHead>Partner</TableHead>
                 <TableHead>Irány</TableHead>
                 <TableHead>Dátum</TableHead>
+                <TableHead className="w-[110px] text-right">Művelet</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
                     Keresés folyamatban...
                   </TableCell>
                 </TableRow>
               ) : results.length > 0 ? (
-                results.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">
-                      {item.ugyirat?.iktatoszam ? (
-                        <span className="text-primary">{item.ugyirat.iktatoszam}</span>
-                      ) : (
-                        <span className="text-muted-foreground italic">{item.erkeztetoszam || "Nincs"}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        {item.targy}
-                      </div>
-                    </TableCell>
-                    <TableCell>{(item.partner as any)?.nev || "-"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">{item.irany}</Badge>
-                    </TableCell>
-                    <TableCell className="tabular-nums text-muted-foreground">
-                      {new Date(item.erkezes_datuma).toLocaleDateString("hu-HU")}
-                    </TableCell>
-                  </TableRow>
-                ))
+                results.map((item) => {
+                  const targetUrl = item.ugyirat?.id 
+                    ? `/dossiers/${item.ugyirat.id}`
+                    : `/inbox/${item.id}`
+
+                  return (
+                    <TableRow 
+                      key={item.id}
+                      onClick={() => router.push(targetUrl)}
+                      className="cursor-pointer hover:bg-muted/60 transition-colors group"
+                    >
+                      <TableCell className="font-medium">
+                        {item.ugyirat?.iktatoszam ? (
+                          <span className="text-primary font-semibold group-hover:underline">{item.ugyirat.iktatoszam}</span>
+                        ) : (
+                          <span className="text-muted-foreground italic font-mono text-xs">{item.erkeztetoszam || "Nincs"}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-primary transition-colors" />
+                          <span className="font-medium group-hover:text-primary transition-colors">{item.targy}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{(item.partner as any)?.nev || "-"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">{item.irany}</Badge>
+                      </TableCell>
+                      <TableCell className="tabular-nums text-muted-foreground text-xs">
+                        {new Date(item.erkezes_datuma).toLocaleDateString("hu-HU")}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 px-2 text-xs opacity-75 group-hover:opacity-100 group-hover:bg-primary/10 group-hover:text-primary transition-all"
+                        >
+                          Megnyitás
+                          <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     Nem található a keresési feltételeknek megfelelő irat.
                   </TableCell>
                 </TableRow>

@@ -14,12 +14,13 @@ export async function searchDocuments(query: string, filters: any = {}) {
     minosites, 
     erkezes_datuma,
     ugyirat_id,
-    ugyirat!inner(
+    ugyirat(
+      id,
       iktatoszam, 
       statusz,
-      ugy!inner(targy, felelos_user_id)
+      ugy(id, targy, felelos_user_id)
     ),
-    partner:kuldo_partner_id(nev)
+    partner:kuldo_partner_id(id, nev)
   `
 
   // ── 1. Szöveges keresés: FTS (kereso_vektor) → ILIKE fallback ──
@@ -145,4 +146,39 @@ export async function deleteSavedSearch(id: string) {
   const { error } = await supabase.from("mentett_kereses").delete().eq("id", id)
   if (error) return { success: false, error: error.message }
   return { success: true }
+}
+
+export async function quickSearch(query: string) {
+  const supabase = await createClient()
+  const clean = query?.trim()
+  if (!clean || clean.length < 2) return { dossiers: [], documents: [], partners: [] }
+
+  const [dossiersRes, docsRes, partnersRes] = await Promise.all([
+    // Ügyiratok
+    supabase
+      .from("ugyirat")
+      .select("id, iktatoszam, statusz, ugy:ugy_id(targy)")
+      .or(`iktatoszam.ilike.%${clean}%`)
+      .limit(5),
+
+    // Iratok
+    supabase
+      .from("irat")
+      .select("id, targy, erkeztetoszam, ugyirat_id, partner:kuldo_partner_id(nev)")
+      .or(`targy.ilike.%${clean}%,erkeztetoszam.ilike.%${clean}%`)
+      .limit(5),
+
+    // Partnerek
+    supabase
+      .from("partner")
+      .select("id, nev, tipus, email")
+      .or(`nev.ilike.%${clean}%,email.ilike.%${clean}%`)
+      .limit(5)
+  ])
+
+  return {
+    dossiers: dossiersRes.data || [],
+    documents: docsRes.data || [],
+    partners: partnersRes.data || []
+  }
 }
