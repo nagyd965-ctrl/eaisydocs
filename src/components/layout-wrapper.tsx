@@ -5,6 +5,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { HrSidebar } from "@/components/hr-sidebar"
 import { SessionTimeout } from "./session-timeout"
 import { NotificationBell } from "./notification-bell"
+import { GlobalHeaderSearch } from "./global-header-search"
 import { useEffect, useState } from "react"
 import { createClient } from "@/utils/supabase/client"
 
@@ -74,7 +75,8 @@ export function LayoutWrapper({
           <div className="flex items-center">
             <DynamicSidebarTrigger />
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
+            <GlobalHeaderSearch />
             <NotificationBell />
           </div>
         </div>
