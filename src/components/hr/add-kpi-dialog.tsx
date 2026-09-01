@@ -9,7 +9,24 @@ import { Plus, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { addKpi } from "@/app/hr/performance/actions"
 
-export function AddKpiDialog({ employees, cycles, allKpis }: { employees: any[], cycles?: any[], allKpis?: any[] }) {
+import { type PerformanceKpi, type PerformanceCycle } from "@/types/hr"
+
+export interface AddKpiEmployeeItem {
+  id: string
+  felhasznalo_profil?: any
+  nev?: string
+  [key: string]: any
+}
+
+export function AddKpiDialog({ 
+  employees, 
+  cycles, 
+  allKpis 
+}: { 
+  employees: AddKpiEmployeeItem[]
+  cycles?: PerformanceCycle[]
+  allKpis?: PerformanceKpi[] 
+}) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [dolgozoId, setDolgozoId] = useState<string>("")

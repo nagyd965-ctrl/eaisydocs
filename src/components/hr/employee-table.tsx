@@ -26,12 +26,21 @@ function getInitials(name: string) {
   return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
 }
 
+export interface EmployeeAdatlap {
+  adoazonosito_jel?: string | null
+  taj_szam?: string | null
+  alapber?: number | null
+  telefonszam?: string | null
+  [key: string]: any
+}
+
 interface Employee {
   id: string
   nev: string
   hr_szerepkor: string | null
   avatar_url: string | null
-  hr_dolgozo_adatlap: any
+  hr_dolgozo_adatlap?: any
+  [key: string]: any
 }
 
 /* ─── Filter chip ─── */

@@ -25,14 +25,31 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
+export interface PolymorphicLink {
+  id: string
+  irat_id?: string | null
+  entitas_tipus: string
+  entitas_id: string
+  entitas_forras: string
+  kapcsolat_tipusa?: string | null
+  kapcsolat_tipus?: string | null
+  irat?: IratOption | IratOption[] | null
+}
+
+export interface IratOption {
+  id: string
+  targy: string
+  erkeztetoszam?: string | null
+}
+
 export function PolymorphicLinksTab({ 
   links, 
   ugyiratId,
   iratok
 }: { 
-  links: any[], 
+  links: PolymorphicLink[], 
   ugyiratId: string,
-  iratok: any[]
+  iratok: IratOption[]
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -223,13 +240,15 @@ export function PolymorphicLinksTab({
           </TableHeader>
           <TableBody>
             {links && links.length > 0 ? (
-              links.map((link) => (
+              links.map((link) => {
+                const iratObj = Array.isArray(link.irat) ? link.irat[0] : link.irat
+                return (
                 <TableRow key={link.id}>
                   <TableCell className="text-muted-foreground">
-                    {link.irat ? (
-                      <span className="flex items-center" title={link.irat.targy}>
+                    {iratObj ? (
+                      <span className="flex items-center" title={iratObj.targy || undefined}>
                         <LinkIcon className="h-3 w-3 mr-1" />
-                        {link.irat.erkeztetoszam}
+                        {iratObj.erkeztetoszam}
                       </span>
                     ) : (
                       "Egész ügyirat"
@@ -240,7 +259,7 @@ export function PolymorphicLinksTab({
                   </TableCell>
                   <TableCell className="capitalize">{link.entitas_tipus}</TableCell>
                   <TableCell className="font-semibold text-primary">{link.entitas_id}</TableCell>
-                  <TableCell className="capitalize">{link.kapcsolat_tipusa}</TableCell>
+                  <TableCell className="capitalize">{link.kapcsolat_tipusa || link.kapcsolat_tipus}</TableCell>
                   <TableCell className="text-right">
                     <AlertDialog>
                       <AlertDialogTrigger 
@@ -267,7 +286,8 @@ export function PolymorphicLinksTab({
                     </AlertDialog>
                   </TableCell>
                 </TableRow>
-              ))
+                )
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">

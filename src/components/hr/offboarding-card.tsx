@@ -16,14 +16,16 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useState } from "react"
 
+import { type OffboardingListItem, type OffboardingTask } from "./offboarding-list"
+
 interface OffboardingCardProps {
-  offboarding: any
+  offboarding: OffboardingListItem
 }
 
 export function OffboardingCard({ offboarding }: OffboardingCardProps) {
   const [isAlertOpen, setIsAlertOpen] = useState(false)
-  const tasks = offboarding.hr_offboarding_feladat || []
-  const doneTasks = tasks.filter((t: any) => t.statusz === 'done').length
+  const tasks: OffboardingTask[] = offboarding.hr_offboarding_feladat || []
+  const doneTasks = tasks.filter((t) => t.statusz === 'done').length
   const progress = tasks.length > 0 ? (doneTasks / tasks.length) * 100 : 0
   
   const initials = offboarding.felhasznalo_profil?.nev

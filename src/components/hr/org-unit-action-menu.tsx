@@ -18,8 +18,16 @@ import { toast } from "sonner"
 import { buttonVariants } from "@/components/ui/button"
 import Link from "next/link"
 
+export interface OrgUnitItem {
+  id: string
+  nev: string
+  kod?: string | null
+  leiras?: string | null
+  [key: string]: unknown
+}
+
 interface OrgUnitActionMenuProps {
-  unit: any
+  unit: OrgUnitItem
 }
 
 export function OrgUnitActionMenu({ unit }: OrgUnitActionMenuProps) {

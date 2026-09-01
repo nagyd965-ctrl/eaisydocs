@@ -9,7 +9,21 @@ import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { editKpi } from "@/app/hr/performance/actions"
 
-export function EditKpiDialog({ kpi, cycles, allKpis, open, setOpen }: { kpi: any, cycles?: any[], allKpis?: any[], open: boolean, setOpen: (open: boolean) => void }) {
+import { type PerformanceKpi, type PerformanceCycle } from "@/types/hr"
+
+export function EditKpiDialog({ 
+  kpi, 
+  cycles, 
+  allKpis, 
+  open, 
+  setOpen 
+}: { 
+  kpi: PerformanceKpi
+  cycles?: PerformanceCycle[]
+  allKpis?: PerformanceKpi[]
+  open: boolean
+  setOpen: (open: boolean) => void 
+}) {
   const [loading, setLoading] = useState(false)
   const [ciklusId, setCiklusId] = useState<string>(kpi.ciklus_id || "")
 
@@ -46,7 +60,7 @@ export function EditKpiDialog({ kpi, cycles, allKpis, open, setOpen }: { kpi: an
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="ertekelesSzovege">Cél megnevezése</Label>
-            <Input id="ertekelesSzovege" name="ertekelesSzovege" required defaultValue={kpi.celkituzes} placeholder="Pl. Fluktuáció 10% alatt tartása" />
+            <Input id="ertekelesSzovege" name="ertekelesSzovege" required defaultValue={String(kpi.celkituzes || kpi.megnevezes || "")} placeholder="Pl. Fluktuáció 10% alatt tartása" />
           </div>
 
           <div className="space-y-2">
@@ -73,7 +87,7 @@ export function EditKpiDialog({ kpi, cycles, allKpis, open, setOpen }: { kpi: an
               <select 
                 id="meroszamTipusa"
                 name="meroszamTipusa" 
-                defaultValue={kpi.meroszam_tipusa}
+                defaultValue={String(kpi.meroszam_tipusa || kpi.mertekegyseg || "szazalek")}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="szazalek">Százalék (%)</option>
@@ -86,14 +100,14 @@ export function EditKpiDialog({ kpi, cycles, allKpis, open, setOpen }: { kpi: an
             
             <div className="space-y-2">
               <Label htmlFor="sulyozas">Súlyozás</Label>
-              <Input id="sulyozas" name="sulyozas" type="number" step="0.1" min="0" max="10" defaultValue={kpi.sulyozas} required />
+              <Input id="sulyozas" name="sulyozas" type="number" step="0.1" min="0" max="10" defaultValue={Number(kpi.sulyozas ?? kpi.suly ?? 1)} required />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="celErtek">Célérték</Label>
-              <Input id="celErtek" name="celErtek" type="number" step="0.01" min="0" defaultValue={kpi.cel_ertek} required />
+              <Input id="celErtek" name="celErtek" type="number" step="0.01" min="0" defaultValue={Number(kpi.cel_ertek ?? 100)} required />
             </div>
             
             {/* Az aktuális értéket a slider-en/űrlapon lehet frissíteni, de ide is be lehetne tenni */}

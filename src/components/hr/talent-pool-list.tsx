@@ -16,16 +16,17 @@ import { Search, ExternalLink, Download, AlertTriangle } from "lucide-react"
 import { CandidateProfileSheet } from "./candidate-profile-sheet"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { differenceInDays } from "date-fns"
+import { type Candidate } from "@/types/hr"
 
-export function TalentPoolList({ candidates }: { candidates: any[] }) {
+export function TalentPoolList({ candidates }: { candidates: Candidate[] }) {
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCandidate, setSelectedCandidate] = useState<any>(null)
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   
   const filteredCandidates = candidates.filter(c => {
     const term = searchTerm.toLowerCase()
     return (
       c.nev.toLowerCase().includes(term) ||
-      c.email.toLowerCase().includes(term) ||
+      (c.email || "").toLowerCase().includes(term) ||
       (c.hr_allashirdetes?.cim || "").toLowerCase().includes(term) ||
       (c.ai_skills && c.ai_skills.some((s: string) => s.toLowerCase().includes(term)))
     )
@@ -71,7 +72,7 @@ export function TalentPoolList({ candidates }: { candidates: any[] }) {
                 </TableRow>
               ) : (
                 filteredCandidates.map((candidate) => {
-                  const daysSinceApplied = differenceInDays(new Date(), new Date(candidate.created_at))
+                  const daysSinceApplied = candidate.created_at ? differenceInDays(new Date(), new Date(candidate.created_at)) : 0
                   const isGdprWarning = daysSinceApplied >= 150 && daysSinceApplied < 180
                   const isGdprExpired = daysSinceApplied >= 180
 
@@ -95,16 +96,16 @@ export function TalentPoolList({ candidates }: { candidates: any[] }) {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(candidate.created_at).toLocaleDateString("hu-HU", {
+                      {candidate.created_at ? new Date(candidate.created_at).toLocaleDateString("hu-HU", {
                         year: "numeric",
                         month: "short",
                         day: "numeric"
-                      })}
+                      }) : "-"}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="text-sm">{candidate.email}</span>
-                        <span className="text-xs text-muted-foreground">{candidate.telefon || "-"}</span>
+                        <span className="text-xs text-muted-foreground">{candidate.telefonszam || (candidate as any).telefon || "-"}</span>
                       </div>
                     </TableCell>
                     <TableCell>{candidate.hr_allashirdetes?.cim || "Általános jelentkezés"}</TableCell>
@@ -118,8 +119,8 @@ export function TalentPoolList({ candidates }: { candidates: any[] }) {
                         {candidate.ai_skills?.slice(0, 3).map((skill: string, i: number) => (
                           <Badge key={i} variant="secondary" className="text-[10px] px-1 py-0">{skill}</Badge>
                         ))}
-                        {candidate.ai_skills?.length > 3 && (
-                          <span className="text-xs text-muted-foreground ml-1">+{candidate.ai_skills.length - 3}</span>
+                        {(candidate.ai_skills?.length ?? 0) > 3 && (
+                          <span className="text-xs text-muted-foreground ml-1">+{candidate.ai_skills!.length - 3}</span>
                         )}
                       </div>
                     </TableCell>

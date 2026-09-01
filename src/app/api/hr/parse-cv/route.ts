@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { GoogleGenAI } from "@google/genai";
 if (typeof global !== "undefined" && typeof (global as any).DOMMatrix === "undefined") {
   (global as any).DOMMatrix = class {};
 }
@@ -81,7 +82,6 @@ ${jobDescription}
 ${cvText}
 `;
 
-    const { GoogleGenAI } = require("@google/genai");
     const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
     
     const response = await ai.models.generateContent({
@@ -92,7 +92,7 @@ ${cvText}
       }
     });
 
-    let responseText = response.text;
+    let responseText = response.text || "";
     
     // Parse JSON safely
     responseText = responseText.replace(/```json/g, "").replace(/```/g, "").trim();

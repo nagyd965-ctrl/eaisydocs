@@ -27,8 +27,9 @@ export async function sendSmsNotification({ to, body }: SendSmsParams) {
     
     console.log(`Twilio SMS sikeresen elküldve a ${to} számra. SID: ${message.sid}`);
     return { success: true, messageSid: message.sid };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : "Ismeretlen SMS hiba"
     console.error("Twilio SMS küldési hiba:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: errorMsg };
   }
 }

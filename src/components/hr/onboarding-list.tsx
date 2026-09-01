@@ -12,8 +12,20 @@ import { updateOnboardingDate } from "@/app/hr/onboarding/actions"
 import { OnboardingProfileModal } from "./onboarding-profile-modal"
 import { toast } from "sonner"
 
+import { type OnboardingTask } from "@/types/hr"
+
+export interface OnboardingPersonItem {
+  id: string
+  nev: string
+  statusz?: string
+  munkakor?: string | null
+  belepes_datuma?: string | null
+  hr_onboarding_feladat?: OnboardingTask[]
+  [key: string]: any
+}
+
 interface OnboardingListProps {
-  onboardings: any[]
+  onboardings: OnboardingPersonItem[]
 }
 
 export function OnboardingList({ onboardings }: OnboardingListProps) {
@@ -71,7 +83,7 @@ export function OnboardingList({ onboardings }: OnboardingListProps) {
       ) : viewMode === "grid" ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredOnboardings.map((person) => (
-            <OnboardingCard key={person.id} onboarding={person} />
+            <OnboardingCard key={person.id} onboarding={person as any} />
           ))}
         </div>
       ) : (
@@ -88,7 +100,7 @@ export function OnboardingList({ onboardings }: OnboardingListProps) {
             <TableBody>
               {filteredOnboardings.map((person) => {
                 const tasks = person.hr_onboarding_feladat || []
-                const doneCount = tasks.filter((t: any) => t.statusz === 'done').length
+                const doneCount = tasks.filter((t) => t.statusz === 'done').length
                 const progress = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0
                 const isDone = progress === 100
 
@@ -114,7 +126,7 @@ export function OnboardingList({ onboardings }: OnboardingListProps) {
                         <DialogTrigger render={<Button variant="ghost" size="sm" className="text-primary" />}>
                           Részletek
                         </DialogTrigger>
-                        <OnboardingProfileModal onboarding={person} onDateChange={(newDate) => handleDateChange(person.id, newDate)} />
+                        <OnboardingProfileModal onboarding={person as any} onDateChange={(newDate) => handleDateChange(person.id, newDate)} />
                       </Dialog>
                     </TableCell>
                   </TableRow>

@@ -19,7 +19,33 @@ import { Plus } from "lucide-react"
 import { toast } from "sonner"
 import { Switch } from "@/components/ui/switch"
 
-export function ManagePostingDialog({ jobs, existingData = null, onSaved, children }: { jobs: any[], existingData?: any, onSaved: (data: any) => void, children?: React.ReactNode }) {
+export interface JobOptionItem {
+  id: string
+  megnevezes: string
+  [key: string]: unknown
+}
+
+export interface PostingFormData {
+  id?: string
+  cim?: string
+  munkakor_id?: string
+  rovid_leiras?: string | null
+  reszletes_leiras?: string | null
+  is_internal?: boolean
+  [key: string]: unknown
+}
+
+export function ManagePostingDialog({ 
+  jobs, 
+  existingData = null, 
+  onSaved, 
+  children 
+}: { 
+  jobs: JobOptionItem[]
+  existingData?: PostingFormData | null
+  onSaved: (data: PostingFormData) => void
+  children?: React.ReactNode 
+}) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [munkakorId, setMunkakorId] = useState<string>(existingData?.munkakor_id || "")
@@ -71,7 +97,7 @@ export function ManagePostingDialog({ jobs, existingData = null, onSaved, childr
         onSaved(inserted)
       }
       setOpen(false)
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("Hiba történt a mentés során")
       console.error(error)
     } finally {
@@ -124,7 +150,7 @@ export function ManagePostingDialog({ jobs, existingData = null, onSaved, childr
             <Textarea 
               id="rovid_leiras" 
               name="rovid_leiras" 
-              defaultValue={existingData?.rovid_leiras} 
+              defaultValue={existingData?.rovid_leiras || ""} 
               placeholder="1-2 mondatos kedvcsináló..." 
               maxLength={200}
             />
@@ -135,7 +161,7 @@ export function ManagePostingDialog({ jobs, existingData = null, onSaved, childr
             <Textarea 
               id="reszletes_leiras" 
               name="reszletes_leiras" 
-              defaultValue={existingData?.reszletes_leiras} 
+              defaultValue={existingData?.reszletes_leiras || ""} 
               className="min-h-[150px]"
               placeholder="Elvárások, feladatok, juttatások..." 
             />

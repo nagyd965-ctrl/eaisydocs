@@ -3,7 +3,25 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, Target, CheckCircle2, XCircle } from "lucide-react"
 
-export function RecruitmentAnalytics({ candidates, jobs }: { candidates: any[], jobs: any[] }) {
+export interface CandidateAnalyticsItem {
+  id: string
+  statusz: string
+  allashirdetes_id?: string | null
+  [key: string]: unknown
+}
+
+export interface JobAnalyticsItem {
+  id: string
+  [key: string]: unknown
+}
+
+export function RecruitmentAnalytics({ 
+  candidates, 
+  jobs 
+}: { 
+  candidates: CandidateAnalyticsItem[]
+  jobs: JobAnalyticsItem[] 
+}) {
   // Metrikák kiszámítása
   const totalCandidates = candidates.length
   

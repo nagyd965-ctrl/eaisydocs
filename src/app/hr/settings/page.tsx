@@ -52,7 +52,7 @@ export default async function HrSettingsPage() {
   let allUsers: any[] = []
   let unassignedUsers: any[] = []
   let availableCandidates: any[] = []
-  let rootEmployees: any[] = []
+  const rootEmployees: any[] = []
 
   if (isHrOrAdmin) {
     // 1. Összes dolgozó lekérése

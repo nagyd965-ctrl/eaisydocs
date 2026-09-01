@@ -8,14 +8,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PlusCircle, Loader2, Building2, User, Check, Briefcase, Landmark } from "lucide-react"
+import { PlusCircle, Loader2, Building2, User, Check, Briefcase } from "lucide-react"
+import { type PartnerSuggestion } from "@/types/documents"
 
 export function NewIncomingDialog() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
-  const [partners, setPartners] = useState<any[]>([])
+  const [partners, setPartners] = useState<PartnerSuggestion[]>([])
   const [kuldoNev, setKuldoNev] = useState("")
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [kuldoTipus, setKuldoTipus] = useState("ceg")
@@ -25,15 +26,16 @@ export function NewIncomingDialog() {
 
   const containerRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (open) {
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen)
+    if (isOpen) {
       getPartnersLookup().then(setPartners).catch(console.error)
     } else {
       setKuldoNev("")
       setShowSuggestions(false)
       setError(null)
     }
-  }, [open])
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -46,10 +48,10 @@ export function NewIncomingDialog() {
   }, [])
 
   const filteredPartners = kuldoNev.trim()
-    ? partners.filter(p => p.nev.toLowerCase().includes(kuldoNev.toLowerCase()))
+    ? partners.filter(p => p.nev.toLowerCase().includes(kuldoNev.toLowerCase())).slice(0, 8)
     : partners.slice(0, 8)
 
-  const handleSelectPartner = (p: any) => {
+  const handleSelectPartner = (p: PartnerSuggestion) => {
     setKuldoNev(p.nev)
     if (p.tipus) {
       setKuldoTipus(p.tipus)
@@ -98,7 +100,7 @@ export function NewIncomingDialog() {
       } else {
         setOpen(false)
       }
-    } catch (_err: any) {
+    } catch (_err: unknown) {
       setError("Váratlan hiba történt az érkeztetés során.")
     } finally {
       setLoading(false)
@@ -106,7 +108,7 @@ export function NewIncomingDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
           <Button>
@@ -171,7 +173,7 @@ export function NewIncomingDialog() {
                     <div className="text-[10px] font-semibold text-muted-foreground uppercase px-2 py-1 tracking-wider">
                       {kuldoNev.trim() ? "Mentett partnerek közül" : "Gyakori / Mentett partnerek"}
                     </div>
-                    {filteredPartners.map((p: any) => (
+                    {filteredPartners.map((p) => (
                       <button
                         key={p.id}
                         type="button"

@@ -12,7 +12,37 @@ import { toast } from "sonner"
 import { addKpiSelfEvaluation, addKpiActivity } from "@/app/hr/performance/actions"
 import { KpiWorkflowStepper, deriveWorkflowPhase } from "@/components/hr/kpi-workflow-stepper"
 
-export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[] }) {
+export interface KpiLogItem {
+  id?: string
+  kpi_id?: string
+  letrehozva?: string
+  leiras?: string
+  [key: string]: any
+}
+
+export interface CardKpiItem {
+  id: string
+  megnevezes?: string
+  celkituzes?: string
+  ertekeles_szovege?: string
+  pontszam?: number | null
+  meroszam_tipusa?: string | null
+  aktualis_ertek?: number | null
+  cel_ertek?: number | null
+  onertekeles_szovege?: string | null
+  megbeszeles_datum?: string | null
+  hr_teljesitmeny_ciklus?: { megnevezes?: string } | null
+  ertekelt_idoszak?: string | null
+  [key: string]: any
+}
+
+export function EmployeeKpiCard({ 
+  kpis, 
+  logs = [] 
+}: { 
+  kpis: CardKpiItem[]
+  logs?: KpiLogItem[] 
+}) {
   if (!kpis || kpis.length === 0) {
     return (
       <Card>
@@ -31,7 +61,7 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
     )
   }
 
-  const avgScore = Math.round(kpis.reduce((acc: number, curr: any) => acc + (curr.pontszam || 0), 0) / kpis.length)
+  const avgScore = Math.round(kpis.reduce((acc, curr) => acc + (curr.pontszam || 0), 0) / kpis.length)
 
   return (
     <Card>
@@ -53,8 +83,8 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
         <Accordion className="w-full">
         {kpis.map((kpi) => {
           const percent = kpi.pontszam || 0
-          const text = kpi.celkituzes || kpi.ertekeles_szovege || "Nincs megadva"
-          const phase = deriveWorkflowPhase(kpi)
+          const text = kpi.celkituzes || kpi.megnevezes || kpi.ertekeles_szovege || "Nincs megadva"
+          const phase = deriveWorkflowPhase(kpi as any)
 
           let colorClass = "bg-primary"
           let bgClass = "bg-primary/20"
@@ -109,7 +139,7 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
                     <span className="text-muted-foreground">Folyamat:</span>
                     <span className={`font-semibold ${textClass}`}>
                       {kpi.meroszam_tipusa === "igen_nem"
-                        ? (kpi.aktualis_ertek > 0 ? "Teljesítve" : "Nincs teljesítve")
+                        ? ((kpi.aktualis_ertek ?? 0) > 0 ? "Teljesítve" : "Nincs teljesítve")
                         : `${kpi.aktualis_ertek || 0} / ${kpi.cel_ertek || 100} ${kpi.meroszam_tipusa === "szazalek" ? "%" : kpi.meroszam_tipusa === "osszeg" ? "HUF" : kpi.meroszam_tipusa === "skala" ? "Pont" : "Db"}`
                       }
                       {" "}({percent}%)
@@ -143,7 +173,7 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
                       >
                         {kpi.meroszam_tipusa === "igen_nem" ? (
                           <div className="flex items-center gap-2">
-                            <input type="checkbox" name="igen_nem_val" defaultChecked={kpi.aktualis_ertek > 0} className="h-4 w-4 rounded border-gray-300" />
+                            <input type="checkbox" name="igen_nem_val" defaultChecked={(kpi.aktualis_ertek ?? 0) > 0} className="h-4 w-4 rounded border-gray-300" />
                             <span className="text-sm">Teljesítve</span>
                           </div>
                         ) : (
@@ -243,7 +273,7 @@ export function EmployeeKpiCard({ kpis, logs = [] }: { kpis: any[], logs?: any[]
                       <div className="flex items-center gap-2 text-sm">
                         <CalendarCheck className="w-4 h-4 text-purple-500" />
                         <span className="font-medium">Értékelő megbeszélés megtörtént</span>
-                        <span className="text-xs text-muted-foreground">{new Date(kpi.megbeszeles_datum).toLocaleDateString("hu-HU")}</span>
+                        <span className="text-xs text-muted-foreground">{kpi.megbeszeles_datum ? new Date(kpi.megbeszeles_datum).toLocaleDateString("hu-HU") : "-"}</span>
                       </div>
                     </div>
                   )}

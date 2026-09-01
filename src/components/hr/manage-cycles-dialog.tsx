@@ -29,7 +29,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-export function ManageCyclesDialog({ cycles }: { cycles: any[] }) {
+import { type PerformanceCycle } from "@/types/hr"
+
+export function ManageCyclesDialog({ cycles }: { cycles: PerformanceCycle[] }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 

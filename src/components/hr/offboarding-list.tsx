@@ -8,9 +8,23 @@ import { OffboardingProfileModal } from "./offboarding-profile-modal"
 import { updateOffboardingDate } from "@/app/hr/offboarding/actions"
 import { AddOffboardingDialog } from "./add-offboarding-dialog"
 
+import { type Employee, type OffboardingTask } from "@/types/hr"
+export { type OffboardingTask }
+
+export interface OffboardingListItem {
+  id: string
+  dolgozo_id?: string
+  felhasznalo_profil?: { nev?: string | null } | null
+  statusz: "folyamatban" | "lezart" | string
+  utolso_munkanap?: string | null
+  hr_offboarding_feladat?: OffboardingTask[]
+  hr_kilepes_interju?: any[]
+  [key: string]: any
+}
+
 interface OffboardingListProps {
-  offboardings: any[]
-  employees: any[]
+  offboardings: OffboardingListItem[]
+  employees: Employee[]
 }
 
 export function OffboardingList({ offboardings, employees }: OffboardingListProps) {

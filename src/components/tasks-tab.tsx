@@ -21,13 +21,37 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+export interface TaskComment {
+  id: string
+  szoveg: string
+  created_at: string
+  user_name?: string | null
+  user_email?: string | null
+  felhasznalo?: { nev?: string | null }
+  felhasznalo_id?: string
+}
+
+export interface UgyiratTaskItem {
+  id: string
+  leiras: string
+  allapot: "nyitott" | "folyamatban" | "kesz" | "elutasitott" | string
+  felelos_user_id?: string
+  hatarido: string
+}
+
+export interface UserSelectItem {
+  id: string
+  nev: string
+  email?: string
+}
+
 interface TasksTabProps {
   ugyiratId: string;
   ugyId: string;
   status: string;
-  comments: any[];
-  tasks: any[];
-  users: any[];
+  comments: TaskComment[];
+  tasks: UgyiratTaskItem[];
+  users: UserSelectItem[];
   canEdit: boolean;
   currentUserEmail: string;
   iktatoszam?: string;

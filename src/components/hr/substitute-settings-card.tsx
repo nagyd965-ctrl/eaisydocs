@@ -11,9 +11,29 @@ import { toast } from "sonner"
 import { saveSubstitute, deleteSubstitute } from "@/app/hr/self-service/actions"
 import { Badge } from "@/components/ui/badge"
 
+export interface SubstituteUserOption {
+  id: string
+  nev?: string
+  email?: string
+}
+
+export interface CurrentSubstituteRecord {
+  id: string
+  helyettes_id?: string
+  felhasznalo_id?: string
+  kezdete?: string
+  vege?: string
+  kezdet_datuma?: string
+  veg_datuma?: string
+  indoklas?: string | null
+  helyettes?: { nev?: string } | null
+  helyettes_profil?: { nev?: string } | null
+  [key: string]: unknown
+}
+
 interface SubstituteSettingsCardProps {
-  availableUsers: any[]
-  currentSubstitute: any | null
+  availableUsers: SubstituteUserOption[]
+  currentSubstitute: CurrentSubstituteRecord | null
 }
 
 export function SubstituteSettingsCard({ availableUsers, currentSubstitute }: SubstituteSettingsCardProps) {
@@ -69,7 +89,7 @@ export function SubstituteSettingsCard({ availableUsers, currentSubstitute }: Su
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Időszak:</span>
                 <Badge variant="secondary" className="font-normal">
-                  {new Date(currentSubstitute.kezdet_datuma).toLocaleDateString("hu-HU")} - {new Date(currentSubstitute.veg_datuma).toLocaleDateString("hu-HU")}
+                  {currentSubstitute.kezdet_datuma ? new Date(currentSubstitute.kezdet_datuma).toLocaleDateString("hu-HU") : "-"} - {currentSubstitute.veg_datuma ? new Date(currentSubstitute.veg_datuma).toLocaleDateString("hu-HU") : "-"}
                 </Badge>
               </div>
             </div>
@@ -82,7 +102,7 @@ export function SubstituteSettingsCard({ availableUsers, currentSubstitute }: Su
           <form action={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>Helyettes személye</Label>
-              <Select value={helyettesId} onValueChange={setHelyettesId}>
+              <Select value={helyettesId} onValueChange={(val) => val && setHelyettesId(val)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Válassz egy kollégát...">
                     {helyettesId

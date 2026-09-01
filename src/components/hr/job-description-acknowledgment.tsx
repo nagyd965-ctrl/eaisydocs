@@ -7,8 +7,14 @@ import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 import { acknowledgeJobDescription } from "@/app/hr/self-service/actions"
 
+export interface MunkakorAckItem {
+  id: string
+  megnevezes: string
+  [key: string]: unknown
+}
+
 interface JobDescriptionAcknowledgmentProps {
-  munkakor: any
+  munkakor: MunkakorAckItem
 }
 
 export function JobDescriptionAcknowledgment({ munkakor }: JobDescriptionAcknowledgmentProps) {

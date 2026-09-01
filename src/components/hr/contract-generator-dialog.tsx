@@ -9,7 +9,32 @@ import { FileText, Printer, ChevronDown, Save, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { generateAndSaveContract } from "@/app/hr/actions/contract-actions"
 
-export function ContractGeneratorDialog({ employee, adatlap }: { employee: any, adatlap: any }) {
+export interface ContractEmployeeData {
+  id: string
+  nev?: string
+  felhasznalo_profil?: any
+  hr_munkakor?: any
+  [key: string]: any
+}
+
+export interface ContractAdatlapData {
+  szuletesi_hely?: string | null
+  szuletesi_datum?: string | null
+  anyja_neve?: string | null
+  lakcim?: string | null
+  adoazonosito_jel?: string | null
+  taj_szam?: string | null
+  alapber?: number | null
+  [key: string]: any
+}
+
+export function ContractGeneratorDialog({ 
+  employee, 
+  adatlap 
+}: { 
+  employee: ContractEmployeeData
+  adatlap: ContractAdatlapData 
+}) {
   const [open, setOpen] = useState(false)
   const [template, setTemplate] = useState("alap_munkaszerzodes")
   const [isSaving, setIsSaving] = useState(false)

@@ -6,10 +6,12 @@ import { OffboardingList } from "@/components/hr/offboarding-list"
 import { ExitInterviewSummary } from "@/components/hr/exit-interview-summary"
 import { Users, BarChart2 } from "lucide-react"
 
+import { type OffboardingProfile, type Employee, type ExitInterview } from "@/types/hr"
+
 interface OffboardingTabsProps {
-  offboardings: any[]
-  employees: any[]
-  exitInterviews: any[]
+  offboardings: OffboardingProfile[]
+  employees: Employee[]
+  exitInterviews: ExitInterview[]
 }
 
 export function OffboardingTabs({ offboardings, employees, exitInterviews }: OffboardingTabsProps) {

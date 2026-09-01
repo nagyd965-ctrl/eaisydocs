@@ -152,56 +152,6 @@ export function SearchClientPage() {
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // ── Effects ──────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("eaisydocs_recent_searches")
-      if (raw) setRecentSearches(JSON.parse(raw))
-    } catch {}
-    getSavedSearches().then(setSavedSearches).catch(console.error)
-  }, [])
-
-  useEffect(() => {
-    const qParam = searchParams.get("q")
-    if (qParam?.trim()) {
-      setQuery(qParam)
-      performSearch(qParam, defaultFilters)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
-
-  // Close autocomplete on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setShowDrop(false)
-      }
-    }
-    document.addEventListener("mousedown", handler)
-    return () => document.removeEventListener("mousedown", handler)
-  }, [])
-
-  // Debounced instant search
-  useEffect(() => {
-    if (!query.trim() || query.trim().length < 2) {
-      setInstantData({ dossiers: [], documents: [], partners: [] })
-      return
-    }
-    setInstantLoading(true)
-    const t = setTimeout(async () => {
-      try {
-        const res = await quickSearch(query)
-        setInstantData(res)
-      } catch {
-        setInstantData({ dossiers: [], documents: [], partners: [] })
-      } finally {
-        setInstantLoading(false)
-      }
-    }, 220)
-    return () => clearTimeout(t)
-  }, [query])
-
   // ── Actions ───────────────────────────────────────────────────────────────
 
   const addRecent = (term: string) => {
@@ -243,6 +193,56 @@ export function SearchClientPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [query, filters]
   )
+
+  // ── Effects ──────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("eaisydocs_recent_searches")
+      if (raw) setRecentSearches(JSON.parse(raw))
+    } catch {}
+    getSavedSearches().then(setSavedSearches).catch(console.error)
+  }, [])
+
+  useEffect(() => {
+    const qParam = searchParams.get("q")
+    if (qParam?.trim()) {
+      setQuery(qParam)
+      performSearch(qParam, defaultFilters)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, performSearch])
+
+  // Close autocomplete on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowDrop(false)
+      }
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [])
+
+  // Debounced instant search
+  useEffect(() => {
+    if (!query.trim() || query.trim().length < 2) {
+      setInstantData({ dossiers: [], documents: [], partners: [] })
+      return
+    }
+    setInstantLoading(true)
+    const t = setTimeout(async () => {
+      try {
+        const res = await quickSearch(query)
+        setInstantData(res)
+      } catch {
+        setInstantData({ dossiers: [], documents: [], partners: [] })
+      } finally {
+        setInstantLoading(false)
+      }
+    }, 220)
+    return () => clearTimeout(t)
+  }, [query])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") { e.preventDefault(); performSearch(query, filters) }

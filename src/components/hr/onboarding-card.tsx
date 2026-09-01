@@ -11,15 +11,17 @@ import { toggleTaskStatus, updateOnboardingDate } from "@/app/hr/onboarding/acti
 import { OnboardingProfileModal } from "./onboarding-profile-modal"
 import { toast } from "sonner"
 
+import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
+
 interface OnboardingCardProps {
-  onboarding: any
+  onboarding: OnboardingProfile
 }
 
 export function OnboardingCard({ onboarding }: OnboardingCardProps) {
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null)
 
-  const tasks = onboarding.hr_onboarding_feladat || []
-  const doneCount = tasks.filter((t: any) => t.statusz === 'done').length
+  const tasks: OnboardingTask[] = onboarding.hr_onboarding_feladat || onboarding.tasks || []
+  const doneCount = tasks.filter((t) => t.statusz === 'done').length
   const progress = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0
 
   const handleToggle = async (taskId: string, currentStatus: string) => {
@@ -73,7 +75,7 @@ export function OnboardingCard({ onboarding }: OnboardingCardProps) {
         {tasks.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-4">Nincsenek rögzített feladatok.</p>
         )}
-        {tasks.map((task: any) => {
+        {tasks.map((task) => {
           const isDone = task.statusz === 'done'
           const isLoading = loadingTaskId === task.id
           

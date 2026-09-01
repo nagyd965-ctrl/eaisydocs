@@ -4,8 +4,16 @@ import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
 import { toast } from "sonner"
 
+export interface ExportUgyiratItem {
+  iktatoszam?: string | null
+  statusz?: string | null
+  iktatas_datuma?: string | null
+  ugy?: any
+  [key: string]: any
+}
+
 interface ExportCsvButtonProps {
-  data: any[]
+  data: ExportUgyiratItem[]
 }
 
 export function ExportCsvButton({ data }: ExportCsvButtonProps) {

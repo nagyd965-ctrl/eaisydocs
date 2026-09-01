@@ -219,8 +219,7 @@ export default async function HrOverviewPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">Jóváhagyásra váró szabadság</p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {/* @ts-ignore */}
-                      {leave.hr_dolgozo_adatlap?.felhasznalo_profil?.nev || "Ismeretlen"} szabadságkérelme: {leave.kezdet_datuma} – {leave.veg_datuma}
+                      {((leave.hr_dolgozo_adatlap as any)?.felhasznalo_profil?.nev) || "Ismeretlen"} szabadságkérelme: {leave.kezdet_datuma} – {leave.veg_datuma}
                     </p>
                   </div>
                   <Link href="/hr/manager">

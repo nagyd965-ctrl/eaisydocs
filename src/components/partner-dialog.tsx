@@ -13,11 +13,26 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
+export interface PartnerData {
+  id?: string
+  nev?: string
+  tipus?: string
+  adoszam?: string | null
+  cegjegyzekszam?: string | null
+  email?: string | null
+  telefonszam?: string | null
+  cim?: string | null
+  bankszamlaszam?: string | null
+  kapcsolattarto_nev?: string | null
+  kapcsolattarto_email?: string | null
+  kapcsolattarto_telefon?: string | null
+}
+
 export function PartnerDialog({ 
   partner, 
   iconOnly = false 
 }: { 
-  partner?: any
+  partner?: PartnerData
   iconOnly?: boolean 
 }) {
   const [open, setOpen] = useState(false)

@@ -38,26 +38,8 @@ import {
 import { Mail, Phone, Calendar, Briefcase, FileText, Loader2, ExternalLink, Save, Trash2, XCircle, CheckCircle, Info } from "lucide-react"
 import { generateCvSignedUrl, updateCandidateNote, updateCandidateStatus } from "@/app/hr/recruitment/actions"
 import { toast } from "sonner"
-
-interface Candidate {
-  id: string
-  nev: string
-  email: string
-  telefon?: string
-  uzenet?: string
-  statusz: string
-  naptar_jegyzet?: string
-  cv_storage_path?: string
-  created_at: string
-  hr_munkakor?: {
-    megnevezes: string
-  }
-  pozicio?: string // Fallback
-  ai_summary?: string
-  ai_relevance_score?: number
-  ai_skills?: string[]
-  ai_status?: string
-}
+import { type Candidate } from "@/types/hr"
+export { type Candidate }
 
 export function CandidateProfileSheet({ 
   candidate, 
@@ -69,7 +51,7 @@ export function CandidateProfileSheet({
   candidate: Candidate | null,
   isOpen: boolean,
   onClose: () => void,
-  onUpdate?: (candidate: any) => void,
+  onUpdate?: (candidate: Partial<Candidate> & { id: string; [key: string]: unknown }) => void,
   onDelete?: (id: string) => void
 }) {
   const [isLoadingCv, setIsLoadingCv] = useState(false)
@@ -180,8 +162,9 @@ export function CandidateProfileSheet({
           ai_skills: data.result.skills
         })
       }
-    } catch (e: any) {
-      toast.error(e.message)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Ismeretlen hiba"
+      toast.error(msg)
       if (onUpdate) {
         onUpdate({ id: candidate.id, ai_status: "error" })
       }
@@ -194,12 +177,12 @@ export function CandidateProfileSheet({
 
   const munkakorNev = candidate.hr_munkakor?.megnevezes || candidate.pozicio || "Nincs megadva"
   
-  let parsedNotes: any[] = []
+  let parsedNotes: { date?: string | null; author?: string | null; text?: string | null; [key: string]: unknown }[] = []
   if (candidate.naptar_jegyzet) {
     try {
       parsedNotes = JSON.parse(candidate.naptar_jegyzet)
       if (!Array.isArray(parsedNotes)) parsedNotes = []
-    } catch (e) {
+    } catch {
       parsedNotes = [{ date: candidate.created_at, author: "Korábbi jegyzet", text: candidate.naptar_jegyzet }]
     }
   }
@@ -363,7 +346,7 @@ export function CandidateProfileSheet({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-muted-foreground mb-0.5">Jelentkezés ideje</p>
-                  <span className="text-sm font-medium tabular-nums">{new Date(candidate.created_at).toLocaleDateString("hu-HU")}</span>
+                  <span className="text-sm font-medium tabular-nums">{candidate.created_at ? new Date(candidate.created_at).toLocaleDateString("hu-HU") : "-"}</span>
                 </div>
               </div>
             </div>
@@ -441,7 +424,7 @@ export function CandidateProfileSheet({
                   <div key={idx} className="bg-muted/50 p-3 rounded-xl border border-muted-foreground/10 text-sm space-y-2">
                     <div className="flex justify-between items-center text-xs text-muted-foreground">
                       <span className="font-semibold text-foreground/80">{note.author}</span>
-                      <span>{new Date(note.date).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })}</span>
+                      <span>{note.date ? new Date(note.date).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' }) : "-"}</span>
                     </div>
                     <p className="whitespace-pre-wrap leading-relaxed text-foreground/90">{note.text}</p>
                   </div>

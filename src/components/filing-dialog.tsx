@@ -10,14 +10,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, FileDown } from "lucide-react"
 
+export interface FilingIrat {
+  id: string
+  targy: string
+  erkeztetoszam?: string | null
+  [key: string]: unknown
+}
+
+export interface FilingTerv {
+  id: string
+  tetelszam: string
+  megnevezes: string
+  [key: string]: unknown
+}
+
+export interface FilingUgyirat {
+  id: string
+  iktatoszam: string
+  ugy?: any
+  [key: string]: any
+}
+
 export function FilingDialog({ 
   irat, 
   tervek,
   ugyiratok
 }: { 
-  irat: any, 
-  tervek: any[],
-  ugyiratok: any[]
+  irat: FilingIrat, 
+  tervek: FilingTerv[],
+  ugyiratok: FilingUgyirat[]
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -40,7 +61,7 @@ export function FilingDialog({
       } else {
         setOpen(false)
       }
-    } catch (_err: any) {
+    } catch (_err: unknown) {
       setError("Váratlan hiba történt az iktatás során.")
     } finally {
       setLoading(false)
@@ -124,11 +145,14 @@ export function FilingDialog({
                       <SelectValue placeholder="Válassz egy meglévő ügyiratot..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {ugyiratok.map((u: any) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.iktatoszam} - {(u.ugy as any)?.targy}
-                        </SelectItem>
-                      ))}
+                      {ugyiratok.map((u) => {
+                        const ugyTargy = Array.isArray(u.ugy) ? u.ugy[0]?.targy : u.ugy?.targy
+                        return (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.iktatoszam} - {ugyTargy}
+                          </SelectItem>
+                        )
+                      })}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">Az irat új alszámot kap a kiválasztott ügyiraton belül.</p>

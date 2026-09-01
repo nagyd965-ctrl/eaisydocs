@@ -2,6 +2,8 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { createClient } from '@supabase/supabase-js';
 import { launchPdfBrowser } from './pdf-browser';
+import crypto from 'crypto';
+import { extractPdfText } from './pdf-extractor';
 
 // Note: Ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set
 const supabase = createClient(
@@ -143,7 +145,6 @@ export async function processIncomingEmails() {
             .upload(pdfFilePath, pdfBuffer, { contentType: 'application/pdf' });
 
           if (!pdfUploadError) {
-            const crypto = require('crypto');
             const pdfSha256 = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
             
             await supabase.from('irat_fajl').insert({
@@ -179,24 +180,15 @@ export async function processIncomingEmails() {
               });
 
             if (!uploadError) {
-              const crypto = require('crypto');
               const sha256 = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
               // PDF szöveg kinyerése OCR-hez
               let ocr_szoveg = null;
               if (attachment.contentType === 'application/pdf') {
                 try {
-                  const pdfParse = require('pdf-parse');
-                  const pdfData = await pdfParse(fileBuffer);
-                  ocr_szoveg = pdfData.text;
+                  ocr_szoveg = await extractPdfText(fileBuffer);
                 } catch (e) {
                   console.warn("Nem sikerült kinyerni a szöveget a PDF-ből (IMAP):", e);
-                  // MOCK OCR fallback for demo purposes (ugyanaz mint az actions.ts-ben)
-                  ocr_szoveg = `DEMO OCR SZÖVEG:
-Kovács Kft.
-Bérleti szerződés
-Tárgy: bérleti szerződés
-Kelt: 2026.07.16.`;
                 }
               }
 

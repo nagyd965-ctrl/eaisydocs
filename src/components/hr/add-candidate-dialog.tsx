@@ -10,7 +10,13 @@ import { UserPlus, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { addCandidate } from "@/app/hr/recruitment/actions"
 
-export function AddCandidateDialog({ jobs }: { jobs: any[] }) {
+export interface CandidateJobOption {
+  id: string
+  megnevezes: string
+  [key: string]: unknown
+}
+
+export function AddCandidateDialog({ jobs }: { jobs: CandidateJobOption[] }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [jobId, setJobId] = useState<string>("")

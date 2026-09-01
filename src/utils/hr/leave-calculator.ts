@@ -4,7 +4,7 @@ export function calculateAnnualLeave(
   isVulnerable: boolean = false,
   currentYear: number = new Date().getFullYear()
 ): number {
-  let baseLeave = 20;
+  const baseLeave = 20;
   let ageExtra = 0;
 
   if (birthDateString) {
@@ -28,7 +28,7 @@ export function calculateAnnualLeave(
   else if (childrenCount === 2) childrenExtra = 4;
   else if (childrenCount >= 3) childrenExtra = 7;
 
-  let vulnerableExtra = isVulnerable ? 5 : 0;
+  const vulnerableExtra = isVulnerable ? 5 : 0;
 
   return baseLeave + ageExtra + childrenExtra + vulnerableExtra;
 }

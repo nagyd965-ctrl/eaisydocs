@@ -17,7 +17,42 @@ import { Edit, Save } from "lucide-react"
 import { updateEmployeeInfo } from "@/app/hr/settings/actions"
 import { toast } from "sonner"
 
-export function EmployeeEditDialog({ employee, jobs, orgUnits = [], managers = [] }: { employee: any, jobs: any[], orgUnits?: any[], managers?: any[] }) {
+export interface EmployeeEditData {
+  id: string
+  felhasznalo_profil?: any
+  hr_jogviszony?: any
+  [key: string]: any
+}
+
+export interface EmployeeJobOption {
+  id: string
+  megnevezes: string
+  [key: string]: any
+}
+
+export interface EmployeeOrgUnitOption {
+  id: string
+  nev: string
+  [key: string]: any
+}
+
+export interface EmployeeManagerOption {
+  id: string
+  nev: string
+  [key: string]: any
+}
+
+export function EmployeeEditDialog({ 
+  employee, 
+  jobs, 
+  orgUnits = [], 
+  managers = [] 
+}: { 
+  employee: EmployeeEditData
+  jobs: EmployeeJobOption[]
+  orgUnits?: EmployeeOrgUnitOption[]
+  managers?: EmployeeManagerOption[] 
+}) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   

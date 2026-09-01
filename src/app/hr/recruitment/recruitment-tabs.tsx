@@ -25,8 +25,8 @@ export function RecruitmentTabs({
     <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col overflow-hidden">
       <div className="flex justify-between items-center shrink-0 mb-4">
         <TabsList>
-          <TabsTrigger value="postings">Álláshirdetések (Karrieroldal)</TabsTrigger>
-          <TabsTrigger value="kanban">Kanban Tábla (Jelentkezők)</TabsTrigger>
+          <TabsTrigger value="postings">Álláshirdetések</TabsTrigger>
+          <TabsTrigger value="kanban">Kanban Tábla</TabsTrigger>
           <TabsTrigger value="talent-pool">Talent Pool</TabsTrigger>
           <TabsTrigger value="analytics">Analitika</TabsTrigger>
         </TabsList>

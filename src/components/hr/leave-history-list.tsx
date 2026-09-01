@@ -12,7 +12,21 @@ const tipusLabel: Record<string, string> = {
   fizetett: "Fizetett",
 }
 
-export function LeaveHistoryList({ leaves }: { leaves: any[] }) {
+export interface LeaveHistoryItem {
+  id: string
+  kezdete?: string
+  vege?: string
+  kezdet_datuma?: string
+  veg_datuma?: string
+  tipus: string
+  statusz: string
+  munkanapok_szama?: number
+  indoklas?: string | null
+  created_at?: string
+  [key: string]: any
+}
+
+export function LeaveHistoryList({ leaves }: { leaves: LeaveHistoryItem[] }) {
   if (!leaves || leaves.length === 0) {
     return (
       <Card>

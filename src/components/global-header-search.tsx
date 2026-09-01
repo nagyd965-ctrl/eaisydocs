@@ -17,6 +17,37 @@ import {
   CornerDownLeft
 } from "lucide-react"
 
+export interface SearchDossierItem {
+  id: string
+  iktatoszam?: string | null
+  targy?: string | null
+  statusz?: string | null
+  created_at?: string
+  ugy?: any
+  [key: string]: any
+}
+
+export interface SearchDocumentItem {
+  id: string
+  erkeztetoszam?: string | null
+  targy?: string | null
+  irany?: string | null
+  ugyirat_id?: string | null
+  created_at?: string
+  partner?: any
+  [key: string]: any
+}
+
+export interface SearchPartnerItem {
+  id: string
+  nev?: string | null
+  adoszam?: string | null
+  email?: string | null
+  tipus?: string | null
+  telepules?: string | null
+  [key: string]: any
+}
+
 export function GlobalHeaderSearch() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -24,9 +55,9 @@ export function GlobalHeaderSearch() {
   const [loading, setLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [results, setResults] = useState<{
-    dossiers: any[]
-    documents: any[]
-    partners: any[]
+    dossiers: SearchDossierItem[]
+    documents: SearchDocumentItem[]
+    partners: SearchPartnerItem[]
   }>({ dossiers: [], documents: [], partners: [] })
 
   const inputRef = useRef<HTMLInputElement>(null)

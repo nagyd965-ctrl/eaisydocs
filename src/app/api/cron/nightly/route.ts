@@ -327,7 +327,7 @@ export async function GET(request: Request) {
           if (diffDays === 30 || diffDays === 7 || diffDays <= 0) {
             const csatornak = orvosiSzabaly.csatorna || [];
             const kinek = orvosiSzabaly.kinek || '';
-            let targetUserIds: string[] = [];
+            const targetUserIds: string[] = [];
 
             if (kinek.includes('Érintett')) targetUserIds.push(v.dolgozo_id);
             if (kinek.includes('HR')) {
@@ -396,7 +396,7 @@ export async function GET(request: Request) {
           if (diffDays === 7) {
             const csatornak = probaidoSzabaly.csatorna || [];
             const kinek = probaidoSzabaly.kinek || '';
-            let targetUserIds: string[] = [];
+            const targetUserIds: string[] = [];
 
             if (kinek.includes('HR')) {
               const { data: hrUsers } = await supabase.from('felhasznalo_profil').select('id').in('hr_szerepkor', ['hr_munkatars', 'hr_vezeto', 'admin']);
@@ -467,7 +467,7 @@ export async function GET(request: Request) {
           const diffDays = Math.ceil((belepes.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
           if (diffDays === 2) {
             const csatornak = t1041Szabaly.csatorna || [];
-            let targetUserIds: string[] = [];
+            const targetUserIds: string[] = [];
             const { data: hrUsers } = await supabase.from('felhasznalo_profil').select('id').in('hr_szerepkor', ['hr_munkatars', 'hr_vezeto', 'admin']);
             if (hrUsers) targetUserIds.push(...hrUsers.map((u: any) => u.id));
 
@@ -516,7 +516,7 @@ export async function GET(request: Request) {
           
           if (diffDays === 30 || diffDays === 7 || diffDays <= 0) {
             const csatornak = tanulmanyiSzabaly.csatorna || [];
-            let targetUserIds: string[] = [];
+            const targetUserIds: string[] = [];
             
             // HR címzettek lekérése
             const { data: hrUsers } = await supabase.from('felhasznalo_profil').select('id').in('hr_szerepkor', ['hr_munkatars', 'hr_vezeto', 'admin']);
@@ -588,7 +588,7 @@ export async function GET(request: Request) {
           
           if (diffDays === 15) {
             const csatornak = hatarozottSzabaly.csatorna || [];
-            let targetUserIds: string[] = [];
+            const targetUserIds: string[] = [];
             
             // HR címzettek lekérése (alapértelmezés)
             const { data: hrUsers } = await supabase.from('felhasznalo_profil').select('id').in('hr_szerepkor', ['hr_munkatars', 'hr_vezeto', 'admin']);

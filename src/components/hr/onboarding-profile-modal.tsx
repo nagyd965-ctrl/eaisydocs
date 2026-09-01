@@ -8,8 +8,10 @@ import { addOnboardingTask, deleteOnboardingTask } from "@/app/hr/onboarding/act
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 
+import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
+
 interface OnboardingProfileModalProps {
-  onboarding: any
+  onboarding: OnboardingProfile
   onDateChange: (newDate: string) => void
 }
 
@@ -18,15 +20,15 @@ export function OnboardingProfileModal({ onboarding, onDateChange }: OnboardingP
   const [newTaskResp, setNewTaskResp] = useState("")
   const [isAdding, setIsAdding] = useState(false)
   
-  const initials = onboarding.nev
+  const initials = (onboarding.nev || "Jelölt")
     .split(' ')
     .map((n: string) => n[0])
     .join('')
     .substring(0, 2)
     .toUpperCase()
 
-  const tasks = onboarding.hr_onboarding_feladat || []
-  const doneCount = tasks.filter((t: any) => t.statusz === 'done').length
+  const tasks: OnboardingTask[] = onboarding.hr_onboarding_feladat || onboarding.tasks || []
+  const doneCount = tasks.filter((t) => t.statusz === 'done').length
   const progress = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0
   const isDone = progress === 100
 
@@ -92,7 +94,7 @@ export function OnboardingProfileModal({ onboarding, onDateChange }: OnboardingP
               <Input 
                 type="date" 
                 className="pl-9 h-9 text-sm font-medium bg-muted/20 border-border/50 focus:bg-background transition-colors"
-                defaultValue={onboarding.belepes_datuma === "Hamarosan" ? "" : onboarding.belepes_datuma} 
+                defaultValue={onboarding.belepes_datuma === "Hamarosan" ? "" : (onboarding.belepes_datuma || "")} 
                 onChange={(e) => onDateChange(e.target.value)}
               />
             </div>
@@ -108,7 +110,7 @@ export function OnboardingProfileModal({ onboarding, onDateChange }: OnboardingP
           <Progress value={progress} className="h-2 shadow-inner" />
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-            {tasks.map((task: any) => (
+            {tasks.map((task) => (
               <div 
                 key={task.id} 
                 className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${

@@ -26,16 +26,43 @@ const FILTERS = [
 
 type FilterKey = typeof FILTERS[number]["key"]
 
+export interface JobPostingItem {
+  id: string
+  cim?: string
+  munkakor_id?: string
+  aktiv?: boolean
+  publikus?: boolean
+  created_at?: string
+  hr_munkakor?: { megnevezes?: string } | null
+  [key: string]: any
+}
+
+export interface JobItem {
+  id: string
+  megnevezes: string
+  [key: string]: any
+}
+
+export interface CandidateItem {
+  id: string
+  megpalyazott_munkakor_id?: string | null
+  [key: string]: any
+}
+
+interface JobPostingsListProps {
+  postings?: JobPostingItem[]
+  initialPostings?: JobPostingItem[]
+  jobs: JobItem[]
+  candidates: CandidateItem[]
+}
+
 export function JobPostingsList({
+  postings: propPostings,
   initialPostings,
   jobs,
   candidates = [],
-}: {
-  initialPostings: any[]
-  jobs: any[]
-  candidates?: any[]
-}) {
-  const [postings, setPostings] = useState(initialPostings)
+}: JobPostingsListProps) {
+  const [postings, setPostings] = useState<JobPostingItem[]>(initialPostings || propPostings || [])
   const [search, setSearch]     = useState("")
   const [filter, setFilter]     = useState<FilterKey>("all")
   const supabase = createClient()
@@ -60,13 +87,13 @@ export function JobPostingsList({
   }, [postings, search, filter])
 
   /* ───── Helpers ───── */
-  function getApplicantCount(posting: any): number {
+  function getApplicantCount(posting: JobPostingItem): number {
     return candidates.filter(c => c.megpalyazott_munkakor_id === posting.munkakor_id).length
   }
 
   function addOrUpdate(savedPosting: any) {
     const job = jobs.find(j => j.id === savedPosting.munkakor_id)
-    const full = { ...savedPosting, hr_munkakor: { megnevezes: job?.megnevezes } }
+    const full: JobPostingItem = { ...savedPosting, hr_munkakor: { megnevezes: job?.megnevezes } }
     setPostings(prev => {
       const exists = prev.find(p => p.id === savedPosting.id)
       return exists ? prev.map(p => p.id === savedPosting.id ? full : p) : [full, ...prev]
@@ -199,7 +226,7 @@ export function JobPostingsList({
         <div className="space-y-3">
           {filtered.map(posting => {
             const applicantCount = getApplicantCount(posting)
-            const days = daysSince(posting.created_at)
+            const days = daysSince(posting.created_at || "")
 
             return (
               <div
@@ -255,24 +282,24 @@ export function JobPostingsList({
                       <span className="text-[11px] text-muted-foreground">Aktív</span>
                       <Switch
                         checked={posting.aktiv}
-                        onCheckedChange={() => toggleStatus(posting.id, "aktiv", posting.aktiv)}
+                        onCheckedChange={() => toggleStatus(posting.id, "aktiv", !!posting.aktiv)}
                       />
                     </div>
                     <div className="flex flex-col items-center gap-1">
                       <span className="text-[11px] text-muted-foreground">Publikus</span>
                       <Switch
                         checked={posting.publikus}
-                        onCheckedChange={() => toggleStatus(posting.id, "publikus", posting.publikus)}
+                        onCheckedChange={() => toggleStatus(posting.id, "publikus", !!posting.publikus)}
                       />
                     </div>
                   </div>
 
                   {/* Akció gombok */}
                   <div className="flex items-center gap-1">
-                    <ManagePostingDialog jobs={jobs} existingData={posting} onSaved={posting2 => {
+                    <ManagePostingDialog jobs={jobs} existingData={posting as any} onSaved={posting2 => {
                       const job = jobs.find(j => j.id === posting2.munkakor_id)
                       setPostings(prev => prev.map(p => p.id === posting2.id
-                        ? { ...posting2, hr_munkakor: { megnevezes: job?.megnevezes } }
+                        ? { ...posting2, id: posting2.id || p.id, hr_munkakor: { megnevezes: job?.megnevezes } }
                         : p
                       ))
                     }}>

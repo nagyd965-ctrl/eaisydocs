@@ -31,8 +31,8 @@ export default async function ArchivePage() {
 
   if (dossiers) {
     for (const d of dossiers) {
-      // @ts-ignore
-      const ugyStatusz = d.ugy?.statusz
+      const ugy = Array.isArray(d.ugy) ? (d.ugy as any)[0] : d.ugy
+      const ugyStatusz = (ugy as any)?.statusz
 
       if (ugyStatusz === "selejtezett") {
         scrappedDossiers.push(d)

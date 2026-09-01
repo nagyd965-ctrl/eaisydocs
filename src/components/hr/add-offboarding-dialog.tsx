@@ -18,8 +18,10 @@ import { UserMinus, Loader2 } from "lucide-react"
 import { createOffboarding } from "@/app/hr/offboarding/actions"
 import { toast } from "sonner"
 
+import { type Employee } from "@/types/hr"
+
 interface AddOffboardingDialogProps {
-  employees: any[]
+  employees: Employee[]
 }
 
 export function AddOffboardingDialog({ employees }: AddOffboardingDialogProps) {

@@ -31,7 +31,7 @@ export function ReportsTabs() {
   }
 
   // Helper to trigger CSV download
-  const downloadCSV = (data: any[], filename: string) => {
+  const downloadCSV = (data: Record<string, unknown>[], filename: string) => {
     if (!data || data.length === 0) {
       toast.error("Nincs exportálható adat erre a hónapra.")
       return
@@ -150,9 +150,10 @@ export function ReportsTabs() {
       toast.success("Bevallás sikeresen archiválva!", { id: 'upload' })
       loadArchive()
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error)
-      toast.error(`Feltöltés sikertelen: ${error.message}`, { id: 'upload' })
+      const msg = error instanceof Error ? error.message : "Ismeretlen hiba"
+      toast.error(`Feltöltés sikertelen: ${msg}`, { id: 'upload' })
     } finally {
       setUploading(false)
       e.target.value = ''

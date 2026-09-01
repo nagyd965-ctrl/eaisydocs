@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { getClientInfo } from "@/utils/client-info"
+import crypto from "crypto"
 
 async function checkDossierWritePermission(supabase: any, user: any, ugyiratId: string) {
   const { data: profile } = await supabase
@@ -260,7 +261,6 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
   }
 
   // 1. Fájl feltöltése Storage-ba
-  const crypto = require("crypto")
   const fileExt = file.name.split('.').pop()
   const fileName = `${crypto.randomUUID()}.${fileExt}`
   

@@ -15,8 +15,10 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
+import { type OffboardingListItem, type OffboardingTask } from "./offboarding-list"
+
 interface OffboardingProfileModalProps {
-  offboarding: any
+  offboarding: OffboardingListItem
   onDateChange: (newDate: string) => Promise<void>
 }
 
@@ -118,8 +120,8 @@ export function OffboardingProfileModal({ offboarding, onDateChange }: Offboardi
     ? offboarding.felhasznalo_profil.nev.split(' ').map((n: string) => n[0]).join('').substring(0, 2)
     : "U"
 
-  const tasks = offboarding.hr_offboarding_feladat || []
-  const doneTasks = tasks.filter((t: any) => t.statusz === 'done').length
+  const tasks: OffboardingTask[] = offboarding.hr_offboarding_feladat || []
+  const doneTasks = tasks.filter((t) => t.statusz === 'done').length
   const progress = tasks.length > 0 ? (doneTasks / tasks.length) * 100 : 0
 
   const handleDateSave = async () => {
@@ -287,7 +289,7 @@ export function OffboardingProfileModal({ offboarding, onDateChange }: Offboardi
                     Nincsenek még feladatok rögzítve.
                   </div>
                 ) : (
-                  tasks.map((task: any) => (
+                  tasks.map((task) => (
                     <div
                       key={task.id}
                       className={`flex items-center gap-4 p-3 hover:bg-muted/30 transition-colors ${task.statusz === 'done' ? 'opacity-60 bg-muted/10' : ''}`}

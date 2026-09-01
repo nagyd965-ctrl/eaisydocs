@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 interface SendEmailParams {
   to: string;
@@ -65,7 +66,7 @@ export async function sendNotificationEmail({ to, subject, html, dossierId, send
 
  
 async function logNotification(
-  supabaseClient: any,
+  supabaseClient: SupabaseClient | any,
   to: string,
   subject: string,
   html: string,

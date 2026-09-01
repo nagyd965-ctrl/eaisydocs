@@ -6,7 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Download, Table as TableIcon } from "lucide-react"
 
-export function KshReportGenerator({ employees }: { employees: any[] }) {
+export interface KshEmployeeItem {
+  id: string
+  munkaido_fte?: number | null
+  [key: string]: unknown
+}
+
+export function KshReportGenerator({ employees }: { employees: KshEmployeeItem[] }) {
   const [selectedMonth, setSelectedMonth] = useState<string>("2026-05")
 
   // Mock statisztika a kiválasztott hónapra (Valós rendszerben backend aggregáció lenne)

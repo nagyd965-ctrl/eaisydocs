@@ -14,10 +14,6 @@ export default function HrAuditPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchLogs()
-  }, [])
-
   const fetchLogs = async () => {
     setLoading(true)
     const { data, error } = await supabase
@@ -36,6 +32,10 @@ export default function HrAuditPage() {
     }
     setLoading(false)
   }
+
+  useEffect(() => {
+    fetchLogs()
+  }, [])
 
   const getEventIcon = (type: string) => {
     switch (type) {

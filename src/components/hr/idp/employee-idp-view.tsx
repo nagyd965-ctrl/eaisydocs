@@ -21,7 +21,7 @@ import { toast } from "sonner"
 // ---------------------------------------------------------------------------
 // Segéd: határidő jelzés
 // ---------------------------------------------------------------------------
-function DeadlineInfo({ hatarido, statusz }: { hatarido: string | null; statusz: IDPStatus }) {
+function DeadlineInfo({ hatarido, statusz }: { hatarido?: string | null; statusz?: string | null }) {
   if (!hatarido || statusz === "teljesitve") return null
   const deadline = new Date(hatarido)
   const daysLeft = differenceInDays(deadline, new Date())
@@ -53,7 +53,7 @@ function DeadlineInfo({ hatarido, statusz }: { hatarido: string | null; statusz:
 // ---------------------------------------------------------------------------
 // Prioritás badge
 // ---------------------------------------------------------------------------
-function PriorityBadge({ prioritas }: { prioritas: string | null }) {
+function PriorityBadge({ prioritas }: { prioritas?: string | null }) {
   const map: Record<string, { label: string; cls: string }> = {
     magas:    { label: "Magas",    cls: "bg-destructive/10 text-destructive border-destructive/20" },
     kozepes:  { label: "Közepes",  cls: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
@@ -64,10 +64,37 @@ function PriorityBadge({ prioritas }: { prioritas: string | null }) {
   return <Badge variant="outline" className={cn("text-[10px] font-semibold", cls)}><Flag className="w-2.5 h-2.5 mr-1" />{label}</Badge>
 }
 
+export interface IDPNoteItem {
+  id: string
+  szoveg: string
+  created_at: string
+  iro?: { nev?: string | null } | null
+  [key: string]: any
+}
+
+export interface IDPGoalItem {
+  id: string
+  megnevezes: string
+  leiras?: string | null
+  statusz: "tervezett" | "folyamatban" | "jovahagyasra_var" | "teljesitve" | "elutasitva" | string
+  hatarido?: string | null
+  megjegyzesek?: IDPNoteItem[]
+  [key: string]: any
+}
+
+export interface IDPPlanItem {
+  id: string
+  megnevezes: string
+  statusz: string
+  created_at: string
+  celok?: IDPGoalItem[]
+  [key: string]: any
+}
+
 // ---------------------------------------------------------------------------
 // Haladási napló panel
 // ---------------------------------------------------------------------------
-function NotesPanel({ celId, megjegyzesek }: { celId: string; megjegyzesek: any[] }) {
+function NotesPanel({ celId, megjegyzesek }: { celId: string; megjegyzesek: IDPNoteItem[] }) {
   const router = useRouter()
   const [newNote, setNewNote] = useState("")
   const [saving, setSaving] = useState(false)
@@ -104,7 +131,7 @@ function NotesPanel({ celId, megjegyzesek }: { celId: string; megjegyzesek: any[
             <p className="text-xs text-muted-foreground italic">Még nincs bejegyzés. Rögzítsd az első haladásodat!</p>
           ) : (
             <div className="space-y-2">
-              {megjegyzesek.map((m: any) => (
+              {megjegyzesek.map((m) => (
                 <div key={m.id} className="text-xs bg-muted/40 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium">{m.iro?.nev ?? "Ismeretlen"}</span>
@@ -143,7 +170,7 @@ function NotesPanel({ celId, megjegyzesek }: { celId: string; megjegyzesek: any[
 // ---------------------------------------------------------------------------
 // Fő komponens
 // ---------------------------------------------------------------------------
-export function EmployeeIdpView({ tervek }: { tervek: any[] }) {
+export function EmployeeIdpView({ tervek }: { tervek: IDPPlanItem[] }) {
   const router = useRouter()
   const [loadingId, setLoadingId] = useState<string | null>(null)
 
@@ -172,7 +199,7 @@ export function EmployeeIdpView({ tervek }: { tervek: any[] }) {
     <div className="space-y-6 max-w-3xl">
       {tervek.map(terv => {
         const totalGoals = terv.celok?.length ?? 0
-        const completedGoals = terv.celok?.filter((c: any) => c.statusz === "teljesitve").length ?? 0
+        const completedGoals = terv.celok?.filter((c) => c.statusz === "teljesitve").length ?? 0
         const progress = totalGoals === 0 ? 0 : Math.round((completedGoals / totalGoals) * 100)
         const isLezart = terv.statusz === "lezart"
 
@@ -208,7 +235,7 @@ export function EmployeeIdpView({ tervek }: { tervek: any[] }) {
                 </p>
               )}
 
-              {terv.celok?.map((cel: any) => {
+              {terv.celok?.map((cel) => {
                 const isDone = cel.statusz === "teljesitve"
                 const isPending = cel.statusz === "jovahagyasra_var"
                 const isInProgress = cel.statusz === "folyamatban"
@@ -268,7 +295,7 @@ export function EmployeeIdpView({ tervek }: { tervek: any[] }) {
                           {isDone && cel.teljesites_datuma && (
                             <span className="flex items-center gap-1 text-emerald-600 font-medium">
                               <CheckCircle2 className="w-3 h-3" />
-                              Teljesítve: {format(new Date(cel.teljesites_datuma), "yyyy. MM. dd.", { locale: hu })}
+                              Teljesítve: {cel.teljesites_datuma ? format(new Date(cel.teljesites_datuma), "yyyy. MM. dd.", { locale: hu }) : ""}
                             </span>
                           )}
                         </div>

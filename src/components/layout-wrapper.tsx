@@ -76,7 +76,7 @@ export function LayoutWrapper({
             <DynamicSidebarTrigger />
           </div>
           <div className="flex items-center space-x-3">
-            <GlobalHeaderSearch />
+            {!pathname.startsWith("/hr") && <GlobalHeaderSearch />}
             <NotificationBell />
           </div>
         </div>

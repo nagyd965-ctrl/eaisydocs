@@ -18,8 +18,19 @@ import { updateMunkakor, deleteMunkakor } from "@/app/hr/settings/actions"
 import { toast } from "sonner"
 import { buttonVariants } from "@/components/ui/button"
 
+export interface JobActionMenuItem {
+  id: string
+  megnevezes: string
+  feor?: string | null
+  besorolasi_szint?: string | null
+  leiras?: string | null
+  kovetelmenyek?: string | null
+  felelossegek?: string | null
+  [key: string]: any
+}
+
 interface JobActionMenuProps {
-  job: any
+  job: JobActionMenuItem
 }
 
 export function JobActionMenu({ job }: JobActionMenuProps) {

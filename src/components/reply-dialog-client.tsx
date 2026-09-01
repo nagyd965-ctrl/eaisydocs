@@ -53,9 +53,9 @@ export function ReplyDialogClient({ toEmail, originalSubject, iratId }: ReplyDia
       toast.success("Válaszlevél sikeresen elküldve!")
       setOpen(false)
       setText("") // reset
-      router.refresh()
-    } catch (err: any) {
-      toast.error(err.message || "Hiba történt a levélküldés során.")
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Hiba történt a levélküldés során."
+      toast.error(msg)
     } finally {
       setLoading(false)
     }

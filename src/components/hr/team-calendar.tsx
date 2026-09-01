@@ -1,22 +1,31 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isSameMonth, addWeeks, subWeeks, addMonths, subMonths, addYears, subYears, startOfMonth, endOfMonth, eachMonthOfInterval, startOfYear, endOfYear, isWithinInterval, parseISO } from "date-fns"
+import { hu } from "date-fns/locale"
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, User2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Badge } from "@/components/ui/badge"
-import { CalendarIcon, ChevronLeft, ChevronRight, User2 } from "lucide-react"
-import { 
-  addWeeks, subWeeks, addMonths, subMonths, addYears, subYears,
-  startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, 
-  format, isSameDay, isWithinInterval, parseISO, isSameMonth, eachMonthOfInterval, startOfYear, endOfYear
-} from "date-fns"
-import { hu } from "date-fns/locale"
+
+import { type TeamMember, type LeaveRecord } from "@/types/hr"
 
 type ViewMode = "heti" | "havi" | "eves"
 
-export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leaves: any[] }) {
+function isLeaveActive(l: LeaveRecord, day: Date): boolean {
+  const startStr = l.kezdet_datuma || l.kezdete
+  const endStr = l.veg_datuma || l.vege
+  if (!startStr || !endStr) return false
+  try {
+    return isWithinInterval(day, { start: parseISO(startStr), end: parseISO(endStr) })
+  } catch {
+    return false
+  }
+}
+
+export function TeamCalendar({ teamMembers, leaves }: { teamMembers: TeamMember[], leaves: LeaveRecord[] }) {
   const [viewMode, setViewMode] = useState<ViewMode>("havi")
   const [currentDate, setCurrentDate] = useState(new Date())
 
@@ -64,9 +73,9 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
           {/* Sorok */}
           <div className="space-y-2">
             {teamMembers.map(member => {
-              const nev = member.felhasznalo_profil?.nev || "Ismeretlen"
+              const nev = member.felhasznalo_profil?.nev || member.nev || "Ismeretlen"
               const initials = nev.substring(0, 2).toUpperCase()
-              const memberLeaves = leaves.filter(l => l.dolgozo_id === member.id)
+              const memberLeaves = leaves.filter(l => (l.dolgozo_id || l.user_id) === member.id)
 
               return (
                 <div key={member.id} className="grid grid-cols-8 gap-1 items-center border rounded-md p-1 bg-card">
@@ -79,9 +88,7 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
                   
                   {/* Napok */}
                   {days.map(day => {
-                    const activeLeave = memberLeaves.find(l => 
-                      isWithinInterval(day, { start: parseISO(l.kezdet_datuma), end: parseISO(l.veg_datuma) })
-                    )
+                    const activeLeave = memberLeaves.find(l => isLeaveActive(l, day))
 
                     return (
                       <div key={day.toISOString()} className={`col-span-1 h-10 rounded-sm flex items-center justify-center p-1 ${activeLeave ? typeColors[activeLeave.tipus] + ' border' : 'bg-muted/30'}`}>
@@ -124,10 +131,7 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
           
           // Ezen a napon távollévők keresése
           const absentMembers = teamMembers.filter(member => {
-             return leaves.some(l => 
-               l.dolgozo_id === member.id && 
-               isWithinInterval(day, { start: parseISO(l.kezdet_datuma), end: parseISO(l.veg_datuma) })
-             )
+             return leaves.some(l => (l.dolgozo_id || l.user_id) === member.id && isLeaveActive(l, day))
           })
 
           return (
@@ -150,10 +154,10 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
                       </div>
                       <div className="p-2 max-h-[300px] overflow-y-auto space-y-1">
                         {absentMembers.map(member => {
-                          const nev = member.felhasznalo_profil?.nev || "Ismeretlen"
-                          const munkakor = member.hr_munkakor?.megnevezes || "Nincs beosztás"
+                          const nev = member.felhasznalo_profil?.nev || member.nev || "Ismeretlen"
+                          const munkakor = member.hr_munkakor?.megnevezes || member.beosztas || "Nincs beosztás"
                           const initials = nev.substring(0, 2).toUpperCase()
-                          const leave = leaves.find(l => l.dolgozo_id === member.id && isWithinInterval(day, { start: parseISO(l.kezdet_datuma), end: parseISO(l.veg_datuma) }))
+                          const leave = leaves.find(l => (l.dolgozo_id || l.user_id) === member.id && isLeaveActive(l, day))
                           if (!leave) return null
                           
                           return (
@@ -168,7 +172,7 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
                                     <User2 className="w-3 h-3 shrink-0" /> {munkakor}
                                   </p>
                                 </div>
-                                <Badge variant="outline" className={`text-[10px] uppercase font-semibold shrink-0 ${typeColors[leave.tipus]}`}>
+                                <Badge variant="outline" className={`text-[10px] uppercase font-semibold shrink-0 ${typeColors[leave.tipus] || ""}`}>
                                   {leave.tipus}
                                 </Badge>
                               </div>
@@ -209,8 +213,8 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
           </thead>
           <tbody className="divide-y">
             {teamMembers.map(member => {
-               const nev = member.felhasznalo_profil?.nev || "Ismeretlen"
-               const memberLeaves = leaves.filter(l => l.dolgozo_id === member.id)
+               const nev = member.felhasznalo_profil?.nev || member.nev || "Ismeretlen"
+               const memberLeaves = leaves.filter(l => (l.dolgozo_id || l.user_id) === member.id)
 
                return (
                  <tr key={member.id} className="bg-card hover:bg-muted/30 transition-colors">
@@ -221,7 +225,7 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: any[], leav
                       let daysOff = 0
                       
                       daysInMonth.forEach(day => {
-                        if (memberLeaves.some(l => isWithinInterval(day, { start: parseISO(l.kezdet_datuma), end: parseISO(l.veg_datuma) }))) {
+                        if (memberLeaves.some(l => isLeaveActive(l, day))) {
                           // Csak a munkanapokat (hétfő-péntek) számoljuk
                           if (day.getDay() !== 0 && day.getDay() !== 6) daysOff++
                         }

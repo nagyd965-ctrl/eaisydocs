@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { DndContext, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors, useDroppable, useDraggable, DragStartEvent, DragEndEvent } from "@dnd-kit/core"
 import { format } from "date-fns"
@@ -110,11 +110,9 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(false)
-  const portalRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     setIsMounted(true)
-    portalRef.current = document.body
   }, [])
   useEffect(() => { setTasks(initialTasks) }, [initialTasks])
 
@@ -175,7 +173,7 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
       </div>
 
       {/* DragOverlay PORTÁLLAL a document.body-ba — így a sidebar offset nem okoz ugrást */}
-      {portalRef.current && createPortal(
+      {typeof document !== "undefined" && createPortal(
         <DragOverlay dropAnimation={null}>
           {activeTask ? (
             <Card className="cursor-grabbing border-primary rotate-[2deg] w-[250px]">
@@ -183,7 +181,7 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
             </Card>
           ) : null}
         </DragOverlay>,
-        portalRef.current
+        document.body
       )}
     </DndContext>
   )

@@ -16,7 +16,46 @@ import { EditKpiDialog } from "@/components/hr/edit-kpi-dialog"
 import { KpiWorkflowStepper, deriveWorkflowPhase } from "@/components/hr/kpi-workflow-stepper"
 import { History, Target, TrendingUp, MessageSquare, MoreHorizontal, Edit, Trash2, User, Link as LinkIcon, CalendarCheck, Lock, Award } from "lucide-react"
 
-export function PerformanceList({ employees, kpis, logs = [], cycles = [], allKpis = [] }: { employees: any[], kpis: any[], logs?: any[], cycles?: any[], allKpis?: any[] }) {
+export interface PerformanceKpi {
+  id: string
+  dolgozo_id: string
+  megnevezes: string
+  cel_ertek?: number | null
+  aktualis_ertek?: number | null
+  mertekegyseg?: string | null
+  suly?: number | null
+  pontszam?: number | null
+  onertekeles_pontszam?: number | null
+  onertekeles_szoveg?: string | null
+  vezeto_ertekeles_szoveg?: string | null
+  statusz?: string
+  szulo_kpi_id?: string | null
+  ciklus_id?: string | null
+  created_at?: string
+  [key: string]: any
+}
+
+export interface PerformanceEmployee {
+  id: string
+  felhasznalo_profil?: any
+  hr_jogviszony?: any
+  kpis?: PerformanceKpi[]
+  [key: string]: any
+}
+
+export function PerformanceList({ 
+  employees, 
+  kpis, 
+  logs = [], 
+  cycles = [], 
+  allKpis = [] 
+}: { 
+  employees: PerformanceEmployee[]
+  kpis: PerformanceKpi[]
+  logs?: any[]
+  cycles?: any[]
+  allKpis?: PerformanceKpi[] 
+}) {
   const employeesWithKpis = employees.map(emp => ({
     ...emp,
     kpis: kpis.filter(k => k.dolgozo_id === emp.id)
@@ -439,9 +478,9 @@ export function PerformanceList({ employees, kpis, logs = [], cycles = [], allKp
         )
       })}
 
-      {editKpiId && (
+      {editKpiId && allKpis.find(k => k.id === editKpiId) && (
         <EditKpiDialog
-          kpi={allKpis.find(k => k.id === editKpiId)}
+          kpi={allKpis.find(k => k.id === editKpiId)!}
           cycles={cycles}
           allKpis={allKpis}
           open={!!editKpiId}

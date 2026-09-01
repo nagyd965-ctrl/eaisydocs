@@ -7,8 +7,22 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Star, ThumbsUp, ThumbsDown, Users, TrendingUp, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+export interface ExitInterviewItem {
+  id: string
+  felhasznalo_profil?: { nev?: string | null } | null
+  datum?: string | null
+  kilepes_oka?: string | null
+  elegedettseg_pontszam?: number | null
+  vezeto_elegedettseg?: number | null
+  csapat_elegedettseg?: number | null
+  ber_elegedettseg?: number | null
+  uj_allomashely?: string | null
+  megjegyzes?: string | null
+  [key: string]: any
+}
+
 interface ExitInterviewSummaryProps {
-  interviews: any[]
+  interviews: ExitInterviewItem[]
 }
 
 const KATEGORIA_LABELS: Record<string, string> = {
@@ -289,7 +303,7 @@ export function ExitInterviewSummary({ interviews }: ExitInterviewSummaryProps) 
 // ---------------------------------------------------------------------------
 // Részletes interjú sor + popup
 // ---------------------------------------------------------------------------
-function InterviewDetailRow({ interview }: { interview: any }) {
+function InterviewDetailRow({ interview }: { interview: ExitInterviewItem }) {
   const [open, setOpen] = useState(false)
 
   return (

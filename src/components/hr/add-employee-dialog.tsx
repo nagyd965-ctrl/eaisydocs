@@ -13,7 +13,35 @@ import { toast } from "sonner"
 import { onboardEmployee } from "@/app/hr/admin/actions"
 import { ReactElement } from "react"
 
-export function AddEmployeeDialog({ availableUsers, jobs, candidates = [], customTrigger }: { availableUsers: any[], jobs: any[], candidates?: any[], customTrigger?: ReactElement }) {
+import { type CandidateJobOption } from "./add-candidate-dialog"
+
+export interface AvailableUserItem {
+  id: string
+  nev?: string | null
+  email?: string | null
+  [key: string]: unknown
+}
+
+export interface CandidateOptionItem {
+  id: string
+  nev?: string | null
+  email?: string | null
+  telefonszam?: string | null
+  megpalyazott_munkakor_id?: string | null
+  [key: string]: unknown
+}
+
+export function AddEmployeeDialog({ 
+  availableUsers, 
+  jobs, 
+  candidates = [], 
+  customTrigger 
+}: { 
+  availableUsers: AvailableUserItem[]
+  jobs: CandidateJobOption[]
+  candidates?: CandidateOptionItem[]
+  customTrigger?: ReactElement 
+}) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()

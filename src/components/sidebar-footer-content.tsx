@@ -10,41 +10,51 @@ import { Button } from "@/components/ui/button"
 import { useSidebar } from "@/components/ui/sidebar"
 import { useRouter, usePathname } from "next/navigation"
 
+import Image from "next/image"
+
+interface UserProfile {
+  nev?: string | null
+  avatar_url?: string | null
+}
+
 export function SidebarFooterContent() {
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<any>(null)
-  const supabase = createClient()
+  const [profile, setProfile] = useState<UserProfile | null>(null)
   const router = useRouter()
   const pathname = usePathname()
   const { state, toggleSidebar } = useSidebar()
 
   useEffect(() => {
-    const fetchProfile = () => {
-      supabase.auth.getUser().then(({ data }) => {
-        if (data.user) {
-          setUser(data.user)
-          // Keresd meg a profilt is
-          supabase
-            .from("felhasznalo_profil")
-            .select("nev, avatar_url")
-            .eq("id", data.user.id)
-            .single()
-            .then(({ data: profileData }) => {
-              if (profileData) {
-                setProfile(profileData)
-              }
-            })
+    const supabase = createClient()
+    let isMounted = true
+
+    const fetchProfile = async () => {
+      const { data } = await supabase.auth.getUser()
+      if (data.user && isMounted) {
+        setUser(data.user)
+        const { data: profileData } = await supabase
+          .from("felhasznalo_profil")
+          .select("nev, avatar_url")
+          .eq("id", data.user.id)
+          .single()
+
+        if (profileData && isMounted) {
+          setProfile(profileData)
         }
-      })
+      }
     }
 
     fetchProfile()
 
-    window.addEventListener('profileUpdated', fetchProfile)
-    return () => window.removeEventListener('profileUpdated', fetchProfile)
+    window.addEventListener("profileUpdated", fetchProfile)
+    return () => {
+      isMounted = false
+      window.removeEventListener("profileUpdated", fetchProfile)
+    }
   }, [])
 
   const handleLogout = async () => {
+    const supabase = createClient()
     await supabase.auth.signOut()
     router.push("/login")
   }
@@ -56,11 +66,18 @@ export function SidebarFooterContent() {
     const initials = profile?.nev ? profile.nev.substring(0, 2).toUpperCase() : user.email?.substring(0, 2).toUpperCase()
     return (
       <div className="flex flex-col items-center gap-4 py-2 border-t mt-auto">
-        <div className="h-8 w-8 bg-muted rounded-full flex items-center justify-center font-medium text-xs overflow-hidden">
-          {profile?.avatar_url
-            ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-            : initials
-          }
+        <div className="relative h-8 w-8 bg-muted rounded-full flex items-center justify-center font-medium text-xs overflow-hidden">
+          {profile?.avatar_url ? (
+            <Image
+              src={profile.avatar_url}
+              alt={profile?.nev || "Felhasználó"}
+              fill
+              className="object-cover"
+              unoptimized
+            />
+          ) : (
+            initials
+          )}
         </div>
         <Button variant="ghost" size="icon" onClick={toggleSidebar}>
           <PanelLeftOpen className="h-4 w-4 text-muted-foreground" />
@@ -74,11 +91,18 @@ export function SidebarFooterContent() {
       {/* Felhasználó infó + Theme toggle */}
       <div className="flex items-center justify-between p-2">
         <div className="flex items-center gap-3 overflow-hidden">
-          <div className="h-10 w-10 shrink-0 bg-muted rounded-full flex items-center justify-center font-medium text-sm text-muted-foreground uppercase overflow-hidden">
-            {profile?.avatar_url
-              ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-              : (profile?.nev ? profile.nev.substring(0, 2) : user.email?.substring(0, 2))
-            }
+          <div className="relative h-10 w-10 shrink-0 bg-muted rounded-full flex items-center justify-center font-medium text-sm text-muted-foreground uppercase overflow-hidden">
+            {profile?.avatar_url ? (
+              <Image
+                src={profile.avatar_url}
+                alt={profile?.nev || "Felhasználó"}
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            ) : (
+              profile?.nev ? profile.nev.substring(0, 2) : user.email?.substring(0, 2)
+            )}
           </div>
           <div className="flex flex-col overflow-hidden">
             <span className="text-sm font-medium truncate">{profile?.nev || "Felhasználó"}</span>

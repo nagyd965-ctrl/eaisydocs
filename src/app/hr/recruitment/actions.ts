@@ -66,8 +66,7 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
         console.error("Hiba az automatikus átemelésnél", e)
       }
 
-      // @ts-ignore - Supabase types might be tricky here
-      const munkakor = candidate.hr_munkakor?.megnevezes || "Új munkatárs"
+      const munkakor = (candidate as any).hr_munkakor?.megnevezes || "Új munkatárs"
       
       // 2. Létrehozzuk az Onboarding rekordot
       const { data: newOnboarding, error: onbError } = await adminClient
@@ -111,8 +110,7 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
 
     if (!fetchErr && candidate && candidate.email) {
       try {
-        // @ts-ignore
-        const munkakor = candidate.hr_munkakor?.megnevezes || "megpályázott pozíció"
+        const munkakor = (candidate as any).hr_munkakor?.megnevezes || "megpályázott pozíció"
         
         await sendNotificationEmail({
           to: candidate.email,

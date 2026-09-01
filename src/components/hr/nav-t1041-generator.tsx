@@ -6,7 +6,18 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Printer, Copy, FileText, CheckCircle2 } from "lucide-react"
 
-export function NavT1041Generator({ employees }: { employees: any[] }) {
+export interface EmployeeT1041Item {
+  id: string
+  taj_szam?: string | null
+  adoazonosito_jel?: string | null
+  munkaido_fte?: number | null
+  felhasznalo_profil?: { nev?: string | null } | null
+  hr_munkakor?: { feor?: string | null; megnevezes?: string | null } | null
+  hr_jogviszony?: { belepes_datuma?: string | null }[] | null
+  [key: string]: any
+}
+
+export function NavT1041Generator({ employees }: { employees: EmployeeT1041Item[] }) {
   const [selectedEmpId, setSelectedEmpId] = useState<string>("")
   const [bejelentesTipus, setBejelentesTipus] = useState<string>("U")
   const [copied, setCopied] = useState(false)

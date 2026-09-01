@@ -35,6 +35,13 @@ type DeclarationChoice = {
   levont_keret_osszeg: number
 }
 
+export interface ExistingCafeteriaChoice {
+  katalogus_elem_id: string
+  kert_osszeg: number
+  levont_keret_osszeg: number
+  [key: string]: unknown
+}
+
 export function CafeteriaDeclaration({ 
   employeeId, 
   year, 
@@ -48,7 +55,7 @@ export function CafeteriaDeclaration({
   budget: number, 
   isClosed: boolean,
   catalog: CatalogItem[],
-  existingChoices: any[]
+  existingChoices: ExistingCafeteriaChoice[]
 }) {
   const [choices, setChoices] = useState<DeclarationChoice[]>(
     existingChoices.map(c => ({
@@ -140,10 +147,10 @@ export function CafeteriaDeclaration({
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {existingChoices.map(c => {
+            {existingChoices.map((c, index) => {
               const item = catalog.find(k => k.id === c.katalogus_elem_id)
               return (
-                <div key={c.id} className="flex justify-between p-3 bg-background rounded-md border text-sm">
+                <div key={String(c.katalogus_elem_id || index)} className="flex justify-between p-3 bg-background rounded-md border text-sm">
                   <span className="font-medium">{item?.nev || "Ismeretlen elem"}</span>
                   <span className="text-muted-foreground">{formatFt(c.kert_osszeg)}</span>
                 </div>

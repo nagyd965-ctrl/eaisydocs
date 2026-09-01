@@ -64,7 +64,7 @@ export async function findOrCreatePartner(
     console.error("Partner lekérdezési hiba:", error)
   }
 
-  let matchedPartner = (allPartners || []).find(p => {
+  const matchedPartner = (allPartners || []).find(p => {
     // 1. Adószám egyezés
     if (params.adoszam && p.adoszam && p.adoszam.replace(/[-\s]/g, "") === params.adoszam.replace(/[-\s]/g, "")) {
       return true
@@ -92,7 +92,7 @@ export async function findOrCreatePartner(
 
   if (matchedPartner) {
     // Frissítjük a meglévő partner hiányzó adatait ha most kaptunk újakat
-    const updates: any = {}
+    const updates: Record<string, string> = {}
     if (!matchedPartner.adoszam && params.adoszam) updates.adoszam = params.adoszam
     if (!matchedPartner.email && params.email) updates.email = params.email
     if (!matchedPartner.telefonszam && params.telefonszam) updates.telefonszam = params.telefonszam

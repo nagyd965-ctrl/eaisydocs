@@ -11,6 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, ArrowLeft, FileText, CheckCircle2, Sparkles, X } from "lucide-react"
 
+import { type FilingIrat, type FilingTerv, type FilingUgyirat } from "./filing-dialog"
+
+export interface FilingDepartment {
+  id: string
+  nev: string
+  iktato_prefix?: string | null
+  [key: string]: unknown
+}
+
 export function FilingPanelClient({ 
   irat, 
   pdfUrl,
@@ -18,11 +27,11 @@ export function FilingPanelClient({
   ugyiratok,
   departments
 }: { 
-  irat: any, 
+  irat: FilingIrat, 
   pdfUrl: string | null,
-  tervek: any[],
-  ugyiratok: any[],
-  departments?: any[]
+  tervek: FilingTerv[],
+  ugyiratok: FilingUgyirat[],
+  departments?: FilingDepartment[]
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -35,7 +44,7 @@ export function FilingPanelClient({
   const [departmentId, setDepartmentId] = useState<string>("")
 
   const selectedPlan = tervek.find(t => t.id === ugytipusId)
-  const selectedDept = departments?.find((d: any) => d.id === departmentId)
+  const selectedDept = departments?.find((d) => d.id === departmentId)
 
   const handleAiSuggest = async () => {
     setAiLoading(true)
@@ -77,7 +86,7 @@ export function FilingPanelClient({
       } else {
         router.push("/inbox")
       }
-    } catch (_err: any) {
+    } catch (_err: unknown) {
       setError("Váratlan hiba történt az iktatás során.")
     } finally {
       setLoading(false)
@@ -163,7 +172,7 @@ export function FilingPanelClient({
                 </div>
               )}
               
-              <Tabs defaultValue="new" value={mode} onValueChange={(v) => setMode(v as any)}>
+              <Tabs defaultValue="new" value={mode} onValueChange={(v) => setMode(v as "new" | "existing")}>
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="new">Új ügyirat nyitása</TabsTrigger>
                   <TabsTrigger value="existing">Meglévőhöz csatolás</TabsTrigger>
@@ -173,7 +182,7 @@ export function FilingPanelClient({
                   <input 
                     type="hidden" 
                     name="prefix" 
-                    value={departments?.find((d: any) => d.id === departmentId)?.iktato_prefix || "NYILV"} 
+                    value={departments?.find((d) => d.id === departmentId)?.iktato_prefix || "NYILV"} 
                   />
 
                   <div className="space-y-2">
@@ -181,23 +190,24 @@ export function FilingPanelClient({
                     <Input 
                       id="targy" 
                       name="targy" 
-                      value={targy} 
+                      required={mode === "new"}
+                      value={targy}
                       onChange={(e) => setTargy(e.target.value)}
-                      required={mode === "new"} 
+                      placeholder="Pl. Szolgáltatási szerződés 2026" 
                       className={aiLoading ? "animate-pulse bg-muted" : ""}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="ugytipus_id">Irattári Tétel (Ügytípus)</Label>
-                    <Select name="ugytipus_id" required={mode === "new"} value={ugytipusId} onValueChange={(v) => setUgytipusId(v || "")}>
-                      <SelectTrigger id="ugytipus_id" className={aiLoading ? "animate-pulse bg-muted" : ""}>
-                        <SelectValue placeholder="Válassz típust...">
+                    <Label htmlFor="irattari_terv_id">Irattári tételszám</Label>
+                    <Select name="irattari_terv_id" required={mode === "new"} value={ugytipusId} onValueChange={(v) => setUgytipusId(v || "")}>
+                      <SelectTrigger id="irattari_terv_id" className={aiLoading ? "animate-pulse bg-muted" : ""}>
+                        <SelectValue placeholder="Válassz tételszámot...">
                           {selectedPlan ? `${selectedPlan.tetelszam} - ${selectedPlan.megnevezes}` : undefined}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {tervek.map(t => (
+                        {tervek.map((t) => (
                           <SelectItem key={t.id} value={t.id} label={`${t.tetelszam} - ${t.megnevezes}`}>
                             {t.tetelszam} - {t.megnevezes}
                           </SelectItem>
@@ -215,7 +225,7 @@ export function FilingPanelClient({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {departments?.map((dept: any) => (
+                        {departments?.map((dept) => (
                           <SelectItem key={dept.id} value={dept.id} label={dept.nev}>
                             {dept.nev}
                           </SelectItem>
@@ -233,16 +243,20 @@ export function FilingPanelClient({
                         <SelectValue placeholder="Válassz egy meglévő ügyiratot...">
                           {(value) => {
                             const item = ugyiratok.find(u => u.id === value);
-                            return item ? `${item.iktatoszam} - ${(item.ugy as any)?.targy}` : "Válassz egy meglévő ügyiratot...";
+                            const targy = Array.isArray(item?.ugy) ? item?.ugy[0]?.targy : item?.ugy?.targy;
+                            return item ? `${item.iktatoszam} - ${targy || ''}` : "Válassz egy meglévő ügyiratot...";
                           }}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {ugyiratok.map((u: any) => (
-                          <SelectItem key={u.id} value={u.id} label={`${u.iktatoszam} - ${(u.ugy as any)?.targy}`}>
-                            {u.iktatoszam} - {(u.ugy as any)?.targy}
-                          </SelectItem>
-                        ))}
+                        {ugyiratok.map((u) => {
+                          const targy = Array.isArray(u.ugy) ? u.ugy[0]?.targy : u.ugy?.targy;
+                          return (
+                            <SelectItem key={u.id} value={u.id} label={`${u.iktatoszam} - ${targy || ''}`}>
+                              {u.iktatoszam} - {targy}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground mt-2">

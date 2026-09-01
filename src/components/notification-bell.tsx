@@ -26,10 +26,10 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
-  const supabase = createClient()
   const router = useRouter()
 
   const fetchNotifications = useCallback(async () => {
+    const supabase = createClient()
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) return
 
@@ -45,17 +45,27 @@ export function NotificationBell() {
       setNotifications(data)
       setUnreadCount(data.filter((n) => !n.olvasott).length)
     }
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
-    fetchNotifications()
+    let isMounted = true
+    const load = async () => {
+      if (isMounted) {
+        await fetchNotifications()
+      }
+    }
+    load()
 
     // Opcionális: Polling beállítása percenként
     const interval = setInterval(fetchNotifications, 60000)
-    return () => clearInterval(interval)
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
   }, [fetchNotifications])
 
   const deleteNotification = async (id: string, wasUnread: boolean) => {
+    const supabase = createClient()
     const { error } = await supabase
       .from("alkalmazas_ertesites")
       .update({ olvasott: true })

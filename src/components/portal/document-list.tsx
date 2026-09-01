@@ -11,8 +11,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+export interface PortalDocument {
+  id: string
+  cim: string
+  leiras?: string | null
+  kotelezo_nyugtazas?: boolean
+  kotelezo_mindenkinek?: boolean
+  nyugtazva?: boolean
+  nyugtazva_mikor?: string | null
+  fajl_url?: string | null
+  dokumentum_tipus?: string | null
+  hr_ceges_dokumentum_nyugtazas?: { nyugtazva_mikor?: string | null }[] | null
+}
+
 interface DocumentListProps {
-  documents: any[]
+  documents: PortalDocument[]
   userName: string
 }
 
@@ -95,7 +108,7 @@ export function DocumentList({ documents, userName }: DocumentListProps) {
     }, 250);
   }
 
-  const generateTemplate = (doc: any) => {
+  const generateTemplate = (doc: PortalDocument) => {
     return (
       <div id="print-document" className="p-4 sm:p-8 bg-card text-foreground font-serif w-full mx-auto space-y-6">
         <div className="text-center pb-6 border-b print-hidden">
@@ -202,7 +215,7 @@ export function DocumentList({ documents, userName }: DocumentListProps) {
             
             {isAcknowledged && (
               <div className="mt-4 pt-3 border-t text-xs text-muted-foreground text-center">
-                Nyugtázva: {new Date(doc.hr_ceges_dokumentum_nyugtazas[0].nyugtazva_mikor).toLocaleString('hu-HU')}
+                Nyugtázva: {doc.hr_ceges_dokumentum_nyugtazas?.[0]?.nyugtazva_mikor ? new Date(doc.hr_ceges_dokumentum_nyugtazas[0].nyugtazva_mikor).toLocaleString('hu-HU') : 'Igen'}
               </div>
             )}
           </div>
