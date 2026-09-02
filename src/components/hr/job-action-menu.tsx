@@ -22,26 +22,33 @@ export interface JobActionMenuItem {
   id: string
   megnevezes: string
   feor?: string | null
+  feor_kod?: string | null
   besorolasi_szint?: string | null
+  szervezeti_egyseg_id?: string | null
   leiras?: string | null
   kovetelmenyek?: string | null
   felelossegek?: string | null
   [key: string]: any
 }
 
+interface OrgUnit { id: string; nev: string }
+
 interface JobActionMenuProps {
   job: JobActionMenuItem
+  orgUnits?: OrgUnit[]
 }
 
-export function JobActionMenu({ job }: JobActionMenuProps) {
+export function JobActionMenu({ job, orgUnits = [] }: JobActionMenuProps) {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [besorolas, setBesorolas] = useState(job.besorolasi_szint || "")
+  const [selectedOrgUnit, setSelectedOrgUnit] = useState(job.szervezeti_egyseg_id || "none")
 
   const handleEditSubmit = async (formData: FormData) => {
     setLoading(true)
     formData.set("besorolasi_szint", besorolas)
+    formData.set("szervezeti_egyseg_id", selectedOrgUnit)
     
     const result = await updateMunkakor(job.id, formData)
     setLoading(false)
@@ -128,6 +135,24 @@ export function JobActionMenu({ job }: JobActionMenuProps) {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_szervezeti_egyseg">Szervezeti Egység</Label>
+                <Select value={selectedOrgUnit} onValueChange={(val) => setSelectedOrgUnit(val ?? "none")}>
+                  <SelectTrigger id="edit_szervezeti_egyseg">
+                    <SelectValue>
+                      {selectedOrgUnit === "none"
+                        ? <span className="text-muted-foreground">— Nincs besorolva —</span>
+                        : orgUnits.find((u) => u.id === selectedOrgUnit)?.nev ?? <span className="text-muted-foreground">— Nincs besorolva —</span>}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Nincs besorolva —</SelectItem>
+                    {orgUnits.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>{u.nev}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="kockazat_tipusa">Kockázat Típusa (Munkavédelem)</Label>

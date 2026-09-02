@@ -12,14 +12,18 @@ import { createMunkakor } from "@/app/hr/settings/actions"
 
 import { ReactElement } from "react"
 
-export function JobCreateDialog({ customTrigger }: { customTrigger?: ReactElement }) {
+interface OrgUnit { id: string; nev: string }
+
+export function JobCreateDialog({ customTrigger, orgUnits = [] }: { customTrigger?: ReactElement; orgUnits?: OrgUnit[] }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [besorolas, setBesorolas] = useState("")
+  const [selectedOrgUnit, setSelectedOrgUnit] = useState("none")
 
   const handleSubmit = async (formData: FormData) => {
     setLoading(true)
     formData.set("besorolasi_szint", besorolas)
+    formData.set("szervezeti_egyseg_id", selectedOrgUnit)
     
     const result = await createMunkakor(formData)
     setLoading(false)
@@ -29,6 +33,8 @@ export function JobCreateDialog({ customTrigger }: { customTrigger?: ReactElemen
     } else {
       toast.success("Munkakör sikeresen létrehozva!")
       setOpen(false)
+      setBesorolas("")
+      setSelectedOrgUnit("none")
     }
   }
 
@@ -42,7 +48,7 @@ export function JobCreateDialog({ customTrigger }: { customTrigger?: ReactElemen
           Új Munkakör Létrehozása
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Új Munkakör Létrehozása</DialogTitle>
           <DialogDescription>
@@ -76,6 +82,27 @@ export function JobCreateDialog({ customTrigger }: { customTrigger?: ReactElemen
                 </Select>
               </div>
             </div>
+
+            {/* Szervezeti egység hozzárendelés */}
+            <div className="space-y-2">
+              <Label htmlFor="szervezeti_egyseg">Szervezeti Egység</Label>
+              <Select value={selectedOrgUnit} onValueChange={(val) => setSelectedOrgUnit(val ?? "none")}>
+                <SelectTrigger id="szervezeti_egyseg">
+                  <SelectValue>
+                    {selectedOrgUnit === "none"
+                      ? <span className="text-muted-foreground">— Nincs besorolva —</span>
+                      : orgUnits.find((u) => u.id === selectedOrgUnit)?.nev ?? <span className="text-muted-foreground">— Nincs besorolva —</span>}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Nincs besorolva —</SelectItem>
+                  {orgUnits.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>{u.nev}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="kockazat_tipusa">Kockázat Típusa (Munkavédelem)</Label>
               <Input id="kockazat_tipusa" name="kockazat_tipusa" placeholder="pl. Képernyő előtti munkavégzés" />

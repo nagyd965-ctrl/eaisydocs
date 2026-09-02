@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { User, Monitor, Shield, Info, Briefcase, Building2, Search, Users, Network, UserPlus, Plus } from "lucide-react"
 import { EmployeeEditDialog } from "@/components/hr/employee-edit-dialog"
 import { OrgChartTree } from "@/components/hr/org-chart-tree"
+import { buildOrgTree, type OrgUnitNode } from "@/lib/org-chart-utils"
 import { JobCreateDialog } from "@/components/hr/job-create-dialog"
 import { JobActionMenu } from "@/components/hr/job-action-menu"
 import { OrgUnitActionMenu } from "@/components/hr/org-unit-action-menu"
@@ -52,7 +53,7 @@ export default async function HrSettingsPage() {
   let allUsers: any[] = []
   let unassignedUsers: any[] = []
   let availableCandidates: any[] = []
-  const rootEmployees: any[] = []
+  let rootOrgUnits: OrgUnitNode[] = []
 
   if (isHrOrAdmin) {
     // 1. Összes dolgozó lekérése
@@ -87,7 +88,7 @@ export default async function HrSettingsPage() {
       employees = fetchedEmployees
     }
 
-    // --- SZERVEZETI ÁBRA LOGIKA ÚJRAÍRÁSA ---
+    // --- SZERVEZETI ÁBRA LOGIKA (szervezeti egység-alapú fa) ---
     const { data: fetchedOrgUnits } = await supabase
       .from("hr_szervezeti_egyseg")
       .select("id, nev, szulo_id")
@@ -101,37 +102,29 @@ export default async function HrSettingsPage() {
       .order("esemeny_tipus")
     if (fetchedSzabalyok) szabalyok = fetchedSzabalyok
 
-    // 2. OrgChart adatok összeállítása (új: közvetlen vezető alapján)
-    const employeeMap = new Map<string, any>()
+    // OrgChart: dolgozókat csoportosítjuk szervezeti egység szerint
+    const dolgozokByUnit: Record<string, { id: string; nev: string; pozicio: string }[]> = {}
     if (employees) {
       employees.forEach(emp => {
-        const p = emp.felhasznalo_profil as any;
-        const nev = p?.nev || "Névtelen";
-        const managerId = p?.kozvetlen_vezeto_id;
-        const egyseg = p?.hr_szervezeti_egyseg?.nev || "Központ";
-        
-        const activeJogviszony = emp.hr_jogviszony?.[0];
-        const activeBeosztas = activeJogviszony?.hr_beosztas?.[0];
-        const pozicio = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva";
+        const p = emp.felhasznalo_profil as any
+        const unitId = p?.hr_szervezeti_egyseg_id
+        if (!unitId) return // Ha nincs egységhez rendelve, nem jelenik meg az ábrán
 
-        employeeMap.set(emp.id, {
+        const activeJogviszony = Array.isArray(emp.hr_jogviszony) ? emp.hr_jogviszony[0] : emp.hr_jogviszony
+        const activeBeosztas = Array.isArray(activeJogviszony?.hr_beosztas) ? activeJogviszony.hr_beosztas[0] : activeJogviszony?.hr_beosztas
+        const pozicio = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
+
+        if (!dolgozokByUnit[unitId]) dolgozokByUnit[unitId] = []
+        dolgozokByUnit[unitId].push({
           id: emp.id,
-          nev,
+          nev: p?.nev || "Névtelen",
           pozicio,
-          egyseg,
-          managerId,
-          beosztottak: []
         })
       })
     }
 
-    employeeMap.forEach(empNode => {
-      if (empNode.managerId && employeeMap.has(empNode.managerId)) {
-        employeeMap.get(empNode.managerId).beosztottak.push(empNode)
-      } else {
-        rootEmployees.push(empNode)
-      }
-    })
+    // Fa összeállítása a buildOrgTree segédfüggvénnyel
+    rootOrgUnits = buildOrgTree(orgUnits || [], dolgozokByUnit)
 
     // Munkakörök lekérése a katalógushoz
     const { data: fetchedDbJobs } = await supabase
@@ -151,7 +144,8 @@ export default async function HrSettingsPage() {
     if (fetchedJobs) jobs = fetchedJobs
 
     // 3. Olyan felhasználók lekérése, akik nincsenek benne a hr_dolgozo_adatlap-ban
-    const { data: fetchedAllUsers } = await supabase.from("felhasznalo_profil").select("id, nev")
+    // hr_szervezeti_egyseg_id is kell a helyes count-hoz a táblában
+    const { data: fetchedAllUsers } = await supabase.from("felhasznalo_profil").select("id, nev, hr_szervezeti_egyseg_id")
     if (fetchedAllUsers) allUsers = fetchedAllUsers
     const assignedIds = employees?.map(e => e.id) || []
     unassignedUsers = allUsers?.filter(u => !assignedIds.includes(u.id)) || []
@@ -206,19 +200,11 @@ export default async function HrSettingsPage() {
           {isHrOrAdmin && (
             <>
               <TabsTrigger 
-                value="munkatarsak" 
-                className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-              >
-                <Users className="h-4 w-4 mr-2" />
-                Munkatársak (HR)
-              </TabsTrigger>
-
-              <TabsTrigger 
                 value="organization" 
                 className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
               >
                 <Building2 className="h-4 w-4 mr-2" />
-                Szervezet
+                Szervezet és munkatársak
               </TabsTrigger>
               <TabsTrigger 
                 value="ertesitesek" 
@@ -357,18 +343,21 @@ export default async function HrSettingsPage() {
         </TabsContent>
 
 
-
         {isHrOrAdmin && (
           <TabsContent value="organization" className="space-y-6 outline-none">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h3 className="text-2xl font-semibold tracking-tight">Szervezet és Munkakörök</h3>
-                <p className="text-muted-foreground mt-1">Vállalati struktúra és munkaköri leírások (FEOR) kezelése.</p>
+                <h3 className="text-2xl font-semibold tracking-tight">Szervezet és munkatársak</h3>
+                <p className="text-muted-foreground mt-1">Munkatársak, szervezeti felépítés és munkakorök kezelése.</p>
               </div>
             </div>
 
-            <Tabs defaultValue="jobs" className="space-y-6">
+            <Tabs defaultValue="munkatarsak" className="space-y-6">
               <TabsList className="bg-transparent border-b rounded-none w-full justify-start h-auto p-0 mb-6">
+                <TabsTrigger value="munkatarsak" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3">
+                  <Users className="w-4 h-4 mr-2" />
+                  Munkatársak
+                </TabsTrigger>
                 <TabsTrigger value="jobs" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3">
                   <Briefcase className="w-4 h-4 mr-2" />
                   Munkakör-katalógus
@@ -382,6 +371,105 @@ export default async function HrSettingsPage() {
                   Szervezeti Ábra
                 </TabsTrigger>
               </TabsList>
+
+              {/* Munkatársak alsó-tab (volt: külön külső tab) */}
+              <TabsContent value="munkatarsak" className="space-y-4 outline-none">
+                <Card className="border-border shadow-sm">
+                  <CardHeader className="pb-4 flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <Briefcase className="w-5 h-5 text-primary" />
+                        Munkatársak ({employees?.length || 0} fő)
+                      </CardTitle>
+                      <CardDescription>
+                        A dolgozói nyilvántartás és a szerepkörök szerkesztése.
+                      </CardDescription>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                        <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b">
+                          <tr>
+                            <th className="px-6 py-4 font-semibold">Név</th>
+                            <th className="px-6 py-4 font-semibold">Munkakör</th>
+                            <th className="px-6 py-4 font-semibold">Szervezeti Egység</th>
+                            <th className="px-6 py-4 font-semibold">Szerepkör</th>
+                            <th className="px-6 py-4 font-semibold">Közvetlen vezető</th>
+                            <th className="px-6 py-4 font-semibold">Belépés</th>
+                            <th className="px-6 py-4 text-right font-semibold">Műveletek</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {employees?.map((emp) => {
+                            const nev = emp.felhasznalo_profil?.nev || "Ismeretlen"
+                            const initials = nev.substring(0,2).toUpperCase()
+                            const activeJogviszony = emp.hr_jogviszony?.[0]
+                            const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
+                            const munkakor = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
+                            const egysegId = (emp.felhasznalo_profil as any)?.hr_szervezeti_egyseg_id
+                            const egyseg = (egysegId && orgUnits.find((u: any) => u.id === egysegId)?.nev) || "Nincs besorolva"
+                            const hr_szerepkor = emp.felhasznalo_profil?.hr_szerepkor || "Ismeretlen"
+                            const belepes = activeJogviszony?.belepes_datuma ? new Date(activeJogviszony.belepes_datuma).toLocaleDateString("hu-HU") : "-"
+                            const managerId = (emp.felhasznalo_profil as any)?.kozvetlen_vezeto_id
+                            const manager = managerId ? employees.find(m => m.id === managerId) : null
+                            const managerName = manager?.felhasznalo_profil?.nev || "Nincs beállítva"
+                            let roleColor = "bg-secondary text-secondary-foreground"
+                            let roleName = "Ismeretlen"
+                            if (hr_szerepkor === "admin") { roleColor = "bg-destructive/10 text-destructive border-destructive/20 border"; roleName = "Admin" }
+                            else if (hr_szerepkor === "rendszergazda") { roleColor = "bg-destructive/10 text-destructive border-destructive/20 border"; roleName = "Rendszergazda (IT)" }
+                            else if (hr_szerepkor === "hr_vezeto") { roleColor = "bg-primary/10 text-primary border-primary/20 border"; roleName = "HR Vezető (Igazgató)" }
+                            else if (hr_szerepkor === "hr_munkatars") { roleColor = "bg-primary/10 text-primary border-primary/20 border"; roleName = "HR Munkatárs" }
+                            else if (hr_szerepkor === "vezeto") { roleColor = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 border"; roleName = "Vezető (Közvetlen)" }
+                            else if (hr_szerepkor === "munkavallalo") { roleName = "Munkavállaló (Alap)" }
+                            else if (hr_szerepkor === "berugyi") { roleColor = "bg-blue-500/10 text-blue-600 border-blue-500/20 border"; roleName = "Bérügyi / Bérszámfejtő" }
+                            else if (hr_szerepkor === "toborzo") { roleColor = "bg-orange-500/10 text-orange-600 border-orange-500/20 border"; roleName = "Tobarzó (ATS)" }
+                            else if (hr_szerepkor === "munkavedelmi") { roleColor = "bg-amber-500/10 text-amber-600 border-amber-500/20 border"; roleName = "Munkavédelmi Felelős" }
+                            else if (hr_szerepkor === "auditor") { roleColor = "bg-indigo-500/10 text-indigo-600 border-indigo-500/20 border"; roleName = "Auditor (Könyvélszámoló)" }
+                            return (
+                              <tr key={emp.id} className="bg-card hover:bg-muted/30 transition-colors">
+                                <td className="px-6 py-4 font-medium whitespace-nowrap flex items-center gap-3">
+                                  <Avatar className="w-8 h-8">
+                                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{initials}</AvatarFallback>
+                                  </Avatar>
+                                  {nev}
+                                </td>
+                                <td className="px-6 py-4 text-muted-foreground">{munkakor}</td>
+                                <td className="px-6 py-4"><Badge variant="outline" className="font-normal">{egyseg}</Badge></td>
+                                <td className="px-6 py-4"><Badge variant="secondary" className={`font-normal ${roleColor}`}>{roleName}</Badge></td>
+                                <td className="px-6 py-4 text-muted-foreground">{managerName}</td>
+                                <td className="px-6 py-4 text-muted-foreground">{belepes}</td>
+                                <td className="px-6 py-4 text-right flex items-center justify-end gap-1">
+                                  <EmployeeEditDialog employee={emp} jobs={jobs || []} orgUnits={orgUnits || []} managers={employees || []} />
+                                  <EmployeeDeleteDialog employeeId={emp.id} employeeName={nev} />
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {(!employees || employees.length === 0) && (
+                      <div className="p-8 text-center text-muted-foreground">
+                        Nincsenek megjeleníthető dolgozók az adatbázisban.
+                      </div>
+                    )}
+                  </CardContent>
+                  <div className="px-0 py-2">
+                    <AddEmployeeDialog
+                      availableUsers={unassignedUsers}
+                      jobs={jobs || []}
+                      candidates={availableCandidates}
+                      customTrigger={
+                        <Button variant="outline" className="w-full border-dashed border-2 py-6 text-muted-foreground hover:text-foreground">
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Új dolgozó felvétele
+                        </Button>
+                      }
+                    />
+                  </div>
+                </Card>
+              </TabsContent>
 
               <TabsContent value="jobs" className="space-y-4 outline-none">
                 <Card className="border-border shadow-sm">
@@ -418,7 +506,9 @@ export default async function HrSettingsPage() {
                                 </Link>
                               </TableCell>
                               <TableCell className="text-muted-foreground tabular-nums">{job.feor_kod || "-"}</TableCell>
-                              <TableCell>Nem besorolt</TableCell>
+                              <TableCell className="text-muted-foreground text-sm">
+                                {orgUnits.find((u: any) => u.id === job.szervezeti_egyseg_id)?.nev || <span className="text-muted-foreground/50 italic">Nincs besorolva</span>}
+                              </TableCell>
                               <TableCell>
                                 <Badge variant="outline" className="text-xs font-normal text-muted-foreground bg-background">
                                   {job.besorolasi_szint || "-"}
@@ -436,7 +526,7 @@ export default async function HrSettingsPage() {
                                 )}
                               </TableCell>
                               <TableCell className="text-right pr-6">
-                                <JobActionMenu job={job} />
+                                <JobActionMenu job={job} orgUnits={orgUnits} />
                               </TableCell>
                             </TableRow>
                           )
@@ -451,7 +541,7 @@ export default async function HrSettingsPage() {
                     </Table>
                   </CardContent>
                   <div className="px-0 py-2">
-                    <JobCreateDialog customTrigger={
+                    <JobCreateDialog orgUnits={orgUnits} customTrigger={
                       <Button variant="outline" className="w-full border-dashed border-2 py-6 text-muted-foreground hover:text-foreground">
                         <Plus className="h-4 w-4 mr-2" />
                         Új munkakör létrehozása
@@ -486,7 +576,11 @@ export default async function HrSettingsPage() {
                       <TableBody>
                         {orgUnits && orgUnits.length > 0 ? orgUnits.map((unit) => {
                           const parentUnit = orgUnits.find(u => u.id === unit.szulo_id);
-                          const employeeCount = employees?.filter(e => e.felhasznalo_profil?.hr_szervezeti_egyseg_id === unit.id).length || 0;
+                          // Count from felhasznalo_profil directly (not hr_dolgozo_adatlap)
+                          // so employees without adatlap record are also counted
+                          const employeeCount = (allUsers as any[])?.filter(
+                            (u: any) => u.hr_szervezeti_egyseg_id === unit.id
+                          ).length || 0;
                           return (
                             <TableRow key={unit.id} className="hover:bg-muted/50">
                               <TableCell className="pl-6 font-medium">
@@ -509,7 +603,7 @@ export default async function HrSettingsPage() {
                                 )}
                               </TableCell>
                               <TableCell className="text-right pr-6">
-                                <OrgUnitActionMenu unit={unit} />
+                                <OrgUnitActionMenu unit={unit} allUnits={orgUnits || []} />
                               </TableCell>
                             </TableRow>
                           )
@@ -541,148 +635,11 @@ export default async function HrSettingsPage() {
                     <CardDescription>Vizuális fa-struktúra a vezetők és beosztottak megjelenítéséhez.</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <OrgChartTree rootUnits={rootEmployees} />
+                    <OrgChartTree rootUnits={rootOrgUnits} />
                   </CardContent>
                 </Card>
               </TabsContent>
             </Tabs>
-          </TabsContent>
-        )}
-
-        {isHrOrAdmin && (
-          <TabsContent value="munkatarsak" className="mt-0 outline-none space-y-6">
-            <Card className="border-border shadow-sm">
-              <CardHeader className="pb-4 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    <Briefcase className="w-5 h-5 text-primary" />
-                    Munkatársak ({employees?.length || 0} fő)
-                  </CardTitle>
-                  <CardDescription>
-                    A dolgozói nyilvántartás és a szerepkörök szerkesztése.
-                  </CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                    <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b">
-                      <tr>
-                        <th className="px-6 py-4 font-semibold">Név</th>
-                        <th className="px-6 py-4 font-semibold">Munkakör</th>
-                        <th className="px-6 py-4 font-semibold">Szervezeti Egység</th>
-                        <th className="px-6 py-4 font-semibold">Szerepkör</th>
-                        <th className="px-6 py-4 font-semibold">Közvetlen vezető</th>
-                        <th className="px-6 py-4 font-semibold">Belépés</th>
-                        <th className="px-6 py-4 text-right font-semibold">Műveletek</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {employees?.map((emp) => {
-                        const nev = emp.felhasznalo_profil?.nev || "Ismeretlen"
-                        const initials = nev.substring(0,2).toUpperCase()
-                        
-                        // Új schema: dolgozo -> jogviszony -> beosztas -> munkakor
-                        const activeJogviszony = emp.hr_jogviszony?.[0]
-                        const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
-                        const munkakor = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
-                        
-                        const egyseg = (emp.felhasznalo_profil as any)?.hr_szervezeti_egyseg?.nev || "Központ"
-                        const hr_szerepkor = emp.felhasznalo_profil?.hr_szerepkor || "Ismeretlen"
-                        const belepes = activeJogviszony?.belepes_datuma ? new Date(activeJogviszony.belepes_datuma).toLocaleDateString("hu-HU") : "-"
-                        
-                        // Közvetlen vezető kikeresése
-                        const managerId = (emp.felhasznalo_profil as any)?.kozvetlen_vezeto_id
-                        const manager = managerId ? employees.find(m => m.id === managerId) : null
-                        const managerName = manager?.felhasznalo_profil?.nev || "Nincs beállítva"
-
-                        // Szerepkör badge színezés és fordítás
-                        let roleColor = "bg-secondary text-secondary-foreground"
-                        let roleName = "Ismeretlen"
-                        if (hr_szerepkor === "admin") {
-                          roleColor = "bg-destructive/10 text-destructive border-destructive/20 border"
-                          roleName = "Admin"
-                        } else if (hr_szerepkor === "rendszergazda") {
-                          roleColor = "bg-destructive/10 text-destructive border-destructive/20 border"
-                          roleName = "Rendszergazda (IT)"
-                        } else if (hr_szerepkor === "hr_vezeto") {
-                          roleColor = "bg-primary/10 text-primary border-primary/20 border"
-                          roleName = "HR Vezető (Igazgató)"
-                        } else if (hr_szerepkor === "hr_munkatars") {
-                          roleColor = "bg-primary/10 text-primary border-primary/20 border"
-                          roleName = "HR Munkatárs"
-                        } else if (hr_szerepkor === "vezeto") {
-                          roleColor = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 border"
-                          roleName = "Vezető (Közvetlen)"
-                        } else if (hr_szerepkor === "munkavallalo") {
-                          roleName = "Munkavállaló (Alap)"
-                        } else if (hr_szerepkor === "berugyi") {
-                          roleColor = "bg-blue-500/10 text-blue-600 border-blue-500/20 border"
-                          roleName = "Bérügyi / Bérszámfejtő"
-                        } else if (hr_szerepkor === "toborzo") {
-                          roleColor = "bg-orange-500/10 text-orange-600 border-orange-500/20 border"
-                          roleName = "Toborzó (ATS)"
-                        } else if (hr_szerepkor === "munkavedelmi") {
-                          roleColor = "bg-amber-500/10 text-amber-600 border-amber-500/20 border"
-                          roleName = "Munkavédelmi Felelős"
-                        } else if (hr_szerepkor === "auditor") {
-                          roleColor = "bg-indigo-500/10 text-indigo-600 border-indigo-500/20 border"
-                          roleName = "Auditor (Könyvvizsgáló)"
-                        }
-
-                        return (
-                          <tr key={emp.id} className="bg-card hover:bg-muted/30 transition-colors">
-                            <td className="px-6 py-4 font-medium whitespace-nowrap flex items-center gap-3">
-                              <Avatar className="w-8 h-8">
-                                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{initials}</AvatarFallback>
-                              </Avatar>
-                              {nev}
-                            </td>
-                            <td className="px-6 py-4 text-muted-foreground">
-                              {munkakor}
-                            </td>
-                            <td className="px-6 py-4">
-                              <Badge variant="outline" className="font-normal">{egyseg}</Badge>
-                            </td>
-                            <td className="px-6 py-4">
-                              <Badge variant="secondary" className={`font-normal ${roleColor}`}>{roleName}</Badge>
-                            </td>
-                            <td className="px-6 py-4 text-muted-foreground">
-                              {managerName}
-                            </td>
-                            <td className="px-6 py-4 text-muted-foreground">
-                              {belepes}
-                            </td>
-                            <td className="px-6 py-4 text-right flex items-center justify-end gap-1">
-                              <EmployeeEditDialog employee={emp} jobs={jobs || []} orgUnits={orgUnits || []} managers={employees || []} />
-                              <EmployeeDeleteDialog employeeId={emp.id} employeeName={nev} />
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                {(!employees || employees.length === 0) && (
-                  <div className="p-8 text-center text-muted-foreground">
-                    Nincsenek megjeleníthető dolgozók az adatbázisban.
-                  </div>
-                )}
-              </CardContent>
-              <div className="px-0 py-2">
-                <AddEmployeeDialog 
-                  availableUsers={unassignedUsers} 
-                  jobs={jobs || []} 
-                  candidates={availableCandidates} 
-                  customTrigger={
-                    <Button variant="outline" className="w-full border-dashed border-2 py-6 text-muted-foreground hover:text-foreground">
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Új dolgozó felvétele
-                    </Button>
-                  }
-                />
-              </div>
-            </Card>
           </TabsContent>
         )}
 

@@ -22,6 +22,8 @@ export async function createMunkakor(formData: FormData) {
   const kompetenciak = formData.get("elvart_kompetenciak") as string
   const orvosi_tipus = formData.get("orvosi_vizsgalat_tipus") as string
   const orvosi_ho = formData.get("orvosi_vizsgalat_gyakorisag_ho") as string
+  const szervezeti_egyseg_raw = formData.get("szervezeti_egyseg_id") as string
+  const szervezeti_egyseg_id = szervezeti_egyseg_raw && szervezeti_egyseg_raw !== "none" ? szervezeti_egyseg_raw : null
 
   if (!megnevezes) {
     return { error: "A megnevezés megadása kötelező" }
@@ -38,6 +40,7 @@ export async function createMunkakor(formData: FormData) {
         megnevezes,
         feor_kod: feor_kod || null,
         besorolasi_szint: besorolasi_szint || null,
+        szervezeti_egyseg_id,
         kockazat_tipusa: kockazat_tipusa || null,
         vedoeszkoz_igeny: vedoeszkoz_igeny || null,
         feladatok_es_hataskorok: feladatokArray,
@@ -186,6 +189,8 @@ export async function updateMunkakor(id: string, formData: FormData) {
   const kompetenciak = formData.get("elvart_kompetenciak") as string
   const orvosi_tipus = formData.get("orvosi_vizsgalat_tipus") as string
   const orvosi_ho = formData.get("orvosi_vizsgalat_gyakorisag_ho") as string
+  const szervezeti_egyseg_raw = formData.get("szervezeti_egyseg_id") as string
+  const szervezeti_egyseg_id = szervezeti_egyseg_raw && szervezeti_egyseg_raw !== "none" ? szervezeti_egyseg_raw : null
 
   if (!megnevezes) return { error: "A megnevezés megadása kötelező" }
 
@@ -198,6 +203,7 @@ export async function updateMunkakor(id: string, formData: FormData) {
       megnevezes,
       feor_kod: feor_kod || null,
       besorolasi_szint: besorolasi_szint || null,
+      szervezeti_egyseg_id,
       kockazat_tipusa: kockazat_tipusa || null,
       vedoeszkoz_igeny: vedoeszkoz_igeny || null,
       feladatok_es_hataskorok: feladatokArray,
@@ -304,6 +310,10 @@ export async function updateHrDepartment(id: string, formData: FormData) {
   const nev = formData.get("nev") as string
   if (!nev) return { error: "Név megadása kötelező!" }
 
+  // szulo_id: üres string → null (főszint), egyébként UUID
+  const szuloIdRaw = formData.get("szulo_id") as string | null
+  const szulo_id = szuloIdRaw && szuloIdRaw.trim() !== "" ? szuloIdRaw.trim() : null
+
   const supabaseAdmin = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -311,7 +321,7 @@ export async function updateHrDepartment(id: string, formData: FormData) {
 
   const { error } = await supabaseAdmin
     .from("hr_szervezeti_egyseg")
-    .update({ nev })
+    .update({ nev, szulo_id })
     .eq("id", id)
 
   if (error) {
@@ -319,8 +329,10 @@ export async function updateHrDepartment(id: string, formData: FormData) {
   }
 
   revalidatePath("/hr/settings")
+  revalidatePath(`/hr/orgunit/${id}`)
   return { success: true }
 }
+
 
 export async function deleteHrDepartment(id: string) {
   const supabase = await createClient()

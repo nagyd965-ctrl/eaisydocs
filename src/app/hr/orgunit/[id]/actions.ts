@@ -17,19 +17,30 @@ export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: str
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { error } = await supabaseAdmin
+  // .select() hozzáadva hogy 0-sor update esetén se silent fail legyen
+  const { data: updated, error } = await supabaseAdmin
     .from("felhasznalo_profil")
     .update({ hr_szervezeti_egyseg_id: orgUnitId })
     .eq("id", employeeId)
+    .select("id, hr_szervezeti_egyseg_id")
 
   if (error) {
+    console.error("[assignEmployeeToOrgUnit] DB error:", error)
     return { error: error.message }
   }
+
+  if (!updated || updated.length === 0) {
+    console.error("[assignEmployeeToOrgUnit] 0 rows updated – employeeId not found:", employeeId)
+    return { error: "A megadott dolgozó nem található az adatbázisban." }
+  }
+
+  console.log("[assignEmployeeToOrgUnit] Updated:", updated)
 
   revalidatePath(`/hr/orgunit/${orgUnitId}`)
   revalidatePath("/hr/settings")
   return { success: true }
 }
+
 
 export async function removeEmployeeFromOrgUnit(orgUnitId: string, employeeId: string) {
   const supabase = await createClient()
