@@ -27,7 +27,8 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
       targy,
       erkezes_modja,
       ugyirat_id,
-      partner ( nev )
+      kuldo_partner_id,
+      partner ( id, nev, adoszam )
     `)
     .eq("id", resolvedParams.id)
     .single()
@@ -83,6 +84,11 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
     .select("id, nev, iktato_prefix")
     .order("nev")
 
+  const { data: partners } = await supabase
+    .from("partner")
+    .select("id, nev, adoszam")
+    .order("nev")
+
   // Előzmény-ügyirat javaslat lekérése
   const { findAntecedentSuggestion } = await import("@/utils/antecedent-matcher")
   const antecedentSuggestion = await findAntecedentSuggestion(resolvedParams.id, supabase)
@@ -95,6 +101,7 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
         tervek={tervek || []} 
         ugyiratok={allUgyiratok || []} 
         departments={departments || []}
+        partners={partners || []}
         antecedentSuggestion={antecedentSuggestion}
       />
     </div>

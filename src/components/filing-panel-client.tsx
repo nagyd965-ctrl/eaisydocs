@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { fileIncomingDocument, generateAISuggestions } from "@/app/inbox/filing-actions"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
@@ -9,7 +9,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, ArrowLeft, FileText, CheckCircle2, Sparkles, X } from "lucide-react"
+import { 
+  Loader2, 
+  ArrowLeft, 
+  FileText, 
+  CheckCircle2, 
+  Sparkles, 
+  X, 
+  Calendar, 
+  Building2, 
+  Tag, 
+  Hash, 
+  Link as LinkIcon,
+  Check
+} from "lucide-react"
 
 import { type FilingIrat, type FilingTerv, type FilingUgyirat } from "./filing-dialog"
 import { type AntecedentMatchResult } from "@/utils/antecedent-matcher"
@@ -21,12 +34,29 @@ export interface FilingDepartment {
   [key: string]: unknown
 }
 
+export interface FilingPartner {
+  id: string
+  nev: string
+  adoszam?: string | null
+  [key: string]: unknown
+}
+
+const DOCUMENT_TYPES = [
+  { value: "szerzodes", label: "Szerződés" },
+  { value: "szamla", label: "Számla / Bizonylat" },
+  { value: "hatosagi_level", label: "Hatósági levél / Végzés" },
+  { value: "beadvany", label: "Beadvány / Kérelem" },
+  { value: "igazolas", label: "Igazolás / Tanúsítvány" },
+  { value: "egyeb", label: "Egyéb irat" },
+]
+
 export function FilingPanelClient({ 
   irat, 
   pdfUrl,
   tervek,
   ugyiratok,
   departments,
+  partners = [],
   antecedentSuggestion
 }: { 
   irat: FilingIrat, 
@@ -34,48 +64,101 @@ export function FilingPanelClient({
   tervek: FilingTerv[],
   ugyiratok: FilingUgyirat[],
   departments?: FilingDepartment[],
+  partners?: FilingPartner[],
   antecedentSuggestion?: AntecedentMatchResult
 }) {
   const router = useRouter()
-  const isHighMatch = (antecedentSuggestion?.confidence_score || 0) >= 60 && !!antecedentSuggestion?.ugyirat_id
+  const isInitialAntecedent = (antecedentSuggestion?.confidence_score || 0) >= 60 && !!antecedentSuggestion?.ugyirat_id
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [mode, setMode] = useState<"new" | "existing">(isHighMatch ? "existing" : "new")
-  const [existingUgyiratId, setExistingUgyiratId] = useState<string>(
-    isHighMatch && antecedentSuggestion?.ugyirat_id ? antecedentSuggestion.ugyirat_id : ""
-  )
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiReasoning, setAiReasoning] = useState<string | null>(null)
+  const [mode, setMode] = useState<"new" | "existing">(isInitialAntecedent ? "existing" : "new")
+  
+  // Mezők állapota
   const [targy, setTargy] = useState(irat.targy || "")
+  const [dokumentumTipus, setDokumentumTipus] = useState<string>("egyeb")
+  const [partnerId, setPartnerId] = useState<string>((irat.partner as any)?.id || (irat as any).kuldo_partner_id || "")
+  const [partnerNev, setPartnerNev] = useState<string>((irat.partner as any)?.nev || "")
+  const [hivatkozottSzam, setHivatkozottSzam] = useState<string>("")
+  const [hatarido, setHatarido] = useState<string>("")
   const [ugytipusId, setUgytipusId] = useState<string>("")
   const [departmentId, setDepartmentId] = useState<string>("")
+  const [existingUgyiratId, setExistingUgyiratId] = useState<string>(
+    isInitialAntecedent && antecedentSuggestion?.ugyirat_id ? antecedentSuggestion.ugyirat_id : ""
+  )
+
+  // AI és előzmény állapotok
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiReasoning, setAiReasoning] = useState<string | null>(null)
+  const [detectedAntecedent, setDetectedAntecedent] = useState<{
+    ugyiratId: string
+    iktatoszam: string
+    confidence?: number
+  } | null>(
+    isInitialAntecedent && antecedentSuggestion?.ugyirat_id
+      ? {
+          ugyiratId: antecedentSuggestion.ugyirat_id,
+          iktatoszam: antecedentSuggestion.iktatoszam || "",
+          confidence: antecedentSuggestion.confidence_score
+        }
+      : null
+  )
+
+  // Partner autocomplete állapotok
+  const [showPartnerSuggestions, setShowPartnerSuggestions] = useState(false)
+  const partnerInputRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (partnerInputRef.current && !partnerInputRef.current.contains(e.target as Node)) {
+        setShowPartnerSuggestions(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const filteredPartners = partnerNev.trim()
+    ? partners.filter(p => p.nev.toLowerCase().includes(partnerNev.toLowerCase())).slice(0, 6)
+    : partners.slice(0, 6)
 
   const selectedPlan = tervek.find(t => t.id === ugytipusId)
   const selectedDept = departments?.find((d) => d.id === departmentId)
 
+  // AI Kitöltés hívása
   const handleAiSuggest = async () => {
     setAiLoading(true)
     setError(null)
     setAiReasoning(null)
-    const result = await generateAISuggestions(irat.id)
-    if (result.error) {
-      setError(result.error)
-    } else if (result.suggestions) {
-      if (result.suggestions.targy) {
-        setTargy(result.suggestions.targy)
+    try {
+      const result = await generateAISuggestions(irat.id)
+      if (result.error) {
+        setError(result.error)
+      } else if (result.suggestions) {
+        const s = result.suggestions
+        if (s.targy) setTargy(s.targy)
+        if (s.dokumentum_tipus) setDokumentumTipus(s.dokumentum_tipus)
+        if (s.partner_nev) setPartnerNev(s.partner_nev)
+        if (s.partner_id) setPartnerId(s.partner_id)
+        if (s.hivatkozott_szam) setHivatkozottSzam(s.hivatkozott_szam)
+        if (s.hatarido) setHatarido(s.hatarido)
+        if (s.irattari_tetel_id) setUgytipusId(s.irattari_tetel_id)
+        if (s.department_id) setDepartmentId(s.department_id)
+        if (s.indoklas) setAiReasoning(s.indoklas)
+
+        if (s.elozmeny_ugyirat_id) {
+          setDetectedAntecedent({
+            ugyiratId: s.elozmeny_ugyirat_id,
+            iktatoszam: s.elozmeny_iktatoszam || "",
+            confidence: s.confidence_score || 90
+          })
+        }
       }
-      if (result.suggestions.irattari_tetel_id) {
-        setUgytipusId(result.suggestions.irattari_tetel_id)
-      }
-      if (result.suggestions.department_id) {
-        setDepartmentId(result.suggestions.department_id)
-      }
-      if (result.suggestions.indoklas) {
-        setAiReasoning(result.suggestions.indoklas)
-      }
+    } catch (_err) {
+      setError("Hiba történt az AI automatikus metaadat-kinyerése során.")
+    } finally {
+      setAiLoading(false)
     }
-    setAiLoading(false)
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -86,6 +169,11 @@ export function FilingPanelClient({
     const formData = new FormData(e.currentTarget)
     formData.append("irat_id", irat.id)
     formData.append("mode", mode)
+    formData.append("dokumentum_tipus", dokumentumTipus)
+    formData.append("kuldo_partner_id", partnerId)
+    formData.append("partner_nev", partnerNev)
+    formData.append("hivatkozott_szam", hivatkozottSzam)
+    formData.append("hatarido", hatarido)
     
     try {
       const result = await fileIncomingDocument(formData)
@@ -103,16 +191,22 @@ export function FilingPanelClient({
 
   return (
     <ResizablePanelGroup orientation="horizontal" className="h-full items-stretch">
-      <ResizablePanel defaultSize={75} minSize={30}>
+      {/* Bal oldali dokumentum előnézet (60%) */}
+      <ResizablePanel defaultSize={60} minSize={30}>
         <div className="flex h-full flex-col bg-muted/30">
-          <div className="flex h-12 items-center border-b px-4 bg-background">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/inbox")} className="mr-4">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Vissza
-            </Button>
-            <div className="flex items-center text-sm font-medium">
-              <FileText className="mr-2 h-4 w-4 text-muted-foreground" />
-              Dokumentum előnézet
+          <div className="flex h-12 items-center border-b px-4 bg-background justify-between">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="sm" onClick={() => router.push("/inbox")} className="h-8">
+                <ArrowLeft className="mr-1.5 h-4 w-4" />
+                Vissza
+              </Button>
+              <div className="flex items-center text-sm font-medium text-foreground">
+                <FileText className="mr-2 h-4 w-4 text-primary" />
+                Dokumentum előnézet
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground font-mono">
+              Érkeztetve: {irat.erkezes_datuma ? new Date(irat.erkezes_datuma as string).toLocaleDateString("hu-HU") : "N/A"}
             </div>
           </div>
           <div className="flex-1 overflow-hidden relative bg-muted">
@@ -120,25 +214,31 @@ export function FilingPanelClient({
               <iframe 
                 src={pdfUrl} 
                 className="w-full h-full border-0" 
-                title="PDF Előnézet"
+                title="Dokumentum előnézet"
               />
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
                 <FileText className="h-16 w-16 mb-4 opacity-20" />
-                <p>A dokumentum nem tölthető be, vagy nincs feltöltve fizikai fájl.</p>
+                <p>A dokumentum nem tölthető be, vagy nincs csatolt fájl.</p>
               </div>
             )}
           </div>
         </div>
       </ResizablePanel>
+
       <ResizableHandle withHandle />
-      <ResizablePanel defaultSize={25} minSize={20}>
+
+      {/* Jobb oldali iktató és metaadat űrlap (40%) */}
+      <ResizablePanel defaultSize={40} minSize={30}>
         <div className="flex h-full flex-col overflow-y-auto bg-background">
-          <div className="border-b px-6 py-4 flex items-center justify-between">
+          {/* Header */}
+          <div className="border-b px-6 py-4 flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-10">
             <div>
-              <h2 className="text-xl font-semibold">Iktatás</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Érkeztetőszám: <strong>{irat.erkeztetoszam}</strong>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold tracking-tight">Iktatás és Metaadatok</h2>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Érkeztetőszám: <strong className="text-foreground">{irat.erkeztetoszam}</strong>
               </p>
             </div>
             <Button 
@@ -146,24 +246,37 @@ export function FilingPanelClient({
               size="sm" 
               onClick={handleAiSuggest} 
               disabled={aiLoading}
-              className="bg-primary/5 hover:bg-primary/10 text-primary border-primary/20"
+              className="bg-primary/5 hover:bg-primary/10 text-primary border-primary/25 h-9 font-medium shadow-none transition-all"
             >
-              {aiLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-              AI Kitöltés
+              {aiLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin text-primary" />
+                  <span>Kiolvasás (OCR)...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2 text-primary" />
+                  <span>AI Kitöltés</span>
+                </>
+              )}
             </Button>
           </div>
-          <div className="flex-1 p-6">
-            <form id="filing-form" onSubmit={handleSubmit} className="space-y-6">
+
+          <div className="flex-1 p-6 space-y-6">
+            <form id="filing-form" onSubmit={handleSubmit} className="space-y-5">
               {error && (
-                <div className="text-sm font-medium text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>
+                <div className="text-sm font-medium text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded-md">
+                  {error}
+                </div>
               )}
 
+              {/* AI indoklás és előtöltés értesítő */}
               {aiReasoning && (
-                <div className="relative rounded-lg border border-primary/25 bg-primary/5 p-4 dark:bg-primary/10 transition-all animate-in fade-in slide-in-from-top-2 duration-300">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="relative rounded-lg border border-primary/30 bg-primary/5 p-3.5 dark:bg-primary/10 transition-all animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2 text-xs font-semibold text-primary">
                       <Sparkles className="h-4 w-4" />
-                      <span>AI Asszisztens javaslata</span>
+                      <span>AI Intelligens javaslatok alkalmazva</span>
                     </div>
                     <button
                       type="button"
@@ -174,132 +287,315 @@ export function FilingPanelClient({
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed">
+                  <p className="text-xs text-foreground/90 leading-relaxed">
                     {aiReasoning}
                   </p>
                 </div>
               )}
-              
-              <Tabs defaultValue="new" value={mode} onValueChange={(v) => setMode(v as "new" | "existing")}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="new">Új ügyirat nyitása</TabsTrigger>
-                  <TabsTrigger value="existing">Meglévőhöz csatolás</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="new" className="space-y-6 pt-6">
-                  <input 
-                    type="hidden" 
-                    name="prefix" 
-                    value={departments?.find((d) => d.id === departmentId)?.iktato_prefix || "NYILV"} 
-                  />
 
-                  <div className="space-y-2">
-                    <Label htmlFor="targy">Ügy tárgya</Label>
-                    <Input 
-                      id="targy" 
-                      name="targy" 
-                      required={mode === "new"}
-                      value={targy}
-                      onChange={(e) => setTargy(e.target.value)}
-                      placeholder="Pl. Szolgáltatási szerződés 2026" 
-                      className={aiLoading ? "animate-pulse bg-muted" : ""}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="irattari_terv_id">Irattári tételszám</Label>
-                    <Select name="irattari_terv_id" required={mode === "new"} value={ugytipusId} onValueChange={(v) => setUgytipusId(v || "")}>
-                      <SelectTrigger id="irattari_terv_id" className={aiLoading ? "animate-pulse bg-muted" : ""}>
-                        <SelectValue placeholder="Válassz tételszámot...">
-                          {selectedPlan ? `${selectedPlan.tetelszam} - ${selectedPlan.megnevezes}` : undefined}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tervek.map((t) => (
-                          <SelectItem key={t.id} value={t.id} label={`${t.tetelszam} - ${t.megnevezes}`}>
-                            {t.tetelszam} - {t.megnevezes}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="department_id">Szervezeti Egység (Osztály)</Label>
-                    <Select name="department_id" required={mode === "new"} value={departmentId} onValueChange={(v) => setDepartmentId(v || "")}>
-                      <SelectTrigger id="department_id" className={aiLoading ? "animate-pulse bg-muted" : ""}>
-                        <SelectValue placeholder="Válassz szervezeti egységet...">
-                          {selectedDept ? selectedDept.nev : undefined}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments?.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id} label={dept.nev}>
-                            {dept.nev}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="existing" className="space-y-6 pt-6">
-                  {antecedentSuggestion && antecedentSuggestion.confidence_score >= 40 && antecedentSuggestion.ugyirat_id && (
-                    <div className="rounded-md border border-primary/25 bg-primary/5 p-3 text-xs text-foreground/90 space-y-1">
-                      <div className="flex items-center gap-1.5 font-semibold text-primary">
-                        <Sparkles className="h-3.5 w-3.5" />
-                        <span>Javasolt előzmény-ügyirat ({antecedentSuggestion.confidence_score}% egyezés):</span>
-                      </div>
-                      <p className="text-muted-foreground leading-relaxed">
-                        {antecedentSuggestion.indoklas}
-                      </p>
+              {/* Detektált előzmény-ügyirat banner (1-kattintásos csatolási opció) */}
+              {detectedAntecedent && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between gap-3 text-xs animate-in fade-in">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5 font-semibold text-primary">
+                      <LinkIcon className="h-3.5 w-3.5" />
+                      <span>Javasolt előzmény-ügyirat</span>
+                      {detectedAntecedent.confidence && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-primary/10 font-mono">
+                          {detectedAntecedent.confidence}% egyezés
+                        </span>
+                      )}
                     </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label htmlFor="existing_ugyirat_id">Keresés a meglévő ügyiratok között</Label>
-                    <Select 
-                      name="existing_ugyirat_id" 
-                      required={mode === "existing"}
-                      value={existingUgyiratId}
-                      onValueChange={(val) => setExistingUgyiratId(val || "")}
-                    >
-                      <SelectTrigger id="existing_ugyirat_id">
-                        <SelectValue placeholder="Válassz egy meglévő ügyiratot...">
-                          {(value) => {
-                            const item = ugyiratok.find(u => u.id === value);
-                            const targy = Array.isArray(item?.ugy) ? item?.ugy[0]?.targy : item?.ugy?.targy;
-                            return item ? `${item.iktatoszam} - ${targy || ''}` : "Válassz egy meglévő ügyiratot...";
-                          }}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ugyiratok.map((u) => {
-                          const targy = Array.isArray(u.ugy) ? u.ugy[0]?.targy : u.ugy?.targy;
-                          return (
-                            <SelectItem key={u.id} value={u.id} label={`${u.iktatoszam} - ${targy || ''}`}>
-                              {u.iktatoszam} - {targy}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Az irat új alszámot kap a kiválasztott ügyiraton belül.
+                    <p className="text-muted-foreground">
+                      Iktatószám: <strong className="text-foreground">{detectedAntecedent.iktatoszam}</strong>
                     </p>
                   </div>
-                </TabsContent>
-              </Tabs>
+                  {mode === "new" ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-7 text-xs font-medium shrink-0"
+                      onClick={() => {
+                        setMode("existing")
+                        setExistingUgyiratId(detectedAntecedent.ugyiratId)
+                      }}
+                    >
+                      Csatolás ehhez
+                    </Button>
+                  ) : (
+                    <span className="flex items-center gap-1 text-primary font-medium text-[11px] shrink-0">
+                      <Check className="h-3.5 w-3.5" /> Kiválasztva
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Ügy tárgya */}
+              <div className="space-y-1.5">
+                <Label htmlFor="targy" className="text-xs font-medium flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                  Ügy tárgya <span className="text-destructive">*</span>
+                </Label>
+                <Input 
+                  id="targy" 
+                  name="targy" 
+                  required
+                  value={targy}
+                  onChange={(e) => setTargy(e.target.value)}
+                  placeholder="Pl. Munkaszerződés – Kovács Béla" 
+                  className={`text-sm ${aiLoading ? "animate-pulse bg-muted" : ""}`}
+                />
+              </div>
+
+              {/* Dokumentumtípus és Küldő partner (2 oszlopos elrendezés) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Dokumentumtípus */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="dokumentum_tipus" className="text-xs font-medium flex items-center gap-1.5">
+                    <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                    Dokumentumtípus
+                  </Label>
+                  <Select 
+                    name="dokumentum_tipus" 
+                    value={dokumentumTipus} 
+                    onValueChange={(v) => setDokumentumTipus(v || "egyeb")}
+                  >
+                    <SelectTrigger id="dokumentum_tipus" className={`text-xs sm:text-sm ${aiLoading ? "animate-pulse bg-muted" : ""}`}>
+                      <SelectValue placeholder="Válassz típust...">
+                        {DOCUMENT_TYPES.find(d => d.value === dokumentumTipus)?.label || "Egyéb irat"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DOCUMENT_TYPES.map((dt) => (
+                        <SelectItem key={dt.value} value={dt.value} label={dt.label}>
+                          {dt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Küldő partner */}
+                <div className="space-y-1.5 relative" ref={partnerInputRef}>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="partner_nev" className="text-xs font-medium flex items-center gap-1.5">
+                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      Küldő partner
+                    </Label>
+                    {partnerId && (
+                      <span className="text-[10px] text-primary flex items-center gap-0.5">
+                        <Check className="h-3 w-3" /> Partner azonosítva
+                      </span>
+                    )}
+                  </div>
+                  <Input 
+                    id="partner_nev" 
+                    name="partner_nev" 
+                    value={partnerNev}
+                    onChange={(e) => {
+                      setPartnerNev(e.target.value)
+                      setPartnerId("") // új gépeléskor töröljük a fix ID-t
+                      setShowPartnerSuggestions(true)
+                    }}
+                    onFocus={() => setShowPartnerSuggestions(true)}
+                    placeholder="Partner neve vagy adószáma" 
+                    autoComplete="off"
+                    className={`text-xs sm:text-sm ${aiLoading ? "animate-pulse bg-muted" : ""}`}
+                  />
+
+                  {showPartnerSuggestions && filteredPartners.length > 0 && (
+                    <div className="absolute top-[100%] left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-lg p-1">
+                      <div className="text-[10px] font-semibold text-muted-foreground uppercase px-2 py-1 tracking-wider">
+                        {partnerNev.trim() ? "Találatok a partnerek között" : "Mentett partnerek"}
+                      </div>
+                      {filteredPartners.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            setPartnerId(p.id)
+                            setPartnerNev(p.nev)
+                            setShowPartnerSuggestions(false)
+                          }}
+                          className="w-full flex items-center justify-between text-left px-2 py-1.5 text-xs rounded hover:bg-muted/80 transition-colors"
+                        >
+                          <span className="font-medium truncate">{p.nev}</span>
+                          {p.adoszam && (
+                            <span className="text-[10px] text-muted-foreground font-mono ml-2 shrink-0">
+                              {p.adoszam}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Hivatkozott szám és Határidő (2 oszlopos elrendezés) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Hivatkozott ügyiratszám / szerződésszám */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="hivatkozott_szam" className="text-xs font-medium flex items-center gap-1.5">
+                    <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                    Hivatkozott szám
+                  </Label>
+                  <Input 
+                    id="hivatkozott_szam" 
+                    name="hivatkozott_szam" 
+                    value={hivatkozottSzam}
+                    onChange={(e) => setHivatkozottSzam(e.target.value)}
+                    placeholder="Pl. SZERZ-2025/11 vagy NAV-1234" 
+                    className={`text-xs sm:text-sm font-mono ${aiLoading ? "animate-pulse bg-muted" : ""}`}
+                  />
+                </div>
+
+                {/* Határidő */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="hatarido" className="text-xs font-medium flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                    Megjelölt határidő
+                  </Label>
+                  <Input 
+                    id="hatarido" 
+                    name="hatarido" 
+                    type="date"
+                    value={hatarido}
+                    onChange={(e) => setHatarido(e.target.value)}
+                    className={`text-xs sm:text-sm ${aiLoading ? "animate-pulse bg-muted" : ""}`}
+                  />
+                </div>
+              </div>
+
+              {/* Iktatási Mód Kiválasztása (Tabs) */}
+              <div className="pt-2 border-t">
+                <Tabs defaultValue="new" value={mode} onValueChange={(v) => setMode(v as "new" | "existing")}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="new">Új ügyirat nyitása</TabsTrigger>
+                    <TabsTrigger value="existing">Meglévőhöz csatolás</TabsTrigger>
+                  </TabsList>
+                  
+                  {/* Új ügyirat nyitása panel */}
+                  <TabsContent value="new" className="space-y-4 pt-4">
+                    <input 
+                      type="hidden" 
+                      name="prefix" 
+                      value={departments?.find((d) => d.id === departmentId)?.iktato_prefix || "NYILV"} 
+                    />
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="irattari_terv_id" className="text-xs font-medium">
+                        Irattári tételszám <span className="text-destructive">*</span>
+                      </Label>
+                      <Select 
+                        name="irattari_terv_id" 
+                        required={mode === "new"} 
+                        value={ugytipusId} 
+                        onValueChange={(v) => setUgytipusId(v || "")}
+                      >
+                        <SelectTrigger id="irattari_terv_id" className={aiLoading ? "animate-pulse bg-muted" : ""}>
+                          <SelectValue placeholder="Válassz tételszámot...">
+                            {selectedPlan ? `${selectedPlan.tetelszam} - ${selectedPlan.megnevezes}` : undefined}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tervek.map((t) => (
+                            <SelectItem key={t.id} value={t.id} label={`${t.tetelszam} - ${t.megnevezes}`}>
+                              {t.tetelszam} - {t.megnevezes}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="department_id" className="text-xs font-medium">
+                        Szervezeti Egység (Osztály) <span className="text-destructive">*</span>
+                      </Label>
+                      <Select 
+                        name="department_id" 
+                        required={mode === "new"} 
+                        value={departmentId} 
+                        onValueChange={(v) => setDepartmentId(v || "")}
+                      >
+                        <SelectTrigger id="department_id" className={aiLoading ? "animate-pulse bg-muted" : ""}>
+                          <SelectValue placeholder="Válassz szervezeti egységet...">
+                            {selectedDept ? selectedDept.nev : undefined}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {departments?.map((dept) => (
+                            <SelectItem key={dept.id} value={dept.id} label={dept.nev}>
+                              {dept.nev}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </TabsContent>
+
+                  {/* Meglévőhöz csatolás panel */}
+                  <TabsContent value="existing" className="space-y-4 pt-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="existing_ugyirat_id" className="text-xs font-medium">
+                        Kiválasztott ügyirat <span className="text-destructive">*</span>
+                      </Label>
+                      <Select 
+                        name="existing_ugyirat_id" 
+                        required={mode === "existing"}
+                        value={existingUgyiratId}
+                        onValueChange={(val) => setExistingUgyiratId(val || "")}
+                      >
+                        <SelectTrigger id="existing_ugyirat_id">
+                          <SelectValue placeholder="Válassz egy meglévő ügyiratot...">
+                            {(value) => {
+                              const item = ugyiratok.find(u => u.id === value);
+                              const targyStr = Array.isArray(item?.ugy) ? item?.ugy[0]?.targy : item?.ugy?.targy;
+                              return item ? `${item.iktatoszam} - ${targyStr || ''}` : "Válassz egy meglévő ügyiratot...";
+                            }}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ugyiratok.map((u) => {
+                            const targyStr = Array.isArray(u.ugy) ? u.ugy[0]?.targy : u.ugy?.targy;
+                            return (
+                              <SelectItem key={u.id} value={u.id} label={`${u.iktatoszam} - ${targyStr || ''}`}>
+                                {u.iktatoszam} - {targyStr}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Az irat a kiválasztott ügyiraton belül kapja meg a következő szabad alszámot.
+                      </p>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
             </form>
           </div>
-          <div className="border-t bg-muted/30 px-6 py-4 mt-auto">
-            <Button form="filing-form" type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+
+          {/* Alsó jóváhagyási és mentési sáv (1 kattintásos iktatás) */}
+          <div className="border-t bg-muted/20 px-6 py-4 mt-auto sticky bottom-0 bg-background/95 backdrop-blur z-10">
+            <Button 
+              form="filing-form" 
+              type="submit" 
+              disabled={loading || aiLoading} 
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-10 font-semibold shadow-none transition-all"
+            >
               {loading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <span>Iktatás folyamatban...</span>
+                </>
               ) : (
-                <CheckCircle2 className="mr-2 h-4 w-4" />
+                <>
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  <span>Jóváhagyás és iktatás</span>
+                </>
               )}
-              {loading ? "Iktatás folyamatban..." : "Iktatás befejezése"}
             </Button>
           </div>
         </div>
@@ -307,3 +603,4 @@ export function FilingPanelClient({
     </ResizablePanelGroup>
   )
 }
+
