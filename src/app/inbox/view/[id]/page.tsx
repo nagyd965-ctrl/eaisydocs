@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AttachmentViewerClient } from "@/components/attachment-viewer-client"
 import { ReplyDialogClient } from "@/components/reply-dialog-client"
 import { Timeline, TimelineEvent } from "@/components/timeline"
+import { AntecedentSuggestionCard } from "@/components/antecedent-suggestion-card"
+import { findAntecedentSuggestion } from "@/utils/antecedent-matcher"
 
 export default async function DocumentDetailedView({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params
@@ -24,6 +26,9 @@ export default async function DocumentDetailedView({ params }: { params: Promise
       erkezes_modja,
       kulso_forras,
       leiras,
+      ugyirat_id,
+      alszam,
+      ugyirat ( iktatoszam ),
       partner ( nev, email )
     `)
     .eq("id", resolvedParams.id)
@@ -32,6 +37,9 @@ export default async function DocumentDetailedView({ params }: { params: Promise
   if (!irat) {
     notFound()
   }
+
+  // 1b. Előzmény-ügyirat javaslat kiszámítása
+  const antecedentSuggestion = await findAntecedentSuggestion(resolvedParams.id, supabase)
 
   // 2. Fájlok lekérdezése
   const { data: fajlok } = await supabase
@@ -153,6 +161,15 @@ export default async function DocumentDetailedView({ params }: { params: Promise
           </Link>
         </div>
       </div>
+
+      {/* Automatikus előzmény-ügyirat javaslat kártya */}
+      <AntecedentSuggestionCard
+        iratId={resolvedParams.id}
+        suggestion={antecedentSuggestion}
+        currentUgyiratId={irat.ugyirat_id}
+        currentIktatoszam={(irat.ugyirat as any)?.iktatoszam}
+        currentAlszam={irat.alszam}
+      />
 
       {/* Tartalom grid — 2:1 arány */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Bell } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
 import {
   Popover,
@@ -27,6 +27,8 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
   const router = useRouter()
+  const pathname = usePathname()
+  const isHr = pathname?.startsWith("/hr")
 
   const fetchNotifications = useCallback(async () => {
     const supabase = createClient()
@@ -39,13 +41,32 @@ export function NotificationBell() {
       .eq("user_id", userData.user.id)
       .eq("olvasott", false)
       .order("created_at", { ascending: false })
-      .limit(20)
+      .limit(30)
 
     if (data) {
-      setNotifications(data)
-      setUnreadCount(data.filter((n) => !n.olvasott).length)
+      const filtered = data.filter((n) => {
+        const url = (n.link_url || '').toLowerCase()
+        const title = (n.cim || '').toLowerCase()
+        const text = (n.szoveg || '').toLowerCase()
+        const isHrNotif = 
+          url.startsWith('/hr') ||
+          title.includes('orvosi') ||
+          title.includes('próbaidő') ||
+          title.includes('probaido') ||
+          title.includes('születésnap') ||
+          title.includes('szuletesnap') ||
+          title.includes('szabadság') ||
+          title.includes('szabadsag') ||
+          title.includes('t1041') ||
+          title.includes('szerződés') ||
+          text.includes('orvosi alkalmasság') ||
+          text.includes('eaisyhr')
+        return isHr ? isHrNotif : !isHrNotif
+      })
+      setNotifications(filtered)
+      setUnreadCount(filtered.filter((n) => !n.olvasott).length)
     }
-  }, [])
+  }, [isHr])
 
   useEffect(() => {
     let isMounted = true

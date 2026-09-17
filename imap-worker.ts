@@ -4,7 +4,8 @@ import { processIncomingEmails } from './src/utils/imap-service';
 // Load environment variables
 config({ path: '.env.local' });
 
-const POLL_INTERVAL_MS = 60 * 1000; // 1 perc
+// Poll every 20 seconds to guarantee processing within 30 seconds of arrival
+const POLL_INTERVAL_MS = 20 * 1000;
 
 async function runWorker() {
   console.log(`[IMAP Worker] Elindítva. Keresés ${POLL_INTERVAL_MS / 1000} másodpercenként...`);

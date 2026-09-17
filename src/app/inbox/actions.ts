@@ -133,6 +133,18 @@ export async function uploadIncomingDocument(formData: FormData) {
     }).catch(err => console.error("PDF/A Worker Trigger Error:", err))
   }
 
+  // 8. Fire-and-forget embedding generálás és mentett keresések értesítése
+  (async () => {
+    try {
+      const { updateIratEmbedding } = await import("@/utils/embedding-service")
+      const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
+      await updateIratEmbedding(iratData.id, supabase)
+      await checkSavedSearchesForNewIrat(iratData.id, supabase)
+    } catch (bgErr) {
+      console.error("[Upload] Error in background embedding/alert processing:", bgErr)
+    }
+  })().catch(console.error)
+
   revalidatePath("/inbox")
   return { success: true }
 }

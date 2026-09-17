@@ -5,9 +5,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, CheckCircle2, ShieldAlert, FileText, RefreshCw } from "lucide-react"
+import {
+  AlertTriangle,
+  CheckCircle2,
+  FileText,
+  RefreshCw,
+  Calendar,
+  Download,
+  Archive,
+  Trash2,
+  Clock,
+  Building2,
+} from "lucide-react"
 import { forceExpireAllDossiers } from "@/app/archive/actions"
-import { proposeDisposal, approveDisposal } from "@/app/archive/disposal-actions"
+import { proposeDisposal, approveDisposal, getDisposalProtocolDownloadUrl } from "@/app/archive/disposal-actions"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -27,25 +38,40 @@ export function ArchiveClient({
   archivedDossiers,
   scrappingSuggestions,
   pendingApprovals,
-  scrappedDossiers
+  scrappedDossiers,
+  disposalBatches = [],
+  cutoffDate,
+  todayStr,
 }: {
   archivedDossiers: any[]
   scrappingSuggestions: any[]
   pendingApprovals: any[]
   scrappedDossiers: any[]
+  disposalBatches?: any[]
+  cutoffDate: string
+  todayStr: string
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [downloadingBatchId, setDownloadingBatchId] = useState<string | null>(null)
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([])
   const [selectedApprovals, setSelectedApprovals] = useState<string[]>([])
-  
+
+  // Fordulónap input state
+  const [targetCutoff, setTargetCutoff] = useState(cutoffDate)
+
   // Protocol Dialog State
   const [protocolOpen, setProtocolOpen] = useState(false)
   const [protocolData, setProtocolData] = useState<any>(null)
-  
+
   // Prompt Dialog State
   const [approvePromptOpen, setApprovePromptOpen] = useState(false)
   const [approverName, setApproverName] = useState("")
+
+  const handleCutoffApply = (dateValue: string) => {
+    setTargetCutoff(dateValue)
+    router.push(`/archive?cutoffDate=${dateValue}`)
+  }
 
   const handlePropose = async () => {
     if (selectedSuggestions.length === 0) return
@@ -54,7 +80,9 @@ export function ArchiveClient({
     if (result.error) {
       toast.error("Hiba", { description: result.error })
     } else {
-      toast.success("Sikeres", { description: "Selejtezés javasolva." })
+      toast.success("Sikeres felterjesztés", {
+        description: `${selectedSuggestions.length} db ügyirat felterjesztve jóváhagyásra (Négy szem elve).`,
+      })
       setSelectedSuggestions([])
     }
     setLoading(false)
@@ -63,43 +91,105 @@ export function ArchiveClient({
 
   const handleApprove = async () => {
     if (selectedApprovals.length === 0) return
-    if (!approverName) {
-      toast.error("Hiba", { description: "Meg kell adni a jóváhagyó nevét!" })
+    if (!approverName || approverName.trim() === "") {
+      toast.error("Hiba", { description: "Kérlek, add meg a jóváhagyó teljes nevét!" })
       return
     }
 
     setApprovePromptOpen(false)
     setLoading(true)
-    const result = await approveDisposal(selectedApprovals, approverName)
+
+    const result = await approveDisposal(selectedApprovals, approverName.trim())
     if (result.error) {
-      toast.error("Hiba", { description: result.error })
+      toast.error("Hiba a jóváhagyás során", { description: result.error })
     } else {
-      // Siker!
-      toast.success("Sikeres", { description: "Selejtezés jóváhagyva." })
+      toast.success("Selejtezés sikeresen jóváhagyva!", {
+        description: "A hivatalos Selejtezési Jegyzőkönyv elkészült és archiválásra került.",
+      })
       setSelectedApprovals([])
-      // Generate Protocol
+
+      // Automatikus PDF letöltés indítása a kapott base64-ből
+      if (result.pdfBase64) {
+        try {
+          const byteCharacters = atob(result.pdfBase64)
+          const byteNumbers = new Array(byteCharacters.length)
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i)
+          }
+          const byteArray = new Uint8Array(byteNumbers)
+          const blob = new Blob([byteArray], { type: "application/pdf" })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement("a")
+          a.href = url
+          a.download = `Selejtezesi_Jegyzokonyv_${(result.protocolNumber || "SELEJT").replace(/\//g, "-")}.pdf`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+        } catch (downloadErr) {
+          console.error("Automatikus letöltési hiba:", downloadErr)
+        }
+      }
+
+      // Dialog adatok beállítása
       setProtocolData({
-        date: new Date().toLocaleDateString('hu-HU'),
-        approver: approverName,
+        protocolNumber: result.protocolNumber,
+        date: new Date().toLocaleDateString("hu-HU"),
+        approver: approverName.trim(),
         proposer: result.proposer && result.proposer.trim() !== "" ? result.proposer : "Iratkezelő",
-        items: result.disposedItems
+        items: result.disposedItems,
+        pdfBase64: result.pdfBase64,
+        storagePath: result.storagePath,
       })
       setProtocolOpen(true)
     }
+
     setLoading(false)
     router.refresh()
   }
 
+  const handleDownloadSavedBatch = async (batch: any) => {
+    if (!batch.jegyzokonyv_path) {
+      toast.error("Ehhez a selejtezéshez nem található elmentett PDF jegyzőkönyv.")
+      return
+    }
+
+    setDownloadingBatchId(batch.id)
+    const res = await getDisposalProtocolDownloadUrl(batch.jegyzokonyv_path)
+    if (res.error || !res.signedUrl) {
+      toast.error("Nem sikerült letölteni a jegyzőkönyvet", { description: res.error })
+    } else {
+      window.open(res.signedUrl, "_blank")
+    }
+    setDownloadingBatchId(null)
+  }
+
   const toggleSuggestion = (id: string) => {
-    setSelectedSuggestions(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    setSelectedSuggestions((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     )
   }
 
+  const toggleAllSuggestions = () => {
+    if (selectedSuggestions.length === scrappingSuggestions.length) {
+      setSelectedSuggestions([])
+    } else {
+      setSelectedSuggestions(scrappingSuggestions.map((s) => s.id))
+    }
+  }
+
   const toggleApproval = (id: string) => {
-    setSelectedApprovals(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    setSelectedApprovals((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     )
+  }
+
+  const toggleAllApprovals = () => {
+    if (selectedApprovals.length === pendingApprovals.length) {
+      setSelectedApprovals([])
+    } else {
+      setSelectedApprovals(pendingApprovals.map((p) => p.id))
+    }
   }
 
   return (
@@ -117,81 +207,171 @@ export function ArchiveClient({
           <TabsTrigger value="approvals" className="relative">
             Jóváhagyandó
             {pendingApprovals.length > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-warning text-[10px] text-primary-foreground">
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] text-white">
                 {pendingApprovals.length}
               </span>
             )}
           </TabsTrigger>
           <TabsTrigger value="archived">Irattárban</TabsTrigger>
-          <TabsTrigger value="scrapped">Selejtezett</TabsTrigger>
+          <TabsTrigger value="scrapped">Selejtezett & Jegyzőkönyvek</TabsTrigger>
         </TabsList>
 
+        {/* 1. JAVASLATOK FÜL (Dátumszűrővel) */}
         <TabsContent value="suggestions" className="mt-6">
           <div className="border border-border/50 rounded-md bg-card mb-4">
-            <div className="p-4 bg-muted/30 border-b border-border/50 flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-semibold mb-1">Selejtezési Javaslatok (Iratkezelő)</p>
-                  <p className="text-muted-foreground">Ezek az ügyiratok elérték a megőrzési idejük végét. Válaszd ki azokat, amiket felterjesztesz selejtezésre a vezető felé (Négy szem elve).</p>
+            <div className="p-4 bg-muted/30 border-b border-border/50 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-semibold mb-0.5">Selejtezési & Átadási Javaslatok</p>
+                    <p className="text-muted-foreground text-xs">
+                      Az irattári terv szerinti megőrzési időt elért ügyiratok listája a megadott fordulónapig.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      await forceExpireAllDossiers()
+                      router.refresh()
+                    }}
+                    title="Minden lezárt ügyirat megőrzési idejének lejárttá tétele teszteléshez"
+                  >
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                    Lejárt generálás
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    disabled={selectedSuggestions.length === 0 || loading}
+                    onClick={handlePropose}
+                  >
+                    Felterjesztés Selejtezésre ({selectedSuggestions.length})
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={async () => { await forceExpireAllDossiers(); router.refresh(); }}
-                >
-                  <RefreshCw className="mr-2 h-3.5 w-3.5" />
-                  Lejárt generálás
-                </Button>
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  disabled={selectedSuggestions.length === 0 || loading}
-                  onClick={handlePropose}
-                >
-                  Felterjesztés Selejtezésre ({selectedSuggestions.length})
-                </Button>
+
+              {/* Fordulónap szűrősáv */}
+              <div className="pt-3 border-t border-border/40 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium text-foreground">Fordulónap (eddig lejárt ügyiratok):</span>
+                  <Input
+                    type="date"
+                    value={targetCutoff}
+                    onChange={(e) => handleCutoffApply(e.target.value)}
+                    className="h-8 w-36 text-xs bg-background"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => handleCutoffApply(todayStr)}
+                  >
+                    Mai nap
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      const prevYear = new Date().getFullYear() - 1
+                      handleCutoffApply(`${prevYear}-12-31`)
+                    }}
+                  >
+                    Előző év vége
+                  </Button>
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                  Összesen <span className="font-semibold text-foreground">{scrappingSuggestions.length} db</span> lejáró ügyirat a megadott fordulónapig.
+                </div>
               </div>
             </div>
+
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={
+                        scrappingSuggestions.length > 0 &&
+                        selectedSuggestions.length === scrappingSuggestions.length
+                      }
+                      onCheckedChange={toggleAllSuggestions}
+                      aria-label="Összes kijelölése"
+                    />
+                  </TableHead>
                   <TableHead>Iktatószám</TableHead>
+                  <TableHead>Irattári Tétel</TableHead>
                   <TableHead>Ügy Tárgya</TableHead>
-                  <TableHead>Iratok száma</TableHead>
+                  <TableHead className="text-center">Iratok</TableHead>
                   <TableHead>Megőrzés Vége</TableHead>
+                  <TableHead>Intézkedés Módja</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {scrappingSuggestions.length > 0 ? (
-                  scrappingSuggestions.map((item) => (
-                    <TableRow key={item.id} className={`hover:bg-muted/50 transition-colors ${selectedSuggestions.includes(item.id) ? "bg-muted/50" : ""}`}>
-                      <TableCell>
-                        <Checkbox 
-                          checked={selectedSuggestions.includes(item.id)}
-                          onCheckedChange={() => toggleSuggestion(item.id)}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline">{item.iktatoszam}</Link>
-                      </TableCell>
-                      <TableCell>{item.ugy?.targy}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{item.irat[0]?.count || 0} db irat</Badge>
-                      </TableCell>
-                      <TableCell className="text-destructive font-medium tabular-nums">
-                        {item.megorzesi_ido_vege ? new Date(item.megorzesi_ido_vege).toLocaleDateString("hu-HU") : "Ismeretlen"}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  scrappingSuggestions.map((item) => {
+                    const terv = Array.isArray(item.irattari_terv) ? item.irattari_terv[0] : item.irattari_terv
+                    const isSelejtezheto = terv?.selejtezheto !== false
+                    const isSelected = selectedSuggestions.includes(item.id)
+
+                    return (
+                      <TableRow
+                        key={item.id}
+                        className={`hover:bg-muted/50 transition-colors ${isSelected ? "bg-muted/40" : ""}`}
+                      >
+                        <TableCell>
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleSuggestion(item.id)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline font-mono">
+                            {item.iktatoszam}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {terv?.tetelszam ? (
+                            <span className="font-mono text-foreground font-medium mr-1.5">{terv.tetelszam}</span>
+                          ) : null}
+                          {terv?.megnevezes || "Általános"}
+                        </TableCell>
+                        <TableCell className="text-sm font-normal text-foreground max-w-xs truncate">
+                          {item.ugy?.targy || "Nincs megadva"}
+                        </TableCell>
+                        <TableCell className="text-center text-xs font-mono">
+                          {item.irat?.[0]?.count ?? 1} db
+                        </TableCell>
+                        <TableCell className="text-xs font-mono">
+                          {item.megorzesi_ido_vege ? new Date(item.megorzesi_ido_vege).toLocaleDateString("hu-HU") : "Ismeretlen"}
+                        </TableCell>
+                        <TableCell>
+                          {isSelejtezheto ? (
+                            <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-[11px] gap-1">
+                              <Trash2 className="w-3 h-3" />
+                              Selejtezhető
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 text-[11px] gap-1">
+                              <Building2 className="w-3 h-3" />
+                              Levéltári átadás
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      <CheckCircle2 className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                      <p>Nincsenek selejtezésre váró ügyiratok.</p>
+                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                      <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      Nincs a megadott fordulónapig ({targetCutoff}) lejárt megőrzési idejű ügyirat.
                     </TableCell>
                   </TableRow>
                 )}
@@ -200,63 +380,89 @@ export function ArchiveClient({
           </div>
         </TabsContent>
 
+        {/* 2. JÓVÁHAGYANDÓ FÜL (Négy-szem elv) */}
         <TabsContent value="approvals" className="mt-6">
           <div className="border border-border/50 rounded-md bg-card mb-4">
-            <div className="p-4 bg-muted/30 border-b border-border/50 flex items-start justify-between gap-3">
+            <div className="p-4 bg-muted/30 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
-                <ShieldAlert className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+                <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
                 <div className="text-sm">
-                  <p className="font-semibold mb-1">Jóváhagyásra Váró Csomagok (Vezető)</p>
-                  <p className="text-muted-foreground">Az iratkezelő által felterjesztett ügyiratok. A jóváhagyás után a fájlok fizikailag is véglegesen törlésre kerülnek és létrejön a hivatalos Selejtezési Jegyzőkönyv. Nem hagyhatod jóvá a saját felterjesztésedet!</p>
+                  <p className="font-semibold mb-0.5">Jóváhagyandó Selejtezések (Négy-szem elve)</p>
+                  <p className="text-muted-foreground text-xs">
+                    Az iratkezelő által felterjesztett ügyiratok. Csak az intézményvezető hagyhatja jóvá, és a jóváhagyó nem egyezhet meg a felterjesztővel.
+                  </p>
                 </div>
               </div>
-              <Button 
-                variant="outline"
+              <Button
+                variant="default"
                 size="sm"
                 disabled={selectedApprovals.length === 0 || loading}
                 onClick={() => setApprovePromptOpen(true)}
-                className="shrink-0"
               >
-                Jóváhagyás és Jegyzőkönyv ({selectedApprovals.length})
+                Selejtezés Jóváhagyása és Jegyzőkönyvezés ({selectedApprovals.length})
               </Button>
             </div>
+
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={
+                        pendingApprovals.length > 0 &&
+                        selectedApprovals.length === pendingApprovals.length
+                      }
+                      onCheckedChange={toggleAllApprovals}
+                      aria-label="Összes jóváhagyandó kijelölése"
+                    />
+                  </TableHead>
                   <TableHead>Iktatószám</TableHead>
                   <TableHead>Ügy Tárgya</TableHead>
-                  <TableHead>Iratok száma</TableHead>
-                  <TableHead>Állapot</TableHead>
+                  <TableHead className="text-center">Iratok</TableHead>
+                  <TableHead>Megőrzés Vége</TableHead>
+                  <TableHead>Státusz</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pendingApprovals.length > 0 ? (
-                  pendingApprovals.map((item) => (
-                    <TableRow key={item.id} className={`hover:bg-muted/50 transition-colors ${selectedApprovals.includes(item.id) ? "bg-muted/50" : ""}`}>
-                      <TableCell>
-                        <Checkbox 
-                          checked={selectedApprovals.includes(item.id)}
-                          onCheckedChange={() => toggleApproval(item.id)}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline">{item.iktatoszam}</Link>
-                      </TableCell>
-                      <TableCell>{item.ugy?.targy}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{item.irat[0]?.count || 0} db irat</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/20">Jóváhagyásra vár</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  pendingApprovals.map((item) => {
+                    const isSelected = selectedApprovals.includes(item.id)
+                    return (
+                      <TableRow
+                        key={item.id}
+                        className={`hover:bg-muted/50 transition-colors ${isSelected ? "bg-muted/40" : ""}`}
+                      >
+                        <TableCell>
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleApproval(item.id)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline font-mono">
+                            {item.iktatoszam}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-sm">{item.ugy?.targy}</TableCell>
+                        <TableCell className="text-center text-xs font-mono">
+                          {item.irat?.[0]?.count ?? 1} db
+                        </TableCell>
+                        <TableCell className="text-xs font-mono">
+                          {item.megorzesi_ido_vege ? new Date(item.megorzesi_ido_vege).toLocaleDateString("hu-HU") : "-"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[11px]">
+                            Vezetői jóváhagyásra vár
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      <ShieldAlert className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                      <p>Nincsenek jóváhagyásra váró selejtezések.</p>
+                    <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                      <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
+                      Nincsenek jóváhagyásra váró selejtezési javaslatok.
                     </TableCell>
                   </TableRow>
                 )}
@@ -265,6 +471,7 @@ export function ArchiveClient({
           </div>
         </TabsContent>
 
+        {/* 3. IRATTÁRBAN FÜL */}
         <TabsContent value="archived" className="mt-6">
           <div className="border border-border/50 rounded-md bg-card">
             <Table>
@@ -273,32 +480,36 @@ export function ArchiveClient({
                   <TableHead>Iktatószám</TableHead>
                   <TableHead>Ügy Tárgya</TableHead>
                   <TableHead>Státusz</TableHead>
-                  <TableHead>Iratok száma</TableHead>
+                  <TableHead className="text-center">Iratok</TableHead>
                   <TableHead>Megőrzés Vége</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {archivedDossiers.length > 0 ? (
                   archivedDossiers.map((item) => (
-                    <TableRow key={item.id} className="hover:bg-muted/50 transition-colors">
+                    <TableRow key={item.id}>
                       <TableCell className="font-medium">
-                        <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline">{item.iktatoszam}</Link>
+                        <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline font-mono">
+                          {item.iktatoszam}
+                        </Link>
                       </TableCell>
-                      <TableCell>{item.ugy?.targy}</TableCell>
+                      <TableCell className="text-sm">{item.ugy?.targy}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="capitalize">{item.statusz}</Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {item.statusz === "irattarban" ? "Irattározva" : "Lezárva"}
+                        </Badge>
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{item.irat[0]?.count || 0} db irat</Badge>
+                      <TableCell className="text-center text-xs font-mono">
+                        {item.irat?.[0]?.count ?? 1} db
                       </TableCell>
-                      <TableCell className="tabular-nums text-muted-foreground">
-                        {item.megorzesi_ido_vege ? new Date(item.megorzesi_ido_vege).toLocaleDateString("hu-HU") : "-"}
+                      <TableCell className="text-xs font-mono">
+                        {item.megorzesi_ido_vege ? new Date(item.megorzesi_ido_vege).toLocaleDateString("hu-HU") : "Folyamatos"}
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                       Nincsenek lezárt ügyiratok.
                     </TableCell>
                   </TableRow>
@@ -308,32 +519,124 @@ export function ArchiveClient({
           </div>
         </TabsContent>
 
-        <TabsContent value="scrapped" className="mt-6">
+        {/* 4. SELEJTEZETT & JEGYZŐKÖNYVEK FÜL */}
+        <TabsContent value="scrapped" className="mt-6 space-y-6">
+          {/* Csomagok és Hivatalos Jegyzőkönyvek */}
           <div className="border border-border/50 rounded-md bg-card">
+            <div className="p-4 bg-muted/30 border-b border-border/50">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-primary" />
+                <h2 className="text-sm font-semibold">Hivatalos Selejtezési Jegyzőkönyvek Archívuma</h2>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                A négy-szem elve alapján jóváhagyott, hitelesített és letölthető jegyzőkönyvek.
+              </p>
+            </div>
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Dátum</TableHead>
+                  <TableHead>Státusz</TableHead>
+                  <TableHead>Javaslattevő</TableHead>
+                  <TableHead>Jóváhagyó Vezető</TableHead>
+                  <TableHead className="text-center">Érintett Iratok</TableHead>
+                  <TableHead className="text-right">Jegyzőkönyv</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {disposalBatches.length > 0 ? (
+                  disposalBatches.map((batch) => {
+                    const itemCount = batch.selejtezes_tetel?.length || 0
+                    const isApproved = batch.statusz === "jovahagyva"
+
+                    return (
+                      <TableRow key={batch.id}>
+                        <TableCell className="text-xs font-mono">
+                          {new Date(batch.created_at).toLocaleDateString("hu-HU")}
+                        </TableCell>
+                        <TableCell>
+                          {isApproved ? (
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs">
+                              Jóváhagyva & Archív
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs">
+                              Jóváhagyásra vár
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium">{batch.javaslattevo_nev}</TableCell>
+                        <TableCell className="text-xs font-medium">{batch.jovahagyo_nev || "—"}</TableCell>
+                        <TableCell className="text-center text-xs font-mono">{itemCount} db</TableCell>
+                        <TableCell className="text-right">
+                          {batch.jegyzokonyv_path ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1.5"
+                              disabled={downloadingBatchId === batch.id}
+                              onClick={() => handleDownloadSavedBatch(batch)}
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              {downloadingBatchId === batch.id ? "Letöltés..." : "Jegyzőkönyv (PDF)"}
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">Nincs PDF</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground text-xs">
+                      Még nem készült selejtezési jegyzőkönyv a rendszerben.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Megsemmisített ügyiratok táblázata */}
+          <div className="border border-border/50 rounded-md bg-card">
+            <div className="p-4 bg-muted/30 border-b border-border/50">
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-destructive" />
+                <h2 className="text-sm font-semibold">Megsemmisített Ügyiratok Nyilvántartása</h2>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Az alábbi ügyiratok digitális fizikai állományai véglegesen törölve lettek, az eseménynapló rögzítve van.
+              </p>
+            </div>
+
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Iktatószám</TableHead>
                   <TableHead>Ügy Tárgya</TableHead>
                   <TableHead>Státusz</TableHead>
-                  <TableHead>Iratok</TableHead>
+                  <TableHead>Fizikai Állományok</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {scrappedDossiers.length > 0 ? (
                   scrappedDossiers.map((item) => (
-                    <TableRow key={item.id} className="opacity-60">
-                      <TableCell className="font-medium line-through text-muted-foreground">{item.iktatoszam}</TableCell>
-                      <TableCell className="text-muted-foreground">{item.ugy?.targy}</TableCell>
-                      <TableCell>
-                        <Badge variant="destructive">Véglegesen törölve</Badge>
+                    <TableRow key={item.id} className="opacity-70">
+                      <TableCell className="font-mono font-medium line-through text-muted-foreground">
+                        {item.iktatoszam}
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">Fájlok megsemmisítve</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{item.ugy?.targy}</TableCell>
+                      <TableCell>
+                        <Badge variant="destructive" className="text-xs">Véglegesen selejtezve</Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs font-mono">Fájlok megsemmisítve</TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-xs">
                       Még nem selejteztek le ügyiratokat a rendszerből.
                     </TableCell>
                   </TableRow>
@@ -344,65 +647,95 @@ export function ArchiveClient({
         </TabsContent>
       </Tabs>
 
+      {/* SIKERES SELEJTEZÉS & JEGYZŐKÖNYV MODAL */}
       <Dialog open={protocolOpen} onOpenChange={setProtocolOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="pb-2 border-b">
-            <DialogTitle className="flex items-center gap-2 text-success">
+            <DialogTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="w-5 h-5" />
-              Sikeres Selejtezés
+              Sikeres Selejtezés és Hitelesítés
             </DialogTitle>
             <DialogDescription>
-              Az ügyiratok sikeresen megsemmisítésre kerültek a rendszerből.
+              A hivatalos selejtezési folyamat befejeződött, a jegyzőkönyv kiállítva.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="py-4">
-             <p className="text-sm text-muted-foreground mb-4">
-               A fájlok véglegesen törlődtek. A hivatalos selejtezési jegyzőkönyvet most kinyomtathatod vagy lementheted PDF formátumban. 
-               Később a "Selejtezett" fülön már csak a tényt láthatod, a jegyzőkönyv generálására ez az egyetlen lehetőség.
-             </p>
+
+          <div className="py-4 space-y-3 text-sm">
+            <div className="p-3 bg-muted/40 rounded border border-border/50 space-y-1 font-mono text-xs">
+              <p><span className="text-muted-foreground">Jegyzőkönyv száma:</span> <span className="font-bold text-foreground">{protocolData?.protocolNumber}</span></p>
+              <p><span className="text-muted-foreground">Dátum:</span> {protocolData?.date}</p>
+              <p><span className="text-muted-foreground">Javaslattevő:</span> {protocolData?.proposer}</p>
+              <p><span className="text-muted-foreground">Jóváhagyó vezető:</span> {protocolData?.approver}</p>
+              <p><span className="text-muted-foreground">Érintett ügyiratok:</span> {protocolData?.items?.length || 0} db</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A generált hivatalos PDF jegyzőkönyv automatikusan letöltésre került és elmentődött a rendszer belső archívumában. Bármikor újraletölthető a "Selejtezett & Jegyzőkönyvek" fülről.
+            </p>
           </div>
 
           <DialogFooter className="pt-2 border-t flex sm:justify-between">
-            <Button variant="outline" onClick={() => setProtocolOpen(false)}>Bezárás</Button>
-            <Button 
-              onClick={() => {
-                localStorage.setItem("printProtocolData", JSON.stringify(protocolData))
-                window.open("/archive/print", "_blank")
-              }} 
-              className="gap-2 bg-primary"
-            >
-              <FileText className="w-4 h-4" />
-              Jegyzőkönyv Nyomtatása
+            <Button variant="outline" onClick={() => setProtocolOpen(false)}>
+              Bezárás
             </Button>
+            {protocolData?.pdfBase64 && (
+              <Button
+                onClick={() => {
+                  const byteCharacters = atob(protocolData.pdfBase64)
+                  const byteNumbers = new Array(byteCharacters.length)
+                  for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i)
+                  }
+                  const byteArray = new Uint8Array(byteNumbers)
+                  const blob = new Blob([byteArray], { type: "application/pdf" })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement("a")
+                  a.href = url
+                  a.download = `Selejtezesi_Jegyzokonyv_${(protocolData.protocolNumber || "SELEJT").replace(/\//g, "-")}.pdf`
+                  document.body.appendChild(a)
+                  a.click()
+                  document.body.removeChild(a)
+                  URL.revokeObjectURL(url)
+                }}
+                className="gap-2 bg-primary"
+              >
+                <Download className="w-4 h-4" />
+                PDF Újraletöltése
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* JÓVÁHAGYÁSI MEGERŐSÍTŐ MODAL */}
       <Dialog open={approvePromptOpen} onOpenChange={setApprovePromptOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Jóváhagyó neve</DialogTitle>
+            <DialogTitle>Selejtezés Jóváhagyása (Négy szem elve)</DialogTitle>
             <DialogDescription>
-              Kérem adja meg a nevét a jegyzőkönyv aláírásához.
+              Kérlek, add meg az intézményvezető vagy a selejtezési bizottság elnökének nevét a jegyzőkönyv hitelesítéséhez.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="approver-name">Teljes Név</Label>
-              <Input 
+              <Label htmlFor="approver-name">Jóváhagyó Vezető Neve</Label>
+              <Input
                 id="approver-name"
-                placeholder="pl. Kovács János"
+                placeholder="pl. Dr. Kiss László"
                 value={approverName}
                 onChange={(e) => setApproverName(e.target.value)}
                 autoFocus
               />
+              <p className="text-[11px] text-muted-foreground">
+                Figyelem: A négy-szem elve értelmében a jóváhagyó nem egyezhet meg az ügyiratot felterjesztő munkatárssal.
+              </p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApprovePromptOpen(false)}>Mégsem</Button>
-            <Button onClick={handleApprove} disabled={loading || !approverName}>
-              {loading ? "Folyamatban..." : "Jóváhagyás és Jegyzőkönyv"}
+            <Button variant="outline" onClick={() => setApprovePromptOpen(false)}>
+              Mégsem
+            </Button>
+            <Button onClick={handleApprove} disabled={loading || !approverName.trim()}>
+              {loading ? "Feldolgozás és Jegyzőkönyvezés..." : "Jóváhagyás és PDF Kiállítás"}
             </Button>
           </DialogFooter>
         </DialogContent>

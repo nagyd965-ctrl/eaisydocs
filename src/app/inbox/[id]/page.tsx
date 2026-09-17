@@ -73,10 +73,9 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
     .select("id, tetelszam, megnevezes")
     .order("tetelszam")
 
-  const { data: aktivUgyiratok } = await supabase
+  const { data: allUgyiratok } = await supabase
     .from("ugyirat")
-    .select("id, iktatoszam, ugy ( targy )")
-    .in("statusz", ["iktatva", "szignalt", "ugyintezes_alatt"])
+    .select("id, iktatoszam, statusz, ugy ( targy )")
     .order("iktatas_datuma", { ascending: false })
 
   const { data: departments } = await supabase
@@ -84,14 +83,19 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
     .select("id, nev, iktato_prefix")
     .order("nev")
 
+  // Előzmény-ügyirat javaslat lekérése
+  const { findAntecedentSuggestion } = await import("@/utils/antecedent-matcher")
+  const antecedentSuggestion = await findAntecedentSuggestion(resolvedParams.id, supabase)
+
   return (
     <div className="h-[calc(100vh-6rem)] overflow-hidden rounded-md border bg-background">
       <FilingPanelClient 
         irat={irat} 
         pdfUrl={pdfUrl} 
         tervek={tervek || []} 
-        ugyiratok={aktivUgyiratok || []} 
+        ugyiratok={allUgyiratok || []} 
         departments={departments || []}
+        antecedentSuggestion={antecedentSuggestion}
       />
     </div>
   )

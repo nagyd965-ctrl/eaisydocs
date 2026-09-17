@@ -228,6 +228,32 @@ export async function updateDossierStatus(ugyiratId: string, ugyId: string, newS
 
   if (ugyiratError) return { error: "Hiba az ügyirat frissítésekor." }
 
+  // Szülő ügy státuszának szinkronizálása
+  if (ugyId) {
+    if (newStatus === "elintezett") {
+      const { data: siblings } = await supabase
+        .from("ugyirat")
+        .select("id, statusz")
+        .eq("ugy_id", ugyId)
+
+      const hasUnfinishedSiblings = siblings?.some(
+        (s) => s.id !== ugyiratId && !["elintezett", "lezart", "irattarban", "selejtezheto"].includes(s.statusz)
+      )
+
+      if (!hasUnfinishedSiblings) {
+        await supabase
+          .from("ugy")
+          .update({ statusz: "lezart", lezarva: new Date().toISOString() })
+          .eq("id", ugyId)
+      }
+    } else if (newStatus === "ugyintezes_alatt") {
+      await supabase
+        .from("ugy")
+        .update({ statusz: "folyamatban" })
+        .eq("id", ugyId)
+    }
+  }
+
   const { ip, userAgent } = await getClientInfo()
 
   await supabase.from("esemeny_naplo").insert({

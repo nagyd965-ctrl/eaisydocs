@@ -194,6 +194,7 @@ export function NotificationSettings({ rules, logs, isAdmin }: { rules: Rule[], 
               <TableHeader>
                 <TableRow>
                   <TableHead>Időpont</TableHead>
+                  <TableHead>Csatorna</TableHead>
                   <TableHead>Címzett</TableHead>
                   <TableHead>Tárgy</TableHead>
                   <TableHead>Státusz</TableHead>
@@ -202,11 +203,22 @@ export function NotificationSettings({ rules, logs, isAdmin }: { rules: Rule[], 
               <TableBody>
                 {logs.map((log) => (
                   <TableRow key={log.id}>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium whitespace-nowrap">
                       {new Date(log.mikor).toLocaleString("hu-HU")}
                     </TableCell>
+                    <TableCell>
+                      {log.csatorna === "sms" ? (
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 gap-1 text-[11px] font-normal">
+                          <MessageSquare className="h-3 w-3" /> SMS
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-muted text-muted-foreground border-border gap-1 text-[11px] font-normal">
+                          <Mail className="h-3 w-3" /> E-mail
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>{log.cimzett_email}</TableCell>
-                    <TableCell className="max-w-[200px] truncate" title={log.targy}>
+                    <TableCell className="max-w-[240px] truncate" title={log.targy}>
                       {log.targy}
                     </TableCell>
                     <TableCell>
@@ -230,7 +242,7 @@ export function NotificationSettings({ rules, logs, isAdmin }: { rules: Rule[], 
                 ))}
                 {logs.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
                       Még nem küldött ki a rendszer egyetlen értesítést sem.
                     </TableCell>
                   </TableRow>

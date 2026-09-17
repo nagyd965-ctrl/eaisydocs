@@ -86,9 +86,21 @@ export async function fileIncomingDocument(formData: FormData) {
   const { error: iratUpdateError } = await supabase
     .from("irat")
     .update({ ugyirat_id: ugyiratIdToUse, alszam })
-    .eq("id", irat_id)
+    .eq("id", irat_id);
   
-  if (iratUpdateError) return { error: "Hiba az irat frissítésekor." }
+  if (iratUpdateError) return { error: "Hiba az irat frissítésekor." };
+  
+  // Trigger embedding refresh (includes newly assigned ugyirat/iktatoszam) and saved search alerts
+  (async () => {
+    try {
+      const { updateIratEmbedding } = await import("@/utils/embedding-service")
+      const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
+      await updateIratEmbedding(irat_id, supabase)
+      await checkSavedSearchesForNewIrat(irat_id, supabase)
+    } catch (bgErr) {
+      console.error("[Filing] Error in background embedding/alert processing:", bgErr)
+    }
+  })().catch(console.error)
 
   revalidatePath("/inbox")
   revalidatePath("/dossiers")
@@ -295,3 +307,131 @@ Kérlek, válaszolj kizárólag érvényes JSON formátumban az alábbi mezőkke
   }
 }
 
+/**
+ * Lekéri az automatikus előzmény-ügyirat javaslatot az adott beérkező irathoz.
+ */
+export async function getAntecedentSuggestionAction(iratId: string) {
+  const supabase = await createClient()
+  const { findAntecedentSuggestion } = await import("@/utils/antecedent-matcher")
+  return await findAntecedentSuggestion(iratId, supabase)
+}
+
+/**
+ * Egykattintásos ügyirat-összerendelés:
+ * A beérkező iratot a megadott előzmény-ügyirathoz kapcsolja a következő szabad alszámként.
+ */
+export async function quickAttachToDossier(iratId: string, ugyiratId: string, indoklasText?: string) {
+  const supabase = await createClient()
+
+  if (!iratId || !ugyiratId) {
+    return { error: "Hiányzó irat vagy ügyirat azonosító." }
+  }
+
+  // 1. Felhasználó és jogosultság ellenőrzése
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: "Nincs bejelentkezett felhasználó." }
+  }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const role = profile?.docs_szerepkor || "ugyintezo"
+  if (role === "betekinto") {
+    return { error: "Betekintő jogosultsággal nem végezhető összerendelés." }
+  }
+
+  // 2. Cél ügyirat lekérdezése
+  const { data: existingDossier, error: dossierError } = await supabase
+    .from("ugyirat")
+    .select("id, iktatoszam, ugy_id")
+    .eq("id", ugyiratId)
+    .single()
+
+  if (dossierError || !existingDossier) {
+    return { error: "A kiválasztott ügyirat nem található az adatbázisban." }
+  }
+
+  // 3. Legmagasabb meglévő alszám kiszámítása
+  const { data: iratok, error: iratokError } = await supabase
+    .from("irat")
+    .select("alszam")
+    .eq("ugyirat_id", ugyiratId)
+
+  if (iratokError) {
+    return { error: "Hiba az alszám kiszámításakor: " + iratokError.message }
+  }
+
+  const maxAlszam = iratok?.reduce((max, i) => Math.max(max, i.alszam || 0), 0) || 0
+  const alszam = maxAlszam + 1
+
+  // 4. Irat frissítése (ugyirat_id és alszám)
+  const { error: iratUpdateError } = await supabase
+    .from("irat")
+    .update({ ugyirat_id: ugyiratId, alszam })
+    .eq("id", iratId)
+
+  if (iratUpdateError) {
+    return { error: "Hiba az irat hozzárendelésekor: " + iratUpdateError.message }
+  }
+
+  // 5. Polimorf irat_kapcsolat rögzítése (elozmeny típussal)
+  try {
+    await supabase.from("irat_kapcsolat").insert({
+      irat_id: iratId,
+      ugyirat_id: ugyiratId,
+      entitas_tipus: "szerzodes",
+      entitas_id: existingDossier.id,
+      entitas_forras: "belso",
+      kapcsolat_tipusa: "elozmeny"
+    })
+  } catch (linkErr) {
+    console.warn("Irat kapcsolat rögzítési hiba:", linkErr)
+  }
+
+  // 6. Eseménynapló audit bejegyzés (append-only)
+  try {
+    const { getClientInfo } = await import("@/utils/client-info")
+    const { ip, userAgent } = await getClientInfo()
+    await supabase.from("esemeny_naplo").insert({
+      entitas_tipus: "irat",
+      entitas_id: iratId,
+      esemeny_tipus: "iktatva",
+      user_id: user.id,
+      ip_cim: ip,
+      user_agent: userAgent,
+      indoklas: indoklasText || `Egykattintásos előzmény-összerendeléssel csatolva a(z) ${existingDossier.iktatoszam} ügyirathoz (${alszam}. alszám).`
+    })
+  } catch (logErr) {
+    console.warn("Eseménynapló hiba:", logErr)
+  }
+
+  // 7. Háttérben: Keresőindex és riasztások frissítése
+  (async () => {
+    try {
+      const { updateIratEmbedding } = await import("@/utils/embedding-service")
+      const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
+      await updateIratEmbedding(iratId, supabase)
+      await checkSavedSearchesForNewIrat(iratId, supabase)
+    } catch (bgErr) {
+      console.error("[QuickAttach] Hiba a háttérfolyamatokban:", bgErr)
+    }
+  })().catch(console.error)
+
+  // 8. Cache revalidálás
+  revalidatePath("/inbox")
+  revalidatePath(`/inbox/view/${iratId}`)
+  revalidatePath(`/inbox/${iratId}`)
+  revalidatePath(`/dossiers/${ugyiratId}`)
+  revalidatePath("/dossiers")
+
+  return {
+    success: true,
+    iktatoszam: existingDossier.iktatoszam,
+    alszam,
+    ugyiratId
+  }
+}

@@ -255,13 +255,60 @@ export async function getDepartments() {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("szervezeti_egyseg")
-    .select("*")
+    .select("*, vezeto:felhasznalo_profil!vezeto_id(id, nev)")
     .order("nev")
 
   if (error) {
     return []
   }
   return data
+}
+
+export async function setDepartmentLeader(departmentId: string, leaderId: string | null) {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) return { error: "Hiányzik a SUPABASE_SERVICE_ROLE_KEY." }
+
+  const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const { error } = await supabaseAdmin
+    .from("szervezeti_egyseg")
+    .update({ vezeto_id: leaderId })
+    .eq("id", departmentId)
+
+  if (error) return { error: "Hiba a vezető beállításakor: " + error.message }
+
+  // Ha új vezetőt jelölünk ki, győződjünk meg róla, hogy be van osztva és a szerepköre legalább vezeto
+  if (leaderId) {
+    const { data: userProf } = await supabaseAdmin
+      .from("felhasznalo_profil")
+      .select("docs_szerepkor, szervezeti_egyseg_id")
+      .eq("id", leaderId)
+      .single()
+
+    if (userProf) {
+      const updates: any = {}
+      if (!userProf.szervezeti_egyseg_id) {
+        updates.szervezeti_egyseg_id = departmentId
+      }
+      if (userProf.docs_szerepkor === 'ugyintezo') {
+        updates.docs_szerepkor = 'vezeto'
+      }
+      if (Object.keys(updates).length > 0) {
+        await supabaseAdmin
+          .from("felhasznalo_profil")
+          .update(updates)
+          .eq("id", leaderId)
+      }
+    }
+  }
+
+  revalidatePath("/settings")
+  return { success: true }
 }
 
 export async function createDepartment(formData: FormData) {

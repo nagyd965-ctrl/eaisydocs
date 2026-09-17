@@ -127,6 +127,14 @@ export async function assignDossier(formData: FormData) {
           const { data: ugyiratData } = await supabase.from("ugyirat").select("iktatoszam").eq("id", ugyirat_id).single()
           const iktatoszam = ugyiratData?.iktatoszam || "Ismeretlen"
 
+          // In-app értesítés mindig készül a felületen a felelősnek
+          await supabaseAdmin.from("alkalmazas_ertesites").insert({
+            user_id: felelos_user_id,
+            cim: `Új ügyirat szignálva: ${iktatoszam}`,
+            szoveg: `Egy új ügyiratot szignáltak rád (${iktatoszam}). Határidő: ${hatarido || "Nincs megadva"}`,
+            link_url: `/dossiers/${ugyirat_id}`
+          })
+
           if (csatornak.includes('email') && userEmail) {
             await sendNotificationEmail({
               to: userEmail,
@@ -162,21 +170,12 @@ export async function assignDossier(formData: FormData) {
                   formattedPhone = '+36' + formattedPhone
                 }
 
-                const smsResult = await sendSmsNotification({
+                await sendSmsNotification({
                   to: formattedPhone,
-                  body: `eaisyDocs: Új ügyirat lett rád szignálva (Iktatószám: ${iktatoszam}).`
+                  body: `eaisyDocs: Új ügyirat lett rád szignálva (Iktatószám: ${iktatoszam}).`,
+                  subject: `Új szignálás: ${iktatoszam}`,
+                  dossierId: ugyirat_id
                 })
-                
-                if (smsResult.success) {
-                  await supabaseAdmin.from("ertesites_naplo").insert({
-                    csatorna: 'sms', cimzett_email: formattedPhone, targy: `Új szignálás: ${iktatoszam}`, statusz: 'sikeres'
-                  })
-                } else {
-                  console.error("SMS nem ment ki:", smsResult.error)
-                  await supabaseAdmin.from("ertesites_naplo").insert({
-                    csatorna: 'sms', cimzett_email: formattedPhone, targy: `Új szignálás: ${iktatoszam}`, statusz: 'sikertelen', reszletek: smsResult.error
-                  })
-                }
               }
             } catch (e) {
               console.error("SMS küldési hiba (uj_szignalas):", e)

@@ -286,6 +286,9 @@ export function GlobalHeaderSearch() {
                               {doc.targy}
                             </span>
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                              {doc.ugyirat?.iktatoszam && (
+                                <span className="font-medium text-primary">{doc.ugyirat.iktatoszam}</span>
+                              )}
                               {doc.erkeztetoszam && <span>{doc.erkeztetoszam}</span>}
                               {doc.partner?.nev && <span>• {doc.partner.nev}</span>}
                             </div>

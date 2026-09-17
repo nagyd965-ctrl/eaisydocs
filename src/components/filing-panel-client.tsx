@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, ArrowLeft, FileText, CheckCircle2, Sparkles, X } from "lucide-react"
 
 import { type FilingIrat, type FilingTerv, type FilingUgyirat } from "./filing-dialog"
+import { type AntecedentMatchResult } from "@/utils/antecedent-matcher"
 
 export interface FilingDepartment {
   id: string
@@ -25,18 +26,25 @@ export function FilingPanelClient({
   pdfUrl,
   tervek,
   ugyiratok,
-  departments
+  departments,
+  antecedentSuggestion
 }: { 
   irat: FilingIrat, 
   pdfUrl: string | null,
   tervek: FilingTerv[],
   ugyiratok: FilingUgyirat[],
-  departments?: FilingDepartment[]
+  departments?: FilingDepartment[],
+  antecedentSuggestion?: AntecedentMatchResult
 }) {
   const router = useRouter()
+  const isHighMatch = (antecedentSuggestion?.confidence_score || 0) >= 60 && !!antecedentSuggestion?.ugyirat_id
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [mode, setMode] = useState<"new" | "existing">("new")
+  const [mode, setMode] = useState<"new" | "existing">(isHighMatch ? "existing" : "new")
+  const [existingUgyiratId, setExistingUgyiratId] = useState<string>(
+    isHighMatch && antecedentSuggestion?.ugyirat_id ? antecedentSuggestion.ugyirat_id : ""
+  )
   const [aiLoading, setAiLoading] = useState(false)
   const [aiReasoning, setAiReasoning] = useState<string | null>(null)
   const [targy, setTargy] = useState(irat.targy || "")
@@ -236,9 +244,26 @@ export function FilingPanelClient({
                 </TabsContent>
 
                 <TabsContent value="existing" className="space-y-6 pt-6">
+                  {antecedentSuggestion && antecedentSuggestion.confidence_score >= 40 && antecedentSuggestion.ugyirat_id && (
+                    <div className="rounded-md border border-primary/25 bg-primary/5 p-3 text-xs text-foreground/90 space-y-1">
+                      <div className="flex items-center gap-1.5 font-semibold text-primary">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        <span>Javasolt előzmény-ügyirat ({antecedentSuggestion.confidence_score}% egyezés):</span>
+                      </div>
+                      <p className="text-muted-foreground leading-relaxed">
+                        {antecedentSuggestion.indoklas}
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
-                    <Label htmlFor="existing_ugyirat_id">Keresés a folyamatban lévő ügyiratok között</Label>
-                    <Select name="existing_ugyirat_id" required={mode === "existing"}>
+                    <Label htmlFor="existing_ugyirat_id">Keresés a meglévő ügyiratok között</Label>
+                    <Select 
+                      name="existing_ugyirat_id" 
+                      required={mode === "existing"}
+                      value={existingUgyiratId}
+                      onValueChange={(val) => setExistingUgyiratId(val || "")}
+                    >
                       <SelectTrigger id="existing_ugyirat_id">
                         <SelectValue placeholder="Válassz egy meglévő ügyiratot...">
                           {(value) => {

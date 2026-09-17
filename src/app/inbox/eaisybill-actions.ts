@@ -226,6 +226,18 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
     return { success: false, error: "Fájl rekord hiba: " + fajlError.message }
   }
 
+  // Fire-and-forget embedding generálás és mentett keresések értesítése
+  (async () => {
+    try {
+      const { updateIratEmbedding } = await import("@/utils/embedding-service")
+      const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
+      await updateIratEmbedding(iratData.id, docsClient)
+      await checkSavedSearchesForNewIrat(iratData.id, docsClient)
+    } catch (bgErr) {
+      console.error("[eaisyBill Import] Error in background embedding/alert processing:", bgErr)
+    }
+  })().catch(console.error)
+
   revalidatePath("/inbox")
   return { success: true, erkeztetoszam }
 }

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { NewIncomingDialog } from "@/components/new-incoming-dialog"
+import { BatchScannerDialog } from "@/components/batch-scanner-dialog"
 import { createClient } from "@/utils/supabase/server"
 import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
@@ -72,7 +73,12 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         </div>
         <div className="flex items-center gap-4">
           <FilterBar placeholder="Keresés érkeztetőszám vagy tárgy alapján..." />
-          {permissions.canAddIncoming && <NewIncomingDialog />}
+          {permissions.canAddIncoming && (
+            <div className="flex items-center gap-2">
+              <BatchScannerDialog />
+              <NewIncomingDialog />
+            </div>
+          )}
         </div>
       </div>
 
@@ -120,6 +126,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                     <Badge variant="secondary" className="font-normal">
                       {(item as any).kulso_forras === "eaisybill"
                         ? "eaisyBill"
+                        : (item as any).kulso_forras === "szkenner"
+                        ? "Szkenner"
                         : (item.erkezes_modja ? item.erkezes_modja.charAt(0).toUpperCase() + item.erkezes_modja.slice(1) : "-")}
                     </Badge>
                   </TableCell>

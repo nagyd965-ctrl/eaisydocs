@@ -17,30 +17,28 @@ export async function updateTaskStatus(taskId: string, newStatus: "nyitott" | "f
     return { success: false, error: error.message }
   }
 
+  // Ügyirat azonosító lekérése egyszer
+  const { data: feladatData } = await supabase.from("feladat").select("ugyirat_id").eq("id", taskId).single()
+  const ugyiratId = feladatData?.ugyirat_id
+
   // Naplózás
   const { data: { user } } = await supabase.auth.getUser()
-  if (user) {
-    const { data: feladatData } = await supabase.from("feladat").select("ugyirat_id").eq("id", taskId).single()
-    if (feladatData?.ugyirat_id) {
-        const { ip, userAgent } = await getClientInfo()
-        await supabase.from("esemeny_naplo").insert({
-          entitas_tipus: "ugyirat",
-          entitas_id: feladatData.ugyirat_id,
-          esemeny_tipus: "modositva",
-          user_id: user.id,
-          indoklas: `Feladat állapota módosítva: ${newStatus}`,
-          ip_cim: ip,
-          user_agent: userAgent
-        })
-    }
+  if (user && ugyiratId) {
+    const { ip, userAgent } = await getClientInfo()
+    await supabase.from("esemeny_naplo").insert({
+      entitas_tipus: "ugyirat",
+      entitas_id: ugyiratId,
+      esemeny_tipus: "modositva",
+      user_id: user.id,
+      indoklas: `Feladat állapota módosítva: ${newStatus}`,
+      ip_cim: ip,
+      user_agent: userAgent
+    })
   }
 
   // Revalidate dossier page too so task progress updates
-  if (user) {
-    const { data: feladatForPath } = await supabase.from("feladat").select("ugyirat_id").eq("id", taskId).single()
-    if (feladatForPath?.ugyirat_id) {
-      revalidatePath(`/dossiers/${feladatForPath.ugyirat_id}`)
-    }
+  if (ugyiratId) {
+    revalidatePath(`/dossiers/${ugyiratId}`)
   }
 
   revalidatePath("/tasks")

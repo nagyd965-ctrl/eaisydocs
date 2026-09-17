@@ -8,6 +8,7 @@ import {
   saveSearch,
   getSavedSearches,
   deleteSavedSearch,
+  toggleSavedSearchAlert,
 } from "./actions"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -48,6 +49,9 @@ import {
   Trash2,
   ChevronRight,
   FileSearch,
+  Bell,
+  BellOff,
+  Sparkles,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -147,6 +151,7 @@ export function SearchClientPage() {
   const [savedSearches, setSavedSearches] = useState<any[]>([])
   const [isSaveOpen, setIsSaveOpen] = useState(false)
   const [saveName, setSaveName] = useState("")
+  const [saveAlert, setSaveAlert] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -279,16 +284,29 @@ export function SearchClientPage() {
   const handleSave = async () => {
     if (!saveName.trim()) { toast.error("Adj meg egy nevet!"); return }
     setSaving(true)
-    const res = await saveSearch(saveName.trim(), query, filters)
+    const res = await saveSearch(saveName.trim(), query, filters, saveAlert)
     if (res.success) {
-      toast.success("Keresés elmentve!")
+      toast.success(saveAlert ? "Keresés és értesítés elmentve!" : "Keresés elmentve!")
       setIsSaveOpen(false)
       setSaveName("")
+      setSaveAlert(false)
       getSavedSearches().then(setSavedSearches).catch(console.error)
     } else {
       toast.error("Mentés sikertelen", { description: res.error })
     }
     setSaving(false)
+  }
+
+  const toggleAlert = async (id: string, current: boolean, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const next = !current
+    const res = await toggleSavedSearchAlert(id, next)
+    if (res.success) {
+      toast.success(next ? "Értesítés bekapcsolva" : "Értesítés kikapcsolva")
+      setSavedSearches(prev => prev.map(s => s.id === id ? { ...s, ertesites_bekapcsolva: next } : s))
+    } else {
+      toast.error("Nem sikerült módosítani az értesítést")
+    }
   }
 
   const loadSaved = (saved: any) => {
@@ -585,14 +603,38 @@ export function SearchClientPage() {
                       onClick={() => loadSaved(s)}
                       className="group flex cursor-pointer items-center justify-between rounded px-2 py-1.5 hover:bg-accent/50 hover:text-accent-foreground transition-colors"
                     >
-                      <span className="text-xs font-medium truncate flex-1">{s.nev}</span>
-                      <button
-                        type="button"
-                        onClick={e => deleteSaved(s.id, e)}
-                        className="ml-2 rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <span className="text-xs font-medium truncate">{s.nev}</span>
+                        {s.ertesites_bekapcsolva && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" title="Értesítés aktív" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-0.5 shrink-0 ml-2">
+                        <button
+                          type="button"
+                          title={s.ertesites_bekapcsolva ? "Értesítés kikapcsolása" : "Értesítés bekapcsolása"}
+                          onClick={e => toggleAlert(s.id, Boolean(s.ertesites_bekapcsolva), e)}
+                          className={`rounded p-1 transition-colors ${
+                            s.ertesites_bekapcsolva
+                              ? "text-primary hover:text-primary/80"
+                              : "text-muted-foreground/40 hover:text-muted-foreground"
+                          }`}
+                        >
+                          {s.ertesites_bekapcsolva ? (
+                            <Bell className="h-3 w-3" />
+                          ) : (
+                            <BellOff className="h-3 w-3" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={e => deleteSaved(s.id, e)}
+                          className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-colors"
+                          title="Törlés"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </DropdownMenuContent>
@@ -890,24 +932,46 @@ export function SearchClientPage() {
                         className="group border-b border-border/30 last:border-0 cursor-pointer hover:bg-accent/40 hover:text-accent-foreground transition-colors"
                       >
                         {/* Azonosító */}
-                        <td className="px-3">
-                          {item.ugyirat?.iktatoszam ? (
-                            <span className="font-semibold text-xs text-primary tabular-nums whitespace-nowrap">
-                              {item.ugyirat.iktatoszam}
-                            </span>
-                          ) : (
-                            <span className="text-[11px] text-muted-foreground font-mono whitespace-nowrap">
-                              {item.erkeztetoszam || "—"}
-                            </span>
-                          )}
+                        <td className="px-3 py-2.5 align-top">
+                          <div className="flex flex-col gap-1">
+                            {item.ugyirat?.iktatoszam ? (
+                              <span className="font-semibold text-xs text-primary tabular-nums whitespace-nowrap">
+                                {item.ugyirat.iktatoszam}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground font-mono whitespace-nowrap">
+                                {item.erkeztetoszam || "—"}
+                              </span>
+                            )}
+                            {item.match_type === "semantic" && (
+                              <span className="inline-flex items-center gap-1 w-fit rounded bg-purple-500/10 px-1.5 py-0.5 text-[9px] font-medium text-purple-600 dark:text-purple-400">
+                                <Sparkles className="h-2.5 w-2.5" />
+                                Szemantikus
+                              </span>
+                            )}
+                            {item.match_type === "hybrid" && (
+                              <span className="inline-flex items-center gap-1 w-fit rounded bg-teal-500/10 px-1.5 py-0.5 text-[9px] font-medium text-teal-600 dark:text-teal-400">
+                                <Sparkles className="h-2.5 w-2.5" />
+                                Hibrid
+                              </span>
+                            )}
+                          </div>
                         </td>
                         {/* Tárgy */}
-                        <td className="px-3">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-accent-foreground transition-colors" />
-                            <span className="text-sm font-medium text-foreground truncate max-w-[280px] group-hover:text-accent-foreground transition-colors">
-                              {item.targy}
-                            </span>
+                        <td className="px-3 py-2.5 align-top">
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-accent-foreground transition-colors" />
+                              <span className="text-sm font-medium text-foreground truncate max-w-[340px] group-hover:text-accent-foreground transition-colors">
+                                {item.targy}
+                              </span>
+                            </div>
+                            {item.snippet && (
+                              <p
+                                className="text-[11px] text-muted-foreground leading-relaxed max-w-[480px] pl-5.5 line-clamp-2 [&>b]:text-foreground [&>b]:bg-primary/20 [&>b]:px-1 [&>b]:py-0.5 [&>b]:rounded font-normal"
+                                dangerouslySetInnerHTML={{ __html: item.snippet }}
+                              />
+                            )}
                           </div>
                         </td>
                         {/* Partner */}
@@ -980,16 +1044,40 @@ export function SearchClientPage() {
               Mentsd el az aktuális keresési beállításokat egy névvel.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-3 space-y-2">
-            <label className="text-xs font-medium text-foreground">Keresési profil neve</label>
-            <Input
-              value={saveName}
-              onChange={e => setSaveName(e.target.value)}
-              placeholder="Pl. Havi szerződések"
-              className="h-9 text-sm"
-              autoFocus
-              onKeyDown={e => { if (e.key === "Enter") handleSave() }}
-            />
+          <div className="py-3 space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">Keresési profil neve</label>
+              <Input
+                value={saveName}
+                onChange={e => setSaveName(e.target.value)}
+                placeholder="Pl. Havi szerződések"
+                className="h-9 text-sm"
+                autoFocus
+                onKeyDown={e => { if (e.key === "Enter") handleSave() }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-border/80 bg-muted/30 p-3">
+              <div className="space-y-0.5 pr-2">
+                <label
+                  htmlFor="save-alert-toggle"
+                  className="text-xs font-medium text-foreground cursor-pointer flex items-center gap-1.5"
+                >
+                  <Bell className="h-3.5 w-3.5 text-primary" />
+                  Értesítés új találat esetén
+                </label>
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  In-app értesítést kapsz, ha új, a feltételeknek megfelelő irat érkezik.
+                </p>
+              </div>
+              <input
+                id="save-alert-toggle"
+                type="checkbox"
+                checked={saveAlert}
+                onChange={e => setSaveAlert(e.target.checked)}
+                className="h-4 w-4 rounded border-border text-primary accent-primary focus:ring-primary/20 cursor-pointer"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setIsSaveOpen(false)}>Mégse</Button>

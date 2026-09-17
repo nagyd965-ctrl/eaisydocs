@@ -68,34 +68,40 @@ export async function GET(request: Request) {
     if (kozeledikSzabaly) {
       const { data: ugyek } = await supabase
         .from('ugy')
-        .select('id, targy, hatarido, felelos_user_id, ugyirat(id, iktatoszam)')
+        .select('id, targy, hatarido, felelos_user_id, ugyirat(id, iktatoszam, statusz)')
         .not('felelos_user_id', 'is', null)
-        .eq('statusz', 'ugyintezes_alatt');
+        .eq('statusz', 'folyamatban');
 
       if (ugyek) {
         for (const ugy of ugyek) {
           if (ugy.hatarido) {
             const ugyHatarido = new Date(ugy.hatarido).toISOString().split('T')[0];
+            const activeDossiers = (ugy.ugyirat || []).filter(
+              (d: any) => !['elintezett', 'lezart', 'irattarban', 'selejtezheto'].includes(d.statusz)
+            );
+            if (activeDossiers.length === 0) continue;
+            const primaryDossier = activeDossiers[0];
+
             // Ha pontosan 2 nap múlva jár le
-            if (ugyHatarido === inTwoDaysIsoStr && ugy.felelos_user_id && ugy.ugyirat && ugy.ugyirat.length > 0) {
+            if (ugyHatarido === inTwoDaysIsoStr && ugy.felelos_user_id) {
               const csatornak = kozeledikSzabaly.csatorna || ['email'];
               if (csatornak.includes('email')) {
                 const email = await getUserEmailById(ugy.felelos_user_id);
                 if (email) {
                   await sendNotificationEmail({
                     to: email,
-                    subject: `Határidő közeledik: ${ugy.ugyirat[0].iktatoszam}`,
+                    subject: `Határidő közeledik: ${primaryDossier.iktatoszam}`,
                     html: buildHtmlEmail(
                       "Közelgő Határidő!",
-                      `A(z) <b>${ugy.ugyirat[0].iktatoszam}</b> azonosítójú ügyirat határideje 2 nap múlva lejár! Kérlek, időben gondoskodj az elintézésről!`,
+                      `A(z) <b>${primaryDossier.iktatoszam}</b> azonosítójú ügyirat határideje 2 nap múlva lejár! Kérlek, időben gondoskodj az elintézésről!`,
                       [
                         { label: "Tárgy", value: ugy.targy },
                         { label: "Határidő", value: ugy.hatarido }
                       ],
                       "Ügyirat megtekintése",
-                      `${getBaseUrl()}/dossiers/${ugy.ugyirat[0].id}`
+                      `${getBaseUrl()}/dossiers/${primaryDossier.id}`
                     ),
-                    dossierId: ugy.ugyirat[0].id
+                    dossierId: primaryDossier.id
                   });
                   emailsSent++;
                 }
@@ -103,9 +109,9 @@ export async function GET(request: Request) {
               
               if (csatornak.includes('in_app')) {
                 await supabase.from('alkalmazas_ertesites').insert({
-                  user_id: ugy.felelos_user_id, cim: `Határidő közeledik: ${ugy.ugyirat[0].iktatoszam}`,
-                  szoveg: `A(z) ${ugy.ugyirat[0].iktatoszam} azonosítójú ügyirat határideje 2 nap múlva lejár!`,
-                  link_url: `/dossiers/${ugy.ugyirat[0].id}`
+                  user_id: ugy.felelos_user_id, cim: `Határidő közeledik: ${primaryDossier.iktatoszam}`,
+                  szoveg: `A(z) ${primaryDossier.iktatoszam} azonosítójú ügyirat határideje 2 nap múlva lejár!`,
+                  link_url: `/dossiers/${primaryDossier.id}`
                 });
               }
 
@@ -115,10 +121,9 @@ export async function GET(request: Request) {
                   if (telefon) {
                     await sendSmsNotification({
                       to: telefon,
-                      body: `eaisyDocs: A(z) ${ugy.ugyirat[0].iktatoszam} ügyirat határideje 2 nap múlva lejár!`
-                    });
-                    await supabase.from("ertesites_naplo").insert({
-                      csatorna: 'sms', cimzett_email: telefon, targy: `Határidő közeledik: ${ugy.ugyirat[0].iktatoszam}`, statusz: 'sikeres'
+                      body: `eaisyDocs: A(z) ${primaryDossier.iktatoszam} ügyirat határideje 2 nap múlva lejár!`,
+                      subject: `Határidő közeledik: ${primaryDossier.iktatoszam}`,
+                      dossierId: primaryDossier.id
                     });
                   }
                 } catch (e) {
@@ -132,26 +137,49 @@ export async function GET(request: Request) {
     }
 
     // =========================================================================
-    // B) HATÁRIDŐ LEJÁRT (Felelősnek és/vagy Vezetőnek)
+    // B) HATÁRIDŐ LEJÁRT (Felelősnek napi értesítés, 3 nap után Vezetői Eszkaláció)
     // =========================================================================
     const lejartSzabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 'hatarido_lejart' && sz.kinek === 'felelos' && sz.aktiv);
-    const lejartFelettesSzabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 'hatarido_lejart' && sz.kinek === 'felettes' && sz.aktiv);
+    const lejartFelettesSzabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 'hatarido_lejart' && (sz.kinek === 'vezeto' || sz.kinek === 'felettes') && sz.aktiv);
     
     if (lejartSzabaly || lejartFelettesSzabaly) {
       const { data: lejartUgyek } = await supabase
         .from('ugy')
-        .select('id, targy, hatarido, felelos_user_id, ugyirat(id, iktatoszam)')
+        .select(`
+          id, 
+          targy, 
+          hatarido, 
+          felelos_user_id, 
+          ugyirat(
+            id, 
+            iktatoszam, 
+            statusz,
+            szervezeti_egyseg_id, 
+            szervezeti_egyseg(id, nev, vezeto_id)
+          )
+        `)
         .not('felelos_user_id', 'is', null)
-        .eq('statusz', 'ugyintezes_alatt');
+        .eq('statusz', 'folyamatban');
 
       if (lejartUgyek) {
         for (const ugy of lejartUgyek) {
           if (ugy.hatarido) {
-            const ugyHatarido = new Date(ugy.hatarido).toISOString().split('T')[0];
+            const ugyHataridoDate = new Date(ugy.hatarido);
+            const ugyHataridoStr = ugyHataridoDate.toISOString().split('T')[0];
+            
+            // Csak az aktív (nem elintézett, nem lezárt, nem irattározott) ügyiratokat vesszük figyelembe
+            const activeDossiers = (ugy.ugyirat || []).filter(
+              (d: any) => !['elintezett', 'lezart', 'irattarban', 'selejtezheto'].includes(d.statusz)
+            );
+            if (activeDossiers.length === 0) continue;
+
             // Ha a határidő régebbi, mint a mai nap
-            if (ugyHatarido < todayIsoStr && ugy.ugyirat && ugy.ugyirat.length > 0) {
+            if (ugyHataridoStr < todayIsoStr) {
+              const dossier = activeDossiers[0];
+              const diffTime = today.getTime() - new Date(ugyHataridoStr).getTime();
+              const diffDays = Math.max(1, Math.floor(diffTime / (1000 * 3600 * 24)));
               
-              // Értesítés a Felelősnek (Zargatás minden nap)
+              // 1. Értesítés a Felelősnek (Napi zargatás lejárat után)
               if (lejartSzabaly && ugy.felelos_user_id) {
                 const csatornak = lejartSzabaly.csatorna || ['email'];
                 if (csatornak.includes('email')) {
@@ -159,18 +187,19 @@ export async function GET(request: Request) {
                   if (email) {
                     await sendNotificationEmail({
                       to: email,
-                      subject: `Lejárt Határidő! - ${ugy.ugyirat[0].iktatoszam}`,
+                      subject: `Lejárt Határidő! (${diffDays} napja) - ${dossier.iktatoszam}`,
                       html: buildHtmlEmail(
                         "Lejárt Határidő!",
-                        `Figyelem! A(z) <b>${ugy.ugyirat[0].iktatoszam}</b> azonosítójú ügyirattal késésben vagy! Kérlek, azonnal intézkedj!`,
+                        `Figyelem! A(z) <b>${dossier.iktatoszam}</b> azonosítójú ügyirattal <b>${diffDays} napja</b> késésben vagy! Kérlek, azonnal intézkedj!`,
                         [
                           { label: "Tárgy", value: ugy.targy },
-                          { label: "Eredeti határidő", value: ugy.hatarido }
+                          { label: "Eredeti határidő", value: ugy.hatarido },
+                          { label: "Késedelem", value: `${diffDays} nap` }
                         ],
                         "Azonnali intézkedés",
-                        `${getBaseUrl()}/dossiers/${ugy.ugyirat[0].id}`
+                        `${getBaseUrl()}/dossiers/${dossier.id}`
                       ),
-                      dossierId: ugy.ugyirat[0].id
+                      dossierId: dossier.id
                     });
                     emailsSent++;
                   }
@@ -178,9 +207,10 @@ export async function GET(request: Request) {
                 
                 if (csatornak.includes('in_app')) {
                   await supabase.from('alkalmazas_ertesites').insert({
-                    user_id: ugy.felelos_user_id, cim: `Lejárt Határidő! - ${ugy.ugyirat[0].iktatoszam}`,
-                    szoveg: `A(z) ${ugy.ugyirat[0].iktatoszam} azonosítójú ügyirattal késésben vagy!`,
-                    link_url: `/dossiers/${ugy.ugyirat[0].id}`
+                    user_id: ugy.felelos_user_id, 
+                    cim: `Lejárt Határidő! (${diffDays} napja) - ${dossier.iktatoszam}`,
+                    szoveg: `A(z) ${dossier.iktatoszam} azonosítójú ügyirattal ${diffDays} napja késésben vagy!`,
+                    link_url: `/dossiers/${dossier.id}`
                   });
                 }
 
@@ -190,10 +220,9 @@ export async function GET(request: Request) {
                     if (telefon) {
                       await sendSmsNotification({
                         to: telefon,
-                        body: `eaisyDocs: A(z) ${ugy.ugyirat[0].iktatoszam} ügyirat határideje lejárt! Kérlek, azonnal intézkedj!`
-                      });
-                      await supabase.from("ertesites_naplo").insert({
-                        csatorna: 'sms', cimzett_email: telefon, targy: `Lejárt Határidő! - ${ugy.ugyirat[0].iktatoszam}`, statusz: 'sikeres'
+                        body: `eaisyDocs: A(z) ${dossier.iktatoszam} ügyirat határideje ${diffDays} napja lejárt! Kérlek, azonnal intézkedj!`,
+                        subject: `Lejárt Határidő: ${dossier.iktatoszam}`,
+                        dossierId: dossier.id
                       });
                     }
                   } catch (e) {
@@ -202,56 +231,94 @@ export async function GET(request: Request) {
                 }
               }
 
-              // Értesítés a Vezetőnek (Eszkaláció)
-              if (lejartFelettesSzabaly) {
+              // 2. Automatikus Eszkaláció a Szervezeti Egység Vezetőjéhez (3 nap túllépés után)
+              if (lejartFelettesSzabaly && diffDays >= 3) {
                 const csatornakVezeto = lejartFelettesSzabaly.csatorna || ['email'];
-                const { data: vezetok } = await supabase.from('felhasznalo_profil').select('id').in('szerepkor', ['vezeto', 'admin', 'rendszergazda']);
-                if (vezetok) {
-                  for (const vezeto of vezetok) {
-                    if (csatornakVezeto.includes('email')) {
-                      const vEmail = await getUserEmailById(vezeto.id);
-                      if (vEmail) {
-                        await sendNotificationEmail({
-                          to: vEmail,
-                          subject: `Eszkaláció: Lejárt határidejű ügyirat! - ${ugy.ugyirat[0].iktatoszam}`,
-                          html: buildHtmlEmail(
-                            "Vezetői Eszkaláció",
-                            `Egy munkatárs kicsúszott a határidőből a(z) <b>${ugy.ugyirat[0].iktatoszam}</b> ügyirattal kapcsolatban. Kérlek, vizsgáld ki a késés okát!`,
-                            [
-                              { label: "Tárgy", value: ugy.targy },
-                              { label: "Lejárt határidő", value: ugy.hatarido }
-                            ],
-                            "Ügyirat megtekintése",
-                            `${getBaseUrl()}/dossiers/${ugy.ugyirat[0].id}`
-                          )
-                        });
-                        emailsSent++;
-                      }
-                    }
+                
+                // Szervezeti egység és kijelölt vezető feloldása
+                const orgUnit = Array.isArray(dossier.szervezeti_egyseg) ? dossier.szervezeti_egyseg[0] : dossier.szervezeti_egyseg;
+                let targetLeaderIds: string[] = [];
 
-                    if (csatornakVezeto.includes('in_app')) {
-                      await supabase.from('alkalmazas_ertesites').insert({
-                        user_id: vezeto.id, cim: `Eszkaláció: Lejárt határidejű ügyirat! - ${ugy.ugyirat[0].iktatoszam}`,
-                        szoveg: `Késés a(z) ${ugy.ugyirat[0].iktatoszam} azonosítójú ügyirattal kapcsolatban!`,
-                        link_url: `/dossiers/${ugy.ugyirat[0].id}`
+                if (orgUnit?.vezeto_id) {
+                  // Elsődleges: a szervezeti egység kijelölt vezetője
+                  targetLeaderIds.push(orgUnit.vezeto_id);
+                } else if (orgUnit?.id) {
+                  // 1. Fallback: az adott szervezeti egység 'vezeto' szerepkörű tagjai
+                  const { data: deptManagers } = await supabase
+                    .from('felhasznalo_profil')
+                    .select('id')
+                    .eq('szervezeti_egyseg_id', orgUnit.id)
+                    .eq('docs_szerepkor', 'vezeto');
+                  
+                  if (deptManagers && deptManagers.length > 0) {
+                    targetLeaderIds = deptManagers.map((m: any) => m.id);
+                  }
+                }
+
+                // 2. Fallback: ha nincs kijelölt vezető, a globális adminok/rendszergazdák kapják
+                if (targetLeaderIds.length === 0) {
+                  const { data: adminUsers } = await supabase
+                    .from('felhasznalo_profil')
+                    .select('id')
+                    .in('docs_szerepkor', ['admin', 'rendszergazda']);
+                  
+                  if (adminUsers && adminUsers.length > 0) {
+                    targetLeaderIds = adminUsers.map((a: any) => a.id);
+                  }
+                }
+
+                // Kizárjuk a felelőst, ha ő maga lenne a vezető és van más elérhető vezető/admin
+                const filteredLeaders = targetLeaderIds.filter(id => id !== ugy.felelos_user_id);
+                const finalLeaderIds = filteredLeaders.length > 0 ? filteredLeaders : targetLeaderIds;
+
+                for (const leaderId of finalLeaderIds) {
+                  if (csatornakVezeto.includes('email')) {
+                    const vEmail = await getUserEmailById(leaderId);
+                    if (vEmail) {
+                      await sendNotificationEmail({
+                        to: vEmail,
+                        subject: `[ESZKALÁCIÓ] ${diffDays} napos határidő-túllépés! - ${dossier.iktatoszam}`,
+                        html: buildHtmlEmail(
+                          "Vezetői Eszkaláció",
+                          `Figyelem! A szervezeti egység egyik munkatársa <b>${diffDays} napos késedelembe</b> esett a(z) <b>${dossier.iktatoszam}</b> ügyirattal kapcsolatban. Kérlek, vizsgáld ki a késés okát és tegyél intézkedést!`,
+                          [
+                            { label: "Ügyirat", value: dossier.iktatoszam },
+                            { label: "Tárgy", value: ugy.targy },
+                            { label: "Eredeti határidő", value: ugy.hatarido },
+                            { label: "Késés mértéke", value: `${diffDays} nap` },
+                            { label: "Szervezeti egység", value: orgUnit?.nev || "Nincs megadva" }
+                          ],
+                          "Ügyirat megtekintése",
+                          `${getBaseUrl()}/dossiers/${dossier.id}`
+                        ),
+                        dossierId: dossier.id
                       });
+                      emailsSent++;
                     }
+                  }
 
-                    if (csatornakVezeto.includes('sms')) {
-                      try {
-                        const telefon = await getUserTelefonById(vezeto.id);
-                        if (telefon) {
-                          await sendSmsNotification({
-                            to: telefon,
-                            body: `eaisyDocs Eszkaláció: Munkatárs kicsúszott a határidőből! (${ugy.ugyirat[0].iktatoszam})`
-                          });
-                          await supabase.from("ertesites_naplo").insert({
-                            csatorna: 'sms', cimzett_email: telefon, targy: `Eszkaláció: Lejárt határidő - ${ugy.ugyirat[0].iktatoszam}`, statusz: 'sikeres'
-                          });
-                        }
-                      } catch (e) {
-                        console.error("SMS hiba (eszkalacio):", e);
+                  if (csatornakVezeto.includes('in_app')) {
+                    await supabase.from('alkalmazas_ertesites').insert({
+                      user_id: leaderId,
+                      cim: `[ESZKALÁCIÓ] ${diffDays} napos késés: ${dossier.iktatoszam}`,
+                      szoveg: `A(z) ${dossier.iktatoszam} azonosítójú ügyirat határideje ${diffDays} napja lejárt (${orgUnit?.nev || 'Általános'}).`,
+                      link_url: `/dossiers/${dossier.id}`
+                    });
+                  }
+
+                  if (csatornakVezeto.includes('sms')) {
+                    try {
+                      const telefon = await getUserTelefonById(leaderId);
+                      if (telefon) {
+                        await sendSmsNotification({
+                          to: telefon,
+                          body: `eaisyDocs Eszkaláció: ${diffDays} napos késés a(z) ${dossier.iktatoszam} ügyiratnál! Ellenőrizd a rendszerben!`,
+                          subject: `Eszkaláció: ${dossier.iktatoszam}`,
+                          dossierId: dossier.id
+                        });
                       }
+                    } catch (e) {
+                      console.error("SMS hiba (eszkalacio):", e);
                     }
                   }
                 }
@@ -267,37 +334,39 @@ export async function GET(request: Request) {
     // =========================================================================
     const lejaratSzabaly = szabalyok.find((sz: any) => sz.esemeny_tipus === 'megorzes_lejar' && sz.kinek === 'iratkezelo' && sz.aktiv);
     if (lejaratSzabaly) {
-      // Itt az 'irat' táblát és a 'megorzesi_ido_vege' mezőt nézzük
-      const { data: iratok } = await supabase
-        .from('irat')
-        .select('id, targy, erkeztetoszam, megorzesi_ido_vege, ugyirat_id')
+      // Az ugyirat táblát és a 'megorzesi_ido_vege' mezőt figyeljük (lezárt/irattározott státuszúaknál)
+      const { data: ugyiratok } = await supabase
+        .from('ugyirat')
+        .select('id, iktatoszam, megorzesi_ido_vege, statusz, ugy:ugy_id(targy)')
         .not('megorzesi_ido_vege', 'is', null)
-        .neq('statusz', 'selejtezett'); // Csak azokat, amik még nincsenek selejtezve
+        .in('statusz', ['lezart', 'irattarban']);
 
-      if (iratok) {
-        for (const irat of iratok) {
-          const megorzesVege = new Date(irat.megorzesi_ido_vege).toISOString().split('T')[0];
+      if (ugyiratok) {
+        for (const ugyirat of ugyiratok) {
+          const megorzesVege = new Date(ugyirat.megorzesi_ido_vege).toISOString().split('T')[0];
           
           if (megorzesVege <= todayIsoStr) {
             const { data: iratkezelok } = await supabase.from('felhasznalo_profil').select('id').in('szerepkor', ['iktato', 'admin', 'rendszergazda']);
             if (iratkezelok) {
+              const targy = Array.isArray(ugyirat.ugy) ? (ugyirat.ugy[0] as any)?.targy : (ugyirat.ugy as any)?.targy || 'Ismeretlen ügy';
               for (const iratkezelo of iratkezelok) {
                 const iktEmail = await getUserEmailById(iratkezelo.id);
                 if (iktEmail) {
                   await sendNotificationEmail({
                     to: iktEmail,
-                    subject: `Iratselejtezés esedékes: ${irat.erkeztetoszam || irat.targy}`,
+                    subject: `Iratselejtezés esedékes: ${ugyirat.iktatoszam}`,
                     html: buildHtmlEmail(
                       "Megőrzési idő lejárt!",
-                      "A törvényes megőrzési idő lejárt egy dokumentum esetében, így az <b>selejtezhetővé</b> vált. Kérlek, indítsd el a selejtezési folyamatot az Irattár modulban!",
+                      "A törvényes megőrzési idő lejárt egy ügyirat esetében, így az <b>selejtezhetővé</b> vált. Kérlek, indítsd el a selejtezési folyamatot az Irattár modulban!",
                       [
-                        { label: "Irat tárgya", value: irat.targy },
-                        { label: "Megőrzési idő vége", value: irat.megorzesi_ido_vege }
+                        { label: "Iktatószám", value: ugyirat.iktatoszam },
+                        { label: "Ügy tárgya", value: targy },
+                        { label: "Megőrzési idő vége", value: ugyirat.megorzesi_ido_vege }
                       ],
                       "Irattár megnyitása",
                       `${getBaseUrl()}/archive`
                     ),
-                    dossierId: irat.ugyirat_id // Opcionális
+                    dossierId: ugyirat.id
                   });
                   emailsSent++;
                 }

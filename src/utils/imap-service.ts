@@ -52,6 +52,9 @@ export async function processIncomingEmails() {
         const sender = parsed.from?.value[0]?.name || parsed.from?.value[0]?.address || 'Ismeretlen feladó';
         const partnerNev = parsed.from?.value[0]?.name || parsed.from?.value[0]?.address || 'Ismeretlen Partner';
         const partnerEmail = parsed.from?.value[0]?.address || null;
+        const recipientText = Array.isArray(parsed.to)
+          ? parsed.to.map((t: any) => t.text || t.address).join(', ')
+          : (parsed.to?.text || user);
         const date = parsed.date || new Date();
         const body = parsed.text || parsed.html || '';
 
@@ -99,7 +102,7 @@ export async function processIncomingEmails() {
 
         const iratId = iratData.id;
 
-        // --- EMAIL BODY PDF GENERATION ---
+        // --- EMAIL BODY PDF & PDF/A-2B GENERATION ---
         try {
           const browser = await launchPdfBrowser();
           const page = await browser.newPage();
@@ -121,6 +124,7 @@ export async function processIncomingEmails() {
               <body>
                 <div class="header">
                   <p><strong>Feladó:</strong> ${partnerNev} ${partnerEmail ? `&lt;${partnerEmail}&gt;` : ''}</p>
+                  <p><strong>Címzett:</strong> ${recipientText}</p>
                   <p><strong>Dátum:</strong> ${date.toLocaleString('hu-HU')}</p>
                   <p><strong>Tárgy:</strong> ${subject}</p>
                 </div>
@@ -135,26 +139,41 @@ export async function processIncomingEmails() {
           const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20px', bottom: '20px' } });
           await browser.close();
 
-          // Upload generated PDF
-          // Az egyedi névhez használjuk az érkeztetőszámot (a perjelt aláhúzásra cserélve a fájlnév-biztonság miatt)
+          // Standard PDF és PDF/A-2b normalizálás
+          const { convertToPdfA } = await import('@/utils/pdfa-converter');
+          const { buffer: pdfaBuffer } = await convertToPdfA(Buffer.from(pdfBuffer));
+
           const safeErkezteto = erkeztetoszam.replace(/\//g, '_');
           const pdfFileName = `email_torzs_${safeErkezteto}.pdf`;
           const pdfFilePath = `${iratId}/${pdfFileName}`;
+          const pdfaFileName = `email_torzs_${safeErkezteto}_pdfa.pdf`;
+          const pdfaFilePath = `${iratId}/${pdfaFileName}`;
+
           const { error: pdfUploadError } = await supabase.storage
             .from('irat_files')
             .upload(pdfFilePath, pdfBuffer, { contentType: 'application/pdf' });
 
+          let savedPdfaPath: string | null = null;
           if (!pdfUploadError) {
+            const { error: pdfaUploadError } = await supabase.storage
+              .from('irat_files')
+              .upload(pdfaFilePath, pdfaBuffer, { contentType: 'application/pdf', upsert: true });
+
+            if (!pdfaUploadError) {
+              savedPdfaPath = pdfaFilePath;
+            }
+
             const pdfSha256 = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
             
             await supabase.from('irat_fajl').insert({
               irat_id: iratId,
               storage_path: pdfFilePath,
+              pdfa_path: savedPdfaPath,
               eredeti_fajlnev: pdfFileName,
               meret_byte: pdfBuffer.length,
               mime_type: 'application/pdf',
               sha256: pdfSha256,
-              ocr_szoveg: parsed.text || '' // Közvetlenül megkapja az e-mail szövegét az AI
+              ocr_szoveg: parsed.text || ''
             });
           } else {
             console.error("Failed to upload email body PDF:", pdfUploadError);
@@ -193,7 +212,7 @@ export async function processIncomingEmails() {
               }
 
               // Add record to irat_fajl
-              const { error: fajlError } = await supabase.from('irat_fajl').insert({
+              const { data: fajlData, error: fajlError } = await supabase.from('irat_fajl').insert({
                 irat_id: iratId,
                 storage_path: filePath,
                 eredeti_fajlnev: fileName,
@@ -201,10 +220,26 @@ export async function processIncomingEmails() {
                 mime_type: attachment.contentType || 'application/octet-stream',
                 sha256: sha256,
                 ocr_szoveg: ocr_szoveg
-              });
+              }).select('id').single();
               
               if (fajlError) {
                 console.error(`Failed to insert irat_fajl record for ${fileName}:`, fajlError);
+              } else if (fajlData && attachment.contentType === 'application/pdf') {
+                // PDF/A normalizálás csatolmányra is
+                try {
+                  const { convertToPdfA } = await import('@/utils/pdfa-converter');
+                  const { buffer: attPdfaBuffer } = await convertToPdfA(fileBuffer);
+                  const attPdfaPath = filePath.replace(/\.pdf$/i, '_pdfa.pdf');
+                  const { error: attPdfaUploadError } = await supabase.storage
+                    .from('irat_files')
+                    .upload(attPdfaPath, attPdfaBuffer, { contentType: 'application/pdf', upsert: true });
+
+                  if (!attPdfaUploadError) {
+                    await supabase.from('irat_fajl').update({ pdfa_path: attPdfaPath }).eq('id', fajlData.id);
+                  }
+                } catch (attPdfaErr) {
+                  console.warn(`PDF/A conversion warning for attachment ${fileName}:`, attPdfaErr);
+                }
               }
             } else {
               console.error(`Failed to upload attachment ${fileName}:`, uploadError);
@@ -219,14 +254,24 @@ export async function processIncomingEmails() {
           .in('szerepkor', ['iktato', 'admin', 'ugyintezo']);
 
         if (adminUsers && adminUsers.length > 0) {
-          const notifications = adminUsers.map((user) => ({
-            user_id: user.id,
+          const notifications = adminUsers.map((u: any) => ({
+            user_id: u.id,
             cim: `Új irat érkezett (${erkeztetoszam})`,
             szoveg: `Feladó: ${sender}\nTárgy: ${subject}`,
             link_url: `/inbox/view/${iratId}`,
           }));
           
           await supabase.from('alkalmazas_ertesites').insert(notifications);
+        }
+
+        // --- Embedding és Mentett Keresési Értesítések ---
+        try {
+          const { updateIratEmbedding } = await import('@/utils/embedding-service');
+          const { checkSavedSearchesForNewIrat } = await import('@/utils/saved-search-alerts');
+          await updateIratEmbedding(iratId, supabase);
+          await checkSavedSearchesForNewIrat(iratId, supabase);
+        } catch (bgErr) {
+          console.warn("[IMAP] Embedding or saved search alert error:", bgErr);
         }
         // -------------------------------------------------------------
 

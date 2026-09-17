@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { User, Users, UserPlus, Key, Clock, Save, ShieldCheck, FileText, Plane, Building, Plus, Settings, Camera, Upload } from "lucide-react"
+import { User, Users, UserPlus, Key, Clock, Save, ShieldCheck, FileText, Plane, Building, Plus, Settings, Camera, Upload, Crown } from "lucide-react"
 import Link from "next/link"
 import { updateProfile, createNewUser, updateUserPassword, updateUserRole, uploadAvatar } from "./settings-actions"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -473,8 +473,20 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                                 <Building className="h-5 w-5" />
                               </div>
                               <div className="text-left">
-                                <p className="text-sm font-semibold text-foreground">{dept.nev}</p>
-                                <p className="text-xs text-muted-foreground font-normal">{deptUsers.length} tag</p>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-sm font-semibold text-foreground">{dept.nev}</p>
+                                  {dept.vezeto?.nev ? (
+                                    <Badge variant="outline" className="text-[11px] font-normal border-primary/40 text-primary bg-primary/5 gap-1">
+                                      <Crown className="h-3 w-3 text-amber-500" />
+                                      {dept.vezeto.nev}
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[11px] font-normal text-muted-foreground border-dashed">
+                                      Nincs vezető
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground font-normal mt-0.5">{deptUsers.length} tag</p>
                               </div>
                             </div>
                           </AccordionTrigger>
@@ -499,47 +511,98 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                           </div>
                         </div>
                         <AccordionContent className="px-4 pb-4 pt-0">
-                          <div className="border-t pt-4 mt-2">
-                            <div className="flex items-center justify-between mb-4">
-                              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Hozzárendelt tagok</h4>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                className="h-8 rounded-full text-xs font-semibold"
-                                onClick={() => {
-                                  setSelectedDepartmentForAdd(dept.id)
-                                  setSelectedUsersToAdd([])
-                                  setAddUsersDialogOpen(true)
-                                }}
-                              >
-                                Tagok hozzáadása
-                              </Button>
+                          <div className="border-t pt-4 mt-2 space-y-4">
+                            {/* Felelős Osztályvezető Kijelölése */}
+                            <div className="bg-muted/30 p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                  <Crown className="h-3.5 w-3.5 text-amber-500" />
+                                  Szervezeti Egység Vezetője
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  A 3 napot meghaladó határidő-túllépések és vezetői eszkalációk automatikusan hozzá futnak be.
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Select
+                                  value={dept.vezeto_id || "none"}
+                                  onValueChange={async (val) => {
+                                    const newLeaderId = val === "none" ? null : val;
+                                    const { setDepartmentLeader } = await import("./settings-actions");
+                                    const res = await setDepartmentLeader(dept.id, newLeaderId);
+                                    if (res.error) toast.error("Hiba", { description: res.error });
+                                    else {
+                                      toast.success("Sikeres", { description: "Osztályvezető sikeresen frissítve!" });
+                                      router.refresh();
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="w-[220px] h-8 text-xs bg-background">
+                                    <SelectValue placeholder="Válassz vezetőt...">
+                                      {dept.vezeto?.nev || teamMembers?.find(m => m.id === dept.vezeto_id)?.nev || "Nincs kijelölt vezető"}
+                                    </SelectValue>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">Nincs kijelölt vezető</SelectItem>
+                                    {teamMembers?.map((m) => (
+                                      <SelectItem key={m.id} value={m.id}>
+                                        {m.nev} {m.szervezeti_egyseg_id === dept.id ? "" : "(Más osztály)"}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             </div>
-                            
-                            {deptUsers.length > 0 ? (
-                              <div className="grid gap-2">
-                                {deptUsers.map(u => (
-                                  <div key={u.id} className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg transition-colors group/item">
-                                    <div className="flex items-center gap-3">
-                                      <div className="h-8 w-8 shrink-0 bg-secondary rounded-full flex items-center justify-center font-semibold text-xs text-secondary-foreground">
-                                        {u.nev?.substring(0, 1).toUpperCase() || "?"}
+
+                            <div>
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Hozzárendelt tagok</h4>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  className="h-8 rounded-full text-xs font-semibold"
+                                  onClick={() => {
+                                    setSelectedDepartmentForAdd(dept.id)
+                                    setSelectedUsersToAdd([])
+                                    setAddUsersDialogOpen(true)
+                                  }}
+                                >
+                                  Tagok hozzáadása
+                                </Button>
+                              </div>
+                              
+                              {deptUsers.length > 0 ? (
+                                <div className="grid gap-2">
+                                  {deptUsers.map(u => (
+                                    <div key={u.id} className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg transition-colors group/item">
+                                      <div className="flex items-center gap-3">
+                                        <div className="h-8 w-8 shrink-0 bg-secondary rounded-full flex items-center justify-center font-semibold text-xs text-secondary-foreground">
+                                          {u.nev?.substring(0, 1).toUpperCase() || "?"}
+                                        </div>
+                                        <div>
+                                          <div className="flex items-center gap-1.5">
+                                            <p className="text-sm font-medium text-foreground">{u.nev}</p>
+                                            {u.id === dept.vezeto_id && (
+                                              <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 text-[10px] px-1.5 py-0 h-4 border-amber-500/30">
+                                                Vezető
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          <p className="text-xs text-muted-foreground">{u.email || ""}</p>
+                                        </div>
                                       </div>
-                                      <div>
-                                        <p className="text-sm font-medium text-foreground">{u.nev}</p>
-                                        <p className="text-xs text-muted-foreground">{u.email || ""}</p>
-                                      </div>
+                                      <Badge variant="secondary" className="uppercase font-semibold text-[10px] tracking-wider bg-background border">
+                                        {u.docs_szerepkor}
+                                      </Badge>
                                     </div>
-                                    <Badge variant="secondary" className="uppercase font-semibold text-[10px] tracking-wider bg-background border">
-                                      {u.docs_szerepkor}
-                                    </Badge>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="py-6 text-center">
-                                <p className="text-sm text-muted-foreground">Ebben az osztályban nincsenek felhasználók.</p>
-                              </div>
-                            )}
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="py-6 text-center">
+                                  <p className="text-sm text-muted-foreground">Ebben az osztályban nincsenek felhasználók.</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </AccordionContent>
                       </AccordionItem>

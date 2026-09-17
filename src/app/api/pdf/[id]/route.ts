@@ -83,6 +83,24 @@ export async function GET(
   // 4. Determine if watermarking is needed
   const isConfidential = isBetekinto || irat.minosites === "bizalmas" || irat.minosites === "szigoruan_bizalmas"
 
+  // 5. Audit naplózás: Megtekintés rögzítése az eseménynaplóban (AGENTS.md 3. szabály)
+  try {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || "127.0.0.1"
+    const userAgent = request.headers.get("user-agent") || "Ismeretlen"
+
+    await supabase.from("esemeny_naplo").insert({
+      entitas_tipus: "irat",
+      entitas_id: iratId,
+      esemeny_tipus: "megtekintve",
+      user_id: user.id,
+      indoklas: isConfidential ? "Vízjelezett PDF megtekintése" : "PDF megtekintése",
+      ip_cim: ip,
+      user_agent: userAgent
+    })
+  } catch (auditErr) {
+    console.error("Audit naplózási hiba PDF megtekintéskor:", auditErr)
+  }
+
   // Ha külső forrásból származik a fájl (pl. eaisyBill)
   if (fajl.kulso_fajl_url) {
     try {

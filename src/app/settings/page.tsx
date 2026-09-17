@@ -33,7 +33,13 @@ export default async function SettingsPage() {
       .order("mikor", { ascending: false })
       .limit(50)
     
-    if (naploData) naplo = naploData
+    if (naploData) {
+      naplo = naploData.filter((log: any) => {
+        const t = (log.targy || '').toLowerCase()
+        const isHr = t.includes('orvosi') || t.includes('t1041') || t.includes('szabadság') || t.includes('szabadsag') || t.includes('próbaidő') || t.includes('probaido') || t.includes('tanulmányi') || t.includes('kpi') || t.includes('interjú') || t.includes('születésnap') || t.includes('szerződés')
+        return !isHr
+      })
+    }
   }
 
   const { data: userData } = await supabase.auth.getUser()
