@@ -9,9 +9,9 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
 
-  // Jogosultság ellenőrzés (csak iratkezelő/admin kölcsönözhet)
+  // Jogosultság ellenőrzés (iktató, ügyintéző, vezető, admin)
   const { data: profile } = await supabase.from("felhasznalo_profil").select('docs_szerepkor').eq("id", user.id).single()
-  if (!profile || !["iktato", "admin", "rendszergazda"].includes(profile.docs_szerepkor)) {
+  if (!profile || !["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"].includes(profile.docs_szerepkor)) {
     return { success: false, error: "Nincs jogosultságod a kölcsönzés rögzítéséhez." }
   }
 
@@ -27,6 +27,8 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
     return { success: false, error: "Ez az irat jelenleg is ki van kölcsönözve." }
   }
 
+  const { data: kinek } = await supabase.from("felhasznalo_profil").select("nev").eq("id", kinekUserId).single()
+
   const { error } = await supabase.from("irat_kolcsonzes_naplo").insert({
     irat_id: iratId,
     kinek_user_id: kinekUserId,
@@ -36,13 +38,18 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
   })
 
   if (error) {
+    if ((error as any).code === '23505') {
+      return { success: false, error: "Ez az irat időközben már kikölcsönzésre került egy másik munkatárs által." }
+    }
     console.error("Kölcsönzés hiba:", error)
-    return { success: false, error: "Adatbázis hiba." }
+    return { success: false, error: "Adatbázis hiba a kölcsönzés során." }
   }
+
+  // Frissítjük az irat pillanatnyi helyét
+  await supabase.from("irat").update({ helye: `Kikölcsönözve (${kinek?.nev || 'Munkatárs'})` }).eq("id", iratId)
 
   // Eseménynapló rögzítése
   const { data: irat } = await supabase.from("irat").select("ugyirat_id, targy").eq("id", iratId).single()
-  const { data: kinek } = await supabase.from("felhasznalo_profil").select("nev").eq("id", kinekUserId).single()
   
   const { ip, userAgent } = await getClientInfo()
   await supabase.from("esemeny_naplo").insert({
@@ -65,7 +72,7 @@ export async function returnDocument(kolcsonzesId: string) {
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
 
   const { data: profile } = await supabase.from("felhasznalo_profil").select('docs_szerepkor').eq("id", user.id).single()
-  if (!profile || !["iktato", "admin", "rendszergazda"].includes(profile.docs_szerepkor)) {
+  if (!profile || !["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"].includes(profile.docs_szerepkor)) {
     return { success: false, error: "Nincs jogosultság." }
   }
 
@@ -89,6 +96,9 @@ export async function returnDocument(kolcsonzesId: string) {
     ugyiratId = irat?.ugyirat_id;
     const { data: kinek } = await supabase.from("felhasznalo_profil").select("nev").eq("id", log.kinek_user_id).single()
     
+    // Helyzet visszaállítása Irattárra
+    await supabase.from("irat").update({ helye: "Irattár" }).eq("id", log.irat_id)
+
     const { ip, userAgent } = await getClientInfo()
     await supabase.from("esemeny_naplo").insert({
       entitas_tipus: 'ugyirat',
@@ -115,7 +125,7 @@ export async function setPhysicalLocation(iratId: string, doboz: string, polc: s
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
 
   const { data: profile } = await supabase.from("felhasznalo_profil").select('docs_szerepkor').eq("id", user.id).single()
-  if (!profile || !["iktato", "admin", "rendszergazda"].includes(profile.docs_szerepkor)) {
+  if (!profile || !["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"].includes(profile.docs_szerepkor)) {
     return { success: false, error: "Nincs jogosultság." }
   }
 

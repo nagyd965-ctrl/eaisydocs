@@ -141,11 +141,40 @@ export async function approveDisposal(
     )
   }
 
+  // 1. Jogosultság ellenőrzése: Kizárólag Vezető vagy Adminisztrátor hagyhat jóvá selejtezést
+  const { data: approverProfile } = await dbAdmin
+    .from("felhasznalo_profil")
+    .select("docs_szerepkor, szerepkor, nev")
+    .eq("id", user.id)
+    .single()
+
+  const approverRole = approverProfile?.docs_szerepkor || approverProfile?.szerepkor || "ugyintezo"
+  if (!["admin", "vezeto", "rendszergazda"].includes(approverRole)) {
+    return { 
+      error: "A selejtezési jegyzéket kizárólag Vezető vagy Rendszergazda hagyhatja jóvá! Ügyintéző szerepkörrel a jóváhagyás nem engedélyezett." 
+    }
+  }
+
   let finalProposerName = "Iratkezelő"
 
-  // 1. Négy szem elve ellenőrzése
+  // 2. Négy szem elve ellenőrzése a csomag alapján
+  if (csomagId) {
+    const { data: csomag } = await dbAdmin
+      .from("selejtezes_csomag")
+      .select("javaslattevo_user_id")
+      .eq("id", csomagId)
+      .single()
+    
+    if (csomag?.javaslattevo_user_id === user.id) {
+      return {
+        error: "A négy szem elve alapján a selejtezési javaslatot felterjesztő munkatárs nem hagyhatja jóvá a saját javaslatát! A jóváhagyást egy másik vezetőnek vagy adminisztrátornak kell elvégeznie."
+      }
+    }
+  }
+
+  // 3. Négy szem elve ellenőrzése az érintett ügyiratok eseménynaplója alapján
   for (const id of ugyiratIds) {
-    const { data: events } = await supabase
+    const { data: events } = await dbAdmin
       .from("esemeny_naplo")
       .select("user_id")
       .eq("entitas_id", id)
@@ -155,11 +184,18 @@ export async function approveDisposal(
       .limit(1)
 
     if (events && events.length > 0) {
+      const proposerId = events[0].user_id
+      if (proposerId === user.id) {
+        return {
+          error: "A négy szem elve alapján a selejtezési javaslatot felterjesztő munkatárs nem hagyhatja jóvá a saját javaslatát! A jóváhagyást egy másik vezetőnek vagy adminisztrátornak kell elvégeznie."
+        }
+      }
+
       if (finalProposerName === "Iratkezelő") {
-        const { data: profile } = await supabase
+        const { data: profile } = await dbAdmin
           .from("felhasznalo_profil")
           .select("nev")
-          .eq("id", events[0].user_id)
+          .eq("id", proposerId)
           .single()
         if (profile?.nev) {
           finalProposerName = profile.nev
@@ -174,6 +210,7 @@ export async function approveDisposal(
     .select(`
       id,
       iktatoszam,
+      statusz,
       megorzesi_ido_vege,
       ugy_id,
       ugy:ugy_id ( id, targy ),
@@ -184,6 +221,21 @@ export async function approveDisposal(
 
   if (!dossierDetails || dossierDetails.length === 0) {
     return { error: "Nem találhatók a kiválasztott ügyiratok." }
+  }
+
+  // Párhuzamos jóváhagyás elleni védelem: ellenőrizzük a státuszokat
+  const alreadyDisposed = dossierDetails.filter(d => d.statusz === "selejtezett")
+  if (alreadyDisposed.length > 0) {
+    return {
+      error: `A kiválasztott ügyiratok közül az alábbiakat már jóváhagyták és selejtezték: ${alreadyDisposed.map(d => d.iktatoszam).join(", ")}`
+    }
+  }
+
+  const notPending = dossierDetails.filter(d => d.statusz !== "selejtezheto")
+  if (notPending.length > 0) {
+    return {
+      error: `Csak jóváhagyásra felterjesztett (selejtezhető státuszú) ügyiratokat lehet jóváhagyni! Nem megfelelő: ${notPending.map(d => d.iktatoszam).join(", ")}`
+    }
   }
 
   const protocolItems: DisposalProtocolItem[] = []

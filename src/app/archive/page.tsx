@@ -88,6 +88,15 @@ export default async function ArchivePage(props: {
     }
   }
 
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: currentProfile } = await supabase
+    .from("felhasznalo_profil")
+    .select("docs_szerepkor, szerepkor")
+    .eq("id", user?.id || "")
+    .maybeSingle()
+  const currentUserRole = currentProfile?.docs_szerepkor || currentProfile?.szerepkor || "ugyintezo"
+  const currentUserId = user?.id || ""
+
   return (
     <div className="page-animate space-y-6">
       <div>
@@ -105,6 +114,8 @@ export default async function ArchivePage(props: {
         disposalBatches={enrichedBatches}
         cutoffDate={cutoffDate}
         todayStr={todayStr}
+        currentUserRole={currentUserRole}
+        currentUserId={currentUserId}
       />
     </div>
   )

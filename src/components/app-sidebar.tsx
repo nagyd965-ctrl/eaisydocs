@@ -35,7 +35,7 @@ const items = [
     title: "Bejövő sor",
     url: "/inbox",
     icon: Inbox,
-    allowedRoles: ["admin", "rendszergazda", "iktato", "vezeto", "auditor"],
+    allowedRoles: ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "auditor"],
   },
   {
     title: "Iktatókönyv",

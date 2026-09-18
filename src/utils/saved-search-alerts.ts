@@ -1,9 +1,23 @@
 import { createClient } from "@supabase/supabase-js"
 
+// In-memory cache for recent notifications: key (user_id:saved_search_id:irat_id) -> timestamp (ms)
+const recentAlertsCache = new Map<string, number>()
+const ALERT_COOLDOWN_MS = 60_000 // 1 minute in-memory cooldown per user+saved_search+doc
+
+function pruneRecentAlertsCache(now: number) {
+  if (recentAlertsCache.size > 200) {
+    for (const [k, timestamp] of recentAlertsCache.entries()) {
+      if (now - timestamp > ALERT_COOLDOWN_MS * 2) {
+        recentAlertsCache.delete(k)
+      }
+    }
+  }
+}
+
 /**
  * Checks all active saved searches with notifications enabled against a newly created or updated irat.
  * If matches are found and the user is authorized to view the irat, inserts an in-app notification
- * into the `alkalmazas_ertesites` table.
+ * into the `alkalmazas_ertesites` table with strict idempotency and deduplication.
  */
 export async function checkSavedSearchesForNewIrat(
   iratId: string,
@@ -54,6 +68,11 @@ export async function checkSavedSearchesForNewIrat(
       return { checked: 0, notifiedUsers: [] }
     }
 
+    function stripAccents(str: string): string {
+      if (!str) return ""
+      return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
+    }
+
     const aggregatedOcr =
       (irat.irat_fajl as any[])?.map((f) => f.ocr_szoveg || "").filter(Boolean).join(" ") || ""
     const searchableFullText = [
@@ -67,19 +86,33 @@ export async function checkSavedSearchesForNewIrat(
       .filter(Boolean)
       .join(" ")
       .toLowerCase()
+    
+    const normSearchable = stripAccents(searchableFullText)
 
     const notifiedUsers: string[] = []
 
     // 3. Evaluate each saved search
     for (const item of savedSearches) {
+      const now = Date.now()
+      pruneRecentAlertsCache(now)
+
+      // Fast in-memory check to prevent duplicate concurrent executions in the same process
+      const dedupKey = `${item.user_id}:${item.id}:${irat.id}`
+      const lastAlertTime = recentAlertsCache.get(dedupKey)
+      if (lastAlertTime && now - lastAlertTime < ALERT_COOLDOWN_MS) {
+        continue
+      }
+
       const p = item.kereso_parameterek || {}
       const q = (p.query || "").trim().toLowerCase()
       const f = p.filters || {}
 
-      // Check text query
-      if (q && !searchableFullText.includes(q)) {
-        // Query string not found in document text/meta
-        continue
+      // Check text query (both verbatim and accent-stripped)
+      if (q) {
+        const normQ = stripAccents(q)
+        if (!searchableFullText.includes(q) && !normSearchable.includes(normQ)) {
+          continue
+        }
       }
 
       // Check filters
@@ -90,19 +123,30 @@ export async function checkSavedSearchesForNewIrat(
         continue
       }
       if (f.iktatoszam && (irat.ugyirat as any)?.iktatoszam) {
-        if (
-          !(irat.ugyirat as any).iktatoszam.toLowerCase().includes(f.iktatoszam.toLowerCase())
-        ) {
+        const normIktato = stripAccents((irat.ugyirat as any).iktatoszam)
+        const normFilterIktato = stripAccents(f.iktatoszam)
+        if (!normIktato.includes(normFilterIktato)) {
           continue
         }
       }
       if (f.erkeztetoszam && irat.erkeztetoszam) {
-        if (!irat.erkeztetoszam.toLowerCase().includes(f.erkeztetoszam.toLowerCase())) {
+        const normErk = stripAccents(irat.erkeztetoszam)
+        const normFilterErk = stripAccents(f.erkeztetoszam)
+        if (!normErk.includes(normFilterErk)) {
           continue
         }
       }
-      if (f.partner && (irat.partner as any)?.nev) {
-        if (!(irat.partner as any).nev.toLowerCase().includes(f.partner.toLowerCase())) {
+      if (f.partner) {
+        const partnerName = (irat.partner as any)?.nev || ""
+        const normFilterPartner = stripAccents(f.partner)
+        const normIratPartner = stripAccents(partnerName)
+        const normTargy = stripAccents(irat.targy || "")
+        // Matches if either the partner entity name matches, or partner name appears in subject or full text
+        if (
+          !normIratPartner.includes(normFilterPartner) &&
+          !normTargy.includes(normFilterPartner) &&
+          !normSearchable.includes(normFilterPartner)
+        ) {
           continue
         }
       }
@@ -131,10 +175,14 @@ export async function checkSavedSearchesForNewIrat(
       }
 
       // Check role and department permissions
-      const isPrivileged = ["admin", "iktato", "auditor"].includes(
-        userProfile.docs_szerepkor
-      )
+      const role = userProfile.docs_szerepkor
+      const isPrivileged = ["admin", "iktato", "auditor"].includes(role)
       let hasAccess = isPrivileged
+
+      // If document is in inbox (no ugyirat_id yet), managers and clerks are also authorized
+      if (!hasAccess && !irat.ugyirat_id && ["vezeto", "ugyintezo"].includes(role)) {
+        hasAccess = true
+      }
 
       if (!hasAccess && irat.ugyirat_id) {
         const docDept = (irat.ugyirat as any)?.szervezeti_egyseg_id
@@ -156,18 +204,66 @@ export async function checkSavedSearchesForNewIrat(
 
       if (!hasAccess) continue
 
-      // 5. Send Notification
+      // 5. Send Notification (with strict deduplication against database)
       const displayIdentifier =
         (irat.ugyirat as any)?.iktatoszam || irat.erkeztetoszam || "Új dokumentum"
-      const linkUrl = irat.ugyirat_id ? `/dossiers/${irat.ugyirat_id}` : `/inbox`
+      const linkUrl = irat.ugyirat_id ? `/dossiers/${irat.ugyirat_id}` : `/inbox/${irat.id}`
+      const notifTitle = `Új találat: "${item.nev}"`
+
+      // Check if an alert for this user and this saved search already exists for this document
+      const docIdentifiers = [
+        irat.erkeztetoszam,
+        (irat.ugyirat as any)?.iktatoszam,
+        displayIdentifier
+      ].filter((id): id is string => Boolean(id && id !== "Új dokumentum"))
+
+      let alreadyNotified = false
+
+      for (const idf of docIdentifiers) {
+        const { data: exists } = await supabase
+          .from("alkalmazas_ertesites")
+          .select("id")
+          .eq("user_id", item.user_id)
+          .eq("cim", notifTitle)
+          .ilike("szoveg", `%(${idf})%`)
+          .limit(1)
+          .maybeSingle()
+
+        if (exists) {
+          alreadyNotified = true
+          break
+        }
+      }
+
+      if (!alreadyNotified) {
+        const { data: linkExists } = await supabase
+          .from("alkalmazas_ertesites")
+          .select("id")
+          .eq("user_id", item.user_id)
+          .eq("cim", notifTitle)
+          .eq("link_url", linkUrl)
+          .limit(1)
+          .maybeSingle()
+
+        if (linkExists) {
+          alreadyNotified = true
+        }
+      }
+
+      if (alreadyNotified) {
+        recentAlertsCache.set(dedupKey, now)
+        continue
+      }
 
       await supabase.from("alkalmazas_ertesites").insert({
         user_id: item.user_id,
-        cim: `Új találat: "${item.nev}"`,
+        cim: notifTitle,
         szoveg: `Új dokumentum érkezett a mentett keresésedhez: "${irat.targy}" (${displayIdentifier})`,
         link_url: linkUrl,
         olvasott: false,
       })
+
+      recentAlertsCache.set(dedupKey, now)
 
       await supabase
         .from("mentett_kereses")

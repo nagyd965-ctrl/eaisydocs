@@ -13,6 +13,8 @@ import { StatusBadge } from "@/components/status-badge"
 import { getPermissions } from "@/utils/permissions"
 import { TasksTab } from "@/components/tasks-tab"
 import { LifecycleExportButton } from "@/components/lifecycle-export-button"
+import { DossierAccessDialog } from "@/components/dossier-access-dialog"
+import { Badge } from "@/components/ui/badge"
 
 export default async function DossierPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -33,6 +35,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
         erkeztetoszam,
         targy,
         irany,
+        minosites,
         irat_fajl (
           id,
           eredeti_fajlnev,
@@ -51,14 +54,14 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
 
   const { data: users } = await supabase
     .from("felhasznalo_profil")
-    .select('id, nev, docs_szerepkor, szervezeti_egyseg_id')
+    .select('id, nev, docs_szerepkor, szervezeti_egyseg_id, szervezeti_egyseg:szervezeti_egyseg_id(nev)')
     .contains('elerheto_modulok', ['docs'])
 
   // Current user role check
   const { data: authUser } = await supabase.auth.getUser()
   const { data: currentUserProfile } = await supabase
     .from("felhasznalo_profil")
-    .select('docs_szerepkor, szervezeti_egyseg_id')
+    .select('docs_szerepkor, szervezeti_egyseg_id, max_minosites')
     .eq("id", authUser?.user?.id || "")
     .single()
   
@@ -72,38 +75,53 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
   
   const hasExplicitAccess = !!explicitAccess
   const permissions = getPermissions(currentUserProfile?.docs_szerepkor)
+  const canAssign = permissions.canAssign
+  const canEdit = permissions.canEdit
   
   const isUgyintezo = currentUserProfile?.docs_szerepkor === 'ugyintezo'
   const isVezeto = currentUserProfile?.docs_szerepkor === 'vezeto'
+  const isAdmin = currentUserProfile?.docs_szerepkor === 'admin'
+  const isIktato = currentUserProfile?.docs_szerepkor === 'iktato'
 
-  let canEdit = permissions.canEdit
-  if (isUgyintezo) {
-    const isAssigned = (dossier?.ugy as any)?.felelos_user_id === authUser?.user?.id
-    canEdit = isAssigned || hasExplicitAccess
-  } else if (isVezeto) {
-    const inDepartment = dossier?.szervezeti_egyseg_id === currentUserProfile?.szervezeti_egyseg_id
-    canEdit = inDepartment || hasExplicitAccess
-  }
-
-  let canAssign = permissions.canAssign
-  if (isVezeto) {
-    const inDepartment = dossier?.szervezeti_egyseg_id === currentUserProfile?.szervezeti_egyseg_id
-    canAssign = inDepartment || hasExplicitAccess
-  }
-
-  // Map user names
   const userMap = (users || []).reduce((acc: any, user: any) => {
     acc[user.id] = user.nev
     return acc
   }, {})
 
-  if (dossier && (dossier.ugy as any)?.felelos_user_id) {
-    (dossier.ugy as any).felelos_user = {
-      full_name: userMap[(dossier.ugy as any).felelos_user_id]
-    }
-  }
-
+  // Ha az ügyirat nem található vagy az RLS letiltotta a bizalmas minősítés miatt
   if (!dossier) {
+    // Ellenőrizzük admin klienssel, hogy létezik-e az ügyirat, csak a minősítés miatt tiltott
+    const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+    const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: existingDossier } = await admin.from("ugyirat").select("id, iktatoszam").eq("id", id).maybeSingle()
+
+    if (existingDossier) {
+      return (
+        <div className="p-12 max-w-xl mx-auto text-center space-y-5">
+          <div className="w-16 h-16 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-center justify-center mx-auto text-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.2)]">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-white tracking-tight">🔒 Hozzáférés Megtagadva: Bizalmas Ügyirat</h2>
+            <p className="text-sm text-slate-300 mt-2 leading-relaxed">
+              A jelen ügyirat (<strong>{existingDossier.iktatoszam}</strong>) megtekintéséhez magasabb biztonsági minősítés (Bizalmas / Szigorúan bizalmas) szükséges.
+            </p>
+          </div>
+          <div className="p-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-400 flex items-center justify-center gap-2">
+            <span>Az Ön jelenlegi jogosultsági szintje:</span>
+            <span className="font-bold text-amber-400 uppercase bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+              {currentUserProfile?.max_minosites || 'nyilt'}
+            </span>
+          </div>
+          <div className="pt-2">
+            <Button render={<Link href="/dossiers" />} nativeButton={false} className="gap-2">
+              <ArrowLeft className="w-4 h-4" /> Vissza az iktatókönyvhöz
+            </Button>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="p-8 text-center">
         <h2 className="text-2xl font-semibold mb-4">Ügyirat nem található</h2>
@@ -111,6 +129,28 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       </div>
     );
   }
+
+  // Minősítés hierarchia ellenőrzés
+  const minositesHierarchy: Record<string, number> = {
+    nyilt: 1,
+    belso: 2,
+    bizalmas: 3,
+    szigoruan_bizalmas: 4
+  }
+  const userClearanceLevel = minositesHierarchy[currentUserProfile?.max_minosites || 'nyilt'] || 1
+  const iratList = Array.isArray(dossier.irat) ? dossier.irat : []
+  const highestDocLevel = iratList.reduce((max: number, i: any) => {
+    const lvl = minositesHierarchy[i.minosites || 'nyilt'] || 1
+    return Math.max(max, lvl)
+  }, 1)
+
+  const highestMinosites = iratList.reduce((max: string, i: any) => {
+    const currentLevel = minositesHierarchy[i.minosites || 'nyilt'] || 1
+    const maxLevel = minositesHierarchy[max] || 1
+    return currentLevel > maxLevel ? (i.minosites || 'nyilt') : max
+  }, 'nyilt')
+
+  const isClearanceRestricted = !hasExplicitAccess && !isAdmin && !isIktato && userClearanceLevel < highestDocLevel
 
   // Fetch polymorphic links
   const { data: polymorphicLinks } = await supabase
@@ -252,10 +292,32 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
             <p className="text-muted-foreground text-sm mt-0.5">{ugy?.targy}</p>
           </div>
         </div>
-        {permissions.canEdit && dossier.statusz !== "lezart" && dossier.statusz !== "irattarban" && dossier.statusz !== "selejtezheto" && (
-          <CloseDossierButton ugyiratId={dossier.id} />
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <DossierAccessDialog 
+            ugyiratId={dossier.id}
+            iktatoszam={dossier.iktatoszam}
+            canManage={canAssign || isVezeto || currentUserProfile?.docs_szerepkor === 'admin'}
+            allUsers={users || []}
+          />
+          {permissions.canEdit && dossier.statusz !== "lezart" && dossier.statusz !== "irattarban" && dossier.statusz !== "selejtezheto" && (
+            <CloseDossierButton ugyiratId={dossier.id} />
+          )}
+        </div>
       </div>
+
+      {isClearanceRestricted && (
+        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 flex items-start gap-3 shadow-sm">
+          <Lock className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-sm font-semibold text-amber-200 flex items-center gap-1.5">
+              Bizalmas ügyirat — Korlátozott hozzáférés
+            </h4>
+            <p className="text-xs text-amber-300/80 mt-1 leading-relaxed">
+              Ez az ügyirat olyan dokumentumokat tartalmaz, amelyek megtekintéséhez magasabb biztonsági minősítés szükséges (az Ön szintje: <strong className="uppercase">{currentUserProfile?.max_minosites || 'nyílt'}</strong>). Az iratok nyilvántartási adatai megtekinthetők, de a csatolt bizalmas fájlok megnyitása és letöltése szigorúan zárolva van.
+            </p>
+          </div>
+        </div>
+      )}
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="mb-4">
@@ -324,7 +386,25 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
                     <Shield className="h-3.5 w-3.5" />
                     Minősítés
                   </dt>
-                  <dd className="text-sm font-semibold">Nyílt</dd>
+                  <dd className="text-sm font-semibold">
+                    {highestMinosites === "szigoruan_bizalmas" ? (
+                      <Badge variant="outline" className="text-xs border-purple-500/40 text-purple-400 bg-purple-500/10 flex items-center gap-1 font-semibold uppercase w-fit">
+                        <Lock className="w-3 h-3" /> Szigorúan bizalmas
+                      </Badge>
+                    ) : highestMinosites === "bizalmas" ? (
+                      <Badge variant="outline" className="text-xs border-rose-500/40 text-rose-400 bg-rose-500/10 flex items-center gap-1 font-semibold uppercase w-fit">
+                        <Lock className="w-3 h-3" /> Bizalmas
+                      </Badge>
+                    ) : highestMinosites === "belso" ? (
+                      <Badge variant="outline" className="text-xs border-blue-500/40 text-blue-400 bg-blue-500/10 w-fit">
+                        Belső
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs text-muted-foreground w-fit">
+                        Nyílt
+                      </Badge>
+                    )}
+                  </dd>
                 </div>
 
                 {/* Iktatás dátuma */}
@@ -370,7 +450,14 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
               <CardDescription>Az ügyirathoz tartozó dokumentumok.</CardDescription>
             </CardHeader>
             <CardContent>
-              <IratokLista iratok={dossier.irat} canEdit={canEdit} users={users || []} />
+              <IratokLista 
+                iratok={dossier.irat} 
+                canEdit={canEdit} 
+                users={users || []} 
+                dossierIktatoszam={dossier.iktatoszam}
+                currentUserClearance={currentUserProfile?.max_minosites || 'nyilt'}
+                isAdmin={isAdmin}
+              />
             </CardContent>
           </Card>
         </TabsContent>

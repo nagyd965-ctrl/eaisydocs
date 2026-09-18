@@ -274,14 +274,14 @@ export async function generateFromTemplate(ugyiratId: string, formData: FormData
     indoklas: `Kimenő irat generálva sablonból: ${sablon_tipus || "Általános"} — ${targy}`,
   })
 
-  // PDF/A konverzió trigger
+  // PDF/A konverzió háttérsorba állítása
   if (fajlResult) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-    fetch(`${appUrl}/api/pdf/convert`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fajl_id: fajlResult.id }),
-    }).catch((err) => console.error("PDF/A Worker Trigger Error:", err))
+    try {
+      const { enqueuePdfaConversion } = await import("@/utils/ai-worker-service")
+      await enqueuePdfaConversion(iratData.id, fajlResult.id, supabase)
+    } catch (err) {
+      console.warn("PDF/A sorba állítás figyelmeztetés sablon generálásakor:", err)
+    }
   }
 
   revalidatePath(`/dossiers/${ugyiratId}`)

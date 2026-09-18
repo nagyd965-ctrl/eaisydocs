@@ -21,19 +21,43 @@ export async function fileIncomingDocument(formData: FormData) {
   const dokumentum_tipus = (formData.get("dokumentum_tipus") as string)?.trim() || ""
   let kuldo_partner_id = (formData.get("kuldo_partner_id") as string)?.trim() || ""
   const partner_nev = (formData.get("partner_nev") as string)?.trim() || ""
+  const partner_adoszam = (formData.get("partner_adoszam") as string)?.trim() || ""
   const hivatkozott_szam = (formData.get("hivatkozott_szam") as string)?.trim() || ""
   const hatarido = (formData.get("hatarido") as string)?.trim() || ""
 
-  // Partner kezelése: ha van partner_nev, de nincs kuldo_partner_id, megkeressük vagy létrehozzuk
-  if (!kuldo_partner_id && partner_nev) {
+  // 0. Double-filing concurrency check: ensure document is still unfiled
+  const { data: checkIrat } = await supabase
+    .from("irat")
+    .select("id, ugyirat_id")
+    .eq("id", irat_id)
+    .single()
+
+  if (checkIrat?.ugyirat_id) {
+    return { error: "Ezt az iratot már egy másik felhasználó vagy folyamat iktatta!" }
+  }
+
+  // Partner kezelése: ha van partner_nev vagy partner_adoszam, de nincs kuldo_partner_id, megkeressük vagy létrehozzuk
+  if (!kuldo_partner_id && (partner_nev || partner_adoszam)) {
     try {
       const { findOrCreatePartner } = await import("@/utils/partner-matcher")
-      const pRes = await findOrCreatePartner(supabase, { nev: partner_nev, tipus: "ceg" })
+      const pRes = await findOrCreatePartner(supabase, { 
+        nev: partner_nev || "Ismeretlen partner", 
+        adoszam: partner_adoszam || null,
+        tipus: "ceg" 
+      })
       if (pRes?.id) {
         kuldo_partner_id = pRes.id
       }
     } catch (pErr) {
       console.warn("[Filing] Partner automatikus rögzítési hiba:", pErr)
+    }
+  } else if (kuldo_partner_id && partner_adoszam) {
+    try {
+      const { normalizeAdoszam } = await import("@/utils/partner-matcher")
+      const normalized = normalizeAdoszam(partner_adoszam)
+      await supabase.from("partner").update({ adoszam: normalized }).eq("id", kuldo_partner_id).is("adoszam", null)
+    } catch (pErr) {
+      console.warn("[Filing] Partner adószám pótlási hiba:", pErr)
     }
   }
 
@@ -184,15 +208,46 @@ export async function fileIncomingDocument(formData: FormData) {
     console.warn("[Filing] Audit napló bejegyzési hiba:", auditErr)
   }
   
-  // Trigger embedding refresh and saved search alerts in background
+  // Queue embedding refresh and saved search alerts via persistent ai_feladat_sor
+  try {
+    await supabase
+      .from("ai_feladat_sor")
+      .upsert({
+        irat_id,
+        feladat_tipus: "embedding",
+        statusz: "fuggoben",
+        kovetkezo_futtatas: new Date().toISOString()
+      }, { onConflict: "irat_id,feladat_tipus" })
+  } catch (qErr) {
+    console.warn("[Filing] Error queueing embedding in ai_feladat_sor:", qErr)
+  }
+
+  // Queue PDF/A conversion for files if not already converted
+  try {
+    const { data: fajlok } = await supabase
+      .from("irat_fajl")
+      .select("id, pdfa_path")
+      .eq("irat_id", irat_id)
+
+    if (fajlok && fajlok.length > 0) {
+      const { enqueuePdfaConversion } = await import("@/utils/ai-worker-service")
+      for (const f of fajlok) {
+        if (!f.pdfa_path) {
+          await enqueuePdfaConversion(irat_id, f.id, supabase)
+        }
+      }
+    }
+  } catch (pdfaQueueErr) {
+    console.warn("[Filing] PDF/A sorba állítási hiba:", pdfaQueueErr)
+  }
+
+  // Trigger saved search notifications for newly filed or updated document
   (async () => {
     try {
-      const { updateIratEmbedding } = await import("@/utils/embedding-service")
       const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
-      await updateIratEmbedding(irat_id, supabase)
       await checkSavedSearchesForNewIrat(irat_id, supabase)
-    } catch (bgErr) {
-      console.error("[Filing] Error in background embedding/alert processing:", bgErr)
+    } catch (alertErr) {
+      console.warn("[Filing] Saved search alert processing error:", alertErr)
     }
   })().catch(console.error)
 
@@ -203,8 +258,28 @@ export async function fileIncomingDocument(formData: FormData) {
   return { success: true }
 }
 
-export async function generateAISuggestions(iratId: string) {
-  const supabase = await createClient()
+export interface AISuggestionsResult {
+  success: boolean
+  error?: string
+  suggestions?: {
+    targy: string
+    dokumentum_tipus: string
+    partner_id: string
+    partner_nev: string
+    partner_adoszam: string
+    hivatkozott_szam: string
+    hatarido: string
+    department_id: string
+    irattari_tetel_id: string
+    indoklas: string
+    elozmeny_ugyirat_id?: string
+    elozmeny_iktatoszam?: string
+    confidence_score?: number
+  }
+}
+
+export async function executeAiMetadataExtraction(iratId: string, customSupabase?: any): Promise<AISuggestionsResult> {
+  const supabase = customSupabase || (await createClient())
 
   // 1. Lekérjük az iratot és a kapcsolódó fájlokat
   const { data: irat } = await supabase
@@ -221,7 +296,7 @@ export async function generateAISuggestions(iratId: string) {
     .single()
 
   if (!irat) {
-    return { error: "Az irat nem található." }
+    return { success: false, error: "Az irat nem található." }
   }
 
   const { data: files } = await supabase
@@ -279,7 +354,7 @@ export async function generateAISuggestions(iratId: string) {
 
   // Ha korábbról volt érvényes OCR szöveg
   if (!docText) {
-    const existingWithOcr = files?.find(f => f.ocr_szoveg && !f.ocr_szoveg.includes("DEMO OCR SZÖVEG"))
+    const existingWithOcr = files?.find((f: any) => f.ocr_szoveg && !f.ocr_szoveg.includes("DEMO OCR SZÖVEG"))
     if (existingWithOcr?.ocr_szoveg) {
       docText = existingWithOcr.ocr_szoveg
     }
@@ -328,13 +403,13 @@ Különös pontossággal olvasd ki az alábbi kötelező mezőket:
 9. "indoklas": 1-2 mondatos magyar indoklás a kiválasztott típusokról és kinyert adatokról.
 
 ELÉRHETŐ SZERVEZETI EGYSÉGEK:
-${deptsList.map(d => `- ID: "${d.id}", Név: "${d.nev}"`).join("\n")}
+${deptsList.map((d: any) => `- ID: "${d.id}", Név: "${d.nev}"`).join("\n")}
 
 ÉRVÉNYES IRATTÁRI TERV TÉTELEI:
-${plansList.map(p => `- ID: "${p.id}", Tételszám: "${p.tetelszam}", Megnevezés: "${p.megnevezes}"`).join("\n")}
+${plansList.map((p: any) => `- ID: "${p.id}", Tételszám: "${p.tetelszam}", Megnevezés: "${p.megnevezes}"`).join("\n")}
 
 ISMERT PARTNEREK ÍZELÍTŐ:
-${partnersList.slice(0, 30).map(p => `- Név: "${p.nev}"${p.adoszam ? `, Adószám: "${p.adoszam}"` : ""}`).join("\n")}
+${partnersList.slice(0, 30).map((p: any) => `- Név: "${p.nev}"${p.adoszam ? `, Adószám: "${p.adoszam}"` : ""}`).join("\n")}
 
 ÉRKEZTETÉSI ADATOK:
 - Rögzített tárgy: ${irat.targy || "Nincs"}
@@ -406,26 +481,26 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
     if (textLower.includes("munkaszerz") || textLower.includes("munkaviszony") || textLower.includes("munkavállaló")) {
       suggestedType = "szerzodes"
       suggestedTargy = "Munkaszerződés"
-      const hrDept = deptsList.find(d => d.nev.toLowerCase().includes("hr") || d.nev.toLowerCase().includes("humán"))
+      const hrDept = deptsList.find((d: any) => d.nev.toLowerCase().includes("hr") || d.nev.toLowerCase().includes("humán"))
       if (hrDept) suggestedDeptId = hrDept.id
-      const hrPlan = plansList.find(p => p.megnevezes.toLowerCase().includes("hr") || p.megnevezes.toLowerCase().includes("munkaügy"))
+      const hrPlan = plansList.find((p: any) => p.megnevezes.toLowerCase().includes("hr") || p.megnevezes.toLowerCase().includes("munkaügy"))
       if (hrPlan) suggestedPlanId = hrPlan.id
     } else if (textLower.includes("számla") || textLower.includes("szamla") || textLower.includes("invoice") || textLower.includes("díjbekérő")) {
       suggestedType = "szamla"
       suggestedTargy = "Bejövő számla"
-      const finDept = deptsList.find(d => d.nev.toLowerCase().includes("pénz") || d.nev.toLowerCase().includes("számv"))
+      const finDept = deptsList.find((d: any) => d.nev.toLowerCase().includes("pénz") || d.nev.toLowerCase().includes("számv"))
       if (finDept) suggestedDeptId = finDept.id
-      const finPlan = plansList.find(p => p.megnevezes.toLowerCase().includes("számla") || p.megnevezes.toLowerCase().includes("pénzügy"))
+      const finPlan = plansList.find((p: any) => p.megnevezes.toLowerCase().includes("számla") || p.megnevezes.toLowerCase().includes("pénzügy"))
       if (finPlan) suggestedPlanId = finPlan.id
     } else if (textLower.includes("szerződés") || textLower.includes("megállapodás")) {
       suggestedType = "szerzodes"
       suggestedTargy = "Szerződés"
-      const contractPlan = plansList.find(p => p.megnevezes.toLowerCase().includes("szerződés") || p.megnevezes.toLowerCase().includes("jogi"))
+      const contractPlan = plansList.find((p: any) => p.megnevezes.toLowerCase().includes("szerződés") || p.megnevezes.toLowerCase().includes("jogi"))
       if (contractPlan) suggestedPlanId = contractPlan.id
     } else if (textLower.includes("határozat") || textLower.includes("végzés") || textLower.includes("nav")) {
       suggestedType = "hatosagi_level"
       suggestedTargy = "Hatósági megkeresés / végzés"
-      const legalDept = deptsList.find(d => d.nev.toLowerCase().includes("jogi"))
+      const legalDept = deptsList.find((d: any) => d.nev.toLowerCase().includes("jogi"))
       if (legalDept) suggestedDeptId = legalDept.id
     }
 
@@ -450,7 +525,7 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
   const { normalizePartnerName } = await import("@/utils/partner-matcher")
 
   if (aiResult.partner_adoszam) {
-    const foundByTax = partnersList.find(p => p.adoszam && cleanTax(p.adoszam) === cleanTax(aiResult.partner_adoszam))
+    const foundByTax = partnersList.find((p: any) => p.adoszam && cleanTax(p.adoszam) === cleanTax(aiResult.partner_adoszam))
     if (foundByTax) {
       matchedPartnerId = foundByTax.id
       partnerNevToUse = foundByTax.nev
@@ -459,7 +534,7 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
 
   if (!matchedPartnerId && partnerNevToUse) {
     const normalizedAiName = normalizePartnerName(partnerNevToUse)
-    const foundByName = partnersList.find(p => normalizePartnerName(p.nev) === normalizedAiName)
+    const foundByName = partnersList.find((p: any) => normalizePartnerName(p.nev) === normalizedAiName)
     if (foundByName) {
       matchedPartnerId = foundByName.id
       partnerNevToUse = foundByName.nev
@@ -497,8 +572,8 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
   }
 
   // 8. Osztály és Irattári tétel validáció
-  const validDept = deptsList.find(d => d.id === aiResult.department_id) || deptsList[0]
-  const validPlan = plansList.find(p => p.id === aiResult.irattari_tetel_id) || plansList[0]
+  const validDept = deptsList.find((d: any) => d.id === aiResult.department_id) || deptsList[0]
+  const validPlan = plansList.find((p: any) => p.id === aiResult.irattari_tetel_id) || plansList[0]
 
   return {
     success: true,
@@ -520,6 +595,51 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
   }
 }
 
+export async function generateAISuggestions(iratId: string): Promise<AISuggestionsResult> {
+  const supabase = await createClient()
+
+  // 1. Gyors ellenőrzés: Van-e már előre kiszámolt eredmény az ai_feladat_sor-ban?
+  try {
+    const { data: cachedTask } = await supabase
+      .from("ai_feladat_sor")
+      .select("eredmeny, statusz")
+      .eq("irat_id", iratId)
+      .eq("feladat_tipus", "ai_metadata_extraction")
+      .eq("statusz", "kesz")
+      .maybeSingle()
+
+    if (cachedTask?.eredmeny) {
+      return {
+        success: true,
+        suggestions: cachedTask.eredmeny
+      }
+    }
+  } catch (cErr) {
+    console.warn("[AISuggest] Cache olvasási hiba:", cErr)
+  }
+
+  // 2. Ha nincs cache, futtatjuk a kinyerést on-demand
+  const result = await executeAiMetadataExtraction(iratId, supabase)
+
+  // 3. Mentjük a gyorsítótárba a jövőbeli lekérdezésekhez
+  if (result.success && result.suggestions) {
+    try {
+      await supabase
+        .from("ai_feladat_sor")
+        .upsert({
+          irat_id: iratId,
+          feladat_tipus: "ai_metadata_extraction",
+          statusz: "kesz",
+          eredmeny: result.suggestions,
+          kovetkezo_futtatas: new Date().toISOString()
+        }, { onConflict: "irat_id,feladat_tipus" })
+    } catch (saveErr) {
+      console.warn("[AISuggest] Cache mentési hiba:", saveErr)
+    }
+  }
+
+  return result
+}
 
 /**
  * Lekéri az automatikus előzmény-ügyirat javaslatot az adott beérkező irathoz.
@@ -532,7 +652,8 @@ export async function getAntecedentSuggestionAction(iratId: string) {
 
 /**
  * Egykattintásos ügyirat-összerendelés:
- * A beérkező iratot a megadott előzmény-ügyirathoz kapcsolja a következő szabad alszámként.
+ * A beérkező iratot a megadott előzmény-ügyirathoz kapcsolja a következő szabad alszámként
+ * atomi adatbázis-tranzakcióban (attach_irat_to_dossier_atomic).
  */
 export async function quickAttachToDossier(iratId: string, ugyiratId: string, indoklasText?: string) {
   const supabase = await createClient()
@@ -558,84 +679,23 @@ export async function quickAttachToDossier(iratId: string, ugyiratId: string, in
     return { error: "Betekintő jogosultsággal nem végezhető összerendelés." }
   }
 
-  // 2. Cél ügyirat lekérdezése
-  const { data: existingDossier, error: dossierError } = await supabase
-    .from("ugyirat")
-    .select("id, iktatoszam, ugy_id")
-    .eq("id", ugyiratId)
-    .single()
+  // 2. Atomi Postgres RPC hívása: sorzárolás, alszám kalkuláció, audit napló, feladatsorba ütemezés
+  const { data: rpcResult, error: rpcError } = await supabase.rpc("attach_irat_to_dossier_atomic", {
+    p_irat_id: iratId,
+    p_ugyirat_id: ugyiratId,
+    p_user_id: user.id,
+    p_indoklas: indoklasText || null
+  })
 
-  if (dossierError || !existingDossier) {
-    return { error: "A kiválasztott ügyirat nem található az adatbázisban." }
+  if (rpcError) {
+    return { error: "Hiba az irat hozzárendelésekor: " + rpcError.message }
   }
 
-  // 3. Legmagasabb meglévő alszám kiszámítása
-  const { data: iratok, error: iratokError } = await supabase
-    .from("irat")
-    .select("alszam")
-    .eq("ugyirat_id", ugyiratId)
-
-  if (iratokError) {
-    return { error: "Hiba az alszám kiszámításakor: " + iratokError.message }
+  if (!rpcResult?.success) {
+    return { error: rpcResult?.error || "Hiba az irat hozzárendelésekor." }
   }
 
-  const maxAlszam = iratok?.reduce((max, i) => Math.max(max, i.alszam || 0), 0) || 0
-  const alszam = maxAlszam + 1
-
-  // 4. Irat frissítése (ugyirat_id és alszám)
-  const { error: iratUpdateError } = await supabase
-    .from("irat")
-    .update({ ugyirat_id: ugyiratId, alszam })
-    .eq("id", iratId)
-
-  if (iratUpdateError) {
-    return { error: "Hiba az irat hozzárendelésekor: " + iratUpdateError.message }
-  }
-
-  // 5. Polimorf irat_kapcsolat rögzítése (elozmeny típussal)
-  try {
-    await supabase.from("irat_kapcsolat").insert({
-      irat_id: iratId,
-      ugyirat_id: ugyiratId,
-      entitas_tipus: "szerzodes",
-      entitas_id: existingDossier.id,
-      entitas_forras: "belso",
-      kapcsolat_tipusa: "elozmeny"
-    })
-  } catch (linkErr) {
-    console.warn("Irat kapcsolat rögzítési hiba:", linkErr)
-  }
-
-  // 6. Eseménynapló audit bejegyzés (append-only)
-  try {
-    const { getClientInfo } = await import("@/utils/client-info")
-    const { ip, userAgent } = await getClientInfo()
-    await supabase.from("esemeny_naplo").insert({
-      entitas_tipus: "irat",
-      entitas_id: iratId,
-      esemeny_tipus: "iktatva",
-      user_id: user.id,
-      ip_cim: ip,
-      user_agent: userAgent,
-      indoklas: indoklasText || `Egykattintásos előzmény-összerendeléssel csatolva a(z) ${existingDossier.iktatoszam} ügyirathoz (${alszam}. alszám).`
-    })
-  } catch (logErr) {
-    console.warn("Eseménynapló hiba:", logErr)
-  }
-
-  // 7. Háttérben: Keresőindex és riasztások frissítése
-  (async () => {
-    try {
-      const { updateIratEmbedding } = await import("@/utils/embedding-service")
-      const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
-      await updateIratEmbedding(iratId, supabase)
-      await checkSavedSearchesForNewIrat(iratId, supabase)
-    } catch (bgErr) {
-      console.error("[QuickAttach] Hiba a háttérfolyamatokban:", bgErr)
-    }
-  })().catch(console.error)
-
-  // 8. Cache revalidálás
+  // 3. Cache revalidálás
   revalidatePath("/inbox")
   revalidatePath(`/inbox/view/${iratId}`)
   revalidatePath(`/inbox/${iratId}`)
@@ -644,8 +704,8 @@ export async function quickAttachToDossier(iratId: string, ugyiratId: string, in
 
   return {
     success: true,
-    iktatoszam: existingDossier.iktatoszam,
-    alszam,
-    ugyiratId
+    iktatoszam: rpcResult.iktatoszam,
+    alszam: rpcResult.alszam,
+    ugyiratId: rpcResult.ugyirat_id
   }
 }

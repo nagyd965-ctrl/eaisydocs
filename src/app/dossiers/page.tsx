@@ -13,6 +13,8 @@ import { AssignDossierDialog } from "@/components/assign-dossier-dialog"
 import { StatusBadge } from "@/components/status-badge"
 import { getPermissions } from "@/utils/permissions"
 import { FilterBar } from "@/components/filter-bar"
+import { Badge } from "@/components/ui/badge"
+import { Lock } from "lucide-react"
 
 export default async function DossiersPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
@@ -28,7 +30,8 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
       statusz,
       iktatas_datuma,
       szervezeti_egyseg_id,
-      ugy!inner ( id, targy, hatarido, statusz, felelos_user_id )
+      ugy!inner ( id, targy, hatarido, statusz, felelos_user_id ),
+      irat ( id, minosites )
     `)
     .order("iktatas_datuma", { ascending: false })
     .limit(100)
@@ -108,13 +111,26 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
           </TableHeader>
           <TableBody>
             {mappedDossiers && mappedDossiers.length > 0 ? (
-              mappedDossiers.map((dossier) => (
-                <TableRow key={dossier.id} className="hover:bg-muted/50">
-                  <TableCell className="font-medium text-primary hover:underline">
-                    <Link href={`/dossiers/${dossier.id}`}>{dossier.iktatoszam}</Link>
-                  </TableCell>
-                  <TableCell>{(dossier.ugy as any)?.targy}</TableCell>
-                  <TableCell><StatusBadge status={dossier.statusz} /></TableCell>
+              mappedDossiers.map((dossier) => {
+                const iratList = Array.isArray((dossier as any).irat) ? (dossier as any).irat : []
+                const isConfidential = iratList.some((i: any) => i.minosites === 'bizalmas' || i.minosites === 'szigoruan_bizalmas')
+
+                return (
+                  <TableRow key={dossier.id} className="hover:bg-muted/50">
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <Link href={`/dossiers/${dossier.id}`} className="text-primary hover:underline">
+                          {dossier.iktatoszam}
+                        </Link>
+                        {isConfidential && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-rose-500/30 text-rose-400 bg-rose-500/10 flex items-center gap-1 font-normal">
+                            <Lock className="w-2.5 h-2.5" /> Bizalmas
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{(dossier.ugy as any)?.targy}</TableCell>
+                    <TableCell><StatusBadge status={dossier.statusz} /></TableCell>
                   <TableCell>
                     {(() => {
                       const isVezeto = currentUserProfile?.docs_szerepkor === "vezeto"
@@ -144,7 +160,7 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
                       : "-"}
                   </TableCell>
                 </TableRow>
-              ))
+              )})
             ) : (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">

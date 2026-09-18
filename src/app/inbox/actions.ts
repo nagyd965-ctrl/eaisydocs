@@ -34,8 +34,21 @@ export async function uploadIncomingDocument(formData: FormData) {
   const minosites = (formData.get("minosites") as string) || "nyilt"
   const file = formData.get("file") as File | null
 
-  if (!targy || !erkezes_modja || !adathordozo_tipus || !file || file.size === 0) {
-    return { error: "Minden mező és a fájl is kötelező!" }
+  if (!targy || !erkezes_modja || !adathordozo_tipus || !file) {
+    return { error: "Minden mező és a fájl csatolása is kötelező!" }
+  }
+
+  if (file.size === 0) {
+    return { error: "A kiválasztott fájl üres (0 bájt)! Kérjük, töltsön fel valós iratot." }
+  }
+
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  const { validateUploadedDocument } = await import("@/utils/file-validator")
+  const fileCheck = await validateUploadedDocument(file, buffer)
+  if (!fileCheck.valid) {
+    return { error: fileCheck.error || "A kiválasztott fájl érvénytelen vagy sérült!" }
   }
 
   // 1. Partner kezelés
@@ -57,9 +70,6 @@ export async function uploadIncomingDocument(formData: FormData) {
   const fileExt = file.name.split('.').pop()
   const fileName = `${crypto.randomUUID()}.${fileExt}`
   
-  const arrayBuffer = await file.arrayBuffer()
-  const buffer = Buffer.from(arrayBuffer)
-  
   const { error: uploadError } = await supabase.storage
     .from("irat_files")
     .upload(fileName, buffer, {
@@ -80,10 +90,10 @@ export async function uploadIncomingDocument(formData: FormData) {
     ocr_szoveg = await extractPdfText(buffer)
   }
 
-  // 4. Érkeztetőszám generálás (éves szintű, pl. E/2026/0714-1234)
-  const dateStr = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 8)
-  const randNum = Math.floor(1000 + Math.random() * 9000)
-  const erkeztetoszam = `E/${dateStr}-${randNum}`
+  // 4. Érkeztetőszám generálás (szekvenciális, pl. E/2026/00001)
+  const currentYear = new Date().getFullYear()
+  const { data: erkezId } = await supabase.rpc("generate_erkeztetoszam", { p_ev: currentYear })
+  const erkeztetoszam = erkezId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
 
   // 5. Irat rekord létrehozása
   const { data: iratData, error: iratError } = await supabase
@@ -133,15 +143,13 @@ export async function uploadIncomingDocument(formData: FormData) {
     }).catch(err => console.error("PDF/A Worker Trigger Error:", err))
   }
 
-  // 8. Fire-and-forget embedding generálás és mentett keresések értesítése
+  // 8. Fire-and-forget mentett keresések értesítése (az embeddinget a háttérben az ai_feladat_sor és worker végzi)
   (async () => {
     try {
-      const { updateIratEmbedding } = await import("@/utils/embedding-service")
       const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
-      await updateIratEmbedding(iratData.id, supabase)
       await checkSavedSearchesForNewIrat(iratData.id, supabase)
     } catch (bgErr) {
-      console.error("[Upload] Error in background embedding/alert processing:", bgErr)
+      console.error("[Upload] Error in background alert processing:", bgErr)
     }
   })().catch(console.error)
 

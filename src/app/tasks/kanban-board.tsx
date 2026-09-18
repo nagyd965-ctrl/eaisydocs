@@ -139,9 +139,9 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
     const originalTasks = [...tasks]
     setTasks(prev => prev.map(t => t.id === activeTaskId ? { ...t, allapot: newStatus } : t))
 
-    const response = await updateTaskStatus(activeTaskId, newStatus as any)
+    const response = await updateTaskStatus(activeTaskId, newStatus as any, activeTask.allapot as any)
     if (!response.success) {
-      toast.error("Nem sikerült elmenteni az állapotot!")
+      toast.error(response.error || "Nem sikerült elmenteni az állapotot!")
       setTasks(originalTasks)
     } else {
       toast.success("Feladat állapota frissítve!")

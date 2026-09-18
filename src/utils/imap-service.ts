@@ -11,13 +11,22 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+let isImapProcessing = false;
+
 export async function processIncomingEmails() {
+  if (isImapProcessing) {
+    console.log("[IMAP] A mail sync is already running, skipping overlapping invocation.");
+    return { success: false, reason: "Already running" };
+  }
+
+  isImapProcessing = true;
   const host = process.env.EMAIL_HOST;
   const port = parseInt(process.env.EMAIL_IMAP_PORT || '993', 10);
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASSWORD;
 
   if (!host || !user || !pass) {
+    isImapProcessing = false;
     console.warn("IMAP configuration is missing. Skipping incoming email processing.");
     return { success: false, reason: "Missing config" };
   }
@@ -103,8 +112,9 @@ export async function processIncomingEmails() {
         const iratId = iratData.id;
 
         // --- EMAIL BODY PDF & PDF/A-2B GENERATION ---
+        let browser: any = null;
         try {
-          const browser = await launchPdfBrowser();
+          browser = await launchPdfBrowser();
           const page = await browser.newPage();
           
           const emailHtml = parsed.html || `<pre style="white-space: pre-wrap; font-family: inherit;">${parsed.text || 'Üres üzenet'}</pre>`;
@@ -137,7 +147,6 @@ export async function processIncomingEmails() {
           
           await page.setContent(finalHtml, { waitUntil: 'networkidle0' as any });
           const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20px', bottom: '20px' } });
-          await browser.close();
 
           // Standard PDF és PDF/A-2b normalizálás
           const { convertToPdfA } = await import('@/utils/pdfa-converter');
@@ -180,6 +189,14 @@ export async function processIncomingEmails() {
           }
         } catch (e) {
           console.error("Failed to generate PDF from email body:", e);
+        } finally {
+          if (browser) {
+            try {
+              await browser.close();
+            } catch (bErr) {
+              console.warn("Browser close error:", bErr);
+            }
+          }
         }
         // --- END EMAIL BODY PDF GENERATION ---
 
@@ -264,14 +281,16 @@ export async function processIncomingEmails() {
           await supabase.from('alkalmazas_ertesites').insert(notifications);
         }
 
-        // --- Embedding és Mentett Keresési Értesítések ---
+        // --- Felvétel az AI Háttér Feladatsorba (Embedding és Riasztások feldolgozása a Worker által) ---
         try {
-          const { updateIratEmbedding } = await import('@/utils/embedding-service');
-          const { checkSavedSearchesForNewIrat } = await import('@/utils/saved-search-alerts');
-          await updateIratEmbedding(iratId, supabase);
-          await checkSavedSearchesForNewIrat(iratId, supabase);
+          await supabase.from('ai_feladat_sor').upsert({
+            irat_id: iratId,
+            feladat_tipus: 'embedding',
+            statusz: 'fuggoben',
+            kovetkezo_futtatas: new Date().toISOString()
+          }, { onConflict: 'irat_id,feladat_tipus' });
         } catch (bgErr) {
-          console.warn("[IMAP] Embedding or saved search alert error:", bgErr);
+          console.warn("[IMAP] AI task queueing warning:", bgErr);
         }
         // -------------------------------------------------------------
 
@@ -290,7 +309,12 @@ export async function processIncomingEmails() {
     console.error("IMAP processing error:", err);
     return { success: false, error: err };
   } finally {
-    await client.logout();
+    try {
+      await client.logout();
+    } catch (lErr) {
+      console.warn("IMAP logout error:", lErr);
+    }
+    isImapProcessing = false;
   }
 
   return { success: true, processedCount };

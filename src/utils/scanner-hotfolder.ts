@@ -42,6 +42,34 @@ export async function ensureHotfolderDirs(): Promise<{
 }
 
 /**
+ * Checks if a scanned file has completed writing by verifying size stability.
+ * Prevents reading partial/corrupt PDFs while the network scanner is actively transferring.
+ */
+async function isFileReady(filePath: string, checkDelayMs = 1000): Promise<boolean> {
+  try {
+    const stat1 = await fs.stat(filePath)
+    if (stat1.size === 0) return false
+
+    await new Promise((resolve) => setTimeout(resolve, checkDelayMs))
+
+    const stat2 = await fs.stat(filePath)
+    if (stat2.size !== stat1.size || stat2.mtimeMs !== stat1.mtimeMs) {
+      return false
+    }
+
+    try {
+      const handle = await fs.open(filePath, "r+")
+      await handle.close()
+      return true
+    } catch (_lockErr) {
+      return false
+    }
+  } catch (_err) {
+    return false
+  }
+}
+
+/**
  * Scans the hot folder input directory, splits multi-page scanned batches
  * at separator sheets, ingests the individual documents, and moves files to processed/failed.
  */
@@ -72,13 +100,24 @@ export async function processHotfolderFiles(
     const filePath = path.join(inputDir, file.name)
 
     try {
+      // 0. Verify file stability (avoid partial read during scanner network upload)
+      const ready = await isFileReady(filePath)
+      if (!ready) {
+        report.details.push({
+          fileName: file.name,
+          status: "skipped",
+          error: "A fájl még írás alatt áll a szkenner által (méretváltozás vagy zárolás detektálva).",
+        })
+        continue
+      }
+
       // 1. Read file buffer
       const fileBuffer = await fs.readFile(filePath)
       if (fileBuffer.length === 0) {
         report.details.push({
           fileName: file.name,
           status: "skipped",
-          error: "A fájl üres vagy még írás alatt áll a szkenner által.",
+          error: "A fájl üres.",
         })
         continue
       }

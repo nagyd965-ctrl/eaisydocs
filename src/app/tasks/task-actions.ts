@@ -4,8 +4,50 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { getClientInfo } from "@/utils/client-info"
 
-export async function updateTaskStatus(taskId: string, newStatus: "nyitott" | "folyamatban" | "kesz" | "elutasitott") {
+export async function updateTaskStatus(
+  taskId: string, 
+  newStatus: "nyitott" | "folyamatban" | "kesz" | "elutasitott",
+  expectedCurrentStatus?: "nyitott" | "folyamatban" | "kesz" | "elutasitott"
+) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, error: "Nincs bejelentkezve." }
+  }
+
+  // 1. Feladat és meglévő állapot lekérése
+  const { data: currentTask, error: fetchErr } = await supabase
+    .from("feladat")
+    .select("id, ugyirat_id, felelos_user_id, allapot")
+    .eq("id", taskId)
+    .single()
+
+  if (fetchErr || !currentTask) {
+    return { success: false, error: "A feladat nem található." }
+  }
+
+  // 2. Jogosultság ellenőrzése: Csak a feladat felelőse VAGY iktató / admin / vezető módosíthatja
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const role = profile?.docs_szerepkor || "ugyintezo"
+  const isPrivileged = ["admin", "iktato", "vezeto", "rendszergazda"].includes(role)
+  const isAssignee = currentTask.felelos_user_id === user.id
+
+  if (!isAssignee && !isPrivileged) {
+    return { success: false, error: "Nincs jogosultságod a feladat állapotának módosításához (csak a felelős vagy vezető módosíthatja)." }
+  }
+
+  // 3. Optimistic concurrency check: ha a kliens által ismert állapot időközben eltért
+  if (expectedCurrentStatus && currentTask.allapot !== expectedCurrentStatus) {
+    return { 
+      success: false, 
+      error: `A feladat állapota időközben megváltozott egy másik munkatárs által (${currentTask.allapot}).` 
+    }
+  }
   
   const { error } = await supabase
     .from("feladat")
@@ -17,20 +59,19 @@ export async function updateTaskStatus(taskId: string, newStatus: "nyitott" | "f
     return { success: false, error: error.message }
   }
 
-  // Ügyirat azonosító lekérése egyszer
-  const { data: feladatData } = await supabase.from("feladat").select("ugyirat_id").eq("id", taskId).single()
-  const ugyiratId = feladatData?.ugyirat_id
+  const ugyiratId = currentTask.ugyirat_id
 
-  // Naplózás
-  const { data: { user } } = await supabase.auth.getUser()
-  if (user && ugyiratId) {
+  // 4. Naplózás
+  if (ugyiratId) {
     const { ip, userAgent } = await getClientInfo()
     await supabase.from("esemeny_naplo").insert({
       entitas_tipus: "ugyirat",
       entitas_id: ugyiratId,
       esemeny_tipus: "modositva",
       user_id: user.id,
-      indoklas: `Feladat állapota módosítva: ${newStatus}`,
+      elozo_ertek: { allapot: currentTask.allapot },
+      uj_ertek: { allapot: newStatus },
+      indoklas: `Feladat állapota módosítva: ${currentTask.allapot} -> ${newStatus}`,
       ip_cim: ip,
       user_agent: userAgent
     })

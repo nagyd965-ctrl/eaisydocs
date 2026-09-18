@@ -35,6 +35,13 @@ export function getReversedPersonName(name: string): string | null {
 }
 
 /**
+ * Normalizálja az adószámot (eltávolítja a szóközöket és kötőjeleket az összehasonlításhoz).
+ */
+export function normalizeAdoszam(adoszam: string): string {
+  return adoszam.replace(/[-\s]/g, "").trim()
+}
+
+/**
  * Intelligens partnerkeresés és duplikációmentes mentés:
  * 1. Keres adószám alapján (ha megadva)
  * 2. Keres pontos / kis-nagybetű független név alapján
@@ -123,6 +130,30 @@ export async function findOrCreatePartner(
     .single()
 
   if (insertError || !newPartner) {
+    // Ha konkurens beszúrás történt (23505 unique violation az adószámon), lekérjük a már beszúrt rekordot
+    if (insertError?.code === "23505" || insertError?.message?.includes("idx_partner_clean_adoszam") || insertError?.message?.includes("duplicate key")) {
+      if (params.adoszam) {
+        const cleanTax = params.adoszam.replace(/[-\s]/g, "")
+        const { data: existing } = await supabase
+          .from("partner")
+          .select("id")
+          .ilike("adoszam", `%${cleanTax.slice(0, 8)}%`)
+          .limit(1)
+          .maybeSingle()
+        if (existing?.id) {
+          return { id: existing.id, isNew: false }
+        }
+      }
+      const { data: existingByName } = await supabase
+        .from("partner")
+        .select("id")
+        .ilike("nev", trimmedName)
+        .limit(1)
+        .maybeSingle()
+      if (existingByName?.id) {
+        return { id: existingByName.id, isNew: false }
+      }
+    }
     throw new Error(`Nem sikerült a partnert létrehozni: ${insertError?.message}`)
   }
 

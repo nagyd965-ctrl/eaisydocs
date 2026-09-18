@@ -13,7 +13,7 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
     docs_szerepkor = profile?.docs_szerepkor || 'ugyintezo'
   }
 
-  if (docs_szerepkor === 'betekinto' || docs_szerepkor === 'ugyintezo') {
+  if (docs_szerepkor === 'betekinto') {
     redirect("/dossiers")
   }
 

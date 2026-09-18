@@ -45,6 +45,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
   const [selectedMember, setSelectedMember] = useState<any>(null)
   const [selectedMemberRole, setSelectedMemberRole] = useState<string>("")
   const [selectedMemberDepartment, setSelectedMemberDepartment] = useState<string>("")
+  const [selectedMemberClearance, setSelectedMemberClearance] = useState<string>("nyilt")
   const [editRoleLoading, setEditRoleLoading] = useState(false)
   const [departmentLoading, setDepartmentLoading] = useState(false)
   
@@ -84,6 +85,13 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
     vezeto: "Vezető",
     iktato: "Iktató",
     ugyintezo: "Ügyintéző"
+  }
+
+  const clearanceMap: Record<string, string> = {
+    nyilt: "Nyílt",
+    belso: "Belső",
+    bizalmas: "Bizalmas",
+    szigoruan_bizalmas: "Szigorúan Bizalmas"
   }
 
   // Handle hydration for next-themes
@@ -254,6 +262,7 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                   setSelectedMember(member)
                   setSelectedMemberRole(member.docs_szerepkor || "")
                   setSelectedMemberDepartment(member.szervezeti_egyseg_id || "none")
+                  setSelectedMemberClearance(member.max_minosites || "nyilt")
                   setEditRoleDialogOpen(true)
                 }}
               >
@@ -271,7 +280,10 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-3">
+                  <Badge variant="outline" className="text-[10px] uppercase font-mono tracking-wider border-border/80">
+                    {clearanceMap[member.max_minosites] || member.max_minosites || "Nyílt"}
+                  </Badge>
                   <Badge variant="secondary" className="uppercase font-semibold text-[10px] tracking-wider">
                     {member.docs_szerepkor}
                   </Badge>
@@ -373,20 +385,21 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                   setEditRoleLoading(true)
                   const newRole = formData.get("role") as string
                   const newDept = formData.get("departmentId") as string
+                  const newClearance = (formData.get("clearance") as string) || selectedMemberClearance || "nyilt"
                   const deptId = newDept === "none" ? null : newDept
-                  const res = await updateUserRole(selectedMember.id, newRole, selectedMember.max_minosites, deptId)
+                  const res = await updateUserRole(selectedMember.id, newRole, newClearance, deptId)
                   setEditRoleLoading(false)
                   if (res.error) {
                     toast.error("Hiba", { description: res.error })
                   } else {
-                    toast.success("Sikeres", { description: "Szerepkör módosítva." })
+                    toast.success("Sikeres", { description: "Jogosultságok és biztonsági minősítés módosítva." })
                     setEditRoleDialogOpen(false)
                   }
                 }}>
                   <DialogHeader>
-                    <DialogTitle>Szerepkör Módosítása</DialogTitle>
+                    <DialogTitle>Szerepkör és Jogosultság Módosítása</DialogTitle>
                     <DialogDescription>
-                      Módosíthatod a(z) <span className="font-semibold text-foreground">{selectedMember?.nev}</span> fiók jogosultságát.
+                      Módosíthatod a(z) <span className="font-semibold text-foreground">{selectedMember?.nev}</span> fiók szerepkörét és biztonsági szintjét.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
@@ -420,6 +433,25 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-clearance">Biztonsági Minősítés (Max. Hozzáférési Szint)</Label>
+                      <Select name="clearance" value={selectedMemberClearance} onValueChange={(val) => setSelectedMemberClearance(val || "nyilt")}>
+                        <SelectTrigger id="edit-clearance">
+                          <SelectValue placeholder="Válassz minősítést...">
+                            {clearanceMap[selectedMemberClearance] || selectedMemberClearance}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="nyilt">Nyílt (Alapszint)</SelectItem>
+                          <SelectItem value="belso">Belső</SelectItem>
+                          <SelectItem value="bizalmas">Bizalmas</SelectItem>
+                          <SelectItem value="szigoruan_bizalmas">Szigorúan Bizalmas</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">
+                        Meghatározza, hogy a felhasználó milyen minősítésű iratokat és fájlokat tekinthet meg.
+                      </p>
                     </div>
                   </div>
                   <DialogFooter>

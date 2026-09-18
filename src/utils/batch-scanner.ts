@@ -400,9 +400,9 @@ export async function ingestSplitDocuments(
   const results: IngestedDocumentResult[] = []
 
   for (const doc of splitDocs) {
-    const dateStr = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 8)
-    const randNum = Math.floor(1000 + Math.random() * 9000)
-    const erkeztetoszam = `E/${dateStr}-${randNum}`
+    const currentYear = new Date().getFullYear()
+    const { data: erkezId } = await supabase.rpc("generate_erkeztetoszam", { p_ev: currentYear })
+    const erkeztetoszam = erkezId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
 
     const fileExt = "pdf"
     const fileName = `${crypto.randomUUID()}.${fileExt}`
@@ -490,15 +490,13 @@ export async function ingestSplitDocuments(
       }).catch((err) => console.warn("[BatchScanner] PDF/A worker trigger warning:", err))
     }
 
-    // 7. Background embedding generation and saved search alerts
+    // 7. Background saved search alerts (embedding is handled by ai_feladat_sor and worker)
     ;(async () => {
       try {
-        const { updateIratEmbedding } = await import("@/utils/embedding-service")
         const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
-        await updateIratEmbedding(iratData.id, supabase)
         await checkSavedSearchesForNewIrat(iratData.id, supabase)
       } catch (bgErr) {
-        console.error("[BatchScanner] Error in background embedding/alert:", bgErr)
+        console.error("[BatchScanner] Error in background alert:", bgErr)
       }
     })().catch(console.error)
 

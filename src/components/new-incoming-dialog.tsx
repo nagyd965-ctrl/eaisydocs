@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PlusCircle, Loader2, Building2, User, Check, Briefcase } from "lucide-react"
 import { type PartnerSuggestion } from "@/types/documents"
+import { toast } from "sonner"
 
 export function NewIncomingDialog() {
   const [open, setOpen] = useState(false)
@@ -97,11 +98,14 @@ export function NewIncomingDialog() {
       const result = await uploadIncomingDocument(formData)
       if (result?.error) {
         setError(result.error)
+        toast.error(result.error)
       } else {
+        toast.success("Irat sikeresen érkeztetve!")
         setOpen(false)
       }
     } catch (_err: unknown) {
       setError("Váratlan hiba történt az érkeztetés során.")
+      toast.error("Váratlan hiba történt az érkeztetés során.")
     } finally {
       setLoading(false)
     }

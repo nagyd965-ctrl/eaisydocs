@@ -42,6 +42,8 @@ export function ArchiveClient({
   disposalBatches = [],
   cutoffDate,
   todayStr,
+  currentUserRole = "ugyintezo",
+  currentUserId = "",
 }: {
   archivedDossiers: any[]
   scrappingSuggestions: any[]
@@ -50,6 +52,8 @@ export function ArchiveClient({
   disposalBatches?: any[]
   cutoffDate: string
   todayStr: string
+  currentUserRole?: string
+  currentUserId?: string
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -195,25 +199,29 @@ export function ArchiveClient({
   return (
     <div className="space-y-6">
       <Tabs defaultValue="suggestions" className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
-          <TabsTrigger value="suggestions" className="relative">
-            Javaslatok
+        <TabsList className="h-9 inline-flex w-fit items-center gap-1 p-1 bg-muted/80 rounded-lg">
+          <TabsTrigger value="suggestions" className="flex items-center gap-1.5 px-3 h-7 text-xs sm:text-sm font-medium">
+            <span>Javaslatok</span>
             {scrappingSuggestions.length > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-white">
+              <span className="inline-flex h-4 min-w-4 px-1.5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
                 {scrappingSuggestions.length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="approvals" className="relative">
-            Jóváhagyandó
+          <TabsTrigger value="approvals" className="flex items-center gap-1.5 px-3 h-7 text-xs sm:text-sm font-medium">
+            <span>Jóváhagyandó</span>
             {pendingApprovals.length > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] text-white">
+              <span className="inline-flex h-4 min-w-4 px-1.5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
                 {pendingApprovals.length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="archived">Irattárban</TabsTrigger>
-          <TabsTrigger value="scrapped">Selejtezett & Jegyzőkönyvek</TabsTrigger>
+          <TabsTrigger value="archived" className="px-3 h-7 text-xs sm:text-sm font-medium">
+            Irattárban
+          </TabsTrigger>
+          <TabsTrigger value="scrapped" className="px-3 h-7 text-xs sm:text-sm font-medium">
+            Selejtezett & Jegyzőkönyvek
+          </TabsTrigger>
         </TabsList>
 
         {/* 1. JAVASLATOK FÜL (Dátumszűrővel) */}
@@ -393,14 +401,22 @@ export function ArchiveClient({
                   </p>
                 </div>
               </div>
-              <Button
-                variant="default"
-                size="sm"
-                disabled={selectedApprovals.length === 0 || loading}
-                onClick={() => setApprovePromptOpen(true)}
-              >
-                Selejtezés Jóváhagyása és Jegyzőkönyvezés ({selectedApprovals.length})
-              </Button>
+              <div className="flex items-center gap-2">
+                {currentUserRole === "ugyintezo" ? (
+                  <Badge variant="outline" className="text-xs bg-rose-500/10 text-rose-500 border-rose-500/30 py-1 px-2.5">
+                    Ügyintézőként nem hagyhatsz jóvá (kizárólag Vezető vagy Admin a 4 szem elve alapján)
+                  </Badge>
+                ) : (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    disabled={selectedApprovals.length === 0 || loading}
+                    onClick={() => setApprovePromptOpen(true)}
+                  >
+                    Selejtezés Jóváhagyása és Jegyzőkönyvezés ({selectedApprovals.length})
+                  </Button>
+                )}
+              </div>
             </div>
 
             <Table>

@@ -175,9 +175,9 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
   }
 
   // Érkeztetőszám generálás
-  const dateStr = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 8)
-  const randNum = Math.floor(1000 + Math.random() * 9000)
-  const erkeztetoszam = `E/${dateStr}-${randNum}`
+  const currentYear = new Date().getFullYear()
+  const { data: erkezId } = await docsClient.rpc("generate_erkeztetoszam", { p_ev: currentYear })
+  const erkeztetoszam = erkezId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
 
   // Tárgy összeállítás
   const targy = `${invoice.elado_nev} – ${invoice.bizonylatsorszam} sz. számla (${invoice.brutto_vegosszeg} ${invoice.penznem})`
@@ -226,15 +226,13 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
     return { success: false, error: "Fájl rekord hiba: " + fajlError.message }
   }
 
-  // Fire-and-forget embedding generálás és mentett keresések értesítése
+  // Fire-and-forget mentett keresések értesítése (az embeddinget a háttérben az ai_feladat_sor és worker végzi)
   (async () => {
     try {
-      const { updateIratEmbedding } = await import("@/utils/embedding-service")
       const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
-      await updateIratEmbedding(iratData.id, docsClient)
       await checkSavedSearchesForNewIrat(iratData.id, docsClient)
     } catch (bgErr) {
-      console.error("[eaisyBill Import] Error in background embedding/alert processing:", bgErr)
+      console.error("[eaisyBill Import] Error in background alert processing:", bgErr)
     }
   })().catch(console.error)
 

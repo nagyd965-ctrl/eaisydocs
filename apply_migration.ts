@@ -5,8 +5,12 @@ import fs from 'fs';
 config({ path: '.env.local' });
 
 async function run() {
+  const connectionString = process.env.DATABASE_URL_POOLER || process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL_POOLER or DATABASE_URL environment variable is required.");
+  }
   const client = new Client({
-    connectionString: process.env.DATABASE_URL
+    connectionString
   });
 
   try {

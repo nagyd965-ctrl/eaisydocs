@@ -21,8 +21,10 @@ import {
   Tag, 
   Hash, 
   Link as LinkIcon,
-  Check
+  Check,
+  AlertTriangle
 } from "lucide-react"
+import { createClient } from "@/utils/supabase/client"
 
 import { type FilingIrat, type FilingTerv, type FilingUgyirat } from "./filing-dialog"
 import { type AntecedentMatchResult } from "@/utils/antecedent-matcher"
@@ -79,6 +81,7 @@ export function FilingPanelClient({
   const [dokumentumTipus, setDokumentumTipus] = useState<string>("egyeb")
   const [partnerId, setPartnerId] = useState<string>((irat.partner as any)?.id || (irat as any).kuldo_partner_id || "")
   const [partnerNev, setPartnerNev] = useState<string>((irat.partner as any)?.nev || "")
+  const [partnerAdoszam, setPartnerAdoszam] = useState<string>((irat.partner as any)?.adoszam || "")
   const [hivatkozottSzam, setHivatkozottSzam] = useState<string>("")
   const [hatarido, setHatarido] = useState<string>("")
   const [ugytipusId, setUgytipusId] = useState<string>("")
@@ -104,6 +107,34 @@ export function FilingPanelClient({
       : null
   )
 
+  const [isFiledByOther, setIsFiledByOther] = useState(false)
+
+  // Realtime figyelés: ha egy másik kolléga már eliktatta ezt a dokumentumot
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`filing_conflict_${irat.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "irat",
+          filter: `id=eq.${irat.id}`,
+        },
+        (payload: any) => {
+          if (payload.new?.ugyirat_id) {
+            setIsFiledByOther(true)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [irat.id])
+
   // Partner autocomplete állapotok
   const [showPartnerSuggestions, setShowPartnerSuggestions] = useState(false)
   const partnerInputRef = useRef<HTMLDivElement>(null)
@@ -118,8 +149,11 @@ export function FilingPanelClient({
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  const filteredPartners = partnerNev.trim()
-    ? partners.filter(p => p.nev.toLowerCase().includes(partnerNev.toLowerCase())).slice(0, 6)
+  const filteredPartners = partnerNev.trim() || partnerAdoszam.trim()
+    ? partners.filter(p => 
+        (partnerNev.trim() && p.nev.toLowerCase().includes(partnerNev.toLowerCase())) ||
+        (partnerAdoszam.trim() && p.adoszam && p.adoszam.toLowerCase().includes(partnerAdoszam.toLowerCase()))
+      ).slice(0, 6)
     : partners.slice(0, 6)
 
   const selectedPlan = tervek.find(t => t.id === ugytipusId)
@@ -140,6 +174,7 @@ export function FilingPanelClient({
         if (s.dokumentum_tipus) setDokumentumTipus(s.dokumentum_tipus)
         if (s.partner_nev) setPartnerNev(s.partner_nev)
         if (s.partner_id) setPartnerId(s.partner_id)
+        if (s.partner_adoszam) setPartnerAdoszam(s.partner_adoszam)
         if (s.hivatkozott_szam) setHivatkozottSzam(s.hivatkozott_szam)
         if (s.hatarido) setHatarido(s.hatarido)
         if (s.irattari_tetel_id) setUgytipusId(s.irattari_tetel_id)
@@ -172,6 +207,7 @@ export function FilingPanelClient({
     formData.append("dokumentum_tipus", dokumentumTipus)
     formData.append("kuldo_partner_id", partnerId)
     formData.append("partner_nev", partnerNev)
+    formData.append("partner_adoszam", partnerAdoszam)
     formData.append("hivatkozott_szam", hivatkozottSzam)
     formData.append("hatarido", hatarido)
     
@@ -179,6 +215,9 @@ export function FilingPanelClient({
       const result = await fileIncomingDocument(formData)
       if (result?.error) {
         setError(result.error)
+        if (result.error.includes("másik") || result.error.includes("iktatta")) {
+          setIsFiledByOther(true)
+        }
       } else {
         router.push("/inbox")
       }
@@ -263,6 +302,28 @@ export function FilingPanelClient({
           </div>
 
           <div className="flex-1 p-6 space-y-6">
+            {isFiledByOther && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive flex items-start justify-between gap-3 animate-in fade-in">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-sm">A dokumentumot időközben eliktatták!</h4>
+                    <p className="text-xs text-destructive/90 mt-0.5">
+                      Egy másik munkatárs már lezárta és iktatta ezt a beérkezett iratot. Az űrlap zárolásra került az adatütközés megelőzése érdekében.
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => router.push("/inbox")}
+                  className="shrink-0 border-destructive/30 hover:bg-destructive/20 text-destructive text-xs h-8"
+                >
+                  Vissza a beérkezőkhöz
+                </Button>
+              </div>
+            )}
+
             <form id="filing-form" onSubmit={handleSubmit} className="space-y-5">
               {error && (
                 <div className="text-sm font-medium text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded-md">
@@ -348,7 +409,7 @@ export function FilingPanelClient({
                 />
               </div>
 
-              {/* Dokumentumtípus és Küldő partner (2 oszlopos elrendezés) */}
+              {/* Dokumentumtípus és Hivatkozott szám (2 oszlopos elrendezés) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Dokumentumtípus */}
                 <div className="space-y-1.5">
@@ -376,6 +437,25 @@ export function FilingPanelClient({
                   </Select>
                 </div>
 
+                {/* Hivatkozott ügyiratszám / szerződésszám */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="hivatkozott_szam" className="text-xs font-medium flex items-center gap-1.5">
+                    <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                    Hivatkozott szám
+                  </Label>
+                  <Input 
+                    id="hivatkozott_szam" 
+                    name="hivatkozott_szam" 
+                    value={hivatkozottSzam}
+                    onChange={(e) => setHivatkozottSzam(e.target.value)}
+                    placeholder="Pl. SZERZ-2025/11 vagy NAV-1234" 
+                    className={`text-xs sm:text-sm font-mono ${aiLoading ? "animate-pulse bg-muted" : ""}`}
+                  />
+                </div>
+              </div>
+
+              {/* Partner adatok (2 oszlop: Küldő partner neve + Partner adószáma) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Küldő partner */}
                 <div className="space-y-1.5 relative" ref={partnerInputRef}>
                   <div className="flex items-center justify-between">
@@ -399,7 +479,7 @@ export function FilingPanelClient({
                       setShowPartnerSuggestions(true)
                     }}
                     onFocus={() => setShowPartnerSuggestions(true)}
-                    placeholder="Partner neve vagy adószáma" 
+                    placeholder="Pl. Nemzeti Közművek Zrt." 
                     autoComplete="off"
                     className={`text-xs sm:text-sm ${aiLoading ? "animate-pulse bg-muted" : ""}`}
                   />
@@ -407,7 +487,7 @@ export function FilingPanelClient({
                   {showPartnerSuggestions && filteredPartners.length > 0 && (
                     <div className="absolute top-[100%] left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-lg p-1">
                       <div className="text-[10px] font-semibold text-muted-foreground uppercase px-2 py-1 tracking-wider">
-                        {partnerNev.trim() ? "Találatok a partnerek között" : "Mentett partnerek"}
+                        {partnerNev.trim() || partnerAdoszam.trim() ? "Találatok a partnerek között" : "Mentett partnerek"}
                       </div>
                       {filteredPartners.map((p) => (
                         <button
@@ -416,6 +496,7 @@ export function FilingPanelClient({
                           onClick={() => {
                             setPartnerId(p.id)
                             setPartnerNev(p.nev)
+                            setPartnerAdoszam(p.adoszam || "")
                             setShowPartnerSuggestions(false)
                           }}
                           className="w-full flex items-center justify-between text-left px-2 py-1.5 text-xs rounded hover:bg-muted/80 transition-colors"
@@ -431,41 +512,44 @@ export function FilingPanelClient({
                     </div>
                   )}
                 </div>
-              </div>
 
-              {/* Hivatkozott szám és Határidő (2 oszlopos elrendezés) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Hivatkozott ügyiratszám / szerződésszám */}
+                {/* Partner adószáma */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="hivatkozott_szam" className="text-xs font-medium flex items-center gap-1.5">
-                    <Hash className="h-3.5 w-3.5 text-muted-foreground" />
-                    Hivatkozott szám
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="partner_adoszam" className="text-xs font-medium flex items-center gap-1.5">
+                      <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                      Partner adószáma
+                    </Label>
+                    <span className="text-[10px] text-muted-foreground">kötőjellel vagy egybe</span>
+                  </div>
                   <Input 
-                    id="hivatkozott_szam" 
-                    name="hivatkozott_szam" 
-                    value={hivatkozottSzam}
-                    onChange={(e) => setHivatkozottSzam(e.target.value)}
-                    placeholder="Pl. SZERZ-2025/11 vagy NAV-1234" 
+                    id="partner_adoszam" 
+                    name="partner_adoszam" 
+                    value={partnerAdoszam}
+                    onChange={(e) => {
+                      setPartnerAdoszam(e.target.value)
+                      setPartnerId("")
+                    }}
+                    placeholder="Pl. 12345678-2-42" 
                     className={`text-xs sm:text-sm font-mono ${aiLoading ? "animate-pulse bg-muted" : ""}`}
                   />
                 </div>
+              </div>
 
-                {/* Határidő */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="hatarido" className="text-xs font-medium flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                    Megjelölt határidő
-                  </Label>
-                  <Input 
-                    id="hatarido" 
-                    name="hatarido" 
-                    type="date"
-                    value={hatarido}
-                    onChange={(e) => setHatarido(e.target.value)}
-                    className={`text-xs sm:text-sm ${aiLoading ? "animate-pulse bg-muted" : ""}`}
-                  />
-                </div>
+              {/* Határidő */}
+              <div className="space-y-1.5">
+                <Label htmlFor="hatarido" className="text-xs font-medium flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                  Megjelölt határidő
+                </Label>
+                <Input 
+                  id="hatarido" 
+                  name="hatarido" 
+                  type="date" 
+                  value={hatarido}
+                  onChange={(e) => setHatarido(e.target.value)}
+                  className={`text-xs sm:text-sm ${aiLoading ? "animate-pulse bg-muted" : ""}`}
+                />
               </div>
 
               {/* Iktatási Mód Kiválasztása (Tabs) */}
@@ -582,7 +666,7 @@ export function FilingPanelClient({
             <Button 
               form="filing-form" 
               type="submit" 
-              disabled={loading || aiLoading} 
+              disabled={loading || aiLoading || isFiledByOther} 
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-10 font-semibold shadow-none transition-all"
             >
               {loading ? (

@@ -1,23 +1,12 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import { NewIncomingDialog } from "@/components/new-incoming-dialog"
 import { BatchScannerDialog } from "@/components/batch-scanner-dialog"
 import { createClient } from "@/utils/supabase/server"
-import Link from "next/link"
-import { buttonVariants } from "@/components/ui/button"
-import { FolderSymlink } from "lucide-react"
 import { redirect } from "next/navigation"
 import { getPermissions } from "@/utils/permissions"
 import { FilterBar } from "@/components/filter-bar"
 import { getImportableEaisyBillInvoices } from "@/app/inbox/eaisybill-actions"
 import { EaisyBillImportPanel } from "@/components/eaisybill-import-panel"
+import { InboxTableClient } from "@/components/inbox-table-client"
 
 export default async function InboxPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
@@ -32,7 +21,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     docs_szerepkor = profile?.docs_szerepkor || ''
   }
 
-  if (docs_szerepkor === 'betekinto' || docs_szerepkor === 'ugyintezo') {
+  if (docs_szerepkor === 'betekinto') {
     redirect("/dossiers")
   }
 
@@ -90,70 +79,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         />
       )}
 
-      <div className="border rounded-md">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Érkeztetőszám</TableHead>
-              <TableHead>Érkezés ideje</TableHead>
-              <TableHead>Küldő</TableHead>
-              <TableHead>Tárgy</TableHead>
-              <TableHead>Csatorna</TableHead>
-              <TableHead className="text-right">Művelet</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {inboxItems && inboxItems.length > 0 ? (
-              inboxItems.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium text-primary">
-                    <Link href={`/inbox/view/${item.id}`} className="hover:underline">
-                      {item.erkeztetoszam}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="tabular-nums text-muted-foreground">
-                    {new Date(item.erkezes_datuma).toLocaleString("hu-HU", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit"
-                    })}
-                  </TableCell>
-                  <TableCell>{(item.partner as any)?.nev || "-"}</TableCell>
-                  <TableCell>{item.targy}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="font-normal">
-                      {(item as any).kulso_forras === "eaisybill"
-                        ? "eaisyBill"
-                        : (item as any).kulso_forras === "szkenner"
-                        ? "Szkenner"
-                        : (item.erkezes_modja ? item.erkezes_modja.charAt(0).toUpperCase() + item.erkezes_modja.slice(1) : "-")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {permissions.canEdit && (
-                      <Link 
-                        href={`/inbox/${item.id}`}
-                        className={buttonVariants({ variant: "outline", size: "sm" })}
-                      >
-                        <FolderSymlink className="mr-2 h-4 w-4 text-primary" />
-                        Iktatás
-                      </Link>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
-                  Nincs új érkeztetett küldemény.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <InboxTableClient initialItems={(inboxItems as any) || []} canEdit={permissions.canEdit} />
     </div>
   )
 }

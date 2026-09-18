@@ -107,7 +107,8 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
       await updateDossierStatus(ugyiratId, ugyId, "ugyintezes_alatt")
     }
 
-    const result = await updateTaskStatus(taskId, newStatus)
+    const currentTask = tasks.find(t => t.id === taskId)
+    const result = await updateTaskStatus(taskId, newStatus, currentTask?.allapot as any)
     setTaskLoading(null)
 
     if (result.success) {

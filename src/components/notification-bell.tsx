@@ -58,7 +58,9 @@ export function NotificationBell() {
           title.includes('szabadság') ||
           title.includes('szabadsag') ||
           title.includes('t1041') ||
-          title.includes('szerződés') ||
+          title.includes('munkaszerződés') ||
+          title.includes('munkaszerzodes') ||
+          title.includes('tanulmányi szerződés') ||
           text.includes('orvosi alkalmasság') ||
           text.includes('eaisyhr')
         return isHr ? isHrNotif : !isHrNotif

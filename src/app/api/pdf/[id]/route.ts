@@ -22,23 +22,62 @@ export async function GET(
     return new NextResponse("Nincs bejelentkezve", { status: 401 })
   }
 
-  // Fetch user role
+  // Fetch user profile
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("docs_szerepkor")
+    .select("docs_szerepkor, max_minosites, szervezeti_egyseg_id")
     .eq("id", user.id)
     .single()
   const isBetekinto = profile?.docs_szerepkor === "betekinto"
+  const isAdmin = profile?.docs_szerepkor === "admin"
 
   // 2. Fetch document details
   const { data: irat } = await supabase
     .from("irat")
-    .select("minosites, erkeztetoszam")
+    .select("minosites, erkeztetoszam, ugyirat_id")
     .eq("id", iratId)
     .single()
 
   if (!irat) {
-    return new NextResponse("Irat nem található", { status: 404 })
+    return new NextResponse("Irat nem található vagy nincs hozzáférése", { status: 404 })
+  }
+
+  // 2.1 Szigorú biztonsági minősítés ellenőrzése (Clearance check)
+  const minositesHierarchy: Record<string, number> = {
+    nyilt: 1,
+    belso: 2,
+    bizalmas: 3,
+    szigoruan_bizalmas: 4
+  }
+  const userLevel = minositesHierarchy[profile?.max_minosites || 'nyilt'] || 1
+  const docLevel = minositesHierarchy[irat.minosites || 'nyilt'] || 1
+
+  if (!isAdmin && userLevel < docLevel) {
+    return new NextResponse(
+      `Hozzáférés megtagadva: A dokumentum megtekintéséhez legalább '${irat.minosites}' biztonsági minősítés szükséges (Az Ön szintje: ${profile?.max_minosites || 'nyilt'}).`,
+      { status: 403 }
+    )
+  }
+
+  // 2.2 Szervezeti egység / explicit hozzáférés ellenőrzése iktatott iratoknál
+  if (!isAdmin && profile?.docs_szerepkor !== 'iktato' && profile?.docs_szerepkor !== 'auditor' && irat.ugyirat_id) {
+    const { data: ugyirat } = await supabase
+      .from("ugyirat")
+      .select("szervezeti_egyseg_id")
+      .eq("id", irat.ugyirat_id)
+      .single()
+
+    const inDepartment = ugyirat?.szervezeti_egyseg_id === profile?.szervezeti_egyseg_id
+    const { data: explicitAccess } = await supabase
+      .from("ugyirat_hozzaferes")
+      .select("id")
+      .eq("ugyirat_id", irat.ugyirat_id)
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    if (!inDepartment && !explicitAccess) {
+      return new NextResponse("Hozzáférés megtagadva: Nincs jogosultsága ehhez az ügyirathoz.", { status: 403 })
+    }
   }
 
   const searchParams = request.nextUrl.searchParams

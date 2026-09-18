@@ -282,16 +282,26 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
   const targy = formData.get("targy") as string
   const file = formData.get("file") as File | null
 
-  if (!targy || !file || file.size === 0) {
-    return { error: "Minden mező és a fájl is kötelező!" }
+  if (!targy || !file) {
+    return { error: "A tárgy és a fájl csatolása kötelező!" }
+  }
+
+  if (file.size === 0) {
+    return { error: "A kiválasztott fájl üres (0 bájt)! Kérjük, töltsön fel valós iratot." }
+  }
+
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  const { validateUploadedDocument } = await import("@/utils/file-validator")
+  const fileCheck = await validateUploadedDocument(file, buffer)
+  if (!fileCheck.valid) {
+    return { error: fileCheck.error || "A kiválasztott fájl érvénytelen vagy sérült!" }
   }
 
   // 1. Fájl feltöltése Storage-ba
   const fileExt = file.name.split('.').pop()
   const fileName = `${crypto.randomUUID()}.${fileExt}`
-  
-  const arrayBuffer = await file.arrayBuffer()
-  const buffer = Buffer.from(arrayBuffer)
   
   const { error: uploadError } = await supabase.storage
     .from("irat_files")
@@ -306,12 +316,10 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
 
   // PDF szöveg kinyerése a teljes szöveges kereséshez (FTS)
   let ocr_szoveg: string | null = null
-  if (file.type === "application/pdf") {
+  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require("pdf-parse")
-      const pdfData = await pdfParse(buffer)
-      ocr_szoveg = pdfData.text || null
+      const { extractPdfText } = await import("@/utils/pdf-extractor")
+      ocr_szoveg = await extractPdfText(buffer)
     } catch (e) {
       console.warn("Nem sikerült kinyerni a szöveget a PDF-ből (dossier upload):", e)
     }
@@ -372,15 +380,25 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
     user_agent: userAgent
   })
 
-  // 6. Fire-and-forget hívás a PDF/A konverternek
+  // 6. Háttérsorba állítás a PDF/A normalizáláshoz (Queue-based Worker védi a szervererőforrásokat)
   if (fajlResult) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-    fetch(`${appUrl}/api/pdf/convert`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fajl_id: fajlResult.id })
-    }).catch(err => console.error("PDF/A Worker Trigger Error:", err))
+    try {
+      const { enqueuePdfaConversion } = await import("@/utils/ai-worker-service")
+      await enqueuePdfaConversion(iratData.id, fajlResult.id, supabase)
+    } catch (err) {
+      console.warn("PDF/A sorba állítás figyelmeztetés:", err)
+    }
   }
+
+  // 7. Értesítések kiküldése mentett keresésekre
+  (async () => {
+    try {
+      const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
+      await checkSavedSearchesForNewIrat(iratData.id, supabase)
+    } catch (err) {
+      console.warn("Mentett keresés értesítési figyelmeztetés:", err)
+    }
+  })().catch(console.error)
 
   revalidatePath(`/dossiers/${ugyiratId}`)
   return { success: true }
