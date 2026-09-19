@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FileText, Clock, Users, ArrowLeft, FolderPlus, Eye, Lock, Edit, Trash2, Mail, Building2, Shield, CalendarDays, Files } from "lucide-react"
 import Link from "next/link"
-import { Timeline, TimelineEvent } from "@/components/timeline"
+import { Timeline, TimelineEvent, TimelineIconName } from "@/components/timeline"
 import { IratokLista } from "@/components/iratok-lista"
 import { createClient } from "@/utils/supabase/server"
 import { CloseDossierButton } from "@/components/close-dossier-button"
@@ -202,29 +202,29 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
   const timelineEvents: TimelineEvent[] = (logs || []).map((log: any) => {
     let title = log.esemeny_tipus;
     let description = "";
-    let icon = Eye;
+    let icon: TimelineIconName = "eye";
     let color = "text-muted-foreground";
-    let details = undefined;
+    let details: string | undefined = undefined;
 
     if (log.esemeny_tipus === "iktatva") {
       title = "Ügyirat iktatva";
       description = `Iktatószám kiosztva: ${log.uj_ertek?.iktatoszam || "-"}`;
-      icon = FolderPlus;
+      icon = "folder-plus";
       color = "text-primary";
     } else if (log.esemeny_tipus === "szignalva" || log.esemeny_tipus === "hozzaferes_modositas") {
       title = "Hozzáférés módosítva";
       description = log.indoklas || log.reszletek || log.uj_ertek?.megjegyzes || "";
-      icon = Users;
+      icon = "users";
       color = "text-warning";
     } else if (log.esemeny_tipus === "lezarva") {
       title = "Ügyirat lezárva";
       description = log.reszletek || "Az ügyirat véglegesen lezárásra került.";
-      icon = Lock;
+      icon = "lock";
       color = "text-success";
     } else if (log.esemeny_tipus === "modositva") {
       if (log.indoklas && log.indoklas.includes("Válasz e-mail elküldve")) {
         title = "Levélküldés";
-        icon = Mail;
+        icon = "mail";
         color = "text-primary";
         const lines = log.indoklas.split('\n');
         description = lines[0];
@@ -234,28 +234,28 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       } else if (log.indoklas && log.indoklas.includes("Válaszlevél feltöltve")) {
         title = "Válaszlevél feltöltve";
         description = log.indoklas;
-        icon = FileText;
+        icon = "file-text";
         color = "text-primary";
       } else if (log.indoklas && log.indoklas.includes("Állapot módosítva")) {
         title = "Állapot változás";
         description = log.indoklas;
-        icon = Edit;
+        icon = "edit";
         color = "text-warning";
       } else if (log.indoklas && log.indoklas.includes("Megjegyzés")) {
         title = "Megjegyzés hozzáadva";
         description = log.indoklas;
-        icon = Edit;
+        icon = "edit";
         color = "text-info";
       } else {
         title = "Ügyirat módosítva";
         description = log.indoklas || log.reszletek || log.uj_ertek?.megjegyzes || "";
-        icon = Edit;
+        icon = "edit";
         color = "text-info";
       }
     } else if (log.esemeny_tipus === "selejtezve") {
       title = "Irat selejtezve";
       description = log.reszletek || "Az irat megsemmisítésre került.";
-      icon = Trash2;
+      icon = "trash-2";
       color = "text-destructive";
     }
 
@@ -306,18 +306,19 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       </div>
 
       {isClearanceRestricted && (
-        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 flex items-start gap-3 shadow-sm">
-          <Lock className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+        <div className="p-4 rounded-xl border border-destructive/40 bg-destructive/10 text-destructive flex items-start gap-3 shadow-sm">
+          <Lock className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
           <div>
-            <h4 className="text-sm font-semibold text-amber-200 flex items-center gap-1.5">
+            <h4 className="text-sm font-semibold text-destructive flex items-center gap-1.5">
               Bizalmas ügyirat — Korlátozott hozzáférés
             </h4>
-            <p className="text-xs text-amber-300/80 mt-1 leading-relaxed">
+            <p className="text-xs text-destructive/80 mt-1 leading-relaxed">
               Ez az ügyirat olyan dokumentumokat tartalmaz, amelyek megtekintéséhez magasabb biztonsági minősítés szükséges (az Ön szintje: <strong className="uppercase">{currentUserProfile?.max_minosites || 'nyílt'}</strong>). Az iratok nyilvántartási adatai megtekinthetők, de a csatolt bizalmas fájlok megnyitása és letöltése szigorúan zárolva van.
             </p>
           </div>
         </div>
       )}
+
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="mb-4">

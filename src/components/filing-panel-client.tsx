@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { fileIncomingDocument, generateAISuggestions } from "@/app/inbox/filing-actions"
+import { fileIncomingDocument, generateAISuggestions, clearAICacheAndRerun } from "@/app/inbox/filing-actions"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,7 @@ import {
   FileText, 
   CheckCircle2, 
   Sparkles, 
+  RotateCcw,
   X, 
   Calendar, 
   Building2, 
@@ -59,7 +60,8 @@ export function FilingPanelClient({
   ugyiratok,
   departments,
   partners = [],
-  antecedentSuggestion
+  antecedentSuggestion,
+  initialMode
 }: { 
   irat: FilingIrat, 
   pdfUrl: string | null,
@@ -67,14 +69,18 @@ export function FilingPanelClient({
   ugyiratok: FilingUgyirat[],
   departments?: FilingDepartment[],
   partners?: FilingPartner[],
-  antecedentSuggestion?: AntecedentMatchResult
+  antecedentSuggestion?: AntecedentMatchResult,
+  initialMode?: "new" | "existing"
 }) {
   const router = useRouter()
   const isInitialAntecedent = (antecedentSuggestion?.confidence_score || 0) >= 60 && !!antecedentSuggestion?.ugyirat_id
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [mode, setMode] = useState<"new" | "existing">(isInitialAntecedent ? "existing" : "new")
+  // initialMode (from URL param) takes priority over the antecedent-based detection
+  const [mode, setMode] = useState<"new" | "existing">(
+    initialMode ?? (isInitialAntecedent ? "existing" : "new")
+  )
   
   // Mezők állapota
   const [targy, setTargy] = useState(irat.targy || "")
@@ -92,6 +98,7 @@ export function FilingPanelClient({
 
   // AI és előzmény állapotok
   const [aiLoading, setAiLoading] = useState(false)
+  const [aiHasRun, setAiHasRun] = useState(false) // true: már futott AI kitöltés, megjelenhet az újraelemzés gomb
   const [aiReasoning, setAiReasoning] = useState<string | null>(null)
   const [detectedAntecedent, setDetectedAntecedent] = useState<{
     ugyiratId: string
@@ -166,33 +173,53 @@ export function FilingPanelClient({
     setAiReasoning(null)
     try {
       const result = await generateAISuggestions(irat.id)
-      if (result.error) {
-        setError(result.error)
-      } else if (result.suggestions) {
-        const s = result.suggestions
-        if (s.targy) setTargy(s.targy)
-        if (s.dokumentum_tipus) setDokumentumTipus(s.dokumentum_tipus)
-        if (s.partner_nev) setPartnerNev(s.partner_nev)
-        if (s.partner_id) setPartnerId(s.partner_id)
-        if (s.partner_adoszam) setPartnerAdoszam(s.partner_adoszam)
-        if (s.hivatkozott_szam) setHivatkozottSzam(s.hivatkozott_szam)
-        if (s.hatarido) setHatarido(s.hatarido)
-        if (s.irattari_tetel_id) setUgytipusId(s.irattari_tetel_id)
-        if (s.department_id) setDepartmentId(s.department_id)
-        if (s.indoklas) setAiReasoning(s.indoklas)
-
-        if (s.elozmeny_ugyirat_id) {
-          setDetectedAntecedent({
-            ugyiratId: s.elozmeny_ugyirat_id,
-            iktatoszam: s.elozmeny_iktatoszam || "",
-            confidence: s.confidence_score || 90
-          })
-        }
-      }
+      applyAiResult(result)
     } catch (_err) {
       setError("Hiba történt az AI automatikus metaadat-kinyerése során.")
     } finally {
       setAiLoading(false)
+    }
+  }
+
+  // AI Ú jraelemzés (cache törlés + friss futás)
+  const handleAiRerun = async () => {
+    setAiLoading(true)
+    setError(null)
+    setAiReasoning(null)
+    try {
+      const result = await clearAICacheAndRerun(irat.id)
+      applyAiResult(result)
+    } catch (_err) {
+      setError("Hiba történt az AI újraelemzése során.")
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  function applyAiResult(result: Awaited<ReturnType<typeof generateAISuggestions>>) {
+    if (result.error) {
+      setError(result.error)
+    } else if (result.suggestions) {
+      const s = result.suggestions
+      if (s.targy) setTargy(s.targy)
+      if (s.dokumentum_tipus) setDokumentumTipus(s.dokumentum_tipus)
+      if (s.partner_nev) setPartnerNev(s.partner_nev)
+      if (s.partner_id) setPartnerId(s.partner_id)
+      if (s.partner_adoszam) setPartnerAdoszam(s.partner_adoszam)
+      if (s.hivatkozott_szam) setHivatkozottSzam(s.hivatkozott_szam)
+      if (s.hatarido) setHatarido(s.hatarido)
+      if (s.irattari_tetel_id) setUgytipusId(s.irattari_tetel_id)
+      if (s.department_id) setDepartmentId(s.department_id)
+      if (s.indoklas) setAiReasoning(s.indoklas)
+      setAiHasRun(true) // az újraelemzés gomb mostantól látható
+
+      if (s.elozmeny_ugyirat_id) {
+        setDetectedAntecedent({
+          ugyiratId: s.elozmeny_ugyirat_id,
+          iktatoszam: s.elozmeny_iktatoszam || "",
+          confidence: s.confidence_score || 90
+        })
+      }
     }
   }
 
@@ -280,25 +307,39 @@ export function FilingPanelClient({
                 Érkeztetőszám: <strong className="text-foreground">{irat.erkeztetoszam}</strong>
               </p>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleAiSuggest} 
-              disabled={aiLoading}
-              className="bg-primary/5 hover:bg-primary/10 text-primary border-primary/25 h-9 font-medium shadow-none transition-all"
-            >
-              {aiLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin text-primary" />
-                  <span>Kiolvasás (OCR)...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2 text-primary" />
-                  <span>AI Kitöltés</span>
-                </>
+            <div className="flex items-center gap-1.5">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleAiSuggest} 
+                disabled={aiLoading}
+                className="bg-primary/5 hover:bg-primary/10 text-primary border-primary/25 h-9 font-medium shadow-none transition-all"
+              >
+                {aiLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin text-primary" />
+                    <span>Kiolvasás (OCR)...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2 text-primary" />
+                    <span>AI Kitöltés</span>
+                  </>
+                )}
+              </Button>
+              {aiHasRun && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleAiRerun}
+                  disabled={aiLoading}
+                  title="AI újraelemzés (cache törlés)"
+                  className="h-9 w-9 text-muted-foreground hover:text-primary hover:bg-primary/10 shadow-none border border-transparent hover:border-primary/25 transition-all"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </Button>
               )}
-            </Button>
+            </div>
           </div>
 
           <div className="flex-1 p-6 space-y-6">

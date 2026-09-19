@@ -1,25 +1,11 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"
-import { ExportCsvButton } from "@/components/export-csv-button"
-import { AssignDossierDialog } from "@/components/assign-dossier-dialog"
-import { StatusBadge } from "@/components/status-badge"
 import { getPermissions } from "@/utils/permissions"
-import { FilterBar } from "@/components/filter-bar"
-import { Badge } from "@/components/ui/badge"
-import { Lock } from "lucide-react"
+import { DossiersTableClient } from "./dossiers-table-client"
 
-export default async function DossiersPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
-  const params = await searchParams
-  const q = typeof params.q === 'string' ? params.q.toLowerCase() : ""
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
+export default async function DossiersPage() {
   const supabase = await createClient()
 
   const query = supabase
@@ -34,39 +20,26 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
       irat ( id, minosites )
     `)
     .order("iktatas_datuma", { ascending: false })
-    .limit(100)
+    .limit(200)
 
   const { data: rawDossiers } = await query
-
-  let dossiers = rawDossiers || []
-  if (q) {
-    dossiers = dossiers.filter((d: any) => 
-      d.iktatoszam?.toLowerCase().includes(q) || 
-      (d.ugy?.targy && d.ugy.targy.toLowerCase().includes(q))
-    )
-  }
+  const dossiers = rawDossiers || []
 
   // Current user role check
   const { data: authUser } = await supabase.auth.getUser()
   const { data: currentUserProfile } = await supabase
     .from("felhasznalo_profil")
-    .select('docs_szerepkor, szervezeti_egyseg_id')
+    .select("docs_szerepkor, szervezeti_egyseg_id")
     .eq("id", authUser?.user?.id || "")
     .single()
-  
+
   const permissions = getPermissions(currentUserProfile?.docs_szerepkor)
   const canAssign = permissions.canAssign
 
-  // Második lépés: Felhasználók lekérése memóriába, mivel hiányzik a foreign key
-  const userIds = Array.from(new Set(
-    (dossiers || [])
-      .map(d => (d.ugy as any)?.felelos_user_id)
-      .filter(Boolean)
-  ))
-
+  // Felhasználók lekérése memóriába
   const { data: users } = await supabase
     .from("felhasznalo_profil")
-    .select('id, nev, docs_szerepkor, szervezeti_egyseg_id')
+    .select("id, nev, docs_szerepkor, szervezeti_egyseg_id")
 
   const userMap = (users || []).reduce((acc: any, user: any) => {
     acc[user.id] = user.nev
@@ -74,12 +47,12 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
   }, {})
 
   // Map dossiers to include user name
-  const mappedDossiers = (dossiers || []).map(d => {
+  const mappedDossiers = (dossiers || []).map((d: any) => {
     const ugy = d.ugy as any
     if (ugy && ugy.felelos_user_id) {
       ugy.felelos_user = {
         id: ugy.felelos_user_id,
-        full_name: userMap[ugy.felelos_user_id]
+        full_name: userMap[ugy.felelos_user_id],
       }
     }
     return d
@@ -87,90 +60,17 @@ export default async function DossiersPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="page-animate space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Iktatókönyv</h1>
-          <p className="text-muted-foreground">Az összes iktatott ügyirat nyilvántartása.</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <FilterBar placeholder="Keresés iktatószám vagy tárgy alapján..." />
-          <ExportCsvButton data={dossiers || []} />
-        </div>
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight">Iktatókönyv</h1>
+        <p className="text-muted-foreground">Az összes iktatott ügyirat nyilvántartása.</p>
       </div>
 
-      <div className="border rounded-md">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Iktatószám</TableHead>
-              <TableHead>Tárgy</TableHead>
-              <TableHead>Állapot</TableHead>
-              <TableHead>Felelős</TableHead>
-              <TableHead>Határidő</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {mappedDossiers && mappedDossiers.length > 0 ? (
-              mappedDossiers.map((dossier) => {
-                const iratList = Array.isArray((dossier as any).irat) ? (dossier as any).irat : []
-                const isConfidential = iratList.some((i: any) => i.minosites === 'bizalmas' || i.minosites === 'szigoruan_bizalmas')
-
-                return (
-                  <TableRow key={dossier.id} className="hover:bg-muted/50">
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <Link href={`/dossiers/${dossier.id}`} className="text-primary hover:underline">
-                          {dossier.iktatoszam}
-                        </Link>
-                        {isConfidential && (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-rose-500/30 text-rose-400 bg-rose-500/10 flex items-center gap-1 font-normal">
-                            <Lock className="w-2.5 h-2.5" /> Bizalmas
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{(dossier.ugy as any)?.targy}</TableCell>
-                    <TableCell><StatusBadge status={dossier.statusz} /></TableCell>
-                  <TableCell>
-                    {(() => {
-                      const isVezeto = currentUserProfile?.docs_szerepkor === "vezeto"
-                      const userCanAssign = isVezeto 
-                        ? (dossier.szervezeti_egyseg_id === currentUserProfile?.szervezeti_egyseg_id) 
-                        : canAssign
-                      return (
-                        <AssignDossierDialog 
-                          ugyirat_id={dossier.id} 
-                          ugy_id={(dossier.ugy as any)?.id} 
-                          szervezeti_egyseg_id={dossier.szervezeti_egyseg_id}
-                          users={users || []}
-                          currentFelelosId={(dossier.ugy as any)?.felelos_user_id}
-                          currentHatarido={(dossier.ugy as any)?.hatarido}
-                          canAssign={userCanAssign}
-                        >
-                          <span className={userCanAssign ? "cursor-pointer hover:underline" : ""}>
-                            {((dossier.ugy as any)?.felelos_user as any)?.full_name || <span className="italic text-muted-foreground">Kiosztatlan</span>}
-                          </span>
-                        </AssignDossierDialog>
-                      )
-                    })()}
-                  </TableCell>
-                  <TableCell className="tabular-nums text-muted-foreground">
-                    {(dossier.ugy as any)?.hatarido 
-                      ? new Date((dossier.ugy as any).hatarido).toLocaleDateString("hu-HU") 
-                      : "-"}
-                  </TableCell>
-                </TableRow>
-              )})
-            ) : (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
-                  Nincs még iktatott ügyirat az adatbázisban.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <DossiersTableClient
+        initialDossiers={mappedDossiers}
+        users={users || []}
+        currentUserProfile={currentUserProfile}
+        canAssign={canAssign}
+      />
     </div>
   )
 }

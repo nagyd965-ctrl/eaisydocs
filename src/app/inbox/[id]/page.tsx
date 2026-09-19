@@ -2,8 +2,10 @@ import { createClient } from "@/utils/supabase/server"
 import { notFound, redirect } from "next/navigation"
 import { FilingPanelClient } from "@/components/filing-panel-client"
 
-export default async function InboxItemPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function InboxItemPage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const resolvedParams = await params
+  const resolvedSearch = await searchParams
+  const initialMode = resolvedSearch.mode === "new" ? "new" : undefined
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -99,10 +101,11 @@ export default async function InboxItemPage({ params }: { params: Promise<{ id: 
         irat={irat} 
         pdfUrl={pdfUrl} 
         tervek={tervek || []} 
-        ugyiratok={allUgyiratok || []} 
+        ugyiratok={allUgyiratok || []}
         departments={departments || []}
         partners={partners || []}
         antecedentSuggestion={antecedentSuggestion}
+        initialMode={initialMode}
       />
     </div>
   )

@@ -3,7 +3,6 @@ import { BatchScannerDialog } from "@/components/batch-scanner-dialog"
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import { getPermissions } from "@/utils/permissions"
-import { FilterBar } from "@/components/filter-bar"
 import { getImportableEaisyBillInvoices } from "@/app/inbox/eaisybill-actions"
 import { EaisyBillImportPanel } from "@/components/eaisybill-import-panel"
 import { InboxTableClient } from "@/components/inbox-table-client"
@@ -60,13 +59,12 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           <h1 className="text-3xl font-semibold tracking-tight">Bejövő sor</h1>
           <p className="text-muted-foreground">Érkeztetett, de még nem iktatott iratok.</p>
         </div>
-        <div className="flex items-center gap-4">
-          <FilterBar placeholder="Keresés érkeztetőszám vagy tárgy alapján..." />
+        <div className="flex items-center gap-2">
           {permissions.canAddIncoming && (
-            <div className="flex items-center gap-2">
+            <>
               <BatchScannerDialog />
               <NewIncomingDialog />
-            </div>
+            </>
           )}
         </div>
       </div>

@@ -162,9 +162,12 @@ export function calculateAntecedentMatch(
     }
 
     if (partnerMatched) {
+      // Partner egyezés alap pontját csökkentjük: az email feladó és a dokumentum kibocsátója
+      // nem feltétlenül azonos, ezért partner egyezés önmagában csak 20 pontot ér.
+      // Tárgyegészéssel együtt éri el a magas konfidenciát.
       const partnerBonus = Math.min(5, dossierPartnerCount * 2)
-      score += 40 + partnerBonus
-      details.push(`Azonos küldő partner (${target.partner_nev || "megfelelés"}), az ügyiratban már ${dossierPartnerCount} kapcsolódó irat szerepel (+${40 + partnerBonus}%)`)
+      score += 20 + partnerBonus
+      details.push(`Azonos küldő partner (${target.partner_nev || "megfelelés"}), az ügyiratban már ${dossierPartnerCount} kapcsolódó irat szerepel (+${20 + partnerBonus}%)`)
     }
 
     // 3. SUBJECT & TOKEN SIMILARITY (max 30 pts)
@@ -237,8 +240,9 @@ export function calculateAntecedentMatch(
     }
   }
 
-  // Evaluate recommendation threshold
-  if (!bestMatch || highestScore < 40) {
+  // Értékelési küszöb: legalább 45 pont kell az ajánláshoz
+  // (megakadályozza, hogy csak partner-egyezés alapján ajánljon rendszer)
+  if (!bestMatch || highestScore < 45) {
     const partnerInfo = target.partner_nev ? `a(z) "${target.partner_nev}" partnerhez` : "ehhez a témához"
     return {
       ugyirat_id: null,
@@ -250,7 +254,7 @@ export function calculateAntecedentMatch(
       confidence_score: highestScore,
       recommendation_type: "uj_ugy_nyitasa",
       indoklas: `Új téma javaslat (${highestScore}% egyezés): Nem található korábbi nyitott vagy lezárt ügyirat ${partnerInfo}. Duplikáció nem áll fenn, új ügy nyitása javasolt.`,
-      reszletek: bestDetails.length > 0 ? bestDetails : ["Nem található egyező partner vagy releváns kulcsszó-átfedés."],
+      reszletek: bestDetails.length > 0 ? bestDetails : ["Nem található egyező partner vagy releváns kulcszó-átfedés."],
       irat_count: 0
     }
   }

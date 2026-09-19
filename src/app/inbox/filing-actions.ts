@@ -308,7 +308,15 @@ export async function executeAiMetadataExtraction(iratId: string, customSupabase
   let docText = ""
   let fileBase64: string | null = null
   let fileMime = "application/pdf"
-  const firstFile = files?.[0]
+
+  // PDF-et vagy képet preferálunk az email body szöveggel szemben
+  // (email-ek esetén az első fájl lehet maga az email szöveg, a PDF melléklet a következő)
+  const firstFile = (files as any[])?.find((f: any) =>
+    f.mime_type?.startsWith("application/pdf") ||
+    f.mime_type?.startsWith("image/") ||
+    f.eredeti_fajlnev?.toLowerCase().endsWith(".pdf") ||
+    /\.(jpe?g|png|tiff?|webp|heic)$/i.test(f.eredeti_fajlnev || "")
+  ) ?? files?.[0]
 
   if (firstFile) {
     let fileBuf: Buffer | null = null
@@ -389,20 +397,29 @@ export async function executeAiMetadataExtraction(iratId: string, customSupabase
       const { GoogleGenAI } = await import("@google/genai")
       const ai = new GoogleGenAI({ apiKey: googleApiKey })
 
-      const prompt = `Te egy magyar elektronikus iratkezelő rendszer (eaisyDocs) automatikus dokumentum-osztályozó és metaadat-kinyerő mesterséges intelligenciája vagy.
-Feladatod: elemezd a beérkezett dokumentum tartalmát (a csatolt PDF/képet vagy kinyert szövegét) és metaadatait.
-Különös pontossággal olvasd ki az alábbi kötelező mezőket:
+      const emailSenderNev = (irat.partner as any)?.nev || null
+
+      const prompt = `Te egy magyar elektronikus iratási rendszer (eaisyDocs) automatikus dokumentum-osztályozó és metaadat-kinyerő mesterséges intelligénciaája vagy.
+Feladatod: elemezd a beerkezeft dokumentum tartalmát (és a csatolt PDF-képet) és olvasd ki pontosan az alábbi mezoket.
+
+FIGYELEM - KRITIKUS SZABÁLY A PARTNER MEZőHÖZ:
+- A dokumentumot ${emailSenderNev ? `"${emailSenderNev}" nevű személy/entitás küldte email-ben` : 'valaki email-ben küldte'}. Ez az EMAIL FELADÓ, nem felttétlenül a dokumentum kibocsátója!
+- A "partner_nev" mezőbe a DOKUMENTUMON SZEREPLő tényleges kibocsátó szervezet/cég nevét írd be (fejlécből, aláírásból, pecsétből).
+- Ha a dokumentum fejlécében egy cég neve szerepel (pl. "Infopark Irodaház Üzemeltető Kft."), azt add meg partnerként, nem az email feladót!
+- Ha a dokumentum nem tartalmaz egyértelmű kibocsátó szervezetet, akkor az email feladót használd.
+
+Kötelező mezők:
 1. "targy": Hivatalos, tömör magyar ügyirat tárgy (pl. "Munkaszerződés - Kovács Béla", vagy "Szolgáltatási keretszerződés - Telekom Nyrt.", vagy "NAV határozat adóügyben").
 2. "dokumentum_tipus": Az alábbiak egyike pontosan: "szerzodes" | "szamla" | "hatosagi_level" | "beadvany" | "igazolas" | "egyeb".
-3. "partner_nev": A feladó, küldő vagy kibocsátó partner / szervezet / személy hivatalos neve.
+3. "partner_nev": A DOKUMENTUM tényleges kibocsátója (lásd fent a KRITIKUS SZABÁLYT).
 4. "partner_adoszam": Ha szerepel, a partner adószáma (pl. "12345678-1-42" vagy 8 számjegy).
-5. "hivatkozott_szam": Ha a dokumentumban szerepel korábbi iktatószám, ügyszám, szerződésszám vagy határozatszám, azt olvasd ki pontosan (pl. "SZERZ-2025/11", "NAV/2026/9876", "2026/00012").
-6. "hatarido": Ha a dokumentum konkrét teljesítési, fizetési vagy jogorvoslati/válaszadási határidőt tartalmaz, azt YYYY-MM-DD formátumban add meg. Ha nincs konkrét határidő, értéke legyen null.
+5. "hivatkozott_szam": Ha a dokumentumban szerepel hivatkozási szám, ügyszám, iktatószám, szerződésszám, határozatszám, referenciaszám (bármilyen címkével mint: "Hivatkozási szám:", "Ref.:", "Szerz. sz.:", "ADM-...", stb.), azt olvasd ki PONTOSAN. Különösen figyelj a fejléc sarkokban és láblécben elhelyezett referenciaszámokra.
+6. "hatarido": Ha a dokumentum konkrét teljesítési, fizetési vagy jogorvoslati/válaszadási határidőt tartalmaz, azt YYYY-MM-DD formátumban add meg. Ha nincs, értéke legyen null.
 7. "department_id": A legmegfelelőbb Szervezeti Egység ID-ja az alábbi listából.
 8. "irattari_tetel_id": A legmegfelelőbb Irattári Tételszám ID-ja az alábbi listából.
 9. "indoklas": 1-2 mondatos magyar indoklás a kiválasztott típusokról és kinyert adatokról.
 
-ELÉRHETŐ SZERVEZETI EGYSÉGEK:
+ELÉRHETŐ SZERVEZETI EGYSÉgek:
 ${deptsList.map((d: any) => `- ID: "${d.id}", Név: "${d.nev}"`).join("\n")}
 
 ÉRVÉNYES IRATTÁRI TERV TÉTELEI:
@@ -411,9 +428,9 @@ ${plansList.map((p: any) => `- ID: "${p.id}", Tételszám: "${p.tetelszam}", Meg
 ISMERT PARTNEREK ÍZELÍTŐ:
 ${partnersList.slice(0, 30).map((p: any) => `- Név: "${p.nev}"${p.adoszam ? `, Adószám: "${p.adoszam}"` : ""}`).join("\n")}
 
-ÉRKEZTETÉSI ADATOK:
+ÉRKEZTETETÉSI ADATOK (tájékoztató):
 - Rögzített tárgy: ${irat.targy || "Nincs"}
-- Rögzített partner: ${(irat.partner as any)?.nev || "Nincs"}
+- Email feladó (NEM feltétlenül a dokumentum kibocsátója!): ${emailSenderNev || "Nincs"}
 - Eredeti fájlnév: ${firstFile?.eredeti_fajlnev || "dokumentum.pdf"}
 ${docText ? `\nDOKUMENTUMBÓL KINYERT SZÖVEG:\n"""\n${docText.slice(0, 10000)}\n"""` : ""}
 
@@ -472,10 +489,12 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
       extractedHatarido = `${deadlineMatch[1]}-${deadlineMatch[2]}-${deadlineMatch[3]}`
     }
 
-    // Hivatkozási szám keresés
-    const refMatch = docText.match(/(?:iktatószám|szerződésszám|ügyszám|határozatszám|számlaszám)[:\s]+([A-Z0-9\-_/]+)/i)
+    // Hivatkozási szám keresés (kiterjesztett minta: hikivatkozási szám, ref, szerz. sz., ADM-, stb.)
+    const refMatch = docText.match(
+      /(?:hivatkozási szám|hivatkozás|iktatószám|iktatási szám|szerződésszám|szerz\. sz|számlaszám|ügyszám|határozatszám|referenciaszám|ref\.|ref\s*:)[:\s.]*([A-Z]{2,}[-/][0-9A-Z\-_/]+|[A-Z0-9]{3,}[-/][0-9]{4}[A-Z0-9\-_/]*)/i
+    )
     if (refMatch) {
-      extractedHivSzam = refMatch[1]
+      extractedHivSzam = refMatch[1].trim()
     }
 
     if (textLower.includes("munkaszerz") || textLower.includes("munkaviszony") || textLower.includes("munkavállaló")) {
@@ -518,12 +537,24 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
   }
 
   // 6. Partner beazonosítása adatbázisból (Adószám vagy normalizált név alapján)
-  let matchedPartnerId = (irat.partner as any)?.id || irat.kuldo_partner_id || ""
-  let partnerNevToUse = aiResult.partner_nev || (irat.partner as any)?.nev || ""
-
-  const cleanTax = (tax?: string | null) => tax?.replace(/[-\s]/g, "") || ""
+  // FONTOS: Az AI által kinyert partner_nev elsőbbséget élvez az email-feladóval szemben,
+  // ha az eltér (mert az email feladó ≠ a dokumentum kibocsátója).
+  const emailSenderPartnerId = (irat.partner as any)?.id || irat.kuldo_partner_id || ""
+  const emailSenderNevDb = (irat.partner as any)?.nev || ""
   const { normalizePartnerName } = await import("@/utils/partner-matcher")
 
+  const aiExtractedNev = aiResult.partner_nev || ""
+  // Ha az AI más partnert talált, mint az email feladó → az AI által kinyert névvel próbálunk egyeztetni
+  const aiPartnerDiffersFromSender = aiExtractedNev &&
+    emailSenderNevDb &&
+    normalizePartnerName(aiExtractedNev) !== normalizePartnerName(emailSenderNevDb)
+
+  let matchedPartnerId = ""
+  let partnerNevToUse = aiExtractedNev || emailSenderNevDb
+
+  const cleanTax = (tax?: string | null) => tax?.replace(/[-\s]/g, "") || ""
+
+  // 1. Adószám alapú egyeztetés (legmegbízhatóbb)
   if (aiResult.partner_adoszam) {
     const foundByTax = partnersList.find((p: any) => p.adoszam && cleanTax(p.adoszam) === cleanTax(aiResult.partner_adoszam))
     if (foundByTax) {
@@ -532,9 +563,27 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
     }
   }
 
+  // 2. Ha az AI más céget talált a dokumentumban mint az email feladó → AI névvel keresünk
+  if (!matchedPartnerId && aiPartnerDiffersFromSender) {
+    const normalizedAiName = normalizePartnerName(aiExtractedNev)
+    const foundByAiName = partnersList.find((p: any) => normalizePartnerName(p.nev) === normalizedAiName)
+    if (foundByAiName) {
+      matchedPartnerId = foundByAiName.id
+      partnerNevToUse = foundByAiName.nev
+    }
+    // Ha nem találtuk az adatbázisban, a partnerId marad üres → filing-actions majd create-el
+  }
+
+  // 3. Ha az AI ugyanazt a partnert jelölte mint az email feladó → megtartjuk az eredeti ID-t
+  if (!matchedPartnerId && !aiPartnerDiffersFromSender && emailSenderPartnerId) {
+    matchedPartnerId = emailSenderPartnerId
+    partnerNevToUse = emailSenderNevDb || aiExtractedNev
+  }
+
+  // 4. Utolsó esély: névvel keresünk
   if (!matchedPartnerId && partnerNevToUse) {
-    const normalizedAiName = normalizePartnerName(partnerNevToUse)
-    const foundByName = partnersList.find((p: any) => normalizePartnerName(p.nev) === normalizedAiName)
+    const normalizedNev = normalizePartnerName(partnerNevToUse)
+    const foundByName = partnersList.find((p: any) => normalizePartnerName(p.nev) === normalizedNev)
     if (foundByName) {
       matchedPartnerId = foundByName.id
       partnerNevToUse = foundByName.nev
@@ -640,6 +689,52 @@ export async function generateAISuggestions(iratId: string): Promise<AISuggestio
 
   return result
 }
+
+/**
+ * Cache törlése + AI újrafuttatás kényszerítése.
+ * Törli az ai_feladat_sor cache-t ÉS az irat_fajl.ocr_szoveg mezőt is,
+ * hogy az AI a PDF tényleges tartalmát elemezze, ne az esetleg email body-t tartalmazó cache-t.
+ *
+ * FONTOS: Szándékosan NEM írja vissza az eredményt a cache-be.
+ * Ha a PDF letöltés netán meghiúsul és az AI rossz eredményt ad, az nem kerül
+ * cache-be — a következő újrafuttatás is mindig frissen próbálja a PDF-et.
+ */
+export async function clearAICacheAndRerun(iratId: string): Promise<AISuggestionsResult> {
+  const supabase = await createClient()
+
+  try {
+    // 1. AI eredmény cache törlése
+    await supabase
+      .from("ai_feladat_sor")
+      .delete()
+      .eq("irat_id", iratId)
+      .eq("feladat_tipus", "ai_metadata_extraction")
+  } catch (err) {
+    console.warn("[AISuggest] AI cache törlési hiba (nem kritikus):", err)
+  }
+
+  try {
+    // 2. OCR cache törlése az irat_fajl táblából is, hogy a PDF újra beolvasódjon
+    // (email beküldésnél az ocr_szoveg az email body szövegét tartalmazhatja, nem a PDF-et)
+    await supabase
+      .from("irat_fajl")
+      .update({ ocr_szoveg: null })
+      .eq("irat_id", iratId)
+  } catch (err) {
+    console.warn("[AISuggest] OCR cache törlési hiba (nem kritikus):", err)
+  }
+
+  // 3. Friss AI kinyerés futtatása (üres OCR cache-szel, újra letölti és olvassa a PDF-et)
+  const result = await executeAiMetadataExtraction(iratId, supabase)
+
+  // 4. NEM mentjük vissza a cache-be — a 🔄 gomb pontosan azért van, mert a cache rossz volt.
+  //    Ha a PDF letöltés meghiúsult és az AI nem látott dokumentum tartalmat,
+  //    a hibás eredmény nem kerül cache-be, a következő gombnyomás is frissen próbál.
+
+  return result
+}
+
+
 
 /**
  * Lekéri az automatikus előzmény-ügyirat javaslatot az adott beérkező irathoz.

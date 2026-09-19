@@ -1,14 +1,39 @@
-import { Clock, LucideIcon } from "lucide-react"
+import { ComponentType } from "react"
+import { Clock, Eye, Mail, FileText, CheckCircle, FolderPlus, Users, Lock, Pencil, Trash2 } from "lucide-react"
 import { TimelineItemDetails } from "./timeline-item-details"
+
+export type TimelineIconName =
+  | "eye"
+  | "mail"
+  | "file-text"
+  | "check-circle"
+  | "folder-plus"
+  | "users"
+  | "lock"
+  | "edit"
+  | "trash-2"
+
 export type TimelineEvent = {
   id: string
   title: string
   description: string
   time: string
   user: string
-  icon: LucideIcon
+  icon: TimelineIconName
   color: string
   details?: string
+}
+
+const ICON_MAP: Record<TimelineIconName, ComponentType<{ className?: string }>> = {
+  "eye": Eye,
+  "mail": Mail,
+  "file-text": FileText,
+  "check-circle": CheckCircle,
+  "folder-plus": FolderPlus,
+  "users": Users,
+  "lock": Lock,
+  "edit": Pencil,
+  "trash-2": Trash2,
 }
 
 export function Timeline({ events }: { events: TimelineEvent[] }) {
@@ -24,7 +49,7 @@ export function Timeline({ events }: { events: TimelineEvent[] }) {
             <div className="absolute left-[11px] top-6 bottom-0 w-px bg-border" />
           )}
           <div className="absolute left-0 top-1 rounded-full bg-background border p-0.5">
-            <event.icon className={`h-4 w-4 ${event.color}`} />
+            {(() => { const Icon = ICON_MAP[event.icon] ?? Eye; return <Icon className={`h-4 w-4 ${event.color}`} />; })()}
           </div>
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline gap-1">
             <h4 className="text-sm font-semibold">{event.title}</h4>

@@ -1,14 +1,15 @@
 import { createClient } from "@/utils/supabase/server"
 import { notFound } from "next/navigation"
-import { ArrowLeft, User, Eye, Mail, FileText, CheckCircle, Paperclip, Calendar } from "lucide-react"
+import { ArrowLeft, User, FileText, Calendar } from "lucide-react"
 import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { AttachmentViewerClient } from "@/components/attachment-viewer-client"
 import { ReplyDialogClient } from "@/components/reply-dialog-client"
-import { Timeline, TimelineEvent } from "@/components/timeline"
+import { TimelineEvent, TimelineIconName } from "@/components/timeline"
 import { AntecedentSuggestionCard } from "@/components/antecedent-suggestion-card"
+import { CollapsibleEventLog } from "@/components/collapsible-event-log"
 import { findAntecedentSuggestion } from "@/utils/antecedent-matcher"
 
 export default async function DocumentDetailedView({ params }: { params: Promise<{ id: string }> }) {
@@ -75,14 +76,14 @@ export default async function DocumentDetailedView({ params }: { params: Promise
   const timelineEvents: TimelineEvent[] = filteredLogs.map((log: any) => {
     let title = "Tevékenység";
     let description = log.indoklas || log.uj_ertek?.megjegyzes || "";
-    let icon = Eye;
+    let icon: TimelineIconName = "eye";
     let color = "text-muted-foreground";
-    let details = undefined;
+    let details: string | undefined = undefined;
 
     if (log.esemeny_tipus === "modositva") {
       if (log.indoklas && log.indoklas.includes("Válasz e-mail elküldve")) {
         title = "Levélküldés";
-        icon = Mail;
+        icon = "mail";
         color = "text-primary";
         
         const lines = log.indoklas.split('\n');
@@ -92,8 +93,6 @@ export default async function DocumentDetailedView({ params }: { params: Promise
         }
       } else {
         title = "Módosítás történt";
-        // Ha van emberi nyelven írt megjegyzés, azt mutatjuk. Ha nincs, de van új érték, 
-        // az egy automata háttérfolyamat (pl. keresővektor frissítés), így ne öntsük rá a userre a nyers adatbázis-sort.
         if (!description) {
            if (log.uj_ertek && log.uj_ertek.megjegyzes) {
              description = log.uj_ertek.megjegyzes;
@@ -101,13 +100,13 @@ export default async function DocumentDetailedView({ params }: { params: Promise
              description = "Automatikus háttéradat-frissítés (pl. OCR vagy keresőmotor indexelés).";
            }
         }
-        icon = FileText;
+        icon = "file-text";
         color = "text-info";
       }
     } else if (log.esemeny_tipus === "erkeztetve") {
       title = "Irat érkeztetve";
       description = description || "Új bejövő irat regisztrálva a rendszerben.";
-      icon = CheckCircle;
+      icon = "check-circle";
       color = "text-success";
     }
 
@@ -155,7 +154,9 @@ export default async function DocumentDetailedView({ params }: { params: Promise
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
-          <ReplyDialogClient toEmail={senderEmail} originalSubject={irat.targy} iratId={irat.id} />
+          {(irat as any).erkezes_modja === "email" && (
+            <ReplyDialogClient toEmail={senderEmail} originalSubject={irat.targy} iratId={irat.id} partnerNev={senderName} />
+          )}
           <Link href={`/inbox/${irat.id}`} className={buttonVariants({ variant: "outline" })}>
             Tovább az Iktatáshoz
           </Link>
@@ -171,49 +172,43 @@ export default async function DocumentDetailedView({ params }: { params: Promise
         currentAlszam={irat.alszam}
       />
 
-      {/* Tartalom grid — 2:1 arány */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Bal oldal - Levél tartalom */}
-        <div className="lg:col-span-2">
-          <Card className="border border-border/50">
-            {/* Feladó fejléc */}
-            <CardHeader className="flex flex-row items-center gap-3 space-y-0 border-b py-4">
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <User className="h-5 w-5 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-medium text-sm">{senderName}</p>
-                {senderEmail && <p className="text-xs text-muted-foreground truncate">{senderEmail}</p>}
-              </div>
-            </CardHeader>
-            {/* Levél szöveg */}
-            <CardContent className="p-6">
-              <div className="whitespace-pre-wrap text-sm leading-relaxed min-h-[200px]">
-                {irat.leiras || <span className="text-muted-foreground italic">Nincs szöveges tartalom...</span>}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Tartalom grid — csak emailnél és ha van szöveg */}
+      {(irat as any).erkezes_modja === "email" && irat.leiras ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Bal oldal - Email tartalom kártya */}
+          <div className="lg:col-span-2">
+            <Card className="border border-border/50">
+              <CardHeader className="flex flex-row items-center gap-3 space-y-0 border-b py-4">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <User className="h-5 w-5 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-medium text-sm">{senderName}</p>
+                  {senderEmail && (
+                    <p className="text-xs text-muted-foreground truncate">{senderEmail}</p>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                  {irat.leiras}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Jobb oldal - Csatolmányok */}
-        <div>
-          <AttachmentViewerClient iratId={resolvedParams.id} fajlok={fajlok || []} />
+          {/* Jobb oldal - Csatolmányok */}
+          <div>
+            <AttachmentViewerClient iratId={resolvedParams.id} fajlok={fajlok || []} />
+          </div>
         </div>
-      </div>
+      ) : (
+        // Nem email, vagy nincs szöveg: csatolmányok teljes szélességben
+        <AttachmentViewerClient iratId={resolvedParams.id} fajlok={fajlok || []} />
+      )}
       
-      {/* Eseménynapló */}
-      <Card className="border border-border/50">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-semibold">Eseménynapló</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {timelineEvents.length > 0 ? (
-            <Timeline events={timelineEvents} />
-          ) : (
-            <p className="text-sm text-muted-foreground italic">Még nem történt naplózott esemény ezzel az irattal.</p>
-          )}
-        </CardContent>
-      </Card>
+      {/* Eseménynapló – összecsukható */}
+      <CollapsibleEventLog events={timelineEvents} />
     </div>
   )
 }
