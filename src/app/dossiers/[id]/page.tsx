@@ -98,18 +98,18 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
     if (existingDossier) {
       return (
         <div className="p-12 max-w-xl mx-auto text-center space-y-5">
-          <div className="w-16 h-16 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-center justify-center mx-auto text-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.2)]">
+          <div className="w-16 h-16 bg-destructive/10 border border-destructive/30 rounded-lg flex items-center justify-center mx-auto text-destructive">
             <Lock className="w-8 h-8" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-white tracking-tight">🔒 Hozzáférés Megtagadva: Bizalmas Ügyirat</h2>
-            <p className="text-sm text-slate-300 mt-2 leading-relaxed">
+            <h2 className="text-2xl font-semibold text-foreground tracking-tight">🔒 Hozzáférés Megtagadva: Bizalmas Ügyirat</h2>
+            <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
               A jelen ügyirat (<strong>{existingDossier.iktatoszam}</strong>) megtekintéséhez magasabb biztonsági minősítés (Bizalmas / Szigorúan bizalmas) szükséges.
             </p>
           </div>
-          <div className="p-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-400 flex items-center justify-center gap-2">
+          <div className="p-3.5 bg-muted border border-border rounded text-xs text-muted-foreground flex items-center justify-center gap-2">
             <span>Az Ön jelenlegi jogosultsági szintje:</span>
-            <span className="font-bold text-amber-400 uppercase bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+            <span className="font-semibold text-amber-400 uppercase bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
               {currentUserProfile?.max_minosites || 'nyilt'}
             </span>
           </div>

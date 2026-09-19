@@ -39,20 +39,20 @@ export default function HrAuditPage() {
 
   const getEventIcon = (type: string) => {
     switch (type) {
-      case 'rendszer_inditas': return <ShieldAlert className="w-4 h-4 text-blue-500" />
-      case 'adat_megtekintes': return <FileText className="w-4 h-4 text-slate-500" />
-      case 'munkatars_felvetel': return <UserPlus className="w-4 h-4 text-green-500" />
-      case 'kpi_hozzaadas': return <FileEdit className="w-4 h-4 text-orange-500" />
-      default: return <ShieldAlert className="w-4 h-4 text-slate-400" />
+      case 'rendszer_inditas': return <ShieldAlert className="w-4 h-4 text-info" />
+      case 'adat_megtekintes': return <FileText className="w-4 h-4 text-muted-foreground" />
+      case 'munkatars_felvetel': return <UserPlus className="w-4 h-4 text-success" />
+      case 'kpi_hozzaadas': return <FileEdit className="w-4 h-4 text-warning" />
+      default: return <ShieldAlert className="w-4 h-4 text-muted-foreground" />
     }
   }
 
   const getEventBadge = (type: string) => {
     switch (type) {
-      case 'rendszer_inditas': return <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">Rendszer</Badge>
-      case 'adat_megtekintes': return <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">Olvasás</Badge>
-      case 'munkatars_felvetel': return <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">Létrehozás</Badge>
-      case 'kpi_hozzaadas': return <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">Módosítás</Badge>
+      case 'rendszer_inditas': return <Badge variant="outline" className="border-info/30 bg-info/5 text-info">Rendszer</Badge>
+      case 'adat_megtekintes': return <Badge variant="outline" className="border-border bg-muted/50 text-muted-foreground">Olvasás</Badge>
+      case 'munkatars_felvetel': return <Badge variant="outline" className="border-success/30 bg-success/5 text-success">Létrehozás</Badge>
+      case 'kpi_hozzaadas': return <Badge variant="outline" className="border-warning/30 bg-warning/5 text-warning">Módosítás</Badge>
       default: return <Badge variant="outline">Ismeretlen</Badge>
     }
   }

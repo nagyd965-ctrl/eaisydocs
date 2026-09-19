@@ -32,10 +32,10 @@ import {
 
 const typeColors = {
   munka: "bg-background text-foreground",
-  szabadsag: "bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  betegseg: "bg-rose-50 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300",
+  szabadsag: "bg-info/10 text-info dark:bg-info/10 dark:text-info",
+  betegseg: "bg-destructive/10 text-destructive dark:bg-destructive/10 dark:text-destructive",
   hetvege: "bg-muted/50 text-muted-foreground",
-  unnep: "bg-purple-50 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+  unnep: "bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary"
 }
 
 const typeLabels = {
@@ -192,7 +192,7 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
 
   return (
     <div className="space-y-6">
-      <Card className="border shadow-sm">
+      <Card className="border border-border/50">
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
@@ -211,13 +211,13 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
                 </Button>
               )}
               {closingStatus === "jovahagyasra_var" && (
-                <Button size="sm" onClick={handleApproveMonth} className="mr-2 bg-green-600 hover:bg-green-700">
+                <Button size="sm" onClick={handleApproveMonth} className="mr-2 bg-success hover:bg-success/90">
                   <CheckCircle2 className="w-4 h-4 mr-2" />
                   Jóváhagyás
                 </Button>
               )}
               {closingStatus === "jovahagyva" && (
-                <Badge className="bg-green-100 text-green-800 mr-2 hover:bg-green-100">Lezárva</Badge>
+                <Badge className="bg-success/10 text-success border border-success/30 mr-2">Lezárva</Badge>
               )}
               
               <Button variant="outline" size="icon" onClick={prevMonth} className="h-8 w-8">
@@ -241,7 +241,7 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
             </div>
             <div className="bg-muted/30 p-3 rounded-md border text-center">
               <div className="text-xs text-muted-foreground uppercase mb-1">Munkaidő Egyenleg</div>
-              <div className={`text-lg font-bold ${totalBalance > 0 ? "text-green-600" : totalBalance < 0 ? "text-rose-600" : ""}`}>
+              <div className={`text-lg font-semibold ${totalBalance > 0 ? "text-success" : totalBalance < 0 ? "text-destructive" : ""}`}>
                 {totalBalance > 0 ? "+" : ""}{totalBalance.toFixed(1)} h
               </div>
             </div>

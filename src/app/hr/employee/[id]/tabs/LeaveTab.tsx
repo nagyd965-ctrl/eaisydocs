@@ -35,9 +35,9 @@ export function LeaveTab({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "jovahagyasra_var":
-        return <Badge variant="secondary" className="bg-amber-100 text-amber-800"><Clock className="w-3 h-3 mr-1" /> Folyamatban</Badge>
+        return <Badge variant="secondary" className="bg-warning/10 text-warning border border-warning/30"><Clock className="w-3 h-3 mr-1" /> Folyamatban</Badge>
       case "jovahagyva":
-        return <Badge variant="secondary" className="bg-green-100 text-green-800">Jóváhagyva</Badge>
+        return <Badge variant="secondary" className="bg-success/10 text-success border border-success/30">Jóváhagyva</Badge>
       case "elutasitva":
         return <Badge variant="destructive">Elutasítva</Badge>
       case "tervezet":
@@ -51,7 +51,7 @@ export function LeaveTab({
     <div className="space-y-6">
       {/* Szabadság Egyenleg */}
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border shadow-sm">
+        <Card className="border border-border/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div className="space-y-1">
               <CardTitle className="text-lg font-semibold">Szabadság ({currentYear})</CardTitle>
@@ -71,7 +71,7 @@ export function LeaveTab({
             </div>
             <Progress value={(usedLeave / totalLeave) * 100} className="mt-6 h-2.5" />
             <div className="mt-4 flex items-center justify-between text-sm font-medium text-muted-foreground">
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-green-500" /> Felhasznált: {usedLeave} nap</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-success" /> Felhasznált: {usedLeave} nap</span>
               <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-amber-500" /> Tervezett: {plannedLeave} nap</span>
             </div>
           </CardContent>
@@ -92,7 +92,7 @@ export function LeaveTab({
       </div>
 
       {/* Távollét Történet */}
-      <Card className="border shadow-sm">
+      <Card className="border border-border/50">
         <CardHeader>
           <CardTitle className="text-lg font-semibold">Távollétek és Kérelmek Története</CardTitle>
           <CardDescription>A dolgozó összes eddigi és tervezett távolléte</CardDescription>

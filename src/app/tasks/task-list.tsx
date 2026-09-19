@@ -9,6 +9,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ExternalLink, Calendar as CalendarIcon } from "lucide-react"
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -57,16 +65,13 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
     switch (status) {
       case "nyitott":
         return (
-          <Badge variant="outline" className="text-slate-500 border-slate-200">
+          <Badge variant="outline" className="text-muted-foreground border-border">
             Nyitott
           </Badge>
         )
       case "folyamatban":
         return (
-          <Badge
-            variant="outline"
-            className="text-blue-500 border-blue-200 bg-blue-50/50 dark:bg-blue-900/10"
-          >
+          <Badge variant="outline" className="text-info border-info/30 bg-info/5">
             Folyamatban
           </Badge>
         )
@@ -78,10 +83,7 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
         )
       case "elutasitott":
         return (
-          <Badge
-            variant="outline"
-            className="text-destructive border-destructive/30 bg-destructive/5"
-          >
+          <Badge variant="outline" className="text-destructive border-destructive/30 bg-destructive/5">
             Elutasított
           </Badge>
         )
@@ -99,60 +101,56 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
   }
 
   return (
-    <div className="border border-border/50 bg-card">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-muted/30 text-muted-foreground text-xs uppercase font-medium border-b border-border/50">
-            <tr>
-              <th className="px-4 py-3 font-medium">Ügyirat / Tárgy</th>
-              <th className="px-4 py-3 font-medium">Feladat leírása</th>
-              <th className="px-4 py-3 font-medium">Határidő</th>
-              <th className="px-4 py-3 text-right font-medium">Állapot</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/50">
-            {tasks.map((task) => (
-              <tr
-                key={task.id}
-                onClick={() => handleRowClick(task)}
-                className="hover:bg-muted/20 transition-colors group cursor-pointer"
-              >
-                <td className="px-4 py-3">
-                  {task.ugyirat ? (
-                    <div className="flex flex-col">
-                      <Link
-                        href={`/dossiers/${task.ugyirat.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="font-semibold text-primary hover:underline text-xs inline-flex items-center gap-1"
-                      >
-                        {task.ugyirat.iktatoszam}
-                        <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
-                      </Link>
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground italic text-xs">Nincs csatolva</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-foreground/90 max-w-md truncate text-sm">
-                  {task.leiras}
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`font-medium tabular-nums text-xs ${
-                      new Date(task.hatarido) < new Date() && task.allapot !== "kesz"
-                        ? "text-destructive"
-                        : "text-muted-foreground"
-                    }`}
+    <div className="rounded-lg border border-border/50 overflow-x-auto">
+      <Table className="compact-table min-w-max">
+        <TableHeader>
+          <TableRow className="bg-muted/30 hover:bg-muted/30">
+            <TableHead className="font-medium">Ügyirat / Tárgy</TableHead>
+            <TableHead className="font-medium">Feladat leírása</TableHead>
+            <TableHead className="font-medium">Határidő</TableHead>
+            <TableHead className="font-medium text-right">Állapot</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {tasks.map((task) => (
+            <TableRow
+              key={task.id}
+              onClick={() => handleRowClick(task)}
+              className="cursor-pointer group"
+            >
+              <TableCell>
+                {task.ugyirat ? (
+                  <Link
+                    href={`/dossiers/${task.ugyirat.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-semibold text-primary hover:underline text-xs inline-flex items-center gap-1"
                   >
-                    {format(new Date(task.hatarido), "yyyy. MM. dd.", { locale: hu })}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">{getStatusBadge(task.allapot)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                    {task.ugyirat.iktatoszam}
+                    <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground italic text-xs">Nincs csatolva</span>
+                )}
+              </TableCell>
+              <TableCell className="text-foreground/90 max-w-md truncate">
+                {task.leiras}
+              </TableCell>
+              <TableCell>
+                <span
+                  className={`font-medium tabular-nums text-xs ${
+                    new Date(task.hatarido) < new Date() && task.allapot !== "kesz"
+                      ? "text-destructive"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {format(new Date(task.hatarido), "yyyy. MM. dd.", { locale: hu })}
+                </span>
+              </TableCell>
+              <TableCell className="text-right">{getStatusBadge(task.allapot)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       {/* Részletező Dialog általános feladathoz */}
       <Dialog open={!!selectedTask} onOpenChange={(open) => !open && setSelectedTask(null)}>

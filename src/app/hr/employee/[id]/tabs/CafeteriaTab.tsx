@@ -71,7 +71,7 @@ export function CafeteriaTab({
     <div className="space-y-6">
       <div className="grid gap-6 md:grid-cols-2">
         {/* Bal oldal: Keretösszeg beállítása */}
-        <Card className="border shadow-sm">
+        <Card className="border border-border/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5 text-primary" /> Cafeteria Keret ({year})
@@ -115,7 +115,7 @@ export function CafeteriaTab({
         </Card>
 
         {/* Jobb oldal: Dolgozó nyilatkozata */}
-        <Card className="border shadow-sm">
+        <Card className="border border-border/50">
           <CardHeader>
             <div className="flex justify-between items-start">
               <div>
@@ -124,28 +124,28 @@ export function CafeteriaTab({
                 </CardTitle>
                 <CardDescription className="mt-1.5">
                   {isClosed 
-                    ? <span className="flex items-center gap-1 text-green-600"><CheckCircle2 className="w-4 h-4"/> A dolgozó véglegesítette a nyilatkozatát.</span>
-                    : <span className="text-amber-600">A dolgozó még nem adta le a nyilatkozatot.</span>
+                    ? <span className="flex items-center gap-1 text-success"><CheckCircle2 className="w-4 h-4"/> A dolgozó véglegesítette a nyilatkozatát.</span>
+                    : <span className="text-warning">A dolgozó még nem adta le a nyilatkozatot.</span>
                   }
                 </CardDescription>
               </div>
               {isClosed && (
                 <div className="flex gap-2">
                   <AlertDialog>
-                    <AlertDialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-amber-200 bg-transparent shadow-sm hover:bg-amber-50 text-amber-600 h-8 px-3" disabled={reopenLoading}>
-                      <RotateCcw className="w-4 h-4 mr-2" /> Újranyitás
+                    <AlertDialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-warning/30 bg-transparent hover:bg-warning/10 text-warning h-8 px-3" disabled={reopenLoading}>
+                      <RotateCcw className="w-4 h-4 mr-2" /> Újranyítás
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Nyilatkozat újranyitása (Év közbeni módosítás)</AlertDialogTitle>
+                        <AlertDialogTitle>Nyilatkozat újranyítása (Év közbeni módosítás)</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Biztosan újranyitod a dolgozó nyilatkozatát? Ezzel a korábbi (már lezárt és esetleg bérszámfejtett) nyilatkozat érvényét veszti, a dolgozónak újat kell leadnia, amiről új PDF fog készülni.
+                          Biztosan újranyitod a dolgozó nyilatkozatát? Ezzel a korábbi (már lezárt és esetleg bérszámfejtés) nyilatkozat érvényét veszti, a dolgozónak újat kell leadnia, amilől új PDF fog készülni.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Mégse</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleReopen} className="bg-amber-600 hover:bg-amber-700 text-white">
-                          Igen, Újranyitás
+                        <AlertDialogAction onClick={handleReopen} className="bg-warning hover:bg-warning/90 text-warning-foreground">
+                          Igen, Újranyítás
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
