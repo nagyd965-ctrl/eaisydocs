@@ -40,9 +40,9 @@ export function ExportDossiersDropdown({ data }: ExportDossiersDropdownProps) {
         }
       />
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="text-[11px] font-medium text-muted-foreground">
+        <div className="px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground">
           Iktatókönyv export ({data.length} tétel)
-        </DropdownMenuLabel>
+        </div>
         <DropdownMenuSeparator />
         
         <DropdownMenuItem
