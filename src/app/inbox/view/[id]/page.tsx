@@ -130,14 +130,14 @@ export default async function DocumentDetailedView({ params }: { params: Promise
     <div className="page-animate space-y-6 pb-12">
       {/* Fejléc — bal oldalra igazított, teljes szélességű */}
       <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
           <Link href="/inbox" className={`${buttonVariants({ variant: "ghost", size: "icon" })} mt-0.5 shrink-0`}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2 flex-wrap">
-              {irat.targy}
-              <Badge variant="outline" className="font-mono text-xs">{irat.erkeztetoszam}</Badge>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2 flex-wrap break-words">
+              <span className="break-words">{irat.targy}</span>
+              <Badge variant="outline" className="font-mono text-xs shrink-0">{irat.erkeztetoszam}</Badge>
             </h1>
             <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">

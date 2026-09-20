@@ -369,13 +369,13 @@ export function InboxTableClient({
         <Table>
           <TableHeader>
             <TableRow>
-              {isColVisible("erkeztetoszam") && <TableHead>Érkeztetőszám</TableHead>}
-              {isColVisible("erkezes_datuma") && <TableHead>Érkezés ideje</TableHead>}
+              {isColVisible("erkeztetoszam") && <TableHead className="whitespace-nowrap">Érkeztetőszám</TableHead>}
+              {isColVisible("erkezes_datuma") && <TableHead className="whitespace-nowrap">Érkezés ideje</TableHead>}
               {isColVisible("kuldo") && <TableHead>Küldő</TableHead>}
-              {isColVisible("targy") && <TableHead>Tárgy</TableHead>}
-              {activeTab === "active" && isColVisible("csatorna") && <TableHead>Csatorna</TableHead>}
+              {isColVisible("targy") && <TableHead className="min-w-[200px] max-w-[400px]">Tárgy</TableHead>}
+              {activeTab === "active" && isColVisible("csatorna") && <TableHead className="whitespace-nowrap">Csatorna</TableHead>}
               {activeTab === "dismissed" && isColVisible("indoklas") && <TableHead>Mellőzés indoka</TableHead>}
-              {isColVisible("muvelet") && <TableHead className="text-right">Művelet</TableHead>}
+              {isColVisible("muvelet") && <TableHead className="text-right whitespace-nowrap">Művelet</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -383,14 +383,14 @@ export function InboxTableClient({
               filteredItems.map((item) => (
                 <TableRow key={item.id} className="transition-colors hover:bg-muted/40">
                   {isColVisible("erkeztetoszam") && (
-                    <TableCell className="font-medium text-primary">
+                    <TableCell className="font-medium text-primary whitespace-nowrap">
                       <Link href={`/inbox/view/${item.id}`} className="hover:underline">
                         {item.erkeztetoszam}
                       </Link>
                     </TableCell>
                   )}
                   {isColVisible("erkezes_datuma") && (
-                    <TableCell className="tabular-nums text-muted-foreground">
+                    <TableCell className="tabular-nums text-muted-foreground whitespace-nowrap">
                       {new Date(item.erkezes_datuma).toLocaleString("hu-HU", {
                         year: "numeric",
                         month: "2-digit",
@@ -401,13 +401,21 @@ export function InboxTableClient({
                     </TableCell>
                   )}
                   {isColVisible("kuldo") && (
-                    <TableCell>{(item.partner as any)?.nev || "-"}</TableCell>
+                    <TableCell className="max-w-[180px] truncate" title={(item.partner as any)?.nev || "-"}>
+                      {(item.partner as any)?.nev || "-"}
+                    </TableCell>
                   )}
-                  {isColVisible("targy") && <TableCell className="max-w-md">{item.targy}</TableCell>}
+                  {isColVisible("targy") && (
+                    <TableCell className="max-w-[260px] md:max-w-[360px] lg:max-w-[460px] overflow-hidden">
+                      <div className="truncate block font-medium text-foreground" title={item.targy}>
+                        {item.targy}
+                      </div>
+                    </TableCell>
+                  )}
 
                   {/* Csatorna (csak aktív fülön) */}
                   {activeTab === "active" && isColVisible("csatorna") && (
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap">
                       <Badge variant="secondary" className="font-normal">
                         {item.kulso_forras === "eaisybill"
                           ? "eaisyBill"
@@ -431,7 +439,7 @@ export function InboxTableClient({
 
                   {/* Műveletek */}
                   {isColVisible("muvelet") && (
-                    <TableCell className="text-right">
+                    <TableCell className="text-right whitespace-nowrap">
                       {canEdit && (
                         <div className="flex items-center justify-end gap-2">
                           {activeTab === "active" ? (
