@@ -79,12 +79,12 @@ export function PartnerDialog({
           </DialogTrigger>
         ) : (
           <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-            <Pencil className="h-4 w-4 mr-2" /> Szerkesztés
+            Szerkesztés
           </DialogTrigger>
         )
       ) : (
         <DialogTrigger className={cn(buttonVariants({ variant: "default" }))}>
-          <Plus className="h-4 w-4 mr-2" /> Új Partner
+          Új Partner
         </DialogTrigger>
       )}
       <DialogContent className="sm:max-w-[480px]">

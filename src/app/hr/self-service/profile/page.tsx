@@ -161,7 +161,6 @@ export default async function SelfServiceProfilePage() {
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Orvosi</p>
                     <p className={`font-medium text-xs ${orvosiWarning ? "text-warning" : ""}`}>
                       {new Date(orvosiErvenyesseg).toLocaleDateString("hu-HU", { year: "numeric", month: "short", day: "numeric" })}
-                      {orvosiWarning && " ⚠️"}
                     </p>
                   </div>
                 </div>

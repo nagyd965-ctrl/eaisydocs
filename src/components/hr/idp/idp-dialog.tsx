@@ -43,9 +43,9 @@ const TIPUS_LABELS: Record<string, string> = {
 }
 
 const PRIORITAS_LABELS: Record<string, string> = {
-  magas:   "🔴 Magas",
-  kozepes: "🟡 Közepes",
-  alacsony:"🟢 Alacsony",
+  magas:   "Magas",
+  kozepes: "Közepes",
+  alacsony:"Alacsony",
 }
 
 export function IdpDialog({ tervId, dolgozoId, buttonVariant = "outline", existingGoal, customTrigger }: IdpDialogProps) {

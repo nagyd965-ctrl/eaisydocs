@@ -305,14 +305,12 @@ export function InboxTableClient({
         >
           <TabsList className="bg-muted/60 p-1 border border-border/50">
             <TabsTrigger value="active" className="gap-2 cursor-pointer">
-              <Inbox className="h-3.5 w-3.5 text-primary" />
               <span>Feldolgozásra vár</span>
               <Badge variant="secondary" className="px-1.5 py-0 text-xs font-normal tabular-nums">
                 {activeItems.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="dismissed" className="gap-2 cursor-pointer">
-              <Ban className="h-3.5 w-3.5 text-amber-500" />
               <span>Nem iktatandó</span>
               {dismissedItems.length > 0 && (
                 <Badge
@@ -460,7 +458,6 @@ export function InboxTableClient({
                                 href={`/inbox/${item.id}`}
                                 className={buttonVariants({ variant: "outline", size: "sm" })}
                               >
-                                <FolderSymlink className="mr-2 h-4 w-4 text-primary" />
                                 Iktatás
                               </Link>
                             </>
@@ -473,10 +470,8 @@ export function InboxTableClient({
                               className="text-xs h-8 gap-1.5 hover:text-primary hover:border-primary/40 transition-colors cursor-pointer"
                               title="Visszahelyezés a feldolgozásra váró iktatandó sorba"
                             >
-                              {restoringId === item.id ? (
+                              {restoringId === item.id && (
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <RotateCcw className="h-3.5 w-3.5 text-primary" />
                               )}
                               <span>Visszaállítás</span>
                             </Button>

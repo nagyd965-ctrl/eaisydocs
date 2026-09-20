@@ -118,7 +118,6 @@ export function DossierAccessDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger className="inline-flex items-center justify-center rounded-md border border-border/80 bg-background hover:bg-muted hover:text-accent-foreground font-medium h-8 px-3 text-xs gap-1.5 cursor-pointer transition-colors">
-        <Share2 className="w-3.5 h-3.5 text-primary" />
         <span>Explicit Megosztás</span>
         {accessList.length > 0 && (
           <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px] font-mono">
@@ -129,10 +128,7 @@ export function DossierAccessDialog({
 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <ShieldPlus className="w-5 h-5 text-primary" />
-            <DialogTitle>Explicit Hozzáférések Kezelése</DialogTitle>
-          </div>
+          <DialogTitle>Explicit Hozzáférések Kezelése</DialogTitle>
           <DialogDescription className="text-xs">
             Engedélyezd másik osztályhoz vagy szervezeti egységhez tartozó kollégák számára a(z) <span className="font-mono font-semibold text-foreground">{iktatoszam}</span> ügyirat megtekintését és kezelését.
           </DialogDescription>

@@ -111,15 +111,13 @@ export function BatchScannerDialog() {
       <DialogTrigger
         render={
           <Button variant="outline" className="border-border/60">
-            <Layers className="mr-2 h-4 w-4 text-primary" />
             Kötegelt szkennelés
           </Button>
         }
       />
       <DialogContent className="sm:max-w-2xl lg:max-w-3xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden p-6 gap-5">
         <DialogHeader className="space-y-1">
-          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-            <Layers className="h-5 w-5 text-primary shrink-0" />
+          <DialogTitle className="text-base font-semibold">
             Kötegelt PDF szétbontása és érkeztetése
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
@@ -130,25 +128,19 @@ export function BatchScannerDialog() {
 
         {/* Separator Sheet Download Banner */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-primary/20 bg-primary/5 text-xs">
-          <div className="flex items-start gap-2.5 min-w-0">
-            <div className="p-2 rounded-md bg-primary/10 text-primary shrink-0 mt-0.5">
-              <Printer className="h-4 w-4" />
+          <div className="space-y-0.5 min-w-0">
+            <div className="font-semibold text-foreground text-sm">
+              Szabványos eaisyDocs elválasztólap (A4)
             </div>
-            <div className="space-y-0.5 min-w-0">
-              <div className="font-semibold text-foreground text-sm">
-                Szabványos eaisyDocs elválasztólap (A4)
-              </div>
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                Nyomtasd ki és helyezd a fizikai papíriratok közé a szkenner adagolójában. A rendszer automatikusan felismeri és kidobja.
-              </p>
-            </div>
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              Nyomtasd ki és helyezd a fizikai papíriratok közé a szkenner adagolójában. A rendszer automatikusan felismeri és kidobja.
+            </p>
           </div>
           <a
             href="/api/scanner/separator-sheet"
             download="eaisyDocs_elvalaszto_lap.pdf"
-            className="inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-semibold border border-primary/30 bg-background px-3.5 py-2 hover:bg-primary/10 hover:text-primary transition-colors shrink-0 shadow-none"
+            className="inline-flex items-center justify-center rounded-md text-xs font-semibold border border-primary/30 bg-background px-3.5 py-2 hover:bg-primary/10 hover:text-primary transition-colors shrink-0 shadow-none"
           >
-            <Printer className="h-3.5 w-3.5 text-primary" />
             PDF Letöltése
           </a>
         </div>
@@ -304,10 +296,8 @@ export function BatchScannerDialog() {
               disabled={syncLoading || loading}
               className="text-xs text-muted-foreground hover:text-foreground shrink-0 justify-center sm:justify-start"
             >
-              {syncLoading ? (
+              {syncLoading && (
                 <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <FolderSync className="mr-1.5 h-3.5 w-3.5 text-primary" />
               )}
               Szkenner mappa ellenőrzése
             </Button>

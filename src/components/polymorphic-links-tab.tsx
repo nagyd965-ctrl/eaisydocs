@@ -132,7 +132,7 @@ export function PolymorphicLinksTab({
         
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button variant="outline" size="sm" />}>
-            <Plus className="mr-2 h-4 w-4" /> Új Kapcsolat
+            Új Kapcsolat
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>

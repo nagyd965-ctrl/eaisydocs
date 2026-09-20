@@ -131,7 +131,6 @@ export function TemplateDialog({ ugyiratId, iktatoszam }: TemplateDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-        <FileOutput className="mr-2 h-3.5 w-3.5" />
         Generálás sablonból
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -220,10 +219,7 @@ export function TemplateDialog({ ugyiratId, iktatoszam }: TemplateDialogProps) {
                 Generálás...
               </>
             ) : (
-              <>
-                <FileOutput className="mr-2 h-4 w-4" />
-                PDF generálása
-              </>
+              "PDF generálása"
             )}
           </Button>
         </DialogFooter>

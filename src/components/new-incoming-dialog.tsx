@@ -116,7 +116,6 @@ export function NewIncomingDialog() {
       <DialogTrigger
         render={
           <Button>
-            <PlusCircle className="mr-2 h-4 w-4" />
             Új érkeztetés
           </Button>
         }

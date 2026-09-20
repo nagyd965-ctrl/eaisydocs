@@ -230,14 +230,11 @@ export function CandidateProfileSheet({
                     <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
                   </PopoverTrigger>
                   <PopoverContent side="bottom" align="center" className="max-w-[280px] p-4 bg-background border-warning/50 shadow-lg z-[100]">
-                    <div className="flex gap-2.5 items-start">
-                      <span className="text-base mt-0.5">⚠️</span>
-                      <div className="space-y-1">
-                        <h5 className="text-sm font-semibold text-warning">Támogató funkció</h5>
-                        <p className="leading-relaxed text-xs text-muted-foreground">
-                          A rendszer automatikus döntést nem hoz, a jelentkező elutasításáról vagy továbbjuttatásáról a toborzónak kell döntenie.
-                        </p>
-                      </div>
+                    <div className="space-y-1">
+                      <h5 className="text-sm font-semibold text-warning">Támogató funkció</h5>
+                      <p className="leading-relaxed text-xs text-muted-foreground">
+                        A rendszer automatikus döntést nem hoz, a jelentkező elutasításáról vagy továbbjuttatásáról a toborzónak kell döntenie.
+                      </p>
                     </div>
                   </PopoverContent>
                 </Popover>

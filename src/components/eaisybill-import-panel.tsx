@@ -75,16 +75,11 @@ export function EaisyBillImportPanel({ invoices, fetchError }: Props) {
     <Card className="border-primary/20">
       <CardHeader className="cursor-pointer select-none" onClick={() => setOpen(o => !o)}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Receipt className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-sm font-semibold">Importálás eaisyBill-ből</CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {fetchError ? "Kapcsolódási hiba" : pendingCount + " importálható számla vár"}
-              </p>
-            </div>
+          <div>
+            <CardTitle className="text-sm font-semibold">Importálás eaisyBill-ből</CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {fetchError ? "Kapcsolódási hiba" : pendingCount + " importálható számla vár"}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             {!fetchError && pendingCount > 0 && (
@@ -161,10 +156,10 @@ export function EaisyBillImportPanel({ invoices, fetchError }: Props) {
                           </TableCell>
                           <TableCell className="text-right pr-6">
                             {isImported ? (
-                              <span className="flex items-center justify-end gap-1 text-xs text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" /> Átvéve</span>
+                              <span className="flex items-center justify-end text-xs text-emerald-600 font-medium">Átvéve</span>
                             ) : (
-                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/5" disabled={isLoading || isPending} onClick={() => handleImport(inv)}>
-                                {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowDownToLine className="h-3 w-3" />}Átvesz
+                              <Button size="sm" variant="outline" className="h-7 text-xs border-primary/30 text-primary hover:bg-primary/5 font-medium" disabled={isLoading || isPending} onClick={() => handleImport(inv)}>
+                                {isLoading && <Loader2 className="h-3 w-3 animate-spin mr-1" />}Átvesz
                               </Button>
                             )}
                           </TableCell>

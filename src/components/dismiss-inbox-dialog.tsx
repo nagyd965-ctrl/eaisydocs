@@ -66,7 +66,6 @@ export function DismissInboxDialog({
         title="Nem iktatandó (pl. kéretlen reklám, hírlevél, tájékoztató)"
         onClick={() => setOpen(true)}
       >
-        <Ban className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
         Nem iktatandó
       </Button>
 
@@ -74,10 +73,7 @@ export function DismissInboxDialog({
         <DialogContent className="sm:max-w-[480px]">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Ban className="h-5 w-5 text-amber-500" />
-                Iktatás mellőzése (Nem iktatandó)
-              </DialogTitle>
+              <DialogTitle>Iktatás mellőzése (Nem iktatandó)</DialogTitle>
               <DialogDescription>
                 A jogszabályi előírásoknak megfelelően a nem ügyintézési célú küldeményekből (pl. kéretlen reklám, meghívó, sajtóanyag) nem képezünk ügyiratot, de az érkeztetés naplózott marad.
               </DialogDescription>

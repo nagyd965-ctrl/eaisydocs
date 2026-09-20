@@ -71,7 +71,6 @@ export function UploadVersionDialog({
         title={`Új verzió feltöltése (jelenlegi: v${currentVersion})`}
         onClick={() => setOpen(true)}
       >
-        <Upload className="h-3 w-3" />
         <span>Új verzió</span>
       </Button>
 
@@ -79,10 +78,7 @@ export function UploadVersionDialog({
         <DialogContent className="sm:max-w-[480px]">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <FileUp className="h-5 w-5 text-primary" />
-                Új fájlverzió feltöltése
-              </DialogTitle>
+              <DialogTitle>Új fájlverzió feltöltése</DialogTitle>
               <DialogDescription>
                 A módosítás nem írja felül a korábbi fájlt. A rendszer új verziószámot (v{currentVersion + 1}) rendel hozzá, és naplózza az eseményt.
               </DialogDescription>

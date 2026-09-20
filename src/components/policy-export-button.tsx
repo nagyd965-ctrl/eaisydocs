@@ -39,11 +39,7 @@ export function PolicyExportButton() {
 
   return (
     <Button variant="outline" size="sm" onClick={handleExport} disabled={isPending}>
-      {isPending ? (
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-      ) : (
-        <Download className="mr-2 h-4 w-4" />
-      )}
+      {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
       Letöltés PDF-ként
     </Button>
   )

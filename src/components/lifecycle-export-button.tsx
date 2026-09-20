@@ -43,10 +43,8 @@ export function LifecycleExportButton({ ugyiratId }: LifecycleExportButtonProps)
 
   return (
     <Button variant="outline" size="sm" onClick={handleExport} disabled={isPending}>
-      {isPending ? (
+      {isPending && (
         <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-      ) : (
-        <Download className="mr-2 h-3.5 w-3.5" />
       )}
       Riport letöltése (PDF)
     </Button>

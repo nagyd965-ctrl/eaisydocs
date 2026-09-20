@@ -195,14 +195,13 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="mt-2.5 h-8 text-xs gap-1.5"
+                    className="mt-2.5 h-8 text-xs font-medium"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <Upload className="w-3.5 h-3.5" />
                     Kép kiválasztása
                   </Button>
                   {avatarFile && (
-                    <p className="text-[11px] text-success mt-1.5">✓ {avatarFile.name} kiválasztva</p>
+                    <p className="text-[11px] text-success mt-1.5">{avatarFile.name} kiválasztva</p>
                   )}
                 </div>
               </div>

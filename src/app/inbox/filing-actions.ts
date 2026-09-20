@@ -755,7 +755,7 @@ export async function clearAICacheAndRerun(iratId: string): Promise<AISuggestion
   // 3. Friss AI kinyerés futtatása (üres OCR cache-szel, újra letölti és olvassa a PDF-et)
   const result = await executeAiMetadataExtraction(iratId, supabase)
 
-  // 4. NEM mentjük vissza a cache-be — a 🔄 gomb pontosan azért van, mert a cache rossz volt.
+  // 4. NEM mentjük vissza a cache-be — az Újraelemzés gomb pontosan azért van, mert a cache rossz volt.
   //    Ha a PDF letöltés meghiúsult és az AI nem látott dokumentum tartalmat,
   //    a hibás eredmény nem kerül cache-be, a következő gombnyomás is frissen próbál.
 

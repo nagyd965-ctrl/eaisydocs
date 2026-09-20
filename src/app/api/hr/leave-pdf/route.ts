@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
         </div>
       </div>
 
-      <div class="badge">✓ JÓVÁHAGYVA</div>
+      <div class="badge">JÓVÁHAGYVA</div>
 
       <div class="section">
         <div class="section-title">Dolgozó adatai</div>

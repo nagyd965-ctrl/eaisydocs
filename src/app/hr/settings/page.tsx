@@ -180,21 +180,18 @@ export default async function HrSettingsPage() {
             value="profil" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
           >
-            <User className="h-4 w-4 mr-2" />
             Profil
           </TabsTrigger>
           <TabsTrigger 
             value="rendszer" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
           >
-            <Monitor className="h-4 w-4 mr-2" />
             Rendszer
           </TabsTrigger>
           <TabsTrigger 
             value="biztonsag" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
           >
-            <Shield className="h-4 w-4 mr-2" />
             Biztonság
           </TabsTrigger>
           {isHrOrAdmin && (
@@ -203,14 +200,12 @@ export default async function HrSettingsPage() {
                 value="organization" 
                 className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
               >
-                <Building2 className="h-4 w-4 mr-2" />
                 Szervezet és munkatársak
               </TabsTrigger>
               <TabsTrigger 
                 value="ertesitesek" 
                 className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
               >
-                <Bell className="h-4 w-4 mr-2" />
                 Értesítések
               </TabsTrigger>
             </>

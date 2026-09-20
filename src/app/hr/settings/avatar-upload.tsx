@@ -114,7 +114,7 @@ export function AvatarUploadSection({
           )}
         </div>
         {avatarFile && (
-          <p className="text-[11px] text-success mt-1.5">✓ {avatarFile.name} kiválasztva</p>
+          <p className="text-[11px] text-success mt-1.5">{avatarFile.name} kiválasztva</p>
         )}
       </div>
     </div>

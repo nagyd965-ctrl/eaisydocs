@@ -247,12 +247,10 @@ export function OffboardingProfileModal({ offboarding, onDateChange }: Offboardi
             <div className="px-6 pt-4 border-b">
               <TabsList className="h-9">
                 <TabsTrigger value="feladatok" className="gap-2 text-xs">
-                  <ClipboardList className="w-3.5 h-3.5" />
                   Kiléptetési Feladatok
                   <Badge variant="outline" className="bg-background text-[10px] h-4 px-1.5">{doneTasks}/{tasks.length}</Badge>
                 </TabsTrigger>
                 <TabsTrigger value="interju" className="gap-2 text-xs" onClick={handleInterviewTabLoad}>
-                  <MessageSquare className="w-3.5 h-3.5" />
                   Kilépési Interjú
                   {interviewFilled && (
                     <Badge className="bg-emerald-500/20 text-emerald-600 text-[10px] h-4 px-1.5 border-emerald-500/30">Kitöltve</Badge>

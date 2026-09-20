@@ -106,8 +106,7 @@ export function AddEmployeeDialog({
       {customTrigger ? (
         <DialogTrigger render={customTrigger} />
       ) : (
-        <DialogTrigger className={buttonVariants({ variant: "default", className: "gap-2" })}>
-          <UserPlus className="w-4 h-4" />
+        <DialogTrigger className={buttonVariants({ variant: "default" })}>
           Új Dolgozó Felvétele
         </DialogTrigger>
       )}

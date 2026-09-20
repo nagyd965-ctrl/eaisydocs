@@ -225,10 +225,10 @@ export function ReportsTabs() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-4 lg:w-[800px]">
-          <TabsTrigger value="t1041"><Landmark className="w-4 h-4 mr-2"/> NAV T1041</TabsTrigger>
-          <TabsTrigger value="ksh"><Building className="w-4 h-4 mr-2"/> KSH Riport</TabsTrigger>
-          <TabsTrigger value="payroll"><Landmark className="w-4 h-4 mr-2"/> Bérszámfejtés</TabsTrigger>
-          <TabsTrigger value="archivum"><FileText className="w-4 h-4 mr-2"/> Bevallás Archívum</TabsTrigger>
+          <TabsTrigger value="t1041">NAV T1041</TabsTrigger>
+          <TabsTrigger value="ksh">KSH Riport</TabsTrigger>
+          <TabsTrigger value="payroll">Bérszámfejtés</TabsTrigger>
+          <TabsTrigger value="archivum">Bevallás Archívum</TabsTrigger>
         </TabsList>
 
         <TabsContent value="t1041" className="mt-6">

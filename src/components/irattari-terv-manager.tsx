@@ -149,7 +149,6 @@ export function IrattariTervManager({ initialTervek }: IrattariTervManagerProps)
           </span>
         </div>
         <Button size="sm" onClick={openCreate} disabled={isPending}>
-          <Plus className="h-4 w-4 mr-1.5" />
           Új tétel
         </Button>
       </div>

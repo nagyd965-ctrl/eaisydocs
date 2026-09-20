@@ -111,7 +111,7 @@ export function ManagePostingDialog({
         children ? (
           children as React.ReactElement
         ) : (
-          <Button><Plus className="w-4 h-4 mr-2" /> Új hirdetés feladása</Button>
+          <Button>Új hirdetés feladása</Button>
         )
       } />
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">

@@ -162,7 +162,7 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
               size="sm"
               title={totalTasks > 0 && !allTasksDone ? `Még ${totalTasks - completedTasks} feladat nincs kész` : undefined}
             >
-              {statusLoading === "elintezett" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-2 h-3.5 w-3.5" />}
+              {statusLoading === "elintezett" && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
               Elintézettnek jelölés
             </Button>
 
@@ -293,7 +293,7 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
                 <Input id="file" name="file" type="file" accept="application/pdf" required disabled={!canEdit || uploadLoading} />
               </div>
               <Button type="submit" disabled={!canEdit || uploadLoading} variant="outline" className="w-full">
-                {uploadLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileUp className="mr-2 h-4 w-4" />}
+                {uploadLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Feltöltés és csatolás
               </Button>
             </form>

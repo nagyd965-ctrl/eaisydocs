@@ -246,7 +246,7 @@ export function EmployeeKpiCard({
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-blue-500" />
                         <span className="font-medium text-sm">Önértékelésedet leadtad</span>
-                        <Badge className="bg-success/10 text-success border-0 text-[10px]">✓ Elküldve</Badge>
+                        <Badge className="bg-success/10 text-success border-0 text-[10px]">Elküldve</Badge>
                       </div>
                       <p className="text-sm bg-blue-500/5 p-3 rounded-md border border-blue-500/20">
                         {kpi.onertekeles_szovege}

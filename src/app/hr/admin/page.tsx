@@ -184,8 +184,8 @@ export default async function HrAdminPage() {
                 <span className="text-sm">{alert.message}</span>
               </div>
               <Link href="/hr/onboarding">
-                <Button variant="ghost" size="sm" className="shrink-0 h-7 text-xs gap-1">
-                  Megtekintés <ChevronRight className="w-3 h-3" />
+                <Button variant="ghost" size="sm" className="shrink-0 h-7 text-xs">
+                  Megtekintés
                 </Button>
               </Link>
             </div>
@@ -201,8 +201,7 @@ export default async function HrAdminPage() {
             Dolgozói Törzsadatbázis
           </CardTitle>
           <Link href="/hr/recruitment">
-            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
-              <UserPlus className="w-3.5 h-3.5" />
+            <Button variant="outline" size="sm" className="h-8 text-xs">
               Toborzás kezelése
             </Button>
           </Link>

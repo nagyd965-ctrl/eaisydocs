@@ -102,7 +102,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
             <Lock className="w-8 h-8" />
           </div>
           <div>
-            <h2 className="text-2xl font-semibold text-foreground tracking-tight">🔒 Hozzáférés Megtagadva: Bizalmas Ügyirat</h2>
+            <h2 className="text-2xl font-semibold text-foreground tracking-tight">Hozzáférés Megtagadva: Bizalmas Ügyirat</h2>
             <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
               A jelen ügyirat (<strong>{existingDossier.iktatoszam}</strong>) megtekintéséhez magasabb biztonsági minősítés (Bizalmas / Szigorúan bizalmas) szükséges.
             </p>
@@ -114,8 +114,8 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
             </span>
           </div>
           <div className="pt-2">
-            <Button render={<Link href="/dossiers" />} nativeButton={false} className="gap-2">
-              <ArrowLeft className="w-4 h-4" /> Vissza az iktatókönyvhöz
+            <Button render={<Link href="/dossiers" />} nativeButton={false}>
+              Vissza az iktatókönyvhöz
             </Button>
           </div>
         </div>

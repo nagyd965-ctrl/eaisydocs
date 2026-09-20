@@ -89,7 +89,6 @@ export function ReplyDialogClient({ toEmail, originalSubject, iratId, partnerNev
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
       <DialogTrigger className={buttonVariants({ variant: "default" })}>
-        <Reply className="mr-2 h-4 w-4" />
         Válasz
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl">
@@ -166,10 +165,7 @@ export function ReplyDialogClient({ toEmail, originalSubject, iratId, partnerNev
                 Küldés folyamatban...
               </>
             ) : (
-              <>
-                <Send className="mr-2 h-4 w-4" />
-                Küldés
-              </>
+              "Küldés"
             )}
           </Button>
         </div>

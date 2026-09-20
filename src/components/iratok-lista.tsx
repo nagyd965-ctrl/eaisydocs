@@ -261,7 +261,7 @@ export function IratokLista({
                                 className="text-[10px] px-1.5 py-0 h-4 shrink-0 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-medium" 
                                 title="PDF/A archiválási szabványnak megfelelő hiteles példány elkészült és letölthető"
                               >
-                                PDF/A Kész ✓
+                                PDF/A Kész
                               </Badge>
                             ) : (
                               <Badge 
@@ -342,10 +342,9 @@ export function IratokLista({
                           disabled={downloadingId === irat.id}
                           title="Eredeti feltöltött fájl letöltése"
                         >
-                          {downloadingId === irat.id 
-                            ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                            : <Download className="mr-1.5 h-3.5 w-3.5" />
-                          }
+                          {downloadingId === irat.id && (
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          )}
                           Fájl
                         </Button>
                         {irat.irat_fajl?.some(f => f.pdfa_path) && (
@@ -357,10 +356,9 @@ export function IratokLista({
                             disabled={downloadingId === irat.id + "_pdfa"}
                             title="Archiválási PDF/A hiteles változat letöltése"
                           >
-                            {downloadingId === irat.id + "_pdfa" 
-                              ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                              : <Download className="mr-1.5 h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                            }
+                            {downloadingId === irat.id + "_pdfa" && (
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                            )}
                             PDF/A
                           </Button>
                         )}

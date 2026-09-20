@@ -56,7 +56,7 @@ export function AddTaskDialog({ ugyiratId, users }: AddTaskDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Button size="sm" onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4 mr-2" /> Új Feladat
+        Új Feladat
       </Button>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>

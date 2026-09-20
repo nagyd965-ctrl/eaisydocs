@@ -183,7 +183,7 @@ export default async function SelfServicePage() {
               ? "bg-white/10 text-white/70 border-white/20"
               : "bg-white/10 text-white/70 border-white/20"
           }`}>
-            {timeStatus === "checked_in" ? "🟢 Becsekkolva" : timeStatus === "checked_out" ? "✅ Mai nap lezárva" : "⚪ Még nincs becsekkolva"}
+            {timeStatus === "checked_in" ? "Becsekkolva" : timeStatus === "checked_out" ? "Mai nap lezárva" : "Még nincs becsekkolva"}
           </span>
           <p className="text-primary-foreground/60 text-xs">
             {new Date().toLocaleDateString("hu-HU", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}

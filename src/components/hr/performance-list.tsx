@@ -82,9 +82,9 @@ export function PerformanceList({
         const avgScore = Math.round(emp.kpis.reduce((acc: number, curr: any) => acc + (curr.pontszam || 0), 0) / emp.kpis.length)
         const closedCount = emp.kpis.filter((k: any) => deriveWorkflowPhase(k) === "lezart").length
         
-        let bonusProps = { label: "Fejlesztendő", color: "text-destructive", bg: "bg-destructive/10", icon: "⚠️" }
-        if (avgScore >= 85) bonusProps = { label: "Kiváló Prémium", color: "text-success", bg: "bg-success/10", icon: "🏆" }
-        else if (avgScore >= 60) bonusProps = { label: "Normál Bónusz", color: "text-warning", bg: "bg-warning/10", icon: "📊" }
+        let bonusProps = { label: "Fejlesztendő", color: "text-destructive", bg: "bg-destructive/10" }
+        if (avgScore >= 85) bonusProps = { label: "Kiváló Prémium", color: "text-success", bg: "bg-success/10" }
+        else if (avgScore >= 60) bonusProps = { label: "Normál Bónusz", color: "text-warning", bg: "bg-warning/10" }
 
         return (
           <Card key={emp.id} className="overflow-hidden">
@@ -122,7 +122,6 @@ export function PerformanceList({
                     </div>
                   </div>
                   <Badge variant="outline" className={`${bonusProps.color} ${bonusProps.bg} border-0 font-medium text-[10px] uppercase px-2 py-1`}>
-                    <span className="mr-1">{bonusProps.icon}</span>
                     {bonusProps.label}
                   </Badge>
                 </div>
@@ -445,10 +444,10 @@ export function PerformanceList({
                                   const { finalCloseKpi } = await import("@/app/hr/performance/actions");
                                   const res = await finalCloseKpi(kpi.id);
                                   if (res?.error) toast.error(res.error);
-                                  else toast.success("Célkitűzés véglegesen lezárva! 🎉");
+                                  else toast.success("Célkitűzés véglegesen lezárva!");
                                 }}
                               >
-                                <Lock className="w-4 h-4 mr-2" /> Célkitűzés Végleges Lezárása
+                                Célkitűzés Végleges Lezárása
                               </Button>
                             )}
 

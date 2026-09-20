@@ -164,7 +164,6 @@ export function TableToolbar({
                   : "bg-primary text-primary-foreground hover:bg-primary/90"
               )}
             >
-              <Filter className="h-4 w-4" />
               <span>Szűrés</span>
               {totalActiveCount > 0 && (
                 <Badge
@@ -273,7 +272,6 @@ export function TableToolbar({
                   disabled={!hasActiveFilters}
                   className="h-8 text-xs gap-1.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
                 >
-                  <X className="h-3.5 w-3.5" />
                   Szűrők törlése
                 </Button>
               </div>

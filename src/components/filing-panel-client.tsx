@@ -330,10 +330,7 @@ export function FilingPanelClient({
                     <span>Kiolvasás (OCR)...</span>
                   </>
                 ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2 text-primary" />
-                    <span>AI Kitöltés</span>
-                  </>
+                  <span>AI Kitöltés</span>
                 )}
               </Button>
               {aiHasRun && (
@@ -745,10 +742,7 @@ export function FilingPanelClient({
                   <span>Iktatás folyamatban...</span>
                 </>
               ) : (
-                <>
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  <span>Jóváhagyás és iktatás</span>
-                </>
+                <span>Jóváhagyás és iktatás</span>
               )}
             </Button>
           </div>

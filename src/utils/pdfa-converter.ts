@@ -54,7 +54,7 @@ export async function convertToPdfA(inputBuffer: Buffer): Promise<{ buffer: Buff
     return { buffer: convertedBuffer, isFallback: false }
 
   } catch (error) {
-    console.warn('⚠️ PDF/A conversion failed or Ghostscript is not installed. Falling back to original PDF.', error)
+    console.warn('PDF/A conversion failed or Ghostscript is not installed. Falling back to original PDF.', error)
     
     // Cleanup temporary files on failure
     await cleanup([inputPath, outputPath])
