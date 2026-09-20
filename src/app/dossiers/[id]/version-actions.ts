@@ -112,7 +112,6 @@ export async function uploadDocumentNewVersion(iratId: string, ugyiratId: string
   // 3. Rekord mentése az irat_fajl táblába
   const { error: insertError } = await supabase.from("irat_fajl").insert({
     irat_id: iratId,
-    fajlnev: file.name,
     eredeti_fajlnev: file.name,
     meret_byte: file.size,
     mime_type: file.type || "application/octet-stream",
