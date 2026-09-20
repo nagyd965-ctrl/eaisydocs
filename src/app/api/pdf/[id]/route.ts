@@ -83,20 +83,21 @@ export async function GET(
 
   const searchParams = request.nextUrl.searchParams
   const fileId = searchParams.get('fileId')
+  const isPdfaRequested = searchParams.get('pdfa') === 'true'
 
   // 3. Fetch file details
   let fileQuery = supabase
     .from("irat_fajl")
-    .select("storage_path, mime_type, kulso_fajl_url")
+    .select("storage_path, pdfa_path, mime_type, kulso_fajl_url, eredeti_fajlnev")
     .eq("irat_id", iratId)
 
   if (fileId) {
     fileQuery = fileQuery.eq("id", fileId)
   }
 
-  const { data: fajl } = await fileQuery.select("storage_path, mime_type, kulso_fajl_url, eredeti_fajlnev").limit(1).single()
+  const { data: fajl } = await fileQuery.limit(1).single()
 
-  if (!fajl || (!fajl.storage_path && !fajl.kulso_fajl_url)) {
+  if (!fajl || (!fajl.storage_path && !fajl.kulso_fajl_url && !fajl.pdfa_path)) {
     return new NextResponse("Fájl nem található az irathoz", { status: 404 })
   }
 
@@ -187,8 +188,11 @@ export async function GET(
     console.error("Audit naplózási hiba PDF megtekintéskor:", auditErr)
   }
 
-  // Ha külső forrásból származik a fájl (pl. eaisyBill)
-  if (fajl.kulso_fajl_url) {
+  // Ha PDF/A változatot kértek és rendelkezésre áll, a helyi irat_files tárolóból töltjük le
+  const targetStoragePath = (isPdfaRequested && fajl.pdfa_path) ? fajl.pdfa_path : fajl.storage_path
+
+  // Ha nem PDF/A és külső forrásból származik az eredeti fájl (pl. eaisyBill)
+  if (!isPdfaRequested && fajl.kulso_fajl_url) {
     try {
       const resp = await fetch(fajl.kulso_fajl_url)
       if (!resp.ok) {
@@ -203,10 +207,14 @@ export async function GET(
     }
   }
 
-  // Helyi Supabase Storage fájl
+  // Helyi Supabase Storage fájl (eredeti vagy konvertált PDF/A)
+  if (!targetStoragePath) {
+    return new NextResponse("A kért fájl útvonala nem található", { status: 404 })
+  }
+
   const { data: fileData, error: downloadError } = await supabase.storage
     .from("irat_files")
-    .download(fajl.storage_path)
+    .download(targetStoragePath)
 
   if (downloadError || !fileData) {
     // Fallback to service role client if RLS is too restrictive for direct download in edge
@@ -218,7 +226,7 @@ export async function GET(
       )
       const { data: adminFileData, error: adminDownloadError } = await supabaseAdmin.storage
         .from("irat_files")
-        .download(fajl.storage_path)
+        .download(targetStoragePath)
         
       if (adminDownloadError || !adminFileData) {
         return new NextResponse("Fájl letöltése sikertelen", { status: 500 })

@@ -108,7 +108,7 @@ export function IratokLista({
     const storagePath = (usePdfa && fajl.pdfa_path) ? fajl.pdfa_path : fajl.storage_path
     setDownloadingId(irat.id + (usePdfa ? "_pdfa" : ""))
     try {
-      const result = await getDocumentSignedUrl(storagePath, irat.id, fajl.id)
+      const result = await getDocumentSignedUrl(storagePath, irat.id, fajl.id, usePdfa)
       if (result.error) {
         toast.error(result.error)
         return

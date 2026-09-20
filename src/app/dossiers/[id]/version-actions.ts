@@ -110,22 +110,34 @@ export async function uploadDocumentNewVersion(iratId: string, ugyiratId: string
   }
 
   // 3. Rekord mentése az irat_fajl táblába
-  const { error: insertError } = await supabase.from("irat_fajl").insert({
-    irat_id: iratId,
-    eredeti_fajlnev: file.name,
-    meret_byte: file.size,
-    mime_type: file.type || "application/octet-stream",
-    storage_path: fileName,
-    sha256: hash,
-    ocr_szoveg: ocr_szoveg,
-    verzio: nextVersion
-  })
+  const { data: insertedFajl, error: insertError } = await supabase
+    .from("irat_fajl")
+    .insert({
+      irat_id: iratId,
+      eredeti_fajlnev: file.name,
+      meret_byte: file.size,
+      mime_type: file.type || "application/octet-stream",
+      storage_path: fileName,
+      sha256: hash,
+      ocr_szoveg: ocr_szoveg,
+      verzio: nextVersion
+    })
+    .select("id")
+    .single()
 
   if (insertError) {
     return { error: "Hiba a fájl verzió rögzítésekor: " + insertError.message }
   }
 
-  // 4. Audit naplózás
+  // 4. Háttérsorba állítás PDF/A konverzióhoz
+  try {
+    const { enqueuePdfaConversion } = await import("@/utils/ai-worker-service")
+    await enqueuePdfaConversion(iratId, insertedFajl?.id, supabase)
+  } catch (pdfaErr) {
+    console.warn("[VersionUpload] PDF/A enqueue error:", pdfaErr)
+  }
+
+  // 5. Audit naplózás
   const { ip, userAgent } = await getClientInfo()
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",

@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server"
 
-export async function getDocumentSignedUrl(filePath: string, iratId: string, fileId?: string) {
+export async function getDocumentSignedUrl(filePath: string, iratId: string, fileId?: string, isPdfa?: boolean) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -47,12 +47,16 @@ export async function getDocumentSignedUrl(filePath: string, iratId: string, fil
     entitas_id: iratId,
     esemeny_tipus: "megtekintve",
     user_id: user.id,
-    uj_ertek: { fajl: filePath, akcio: "megtekintes_biztonsagos_api_vegponton" },
+    uj_ertek: { fajl: filePath, isPdfa: !!isPdfa, akcio: "megtekintes_biztonsagos_api_vegponton" },
     ip_cim: ip,
     user_agent: userAgent
   })
 
-  // Return our secure internal API route with specific fileId so the correct file is loaded
-  const url = fileId ? `/api/pdf/${iratId}?fileId=${fileId}` : `/api/pdf/${iratId}`
+  // Return our secure internal API route with specific fileId & pdfa parameter
+  const params = new URLSearchParams()
+  if (fileId) params.set("fileId", fileId)
+  if (isPdfa) params.set("pdfa", "true")
+  const queryStr = params.toString()
+  const url = queryStr ? `/api/pdf/${iratId}?${queryStr}` : `/api/pdf/${iratId}`
   return { signedUrl: url }
 }

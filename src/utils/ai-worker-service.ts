@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import crypto from "crypto"
 import { updateIratEmbedding } from "./embedding-service"
 import { checkSavedSearchesForNewIrat } from "./saved-search-alerts"
 
@@ -47,6 +48,8 @@ export async function enqueuePdfaConversion(iratId: string, fajlId?: string, cli
         fajl_id: fajlId || null,
         feladat_tipus: "pdfa_conversion",
         statusz: "fuggoben",
+        probalkozasok_szama: 0,
+        utolso_hiba: null,
         kovetkezo_futtatas: new Date().toISOString(),
       },
       { onConflict: "irat_id, feladat_tipus" }
@@ -124,33 +127,67 @@ export async function processTask(task: ClaimedTask): Promise<{ success: boolean
     }
 
     if (task.task_tipus === "pdfa_conversion") {
-      let fajlQuery = supabase.from("irat_fajl").select("id, storage_path, pdfa_path, eredeti_fajlnev")
-      if (task.task_fajl_id) {
-        fajlQuery = fajlQuery.eq("id", task.task_fajl_id)
-      } else {
-        fajlQuery = fajlQuery.eq("irat_id", task.task_irat_id)
+      // Find all files belonging to this irat that still need PDF/A conversion
+      const { data: allIratFiles, error: fetchErr } = await supabase
+        .from("irat_fajl")
+        .select("id, storage_path, pdfa_path, eredeti_fajlnev, kulso_fajl_url")
+        .eq("irat_id", task.task_irat_id)
+
+      if (fetchErr) {
+        throw new Error("Hiba a fájlok lekérdezésekor a PDF/A konverzióhoz: " + fetchErr.message)
       }
-      const { data: fajlok, error: fetchErr } = await fajlQuery.limit(1)
-      const fajl = fajlok?.[0]
-      if (fetchErr || !fajl) {
+
+      if (!allIratFiles || allIratFiles.length === 0) {
         throw new Error("Fájl rekord nem található a PDF/A konverzióhoz")
       }
 
-      if (!fajl.pdfa_path && fajl.storage_path) {
-        const { data: fileData, error: downloadError } = await supabase.storage
-          .from("irat_files")
-          .download(fajl.storage_path)
+      // Filter files to those that either match task_fajl_id or have no pdfa_path yet
+      let filesToConvert = allIratFiles.filter((f) => !f.pdfa_path)
+      if (task.task_fajl_id) {
+        const specificFile = allIratFiles.find((f) => f.id === task.task_fajl_id)
+        if (specificFile && !specificFile.pdfa_path && !filesToConvert.some((f) => f.id === specificFile.id)) {
+          filesToConvert.push(specificFile)
+        }
+      }
 
-        if (downloadError || !fileData) {
-          throw new Error("Nem sikerült letölteni a fájlt a Supabase Storage-ból: " + downloadError?.message)
+      const { convertToPdfA } = await import("@/utils/pdfa-converter")
+
+      for (const fajl of filesToConvert) {
+        let inputBuffer: Buffer
+
+        if (fajl.kulso_fajl_url) {
+          const resp = await fetch(fajl.kulso_fajl_url)
+          if (!resp.ok) {
+            throw new Error(`Nem sikerült letölteni a külső fájlt (${resp.status} ${resp.statusText}): ${fajl.kulso_fajl_url}`)
+          }
+          inputBuffer = Buffer.from(await resp.arrayBuffer())
+        } else if (fajl.storage_path) {
+          const { data: fileData, error: downloadError } = await supabase.storage
+            .from("irat_files")
+            .download(fajl.storage_path)
+
+          if (downloadError || !fileData) {
+            throw new Error("Nem sikerült letölteni a fájlt a Supabase Storage-ból: " + downloadError?.message)
+          }
+
+          inputBuffer = Buffer.from(await fileData.arrayBuffer())
+        } else {
+          continue
         }
 
-        const inputBuffer = Buffer.from(await fileData.arrayBuffer())
-        const { convertToPdfA } = await import("@/utils/pdfa-converter")
         const { buffer: pdfaBuffer } = await convertToPdfA(inputBuffer)
 
-        const ext = fajl.eredeti_fajlnev?.split(".").pop() || "pdf"
-        const newStoragePath = fajl.storage_path.replace(new RegExp(`\\.${ext}$`, "i"), "_pdfa.pdf")
+        let newStoragePath: string
+        if (fajl.storage_path && !fajl.storage_path.startsWith("eaisybill:")) {
+          const dotIndex = fajl.storage_path.lastIndexOf(".")
+          if (dotIndex !== -1) {
+            newStoragePath = fajl.storage_path.slice(0, dotIndex) + "_pdfa.pdf"
+          } else {
+            newStoragePath = `${fajl.storage_path}_pdfa.pdf`
+          }
+        } else {
+          newStoragePath = `${crypto.randomUUID()}_pdfa.pdf`
+        }
 
         const { error: uploadError } = await supabase.storage
           .from("irat_files")

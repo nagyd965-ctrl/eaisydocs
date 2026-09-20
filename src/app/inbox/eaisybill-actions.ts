@@ -210,7 +210,7 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
     .update(invoice.id)
     .digest("hex")
 
-  const { error: fajlError } = await docsClient
+  const { data: fajlResult, error: fajlError } = await docsClient
     .from("irat_fajl")
     .insert({
       irat_id:          iratData.id,
@@ -221,20 +221,28 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
       meret_byte:       0,
       sha256:           placeholderHash,
     })
+    .select("id")
+    .single()
 
   if (fajlError) {
     return { success: false, error: "Fájl rekord hiba: " + fajlError.message }
   }
 
-  // Fire-and-forget mentett keresések értesítése (az embeddinget a háttérben az ai_feladat_sor és worker végzi)
-  (async () => {
-    try {
-      const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
-      await checkSavedSearchesForNewIrat(iratData.id, docsClient)
-    } catch (bgErr) {
-      console.error("[eaisyBill Import] Error in background alert processing:", bgErr)
-    }
-  })().catch(console.error)
+  // Háttér PDF/A konverzió sorba állítása
+  try {
+    const { enqueuePdfaConversion } = await import("@/utils/ai-worker-service")
+    await enqueuePdfaConversion(iratData.id, fajlResult?.id, docsClient)
+  } catch (pdfaErr) {
+    console.warn("[eaisyBill Import] PDF/A enqueue error:", pdfaErr)
+  }
+
+  // Mentett keresések értesítése
+  try {
+    const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
+    await checkSavedSearchesForNewIrat(iratData.id, docsClient)
+  } catch (bgErr) {
+    console.error("[eaisyBill Import] Error in background alert processing:", bgErr)
+  }
 
   revalidatePath("/inbox")
   return { success: true, erkeztetoszam }
