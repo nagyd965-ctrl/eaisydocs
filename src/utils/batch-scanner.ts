@@ -56,7 +56,6 @@ export interface IngestedDocumentResult {
  */
 export async function extractPagesText(buffer: Buffer): Promise<string[]> {
   try {
-    // eslint-disable-next-line no-eval
     const pdfParseModule = eval('require("pdf-parse")')
 
     if (pdfParseModule?.PDFParse) {

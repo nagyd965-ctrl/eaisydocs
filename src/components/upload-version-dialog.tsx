@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { uploadDocumentNewVersion } from "@/app/dossiers/[id]/version-actions"
 import { toast } from "sonner"
-import { Upload, Loader2, FileUp } from "lucide-react"
+import { Upload, Loader2 } from "lucide-react"
 
 interface UploadVersionDialogProps {
   iratId: string

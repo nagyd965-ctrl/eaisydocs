@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, Columns3, Filter, X, Calendar } from "lucide-react"
+import { Search, Columns3, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"

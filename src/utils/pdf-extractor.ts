@@ -4,7 +4,6 @@
  */
 export async function extractPdfText(buffer: Buffer): Promise<string> {
   try {
-    // eslint-disable-next-line no-eval
     const pdfParseModule = eval('require("pdf-parse")')
     if (typeof pdfParseModule === "function") {
       const result = await pdfParseModule(buffer)

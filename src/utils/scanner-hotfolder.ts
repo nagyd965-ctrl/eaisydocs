@@ -61,10 +61,10 @@ async function isFileReady(filePath: string, checkDelayMs = 1000): Promise<boole
       const handle = await fs.open(filePath, "r+")
       await handle.close()
       return true
-    } catch (_lockErr) {
+    } catch {
       return false
     }
-  } catch (_err) {
+  } catch {
     return false
   }
 }

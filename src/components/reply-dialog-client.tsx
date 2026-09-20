@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Reply, Send, Loader2, Mail } from "lucide-react"
+import { Loader2, Mail } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"

@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { FileOutput, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { generateFromTemplate } from "@/app/dossiers/[id]/template-actions"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"

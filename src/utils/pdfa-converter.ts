@@ -68,7 +68,7 @@ async function cleanup(paths: string[]) {
   for (const p of paths) {
     try {
       await fs.unlink(p)
-    } catch (e) {
+    } catch (_e) {
       // Ignore cleanup errors (e.g., if file doesn't exist)
     }
   }

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { MessageSquare, CheckCircle2, Loader2, FileUp, Circle, ArrowRight, X, MoreHorizontal } from "lucide-react"
+import { MessageSquare, CheckCircle2, Loader2, Circle, ArrowRight, X, MoreHorizontal } from "lucide-react"
 import { toast } from "sonner"
 import { addComment, updateDossierStatus, uploadReply } from "@/app/dossiers/[id]/actions"
 import { updateTaskStatus } from "@/app/tasks/task-actions"
