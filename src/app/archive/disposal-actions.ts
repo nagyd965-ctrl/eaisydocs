@@ -17,6 +17,23 @@ export async function proposeDisposal(ugyiratIds: string[], note?: string) {
     return { error: "Nincs kiválasztva felterjesztendő ügyirat." }
   }
 
+  // Ellenőrizzük, hogy csak irattárban lévő ügyiratot lehessen felterjeszteni
+  const { data: dossiersToPropose } = await supabase
+    .from("ugyirat")
+    .select("id, iktatoszam, statusz, megorzesi_ido_vege")
+    .in("id", ugyiratIds)
+
+  if (!dossiersToPropose || dossiersToPropose.length === 0) {
+    return { error: "Nem találhatók a kiválasztott ügyiratok." }
+  }
+
+  const notInArchive = dossiersToPropose.filter((d) => d.statusz !== "irattarban")
+  if (notInArchive.length > 0) {
+    return {
+      error: `Csak irattárban lévő ügyiratot lehet selejtezésre felterjeszteni! Nem megfelelő: ${notInArchive.map((d) => d.iktatoszam).join(", ")}`,
+    }
+  }
+
   // Létrehozunk egy új Selejtezési Csomagot
   const { data: csomag, error: csomagError } = await supabase
     .from("selejtezes_csomag")
@@ -224,7 +241,7 @@ export async function approveDisposal(
   }
 
   // Párhuzamos jóváhagyás elleni védelem: ellenőrizzük a státuszokat
-  const alreadyDisposed = dossierDetails.filter(d => d.statusz === "selejtezett")
+  const alreadyDisposed = dossierDetails.filter((d) => d.statusz === "selejtezett" || (d.ugy as any)?.statusz === "selejtezett")
   if (alreadyDisposed.length > 0) {
     return {
       error: `A kiválasztott ügyiratok közül az alábbiakat már jóváhagyták és selejtezték: ${alreadyDisposed.map(d => d.iktatoszam).join(", ")}`
@@ -283,6 +300,9 @@ export async function approveDisposal(
       if (item.ugy_id) {
         await dbAdmin.from("ugy").update({ statusz: "selejtezett" }).eq("id", item.ugy_id)
       }
+
+      // Ügyirat státuszának átállítása "selejtezett"-re
+      await dbAdmin.from("ugyirat").update({ statusz: "selejtezett" }).eq("id", item.id)
 
       // Eseménynapló bejegyzés
       await supabase.from("esemeny_naplo").insert({
