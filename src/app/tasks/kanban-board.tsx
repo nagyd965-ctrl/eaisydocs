@@ -96,7 +96,6 @@ function TaskCardContent({ task, isOverdue }: { task: Task; isOverdue: boolean }
           {isOverdue ? <AlertCircle className="h-3 w-3" /> : <Calendar className="h-3 w-3" />}
           {format(new Date(task.hatarido), "yyyy. MM. dd.", { locale: hu })}
         </span>
-        <span className="text-[10px] text-muted-foreground opacity-60">2x kattintás: megnyitás</span>
       </div>
     </CardContent>
   )
