@@ -45,9 +45,6 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
     return { success: false, error: "Adatbázis hiba a kölcsönzés során." }
   }
 
-  // Frissítjük az irat pillanatnyi helyét
-  await supabase.from("irat").update({ helye: `Kikölcsönözve (${kinek?.nev || 'Munkatárs'})` }).eq("id", iratId)
-
   // Eseménynapló rögzítése
   const { data: irat } = await supabase.from("irat").select("ugyirat_id, targy").eq("id", iratId).single()
   
@@ -96,8 +93,7 @@ export async function returnDocument(kolcsonzesId: string) {
     ugyiratId = irat?.ugyirat_id;
     const { data: kinek } = await supabase.from("felhasznalo_profil").select("nev").eq("id", log.kinek_user_id).single()
     
-    // Helyzet visszaállítása Irattárra
-    await supabase.from("irat").update({ helye: "Irattár" }).eq("id", log.irat_id)
+    // Eseménynapló rögzítése
 
     const { ip, userAgent } = await getClientInfo()
     await supabase.from("esemeny_naplo").insert({

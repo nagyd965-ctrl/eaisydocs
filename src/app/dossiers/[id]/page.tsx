@@ -212,7 +212,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       icon = "folder-plus";
       color = "text-primary";
     } else if (log.esemeny_tipus === "szignalva" || log.esemeny_tipus === "hozzaferes_modositas") {
-      title = "Hozzáférés módosítva";
+      title = log.esemeny_tipus === "szignalva" ? "Ügyirat szignálva / Felelős kijelölve" : "Hozzáférés módosítva";
       description = log.indoklas || log.reszletek || log.uj_ertek?.megjegyzes || "";
       icon = "users";
       color = "text-warning";

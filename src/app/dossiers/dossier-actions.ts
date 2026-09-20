@@ -83,15 +83,29 @@ export async function assignDossier(formData: FormData) {
   // 3. Log event
   if (user) {
     let reszletek = `Felelős frissítve.`
+    if (felelos_user_id && felelos_user_id !== "none") {
+      const { data: felelosProfile } = await supabase
+        .from("felhasznalo_profil")
+        .select("nev")
+        .eq("id", felelos_user_id)
+        .maybeSingle()
+      if (felelosProfile?.nev) {
+        reszletek = `Felelős kijelölve: ${felelosProfile.nev}.`
+      }
+    } else if (felelos_user_id === "none") {
+      reszletek = `Felelős eltávolítva.`
+    }
     if (hatarido) reszletek += ` Határidő: ${hatarido}.`
+
     const { getClientInfo } = await import("@/utils/client-info")
     const { ip, userAgent } = await getClientInfo()
     await supabase.from("esemeny_naplo").insert({
-      irat_id: null,
-      ugyirat_id: ugyirat_id,
-      felhasznalo_id: user.id,
-      esemeny_tipus: 'hozzaferes_modositas',
-      reszletek: reszletek,
+      entitas_tipus: 'ugyirat',
+      entitas_id: ugyirat_id,
+      user_id: user.id,
+      esemeny_tipus: 'szignalva',
+      indoklas: reszletek,
+      uj_ertek: { felelos_user_id, hatarido },
       ip_cim: ip,
       user_agent: userAgent
     })
