@@ -145,14 +145,16 @@ export function FilingDialog({
                       <SelectValue placeholder="Válassz egy meglévő ügyiratot..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {ugyiratok.map((u) => {
-                        const ugyTargy = Array.isArray(u.ugy) ? u.ugy[0]?.targy : u.ugy?.targy
-                        return (
-                          <SelectItem key={u.id} value={u.id}>
-                            {u.iktatoszam} - {ugyTargy}
-                          </SelectItem>
-                        )
-                      })}
+                      {ugyiratok
+                        .filter((u) => !["irattarban", "lezart", "selejtezheto", "selejtezett"].includes(u.statusz))
+                        .map((u) => {
+                          const ugyTargy = Array.isArray(u.ugy) ? u.ugy[0]?.targy : u.ugy?.targy
+                          return (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.iktatoszam} - {ugyTargy}
+                            </SelectItem>
+                          )
+                        })}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">Az irat új alszámot kap a kiválasztott ügyiraton belül.</p>

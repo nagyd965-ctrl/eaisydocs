@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { fileIncomingDocument, generateAISuggestions, clearAICacheAndRerun } from "@/app/inbox/filing-actions"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
@@ -97,6 +97,13 @@ export function FilingPanelClient({
   const [existingUgyiratId, setExistingUgyiratId] = useState<string>(
     isInitialAntecedent && antecedentSuggestion?.ugyirat_id ? antecedentSuggestion.ugyirat_id : ""
   )
+
+  // Csak azok az ügyiratok, amelyek nincsenek lezárva, irattározva vagy selejtezve
+  const attachableUgyiratok = useMemo(() => {
+    return (ugyiratok || []).filter(
+      (u) => !["irattarban", "lezart", "selejtezheto", "selejtezett"].includes(u.statusz)
+    )
+  }, [ugyiratok])
 
   // AI és előzmény állapotok
   const [aiLoading, setAiLoading] = useState(false)
@@ -693,30 +700,25 @@ export function FilingPanelClient({
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {ugyiratok.map((u) => {
+                          {attachableUgyiratok.map((u) => {
                             const targyStr = Array.isArray(u.ugy) ? u.ugy[0]?.targy : u.ugy?.targy;
-                            const isClosed = ["irattarban", "lezart", "selejtezheto", "selejtezett"].includes(u.statusz);
-                            const statusLabel = u.statusz === "irattarban" ? "Irattárban" : u.statusz === "lezart" ? "Lezárt" : u.statusz === "selejtezett" ? "Selejtezett" : "Selejtezhető";
                             return (
                               <SelectItem 
                                 key={u.id} 
                                 value={u.id} 
-                                disabled={isClosed}
-                                label={`${u.iktatoszam} - ${targyStr || ''}${isClosed ? ` [${statusLabel}]` : ''}`}
+                                label={`${u.iktatoszam} - ${targyStr || ''}`}
                               >
-                                <div className="flex items-center justify-between w-full gap-2">
-                                  <span className={isClosed ? "text-muted-foreground opacity-60 line-through" : ""}>
-                                    {u.iktatoszam} - {targyStr}
-                                  </span>
-                                  {isClosed && (
-                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-muted-foreground/30 text-muted-foreground shrink-0 font-normal">
-                                      {statusLabel}
-                                    </Badge>
-                                  )}
-                                </div>
+                                <span>
+                                  {u.iktatoszam} - {targyStr}
+                                </span>
                               </SelectItem>
                             );
                           })}
+                          {attachableUgyiratok.length === 0 && (
+                            <div className="p-3 text-xs text-muted-foreground text-center">
+                              Nincs aktív, folyamatban lévő ügyirat, amelyhez csatolni lehetne.
+                            </div>
+                          )}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground mt-1">
