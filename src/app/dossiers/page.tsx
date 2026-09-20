@@ -15,6 +15,7 @@ export default async function DossiersPage() {
       iktatoszam,
       statusz,
       iktatas_datuma,
+      megorzesi_ido_vege,
       szervezeti_egyseg_id,
       ugy!inner ( id, targy, hatarido, statusz, felelos_user_id ),
       irat ( id, minosites )
@@ -36,23 +37,37 @@ export default async function DossiersPage() {
   const permissions = getPermissions(currentUserProfile?.docs_szerepkor)
   const canAssign = permissions.canAssign
 
-  // Felhasználók lekérése memóriába
+  // Felhasználók és szervezeti egységek lekérése memóriába
   const { data: users } = await supabase
     .from("felhasznalo_profil")
     .select("id, nev, docs_szerepkor, szervezeti_egyseg_id")
+
+  const { data: depts } = await supabase
+    .from("szervezeti_egyseg")
+    .select("id, nev")
 
   const userMap = (users || []).reduce((acc: any, user: any) => {
     acc[user.id] = user.nev
     return acc
   }, {})
 
-  // Map dossiers to include user name
+  const deptMap = (depts || []).reduce((acc: any, dept: any) => {
+    acc[dept.id] = dept.nev
+    return acc
+  }, {})
+
+  // Map dossiers to include user name and department name
   const mappedDossiers = (dossiers || []).map((d: any) => {
     const ugy = d.ugy as any
     if (ugy && ugy.felelos_user_id) {
       ugy.felelos_user = {
         id: ugy.felelos_user_id,
         full_name: userMap[ugy.felelos_user_id],
+      }
+    }
+    if (d.szervezeti_egyseg_id) {
+      d.szervezeti_egyseg = {
+        nev: deptMap[d.szervezeti_egyseg_id] || "Egyéb",
       }
     }
     return d

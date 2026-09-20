@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Lock } from "lucide-react"
 import { StatusBadge } from "@/components/status-badge"
 import { AssignDossierDialog } from "@/components/assign-dossier-dialog"
-import { ExportCsvButton } from "@/components/export-csv-button"
+import { ExportDossiersDropdown } from "@/components/export-dossiers-dropdown"
 import { TableToolbar, TableColumnOption, FilterGroup } from "@/components/table-toolbar/table-toolbar"
 
 export interface DossierItem {
@@ -22,7 +22,11 @@ export interface DossierItem {
   iktatoszam: string
   statusz: string
   iktatas_datuma: string
+  megorzesi_ido_vege?: string | null
   szervezeti_egyseg_id: string
+  szervezeti_egyseg?: {
+    nev?: string | null
+  } | null
   ugy?: {
     id?: string
     targy?: string
@@ -218,7 +222,7 @@ export function DossiersTableClient({
         filterGroups={filterGroups}
         activeFiltersCount={activeFiltersCount}
         onClearFilters={handleClearFilters}
-        actions={<ExportCsvButton data={filteredDossiers as any} />}
+        actions={<ExportDossiersDropdown data={filteredDossiers as any} />}
       />
 
       {/* Táblázat */}
