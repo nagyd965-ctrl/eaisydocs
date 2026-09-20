@@ -26,8 +26,7 @@ export function AttachmentViewerClient({ iratId, fajlok }: AttachmentViewerProps
     <div className="space-y-6">
       {/* Csatolmányok listája */}
       <div className="border rounded-lg bg-card text-card-foreground shadow-sm p-4">
-        <h3 className="font-medium flex items-center gap-2 mb-4 text-sm">
-          <Paperclip className="h-4 w-4" />
+        <h3 className="font-medium mb-4 text-sm">
           Csatolmányok ({fajlok?.length || 0})
         </h3>
         

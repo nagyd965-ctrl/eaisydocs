@@ -90,10 +90,7 @@ export function AntecedentSuggestionCard({
     return (
       <Card className="border border-primary/30 bg-primary/5 dark:bg-primary/10 transition-all">
         <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-md bg-primary/15 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="h-5 w-5 text-primary" />
-            </div>
+          <div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-sm">Ügyirathoz kapcsolva</span>
@@ -129,10 +126,7 @@ export function AntecedentSuggestionCard({
     return (
       <Card className="border border-border/70 bg-card/50 transition-all">
         <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5">
-              <FolderPlus className="h-5 w-5 text-muted-foreground" />
-            </div>
+          <div>
             <div className="space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-sm">Előzmény-vizsgálat: Új téma</span>
@@ -149,7 +143,6 @@ export function AntecedentSuggestionCard({
             href={`/inbox/${iratId}?mode=new`}
             className={`${buttonVariants({ variant: "default", size: "sm" })} shrink-0`}
           >
-            <FolderPlus className="mr-2 h-4 w-4" />
             Új ügyirat nyitása
           </Link>
         </CardContent>
@@ -168,10 +161,7 @@ export function AntecedentSuggestionCard({
       <CardContent className="p-5 space-y-4">
         {/* Fejléc és egyezési fok */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-primary/15 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-md bg-primary/15 flex items-center justify-center shrink-0">
-              <Sparkles className="h-4 w-4 text-primary" />
-            </div>
+          <div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-semibold text-sm">Javasolt előzmény-ügyirat</h3>

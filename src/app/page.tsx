@@ -187,7 +187,6 @@ export default async function Dashboard() {
             <p className="text-sm text-primary-foreground/70">Jó munkát kívánunk a mai napra!</p>
           </div>
           <div className="flex items-center gap-2 text-sm text-primary-foreground/80">
-            <CalendarDays className="h-4 w-4" />
             <span className="capitalize">{todayFormatted}</span>
           </div>
         </div>
@@ -210,21 +209,13 @@ export default async function Dashboard() {
         
         {/* Saját feladataim */}
         <Card className="flex flex-col border border-border/50">
-          <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-3">
-            <div className="rounded-lg bg-primary/10 p-2">
-              <CheckCircle2 className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-base font-semibold">Saját feladataim</CardTitle>
-              <CardDescription className="text-xs">Rád szignált, nyitott feladatok</CardDescription>
-            </div>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Saját feladataim</CardTitle>
+            <CardDescription className="text-xs">Rád szignált, nyitott feladatok</CardDescription>
           </CardHeader>
           <CardContent className="flex-1 space-y-0">
             {(!myTasks || myTasks.length === 0) ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="rounded-xl bg-muted/50 p-3 mb-3">
-                  <CheckCircle2 className="h-6 w-6 text-muted-foreground/50" />
-                </div>
                 <p className="text-sm text-muted-foreground">Jelenleg nincs rád szignált nyitott feladat.</p>
               </div>
             ) : (
@@ -258,21 +249,13 @@ export default async function Dashboard() {
 
         {/* Lejáró határidők */}
         <Card className="flex flex-col border border-border/50">
-          <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-3">
-            <div className="rounded-lg bg-warning/10 p-2">
-              <AlertTriangle className="h-4 w-4 text-warning" />
-            </div>
-            <div>
-              <CardTitle className="text-base font-semibold">Lejáró határidők</CardTitle>
-              <CardDescription className="text-xs">Sürgős figyelmet igénylő ügyek</CardDescription>
-            </div>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Lejáró határidők</CardTitle>
+            <CardDescription className="text-xs">Sürgős figyelmet igénylő ügyek</CardDescription>
           </CardHeader>
           <CardContent className="flex-1 space-y-0">
             {(!expiringDossiers || expiringDossiers.length === 0) ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="rounded-xl bg-muted/50 p-3 mb-3">
-                  <Clock className="h-6 w-6 text-muted-foreground/50" />
-                </div>
                 <p className="text-sm text-muted-foreground">Nincsenek lejáró ügyek a látókörödben.</p>
               </div>
             ) : (
@@ -305,21 +288,13 @@ export default async function Dashboard() {
 
         {/* Új bejövő küldemények */}
         <Card className="flex flex-col border border-border/50">
-          <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-3">
-            <div className="rounded-lg bg-primary/10 p-2">
-              <Inbox className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-base font-semibold">Új bejövő küldemények</CardTitle>
-              <CardDescription className="text-xs">A legfrissebb beérkezett e-mailek és postai iratok</CardDescription>
-            </div>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Új bejövő küldemények</CardTitle>
+            <CardDescription className="text-xs">A legfrissebb beérkezett e-mailek és postai iratok</CardDescription>
           </CardHeader>
           <CardContent className="flex-1 space-y-0">
             {(!inboxItems || inboxItems.length === 0) ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="rounded-xl bg-muted/50 p-3 mb-3">
-                  <Inbox className="h-6 w-6 text-muted-foreground/50" />
-                </div>
                 <p className="text-sm text-muted-foreground">Nincs új bejövő küldemény.</p>
               </div>
             ) : (
@@ -354,21 +329,13 @@ export default async function Dashboard() {
 
         {/* Iktatási elmaradások */}
         <Card className="flex flex-col border border-border/50">
-          <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-3">
-            <div className="rounded-lg bg-info/10 p-2">
-              <FileText className="h-4 w-4 text-info" />
-            </div>
-            <div>
-              <CardTitle className="text-base font-semibold">Iktatási elmaradások</CardTitle>
-              <CardDescription className="text-xs">A legrégebbi, ügyhöz még nem rendelt iratok</CardDescription>
-            </div>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Iktatási elmaradások</CardTitle>
+            <CardDescription className="text-xs">A legrégebbi, ügyhöz még nem rendelt iratok</CardDescription>
           </CardHeader>
           <CardContent className="flex-1 space-y-0">
             {(!filingItems || filingItems.length === 0) ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="rounded-xl bg-muted/50 p-3 mb-3">
-                  <CheckCircle2 className="h-6 w-6 text-success/50" />
-                </div>
                 <p className="text-sm text-muted-foreground">Minden irat sikeresen le lett iktatva.</p>
               </div>
             ) : (

@@ -19,7 +19,6 @@ export function CollapsibleEventLog({ events }: CollapsibleEventLogProps) {
       <CardHeader className="pb-3 pt-4 px-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground" />
             <CardTitle className="text-base font-semibold">Eseménynapló</CardTitle>
             {events.length > 0 && (
               <span className="text-xs font-normal text-muted-foreground bg-muted rounded-full px-2 py-0.5">

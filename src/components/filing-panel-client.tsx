@@ -275,8 +275,7 @@ export function FilingPanelClient({
                 <ArrowLeft className="mr-1.5 h-4 w-4" />
                 Vissza
               </Button>
-              <div className="flex items-center text-sm font-medium text-foreground">
-                <FileText className="mr-2 h-4 w-4 text-primary" />
+              <div className="text-sm font-medium text-foreground">
                 Dokumentum előnézet
               </div>
             </div>
@@ -450,8 +449,7 @@ export function FilingPanelClient({
 
               {/* Ügy tárgya */}
               <div className="space-y-1.5">
-                <Label htmlFor="targy" className="text-xs font-medium flex items-center gap-1.5">
-                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                <Label htmlFor="targy" className="text-xs font-medium">
                   Ügy tárgya <span className="text-destructive">*</span>
                 </Label>
                 <Input 
@@ -469,8 +467,7 @@ export function FilingPanelClient({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Dokumentumtípus */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="dokumentum_tipus" className="text-xs font-medium flex items-center gap-1.5">
-                    <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Label htmlFor="dokumentum_tipus" className="text-xs font-medium">
                     Dokumentumtípus
                   </Label>
                   <Select 
@@ -495,8 +492,7 @@ export function FilingPanelClient({
 
                 {/* Hivatkozott ügyiratszám / szerződésszám */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="hivatkozott_szam" className="text-xs font-medium flex items-center gap-1.5">
-                    <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Label htmlFor="hivatkozott_szam" className="text-xs font-medium">
                     Hivatkozott szám
                   </Label>
                   <Input 
@@ -515,8 +511,7 @@ export function FilingPanelClient({
                 {/* Küldő partner */}
                 <div className="space-y-1.5 relative" ref={partnerInputRef}>
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="partner_nev" className="text-xs font-medium flex items-center gap-1.5">
-                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Label htmlFor="partner_nev" className="text-xs font-medium">
                       Küldő partner
                     </Label>
                     {partnerId && (
@@ -572,8 +567,7 @@ export function FilingPanelClient({
                 {/* Partner adószáma */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="partner_adoszam" className="text-xs font-medium flex items-center gap-1.5">
-                      <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Label htmlFor="partner_adoszam" className="text-xs font-medium">
                       Partner adószáma
                     </Label>
                     <span className="text-[10px] text-muted-foreground">kötőjellel vagy egybe</span>
@@ -594,8 +588,7 @@ export function FilingPanelClient({
 
               {/* Határidő */}
               <div className="space-y-1.5">
-                <Label htmlFor="hatarido" className="text-xs font-medium flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                <Label htmlFor="hatarido" className="text-xs font-medium">
                   Megjelölt határidő
                 </Label>
                 <Input 

@@ -89,7 +89,6 @@ export function TaskCalendar({ tasks }: TaskCalendarProps) {
       {/* Naptár Fejléc */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-card">
         <div className="flex items-center gap-2">
-          <CalendarDays className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold capitalize">
             {format(currentMonth, "yyyy. MMMM", { locale: hu })}
           </h2>
