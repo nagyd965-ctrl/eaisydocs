@@ -1,0 +1,111 @@
+-- ============================================================================
+-- Migration: 20260920000004_fix_audit_trigger_duplicates.sql
+-- Description: Prevent duplicate audit log entries when application code explicitly logs
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.log_audit_event()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_user_id UUID;
+    v_user_email TEXT;
+    v_esemeny_tipus esemeny_tipus;
+    v_entitas_tipus TEXT;
+    v_entitas_id UUID;
+    v_elozo JSONB := NULL;
+    v_uj JSONB := NULL;
+BEGIN
+    v_user_id := auth.uid();
+    IF v_user_id IS NOT NULL THEN
+        SELECT email INTO v_user_email FROM auth.users WHERE id = v_user_id;
+    END IF;
+
+    v_entitas_tipus := TG_TABLE_NAME;
+    
+    IF TG_OP = 'INSERT' THEN
+        v_entitas_id := NEW.id;
+        v_uj := to_jsonb(NEW);
+        
+        IF TG_TABLE_NAME = 'irat' THEN
+            v_esemeny_tipus := 'erkeztetve';
+        ELSIF TG_TABLE_NAME = 'ugyirat' THEN
+            v_esemeny_tipus := 'iktatva';
+        ELSE
+            v_esemeny_tipus := 'modositva';
+        END IF;
+        
+    ELSIF TG_OP = 'UPDATE' THEN
+        v_entitas_id := NEW.id;
+        v_elozo := to_jsonb(OLD);
+        v_uj := to_jsonb(NEW);
+        
+        IF TG_TABLE_NAME = 'ugyirat' AND (v_elozo->>'statusz') IS DISTINCT FROM (v_uj->>'statusz') THEN
+            -- Szignálás és lezárás eseményeket az alkalmazáskód már gazdagon (névvel, határidővel, IP-vel) naplóz.
+            -- A triggerből kihagyjuk a redundáns, üres indoklású bejegyzést.
+            IF (v_uj->>'statusz') = 'szignalt' THEN 
+                RETURN NEW;
+            ELSIF (v_uj->>'statusz') = 'lezart' THEN 
+                RETURN NEW;
+            ELSIF (v_uj->>'statusz') = 'elintezett' THEN 
+                v_esemeny_tipus := 'elintezve';
+            ELSIF (v_uj->>'statusz') = 'irattarban' THEN 
+                v_esemeny_tipus := 'irattarozva';
+            ELSIF (v_uj->>'statusz') = 'selejtezheto' THEN 
+                v_esemeny_tipus := 'modositva';
+            ELSE 
+                v_esemeny_tipus := 'modositva';
+            END IF;
+        ELSIF TG_TABLE_NAME = 'ugy' AND (v_elozo->>'statusz') IS DISTINCT FROM (v_uj->>'statusz') THEN
+            IF (v_uj->>'statusz') = 'lezart' THEN 
+                RETURN NEW;
+            ELSIF (v_uj->>'statusz') = 'irattarozott' THEN 
+                v_esemeny_tipus := 'irattarozva';
+            ELSIF (v_uj->>'statusz') = 'selejtezett' THEN 
+                v_esemeny_tipus := 'selejtezve';
+            ELSE 
+                v_esemeny_tipus := 'modositva';
+            END IF;
+        ELSE
+            v_esemeny_tipus := 'modositva';
+        END IF;
+        
+    ELSIF TG_OP = 'DELETE' THEN
+        v_entitas_id := OLD.id;
+        v_elozo := to_jsonb(OLD);
+        v_esemeny_tipus := 'modositva';
+    END IF;
+
+    -- Inject user email into v_uj so the UI can easily display it
+    IF v_user_email IS NOT NULL THEN
+        IF v_uj IS NULL THEN
+            v_uj := jsonb_build_object('user_email', v_user_email);
+        ELSE
+            v_uj := jsonb_set(v_uj, '{user_email}', to_jsonb(v_user_email));
+        END IF;
+    END IF;
+
+    INSERT INTO esemeny_naplo (
+        entitas_tipus,
+        entitas_id,
+        esemeny_tipus,
+        user_id,
+        elozo_ertek,
+        uj_ertek
+    ) VALUES (
+        v_entitas_tipus,
+        v_entitas_id,
+        v_esemeny_tipus,
+        v_user_id,
+        v_elozo,
+        v_uj
+    );
+
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$$;

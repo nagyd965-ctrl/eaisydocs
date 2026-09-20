@@ -199,7 +199,21 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
     user_name: userMap[c.user_id] || "Ismeretlen"
   }))
 
-  const timelineEvents: TimelineEvent[] = (logs || []).map((log: any) => {
+  // Deduplicate consecutive/simultaneous logs where a DB trigger inserted an empty log alongside a rich application log
+  const dedupedLogs = (logs || []).filter((log: any, idx: number, arr: any[]) => {
+    if (!log.indoklas) {
+      const hasRichDuplicate = arr.some((other: any) => 
+        other.id !== log.id &&
+        other.esemeny_tipus === log.esemeny_tipus &&
+        other.indoklas &&
+        Math.abs(new Date(other.tortent).getTime() - new Date(log.tortent).getTime()) < 5000
+      );
+      if (hasRichDuplicate) return false;
+    }
+    return true;
+  });
+
+  const timelineEvents: TimelineEvent[] = dedupedLogs.map((log: any) => {
     let title = log.esemeny_tipus;
     let description = "";
     let icon: TimelineIconName = "eye";

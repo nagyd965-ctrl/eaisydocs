@@ -27,12 +27,26 @@ export async function generateLifecycleReport(ugyiratId: string) {
   if (!dossier) return { error: "Ügyirat nem található." }
 
   // 2. Eseménynapló
-  const { data: events } = await supabase
+  const { data: rawEvents } = await supabase
     .from("esemeny_naplo")
     .select("*")
     .eq("entitas_tipus", "ugyirat")
     .eq("entitas_id", ugyiratId)
     .order("tortent", { ascending: true })
+
+  // Deduplicate consecutive/simultaneous logs where a DB trigger inserted an empty log alongside a rich application log
+  const events = (rawEvents || []).filter((log: any, idx: number, arr: any[]) => {
+    if (!log.indoklas) {
+      const hasRichDuplicate = arr.some((other: any) => 
+        other.id !== log.id &&
+        other.esemeny_tipus === log.esemeny_tipus &&
+        other.indoklas &&
+        Math.abs(new Date(other.tortent).getTime() - new Date(log.tortent).getTime()) < 5000
+      );
+      if (hasRichDuplicate) return false;
+    }
+    return true;
+  });
 
   // 3. Felhasználónevek kigyűjtése
   const ugy = dossier.ugy as any
