@@ -15,6 +15,7 @@ const eslintConfig = defineConfig([
     "*.js",
     "*.cjs",
     "supabase/**",
+    "scratch/**",
   ]),
   {
     rules: {

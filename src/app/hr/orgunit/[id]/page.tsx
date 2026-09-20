@@ -75,7 +75,7 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
 
   // 3. Dolgozók beosztás (munkakör) adatai – külön query a hr_dolgozo_adatlap-on át
   const employeeIds = employees.map(e => e.id)
-  let munkakorByEmployeeId: Record<string, string> = {}
+  const munkakorByEmployeeId: Record<string, string> = {}
   if (employeeIds.length > 0) {
     const { data: beosztasok } = await admin
       .from("hr_dolgozo_adatlap")

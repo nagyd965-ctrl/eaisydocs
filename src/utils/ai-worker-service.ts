@@ -142,7 +142,7 @@ export async function processTask(task: ClaimedTask): Promise<{ success: boolean
       }
 
       // Filter files to those that either match task_fajl_id or have no pdfa_path yet
-      let filesToConvert = allIratFiles.filter((f) => !f.pdfa_path)
+      const filesToConvert = allIratFiles.filter((f) => !f.pdfa_path)
       if (task.task_fajl_id) {
         const specificFile = allIratFiles.find((f) => f.id === task.task_fajl_id)
         if (specificFile && !specificFile.pdfa_path && !filesToConvert.some((f) => f.id === specificFile.id)) {
