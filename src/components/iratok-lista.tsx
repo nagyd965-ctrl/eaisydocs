@@ -10,6 +10,7 @@ import { BorrowDialog } from "./borrow-dialog"
 import { PhysicalLocationDialog } from "./physical-location-dialog"
 import { toast } from "sonner"
 import { getDocumentSignedUrl } from "@/app/dossiers/[id]/viewer-actions"
+import { UploadVersionDialog } from "@/components/upload-version-dialog"
 
 export interface IratFajlItem {
   id: string
@@ -49,16 +50,18 @@ interface IratokListaProps {
   canEdit?: boolean;
   users?: { id: string, nev: string }[];
   dossierIktatoszam?: string;
+  ugyiratId?: string;
   currentUserClearance?: string;
   isAdmin?: boolean;
 }
 
 export function IratokLista({ 
   iratok, 
-  canEdit = true, 
+  canEdit = false, 
   users = [], 
   dossierIktatoszam,
-  currentUserClearance = "nyilt",
+  ugyiratId,
+  currentUserClearance = 'nyilt',
   isAdmin = false
 }: IratokListaProps) {
   const [viewerOpen, setViewerOpen] = useState(false)
@@ -360,6 +363,18 @@ export function IratokLista({
                             }
                             PDF/A
                           </Button>
+                        )}
+                        {canEdit && ugyiratId && (
+                          <UploadVersionDialog
+                            iratId={irat.id}
+                            ugyiratId={ugyiratId}
+                            iratTargy={irat.targy}
+                            currentVersion={
+                              irat.irat_fajl && irat.irat_fajl.length > 0
+                                ? Math.max(...irat.irat_fajl.map((f) => f.verzio || 1))
+                                : 1
+                            }
+                          />
                         )}
                       </div>
                     )

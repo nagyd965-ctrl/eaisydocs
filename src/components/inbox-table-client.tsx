@@ -16,12 +16,14 @@ import { buttonVariants } from "@/components/ui/button"
 import { FolderSymlink } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { TableToolbar, TableColumnOption, FilterGroup } from "@/components/table-toolbar/table-toolbar"
+import { DismissInboxDialog } from "@/components/dismiss-inbox-dialog"
 
 export interface InboxItem {
   id: string
   erkeztetoszam: string
   erkezes_datuma: string
   targy: string
+  statusz?: string | null
   erkezes_modja: string | null
   kulso_forras: string | null
   partner?: {
@@ -76,7 +78,7 @@ export function InboxTableClient({
         (payload: any) => {
           if (payload.eventType === "UPDATE") {
             const updated = payload.new
-            if (updated.ugyirat_id) {
+            if (updated.ugyirat_id || updated.statusz === "nem_iktatando") {
               setItems((prev) => prev.filter((item) => item.id !== updated.id))
             } else {
               setItems((prev) =>
@@ -307,13 +309,23 @@ export function InboxTableClient({
                   {isColVisible("muvelet") && (
                     <TableCell className="text-right">
                       {canEdit && (
-                        <Link
-                          href={`/inbox/${item.id}`}
-                          className={buttonVariants({ variant: "outline", size: "sm" })}
-                        >
-                          <FolderSymlink className="mr-2 h-4 w-4 text-primary" />
-                          Iktatás
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          <DismissInboxDialog
+                            iratId={item.id}
+                            erkeztetoszam={item.erkeztetoszam}
+                            targy={item.targy}
+                            onDismissed={() => {
+                              setItems((prev) => prev.filter((i) => i.id !== item.id))
+                            }}
+                          />
+                          <Link
+                            href={`/inbox/${item.id}`}
+                            className={buttonVariants({ variant: "outline", size: "sm" })}
+                          >
+                            <FolderSymlink className="mr-2 h-4 w-4 text-primary" />
+                            Iktatás
+                          </Link>
+                        </div>
                       )}
                     </TableCell>
                   )}

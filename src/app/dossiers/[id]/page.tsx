@@ -456,6 +456,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
                 canEdit={canEdit} 
                 users={users || []} 
                 dossierIktatoszam={dossier.iktatoszam}
+                ugyiratId={dossier.id}
                 currentUserClearance={currentUserProfile?.max_minosites || 'nyilt'}
                 isAdmin={isAdmin}
               />

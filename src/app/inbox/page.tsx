@@ -40,10 +40,12 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       erkezes_datuma,
       targy,
       erkezes_modja,
+      statusz,
       kulso_forras,
       partner ( nev )
     `)
     .is("ugyirat_id", null)
+    .or("statusz.is.null,statusz.neq.nem_iktatando")
     .order("erkezes_datuma", { ascending: false })
 
   if (q) {
