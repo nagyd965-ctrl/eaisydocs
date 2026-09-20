@@ -279,6 +279,24 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
   const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
   if (permCheck.error) return { error: permCheck.error }
 
+  // Ellenőrizzük, hogy az ügyirat nincs-e lezárva vagy irattárban
+  const { data: ugyirat } = await supabase
+    .from("ugyirat")
+    .select("statusz, iktatoszam")
+    .eq("id", ugyiratId)
+    .single()
+
+  if (ugyirat && ["irattarban", "lezart", "selejtezheto", "selejtezett"].includes(ugyirat.statusz)) {
+    const statusLabels: Record<string, string> = {
+      irattarban: "irattározott",
+      lezart: "lezárt",
+      selejtezheto: "selejtezésre jelölt",
+      selejtezett: "selejtezett"
+    }
+    const label = statusLabels[ugyirat.statusz] || "lezárt"
+    return { error: `A kiválasztott ügyirat (${ugyirat.iktatoszam}) már ${label}, ezért nem tölthető fel hozzá új válaszlevél / irat!` }
+  }
+
   const targy = formData.get("targy") as string
   const file = formData.get("file") as File | null
 

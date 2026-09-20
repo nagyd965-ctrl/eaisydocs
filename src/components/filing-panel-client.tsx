@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
 import { 
   Loader2, 
   ArrowLeft, 
@@ -73,7 +74,8 @@ export function FilingPanelClient({
   initialMode?: "new" | "existing"
 }) {
   const router = useRouter()
-  const isInitialAntecedent = (antecedentSuggestion?.confidence_score || 0) >= 60 && !!antecedentSuggestion?.ugyirat_id
+  const isSuggestionOpen = !["irattarban", "lezart", "selejtezheto", "selejtezett"].includes(antecedentSuggestion?.statusz || "")
+  const isInitialAntecedent = (antecedentSuggestion?.confidence_score || 0) >= 60 && !!antecedentSuggestion?.ugyirat_id && isSuggestionOpen
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -367,9 +369,18 @@ export function FilingPanelClient({
 
             <form id="filing-form" onSubmit={handleSubmit} className="space-y-5">
               {error && (
-                <div className="text-sm font-medium text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded-md">
-                  {error}
-                </div>
+                (() => {
+                  const isPermError = error.includes("jogosultságod") || error.includes("nincs jogosults") || error.includes("szervezeti egység")
+                  return (
+                    <div className={`rounded-lg border p-3.5 space-y-2 ${isPermError ? "border-warning/30 bg-warning/5" : "border-destructive/30 bg-destructive/5"}`}>
+                      <div className={`flex items-center gap-2 text-sm font-semibold ${isPermError ? "text-warning" : "text-destructive"}`}>
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        <span>{isPermError ? "Hozzáférés megtagadva" : "Hiba történt"}</span>
+                      </div>
+                      <p className="text-xs text-foreground/80 leading-relaxed">{error}</p>
+                    </div>
+                  )
+                })()
               )}
 
               {/* AI indoklás és előtöltés értesítő */}
@@ -684,9 +695,25 @@ export function FilingPanelClient({
                         <SelectContent>
                           {ugyiratok.map((u) => {
                             const targyStr = Array.isArray(u.ugy) ? u.ugy[0]?.targy : u.ugy?.targy;
+                            const isClosed = ["irattarban", "lezart", "selejtezheto", "selejtezett"].includes(u.statusz);
+                            const statusLabel = u.statusz === "irattarban" ? "Irattárban" : u.statusz === "lezart" ? "Lezárt" : u.statusz === "selejtezett" ? "Selejtezett" : "Selejtezhető";
                             return (
-                              <SelectItem key={u.id} value={u.id} label={`${u.iktatoszam} - ${targyStr || ''}`}>
-                                {u.iktatoszam} - {targyStr}
+                              <SelectItem 
+                                key={u.id} 
+                                value={u.id} 
+                                disabled={isClosed}
+                                label={`${u.iktatoszam} - ${targyStr || ''}${isClosed ? ` [${statusLabel}]` : ''}`}
+                              >
+                                <div className="flex items-center justify-between w-full gap-2">
+                                  <span className={isClosed ? "text-muted-foreground opacity-60 line-through" : ""}>
+                                    {u.iktatoszam} - {targyStr}
+                                  </span>
+                                  {isClosed && (
+                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-muted-foreground/30 text-muted-foreground shrink-0 font-normal">
+                                      {statusLabel}
+                                    </Badge>
+                                  )}
+                                </div>
                               </SelectItem>
                             );
                           })}

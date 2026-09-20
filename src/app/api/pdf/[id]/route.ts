@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/utils/supabase/server"
 import { PDFDocument, rgb, degrees, StandardFonts } from "pdf-lib"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import sharp from "sharp"
 
 export async function GET(
   request: NextRequest,
@@ -93,30 +94,76 @@ export async function GET(
     fileQuery = fileQuery.eq("id", fileId)
   }
 
-  const { data: fajl } = await fileQuery.limit(1).single()
+  const { data: fajl } = await fileQuery.select("storage_path, mime_type, kulso_fajl_url, eredeti_fajlnev").limit(1).single()
 
   if (!fajl || (!fajl.storage_path && !fajl.kulso_fajl_url)) {
     return new NextResponse("Fájl nem található az irathoz", { status: 404 })
   }
 
-  // Only handle PDFs
-  if (fajl.mime_type !== "application/pdf") {
+  // Képfájlok kezelése: letöltjük és EXIF alapján automatikusan forgatjuk (display only)
+  const isImage = fajl.mime_type?.startsWith("image/") ||
+    ["jpg","jpeg","png","gif","webp","bmp","tiff"].some(ext =>
+      fajl.storage_path?.toLowerCase().endsWith(`.${ext}`) ||
+      fajl.kulso_fajl_url?.toLowerCase().includes(`.${ext}`)
+    )
+
+  if (isImage) {
     if (isBetekinto) {
-      return new NextResponse("Betekinto szerepkorrel csak PDF előnézet érhető el (letöltés tiltott).", { status: 403 })
+      return new NextResponse("Betekinto szerepkorrel csak PDF előnézet érhető el.", { status: 403 })
     }
-    if (fajl.kulso_fajl_url) {
-      return NextResponse.redirect(fajl.kulso_fajl_url)
-    }
-    if (fajl.storage_path) {
-      const { data: signedUrlData } = await supabase.storage
-        .from("irat_files")
-        .createSignedUrl(fajl.storage_path, 60)
-        
-      if (signedUrlData?.signedUrl) {
-        return NextResponse.redirect(signedUrlData.signedUrl)
+    try {
+      let imageBuffer: Buffer
+      if (fajl.kulso_fajl_url) {
+        const resp = await fetch(fajl.kulso_fajl_url)
+        imageBuffer = Buffer.from(await resp.arrayBuffer())
+      } else {
+        // Próbáljuk felhasználói klienssel, ha nem megy, service role-lal
+        let dlData: Blob | null = null
+        const { data: dlResult } = await supabase.storage.from("irat_files").download(fajl.storage_path)
+        dlData = dlResult
+        if (!dlData) {
+          const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+          if (serviceKey) {
+            const adminClient = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey)
+            const { data: adminDl } = await adminClient.storage.from("irat_files").download(fajl.storage_path)
+            dlData = adminDl
+          }
+        }
+        if (!dlData) return new NextResponse("Képfájl letöltése sikertelen", { status: 500 })
+        imageBuffer = Buffer.from(await dlData.arrayBuffer())
       }
+
+      // EXIF alapú automatikus forgatás — a Storage-ban lévő eredeti fájl változatlan marad
+      const rotatedBuffer = await sharp(imageBuffer).rotate().toBuffer()
+      const meta = await sharp(rotatedBuffer).metadata()
+      const outMime = (meta.format === "png") ? "image/png" : "image/jpeg"
+
+      return new NextResponse(new Uint8Array(rotatedBuffer), {
+        headers: {
+          "Content-Type": outMime,
+          "Content-Disposition": "inline",
+          "Cache-Control": "private, max-age=60"
+        }
+      })
+    } catch (imgErr) {
+      console.error("Képforgatási hiba:", imgErr)
+      // Fallback: signed URL redirect
+      if (fajl.storage_path) {
+        const { data: signedUrlData } = await supabase.storage.from("irat_files").createSignedUrl(fajl.storage_path, 60)
+        if (signedUrlData?.signedUrl) return NextResponse.redirect(signedUrlData.signedUrl)
+      }
+      return new NextResponse("Nem lehet megnyitni a képet", { status: 500 })
     }
-    return new NextResponse("Nem lehet megnyitni a fájlt", { status: 500 })
+  }
+
+  // PDF fájlok
+  if (fajl.mime_type !== "application/pdf") {
+    // Ismeretlen fájltípus fallback
+    if (fajl.storage_path) {
+      const { data: signedUrlData } = await supabase.storage.from("irat_files").createSignedUrl(fajl.storage_path, 60)
+      if (signedUrlData?.signedUrl) return NextResponse.redirect(signedUrlData.signedUrl)
+    }
+    return new NextResponse("Nem támogatott fájlformátum", { status: 415 })
   }
 
   // 4. Determine if watermarking is needed
@@ -149,7 +196,7 @@ export async function GET(
         return new NextResponse(`Külső fájl letöltése sikertelen (${resp.status})`, { status: 502 })
       }
       const externalBlob = await resp.blob()
-      return await processPdf(externalBlob, isConfidential, isBetekinto, user.email || user.id)
+      return await processPdf(externalBlob, isConfidential, isBetekinto, user.email || user.id, fajl.eredeti_fajlnev ?? undefined)
     } catch (err: any) {
       console.error("Hiba a külső fájl letöltésekor:", err)
       return new NextResponse("Külső fájl letöltése sikertelen: " + err.message, { status: 500 })
@@ -176,24 +223,101 @@ export async function GET(
       if (adminDownloadError || !adminFileData) {
         return new NextResponse("Fájl letöltése sikertelen", { status: 500 })
       }
-      return await processPdf(adminFileData, isConfidential, isBetekinto, user.email || user.id)
+      return await processPdf(adminFileData, isConfidential, isBetekinto, user.email || user.id, fajl.eredeti_fajlnev ?? undefined)
     }
     
     return new NextResponse("Fájl letöltése sikertelen (RLS / Jogosultság hiba)", { status: 403 })
   }
 
-  return await processPdf(fileData, isConfidential, isBetekinto, user.email || user.id)
+  return await processPdf(fileData, isConfidential, isBetekinto, user.email || user.id, fajl.eredeti_fajlnev ?? undefined)
 }
 
-async function processPdf(fileBlob: Blob, isConfidential: boolean, isBetekinto: boolean, userIdentifier: string) {
+async function detectPdfOrientationDegrees(pdfBuffer: ArrayBuffer): Promise<0 | 90 | 180 | 270> {
+  const apiKey = process.env.GOOGLE_API_KEY
+  if (!apiKey) return 0
+
+  try {
+    const { GoogleGenAI } = await import("@google/genai")
+    const ai = new GoogleGenAI({ apiKey })
+    const base64 = Buffer.from(pdfBuffer).toString("base64")
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          text: `Te egy dokumentum-tájolás elemző vagy.
+A csatolt dokumentum lehet számla, bizonylat, szkennelt irat vagy telefonos fotóból generált PDF.
+Feladatod: döntsd el, hogy a dokumentumot hány fokkal kell az ÓRAMUTATÓ JÁRÁSÁVAL MEGEGYEZŐ irányban elforgatni ahhoz, hogy olvasható (felső felé) legyen.
+
+Lehetséges válaszok:
+- 0  → A dokumentum helyesen, olvashatóan áll, nincs forgatás szükséges
+- 90 → A dokumentumot 90°-kal kell jobbra forgatni (jelenleg balra/CCW döntve)
+- 180 → A dokumentum fejjel lefelé van (180°-ot kell forgatni)
+- 270 → A dokumentumot 270°-kal kell jobbra forgatni (jelenleg jobbra/CW döntve)
+
+CSAK A SZÁMOT ADD VISSZA (0, 90, 180 vagy 270), semmi mást!`,
+        },
+        {
+          inlineData: {
+            mimeType: "application/pdf",
+            data: base64,
+          },
+        },
+      ],
+    })
+
+    const answer = (response.text || "0").trim()
+    const deg = parseInt(answer, 10)
+    if (deg === 0 || deg === 90 || deg === 180 || deg === 270) {
+      console.log(`[PDF orientation] Gemini válasz: ${deg}°`)
+      return deg as 0 | 90 | 180 | 270
+    }
+    console.warn(`[PDF orientation] Váratlan Gemini válasz: "${answer}", fallback: 0°`)
+    return 0
+  } catch (err) {
+    console.warn("[PDF orientation] Gemini hívás sikertelen, fallback: 0°:", err)
+    return 0
+  }
+}
+
+async function processPdf(fileBlob: Blob, isConfidential: boolean, isBetekinto: boolean, userIdentifier: string, originalFilename?: string) {
   const arrayBuffer = await fileBlob.arrayBuffer()
-  
+
+  // Képből generált PDF-eknél (eaisyBill telefonos fotók) Gemini Vision tájolás-detektálás
+  const looksLikePhotoFilename = (originalFilename || "").match(/IMG_|DSC_|DCIM|DSCN|Photo|photo/i)
+
+  let workingBuffer = arrayBuffer
+  if (looksLikePhotoFilename) {
+    try {
+      const { degrees: pdfDegrees } = await import("pdf-lib")
+      const neededRotation = await detectPdfOrientationDegrees(arrayBuffer)
+
+      if (neededRotation !== 0) {
+        const pdfDoc = await PDFDocument.load(arrayBuffer)
+        const pages = pdfDoc.getPages()
+        for (const page of pages) {
+          const current = page.getRotation().angle
+          // pdf-lib setRotation = CCW (óramutató ellen), Gemini CW (óramutató szerint) → invertálás szükséges
+          // Ha Gemini mondja 90° CW → nekünk 270° CCW kell → setRotation(270)
+          const ccwDegrees = (360 - neededRotation + current) % 360
+          page.setRotation(pdfDegrees(ccwDegrees))
+        }
+        const rotatedBytes = await pdfDoc.save()
+        workingBuffer = rotatedBytes.buffer as ArrayBuffer
+        console.log(`[PDF orientation] Elforgatva: ${neededRotation}°`)
+      }
+    } catch (rotErr) {
+      console.warn("[PDF orientation] Forgatás sikertelen, eredeti PDF:", rotErr)
+      workingBuffer = arrayBuffer
+    }
+  }
+
   if (!isConfidential) {
-    // Return original if no watermark needed
-    return new NextResponse(arrayBuffer, {
+    return new NextResponse(workingBuffer, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": "inline"
+        "Content-Disposition": "inline",
+        "Cache-Control": "private, max-age=120"
       }
     })
   }

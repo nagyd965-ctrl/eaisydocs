@@ -140,12 +140,12 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
 
   return (
     <div className="space-y-6">
+
       {/* Ügyirati Feladatok + Munkafolyamat */}
       <Card className="border border-border/50">
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
             <CardTitle className="text-base font-semibold">Ügyirati Feladatok</CardTitle>
-            <CardDescription>Konkrét tennivalók (al-feladatok) ehhez az aktához.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             {/* Elintézettnek jelölés – csak ha minden feladat kész (vagy nincs feladat) */}

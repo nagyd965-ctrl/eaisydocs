@@ -254,7 +254,9 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
             <CardDescription>Felhasználók és hozzáférések kezelése</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {teamMembers?.map((member) => (
+            {teamMembers?.map((member) => {
+              const isSelf = member.id === initialProfile?.id
+              return (
               <div 
                 key={member.id} 
                 className="flex items-center justify-between p-4 bg-card border rounded-xl hover:border-primary/50 hover:bg-muted/50 cursor-pointer transition-all group"
@@ -271,7 +273,14 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                     {member.nev?.substring(0, 1).toUpperCase() || "?"}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">{member.nev}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-foreground">{member.nev}</p>
+                      {isSelf && (
+                        <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30 font-medium py-0 h-4">
+                          Te
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {member.pozicio || member.docs_szerepkor || "Nincs megadva"} 
                       {departments?.find(d => d.id === member.szervezeti_egyseg_id) && 
@@ -287,24 +296,26 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                   <Badge variant="secondary" className="uppercase font-semibold text-[10px] tracking-wider">
                     {member.docs_szerepkor}
                   </Badge>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={async (e) => {
-                      e.stopPropagation()
-                      if (confirm(`Biztosan törlöd a következő felhasználót: ${member.nev}?`)) {
-                        const { deleteUser } = await import("./settings-actions")
-                        const res = await deleteUser(member.id)
-                        if (res.error) toast.error("Hiba", { description: res.error })
-                      }
-                    }}
-                  >
-                    Törlés
-                  </Button>
+                  {!isSelf && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        if (confirm(`Biztosan törlöd a következő felhasználót: ${member.nev}?`)) {
+                          const { deleteUser } = await import("./settings-actions")
+                          const res = await deleteUser(member.id)
+                          if (res.error) toast.error("Hiba", { description: res.error })
+                        }
+                      }}
+                    >
+                      Törlés
+                    </Button>
+                  )}
                 </div>
               </div>
-            ))}
+            )})}
           </CardContent>
           <div className="px-0 py-2">
             <Dialog open={open} onOpenChange={setOpen}>
@@ -382,8 +393,14 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
               <DialogContent className="sm:max-w-[425px]">
                 <form action={async (formData) => {
                   if (!selectedMember) return
+                  const isSelf = selectedMember.id === initialProfile?.id
+                  const isSelfAdmin = isSelf && ['admin', 'rendszergazda'].includes(initialProfile?.docs_szerepkor || initialProfile?.szerepkor)
+                  const newRole = (formData.get("role") as string) || selectedMemberRole
+                  if (isSelfAdmin && !['admin', 'rendszergazda'].includes(newRole)) {
+                    toast.error("Hiba", { description: "Saját adminisztrátori szerepkörödet nem vonhatod vissza!" })
+                    return
+                  }
                   setEditRoleLoading(true)
-                  const newRole = formData.get("role") as string
                   const newDept = formData.get("departmentId") as string
                   const newClearance = (formData.get("clearance") as string) || selectedMemberClearance || "nyilt"
                   const deptId = newDept === "none" ? null : newDept
@@ -403,21 +420,38 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-role">Új Szerepkör</Label>
-                      <Select name="role" value={selectedMemberRole} onValueChange={(val) => setSelectedMemberRole(val || "")} required>
-                        <SelectTrigger id="edit-role">
-                          <SelectValue placeholder="Válassz...">{roleMap[selectedMemberRole]}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="rendszergazda">Rendszergazda</SelectItem>
-                          <SelectItem value="vezeto">Vezető</SelectItem>
-                          <SelectItem value="iktato">Iktató</SelectItem>
-                          <SelectItem value="ugyintezo">Ügyintéző</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {(() => {
+                      const isSelf = selectedMember?.id === initialProfile?.id
+                      const isSelfAdmin = isSelf && ['admin', 'rendszergazda'].includes(initialProfile?.docs_szerepkor || initialProfile?.szerepkor)
+                      return (
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-role">Új Szerepkör</Label>
+                          <Select 
+                            name="role" 
+                            value={selectedMemberRole} 
+                            onValueChange={(val) => setSelectedMemberRole(val || "")} 
+                            disabled={isSelfAdmin}
+                            required
+                          >
+                            <SelectTrigger id="edit-role" className={isSelfAdmin ? "opacity-80 cursor-not-allowed bg-muted/40" : ""}>
+                              <SelectValue placeholder="Válassz...">{roleMap[selectedMemberRole]}</SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="rendszergazda">Rendszergazda</SelectItem>
+                              <SelectItem value="vezeto">Vezető</SelectItem>
+                              <SelectItem value="iktato">Iktató</SelectItem>
+                              <SelectItem value="ugyintezo">Ügyintéző</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {isSelfAdmin && (
+                            <p className="text-[11px] text-amber-500 font-medium">
+                              Saját adminisztrátori szerepköröd nem csökkenthető a rendszerből való kizáródás megelőzése érdekében.
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })()}
                     <div className="space-y-2">
                       <Label htmlFor="edit-dept">Szervezeti Egység</Label>
                       <Select name="departmentId" value={selectedMemberDepartment} onValueChange={(val) => setSelectedMemberDepartment(val || "none")}>

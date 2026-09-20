@@ -111,7 +111,12 @@ export async function uploadIncomingDocument(formData: FormData) {
     .single()
 
   if (iratError || !iratData) {
-    return { error: "Hiba az irat létrehozásakor: " + iratError?.message }
+    const msg = iratError?.message || ""
+    // RLS jogsértés = a felhasználónak nincs jogosultsága ehhez a biztonsági minősítéshez
+    if (msg.includes("row-level security") || msg.includes("violates") || iratError?.code === "42501") {
+      return { error: `Nincs jogosultsága „${minosites}" minősítésű irat érkeztetéséhez. Kérje meg rendszergazdáját a szükséges jogosultság beállításához, vagy válasszon alacsonyabb biztonsági minősítést.` }
+    }
+    return { error: "Az irat létrehozása sikertelen. Kérjük, ellenőrizze az adatokat, majd próbálja újra." }
   }
 
   // 6. Irat fájl rekord létrehozása

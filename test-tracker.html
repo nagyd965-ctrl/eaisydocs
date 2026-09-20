@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eaisyDocs — Teszt Tracker</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0d0d0d; --bg2: #161616; --bg3: #1e1e1e; --bg4: #252525;
+  --border: #2a2a2a; --border2: #383838;
+  --text: #e4e4e7; --text2: #a1a1aa; --text3: #71717a;
+  --primary: #0ea5e9; --primary-bg: rgba(14,165,233,0.08);
+  --ok: #22c55e; --ok-bg: rgba(34,197,94,0.08);
+  --fail: #ef4444; --fail-bg: rgba(239,68,68,0.08);
+  --warn: #f59e0b; --warn-bg: rgba(245,158,11,0.08);
+}
+body { font-family: -apple-system,'Segoe UI',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; font-size:13px; }
+
+.header { background:var(--bg2); border-bottom:1px solid var(--border); padding:12px 20px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; gap:12px; flex-wrap:wrap; }
+.header h1 { font-size:14px; font-weight:600; }
+.header p { font-size:11px; color:var(--text3); }
+.header-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.stats { display:flex; gap:6px; }
+.stat { background:var(--bg3); border:1px solid var(--border); border-radius:5px; padding:3px 9px; font-size:11px; display:flex; align-items:center; gap:4px; }
+.sd { width:6px; height:6px; border-radius:50%; }
+.sd-ok{background:var(--ok);} .sd-fail{background:var(--fail);} .sd-dunno{background:var(--warn);} .sd-tested{background:var(--primary);}
+.progress-wrap { display:flex; align-items:center; gap:8px; }
+.progress-track { width:160px; height:5px; background:var(--bg4); border-radius:99px; overflow:hidden; }
+.progress-fill { height:100%; background:var(--primary); border-radius:99px; transition:width 0.3s; }
+.progress-text { font-size:11px; color:var(--text2); white-space:nowrap; }
+.reset-btn { background:var(--bg3); border:1px solid var(--border); color:var(--text2); padding:4px 10px; border-radius:5px; cursor:pointer; font-size:11px; }
+.reset-btn:hover { border-color:var(--fail); color:var(--fail); }
+
+.toolbar { padding:8px 20px; border-bottom:1px solid var(--border); display:flex; gap:6px; align-items:center; background:var(--bg2); flex-wrap:wrap; }
+.filter-label { font-size:11px; color:var(--text3); }
+.filter-btn { background:var(--bg3); border:1px solid var(--border); color:var(--text2); padding:3px 10px; border-radius:99px; cursor:pointer; font-size:11px; }
+.filter-btn:hover { border-color:var(--text2); }
+.filter-btn.active { background:var(--primary-bg); border-color:var(--primary); color:var(--primary); }
+
+.main { padding:16px 20px; max-width:1100px; margin:0 auto; }
+
+.cat-header { display:flex; align-items:center; gap:8px; margin:24px 0 10px; }
+.cat-header:first-child { margin-top:0; }
+.cat-title { font-size:11px; font-weight:600; color:var(--text2); letter-spacing:.05em; text-transform:uppercase; white-space:nowrap; }
+.cat-line { flex:1; height:1px; background:var(--border); }
+.cat-count { font-size:10px; color:var(--text3); }
+
+.test-card { background:var(--bg2); border:1px solid var(--border); border-radius:7px; margin-bottom:6px; overflow:hidden; }
+.test-card:hover { border-color:var(--border2); }
+.test-card.status-ok { border-left:3px solid var(--ok); }
+.test-card.status-fail { border-left:3px solid var(--fail); }
+.test-card.status-dunno { border-left:3px solid var(--warn); }
+.test-card.status-tested { border-left:3px solid var(--primary); }
+.test-card.hidden { display:none; }
+
+.test-top { padding:10px 12px; display:flex; align-items:flex-start; gap:10px; cursor:pointer; user-select:none; }
+.test-top:hover { background:var(--bg3); }
+.test-badge { background:var(--bg4); border:1px solid var(--border2); border-radius:3px; padding:2px 6px; font-size:10px; font-weight:600; color:var(--text3); white-space:nowrap; font-family:monospace; }
+.test-main { flex:1; min-width:0; }
+.test-title-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.test-name { font-size:12px; font-weight:500; }
+.tag { font-size:9px; padding:1px 5px; border-radius:2px; font-weight:600; }
+.tag-gap { background:rgba(239,68,68,.12); color:#fca5a5; border:1px solid rgba(239,68,68,.25); }
+.tag-fixed { background:rgba(34,197,94,.12); color:#86efac; border:1px solid rgba(34,197,94,.25); }
+.tag-regr { background:rgba(245,158,11,.12); color:#fcd34d; border:1px solid rgba(245,158,11,.25); }
+.tag-edge { background:rgba(129,140,248,.12); color:#a5b4fc; border:1px solid rgba(129,140,248,.25); }
+.test-summary { font-size:11px; color:var(--text3); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.test-right { display:flex; align-items:center; gap:6px; }
+.si-dot { width:6px; height:6px; border-radius:50%; background:var(--border2); flex-shrink:0; }
+.si-dot.ok{background:var(--ok);} .si-dot.fail{background:var(--fail);} .si-dot.tested{background:var(--primary);} .si-dot.dunno{background:var(--warn);}
+.si-label { font-size:10px; color:var(--text3); white-space:nowrap; }
+.chevron { font-size:9px; color:var(--text3); transition:transform .2s; }
+.test-card.expanded .chevron { transform:rotate(90deg); }
+
+.test-body { display:none; padding:0 12px 12px; border-top:1px solid var(--border); }
+.test-card.expanded .test-body { display:block; }
+
+.sections { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+@media(max-width:650px){.sections{grid-template-columns:1fr;}}
+.section { background:var(--bg3); border:1px solid var(--border); border-radius:5px; padding:8px 10px; }
+.section-title { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); margin-bottom:6px; }
+
+.steps { list-style:none; counter-reset:step; }
+.steps li { counter-increment:step; padding:4px 0 4px 22px; position:relative; font-size:11px; color:var(--text2); border-bottom:1px solid var(--border); line-height:1.5; }
+.steps li:last-child { border-bottom:none; padding-bottom:0; }
+.steps li::before { content:counter(step); position:absolute; left:0; top:4px; width:15px; height:15px; background:var(--bg4); border:1px solid var(--border2); border-radius:50%; font-size:8px; font-weight:700; color:var(--text3); display:flex; align-items:center; justify-content:center; }
+
+.expected { font-size:11px; color:var(--text2); line-height:1.6; }
+
+.actions-row { margin-top:10px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.status-btn { padding:4px 10px; border-radius:4px; border:1px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; font-size:11px; font-weight:500; transition:all .15s; }
+.status-btn:hover { border-color:var(--text2); }
+.status-btn.active-tested { background:var(--primary-bg); border-color:var(--primary); color:var(--primary); }
+.status-btn.active-ok { background:var(--ok-bg); border-color:var(--ok); color:var(--ok); }
+.status-btn.active-fail { background:var(--fail-bg); border-color:var(--fail); color:var(--fail); }
+.status-btn.active-dunno { background:var(--warn-bg); border-color:var(--warn); color:var(--warn); }
+.note-input { flex:1; min-width:180px; background:var(--bg3); border:1px solid var(--border2); border-radius:4px; padding:4px 8px; color:var(--text); font-size:11px; outline:none; }
+.note-input:focus { border-color:var(--primary); }
+.note-input::placeholder { color:var(--text3); }
+
+.summary { background:var(--bg2); border:1px solid var(--border); border-radius:7px; padding:14px; margin-top:20px; }
+.summary-title { font-size:11px; font-weight:600; color:var(--text2); margin-bottom:10px; }
+.summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:8px; }
+.summary-item { background:var(--bg3); border:1px solid var(--border); border-radius:5px; padding:8px 10px; }
+.summary-item-title { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-bottom:5px; }
+.id-chip { display:inline-block; border:1px solid var(--border2); border-radius:2px; padding:0 4px; margin:1px; font-size:10px; font-family:monospace; }
+.id-chip.ok{border-color:var(--ok);color:var(--ok);} .id-chip.fail{border-color:var(--fail);color:var(--fail);} .id-chip.dunno{border-color:var(--warn);color:var(--warn);}
+.fail-notes { margin-top:6px; font-size:10px; color:var(--text3); line-height:1.7; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>eaisyDocs — Manuális Teszt Tracker</h1>
+    <p>Kattints a kártyára a részletekért. Eredmények localStorage-ban tárolódnak.</p>
+  </div>
+  <div class="header-right">
+    <div class="stats">
+      <div class="stat"><div class="sd sd-ok"></div><span id="cnt-ok">0</span> ok</div>
+      <div class="stat"><div class="sd sd-fail"></div><span id="cnt-fail">0</span> fail</div>
+      <div class="stat"><div class="sd sd-dunno"></div><span id="cnt-dunno">0</span> ?</div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-track"><div class="progress-fill" id="prog"></div></div>
+      <span class="progress-text" id="prog-txt">0/0</span>
+    </div>
+    <button class="reset-btn" onclick="if(confirm('Biztosan törlöd az összes eredményt?')){localStorage.clear();location.reload()}">🗑 Reset</button>
+  </div>
+</div>
+
+<div class="toolbar">
+  <span class="filter-label">Szűrő:</span>
+  <button class="filter-btn active" data-f="all">Összes</button>
+  <button class="filter-btn" data-f="fail">❌ Nem működik</button>
+  <button class="filter-btn" data-f="dunno">❓ Nem értem</button>
+  <button class="filter-btn" data-f="untested">⬜ Teszteletlen</button>
+  <button class="filter-btn" data-f="ok">✅ Működik</button>
+</div>
+
+<div class="main" id="main"></div>
+
+<script>
+const T = [
+// ===== A: INBOX / BEÉRKEZTETÉS =====
+{ cat:"🟥 A", catTitle:"Inbox — Beérkeztetés & Email", tests:[
+  { id:"A1", title:"Email beérkezés — IMAP szinkron", tags:[], summary:"Az IMAP-on beérkező email megjelenik az Inbox-ban",
+    steps:["Küldj egy emailt az IMAP-ra beállított postafiókra","Várd meg az IMAP cron futását (vagy triggerd manuálisan: /api/cron/imap)","Navigálj az Inbox oldalra","Ellenőrizd, hogy megjelent-e az email"],
+    expected:"✓ Az email megjelenik az Inbox listában, tárggyal, feladóval, dátummal. ✗ Ha nem jelenik meg → IMAP konfig vagy cron hiba." },
+  { id:"A2", title:"Melléklet nélküli email megjelenítése", tags:["edge"], summary:"Csak szöveges email, melléklet nélkül",
+    steps:["Küldj plain text emailt melléklet nélkül","Fogadd az Inbox-ban és nyisd meg a részletes nézetet","Ellenőrizd: jelenik-e meg fájllista?"],
+    expected:"✓ Fájllista/melléklet szekció NEM jelenik meg ha nincs melléklet. A szöveges tartalom olvasható. Nincs üres box." },
+  { id:"A3", title:"Nagyon hosszú email tárgy (>200 karakter)", tags:["edge"], summary:"Hosszú tárgy nem töri el a layoutot",
+    steps:["Küldj emailt 250+ karakteres tárggyal","Nézd meg a tárgyat az Inbox listában és a részletes nézetben"],
+    expected:"✓ A tárgy truncated (rövidített) formában jelenik meg a listában, a részletes nézetben teljes. A layout nem törik." },
+  { id:"A4", title:"Speciális karakterek a tárgyban (< > & aposztróf)", tags:["edge"], summary:"XSS-szerű karakterek biztonságosan jelennek meg",
+    steps:["Küldj emailt tárggyal ami tartalmaz: kisebb-mint jelet, script tagot, aposztrófot","Fogadd az Inbox-ban és nyisd meg","Ellenőrizd: a tárgy szövegként jelenik meg, nem kódként fut le"],
+    expected:"A speciális karakterek escaped formában jelennek meg (pl. &lt; &gt; &amp;). NEM futnak le script tagok, NEM törik el a layoutot." },
+  { id:"A5", title:"Dupla kézbesítés — ugyanaz az email kétszer", tags:["edge"], summary:"Azonos Message-ID nem kerülhet kétszer az adatbázisba",
+    steps:["Ellenőrizd Supabase Studióban: van-e unique constraint a kulso_forras / message_id mezőn az irat táblában","Küldj ugyanolyan email-t kétszer (vagy manuálisan duplikáld az adatbázisban)"],
+    expected:"✓ A második kézbesítési kísérlet nem hoz létre duplikált irat rekordot. Unique constraint megakadályozza." }
+]},
+
+// ===== B: IKTATÁS =====
+{ cat:"🟥 B", catTitle:"Iktatás — Alapfolyamat", tests:[
+  { id:"B1", title:"Dupla iktatás (race condition)", tags:["regr"], summary:"Két tab egyszerre próbál iktatni ugyanazt az iratot",
+    steps:["Nyisd meg ugyanazt az érkeztetett iratot két különböző böngésző tabban","Mindkét tabban töltsd ki az iktatási panelt","Kattints mindkét tabban egyszerre az 'Iktat' gombra","Ellenőrizd az eredményt"],
+    expected:"✓ Az egyik iktatás sikeres. ✗ A másik: 'Ezt az iratot már egy másik felhasználó iktatta!' Pontosan 1 ugyirat_id kapcsolódik az irathoz." },
+  { id:"B2", title:"Iktatás üres tárggyal (new mode)", tags:[], summary:"Validáció megakadályozza az üres tárgyú iktatást",
+    steps:["Nyiss meg egy érkeztetett iratot","Válaszd az 'Új ügyiratba' opciót","Hagyd üresen a Tárgy mezőt, töltsd ki a többit","Kattints az 'Iktat' gombra"],
+    expected:"✓ Hibaüzenet: 'Minden mező kitöltése kötelező'. Az iktatás NEM megy végbe." },
+  { id:"B3", title:"Alszám számítás meglévő ügyiratnál", tags:[], summary:"Az alszám mindig max+1, nem újrahasznosít",
+    steps:["Keress egy ügyiratot amelyhez már 3+ irat van iktatva","Iktass be egy új iratot ebbe az ügyiratba","Ellenőrizd az alszámot Supabase Studióban (irat tábla, alszam mező)"],
+    expected:"✓ Az alszám = (eddigi maximum) + 1. Törölt iratok alszámai NEM kerülnek újra kiosztásra." },
+  { id:"B4", title:"Partner duplikátum megelőzés iktatáskor", tags:["regr"], summary:"Meglévő partner neve nem hoz létre duplikált rekordot",
+    steps:["Ellenőrizd a partner tábla egy névét Supabase Studióban (pl. 'Kovács Kft.')","Iktass be iratot, kézzel add meg ezt a partner nevet az iktatási panelen","Ellenőrizd az iktatás után a partner táblát: csak 1 sor van-e ezzel a névvel?"],
+    expected:"✓ Partner táblában pontosan 1 'Kovács Kft.' rekord. NEM jön létre duplikált." },
+  { id:"B5", title:"Iktatószám gap-mentesség", tags:[], summary:"Megszakított folyamat esetén a lyuk nem újrahasznosítható",
+    steps:["A következő iktatásnál figyeld meg a generált iktatószámot","Ha van hozzáférésed: Supabase Studióban nézd az iktatoszam_seq táblát","Iktass be két iratot egymás után — a második szám pontosan eggyel több kell legyen"],
+    expected:"✓ Az iktatószámok folyamatosan nőnek, nem ismétlődnek, lyukak nem kerülnek újrahasznosításra." },
+  { id:"B6", title:"Iktatás — meglévő lezárt ügyiratba", tags:["gap"], summary:"Irattárban státuszú ügyiratba ne lehessen iktatni",
+    steps:["Keress egy 'irattarban' státuszú ügyiratot","Az Inbox-ból próbálj iktatni ebbe a meglévő ügyiratba","Ellenőrizd: engedte-e?"],
+    expected:"✗ ISMERT GAP: valószínűleg engedi. Ez bug. Dokumentáld az eredményt!" }
+]},
+
+// ===== C: AI METAADAT =====
+{ cat:"🟥 C", catTitle:"AI Metaadat Kinyerés", tests:[
+  { id:"C1", title:"Feladó ≠ Küldő szervezet", tags:["regr"], summary:"AI a dokumentum tartalmából azonosítja a küldőt, nem az email feladójából",
+    steps:["Küldj emailt saját neveddel amelynek melléklete egy Infopark Kft. fejléces levél","Fogadd az Inbox-ban, kattints 'AI Kitöltés'","Ellenőrizd a 'Küldő partner' mezőt"],
+    expected:"✓ Küldő partner: 'Infopark Kft.' (vagy hasonló), NEM a te neved. Ha a te nevedet írja → ✗ BUG (ismert regresszió)." },
+  { id:"C2", title:"Hivatkozott szám az utolsó oldalon", tags:["edge"], summary:"Többoldalas PDF — AI az egész dokumentumot feldolgozza",
+    steps:["Készíts 4-5 oldalas PDF-et ahol a hivatkozott szerződésszám csak az UTOLSÓ oldalon van","Küldj be emailben, nyisd meg az Inbox-ban","Futtasd az AI Kitöltést, ellenőrizd a Hivatkozott szám mezőt"],
+    expected:"✓ Az AI megtalálja a hivatkozott számot az utolsó oldalról. Ha csak az első oldalt olvassa → ✗ BUG." },
+  { id:"C3", title:"Több melléklet — PDF preferencia", tags:[], summary:"PDF preferált képekkel szemben AI feldolgozáshoz",
+    steps:["Küldj emailt 3 melléklettel: kép, PDF, kép sorrendben","Futtasd az AI Kitöltést","Ellenőrizd az indoklás mezőből melyik fájlból dolgozott"],
+    expected:"✓ Az AI a PDF-et dolgozza fel, NEM a képeket." },
+  { id:"C4", title:"AI cache — újrafuttatás friss eredményt ad", tags:["regr"], summary:"🔄 gomb valóban friss kinyerést indít",
+    steps:["Futtasd az AI Kitöltést (rossz eredménnyel)","Kattints a 🔄 (újraértelmezés) gombra","Megváltozott-e az eredmény? Nem cache-ből jön?"],
+    expected:"✓ Friss AI hívás indul. Az eredmény eltérhet az elsőtől. Cache-elt adat NEM kerülhet visszaadásra." },
+  { id:"C5", title:"AI újraértelmezés gomb láthatósága", tags:["fixed"], summary:"🔄 gomb csak első futtatás után jelenik meg",
+    steps:["Nyiss meg egy FRISS, még soha nem AI-kitöltött iratot","Ellenőrizd: látható-e a 🔄 gomb?","Kattints az 'AI Kitöltés'-re és várd meg","Most ellenőrizd újra: megjelent-e a 🔄 gomb?"],
+    expected:"✓ Friss iratnál a 🔄 NEM látható. Az első futtatás UTÁN megjelenik. Ha mindig látható → regresszió." },
+  { id:"C6", title:"Nagyon rövid / üres dokumentum", tags:["edge"], summary:"AI-nak kezelnie kell a 0-5 szavas dokumentumot",
+    steps:["Küldj be egy PDF-et ami csak 1 sort tartalmaz (pl. csak egy fejléc)","Futtasd az AI Kitöltést"],
+    expected:"✓ Az AI nem crashel. A mezők üresen maradnak vagy minimális adattal töltődnek. Nincs 500-as szerver hiba." },
+  { id:"C7", title:"Előzmény javaslat relevancia", tags:["regr"], summary:"Pusztán feladó egyezés nem indokol >50% javaslatot",
+    steps:["Keress egy feladót akitől korábban más témájú irat érkezett","Küldj teljesen más témájú emailt ugyanattól","Futtasd az AI Kitöltést — nézd az előzmény javaslatot"],
+    expected:"✓ Előzmény javaslat üres, vagy <30% egyezéssel. NEM kap 50%+ javaslatot csak feladó egyezés alapján." },
+  { id:"C8", title:"Rosszul olvasható scan — AI nem találgat", tags:[], summary:"Alacsony confidence esetén mezők üresen maradnak",
+    steps:["Küldj gyenge minőségű, beolvasott PDF-et","Futtasd az AI Kitöltést","Ellenőrizd a hivatkozott_szam és típus mezőket"],
+    expected:"✓ Mezők üresen maradnak (nem találgat). Confidence alacsony. Nincs hibás adat a formban." }
+]},
+
+// ===== D: HOZZÁFÉRÉS-VEZÉRLÉS =====
+{ cat:"🟨 D", catTitle:"Hozzáférés-vezérlés (ABAC/RLS)", tests:[
+  { id:"D1", title:"Szervezeti egységen kívüli ügyirat — ügyintéző", tags:[], summary:"Ügyintéző nem láthat más osztály ügyiratát",
+    steps:["Jelentkezz be Teszt Elek (ügyintéző) fiókkal","Keresd egy másik szervezeti egység ügyiratának URL-jét","Nyisd meg közvetlenül a böngészőben"],
+    expected:"✓ 'Hozzáférés Megtagadva' oldal jelenik meg, NEM az ügyirat tartalma. Esemény naplózódik." },
+  { id:"D2", title:"Ügyintéző nem zárhat le ügyiratot", tags:[], summary:"Lezárás jog: vezető/admin/iktató",
+    steps:["Teszt Elek fiókkal keress egy ügyiratot amelynek ő a felelőse","Kattints a 'Lezárás' gombra"],
+    expected:"✓ Hibaüzenet: 'Ügyintéző nem zárhat le ügyiratot.' Státusz változatlan." },
+  { id:"D3", title:"Bizalmas ügyirat + nem megfelelő jogosultsági szint", tags:[], summary:"Nyilt szintű felhasználó nem láthat bizalmas ügyiratot",
+    steps:["Keress egy 'bizalmas' minősítésű ügyiratot admin fiókkal, másold az URL-t","Teszt Elek (nyilt szint) fiókkal nyisd meg az URL-t","Ellenőrizd az esemény_naplo-t: naplózódott-e a kísérlet?"],
+    expected:"✓ Hozzáférés Megtagadva oldal piros iconnal. Teszt Elek jogszintje megjelenik. Esemény naplózva." },
+  { id:"D4", title:"Vezető látja saját osztályának összes ügyiratát", tags:[], summary:"Osztályvezető ABAC: saját osztály összes ügye látható",
+    steps:["Azonosíts egy vezető szerepkörű felhasználót akinek van szervezeti egysége","Bejelentkezve navigálj a Dossier listára","Ellenőrizd: csak az ő osztályának ügyiratai jelennek meg, vagy az összes?"],
+    expected:"✓ Vezető kizárólag a saját szervezeti egységéhez tartozó ügyiratokat látja (+ explicit hozzárendelt iratokat)." },
+  { id:"D5", title:"Explicit hozzárendelés cross-department", tags:[], summary:"Explicit hozzáféréssel más osztály ügyirata is elérhető",
+    steps:["Admin fiókban adj explicit hozzáférést Teszt Eleknek egy másik osztály ügyiratához (ugyirat_hozzaferes tábla)","Teszt Elek fiókkal nyisd meg az adott ügyirat URL-jét"],
+    expected:"✓ Teszt Elek látja és szerkesztheti az ügyiratot. Nincs 'Hozzáférés Megtagadva'." },
+  { id:"D6", title:"Admin saját maga jogosultságát nem csökkentheti", tags:["fixed"], summary:"Admin nem veheti el saját admin jogát",
+    steps:["Admin fiókkal menj a Beállítások → Felhasználók oldalra","Próbáld saját magad szerepkörét 'ügyintéző'-re változtatni"],
+    expected:"✓ A rendszer megakadályozza: saját felhasználói kártyánál '(Te)' badge látható, a törlés gomb el van rejtve, a szerepkör dropdown zárolva van magyarázó sávval, és adatbázis / szerver szinten is blokkolt a demotálás." }
+]},
+
+// ===== E: ÜGYIRAT ÉLETCIKLUS =====
+{ cat:"🟨 E", catTitle:"Ügyirat Életciklus & Státuszok", tests:[
+  { id:"E1", title:"Lezárt ügyiratba iktatás kísérlete", tags:["fixed"], summary:"Irattárban státuszú ügyiratba ne lehessen iktatni",
+    steps:["Keress egy 'irattarban' státuszú ügyiratot","Az Inbox-ból próbálj iktatni ebbe a meglévő ügyiratba","Engedte-e a rendszer?"],
+    expected:"✓ A rendszer megakadályozza: az irattárban lévő és lezárt ügyiratok a választólistában inaktívak (áthúzva, [Irattárban]/[Lezárt] badge-dzsel), és mind a szerver oldali iktatási művelet, mind az utólagos válaszlevél feltöltés hibaüzenettel elutasítja." },
+  { id:"E2", title:"Megőrzési idő számítás pontossága", tags:[], summary:"Lezáráskor a megőrzési idő vége pontosan kiszámítva",
+    steps:["Keress egy ügyiratot amelynek irattári terve pl. 5 éves megőrzési időt ír elő","Jegyezd fel a mai dátumot","Zárd le az ügyiratot","Supabase Studióban ellenőrizd az ugyirat tábla megorzesi_ido_vege mezőjét"],
+    expected:"✓ megorzesi_ido_vege = (lezárás napja) + (irattári tervben lévő évek). Pl. ma 2026-09-19, 5 éves terv → 2031-09-19." },
+  { id:"E3", title:"Irattári terv nélküli lezárás — default 5 év", tags:["edge"], summary:"Ha nincs irattári terv megadva, 5 éves default alkalmazandó",
+    steps:["Hozz létre/találj egy ügyiratot amelyhez nincs irattari_tetel hozzárendelve","Zárd le az ügyiratot","Ellenőrizd a megorzesi_ido_vege mezőt"],
+    expected:"✓ megorzesi_ido_vege = mai dátum + 5 év (default érték a kódban: 5 ha nincs irattári terv)." },
+  { id:"E4", title:"Ügyirat lezárása → ügy státusz is frissül", tags:[], summary:"Ügyirat lezárásakor a szülő ügy is lezártra vált",
+    steps:["Zárd le egy ügyiratot","Supabase Studióban ellenőrizd az ugy tábla statusz és lezarva mezőjét"],
+    expected:"✓ A szülő ügy statusz = 'lezart', lezarva mező = az aktuális időbélyeg." },
+  { id:"E5", title:"Selejtezési javaslat aktív ügyiratra", tags:["gap"], summary:"Aktív ügyirat ne legyen felterjeszthető",
+    steps:["Keress egy 'iktatva' státuszú ügyiratot","Az Archívum/Selejtezés oldalon próbáld felterjeszteni selejtezésre"],
+    expected:"✗ ISMERT GAP: valószínűleg nincs védelem. Csak 'irattarban' státuszú ügyirat mehet. Dokumentáld." },
+  { id:"E6", title:"Selejtezési csomag — részleges jóváhagyás", tags:[], summary:"Egy csomagból külön-külön jóváhagyható/elutasítható",
+    steps:["Hozz létre selejtezési csomagot legalább 3 ügyirattal","Hagyj jóvá 2-t, utasíts el 1-et","Ellenőrizd mindhárom ügyirat státuszát"],
+    expected:"✓ Jóváhagyott 2 státusza: 'selejtezett'. Elutasított 1 visszaáll: 'irattarban'." }
+]},
+
+// ===== F: KERESÉS =====
+{ cat:"🟨 F", catTitle:"Keresés & Mentett Keresések", tests:[
+  { id:"F1", title:"Magyar ékezetes FTS keresés", tags:[], summary:"Ékezetes és ékezet nélküli formák egyaránt megtalálhatók",
+    steps:["Iktass be egy iratot amelynek tárgyában 'szerződés' szerepel","Keresd 'szerzodes' szóra (ékezet nélkül)","Majd fordítva: irat tárgy 'szerzodes', keresd 'szerződés'-re"],
+    expected:"✓ FTS (Postgres hungarian szótár) mindkét irányban megtalálja. Ha nem → tsvector konfig hiba." },
+  { id:"F2", title:"Keresés pontos iktatószámra", tags:[], summary:"Iktatószám alapján pontosan 1 találat",
+    steps:["Keresd egy konkrét iktatószámot (pl. NYILV-2024-42)","Ellenőrizd: pontosan 1 találat?","Keress részleges számsorra is (pl. '2024-42')"],
+    expected:"✓ Pontos iktatószámra 1 találat. Részleges keresés az összes egyező számsort mutatja." },
+  { id:"F3", title:"Keresés teljesen üres stringre", tags:["edge"], summary:"Üres keresés nem crashel, helyes fallback",
+    steps:["A keresőmezőt hagyd üresen és nyomj Entert","Ellenőrizd az eredményt"],
+    expected:"✓ Üres keresés vagy hibaüzenetet ad (pl. 'Adj meg keresési feltételt'), vagy az összes iratot mutatja. NEM crashel." },
+  { id:"F4", title:"Mentett keresés — email értesítés", tags:[], summary:"Mentett keresésre illeszkedő új irat iktataásakor értesítés érkezik",
+    steps:["Hozz létre mentett keresést pl. 'Kovács' kulcsszóra","Iktass be iratot ahol 'Kovács' szerepel a tárgyban/küldőnél","Várd az email értesítést"],
+    expected:"✓ Email értesítés érkezik az iktatás után. Ha nem → az alerts rendszer nem működik." },
+  { id:"F5", title:"Partner alapú szűrés a Dossier listán", tags:[], summary:"Partner szűrő pontosan szűr",
+    steps:["A Dossier listán válassz ki egy konkrét partnert szűrőként","Ellenőrizd: minden megjelenő ügyiratnál valóban ez a partner a küldő?"],
+    expected:"✓ Csak az adott partnerhez tartozó ügyiratok jelennek meg. Más partner ügyiratai nem látszanak." }
+]},
+
+// ===== G: BEÁLLÍTÁSOK — FELHASZNÁLÓK =====
+{ cat:"⚙️ G", catTitle:"Beállítások — Felhasználók & Szerepkörök", tests:[
+  { id:"G1", title:"Új felhasználó létrehozása", tags:[], summary:"Admin tud új felhasználót créalni email + jelszóval",
+    steps:["Admin fiókkal menj a Beállítások → Felhasználók oldalra","Kattints 'Új felhasználó' gombra","Töltsd ki: email, jelszó, név, szerepkör, jogosultsági szint","Ellenőrizd hogy megjelent-e Supabase Auth-ban és a felhasznalo_profil táblában"],
+    expected:"✓ Felhasználó létrejön, profil rekord is keletkezik. Aktiválási email NEM kerül kiküldésre (email_confirm: true bypass)." },
+  { id:"G2", title:"Felhasználó törlése — adatok megmaradnak", tags:["edge"], summary:"Törlés után az iratok és naplók orphan rekordként megmaradnak",
+    steps:["Hozz létre egy teszt felhasználót akihez iktatás is tartozik","Töröld a felhasználót a Beállítások oldalon","Ellenőrizd az irat és esemeny_naplo táblákat — az user_id FK mit csinál?"],
+    expected:"✓ A felhasználó törlődik az auth-ból. Az iratok/naplók megmaradnak (NE legyenek kaszkád törölve). FK NULL-ra vagy megmarad." },
+  { id:"G3", title:"Szerepkör változtatás — azonnali hatályú-e?", tags:["edge"], summary:"Módosított szerepkör azonnal érvényes vagy session újraindítás kell",
+    steps:["Admin fiókkal változtasd meg Teszt Elek szerepkörét 'vezető'-re","Teszt Elek fiókjával (be van jelentkezve) próbálj meg egy vezető jogosultságot igénylő műveletet","Kijelentkezés nélkül is működik-e az új jogosultság?"],
+    expected:"✓ A szerepkör változtatás azonnali (vagy max 1 page refresh után hatályos). NEM kell kijelentkezni/bejelentkezni." },
+  { id:"G4", title:"Jelszó megváltoztatása — minimum hossz validáció", tags:[], summary:"6 karakternél rövidebb jelszó nem fogadható el",
+    steps:["Beállítások → Jelszó módosítás","Próbálj be '123' jelszót (3 karakter)","Próbálj eltérő jelszó + megerősítés párt"],
+    expected:"✓ 3 karakteres jelszónál: 'Legalább 6 karakter szükséges'. Eltérő jelszavaknál: 'A megadott jelszavak nem egyeznek'." },
+  { id:"G5", title:"Profilkép feltöltés — méretkorlát", tags:["edge"], summary:"5 MB feletti képet elutasítja a rendszer",
+    steps:["Beállítások → Avatar feltöltés","Próbálj feltölteni egy 6 MB-os képet","Próbálj feltölteni egy érvényes JPEG-et <5MB"],
+    expected:"✓ 6 MB-os kép: 'A fájl maximum 5MB lehet'. Érvényes kép feltöltve és az avatar megjelenik az UI-ban." },
+  { id:"G6", title:"Profilkép feltöltés — nem képfájl (pl. .exe, .pdf)", tags:["edge"], summary:"Nem képformátumú fájl elutasítva",
+    steps:["Próbálj egy .pdf vagy .exe fájlt feltölteni avatar helyett"],
+    expected:"✓ 'Csak JPG, PNG vagy WebP formátum engedélyezett' hibaüzenet. Fájl nem töltődik fel." }
+]},
+
+// ===== H: BEÁLLÍTÁSOK — OSZTÁLYOK & ÉRTESÍTÉSEK =====
+{ cat:"⚙️ H", catTitle:"Beállítások — Osztályok, Értesítések, IMAP", tests:[
+  { id:"H1", title:"Osztály létrehozása — duplikált névvel", tags:["edge"], summary:"Ugyanolyan nevű osztály ne jöjjön létre kétszer",
+    steps:["Beállítások → Szervezeti egységek","Hozz létre egy osztályt 'Pénzügy' névvel","Próbáld meg újra létrehozni 'Pénzügy' névvel"],
+    expected:"✓ Második létrehozásnál hibaüzenet (unique constraint). NEM jön létre 2 'Pénzügy' osztály." },
+  { id:"H2", title:"Osztályvezető kinevezése — jogosultság automatikus emelés", tags:[], summary:"Ügyintézőt osztályvezetővé téve, szerepköre automatikusan 'vezető'-re vált",
+    steps:["Beállítások → Osztályok → Vezető beállítása: válassz ki egy 'ügyintéző' szerepkörű felhasználót osztályvezetőnek","Ellenőrizd Supabase Studióban a felhasznalo_profil táblában a docs_szerepkor mezőt"],
+    expected:"✓ A felhasználó docs_szerepkor mezője: 'vezeto' (nem marad 'ugyintezo'). Ez automatikus a settings-actions.ts L298-300 logikájából." },
+  { id:"H3", title:"Osztály törlése — van-e aktív tagja?", tags:["edge"], summary:"Tagokat tartalmazó osztály törlésekor mi történik?",
+    steps:["Keress egy osztályt amelyhez felhasználók vannak rendelve","Töröld az osztályt a Beállítások oldalon","Ellenőrizd: a felhasználók szervezeti_egyseg_id mezője mit mutat?"],
+    expected:"✓ Ideálisan: hibaüzenet 'Előbb távolítsd el az osztály tagjait'. Ha sikerül törölni: a tagok szorganizeti_egyseg_id NULL-ra vált (cascade set null). Kaszkád törlés NEM szabad." },
+  { id:"H4", title:"Értesítési szabály ki/bekapcsolása", tags:[], summary:"Toggle egyből érvényes az értesítési logiknál",
+    steps:["Beállítások → Értesítések","Kapcsolj ki egy aktív értesítési szabályt (pl. határidő közeledik)","Supabase Studióban ellenőrizd az ertesitesi_szabaly tábla aktiv mezőjét","Kapcsold vissza"],
+    expected:"✓ Az aktiv mező azonnal false-ra vált. A nightly cron az inaktív szabályt NEM dolgozza fel." },
+  { id:"H5", title:"Értesítési csatorna módosítása (email + SMS)", tags:[], summary:"Csatorna lista módosítása érvényes és tárolódik",
+    steps:["Beállítások → Értesítések → Egy szabálynál válts email-ről SMS-re","Ellenőrizd a csatorna mező értékét Supabase Studióban"],
+    expected:"✓ A csatorna mező: ['sms'] vagy ['email','sms']. A változtatás mentve. Nem-admin felhasználó módosítási kísérleténél hibaüzenet." },
+  { id:"H6", title:"IMAP kapcsolat tesztelés — hibás hitelesítő adatok", tags:[], summary:"Hibás IMAP hitelesítő adatokkal hibaüzenet, nem crash",
+    steps:["Beállítások → IMAP konfiguráció","Add meg egy hibás jelszóval az IMAP adatokat","Kattints 'Kapcsolat tesztelése' (ha van ilyen gomb) vagy futtasd az IMAP cron-t"],
+    expected:"✓ Hibaüzenet: 'Kapcsolódás sikertelen: Authentication failed' vagy hasonló. A szerver NEM crashel, a többi funkció működik." }
+]},
+
+// ===== I: PARTNEREK =====
+{ cat:"🏢 I", catTitle:"Partner Modul", tests:[
+  { id:"I1", title:"Partner létrehozása — kötelező mezők validáció", tags:[], summary:"Név nélküli partner ne hozható létre",
+    steps:["Navigálj a Partnerek oldalra","Kattints 'Új partner' (ha van ilyen UI)","Hagyd üresen a nevet, próbáld menteni"],
+    expected:"✓ Validáció megakadályozza üres névvel a mentést. Hibaüzenet jelenik meg." },
+  { id:"I2", title:"Partner adószám normalizálás", tags:[], summary:"Különböző formátumok ugyanazt a partnert azonosítják",
+    steps:["Hozz létre partnert '12345678-1-42' adószámmal","Nézd meg Supabase Studióban hogyan tárolódott (normalizált formában)","Próbálj hozzáadni '12345678142' adószámú partnert — duplikátum-e?"],
+    expected:"✓ Az adószám normalizált formában tárolódik. Különböző formátumú, de azonos adószámú partner nem duplikálódik." },
+  { id:"I3", title:"Partner részletes oldal — kapcsolódó iratok listája", tags:[], summary:"A partner oldalán megjelennek a hozzá kapcsolódó iratok",
+    steps:["Keress egy partnert akihez már vannak iktatott iratok","Nyisd meg a partner részletes oldalát (/partners/[id])","Ellenőrizd a kapcsolódó iratok listáját"],
+    expected:"✓ Az összes irat látható ahol ez a partner kuldo_partner_id vagy irat_kapcsolat entitas_id. A lista helyes." },
+  { id:"I4", title:"Partner törlés — van-e aktív ügyirata?", tags:["edge"], summary:"Iratokhoz kapcsolt partner törlésekor mi történik?",
+    steps:["Keress egy partnert akihez van iktatott irat","Próbáld meg törölni a partnert","Ellenőrizd: az irat kuldo_partner_id mezője NULL-ra vált?"],
+    expected:"✓ Hibaüzenet 'Ez a partner iratokhoz kapcsolódik, nem törölhető', VAGY sikeres törlés de az iratok kuldo_partner_id NULL-ra vált. NEM törlődnek az iratok." }
+]},
+
+// ===== J: FELADATOK =====
+{ cat:"📋 J", catTitle:"Feladatok (Tasks)", tests:[
+  { id:"J1", title:"Lejárt feladat határidő — piros jelzés", tags:["fixed"], summary:"Múltbeli határidejű feladat piros színnel jelenik meg",
+    steps:["Hozz létre feladatot tegnapi határidővel","Navigálj a Feladatok listára","Ellenőrizd a határidő megjelenítési színét"],
+    expected:"✓ Határidő piros (destructive) szín. NEM sárga, NEM szürke." },
+  { id:"J2", title:"Feladat Kanban — drag-and-drop ugrik egyet", tags:["regr"], summary:"Kártyára kattintáskor nem ugrik más oszlopba",
+    steps:["A Kanban nézetben kattints egy kártyára anélkül, hogy húznád","Ellenőrizd: marad-e a helyén?","Próbálj húzni egy kártyát egyik oszlopból a másikba — oda kerül-e ahol elejtettük?"],
+    expected:"✓ Kattintásra a kártya marad a helyén. Drag-and-drop pontosan oda teszi ahol elejtjük, nem ugrik egyet. Ha ugrik → ismert bug." },
+  { id:"J3", title:"Feladat határidő értesítés (nightly cron)", tags:[], summary:"2 nappal a határidő előtt email értesítés megy a felelősnek",
+    steps:["Hozz létre egy ügyet amelynek határideje pontosan 2 nap múlva van","Futtasd manuálisan a nightly cron-t: GET /api/cron/nightly?secret=teszt-cron-kulcs-123","Ellenőrizd a felelős email fiókját"],
+    expected:"✓ A felelős email értesítést kap 'Határidő közeledik' tárggyyal 2 nap múlva lejáró ügyek esetén." },
+  { id:"J4", title:"Feladat hozzárendelés — nem létező felhasználóhoz", tags:["edge"], summary:"Törölt felhasználóhoz rendelt feladat nem okoz hibát",
+    steps:["Rendelj feladatot egy aktív felhasználóhoz","Töröld ezt a felhasználót (vagy töröld az FK-t manuálisan Supabase-ben)","Navigálj a feladat oldalára"],
+    expected:"✓ A feladat oldal betölt, hibás/NULL felelős megjelenik pl. 'Ismeretlen felhasználó' vagy üres mezőként. NEM 500-as hiba." }
+]},
+
+// ===== K: CRON & API =====
+{ cat:"⏰ K", catTitle:"Cron Jobok & API Végpontok", tests:[
+  { id:"K1", title:"Nightly cron — autorizáció ellenőrzés", tags:[], summary:"Secret nélküli hívás 401-et ad",
+    steps:["Böngészőben nyisd meg: /api/cron/nightly (secret nélkül)","Próbáld rossz secret-tel: /api/cron/nightly?secret=rossztitkos"],
+    expected:"✓ Mindkét esetben HTTP 401 Unauthorized. NEM fut le a cron logika." },
+  { id:"K2", title:"PDF letöltési URL lejárata (60s)", tags:[], summary:"Aláírt letöltési URL 60 másodperc után lejár",
+    steps:["Nyiss meg egy iratot, kattints a letöltés gombra","DevTools Network tabban fogd el az aláírt URL-t","Várj 65 másodpercet","Próbáld közvetlenül megnyitni az URL-t"],
+    expected:"✓ 403 Forbidden / 'URL expired' hiba. Az URL 60 másodperccel a generálás után lejár." },
+  { id:"K3", title:"REST API v1 — autentikáció kötelező", tags:[], summary:"API bearer token nélkül 401-et ad",
+    steps:["Próbáld a REST API-t bearer token nélkül: GET /api/v1/ugyiratok","Próbáld érvénytelen tokennel"],
+    expected:"✓ Mindkét esetben HTTP 401. Az API adat NEM kerül visszaadásra." },
+  { id:"K4", title:"Scanner separator sheet generálás", tags:[], summary:"A szeparátor lap PDF letölthető",
+    steps:["Navigálj arra a funkcióra ahol szeparátor lapot lehet generálni (ha van UI)","Kattints a letöltésre, nyisd meg a PDF-et"],
+    expected:"✓ Érvényes PDF letöltődik szeparátor lap tartalommal. NEM 500-as hiba." }
+]},
+
+// ===== L: BIZTONSÁG =====
+{ cat:"🔒 L", catTitle:"Biztonság & Adatintegritás", tests:[
+  { id:"L1", title:"Audit napló append-only — UPDATE/DELETE tiltott", tags:[], summary:"esemeny_naplo sorai nem módosíthatók DB szinten",
+    steps:["Supabase Studio → SQL Editor: UPDATE esemeny_naplo SET indoklas='teszt' WHERE id='(bármelyik id)'","Próbáld a Studio táblázat nézetéből is szerkeszteni"],
+    expected:"✓ Permission denied hiba mindkét esetben. A sor változatlan marad." },
+  { id:"L2", title:"RLS: felhasználó nem láthatja más szervezet adatait", tags:[], summary:"RLS policy tényleg szűr adatbázis szinten",
+    steps:["Teszt Elek (saját osztály: Pénzügy) bejelentkezve","Supabase anonKey-jel (böngészőből) próbálj meg direkt Supabase API hívást csinálni az ugyirat táblára","Ellenőrizd a visszaadott adatokat"],
+    expected:"✓ Csak a saját osztályhoz és explicit hozzárendelt ügyiratok kerülnek vissza. Más osztályok ügyiratai NEM látszanak." },
+  { id:"L3", title:"SHA-256 fájl integritás hash", tags:[], summary:"Fájl feltöltésekor SHA-256 hash generálódik és eltárolódik",
+    steps:["Tölts fel egy ismert fájlt (pl. 1KB szöveges PDF)","Supabase Studióban az irat_fajl táblában ellenőrizd a sha256_hash mezőt","Számold ki a fájl SHA-256 hashét: certutil -hashfile [fájl] SHA256 (Windows)","Hasonlítsd össze"],
+    expected:"✓ A DB-ben tárolt SHA-256 hash megegyezik a kézzel számolt értékkel." },
+  { id:"L4", title:"Jelszócsere után régi session érvénytelen", tags:["edge"], summary:"Jelszóváltoztatás után a régi tokenek nem működnek",
+    steps:["Jelentkezz be Teszt Elek fiókkal 2 különböző böngészőben","Az egyik böngészőben változtasd meg a jelszót","A másik böngészőben próbálj meg navigálni vagy adatot módosítani"],
+    expected:"✓ A másik böngészőben 401/session expired hiba keletkezik. A régi session érvénytelen." }
+]},
+
+// ===== M: REGRESSZIÓ & ISMERT FIXEK =====
+{ cat:"✅ M", catTitle:"Regresszió — Korábban Javított Bugok", tests:[
+  { id:"M1", title:"Üres email box nem jelenik meg", tags:["fixed"], summary:"Ha email szöveges törzse nincs, üres box NEM látható",
+    steps:["Küldj emailt csatolmánnyal, szöveges törzs nélkül","Fogadd az Inbox-ban, nyisd meg a részletes nézetet"],
+    expected:"✓ Üres szöveg doboz NEM látható. Csak a melléklet. Ha üres box látszik → regresszió." },
+  { id:"M2", title:"Warning banner — piros szín (nem sárga)", tags:["fixed"], summary:"Bizalmas ügyirat figyelmeztetés piros (destructive)",
+    steps:["Nyiss meg egy 'bizalmas' minősítésű ügyiratot","Ellenőrizd a figyelmeztetési sáv színét az oldal tetején"],
+    expected:"✓ Sáv piros / destructive colored. NEM sárga/amber. Ha sárga → regresszió." },
+  { id:"M3", title:"Teszt Elek — Hozzáférés Megtagadva oldal olvasható", tags:["fixed"], summary:"Hozzáférés megtagadva oldal piros ikonnal, olvasható",
+    steps:["Teszt Elek fiókkal nyisd meg egy bizalmas ügyirat URL-jét","Ellenőrizd: szín, olvashatóság, jogosultsági szint kijelzése"],
+    expected:"✓ Piros ikon, olvasható szöveg, Teszt Elek jogosultsági szintje megjelenik. Ha sárga → regresszió." },
+  { id:"M4", title:"AI kitöltés — hivatkozott szám első futtatásra", tags:["regr"], summary:"Első futtatásra is beírja a hivatkozott számot (ne kelljen kétszer futtatni)",
+    steps:["Küldj egy dokumentumot ahol jól látható hivatkozott szám/szerződésszám van","Futtasd az AI Kitöltést ELŐSZÖR","Ellenőrizd: beírta-e első alkalommal a hivatkozott számot?"],
+    expected:"✓ Az első futtatásra beírja. Ha csak második futtatásra töltődik ki → ismert, de még javítandó bug." },
+  { id:"M5", title:"AI kitöltés — küldő partner helyes (ne a feladó nevét írja)", tags:["regr"], summary:"Az AI a Kft. nevét írja, nem az email feladó személyét",
+    steps:["Küldj emailt saját neveddel amelynek melléklete egy Infopark Kft. levél","Futtasd az AI Kitöltést","Ellenőrizd a Küldő partner mezőt"],
+    expected:"✓ Küldő partner: 'Infopark Kft.' NEM a te személyes neved. Ha a személyes neved → regresszió." }
+]}
+];
+
+// ===== RENDER ENGINE =====
+function ld(id){try{return JSON.parse(localStorage.getItem('et_'+id)||'{}')}catch(e){return{}}}
+function sv(id,d){localStorage.setItem('et_'+id,JSON.stringify(d))}
+function h(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+let filter='all';
+
+const STATUSES=[
+  {key:'tested',label:'Tesztelve',cls:'active-tested'},
+  {key:'ok',label:'✓ Működik',cls:'active-ok'},
+  {key:'fail',label:'✗ Nem működik',cls:'active-fail'},
+  {key:'dunno',label:'? Nem értem',cls:'active-dunno'},
+];
+const STATUS_LABEL={tested:'Tesztelve',ok:'Működik',fail:'Nem működik',dunno:'Nem értem'};
+
+function render(){
+  const main=document.getElementById('main');
+  main.innerHTML='';
+  let total=0,done=0,okN=0,failN=0,dunnoN=0;
+
+  T.forEach(cat=>{
+    const catDiv=document.createElement('div');
+    catDiv.innerHTML=`<div class="cat-header"><span class="cat-title">${cat.cat} — ${cat.catTitle}</span><div class="cat-line"></div><span class="cat-count">${cat.tests.length}</span></div>`;
+    main.appendChild(catDiv);
+
+    cat.tests.forEach(t=>{
+      total++;
+      const st=ld(t.id);
+      if(st.status)done++;
+      if(st.status==='ok')okN++;
+      if(st.status==='fail')failN++;
+      if(st.status==='dunno')dunnoN++;
+
+      const hidden=(filter!=='all')&&(
+        (filter==='fail'&&st.status!=='fail')||
+        (filter==='ok'&&st.status!=='ok')||
+        (filter==='dunno'&&st.status!=='dunno')||
+        (filter==='untested'&&st.status)
+      );
+
+      const card=document.createElement('div');
+      card.className='test-card'+(st.status?' status-'+st.status:'')+(hidden?' hidden':'');
+      card.id='card-'+t.id;
+
+      const tags=(t.tags||[]).map(g=>({
+        gap:`<span class="tag tag-gap">⚠ GAP</span>`,
+        fixed:`<span class="tag tag-fixed">✓ Fix</span>`,
+        regr:`<span class="tag tag-regr">↩ Regr</span>`,
+        edge:`<span class="tag tag-edge">◆ Edge</span>`,
+      }[g]||'')).join('');
+
+      const si=st.status?`<div class="si-dot ${st.status}"></div><span class="si-label">${STATUS_LABEL[st.status]}</span>`:`<div class="si-dot"></div><span class="si-label">Nem tesztelt</span>`;
+
+      const stepsHtml=t.steps.map(s=>`<li>${h(s)}</li>`).join('');
+
+      card.innerHTML=`
+        <div class="test-top" onclick="toggleCard('${t.id}')">
+          <span class="test-badge">${h(t.id)}</span>
+          <div class="test-main">
+            <div class="test-title-row"><span class="test-name">${h(t.title)}</span>${tags}</div>
+            <div class="test-summary">${h(t.summary)}</div>
+          </div>
+          <div class="test-right">${si}<span class="chevron">&#9658;</span></div>
+        </div>
+        <div class="test-body">
+          <div class="sections">
+            <div class="section">
+              <div class="section-title">Mit kell csinalni</div>
+              <ol class="steps">${stepsHtml}</ol>
+            </div>
+            <div class="section">
+              <div class="section-title">Elvart eredmeny</div>
+              <div class="expected">${h(t.expected)}</div>
+            </div>
+          </div>
+          <div class="actions-row" id="act-${t.id}"></div>
+        </div>`;
+      main.appendChild(card);
+
+      const row=card.querySelector('#act-'+t.id);
+      STATUSES.forEach(s=>{
+        const btn=document.createElement('button');
+        btn.className='status-btn'+(st.status===s.key?' '+s.cls:'');
+        btn.textContent=s.label;
+        btn.onclick=e=>{
+          e.stopPropagation();
+          const cur=ld(t.id);
+          sv(t.id,{...cur,status:cur.status===s.key?null:s.key});
+          render();
+          const nc=document.getElementById('card-'+t.id);
+          if(nc)nc.classList.add('expanded');
+        };
+        row.appendChild(btn);
+      });
+      const note=document.createElement('input');
+      note.className='note-input';
+      note.placeholder='Megjegyzés, észrevétel...';
+      note.value=st.note||'';
+      note.onclick=e=>e.stopPropagation();
+      note.onchange=()=>{const cur=ld(t.id);sv(t.id,{...cur,note:note.value});};
+      row.appendChild(note);
+    });
+  });
+
+  // Stats
+  document.getElementById('cnt-ok').textContent=okN;
+  document.getElementById('cnt-fail').textContent=failN;
+  document.getElementById('cnt-dunno').textContent=dunnoN;
+  const pct=total>0?Math.round(done/total*100):0;
+  document.getElementById('prog').style.width=pct+'%';
+  document.getElementById('prog-txt').textContent=`${done}/${total} (${pct}%)`;
+
+  // Summary
+  const existingS=document.getElementById('summary-panel');
+  if(existingS)existingS.remove();
+  const allTests=T.flatMap(c=>c.tests);
+  const okIds=allTests.filter(t=>ld(t.id).status==='ok');
+  const failIds=allTests.filter(t=>ld(t.id).status==='fail');
+  const dunnoIds=allTests.filter(t=>ld(t.id).status==='dunno');
+  if(okN+failN+dunnoN===0)return;
+  const panel=document.createElement('div');
+  panel.className='summary';panel.id='summary-panel';
+  const chip=(t,cls)=>`<span class="id-chip ${cls}">${t.id}</span>`;
+  panel.innerHTML=`<div class="summary-title">Összesítő</div><div class="summary-grid">
+    ${okN>0?`<div class="summary-item"><div class="summary-item-title" style="color:var(--ok)">✓ Működik (${okN})</div><div>${okIds.map(t=>chip(t,'ok')).join('')}</div></div>`:''}
+    ${failN>0?`<div class="summary-item"><div class="summary-item-title" style="color:var(--fail)">✗ Nem működik (${failN})</div><div>${failIds.map(t=>chip(t,'fail')).join('')}</div><div class="fail-notes">${failIds.map(t=>{const s=ld(t.id);return s.note?`${t.id}: ${s.note}<br>`:''}).join('')}</div></div>`:''}
+    ${dunnoN>0?`<div class="summary-item"><div class="summary-item-title" style="color:var(--warn)">? Nem értem (${dunnoN})</div><div>${dunnoIds.map(t=>chip(t,'dunno')).join('')}</div></div>`:''}
+  </div>`;
+  main.appendChild(panel);
+}
+
+function toggleCard(id){
+  const c=document.getElementById('card-'+id);
+  if(c)c.classList.toggle('expanded');
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    filter=btn.dataset.f;
+    render();
+  });
+});
+
+render();
+</script>
+</body>
+</html>

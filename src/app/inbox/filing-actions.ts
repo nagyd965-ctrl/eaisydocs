@@ -88,7 +88,13 @@ export async function fileIncomingDocument(formData: FormData) {
       .insert(ugyInsertData)
       .select("id")
       .single()
-    if (ugyError || !ugyData) return { error: "Hiba az ügy létrehozásakor: " + (ugyError?.message || "") }
+    if (ugyError || !ugyData) {
+      const msg = ugyError?.message || ""
+      if (msg.includes("row-level security") || msg.includes("violates") || (ugyError as any)?.code === '42501') {
+        return { error: "Nincs jogosultságod ehhez a szervezeti egységhez. Csak a saját osztályodba iktathatod az iratokat. Kérj segítséget az adminisztrátortól, vagy válassz másik szervezeti egységet." }
+      }
+      return { error: "Hiba az ügy létrehozásakor: " + msg }
+    }
 
     const { data: iktatoszamData, error: iktatoszamError } = await supabase.rpc('generate_iktatoszam', { p_ev: ev, p_prefix: prefix })
     if (iktatoszamError) return { error: "Hiba az iktatószám generálásakor." }
@@ -105,7 +111,13 @@ export async function fileIncomingDocument(formData: FormData) {
       })
       .select("id")
       .single()
-    if (ugyiratError || !ugyiratData) return { error: "Hiba az ügyirat létrehozásakor: " + (ugyiratError?.message || "") }
+    if (ugyiratError || !ugyiratData) {
+      const msg = ugyiratError?.message || ""
+      if (msg.includes("row-level security") || msg.includes("violates") || (ugyiratError as any)?.code === '42501') {
+        return { error: "Nincs jogosultságod a kiválasztott szervezeti egységbe való iktatáshoz. Ellenőrizd, hogy a megfelelő osztályt választottad-e ki, vagy kérj segítséget az adminisztrátortól." }
+      }
+      return { error: "Hiba az ügyirat létrehozásakor: " + msg }
+    }
     
     ugyiratIdToUse = ugyiratData.id;
     alszam = 1;
@@ -115,13 +127,29 @@ export async function fileIncomingDocument(formData: FormData) {
     ugyiratIdToUse = formData.get("existing_ugyirat_id") as string
     if (!ugyiratIdToUse) return { error: "Nincs kiválasztva ügyirat!" }
 
-    // Fetch existing ugyirat to get its iktatószám and ugy_id
+    // Fetch existing ugyirat to get its iktatószám, ugy_id and statusz
     const { data: existingDossier, error: dossierError } = await supabase
       .from("ugyirat")
-      .select("id, iktatoszam, ugy_id")
+      .select("id, iktatoszam, ugy_id, statusz")
       .eq("id", ugyiratIdToUse)
       .single()
     if (dossierError || !existingDossier) return { error: "A kiválasztott ügyirat nem található." }
+
+    // Szigorú iratkezelési szabály: Lezárt vagy irattározott ügyiratba tilos új iratot iktatni
+    const CLOSED_STATUSES = ["irattarban", "lezart", "selejtezheto", "selejtezett"]
+    if (existingDossier.statusz && CLOSED_STATUSES.includes(existingDossier.statusz)) {
+      const statusLabels: Record<string, string> = {
+        irattarban: "irattározott",
+        lezart: "lezárt",
+        selejtezheto: "selejtezésre jelölt",
+        selejtezett: "selejtezett"
+      }
+      const label = statusLabels[existingDossier.statusz] || "lezárt"
+      return { 
+        error: `A kiválasztott ügyirat (${existingDossier.iktatoszam}) már ${label}, ezért nem iktatható bele új irat! Kérjük, nyiss új ügyiratot, vagy kérd az ügyirat újranyitását.` 
+      }
+    }
+
     iktatoszam = existingDossier.iktatoszam
 
     // Calculate max alszam

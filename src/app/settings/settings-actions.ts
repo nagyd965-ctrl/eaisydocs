@@ -236,6 +236,12 @@ export async function updateUserPassword(formData: FormData) {
 
 export async function updateUserRole(userId: string, newRole: string, currentMinosites: string, departmentId: string | null) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (user && user.id === userId && !['admin', 'rendszergazda'].includes(newRole)) {
+    return { error: "Saját adminisztrátori szerepkörödet nem vonhatod vissza, hogy elkerüld a rendszerből való kizáródást!" }
+  }
+
   const { error: rpcError } = await supabase.rpc('admin_update_user_profile', {
     target_user_id: userId,
     new_role: newRole,

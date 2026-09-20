@@ -3,11 +3,14 @@ import fs from 'fs';
 import { config } from 'dotenv';
 
 config({ path: '.env.local' });
-const connectionString = process.env.DATABASE_URL;
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres.pdthccijqnhphjbtrtwo:Nincsapellata1%27@aws-0-eu-west-1.pooler.supabase.com:6543/postgres";
 
 async function runMigration() {
   const client = new Client({
-    connectionString,
+    connectionString: connectionString.includes('db.pdthccijqnhphjbtrtwo.supabase.co')
+      ? "postgresql://postgres.pdthccijqnhphjbtrtwo:Nincsapellata1%27@aws-0-eu-west-1.pooler.supabase.com:6543/postgres"
+      : connectionString,
+    ssl: { rejectUnauthorized: false }
   });
 
   try {

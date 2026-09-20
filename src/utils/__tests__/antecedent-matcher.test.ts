@@ -108,7 +108,8 @@ console.log("Res 3 Statusz:", res3.statusz)
 
 assert.strictEqual(res3.ugyirat_id, "dossier-eon-closed")
 assert.strictEqual(res3.statusz, "lezart")
-assert.ok(res3.confidence_score >= 60)
+assert.strictEqual(res3.recommendation_type, "uj_ugy_nyitasa")
+assert.ok(res3.confidence_score >= 50)
 
 // TEST 4: New Topic (Unknown partner, distinct subject)
 console.log("\n--- TEST 4: New Topic / Low Similarity ---")
