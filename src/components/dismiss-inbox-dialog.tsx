@@ -20,7 +20,7 @@ interface DismissInboxDialogProps {
   iratId: string
   erkeztetoszam: string
   targy: string
-  onDismissed?: () => void
+  onDismissed?: (reason: string) => void
 }
 
 export function DismissInboxDialog({
@@ -40,8 +40,9 @@ export function DismissInboxDialog({
       return
     }
 
+    const trimmedReason = indoklas.trim()
     setIsSubmitting(true)
-    const res = await dismissInboxItem(iratId, indoklas)
+    const res = await dismissInboxItem(iratId, trimmedReason)
     setIsSubmitting(false)
 
     if (res.error) {
@@ -52,7 +53,7 @@ export function DismissInboxDialog({
       })
       setOpen(false)
       setIndoklas("")
-      onDismissed?.()
+      onDismissed?.(trimmedReason)
     }
   }
 

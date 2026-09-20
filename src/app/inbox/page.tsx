@@ -32,7 +32,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     billInvoices = await getImportableEaisyBillInvoices()
   }
 
-  let query = supabase
+  // 1. Aktív tételek (feldolgozásra váró, iktatandó iratok)
+  let activeQuery = supabase
     .from("irat")
     .select(`
       id,
@@ -42,17 +43,40 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       erkezes_modja,
       statusz,
       kulso_forras,
+      leiras,
       partner ( nev )
     `)
     .is("ugyirat_id", null)
-    .or("statusz.is.null,statusz.neq.nem_iktatando")
+    .or("statusz.is.null,statusz.eq.erkeztetve")
+    .order("erkezes_datuma", { ascending: false })
+
+  // 2. Nem iktatandó küldemények (félretett reklámok / tájékoztatók)
+  let dismissedQuery = supabase
+    .from("irat")
+    .select(`
+      id,
+      erkeztetoszam,
+      erkezes_datuma,
+      targy,
+      erkezes_modja,
+      statusz,
+      kulso_forras,
+      leiras,
+      partner ( nev )
+    `)
+    .is("ugyirat_id", null)
+    .eq("statusz", "nem_iktatando")
     .order("erkezes_datuma", { ascending: false })
 
   if (q) {
-    query = query.or(`targy.ilike.%${q}%,erkeztetoszam.ilike.%${q}%`)
+    activeQuery = activeQuery.or(`targy.ilike.%${q}%,erkeztetoszam.ilike.%${q}%`)
+    dismissedQuery = dismissedQuery.or(`targy.ilike.%${q}%,erkeztetoszam.ilike.%${q}%`)
   }
 
-  const { data: inboxItems } = await query.limit(100)
+  const [{ data: activeItems }, { data: dismissedItems }] = await Promise.all([
+    activeQuery.limit(150),
+    dismissedQuery.limit(100),
+  ])
 
   return (
     <div className="page-animate space-y-6">
@@ -79,7 +103,11 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         />
       )}
 
-      <InboxTableClient initialItems={(inboxItems as any) || []} canEdit={permissions.canEdit} />
+      <InboxTableClient 
+        initialItems={(activeItems as any) || []} 
+        initialDismissedItems={(dismissedItems as any) || []} 
+        canEdit={permissions.canEdit} 
+      />
     </div>
   )
 }
