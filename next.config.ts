@@ -12,8 +12,7 @@ const nextConfig: NextConfig = {
     "puppeteer-core",
     "@sparticuz/chromium-min",
     "puppeteer",
-    "pdfjs-dist",   // Vercel: ne bundleoljon, Node.js módként fusson
-    "pdf-parse",    // Vercel: eval()-t tartalmaz, ne bundleoljon
+    "pdfjs-dist",
   ],
 };
 

@@ -54,13 +54,9 @@ export async function POST(req: Request) {
     // Parse PDF text
     const buffer = Buffer.from(await fileData.arrayBuffer());
     
-    // Using pdf-parse v2 API
-    // Using eval to hide the require from Turbopack so it doesn't try to bundle it and crash on dynamic requires inside pdf.js
-    const pdfParseModule = eval('require("pdf-parse")');
-    const { PDFParse } = pdfParseModule;
-    const parser = new PDFParse({ data: buffer });
-    const result = await parser.getText();
-    const cvText = result.text;
+    // Parse PDF text using Vercel-safe pdf-extractor
+    const { extractPdfText } = await import("@/utils/pdf-extractor");
+    const cvText = await extractPdfText(buffer);
 
     // Construct prompt
     const jobDescription = candidate.hr_allashirdetes 

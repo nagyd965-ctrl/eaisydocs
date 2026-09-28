@@ -16,11 +16,11 @@ export async function uploadIncomingDocument(formData: FormData) {
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("docs_szerepkor")
+    .select("docs_szerepkor, szerepkor")
     .eq("id", user.id)
     .single()
 
-  const userRole = profile?.docs_szerepkor || "ugyintezo"
+  const userRole = (profile as any)?.docs_szerepkor || (profile as any)?.szerepkor || "ugyintezo"
   const isAllowed = ["admin", "rendszergazda", "iktato"].includes(userRole)
   if (!isAllowed) {
     return { error: "Nincs jogosultságod új irat érkeztetéséhez." }
