@@ -12,7 +12,6 @@ const nextConfig: NextConfig = {
     "puppeteer-core",
     "@sparticuz/chromium-min",
     "puppeteer",
-    "pdfjs-dist",
   ],
 };
 
