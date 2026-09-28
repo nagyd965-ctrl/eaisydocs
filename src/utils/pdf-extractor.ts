@@ -47,7 +47,7 @@ export async function extractPdfPagesText(buffer: Buffer): Promise<string[]> {
       const page = await doc.getPage(i)
       const textContent = await page.getTextContent()
       const text = textContent.items
-        .map((item: { str?: string }) => (typeof item?.str === "string" ? item.str : ""))
+        .map((item) => ("str" in item ? (item.str as string) : ""))
         .join(" ")
         .trim()
       pages.push(text)
