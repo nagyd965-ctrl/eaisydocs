@@ -9,7 +9,18 @@
  */
 
 async function getPdfJs() {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs")
+  if (!(globalThis as any).pdfjsWorker) {
+    try {
+      // @ts-ignore - pdfjs worker does not export TS definitions
+      const workerMod = await import("pdfjs-dist/legacy/build/pdf.worker.mjs")
+      ;(globalThis as any).pdfjsWorker = (workerMod as any).default || workerMod
+    } catch (workerErr) {
+      console.warn("[PDFExtractor] Failed to pre-load pdf.worker.mjs into globalThis:", workerErr)
+    }
+  }
+
+  const mod = await import("pdfjs-dist/legacy/build/pdf.mjs")
+  const pdfjs = (mod as any).default?.getDocument ? (mod as any).default : mod
   return pdfjs
 }
 
@@ -47,7 +58,7 @@ export async function extractPdfPagesText(buffer: Buffer): Promise<string[]> {
       const page = await doc.getPage(i)
       const textContent = await page.getTextContent()
       const text = textContent.items
-        .map((item) => ("str" in item ? (item.str as string) : ""))
+        .map((item: any) => ("str" in item ? (item.str as string) : ""))
         .join(" ")
         .trim()
       pages.push(text)
@@ -60,8 +71,8 @@ export async function extractPdfPagesText(buffer: Buffer): Promise<string[]> {
     }
 
     return pages
-  } catch (err) {
-    console.warn("[PDFExtractor] Pages text extraction error:", err)
+  } catch (err: any) {
+    console.error("[PDFExtractor] Pages text extraction error:", err?.message || err, err?.stack)
     return []
   }
 }
