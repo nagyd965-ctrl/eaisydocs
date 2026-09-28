@@ -11,7 +11,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     "puppeteer-core",
     "@sparticuz/chromium-min",
-    "puppeteer",     // ha helyi devDependencyként marad
+    "puppeteer",
+    "pdfjs-dist",   // Vercel: ne bundleoljon, Node.js módként fusson
+    "pdf-parse",    // Vercel: eval()-t tartalmaz, ne bundleoljon
   ],
 };
 

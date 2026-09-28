@@ -1,9 +1,7 @@
 import { PDFDocument, rgb } from "pdf-lib"
 import fontkit from "@pdf-lib/fontkit"
 import crypto from "crypto"
-import fs from "fs"
-import path from "path"
-import { extractPdfText } from "./pdf-extractor"
+import { extractPdfText, extractPdfPagesText } from "./pdf-extractor"
 
 // Known tokens that classify a page as an elválasztólap (separator sheet)
 const SEPARATOR_KEYWORDS = [
@@ -52,46 +50,11 @@ export interface IngestedDocumentResult {
 }
 
 /**
- * Extracts text page-by-page from a PDF buffer using pdf-parse.
+ * Extracts text page-by-page from a PDF buffer using pdfjs-dist.
+ * Vercel-compatible: no eval(), no dynamic require().
  */
 export async function extractPagesText(buffer: Buffer): Promise<string[]> {
-  try {
-    const pdfParseModule = eval('require("pdf-parse")')
-
-    if (pdfParseModule?.PDFParse) {
-      const parser = new pdfParseModule.PDFParse({ data: buffer })
-      const res = await parser.getText()
-      if (res?.pages && Array.isArray(res.pages)) {
-        return res.pages.map((p: any) => (typeof p.text === "string" ? p.text : ""))
-      }
-      if (typeof res?.text === "string") {
-        return [res.text]
-      }
-    }
-
-    if (typeof pdfParseModule === "function") {
-      const pagesText: string[] = []
-      const options = {
-        pagerender: (pageData: any) => {
-          return pageData.getTextContent().then((textContent: any) => {
-            let text = ""
-            for (const item of textContent.items) {
-              text += (item.str || "") + " "
-            }
-            pagesText.push(text)
-            return text
-          })
-        },
-      }
-      await pdfParseModule(buffer, options)
-      return pagesText
-    }
-
-    return []
-  } catch (err) {
-    console.warn("[BatchScanner] Warning during page text extraction:", err)
-    return []
-  }
+  return extractPdfPagesText(buffer)
 }
 
 /**
@@ -187,37 +150,27 @@ export async function splitBatchPdf(buffer: Buffer): Promise<BatchSplitResult> {
 async function loadSeparatorFonts(doc: PDFDocument) {
   doc.registerFontkit(fontkit)
 
-  const candidatesBold = [
-    path.join(process.cwd(), "src", "assets", "fonts", "LiberationSans-Bold.ttf"),
-    path.join(process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts", "LiberationSans-Bold.ttf"),
-  ]
-  const candidatesReg = [
-    path.join(process.cwd(), "src", "assets", "fonts", "LiberationSans-Regular.ttf"),
-    path.join(process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts", "LiberationSans-Regular.ttf"),
-  ]
+  // Vercel-safe font loading: try fs first (works locally + build-time),
+  // fall back gracefully to built-in Helvetica (works on Vercel serverless).
+  try {
+    const fs = await import("fs")
+    const path = await import("path")
 
-  let boldBytes: Buffer | null = null
-  for (const p of candidatesBold) {
-    if (fs.existsSync(p)) {
-      boldBytes = fs.readFileSync(p)
-      break
+    const boldPath = path.join(process.cwd(), "src", "assets", "fonts", "LiberationSans-Bold.ttf")
+    const regPath = path.join(process.cwd(), "src", "assets", "fonts", "LiberationSans-Regular.ttf")
+
+    if (fs.existsSync(boldPath) && fs.existsSync(regPath)) {
+      const boldBytes = fs.readFileSync(boldPath)
+      const regBytes = fs.readFileSync(regPath)
+      const fontBold = await doc.embedFont(boldBytes)
+      const fontRegular = await doc.embedFont(regBytes)
+      return { fontBold, fontRegular }
     }
+  } catch {
+    // fs not available in this runtime (e.g. Edge), fall through to standard fonts
   }
 
-  let regBytes: Buffer | null = null
-  for (const p of candidatesReg) {
-    if (fs.existsSync(p)) {
-      regBytes = fs.readFileSync(p)
-      break
-    }
-  }
-
-  if (boldBytes && regBytes) {
-    const fontBold = await doc.embedFont(boldBytes)
-    const fontRegular = await doc.embedFont(regBytes)
-    return { fontBold, fontRegular }
-  }
-
+  // Safe fallback: built-in PDF standard fonts (always available)
   const { StandardFonts } = await import("pdf-lib")
   return {
     fontBold: await doc.embedFont(StandardFonts.HelveticaBold),
