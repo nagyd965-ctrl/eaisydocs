@@ -32,12 +32,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { TableToolbar, TableColumnOption, FilterGroup } from "@/components/table-toolbar/table-toolbar"
 
 const DEFAULT_ARCHIVE_COLUMNS: TableColumnOption[] = [
   { id: "iktatoszam", label: "Iktatószám", isVisible: true },
   { id: "tetel", label: "Irattári Tétel", isVisible: true },
   { id: "targy", label: "Ügy Tárgya", isVisible: true },
+  { id: "felterjeszto", label: "Felterjesztő", isVisible: true },
   { id: "iratok", label: "Iratok száma", isVisible: true },
   { id: "megorzes", label: "Megőrzés Vége", isVisible: true },
   { id: "intezkedes", label: "Intézkedés Módja / Státusz", isVisible: true },
@@ -208,7 +210,17 @@ export function ArchiveClient({
       (b) =>
         b.javaslattevo_nev?.toLowerCase().includes(q) ||
         b.jovahagyo_nev?.toLowerCase().includes(q) ||
-        b.id?.toLowerCase().includes(q)
+        b.id?.toLowerCase().includes(q) ||
+        b.selejtezes_tetel?.some((t: any) => {
+          const u = t.ugyirat
+          const terv = Array.isArray(u?.irattari_terv) ? u.irattari_terv[0] : u?.irattari_terv
+          return (
+            u?.iktatoszam?.toLowerCase().includes(q) ||
+            terv?.tetelszam?.toLowerCase().includes(q) ||
+            terv?.megnevezes?.toLowerCase().includes(q) ||
+            u?.ugy?.targy?.toLowerCase().includes(q)
+          )
+        })
     )
   }, [disposalBatches, search])
 
@@ -240,54 +252,69 @@ export function ArchiveClient({
       return
     }
 
-    setApprovePromptOpen(false)
-    setLoading(true)
-
-    const result = await approveDisposal(selectedApprovals, approverName.trim())
-    if (result.error) {
-      toast.error("Hiba a jóváhagyás során", { description: result.error })
-    } else {
-      toast.success("Selejtezés sikeresen jóváhagyva!", {
-        description: "A hivatalos Selejtezési Jegyzőkönyv elkészült és archiválásra került.",
+    // Négy szem elve előzetes kliens oldali ellenőrzés
+    const selfProposedItem = pendingApprovals.find(
+      (p) => selectedApprovals.includes(p.id) && currentUserId && p.javaslattevo_user_id === currentUserId
+    )
+    if (selfProposedItem) {
+      toast.error("Négy szem elve korlátozás", {
+        description: `A(z) ${selfProposedItem.iktatoszam} ügyiratot te terjesztetted fel! Saját javaslatodat nem hagyhatod jóvá.`,
       })
-      setSelectedApprovals([])
-
-      if (result.pdfBase64) {
-        try {
-          const byteCharacters = atob(result.pdfBase64)
-          const byteNumbers = new Array(byteCharacters.length)
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i)
-          }
-          const byteArray = new Uint8Array(byteNumbers)
-          const blob = new Blob([byteArray], { type: "application/pdf" })
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement("a")
-          a.href = url
-          a.download = `Selejtezesi_Jegyzokonyv_${(result.protocolNumber || "SELEJT").replace(/\//g, "-")}.pdf`
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-          URL.revokeObjectURL(url)
-        } catch (downloadErr) {
-          console.error("Automatikus letöltési hiba:", downloadErr)
-        }
-      }
-
-      setProtocolData({
-        protocolNumber: result.protocolNumber,
-        date: new Date().toLocaleDateString("hu-HU"),
-        approver: approverName.trim(),
-        proposer: result.proposer && result.proposer.trim() !== "" ? result.proposer : "Iratkezelő",
-        items: result.disposedItems,
-        pdfBase64: result.pdfBase64,
-        storagePath: result.storagePath,
-      })
-      setProtocolOpen(true)
+      setApprovePromptOpen(false)
+      return
     }
 
-    setLoading(false)
-    router.refresh()
+    setLoading(true)
+
+    try {
+      const result = await approveDisposal(selectedApprovals, approverName.trim())
+      if (result.error) {
+        toast.error("Hiba a jóváhagyás során", { description: result.error })
+        setApprovePromptOpen(false)
+      } else {
+        toast.success("Selejtezés sikeresen jóváhagyva!", {
+          description: "A hivatalos Selejtezési Jegyzőkönyv elkészült és archiválásra került.",
+        })
+        setSelectedApprovals([])
+        setApprovePromptOpen(false)
+
+        if (result.pdfBase64) {
+          try {
+            const byteCharacters = atob(result.pdfBase64)
+            const byteNumbers = new Array(byteCharacters.length)
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i)
+            }
+            const byteArray = new Uint8Array(byteNumbers)
+            const blob = new Blob([byteArray], { type: "application/pdf" })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement("a")
+            a.href = url
+            a.download = `Selejtezesi_Jegyzokonyv_${(result.protocolNumber || "SELEJT").replace(/\//g, "-")}.pdf`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+          } catch (downloadErr) {
+            console.error("Automatikus letöltési hiba:", downloadErr)
+          }
+        }
+
+        setProtocolData({
+          protocolNumber: result.protocolNumber,
+          date: new Date().toLocaleDateString("hu-HU"),
+          approver: approverName.trim(),
+          proposer: result.proposer && result.proposer.trim() !== "" ? result.proposer : "Iratkezelő",
+          items: result.disposedItems,
+          pdfBase64: result.pdfBase64,
+          storagePath: result.storagePath,
+        })
+        setProtocolOpen(true)
+        router.refresh()
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleDownloadSavedBatch = async (batch: any) => {
@@ -321,16 +348,27 @@ export function ArchiveClient({
   }
 
   const toggleApproval = (id: string) => {
+    const item = pendingApprovals.find((p) => p.id === id)
+    if (currentUserId && item?.javaslattevo_user_id === currentUserId) {
+      toast.error("Négy szem elve korlátozás", {
+        description: "A saját magad által felterjesztett ügyiratot nem hagyhatod jóvá!",
+      })
+      return
+    }
     setSelectedApprovals((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     )
   }
 
   const toggleAllApprovals = () => {
-    if (selectedApprovals.length === filteredApprovals.length) {
+    // Négy szem elve: Csak azokat jelöljük ki, amelyeket nem a jelenlegi felhasználó terjesztett fel!
+    const approvable = filteredApprovals.filter(
+      (p) => !currentUserId || p.javaslattevo_user_id !== currentUserId
+    )
+    if (selectedApprovals.length === approvable.length && approvable.length > 0) {
       setSelectedApprovals([])
     } else {
-      setSelectedApprovals(filteredApprovals.map((p) => p.id))
+      setSelectedApprovals(approvable.map((p) => p.id))
     }
   }
 
@@ -597,7 +635,8 @@ export function ArchiveClient({
                     <Checkbox
                       checked={
                         filteredApprovals.length > 0 &&
-                        selectedApprovals.length === filteredApprovals.length
+                        selectedApprovals.length === filteredApprovals.filter(p => !currentUserId || p.javaslattevo_user_id !== currentUserId).length &&
+                        selectedApprovals.length > 0
                       }
                       onCheckedChange={toggleAllApprovals}
                       aria-label="Összes jóváhagyandó kijelölése"
@@ -605,6 +644,7 @@ export function ArchiveClient({
                   </TableHead>
                   {isColVisible("iktatoszam") && <TableHead>Iktatószám</TableHead>}
                   {isColVisible("targy") && <TableHead>Ügy Tárgya</TableHead>}
+                  {isColVisible("felterjeszto") && <TableHead>Felterjesztő</TableHead>}
                   {isColVisible("iratok") && <TableHead className="text-center">Iratok</TableHead>}
                   {isColVisible("megorzes") && <TableHead>Megőrzés Vége</TableHead>}
                   {isColVisible("intezkedes") && <TableHead>Státusz</TableHead>}
@@ -614,14 +654,18 @@ export function ArchiveClient({
                 {filteredApprovals.length > 0 ? (
                   filteredApprovals.map((item) => {
                     const isSelected = selectedApprovals.includes(item.id)
+                    const isSelfProposed = Boolean(currentUserId && item.javaslattevo_user_id === currentUserId)
+
                     return (
                       <TableRow
                         key={item.id}
-                        className={`hover:bg-muted/50 transition-colors ${isSelected ? "bg-muted/40" : ""}`}
+                        className={`hover:bg-muted/50 transition-colors ${isSelected ? "bg-muted/40" : ""} ${isSelfProposed ? "bg-amber-500/5 opacity-80" : ""}`}
                       >
                         <TableCell>
                           <Checkbox
                             checked={isSelected}
+                            disabled={isSelfProposed}
+                            title={isSelfProposed ? "A négy szem elve alapján a saját felterjesztésedet nem hagyhatod jóvá!" : "Kijelölés jóváhagyásra"}
                             onCheckedChange={() => toggleApproval(item.id)}
                           />
                         </TableCell>
@@ -633,6 +677,18 @@ export function ArchiveClient({
                           </TableCell>
                         )}
                         {isColVisible("targy") && <TableCell className="text-sm">{item.ugy?.targy}</TableCell>}
+                        {isColVisible("felterjeszto") && (
+                          <TableCell className="text-xs">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-medium text-foreground">{item.javaslattevo_nev || "Iratkezelő"}</span>
+                              {isSelfProposed && (
+                                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[10px] py-0 px-1.5 font-normal">
+                                  Saját felterjesztés
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
                         {isColVisible("iratok") && (
                           <TableCell className="text-center text-xs font-mono">
                             {item.irat?.[0]?.count ?? 1} db
@@ -739,12 +795,13 @@ export function ArchiveClient({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Dátum</TableHead>
-                  <TableHead>Státusz</TableHead>
-                  <TableHead>Javaslattevő</TableHead>
-                  <TableHead>Jóváhagyó Vezető</TableHead>
-                  <TableHead className="text-center">Érintett Iratok</TableHead>
-                  <TableHead className="text-right">Jegyzőkönyv</TableHead>
+                  <TableHead className="w-28">Dátum</TableHead>
+                  <TableHead className="w-36">Státusz</TableHead>
+                  <TableHead className="w-36">Javaslattevő</TableHead>
+                  <TableHead className="w-36">Jóváhagyó Vezető</TableHead>
+                  <TableHead>Ügyiratszám</TableHead>
+                  <TableHead className="w-28 text-center">Érintett Iratok</TableHead>
+                  <TableHead className="w-36 text-right">Jegyzőkönyv</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -753,25 +810,90 @@ export function ArchiveClient({
                     const itemCount = batch.selejtezes_tetel?.length || 0
                     const isApproved = batch.statusz === "jovahagyva"
 
+                    // Csak az ügyiratszámokat (iktatószámokat) és iratszámokat gyűjtjük ki
+                    const items = batch.selejtezes_tetel || []
+                    const iktatoszamok: string[] = []
+                    let totalIratokCount = 0
+
+                    items.forEach((t: any) => {
+                      if (t.ugyirat?.iktatoszam) {
+                        iktatoszamok.push(t.ugyirat.iktatoszam)
+                      }
+                      const count = t.ugyirat?.irat?.[0]?.count ?? 1
+                      totalIratokCount += count
+                    })
+
                     return (
                       <TableRow key={batch.id} className="hover:bg-muted/40 transition-colors">
-                        <TableCell className="text-xs font-mono">
+                        <TableCell className="text-xs font-mono text-muted-foreground whitespace-nowrap">
                           {new Date(batch.created_at).toLocaleDateString("hu-HU")}
                         </TableCell>
                         <TableCell>
                           {isApproved ? (
-                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs">
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs font-normal">
                               Jóváhagyva & Archív
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs">
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs font-normal">
                               Jóváhagyásra vár
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="text-xs font-medium">{batch.javaslattevo_nev}</TableCell>
-                        <TableCell className="text-xs font-medium">{batch.jovahagyo_nev || "—"}</TableCell>
-                        <TableCell className="text-center text-xs font-mono">{itemCount} db</TableCell>
+                        <TableCell className="text-xs font-medium text-foreground">{batch.javaslattevo_nev}</TableCell>
+                        <TableCell className="text-xs font-medium text-muted-foreground">{batch.jovahagyo_nev || "—"}</TableCell>
+                        <TableCell className="py-2">
+                          {iktatoszamok.length === 0 ? (
+                            <span className="text-xs text-muted-foreground italic">—</span>
+                          ) : iktatoszamok.length === 1 ? (
+                            <span className="font-mono text-xs font-medium text-foreground">
+                              {iktatoszamok[0]}
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {iktatoszamok.map((szam) => (
+                                <Badge
+                                  key={szam}
+                                  variant="outline"
+                                  className="font-mono text-xs font-medium px-2 py-0.5 bg-muted/50 border-border text-foreground"
+                                >
+                                  {szam}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {totalIratokCount > 0 ? (
+                            <Popover>
+                              <PopoverTrigger className="inline-block text-xs font-mono font-medium text-foreground bg-muted/50 hover:bg-muted px-2 py-0.5 rounded cursor-pointer transition-colors border border-border/40">
+                                {totalIratokCount} db
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 p-3 space-y-2 text-left" align="center">
+                                <div className="flex items-center justify-between border-b pb-1.5">
+                                  <span className="text-xs font-semibold text-foreground">Érintett ügyiratok</span>
+                                  <span className="text-[11px] font-mono text-muted-foreground">{items.length} ügyirat ({totalIratokCount} irat)</span>
+                                </div>
+                                <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                                  {items.map((t: any, idx: number) => {
+                                    const u = t.ugyirat
+                                    const iratCount = u?.irat?.[0]?.count ?? 1
+                                    return (
+                                      <div key={u?.id || idx} className="text-xs flex items-center justify-between gap-2 py-1 px-1.5 rounded hover:bg-muted/40">
+                                        <div className="min-w-0">
+                                          <span className="font-mono font-medium text-foreground block truncate">{u?.iktatoszam || "—"}</span>
+                                          <span className="text-muted-foreground text-[11px] block truncate">{u?.ugy?.targy || "Nincs tárgy"}</span>
+                                        </div>
+                                        <span className="text-[11px] font-mono text-muted-foreground shrink-0">{iratCount} irat</span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          ) : (
+                            <span className="text-xs font-mono text-muted-foreground">0 db</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
                           {batch.jegyzokonyv_path ? (
                             <Button
@@ -793,7 +915,7 @@ export function ArchiveClient({
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground text-xs">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground text-xs">
                       Nem található selejtezési jegyzőkönyv a keresési feltételekkel.
                     </TableCell>
                   </TableRow>
@@ -817,27 +939,27 @@ export function ArchiveClient({
             <Table>
               <TableHeader>
                 <TableRow>
-                  {isColVisible("iktatoszam") && <TableHead>Iktatószám</TableHead>}
+                  {isColVisible("iktatoszam") && <TableHead className="w-48">Iktatószám</TableHead>}
                   {isColVisible("targy") && <TableHead>Ügy Tárgya</TableHead>}
-                  {isColVisible("intezkedes") && <TableHead>Státusz</TableHead>}
-                  <TableHead>Fizikai Állományok</TableHead>
+                  {isColVisible("intezkedes") && <TableHead className="w-44">Státusz</TableHead>}
+                  <TableHead className="w-44">Fizikai Állományok</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredScrapped.length > 0 ? (
                   filteredScrapped.map((item) => (
-                    <TableRow key={item.id} className="opacity-70">
+                    <TableRow key={item.id} className="opacity-75 hover:opacity-100 transition-opacity">
                       {isColVisible("iktatoszam") && (
-                        <TableCell className="font-mono font-medium line-through text-muted-foreground">
+                        <TableCell className="font-mono font-medium line-through text-muted-foreground text-xs">
                           {item.iktatoszam}
                         </TableCell>
                       )}
                       {isColVisible("targy") && (
-                        <TableCell className="text-muted-foreground text-sm">{item.ugy?.targy}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs truncate max-w-sm">{item.ugy?.targy || "Nincs tárgy"}</TableCell>
                       )}
                       {isColVisible("intezkedes") && (
                         <TableCell>
-                          <Badge variant="destructive" className="text-xs">Véglegesen selejtezve</Badge>
+                          <Badge variant="destructive" className="text-xs font-normal">Véglegesen selejtezve</Badge>
                         </TableCell>
                       )}
                       <TableCell className="text-muted-foreground text-xs font-mono">Fájlok megsemmisítve</TableCell>
@@ -845,7 +967,7 @@ export function ArchiveClient({
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={visibleColumnsCount} className="text-center py-8 text-muted-foreground text-xs">
+                    <TableCell colSpan={visibleColumnsCount + 1} className="text-center py-8 text-muted-foreground text-xs">
                       Nem található megsemmisített ügyirat.
                     </TableCell>
                   </TableRow>
@@ -940,11 +1062,18 @@ export function ArchiveClient({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApprovePromptOpen(false)}>
+            <Button variant="outline" onClick={() => setApprovePromptOpen(false)} disabled={loading}>
               Mégsem
             </Button>
             <Button onClick={handleApprove} disabled={loading || !approverName.trim()}>
-              {loading ? "Feldolgozás és Jegyzőkönyvezés..." : "Jóváhagyás és PDF Kiállítás"}
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Jegyzőkönyvezés...
+                </div>
+              ) : (
+                "Jóváhagyás és PDF Kiállítás"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

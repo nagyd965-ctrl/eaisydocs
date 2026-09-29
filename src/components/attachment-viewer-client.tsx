@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Paperclip, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { DocumentPreviewFrame } from "@/components/document-preview-frame"
 
 interface Fajl {
   id: string
@@ -71,10 +72,9 @@ export function AttachmentViewerClient({ iratId, fajlok }: AttachmentViewerProps
           </DialogHeader>
           {selectedFile && (
             <div className="flex-1 w-full relative overflow-hidden bg-muted">
-              <iframe 
+              <DocumentPreviewFrame 
                 src={getPdfUrl(selectedFile)}
-                className="absolute inset-0 w-full h-full border-0 block"
-                title="PDF Előnézet"
+                title={selectedFile.eredeti_fajlnev || "PDF Előnézet"}
               />
             </div>
           )}

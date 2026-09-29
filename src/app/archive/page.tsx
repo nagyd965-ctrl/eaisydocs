@@ -21,7 +21,7 @@ export default async function ArchivePage(props: {
       irattari_terv:irattari_tetel_id ( id, tetelszam, megnevezes, megorzesi_ido_ev, selejtezheto ),
       irat ( count )
     `)
-    .in("statusz", ["lezart", "irattarban", "selejtezheto"])
+    .in("statusz", ["lezart", "irattarban", "selejtezheto", "selejtezett"])
     .order("megorzesi_ido_vege", { ascending: true })
 
   // Lekérjük a korábbi és folyamatban lévő selejtezési csomagokat
@@ -40,7 +40,9 @@ export default async function ArchivePage(props: {
         ugyirat:ugyirat_id (
           id,
           iktatoszam,
-          ugy:ugy_id ( targy )
+          ugy:ugy_id ( targy ),
+          irattari_terv:irattari_tetel_id ( id, tetelszam, megnevezes ),
+          irat ( count )
         )
       )
     `)
@@ -74,7 +76,7 @@ export default async function ArchivePage(props: {
       const ugy = Array.isArray(d.ugy) ? (d.ugy as any)[0] : d.ugy
       const ugyStatusz = (ugy as any)?.statusz
 
-      if (ugyStatusz === "selejtezett") {
+      if (d.statusz === "selejtezett" || ugyStatusz === "selejtezett") {
         scrappedDossiers.push(d)
       } else if (d.statusz === "selejtezheto") {
         pendingApprovals.push(d)
@@ -97,6 +99,48 @@ export default async function ArchivePage(props: {
   const currentUserRole = currentProfile?.docs_szerepkor || currentProfile?.szerepkor || "ugyintezo"
   const currentUserId = user?.id || ""
 
+  // Felterjesztők kigyűjtése a jóváhagyandó ügyiratokhoz a négy szem elve támogatására
+  const proposerMap: Record<string, { userId: string; nev: string }> = {}
+
+  // 1. Selejtezési csomagokból
+  batches?.forEach((b) => {
+    const pName = userMap[b.javaslattevo_user_id] || "Iratkezelő"
+    b.selejtezes_tetel?.forEach((t: any) => {
+      if (t.ugyirat_id) {
+        proposerMap[t.ugyirat_id] = { userId: b.javaslattevo_user_id, nev: pName }
+      }
+    })
+  })
+
+  // 2. Eseménynaplóból a hiányzó tételekhez
+  const pendingIds = pendingApprovals.map((d) => d.id)
+  const missingPendingIds = pendingIds.filter((id) => !proposerMap[id])
+
+  if (missingPendingIds.length > 0) {
+    const { data: events } = await supabase
+      .from("esemeny_naplo")
+      .select("entitas_id, user_id")
+      .in("entitas_id", missingPendingIds)
+      .eq("esemeny_tipus", "modositva")
+      .ilike("indoklas", "%Selejtezésre felterjesztve%")
+      .order("tortent", { ascending: false })
+
+    events?.forEach((e) => {
+      if (!proposerMap[e.entitas_id]) {
+        proposerMap[e.entitas_id] = {
+          userId: e.user_id,
+          nev: userMap[e.user_id] || "Iratkezelő",
+        }
+      }
+    })
+  }
+
+  const enrichedPendingApprovals = pendingApprovals.map((d) => ({
+    ...d,
+    javaslattevo_user_id: proposerMap[d.id]?.userId,
+    javaslattevo_nev: proposerMap[d.id]?.nev || "Iratkezelő",
+  }))
+
   return (
     <div className="page-animate space-y-6">
       <div>
@@ -109,7 +153,7 @@ export default async function ArchivePage(props: {
       <ArchiveClient
         archivedDossiers={archivedDossiers}
         scrappingSuggestions={scrappingSuggestions}
-        pendingApprovals={pendingApprovals}
+        pendingApprovals={enrichedPendingApprovals}
         scrappedDossiers={scrappedDossiers}
         disposalBatches={enrichedBatches}
         cutoffDate={cutoffDate}

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { getDocumentSignedUrl } from "@/app/dossiers/[id]/viewer-actions"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Loader2 } from "lucide-react"
+import { DocumentPreviewFrame } from "@/components/document-preview-frame"
 
 export function DocumentViewer({ 
   open, 
@@ -77,10 +78,9 @@ export function DocumentViewer({
             </div>
           )}
           {url && (
-            <iframe 
+            <DocumentPreviewFrame 
               src={url} 
-              className="w-full h-full border-0"
-              title="Document Viewer"
+              title={fajl?.eredeti_fajlnev || "Dokumentum előnézet"}
             />
           )}
         </div>

@@ -17,7 +17,7 @@ export async function proposeDisposal(ugyiratIds: string[], note?: string) {
     return { error: "Nincs kiválasztva felterjesztendő ügyirat." }
   }
 
-  // Ellenőrizzük, hogy csak irattárban lévő ügyiratot lehessen felterjeszteni
+  // Ellenőrizzük, hogy csak irattárban lévő (irattározott vagy lezárt) ügyiratot lehessen felterjeszteni
   const { data: dossiersToPropose } = await supabase
     .from("ugyirat")
     .select("id, iktatoszam, statusz, megorzesi_ido_vege")
@@ -27,7 +27,7 @@ export async function proposeDisposal(ugyiratIds: string[], note?: string) {
     return { error: "Nem találhatók a kiválasztott ügyiratok." }
   }
 
-  const notInArchive = dossiersToPropose.filter((d) => d.statusz !== "irattarban")
+  const notInArchive = dossiersToPropose.filter((d) => !["irattarban", "lezart"].includes(d.statusz))
   if (notInArchive.length > 0) {
     return {
       error: `Csak irattárban lévő ügyiratot lehet selejtezésre felterjeszteni! Nem megfelelő: ${notInArchive.map((d) => d.iktatoszam).join(", ")}`,
@@ -174,50 +174,69 @@ export async function approveDisposal(
 
   let finalProposerName = "Iratkezelő"
 
-  // 2. Négy szem elve ellenőrzése a csomag alapján
-  if (csomagId) {
-    const { data: csomag } = await dbAdmin
-      .from("selejtezes_csomag")
-      .select("javaslattevo_user_id")
-      .eq("id", csomagId)
-      .single()
-    
-    if (csomag?.javaslattevo_user_id === user.id) {
-      return {
-        error: "A négy szem elve alapján a selejtezési javaslatot felterjesztő munkatárs nem hagyhatja jóvá a saját javaslatát! A jóváhagyást egy másik vezetőnek vagy adminisztrátornak kell elvégeznie."
+  // 2. Négy szem elve ellenőrzése: A felterjesztő munkatárs szigorúan NEM hagyhatja jóvá a saját javaslatát!
+  const proposerUserIds = new Set<string>()
+
+  // A) Csomagok felterjesztőinek kigyűjtése
+  const { data: kapcsoltTetelek } = await dbAdmin
+    .from("selejtezes_tetel")
+    .select("ugyirat_id, csomag_id, csomag:csomag_id ( id, javaslattevo_user_id )")
+    .in("ugyirat_id", ugyiratIds)
+
+  if (kapcsoltTetelek && kapcsoltTetelek.length > 0) {
+    for (const t of kapcsoltTetelek) {
+      const csomag = Array.isArray(t.csomag) ? t.csomag[0] : t.csomag
+      if (csomag?.javaslattevo_user_id) {
+        proposerUserIds.add(csomag.javaslattevo_user_id)
       }
     }
   }
 
-  // 3. Négy szem elve ellenőrzése az érintett ügyiratok eseménynaplója alapján
-  for (const id of ugyiratIds) {
-    const { data: events } = await dbAdmin
-      .from("esemeny_naplo")
-      .select("user_id")
-      .eq("entitas_id", id)
-      .eq("esemeny_tipus", "modositva")
-      .ilike("indoklas", "%Selejtezésre felterjesztve%")
-      .order("tortent", { ascending: false })
-      .limit(1)
+  if (csomagId) {
+    const { data: directCsomag } = await dbAdmin
+      .from("selejtezes_csomag")
+      .select("javaslattevo_user_id")
+      .eq("id", csomagId)
+      .maybeSingle()
+    if (directCsomag?.javaslattevo_user_id) {
+      proposerUserIds.add(directCsomag.javaslattevo_user_id)
+    }
+  }
 
-    if (events && events.length > 0) {
-      const proposerId = events[0].user_id
-      if (proposerId === user.id) {
-        return {
-          error: "A négy szem elve alapján a selejtezési javaslatot felterjesztő munkatárs nem hagyhatja jóvá a saját javaslatát! A jóváhagyást egy másik vezetőnek vagy adminisztrátornak kell elvégeznie."
-        }
-      }
+  // B) Eseménynapló ellenőrzése egyetlen kötegelt lekérdezéssel
+  const { data: events } = await dbAdmin
+    .from("esemeny_naplo")
+    .select("entitas_id, user_id")
+    .in("entitas_id", ugyiratIds)
+    .eq("esemeny_tipus", "modositva")
+    .ilike("indoklas", "%Selejtezésre felterjesztve%")
+    .order("tortent", { ascending: false })
 
-      if (finalProposerName === "Iratkezelő") {
-        const { data: profile } = await dbAdmin
-          .from("felhasznalo_profil")
-          .select("nev")
-          .eq("id", proposerId)
-          .single()
-        if (profile?.nev) {
-          finalProposerName = profile.nev
-        }
+  if (events && events.length > 0) {
+    for (const ev of events) {
+      if (ev.user_id) {
+        proposerUserIds.add(ev.user_id)
       }
+    }
+  }
+
+  // Szigorú elutasítás, ha az aktuális jóváhagyó megegyezik bármelyik felterjesztővel
+  if (proposerUserIds.has(user.id)) {
+    return {
+      error: "A négy szem elve alapján a selejtezési javaslatot felterjesztő munkatárs nem hagyhatja jóvá a saját javaslatát! A jóváhagyást egy másik vezetőnek vagy adminisztrátornak kell elvégeznie.",
+    }
+  }
+
+  // Felterjesztő nevének megállapítása a hivatalos PDF jegyzőkönyvhöz
+  const firstProposerId = Array.from(proposerUserIds)[0]
+  if (firstProposerId) {
+    const { data: profile } = await dbAdmin
+      .from("felhasznalo_profil")
+      .select("nev")
+      .eq("id", firstProposerId)
+      .maybeSingle()
+    if (profile?.nev) {
+      finalProposerName = profile.nev
     }
   }
 
@@ -364,25 +383,87 @@ export async function approveDisposal(
     console.error("Hiba a selejtezési jegyzőkönyv tárolásakor:", storageErr)
   }
 
-  // 5. Kapcsolódó selejtezes_csomag rekord(ok) beazonosítása és frissítése
+  // 5. Kapcsolódó selejtezes_csomag rekord(ok) beazonosítása és precíz kezelése
   const csomagIdsToUpdate = new Set<string>()
   if (csomagId) csomagIdsToUpdate.add(csomagId)
 
-  const { data: kapcsoltTetelek } = await dbAdmin
-    .from("selejtezes_tetel")
-    .select("csomag_id")
-    .in("ugyirat_id", ugyiratIds)
-
   if (kapcsoltTetelek) {
-    kapcsoltTetelek.forEach((t) => csomagIdsToUpdate.add(t.csomag_id))
+    kapcsoltTetelek.forEach((t: any) => {
+      if (t.csomag_id) csomagIdsToUpdate.add(t.csomag_id)
+    })
   }
 
-  if (csomagIdsToUpdate.size === 0) {
-    // Ha nem volt meglévő csomag, létrehozunk egy lezárt csomagot
+  let targetApprovedCsomagId: string | null = null
+
+  if (csomagIdsToUpdate.size > 0) {
+    const { data: allItems } = await dbAdmin
+      .from("selejtezes_tetel")
+      .select("id, csomag_id, ugyirat_id")
+      .in("csomag_id", Array.from(csomagIdsToUpdate))
+
+    // Ellenőrizzük, van-e olyan csomag, amelynek pontosan MINDEN tétele jóváhagyásra került
+    for (const cId of csomagIdsToUpdate) {
+      const itemsOfThisCsomag = allItems?.filter((i) => i.csomag_id === cId) || []
+      const allApproved =
+        itemsOfThisCsomag.length > 0 &&
+        itemsOfThisCsomag.every((i) => ugyiratIds.includes(i.ugyirat_id)) &&
+        itemsOfThisCsomag.length === ugyiratIds.length
+
+      if (allApproved) {
+        // A teljes csomag egyezik a jóváhagyott tételekkel
+        targetApprovedCsomagId = cId
+        await dbAdmin
+          .from("selejtezes_csomag")
+          .update({
+            statusz: "jovahagyva",
+            jovahagyo_user_id: user.id,
+            jovahagyva_at: now.toISOString(),
+            jegyzokonyv_path: storagePath,
+          })
+          .eq("id", cId)
+        break
+      }
+    }
+
+    // Ha részleges jóváhagyás történt (egy csomagból csak néhány tétel lett kiválasztva):
+    if (!targetApprovedCsomagId) {
+      const { data: newApprovedCsomag } = await dbAdmin
+        .from("selejtezes_csomag")
+        .insert({
+          javaslattevo_user_id: firstProposerId || user.id,
+          jovahagyo_user_id: user.id,
+          statusz: "jovahagyva",
+          jovahagyva_at: now.toISOString(),
+          jegyzokonyv_path: storagePath,
+        })
+        .select("id")
+        .single()
+
+      if (newApprovedCsomag) {
+        targetApprovedCsomagId = newApprovedCsomag.id
+
+        // Csak a jóváhagyott tételeket mozgatjuk át ebbe a lezárt csomagba
+        for (const uId of ugyiratIds) {
+          const existingItem = allItems?.find((i) => i.ugyirat_id === uId)
+          if (existingItem) {
+            await dbAdmin
+              .from("selejtezes_tetel")
+              .update({ csomag_id: newApprovedCsomag.id })
+              .eq("id", existingItem.id)
+          } else {
+            await dbAdmin
+              .from("selejtezes_tetel")
+              .insert({ csomag_id: newApprovedCsomag.id, ugyirat_id: uId })
+          }
+        }
+      }
+    }
+  } else {
+    // Ha nem volt korábbi csomag, létrehozunk egy új jóváhagyott csomagot
     const { data: newCsomag } = await dbAdmin
       .from("selejtezes_csomag")
       .insert({
-        javaslattevo_user_id: user.id,
+        javaslattevo_user_id: firstProposerId || user.id,
         jovahagyo_user_id: user.id,
         statusz: "jovahagyva",
         jovahagyva_at: now.toISOString(),
@@ -397,23 +478,6 @@ export async function approveDisposal(
           csomag_id: newCsomag.id,
           ugyirat_id: id,
         })
-      }
-    }
-  } else {
-    // Frissítjük a megtalált csomagokat
-    for (const cId of csomagIdsToUpdate) {
-      const { error: updateErr } = await dbAdmin
-        .from("selejtezes_csomag")
-        .update({
-          statusz: "jovahagyva",
-          jovahagyo_user_id: user.id,
-          jovahagyva_at: now.toISOString(),
-          jegyzokonyv_path: storagePath,
-        })
-        .eq("id", cId)
-
-      if (updateErr) {
-        console.error("Hiba a csomag frissítésekor:", updateErr)
       }
     }
   }

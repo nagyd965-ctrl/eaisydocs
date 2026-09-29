@@ -12,17 +12,17 @@ export async function forceExpireAllDossiers() {
     return { error: "Nincs bejelentkezve." }
   }
 
-  // Teszt célból minden nem selejtezett ügyiratot lezártra és lejártra állítunk
+  // Teszt célból minden irattári ügyirat megőrzési idejét lejárttá tesszük, státuszát irattárban-ra állítva
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
   
   await supabase
     .from("ugyirat")
     .update({ 
-      statusz: "lezart",
+      statusz: "irattarban",
       megorzesi_ido_vege: yesterday.toISOString().split('T')[0] 
     })
-    .not("statusz", "eq", "selejtezheto")
+    .not("statusz", "in", '("selejtezheto","selejtezett")')
 
   revalidatePath("/archive")
   return { success: true }

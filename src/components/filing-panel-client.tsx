@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { fileIncomingDocument, generateAISuggestions, clearAICacheAndRerun } from "@/app/inbox/filing-actions"
+import { toast } from "sonner"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,6 +31,7 @@ import { createClient } from "@/utils/supabase/client"
 
 import { type FilingIrat, type FilingTerv, type FilingUgyirat } from "./filing-dialog"
 import { type AntecedentMatchResult } from "@/utils/antecedent-matcher"
+import { DocumentPreviewFrame } from "@/components/document-preview-frame"
 
 export interface FilingDepartment {
   id: string
@@ -124,6 +126,7 @@ export function FilingPanelClient({
   )
 
   const [isFiledByOther, setIsFiledByOther] = useState(false)
+  const isSubmittingRef = useRef(false)
 
   // Realtime figyelés: ha egy másik kolléga már eliktatta ezt a dokumentumot
   useEffect(() => {
@@ -139,6 +142,11 @@ export function FilingPanelClient({
           filter: `id=eq.${irat.id}`,
         },
         (payload: any) => {
+          // Ha éppen mi magunk iktatjuk ezt az iratot (isSubmittingRef.current),
+          // akkor a Realtime esemény a saját mentésünkből fakad, ezt nem tekintjük külső ütközésnek!
+          if (isSubmittingRef.current) {
+            return
+          }
           if (payload.new?.ugyirat_id) {
             setIsFiledByOther(true)
           }
@@ -234,6 +242,7 @@ export function FilingPanelClient({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    isSubmittingRef.current = true
     setLoading(true)
     setError(null)
     
@@ -250,14 +259,17 @@ export function FilingPanelClient({
     try {
       const result = await fileIncomingDocument(formData)
       if (result?.error) {
+        isSubmittingRef.current = false
         setError(result.error)
         if (result.error.includes("másik") || result.error.includes("iktatta")) {
           setIsFiledByOther(true)
         }
       } else {
+        toast.success("Dokumentum sikeresen iktatva!")
         router.push("/inbox")
       }
     } catch (_err: unknown) {
+      isSubmittingRef.current = false
       setError("Váratlan hiba történt az iktatás során.")
     } finally {
       setLoading(false)
@@ -284,18 +296,7 @@ export function FilingPanelClient({
             </div>
           </div>
           <div className="flex-1 overflow-hidden relative bg-muted">
-            {pdfUrl ? (
-              <iframe 
-                src={pdfUrl} 
-                className="w-full h-full border-0" 
-                title="Dokumentum előnézet"
-              />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
-                <FileText className="h-16 w-16 mb-4 opacity-20" />
-                <p>A dokumentum nem tölthető be, vagy nincs csatolt fájl.</p>
-              </div>
-            )}
+            <DocumentPreviewFrame src={pdfUrl} title="Dokumentum előnézet" />
           </div>
         </div>
       </ResizablePanel>
