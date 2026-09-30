@@ -38,6 +38,7 @@ export interface PartnerSuggestion {
   id: string
   nev: string
   adoszam?: string | null
+  kulfoldi_adoszam?: string | null
   email?: string | null
   telefonszam?: string | null
   cim?: string | null

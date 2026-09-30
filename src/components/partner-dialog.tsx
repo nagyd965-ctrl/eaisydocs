@@ -18,6 +18,7 @@ export interface PartnerData {
   nev?: string
   tipus?: string
   adoszam?: string | null
+  kulfoldi_adoszam?: string | null
   cegjegyzekszam?: string | null
   email?: string | null
   telefonszam?: string | null
@@ -158,15 +159,27 @@ export function PartnerDialog({
           </div>
 
           {tipus !== "maganszemely" && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="adoszam">Adószám</Label>
-                <Input 
-                  id="adoszam" 
-                  name="adoszam" 
-                  defaultValue={partner?.adoszam || ""} 
-                  placeholder="12345678-2-42" 
-                />
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="adoszam">Belföldi adószám</Label>
+                  <Input 
+                    id="adoszam" 
+                    name="adoszam" 
+                    defaultValue={partner?.adoszam || ""} 
+                    placeholder="12345678-2-42" 
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="kulfoldi_adoszam">Külföldi / EU adószám</Label>
+                  <Input 
+                    id="kulfoldi_adoszam" 
+                    name="kulfoldi_adoszam" 
+                    defaultValue={partner?.kulfoldi_adoszam || ""} 
+                    placeholder="HU12345678 / DE..." 
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">

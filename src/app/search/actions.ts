@@ -232,8 +232,8 @@ export async function quickSearch(query: string) {
       // 3. Partnerek
       supabase
         .from("partner")
-        .select("id, nev, tipus, email, adoszam")
-        .or(`nev.ilike.%${clean}%,email.ilike.%${clean}%,adoszam.ilike.%${clean}%`)
+        .select("id, nev, tipus, email, adoszam, kulfoldi_adoszam")
+        .or(`nev.ilike.%${clean}%,email.ilike.%${clean}%,adoszam.ilike.%${clean}%,kulfoldi_adoszam.ilike.%${clean}%`)
         .limit(5),
     ])
 

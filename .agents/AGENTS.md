@@ -37,3 +37,9 @@ Ezek a szabályok a `design/` mappa és az `eaisyDocs_szoftverterv.md` alapján 
 ## 5. Moduláris Függetlenség (eaisyDocs vs eaisyHR)
 - **Kritikus Szabály:** Az eaisyDocs és az eaisyHR két külön megvásárolható, önálló program. Közös adatbázison nyugszanak, de a fejlesztés során garantálni kell, hogy egymástól teljesen függetlenül is működőképesek maradjanak.
 - **Kompatibilitás:** Egyik modul funkciója vagy adatbázis lekérdezése sem omolhat össze amiatt, ha a másik modul nincs aktiválva (vagy az ahhoz tartozó specifikus adatok hiányoznak). A jogosultságokat (`szerepkor` vs `docs_szerepkor`) is szeparáltan, de logikusan kell kezelni.
+
+## 6. Rendszerdokumentáció & Döntési Fegyelem (docs/ és eaisydocs-doc-sync)
+- **Központi Döntéstár:** Minden technikai döntés (`docs/architecture/decisions/` - ADR), képernyő és UX döntés (`docs/product/decisions/` - PRD), valamint üzleti szabály (`docs/business/decisions/` - BRD) szigorúan sorszámozva dokumentálandó.
+- **Hatókörök jelölése:** A dokumentumok címe és fejléce kötelezően tartalmazza a hatókört: `[Docs]`, `[HR]` vagy `[Közös]`.
+- **Automatikus Szinkronizáció:** Minden fejlesztési feladat / session végén kötelező lefutnia az `eaisydocs-doc-sync` skillnek (vagy `npx tsx scripts/doc-sync.ts`), amely frissíti az `index.md` nyilvántartásokat és a `docs/worklog/changelog.md` naplót.
+

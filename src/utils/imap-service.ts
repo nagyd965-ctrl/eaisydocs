@@ -40,6 +40,7 @@ export async function processIncomingEmails() {
   });
 
   let processedCount = 0;
+  let skippedSpamCount = 0;
 
   try {
     // Connect to the IMAP server
@@ -66,6 +67,25 @@ export async function processIncomingEmails() {
           : (parsed.to?.text || user);
         const date = parsed.date || new Date();
         const body = parsed.text || parsed.html || '';
+
+        // --- AI EMAIL SPAM & RELEVANCIASZŰRŐ ELŐELLENŐRZÉS (MAN-01) ---
+        const attachmentNames = (parsed.attachments || []).map((a: any) => a.filename || 'attachment');
+        const { classifyIncomingEmail } = await import('@/utils/email-spam-filter');
+        const classification = await classifyIncomingEmail({
+          from: partnerEmail || sender,
+          senderName: partnerNev,
+          subject,
+          bodyText: parsed.text || '',
+          attachmentNames,
+        });
+
+        if (!classification.isRelevant) {
+          console.log(`[IMAP] 🚫 Kiszűrt e-mail (${classification.category}): "${subject}" Feladó: ${sender}. Indok: ${classification.reason}`);
+          processedSeqs.push(message.seq);
+          skippedSpamCount++;
+          continue;
+        }
+        // -------------------------------------------------------------
 
         const currentYear = date.getFullYear();
         const { data: erkezId, error: erkezErr } = await supabase.rpc('generate_erkeztetoszam', { p_ev: currentYear });
@@ -317,5 +337,5 @@ export async function processIncomingEmails() {
     isImapProcessing = false;
   }
 
-  return { success: true, processedCount };
+  return { success: true, processedCount, skippedSpamCount };
 }

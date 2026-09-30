@@ -10,6 +10,7 @@ export async function savePartner(formData: FormData) {
   const nev = formData.get("nev")?.toString()?.trim()
   const tipus = formData.get("tipus")?.toString()?.trim() || "ceg"
   const adoszam = formData.get("adoszam")?.toString()?.trim() || null
+  const kulfoldi_adoszam = formData.get("kulfoldi_adoszam")?.toString()?.trim() || null
   const cegjegyzekszam = formData.get("cegjegyzekszam")?.toString()?.trim() || null
   const email = formData.get("email")?.toString()?.trim() || null
   const telefonszam = formData.get("telefonszam")?.toString()?.trim() || null
@@ -23,6 +24,7 @@ export async function savePartner(formData: FormData) {
     nev,
     tipus,
     adoszam,
+    kulfoldi_adoszam,
     cegjegyzekszam,
     email,
     telefonszam,

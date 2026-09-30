@@ -691,29 +691,250 @@ Ez különösen hasznos lehet olyan szabályozott területeken, ahol egy korább
 
 ---
 
-A bemutató alapján az alábbi témák további üzleti döntést és részletes folyamatleírást igényelnek:
+A bemutató alapján az alábbi témák üzleti döntést és folyamatszabályozást igényelnek. Kiemelendő, hogy a kérdések jelentős része (7 kulcsfontosságú tétel, pl. négyszem-elvű selejtezés, QR-kódos elválasztólapos szkennelés, titkosított HR adatvédelem, 4 minősítési szint, interaktív dashboard) **MÁR MEGVALÓSÍTÁSRA KERÜLT** a jelenlegi kódbázisban.
 
-> 1. **Feladatkatalógus:** milyen általános feladatok rendelhetők egy számlához, szerződéshez, HR-irat­hoz vagy szállítmányozási dokumentumhoz?  
-> 2. **Feladatállapotok:** milyen státuszok legyenek, például új, folyamatban, várakozik, teljesítve, elutasítva, lezárva?  
-> 3. **Automatikus szignálás:** milyen irattípus melyik szervezeti egységhez és melyik felelőshöz kerüljön?  
-> 4. **Minősítési szintek:** pontosan milyen biztonsági fokozatok legyenek, és ki módosíthatja azokat?  
-> 5. **Explicit megosztás:** ki engedélyezheti, milyen időtartamra és milyen műveleti körrel?  
-> 6. **Kötegelt érkeztetés:** milyen elválasztólapot és milyen szkennelési formátumot kell támogatni?  
-> 7. **Selejtezési állapotgép:** irattárban, selejtezhető, selejtezésre javasolt, jóváhagyott, selejtezett és megsemmisített állapotok pontos átmenete.  
-> 8. **Megőrzési idők:** dokumentumtípusonként, tenantonként és szabályozási környezetenként milyen időtartamok érvényesek?  
-> 9. **Selejtezési jóváhagyás:** minden esetben kötelező-e a négyszem-elv, vagy konfigurálható?  
-> 10. **Partneradat-forrás:** az EasyBill vagy az EaisyDOCS legyen-e az elsődleges partneradat-gazda?  
-> 11. **Tenantmodell:** milyen szervezeti hierarchiában működjön a szolgáltató, a könyvelőiroda és az ügyfélcég?  
-> 12. **CMR-egyeztetés:** mely mezők egyezése tekintendő kötelezőnek, és milyen eltérés engedhető meg?  
-> 13. **HR-adatvédelem:** mely szerepkörök láthatnak egészségügyi, bér- vagy jelenléti adatokat?  
-> 14. **Szerződésgenerálás:** milyen sablonformátumokat, változómezőket és jóváhagyási lépéseket kell támogatni?  
-> 15. **Aláírás:** szükséges-e elektronikus aláírási szolgáltatás, vagy csak az aláírt fájl archiválása a cél?  
-> 16. **Értesítési szabályok:** milyen eseményhez milyen címzett, határidő és csatorna tartozik?  
-> 17. **CRM-kapcsolat:** milyen CRM-objektumokhoz és milyen üzleti eseményekhez kapcsolódjanak az iratok?  
-> 18. **Dashboard:** mely mutatók legyenek kötelezőek, és mely szerepkörök láthassák azokat?  
-> 19. **Betekintő és auditor:** valóban azonos jogosultságúak-e, vagy az auditor kizárólag naplókat és megfelelőségi adatokat láthat?
+### **8.1. Feladatkatalógus**
+* **Kérdés:** Milyen általános feladatok rendelhetők egy számlához, szerződéshez, HR-irathoz vagy szállítmányozási dokumentumhoz?
+* **Fejlesztési státusz:** 🟡 Részben kész (A `/tasks` felületen szabad szöveges feladatok már rögzíthetők).
+* **Döntési javaslat:** 4 standard, előre definiált sablon-feladattípus bevezetése a gyors munkavégzéshez:
+  * **Pénzügy / Számla:** „Jóváhagyás és kifizetés engedélyezése”, „Könyvelésre továbbítás”, „Eltérés egyeztetése partnerrel”.
+  * **Szerződés:** „Jogi és szakmai felülvizsgálat”, „Vezetői ellenjegyzés”, „Aláírásra kiküldés”.
+  * **Szállítmányozás (CMR):** „Fuvardíj és paritás egyeztetés”, „Hiányzó átvételi igazolás pótlása”.
+  * **HR dokumentum:** „Munkaszerződés aláíratása”, „Orvosi alkalmasság ellenőrzése”, „Kilépő papírok átadása”.
+  * **Egyedi feladat:** Tetszőleges szabad szöveges teendő megadásának lehetősége felelőssel és határidővel.
 
-## **9\. Összegzés**
+### **8.2. Feladatállapotok**
+* **Kérdés:** Milyen státuszok legyenek, például új, folyamatban, várakozik, teljesítve, elutasítva, lezárva?
+* **Fejlesztési státusz:** 🟡 Részben kész (A Kanban tábla státuszoszlopai működnek).
+* **Döntési javaslat:** 4 tiszta állapot és egy indoklásos lezárási logika bevezetése:
+  * **Új (Open):** A feladat kiosztva a felelősnek, feldolgozásra vár.
+  * **Folyamatban (In Progress):** A felelős aktívan dolgozik a dokumentum feldolgozásán.
+  * **Várakozik (Pending):** Külső partner válaszára, hiánypótlásra vagy vezetői döntésre vár.
+  * **Befejezve (Completed):** A feladat sikeresen elvégezve / jóváhagyva.
+  * *Elutasítás kezelése:* Az „Elutasítva” állapot nem önálló státusz, hanem a feladat Befejezett lezárása kötelező szöveges indoklással (pl. vitatott számla).
+
+### **8.3. Automatikus szignálás**
+* **Kérdés:** Milyen irattípus melyik szervezeti egységhez és melyik felelőshöz kerüljön?
+* **Fejlesztési státusz:** ✅ Részben kész (AI szervezeti egység ajánlás aktív).
+* **Döntési javaslat:** Kétlépcsős szignálási modell az automatizáció és az emberi kontroll egyensúlyára:
+  * **1. lépcső (Automatikus osztály-szintű):** Az AI és a szabályrendszer a dokumentumtípus és partner alapján automatikusan a megfelelő Szervezeti Egységhez rendeli az iratot (pl. Számla -> Pénzügy, Szerződés -> Jogi osztály, Önéletrajz -> HR).
+  * **2. lépcső (Személyi felelős kijelölése):** A szervezeti egység vezetője vagy kijelölt szignálója osztja ki a konkrét ügyintézőnek, vagy az osztály tagja magához veszi. Ne az AI ossza ki közvetlenül személyeknek, elkerülve a szabadságon lévők túlterhelését.
+
+### **8.4. Minősítési szintek**
+* **Kérdés:** Pontosan milyen biztonsági fokozatok legyenek, és ki módosíthatja azokat?
+* **Fejlesztési státusz:** ✅ **KÉSZ A KÓDBAN (ADR A-007)**
+* **Működés:** A rendszerben pontosan definiált 4 biztonsági szint van érvényben (Postgres RLS és felület):
+  * **Nyilvános:** A szervezeten belül minden bejelentkezett felhasználó számára megtekinthető.
+  * **Belső (Alapértelmezett):** Az adott szervezeti egység tagjai és a vezetői láthatják.
+  * **Bizalmas:** Kizárólag a kijelölt vezetők és a dokumentumhoz expliciten hozzárendelt ügyintézők férhetnek hozzá.
+  * **Szigorúan bizalmas:** Kizárólag az irat felelőse és a legfelsőbb cégvezető tekintheti meg.
+  * *Módosítási jog:* A szintet kizárólag a dokumentum Felelőse és az Adminisztrátor módosíthatja; minden változás automatikusan és törölhetetlenül naplózódik az audit naplóban.
+
+### **8.5. Explicit megosztás**
+* **Kérdés:** Ki engedélyezheti, milyen időtartamra és milyen műveleti körrel?
+* **Fejlesztési státusz:** 🟡 Részben kész (Adatbázis szinten az explicit hozzárendelés táblája létezik).
+* **Döntési javaslat:** Szabályozott megosztási jogosultságok:
+  * **Engedélyező:** Az ügyirat Felelőse vagy a Szervezeti Egység Vezetője oszthatja meg más osztályon dolgozó munkatárssal.
+  * **Műveleti körök:** Két különválasztott szint: 1. „Csak betekintés” (olvasási jog, vízjelezett megtekintéssel), 2. „Ügyintézés” (szerkesztési, feladat-hozzáadási és megjegyzés-írási jog).
+  * **Időtartam:** Megadható határozatlan időre, vagy konkrét lejárati dátummal (pl. 14 napos szakértői véleményezés). A lejárati határidő elérésekor a rendszer automatikusan és auditáltan visszavonja a hozzáférést.
+
+### **8.6. Kötegelt érkeztetés és elválasztólap**
+* **Kérdés:** Milyen elválasztólapot és milyen szkennelési formátumot kell támogatni?
+* **Fejlesztési státusz:** ✅ **KÉSZ A KÓDBAN (PRD P-021)**
+* **Működés:**
+  * **Elválasztólap:** A rendszerből egy kattintással nyomtatható egyedi QR-kóddal és vonalkóddal ellátott elválasztó fedőlap (`/batch/separator-page`).
+  * **Feldolgozás:** A fizikai iratcsomók közé helyezett elválasztólapokkal a teljes köteg egyetlen nagy PDF-ként beszkennelhető (Hotfolder vagy feltöltés).
+  * **Automatikus darabolás:** A rendszer a háttérben a QR-kódok mentén automatikusan szétvágja a fájlt külön iratokra, és önálló érkeztetőszámmal rögzíti őket.
+  * **Támogatott formátum:** Standard PDF (200-300 DPI, fekete-fehér vagy színes).
+
+### **8.7. Selejtezési állapotgép**
+* **Kérdés:** Irattárban, selejtezhető, selejtezésre javasolt, jóváhagyott, selejtezett és megsemmisített állapotok pontos átmenete.
+* **Fejlesztési státusz:** ✅ **KÉSZ A KÓDBAN (ADR A-001 és BRD-002)**
+* **Működés:** Az életciklus szabályozott lépései:
+  * **1. Irattárban:** Az irat lezárva, fizikai/elektronikus irattárban őrizve, megőrzési ideje ketyeg.
+  * **2. Selejtezhető:** A megőrzési idő (pl. 8 év) lejárt, a rendszer automatikusan megjelöli, de NEM törli.
+  * **3. Selejtezésre javasolt:** Az irattáros szelektálja az iratokat, és selejtezési jegyzéket/csomagot hoz létre.
+  * **4. Jóváhagyva:** Független vezető jóváhagyja a selejtezési jegyzőkönyvet (szigorú négyszem-elv).
+  * **5. Megsemmisítve / Selejtezve:** A csatolt elektronikus fájlok és fizikai példányok megsemmisítésre kerülnek, de a metaadatok és a hitelesített PDF selejtezési jegyzőkönyv örökre megmarad az archívumban jogi bizonyítékként.
+
+### **8.8. Megőrzési idők**
+* **Kérdés:** Dokumentumtípusonként, tenantonként és szabályozási környezetenként milyen időtartamok érvényesek?
+* **Fejlesztési státusz:** 🟡 Rendszerben konfigurálható (Irattári Terv táblázat).
+* **Döntési javaslat:** A magyar jogszabályoknak megfelelő alapértelmezett irattári terv, amelyet a cégek testreszabhatnak:
+  * **Számviteli bizonylatok, számlák, könyvelési iratok:** 8 év (2000. évi C. törvény a számvitelről 169. §).
+  * **Munkaviszonnyal, nyugdíjjal kapcsolatos iratok (munkaszerződés, bérlap, kilépő adatlap):** Nyugdíjkorhatárig / Nem selejtezhető (Tny. tv. 99/A. §).
+  * **Általános szerződések és megállapodások:** 5 év az elévüléstől / lejárattól számítva (Ptk. elévülési idő).
+  * **Pályázati és EU támogatási iratok:** 10 év a záró kifizetéstől számítva (vagy Támogatási Szerződés szerint).
+  * **Általános üzleti levelezés, ajánlatok:** 3-5 év.
+
+### **8.9. Selejtezési jóváhagyás és négyszem-elv**
+* **Kérdés:** Minden esetben kötelező-e a négyszem-elv, vagy konfigurálható?
+* **Fejlesztési státusz:** ✅ **KÉSZ A KÓDBAN (ADR A-001 & BRD-002)**
+* **Működés:** A rendszer adatbázis-szinten tiltja, hogy a javaslattevő saját maga hagyja jóvá a selejtezést.
+* **Döntési javaslat:** Differenciált, konfigurálható működés vállalati méret szerint:
+  * **Nagyvállalati és szabályozott környezetben:** A szigorú négyszem-elv kötelező alapértelmezés (az irattáros felterjeszt, a gazdasági/jogi vezető hagy jóvá).
+  * **Kis KKV környezetben:** A tenant beállításaiban bekapcsolható az „Egyszerűsített selejtezés” opció kis létszámú cégek számára, ahol nincs külön irattáros és vezetői réteg.
+
+### **8.10. Partneradat-forrás (eaisyBill vs. eaisyDocs kapcsolat)**
+* **Kérdés:** Az EasyBill vagy az EaisyDOCS legyen-e az elsődleges partneradat-gazda?
+* **Valós architekturális alaphelyzet:** 
+  * Az **eaisyDocs és az eaisyHR** fut egyazon közös adatbázison és sémán (közös `partner`, `felhasznalo_profil`, `szervezeti_egyseg` táblák).
+  * Az **eaisyBill viszont egy teljesen különálló adatbázison és szolgáltatáson fut**! Nincs közvetlen adatbázis-szintű összekötés, a kommunikáció kizárólag biztonságos API-n keresztül zajlik.
+* **Fejlesztési státusz:** 🟡 **Részben kész (Egyirányú számla- és partnerimport már működik API-n keresztül – `eaisybill-actions.ts`).**
+  * Az eaisyDocs API-n keresztül lekéri a számlákat az eaisyBill-ből.
+  * Számla importálásakor az eaisyDocs a partner adószáma (`adoszam`, `adoszam_eu`) vagy neve alapján megkeresi a partnert a helyi `partner` táblájában, és ha még nem létezik, automatikusan rögzíti azt (`findOrCreatePartner`), az iratot pedig megjelöli (`kulso_forras = 'eaisybill'`).
+* **Döntési javaslat a megbeszélésre (Felelősségi szintek és integrációs irány):**
+  * **1. Számlázási és Vevői Master Data ➔ eaisyBill:** A számlázáshoz szükséges hivatalos vevőtörzs (számlázási név, cím, bankszámlaszám, fizetési feltételek) elsődleges és felelős gazdája az **eaisyBill**.
+  * **2. Iratkezelési és Szállítói Partnerkezelés ➔ eaisyDocs:** A bejövő egyéb dokumentumokból (levelek, szerződések, szkenner, alvállalkozók, hivatalok) érkező partnereket az **eaisyDocs** önállóan kezeli a helyi partnertárban (ami azonnal elérhető az eaisyHR számára is).
+  * **3. Szinkronizációs irány és fejlesztési javaslat (Kétirányúsítás):**
+    * *Jelenlegi állapot:* Egyirányú adatátvétel (eaisyBill ➔ eaisyDocs). A számlákkal a partnerek átjönnek az eaisyDocs-ba.
+    * *Javasolt döntés a megbeszélésre:* Készüljön el az ellenirányú API integráció is: ha az eaisyDocs-ban az ügyintéző vagy az AI egy új bejövő szállítói számlát/szerződést rögzít, egyetlen gombnyomással („Átadás eaisyBillbe mint új szállító/partner”) lehessen átküldeni az eaisyBill API-ján keresztül.
+    * *Eredmény:* Megszűnik a kettős manuális adatrögzítés, miközben a rendszerek adatbázisai szeparáltak és stabilak maradnak.
+
+### **8.11. Tenantmodell (Multi-tenancy és többcég-kezelés)**
+* **Kérdés:** Milyen szervezeti hierarchiában működjön a szolgáltató, a könyvelőiroda és az ügyfélcég?
+* **Valós fejlesztési státusz:** 📋 **Üzleti döntésre váró architektúrális tervezés (A kódban még NINCS tenant_id mező; a rendszer jelenleg egycéges / single-tenant belső szervezeti egységekkel).**
+* **Jelenlegi működés a kódban:**
+  * A rendszer jelenleg egyetlen cég adatait kezeli, amelyen belül belső osztályokat és részlegeket lehet kialakítani (`szervezeti_egyseg_id`).
+  * A multitenancia (több független cég vagy könyvelőirodai ügyfelek kezelése) a backlogban a **3. Fázisú fejlesztések (B13 modul)** közé tartozik, mivel a teljes adatbázisra kiterjedő migrációt igényel.
+* **Döntési javaslat a megbeszélésre (A bevezetendő háromszintű modell):**
+  * **1. Szint: Platform Üzemeltető (Think AI):** Globális adminisztráció, licenckezelés és rendszerfelügyelet.
+  * **2. Szint: Szervezet / Cég (Tenant):** Egyedi adószámmal rendelkező önálló jogi entitás. Jövőbeli megvalósítás: minden alaptábla (`irat`, `ugyirat`, `partner`) kap egy `tenant_id` mezőt, és az RLS szabályok szigorúan megakadályozzák a cégek közötti adatátlátást.
+  * **3. Szint: Könyvelőirodai többcég-kezelés:** Egy könyvelő felhasználó több önálló ügyfélcéghez (tenanthez) is kaphat hozzáférést. A felület fejlécében egy gyors cégválasztóval válthat az ügyfelei között, így nem kell külön fiókokkal ki-be jelentkeznie.
+
+### **8.12. CMR- és fuvarmegbízás egyeztetés**
+* **Kérdés:** Mely mezők egyezése tekintendő kötelezőnek, és milyen eltérés engedhető meg?
+* **Fejlesztési státusz:** 📋 Szakmai döntési javaslat (Keresztmodulos dokumentumkapcsolatok sémája kész).
+* **Döntési javaslat:** Automatikus párosítási szabályok fuvarozási dokumentumokhoz:
+  * **Kötelező egyezési mezők:** 1. Fuvarozási referenciaszám / Bizonylatszám / CMR szám, 2. Partner (fuvarozó vagy megbízó neve/adószáma).
+  * **Megerősítő opcionális mezők:** Rendszám (vontató/pótkocsi) és Dátumtartomány (±3 napos teljesítési eltérés megengedett).
+  * **Eredmény:** Egyezés esetén a rendszer a számlát, a fuvarmegbízást és a leigazolt CMR-t automatikusan egyetlen közös ügyiratba fűzi, és zöld pipával jelzi a pénzügynek, hogy a számla kifizethető.
+
+### **8.13. HR-adatvédelem és érzékeny adatok**
+* **Kérdés:** Mely szerepkörök láthatnak egészségügyi, bér- vagy jelenléti adatokat?
+* **Fejlesztési státusz:** ✅ **KÉSZ A KÓDBAN (ADR A-012 és ADR A-007)**
+* **Működés:**
+  * Az érzékeny HR adatok titkosított BYTEA oszlopokban vannak tárolva, dekriptáló RPC védelemmel.
+  * **Kizárólagos hozzáférés:** Csak a dedikált 'hr_manager' és 'hr_admin' szerepkör láthat béradatokat, orvosi alkalmassági igazolást és letiltásokat.
+  * **Ügyintézők és Betekintők:** SOHA nem férhetnek hozzá az érzékeny adatokhoz, még akkor sem, ha a munkavállaló általános iratához (pl. munkaköri leírás) hozzáférésük van.
+  * **Munkavállalói önkiszolgáló:** A dolgozó kizárólag a saját dokumentumait és bérlapját tekintheti meg.
+
+### **8.14. Szerződésgenerálás és sablonkezelés**
+* **Kérdés:** Milyen sablonformátumokat, változómezőket és jóváhagyási lépéseket kell támogatni?
+* **Fejlesztési státusz:** 📋 Szakmai döntési javaslat.
+* **Döntési javaslat:** Strukturált sablon- és AI munkafolyamat:
+  * **Sablonformátum:** Markdown / HTML sablonok szabványos változókkal (pl. `{{partner_nev}}`, `{{szolgaltatas_targya}}`, `{{osszeg}}`, `{{fizetesi_hatarido}}`).
+  * **AI generálás:** A felhasználó rövid promptban megadja az egyedi paramétereket, az AI pedig beilleszti a változókat és megfogalmazza az egyedi záradékokat.
+  * **Jóváhagyási lánc:** Piszkozat (Draft) -> Jogi ellenőrzés -> Jóváhagyva -> PDF generálás és automatikus iktatás az eaisyDocs-ban.
+
+### **8.15. Elektronikus aláírás**
+* **Kérdés:** Szükséges-e elektronikus aláírási szolgáltatás, vagy csak az aláírt fájl archiválása a cél?
+* **Fejlesztési státusz:** 📋 Szakmai döntési javaslat (Kétlépcsős stratégia).
+* **Döntési javaslat:** Költséghatékony, fázisolt bevezetés:
+  * **1. Fázis (Azonnali, minimális költség):** Külsőleg aláírt dokumentumok (pl. AVDH-val hitelesített, e-Szignóval ellátott vagy kinyomtatva aláírt és beszkennelt PDF-ek) feltöltése, iktatása és PDF/A-2b archiválása SHA-256 hash ellenőrzéssel.
+  * **2. Fázis (Későbbi prémium modul):** Közvetlen integráció minősített bizalmi szolgáltatóval (pl. Microsec e-Szigno API vagy DocuSign) az alkalmazáson belüli digitális aláíráshoz.
+
+### **8.16. Értesítési szabályok és csatornák**
+* **Kérdés:** Milyen eseményhez milyen címzett, határidő és csatorna tartozik?
+* **Fejlesztési státusz:** 🟡 Részben kész (Alkalmazáson belüli értesítések és beállítások felülete működik).
+* **Döntési javaslat:** Zajmentes, prioritás-alapú értesítési mátrix:
+  * **Alkalmazáson belüli értesítés (harang ikon):** Minden státuszváltozás, új megjegyzés és @említés esetén azonnal megjelenik.
+  * **E-mail értesítés kizárólag kritikus eseményekről:** 1. Új feladat kiosztása a felelősnek, 2. Közelgő feldolgozási vagy válaszadási határidő (3 nappal és 1 nappal a lejárat előtt), 3. Selejtezési jegyzék jóváhagyásra vár (vezetőnek).
+  * **SMS értesítés:** Opcionális, kizárólag kritikus határidő-túllépésnél vagy kétlépcsős azonosításnál (2FA).
+
+### **8.17. CRM-kapcsolatok**
+* **Kérdés:** Milyen CRM-objektumokhoz és milyen üzleti eseményekhez kapcsolódjanak az iratok?
+* **Fejlesztési státusz:** ✅ Részben kész (Polimorf link tábla létezik).
+* **Döntési javaslat:** Három fő CRM üzleti objektumhoz való kapcsolás (`irat_kapcsolat` tábla segítségével):
+  * **1. Ügyfél / Partner adatlap:** Az adott céghez tartozó összes szerződés, megállapodás, számla és hivatalos levél időrendi listája.
+  * **2. Értékesítési lehetőség (Deal / Lead):** Az ajánlatadáshoz, tenderhez vagy tárgyaláshoz kapcsolódó beadványok és kalkulációk.
+  * **3. Szerződés entitás:** Az aláírt keretszerződések, titoktartási nyilatkozatok (NDA) és azok mellékletei.
+
+### **8.18. Dashboard és vezetői mutatók**
+* **Kérdés:** Mely mutatók legyenek kötelezőek, és mely szerepkörök láthassák azokat?
+* **Fejlesztési státusz:** ✅ **KÉSZ A KÓDBAN (PRD P-001)**
+* **Működés:**
+  * A főoldalon (`/`) már működő interaktív mutatók: 1. Forgalmi trend (Bejövő vs. Kimenő iratvolumen), 2. Érkezési csatornák megoszlása (E-mail, Kézi, EasyBill, Szkenner), 3. Sürgős határidők visszaszámlálója, 4. Saját nyitott feladatok.
+  * **Szerepkör-alapú láthatóság:** Vezetői / Admin szerepkörben a teljes cég vagy osztály összesített forgalmi statisztikái láthatók; ügyintézői szerepkörben a saját felelősségi körbe tartozó iratok és teendők jelennek meg.
+
+### **8.19. Betekintő vs. Auditor szerepkör**
+* **Kérdés:** Valóban azonos jogosultságúak-e, vagy az auditor kizárólag naplókat és megfelelőségi adatokat láthat?
+* **Fejlesztési státusz:** ✅ **KÉSZ A KÓDBAN (ADR A-007)**
+* **Működés:** Egyértelmű szakmai szétválasztás a jogosultsági mátrixban:
+  * **Betekintő (Viewer):** Hétköznapi üzleti felhasználó, aki kizárólag a számára engedélyezett iratokat nézheti meg vízjelezve. Nem iktathat, nem módosíthat és nem selejtezhet.
+  * **Auditor (Ellenőr):** Hatósági vagy belső megfelelőségi szerepkör. Az iratok tartalmán felül kizárólagos hozzáférése van a megváltoztathatatlan eseménynaplóhoz (audit trail), a selejtezési jegyzőkönyvekhez és a kriptográfiai SHA-256 integritás-ellenőrzésekhez.
+
+---
+
+## **9. Kiegészítő Stratégiai és Jogszabályi Döntési Javaslatok (eaisyDocs & eaisyHR)**
+
+Az alábbi 10 javaslat a meglévő 19 alapkérdésen felül olyan jogszabályi (Számviteli tv., Mt., GDPR, 1/2018. ITM rendelet) és hatékonyságnövelő garanciákat nyújt, amelyek kiemelt versenyelőnyt jelentenek a piacon:
+
+### **📁 eaisyDocs Stratégiai Javaslatok**
+
+#### **9.1. Hiteles Digitális Archiválás (1/2018. ITM rendelet szerinti zárt rendszerű megőrzés)**
+* **Kérdés a megbeszélésre:** Az eaisyDocs sima belső dokumentumtár legyen, vagy jogilag hiteles elektronikus archívum, amely lehetővé teszi a papíralapú bizonylatok teljes megsemmisítését?
+* **Fejlesztési státusz:** 🟡 **Részben kész a kódban (ADR A-010):**
+  * *Kész a kódban:* Minden irat kap egy SHA-256 kriptográfiai hash-t feltöltéskor, és elkészül a szabványos PDF/A-2b normalizált archiválási másolat (`convertToPdfA`), amely a felületről letölthető.
+  * *Hiányzó döntési pont:* Külső minősített időbélyegző (RFC 3161 Timestamp Provider, pl. Microsec vagy NetLock) API integrációja. Ezzel a digitális példány teljes bizonyító erejű magánokirattá válik, és a papíralapú számlák az iktatást követően törvényesen ledarálhatók.
+
+#### **9.2. Cégkapu / Hivatali Kapu közvetlen integráció**
+* **Kérdés a megbeszélésre:** A hivatalos állami küldeményeket (NAV, bíróság, kormányhivatal) kézzel töltsék-e le és iktassák, vagy legyen automatikus gép-gép kapcsolat?
+* **Fejlesztési státusz:** 📋 **Új fejlesztési javaslat (Üzleti döntés szükséges).**
+* **Döntési javaslat:** Cégkapu gép-gép API integráció (vagy dedikált felügyelt bejövő mappa). A hivatalos beadványok és határozatok automatikusan beérkeznek az `/inbox`-ba, az AI felismeri a jogvesztő válaszadási határidőt (pl. 8 vagy 15 nap), és azonnali PUSH/E-mail riasztást küld a jogásznak és a cégvezetőnek.
+
+#### **9.3. Fizikai Irattári Lokáció és Vonalkódos Polcrendszer**
+* **Kérdés a megbeszélésre:** Hogyan találják meg a munkatársak a törvényileg papíron is megőrzendő iratokat a fizikai szekrényekben?
+* **Fejlesztési státusz:** 🟡 **Részben kész (Fizikai fellelhetőség mező létezik az `ugyirat` táblában).**
+* **Döntési javaslat:** 4 szintű fizikai lokáció-hierarchia (*Épület ➔ Irattár ➔ Polc ➔ Doboz*). A rendszer nyomtatható vonalkódos dobozcímkét generál, így a selejtezéskor egyetlen dobozkód beolvasásával lehessen a lejárt papírokat zúzdába küldeni.
+
+#### **9.4. Verziózási Zárolás és Ütközésvédelem (Check-out / Check-in)**
+* **Kérdés a megbeszélésre:** Mi történik, ha két ügyintéző vagy jogász párhuzamosan próbál módosítani egy szerződéstervezetet?
+* **Fejlesztési státusz:** 🟡 **Részben kész (Verziótörténet és verziómentés működik az `ugyirat_verzio` táblában).**
+* **Döntési javaslat:** Szerkesztési zárolás (Check-out). Amíg az egyik felhasználó szerkeszti a piszkozatot, a többiek számára a dokumentum "Zárolva" státuszú, elkerülve a párhuzamos munkából eredő felülírásokat.
+
+#### **9.5. Beépített GDPR Adatkitakarás (Redaction) a PDF Viewerben**
+* **Kérdés a megbeszélésre:** Hogyan távolíthatók el véglegesen a személyes, banki és védett adatok, ha az iratot külső félnek vagy nem jogosult felhasználónak kell továbbítani?
+* **Fejlesztési státusz:** 📋 **Új fejlesztési javaslat.**
+* **Döntési javaslat:** Beépített PDF Redaction eszköz. A PDF nézegetőben a felhasználó kijelölheti az érzékeny területeket, és a rendszer a szövegrétegből és a képből is fizikailag eltávolítja a pixeleket és karaktereket (nem csupán fekete téglalapot rajzol fölé).
+
+---
+
+### **👥 eaisyHR Stratégiai és Mt. Megfelelőségi Javaslatok**
+
+#### **9.6. Munka Törvénykönyve (Mt.) Munkaidő-keret és Pihenőidő Figyelmeztető Motor**
+* **Kérdés a megbeszélésre:** A jelenléti ív és műszakbeosztás csak rögzítő felület legyen, vagy aktívan védje a céget a munkaügyi bírságoktól?
+* **Fejlesztési státusz:** 🟡 **Részben kész (Túlóra nyilvántartás és munkaidő-naplózás működik a `/hr/time` oldalon).**
+* **Döntési javaslat:** Beépített Mt. megfelelőségi validátor a beosztástervezőhöz:
+  * Napi 11 órás egybefüggő pihenőidő ellenőrzése (figyelmeztetés, ha a dolgozó későn végzett és korán kezd).
+  * Heti 48 órás maximális munkaidő és kötelező heti pihenőnap ellenőrzése.
+  * Éves rendkívüli munkaidő (250 / 400 órás limit) számláló és automatikus riasztás.
+
+#### **9.7. Foglalkozás-egészségügyi és Munkavédelmi Életciklus**
+* **Kérdés a megbeszélésre:** Hogyan biztosítjuk, hogy a lejáró orvosi alkalmassági és munkavédelmi oktatások ne vezessenek hatósági eltiltáshoz?
+* **Fejlesztési státusz:** 🟡 **Részben kész a kódban (Orvosi modul és lejárati értesítések működnek!):**
+  * *Kész a kódban:* `hr_orvosi_vizsgalat` tábla, munkakörönkénti vizsgálati típus és gyakoriság (`orvosi_vizsgalat_gyakorisag_ho`), a dolgozói profilban orvosi lejárati figyelmeztetés, 30 és 7 nappal korábbi automatikus értesítés a háttérben.
+  * *Kiegészítendő döntési pont:* 1. Munkavédelmi és tűzvédelmi oktatási jegyzőkönyvek lejárati nyilvántartása. 2. Műszakbeosztáskor blokkoló figyelmeztetés, ha a munkavállaló orvosi alkalmassága lejárt.
+
+#### **9.8. Munkaviszony Megszűnés (Offboarding) és Mt. 80. § Garancia (5 munkanapos szabály)**
+* **Kérdés a megbeszélésre:** Hogyan garantáljuk a kilépő dolgozó kötelező munkaügyi igazolásainak törvényi kiadását az 5 munkanapos jogvesztő határidőn belül?
+* **Fejlesztési státusz:** 🟡 **Részben kész a kódban (Offboarding Kanban modul működik – `/hr/offboarding`):**
+  * *Kész a kódban:* Kilépési folyamatkövetés, feladatlista (`hr_offboarding_feladat`), kilépési interjú (`hr_kilepes_interju`).
+  * *Kiegészítendő döntési pont:* 1. Az Mt. 80. § szerinti 5 munkanapos visszaszámláló és vezetői riasztó. 2. Kötelező kilépő igazolások (bírósági letiltási adatlap, munkanélküli ellátási igazolás) automatikus sablon-alapú generálása és iktatása az eaisyDocs-ba.
+
+#### **9.9. Szabadságkiadási Mt. Szabályok és a 14 Napos Egybefüggő Pihenés**
+* **Kérdés a megbeszélésre:** Hogyan garantálja a szabadságkezelő, hogy a cég eleget tegyen az Mt. 122. § szerinti szabadságkiadási kötelezettségének?
+* **Fejlesztési státusz:** 🟡 **Részben kész (Szabadságkérelmek és jóváhagyási workflow működik).**
+* **Döntési javaslat:** Intelligens szabadság-tervező: figyelmeztetés, ha a dolgozó az adott naptári évben még nem vett ki legalább 14 egybefüggő napot (hétvégékkel együtt), valamint év végi (novemberi) automatikus riasztás a bent maradt szabadnapok kiadására.
+
+#### **9.10. Elektronikus Bérjegyzék és Hivatalos Átvételi Nyugtázás (Mt. 22. §)**
+* **Kérdés a megbeszélésre:** Elegendő-e, hogy a dolgozó látja a bérlapját a portálon, vagy jogi viták esetére szükség van igazolt átvételi naplózásra?
+* **Fejlesztési státusz:** 🟡 **Részben kész (Titkosított béradatok és dolgozói önkiszolgáló portál kész – ADR A-012).**
+* **Döntési javaslat:** Digitális átvételi nyugtázás (Mt. 22. § szerinti közlési fikció). A bérlap és a hivatalos munkaügyi nyilatkozatok megnyitásakor a rendszer másodperc-pontossággal és IP-címmel rögzíti az átvételt az audit naplóba (`hr_esemeny_naplo`), kizárva a vitákat a bérlapok átadásáról.
+
+---
+
+## **10. Összegzés**
 
 ---
 

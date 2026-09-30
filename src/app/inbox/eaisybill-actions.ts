@@ -187,7 +187,7 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
     .from("irat")
     .insert({
       targy,
-      erkezes_modja:      "rendszer",
+      erkezes_modja:      "eaisybill",
       adathordozo_tipus:  "elektronikus_eredeti",
       minosites:          "nyilt",
       irany:              "bejovo",

@@ -23,6 +23,7 @@ export interface PartnerItem {
   email?: string | null
   telefonszam?: string | null
   adoszam?: string | null
+  kulfoldi_adoszam?: string | null
   cim?: string | null
   created_at?: string
 }
@@ -122,7 +123,7 @@ export function PartnersTableClient({
         const matchName = p.nev?.toLowerCase().includes(q)
         const matchEmail = p.email?.toLowerCase().includes(q)
         const matchPhone = p.telefonszam?.toLowerCase().includes(q)
-        const matchTax = p.adoszam?.toLowerCase().includes(q)
+        const matchTax = p.adoszam?.toLowerCase().includes(q) || p.kulfoldi_adoszam?.toLowerCase().includes(q)
         if (!matchName && !matchEmail && !matchPhone && !matchTax) {
           return false
         }
@@ -214,7 +215,12 @@ export function PartnersTableClient({
                     )}
                     {isColVisible("adoszam") && (
                       <TableCell className="text-sm text-muted-foreground tabular-nums">
-                        {p.adoszam || "—"}
+                        <div className="flex flex-col gap-0.5">
+                          <span>{p.adoszam || (p.kulfoldi_adoszam ? "—" : "—")}</span>
+                          {p.kulfoldi_adoszam && (
+                            <span className="text-[10px] text-primary/80 font-mono">EU/Külf: {p.kulfoldi_adoszam}</span>
+                          )}
+                        </div>
                       </TableCell>
                     )}
                     {canEdit && isColVisible("muveletek") && (

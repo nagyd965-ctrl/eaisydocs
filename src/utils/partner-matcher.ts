@@ -4,6 +4,7 @@ export interface PartnerLookupParams {
   nev: string
   tipus?: string | null
   adoszam?: string | null
+  kulfoldi_adoszam?: string | null
   email?: string | null
   telefonszam?: string | null
   cim?: string | null
@@ -43,7 +44,7 @@ export function normalizeAdoszam(adoszam: string): string {
 
 /**
  * Intelligens partnerkeresés és duplikációmentes mentés:
- * 1. Keres adószám alapján (ha megadva)
+ * 1. Keres belföldi adószám vagy külföldi/EU adóazonosító alapján
  * 2. Keres pontos / kis-nagybetű független név alapján
  * 3. Magánszemélynél keres megfordított név alapján (pl. Dániel Nagy vs Nagy Dániel)
  * 4. Keres e-mail cím alapján (ha megadva)
@@ -65,30 +66,45 @@ export async function findOrCreatePartner(
   // 1. Lekérjük az összes partnert az intelligens összehasonlításhoz
   const { data: allPartners, error } = await supabase
     .from("partner")
-    .select("id, nev, tipus, adoszam, email, telefonszam, cim")
+    .select("id, nev, tipus, adoszam, kulfoldi_adoszam, email, telefonszam, cim")
 
   if (error) {
     console.error("Partner lekérdezési hiba:", error)
   }
 
+  const clean = (val?: string | null) => (val ? val.replace(/[-\s.,/]/g, "").toUpperCase().trim() : "")
+
   const matchedPartner = (allPartners || []).find(p => {
-    // 1. Adószám egyezés
-    if (params.adoszam && p.adoszam && p.adoszam.replace(/[-\s]/g, "") === params.adoszam.replace(/[-\s]/g, "")) {
+    // 1. Belföldi adószám egyezés
+    if (params.adoszam && p.adoszam && clean(p.adoszam) === clean(params.adoszam)) {
       return true
     }
 
-    // 2. E-mail egyezés
+    // 2. Külföldi / EU adóazonosító egyezés
+    if (params.kulfoldi_adoszam && p.kulfoldi_adoszam && clean(p.kulfoldi_adoszam) === clean(params.kulfoldi_adoszam)) {
+      return true
+    }
+
+    // 3. Kereszt-ellenőrzés: ha korábban külföldi adószám a belföldi mezőbe került vagy fordítva
+    if (params.kulfoldi_adoszam && p.adoszam && clean(p.adoszam) === clean(params.kulfoldi_adoszam)) {
+      return true
+    }
+    if (params.adoszam && p.kulfoldi_adoszam && clean(p.kulfoldi_adoszam) === clean(params.adoszam)) {
+      return true
+    }
+
+    // 4. E-mail egyezés
     if (params.email && p.email && p.email.toLowerCase().trim() === params.email.toLowerCase().trim()) {
       return true
     }
 
-    // 3. Név egyezés (normalizált)
+    // 5. Név egyezés (normalizált)
     const pNorm = normalizePartnerName(p.nev)
     if (pNorm === normalizedSearch) {
       return true
     }
 
-    // 4. Magánszemély fordított név ellenőrzés (pl. Nagy Dániel == Dániel Nagy)
+    // 6. Magánszemély fordított név ellenőrzés (pl. Nagy Dániel == Dániel Nagy)
     const reversed = getReversedPersonName(trimmedName)
     if (reversed && normalizePartnerName(reversed) === pNorm) {
       return true
@@ -101,6 +117,7 @@ export async function findOrCreatePartner(
     // Frissítjük a meglévő partner hiányzó adatait ha most kaptunk újakat
     const updates: Record<string, string> = {}
     if (!matchedPartner.adoszam && params.adoszam) updates.adoszam = params.adoszam
+    if (!matchedPartner.kulfoldi_adoszam && params.kulfoldi_adoszam) updates.kulfoldi_adoszam = params.kulfoldi_adoszam
     if (!matchedPartner.email && params.email) updates.email = params.email
     if (!matchedPartner.telefonszam && params.telefonszam) updates.telefonszam = params.telefonszam
     if (!matchedPartner.cim && params.cim) updates.cim = params.cim
@@ -122,6 +139,7 @@ export async function findOrCreatePartner(
       nev: trimmedName,
       tipus: tipus,
       adoszam: params.adoszam || null,
+      kulfoldi_adoszam: params.kulfoldi_adoszam || null,
       email: params.email || null,
       telefonszam: params.telefonszam || null,
       cim: params.cim || null

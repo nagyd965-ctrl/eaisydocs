@@ -43,11 +43,6 @@ const items = [
     icon: FolderOpen,
   },
   {
-    title: "Kereső",
-    url: "/search",
-    icon: Search,
-  },
-  {
     title: "Irattár",
     url: "/archive",
     icon: Archive,

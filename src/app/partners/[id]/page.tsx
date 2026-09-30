@@ -112,10 +112,15 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
             <div className="p-4">
               <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
                 <FileText className="h-3.5 w-3.5" />
-                Adószám
+                Adószám (belföldi / EU)
               </dt>
-              <dd className="text-sm font-semibold tabular-nums">
-                {partner.adoszam || <span className="text-muted-foreground font-normal">—</span>}
+              <dd className="text-sm font-semibold tabular-nums flex flex-col gap-0.5">
+                <span>{partner.adoszam || <span className="text-muted-foreground font-normal">—</span>}</span>
+                {(partner as any).kulfoldi_adoszam && (
+                  <span className="text-xs text-primary/80 font-mono font-normal">
+                    EU/Külf: {(partner as any).kulfoldi_adoszam}
+                  </span>
+                )}
               </dd>
             </div>
             <div className="p-4">

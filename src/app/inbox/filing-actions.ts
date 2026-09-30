@@ -22,6 +22,7 @@ export async function fileIncomingDocument(formData: FormData) {
   let kuldo_partner_id = (formData.get("kuldo_partner_id") as string)?.trim() || ""
   const partner_nev = (formData.get("partner_nev") as string)?.trim() || ""
   const partner_adoszam = (formData.get("partner_adoszam") as string)?.trim() || ""
+  const partner_kulfoldi_adoszam = (formData.get("partner_kulfoldi_adoszam") as string)?.trim() || ""
   const hivatkozott_szam = (formData.get("hivatkozott_szam") as string)?.trim() || ""
   const hatarido = (formData.get("hatarido") as string)?.trim() || ""
 
@@ -36,13 +37,14 @@ export async function fileIncomingDocument(formData: FormData) {
     return { error: "Ezt az iratot már egy másik felhasználó vagy folyamat iktatta!" }
   }
 
-  // Partner kezelése: ha van partner_nev vagy partner_adoszam, de nincs kuldo_partner_id, megkeressük vagy létrehozzuk
-  if (!kuldo_partner_id && (partner_nev || partner_adoszam)) {
+  // Partner kezelése: ha van partner_nev, partner_adoszam vagy partner_kulfoldi_adoszam, de nincs kuldo_partner_id, megkeressük vagy létrehozzuk
+  if (!kuldo_partner_id && (partner_nev || partner_adoszam || partner_kulfoldi_adoszam)) {
     try {
       const { findOrCreatePartner } = await import("@/utils/partner-matcher")
       const pRes = await findOrCreatePartner(supabase, { 
         nev: partner_nev || "Ismeretlen partner", 
         adoszam: partner_adoszam || null,
+        kulfoldi_adoszam: partner_kulfoldi_adoszam || null,
         tipus: "ceg" 
       })
       if (pRes?.id) {
@@ -51,11 +53,13 @@ export async function fileIncomingDocument(formData: FormData) {
     } catch (pErr) {
       console.warn("[Filing] Partner automatikus rögzítési hiba:", pErr)
     }
-  } else if (kuldo_partner_id && partner_adoszam) {
+  } else if (kuldo_partner_id && (partner_adoszam || partner_kulfoldi_adoszam)) {
     try {
       const { normalizeAdoszam } = await import("@/utils/partner-matcher")
-      const normalized = normalizeAdoszam(partner_adoszam)
-      await supabase.from("partner").update({ adoszam: normalized }).eq("id", kuldo_partner_id).is("adoszam", null)
+      const updates: Record<string, string> = {}
+      if (partner_adoszam) updates.adoszam = normalizeAdoszam(partner_adoszam)
+      if (partner_kulfoldi_adoszam) updates.kulfoldi_adoszam = partner_kulfoldi_adoszam.trim().toUpperCase()
+      await supabase.from("partner").update(updates).eq("id", kuldo_partner_id)
     } catch (pErr) {
       console.warn("[Filing] Partner adószám pótlási hiba:", pErr)
     }
@@ -295,6 +299,7 @@ export interface AISuggestionsResult {
     partner_id: string
     partner_nev: string
     partner_adoszam: string
+    partner_kulfoldi_adoszam: string
     hivatkozott_szam: string
     hatarido: string
     department_id: string
@@ -318,7 +323,7 @@ export async function executeAiMetadataExtraction(iratId: string, customSupabase
       kulso_forras,
       kulso_hivatkozas_id,
       kuldo_partner_id,
-      partner ( id, nev, adoszam )
+      partner ( id, nev, adoszam, kulfoldi_adoszam )
     `)
     .eq("id", iratId)
     .single()
@@ -409,7 +414,7 @@ export async function executeAiMetadataExtraction(iratId: string, customSupabase
 
   const { data: partners } = await supabase
     .from("partner")
-    .select("id, nev, adoszam")
+    .select("id, nev, adoszam, kulfoldi_adoszam")
     .order("nev")
 
   const deptsList = departments || []
@@ -427,36 +432,46 @@ export async function executeAiMetadataExtraction(iratId: string, customSupabase
 
       const emailSenderNev = (irat.partner as any)?.nev || null
 
-      const prompt = `Te egy magyar elektronikus iratási rendszer (eaisyDocs) automatikus dokumentum-osztályozó és metaadat-kinyerő mesterséges intelligénciaája vagy.
-Feladatod: elemezd a beerkezeft dokumentum tartalmát (és a csatolt PDF-képet) és olvasd ki pontosan az alábbi mezoket.
+      const prompt = `Te egy magyar elektronikus iratási rendszer (eaisyDocs) automatikus dokumentum-osztályozó és metaadat-kinyerő mesterséges intelligenciája vagy.
+Feladatod: elemezd a beérkezett dokumentum tartalmát (és a csatolt PDF-képet) és olvasd ki pontosan az alábbi mezőket.
 
-FIGYELEM - KRITIKUS SZABÁLY A PARTNER MEZőHÖZ:
-- A dokumentumot ${emailSenderNev ? `"${emailSenderNev}" nevű személy/entitás küldte email-ben` : 'valaki email-ben küldte'}. Ez az EMAIL FELADÓ, nem felttétlenül a dokumentum kibocsátója!
-- A "partner_nev" mezőbe a DOKUMENTUMON SZEREPLő tényleges kibocsátó szervezet/cég nevét írd be (fejlécből, aláírásból, pecsétből).
-- Ha a dokumentum fejlécében egy cég neve szerepel (pl. "Infopark Irodaház Üzemeltető Kft."), azt add meg partnerként, nem az email feladót!
+FIGYELEM - KRITIKUS SZABÁLY A PARTNER ÉS ADÓSZÁM MEZŐKHÖZ:
+- A dokumentumot ${emailSenderNev ? `"${emailSenderNev}" nevű személy/entitás küldte email-ben` : 'valaki email-ben küldte'}. Ez az EMAIL FELADÓ, nem feltétlenül a dokumentum kibocsátója!
+- A "partner_nev" mezőbe a DOKUMENTUMON SZEREPLŐ tényleges kibocsátó szervezet/cég nevét írd be (fejlécből, aláírásból, pecsétből).
+- Ha a dokumentum fejlécében egy cég neve szerepel (pl. "Infopark Irodaház Üzemeltető Kft." vagy "Celonis Inc."), azt add meg partnerként, nem az email feladót!
 - Ha a dokumentum nem tartalmaz egyértelmű kibocsátó szervezetet, akkor az email feladót használd.
+
+FONTOS SZABÁLY SZÁMLÁK ESETÉN (KÜLFÖLDI / NEMZETKÖZI SZÁMLÁK ÉS SAAS SZOLGÁLTATÓK):
+- Mindig a SZÁMLA KIÁLLÍTÓJÁNAK (eladójának) az adószámát keresd meg, SOHA NE a vevőét!
+- Nemzetközi szolgáltatóknál (pl. Celonis Inc., Make, AWS, Google, Microsoft, Adobe, Stripe) a fejlécben gyakran szerepel a magyar vevő adószáma (pl. "Tax Id: HU..."). Ezt TILOS a partner adószámaként megadni, mert az a vevő adószáma!
+- A külföldi partner adóazonosítóját (pl. "US EIN 61-1797223", "61-1797223", vagy helyi adószámot mint szerbiai PIB, román CUI, ír VAT ID) a kibocsátó partner címénél/adatai között keresd, és KIZÁRÓLAG a "partner_kulfoldi_adoszam" mezőbe írd be! Ilyenkor a "partner_adoszam" legyen null!
+
+ADÓSZÁMOK SZÉTVÁLASZTÁSA:
+- "partner_adoszam": A partner belföldi MAGYAR adószáma (pl. "32478520-2-41" vagy 8 jegyű törzsszám "32478520"). Csak magyar cégek esetén töltsd ki! Ha a számlán mindkét formátum (belföldi és HU-s közösségi) szerepel, ide MINDIG a belföldi kötőjeles formátumot írd (pl. "32478520-2-41")! NE ide írd a HU előtagos EU adószámot! Külföldi cégnél (pl. amerikai, német, szerb) értéke kötelezően null!
+- "partner_kulfoldi_adoszam": Ha a partner rendelkezik közösségi (EU) adószámmal (pl. "HU32478520", "DE123456789", "ATU12345678") VAGY külföldi cég esetén helyi adóazonosítóval (pl. amerikai "US EIN 61-1797223" vagy "61-1797223", szerbiai PIB: "101092577", román CUI, stb.), azt ide írd be!
 
 Kötelező mezők:
 1. "targy": Hivatalos, tömör magyar ügyirat tárgy (pl. "Munkaszerződés - Kovács Béla", vagy "Szolgáltatási keretszerződés - Telekom Nyrt.", vagy "NAV határozat adóügyben").
 2. "dokumentum_tipus": Az alábbiak egyike pontosan: "szerzodes" | "szamla" | "hatosagi_level" | "beadvany" | "igazolas" | "egyeb".
 3. "partner_nev": A DOKUMENTUM tényleges kibocsátója (lásd fent a KRITIKUS SZABÁLYT).
-4. "partner_adoszam": Ha szerepel, a partner adószáma (pl. "12345678-1-42" vagy 8 számjegy).
-5. "hivatkozott_szam": Ha a dokumentumban szerepel hivatkozási szám, ügyszám, iktatószám, szerződésszám, határozatszám, referenciaszám (bármilyen címkével mint: "Hivatkozási szám:", "Ref.:", "Szerz. sz.:", "ADM-...", stb.), azt olvasd ki PONTOSAN. Különösen figyelj a fejléc sarkokban és láblécben elhelyezett referenciaszámokra.
-6. "hatarido": Ha a dokumentum konkrét teljesítési, fizetési vagy jogorvoslati/válaszadási határidőt tartalmaz, azt YYYY-MM-DD formátumban add meg. Ha nincs, értéke legyen null.
-7. "department_id": A legmegfelelőbb Szervezeti Egység ID-ja az alábbi listából.
-8. "irattari_tetel_id": A legmegfelelőbb Irattári Tételszám ID-ja az alábbi listából.
-9. "indoklas": 1-2 mondatos magyar indoklás a kiválasztott típusokról és kinyert adatokról.
+4. "partner_adoszam": Belföldi magyar adószám (pl. "32478520-2-41" vagy 8 számjegy). Külföldi cégnél vagy ha nincs, null.
+5. "partner_kulfoldi_adoszam": Közösségi EU adószám (pl. "HU32478520", "DE123456789") vagy külföldi adóazonosító (pl. "US EIN 61-1797223", "101092577"). Ha nincs, null.
+6. "hivatkozott_szam": Ha a dokumentumban szerepel hivatkozási szám, ügyszám, iktatószám, szerződésszám, határozatszám, referenciaszám (bármilyen címkével mint: "Hivatkozási szám:", "Ref.:", "Szerz. sz.:", "ADM-...", stb.), azt olvasd ki PONTOSAN. Különösen figyelj a fejléc sarkokban és láblécben elhelyezett referenciaszámokra.
+7. "hatarido": Ha a dokumentum konkrét teljesítési, fizetési vagy jogorvoslati/válaszadási határidőt tartalmaz, azt YYYY-MM-DD formátumban add meg. Ha nincs, értéke legyen null.
+8. "department_id": A legmegfelelőbb Szervezeti Egység ID-ja az alábbi listából.
+9. "irattari_tetel_id": A legmegfelelőbb Irattári Tételszám ID-ja az alábbi listából.
+10. "indoklas": 1-2 mondatos magyar indoklás a kiválasztott típusokról és kinyert adatokról.
 
-ELÉRHETŐ SZERVEZETI EGYSÉgek:
+ELÉRHETŐ SZERVEZETI EGYSÉGEK:
 ${deptsList.map((d: any) => `- ID: "${d.id}", Név: "${d.nev}"`).join("\n")}
 
 ÉRVÉNYES IRATTÁRI TERV TÉTELEI:
 ${plansList.map((p: any) => `- ID: "${p.id}", Tételszám: "${p.tetelszam}", Megnevezés: "${p.megnevezes}"`).join("\n")}
 
 ISMERT PARTNEREK ÍZELÍTŐ:
-${partnersList.slice(0, 30).map((p: any) => `- Név: "${p.nev}"${p.adoszam ? `, Adószám: "${p.adoszam}"` : ""}`).join("\n")}
+${partnersList.slice(0, 30).map((p: any) => `- Név: "${p.nev}"${p.adoszam ? `, Adószám: "${p.adoszam}"` : ""}${p.kulfoldi_adoszam ? `, Külföldi adószám: "${p.kulfoldi_adoszam}"` : ""}`).join("\n")}
 
-ÉRKEZTETETÉSI ADATOK (tájékoztató):
+ÉRKEZTETÉSI ADATOK (tájékoztató):
 - Rögzített tárgy: ${irat.targy || "Nincs"}
 - Email feladó (NEM feltétlenül a dokumentum kibocsátója!): ${emailSenderNev || "Nincs"}
 - Eredeti fájlnév: ${firstFile?.eredeti_fajlnev || "dokumentum.pdf"}
@@ -468,6 +483,7 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
   "dokumentum_tipus": "szerzodes" | "szamla" | "hatosagi_level" | "beadvany" | "igazolas" | "egyeb",
   "partner_nev": string | null,
   "partner_adoszam": string | null,
+  "partner_kulfoldi_adoszam": string | null,
   "hivatkozott_szam": string | null,
   "hatarido": string | null,
   "department_id": string,
@@ -517,7 +533,7 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
       extractedHatarido = `${deadlineMatch[1]}-${deadlineMatch[2]}-${deadlineMatch[3]}`
     }
 
-    // Hivatkozási szám keresés (kiterjesztett minta: hikivatkozási szám, ref, szerz. sz., ADM-, stb.)
+    // Hivatkozási szám keresés
     const refMatch = docText.match(
       /(?:hivatkozási szám|hivatkozás|iktatószám|iktatási szám|szerződésszám|szerz\. sz|számlaszám|ügyszám|határozatszám|referenciaszám|ref\.|ref\s*:)[:\s.]*([A-Z]{2,}[-/][0-9A-Z\-_/]+|[A-Z0-9]{3,}[-/][0-9]{4}[A-Z0-9\-_/]*)/i
     )
@@ -556,6 +572,7 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
       dokumentum_tipus: suggestedType,
       partner_nev: (irat?.partner as any)?.nev || null,
       partner_adoszam: (irat?.partner as any)?.adoszam || null,
+      partner_kulfoldi_adoszam: (irat?.partner as any)?.kulfoldi_adoszam || null,
       hivatkozott_szam: extractedHivSzam,
       hatarido: extractedHatarido,
       department_id: suggestedDeptId,
@@ -564,7 +581,24 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
     }
   }
 
-  // 6. Partner beazonosítása adatbázisból (Adószám vagy normalizált név alapján)
+  // 5.b Adószámok szétválasztása és pontosítása (magyar belföldi vs külföldi/EU VAT)
+  const { separateTaxNumbers } = await import("@/utils/tax-number")
+  const separatedTaxes = separateTaxNumbers(aiResult.partner_adoszam, aiResult.partner_kulfoldi_adoszam)
+  aiResult.partner_adoszam = separatedTaxes.magyarAdoszam
+  aiResult.partner_kulfoldi_adoszam = separatedTaxes.kulfoldiAdoszam
+
+  // 5.c Külföldi partner védelem:
+  // Ha a partner külföldi entitás (van nem-HU külföldi adószáma, vagy a neve nemzetközi pl. Inc., LLC, GmbH, Corp., DOO, stb.),
+  // akkor nem rendelkezhet magyar belföldi adószámmal! A számlán esetleg szereplő magyar adószám a vevőé, azt kötelező nullázni.
+  const isForeignPartner = 
+    (aiResult.partner_kulfoldi_adoszam && !aiResult.partner_kulfoldi_adoszam.toUpperCase().startsWith("HU")) ||
+    /(?:Inc\.?|LLC|Ltd\.?|GmbH|Corp\.?|DOO|S\.A\.|S\.R\.L\.|B\.V\.)/i.test(aiResult.partner_nev || "")
+
+  if (isForeignPartner && aiResult.partner_adoszam) {
+    aiResult.partner_adoszam = null
+  }
+
+  // 6. Partner beazonosítása adatbázisból (Adószám, Külföldi adószám vagy normalizált név alapján)
   // FONTOS: Az AI által kinyert partner_nev elsőbbséget élvez az email-feladóval szemben,
   // ha az eltér (mert az email feladó ≠ a dokumentum kibocsátója).
   const emailSenderPartnerId = (irat.partner as any)?.id || irat.kuldo_partner_id || ""
@@ -572,7 +606,6 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
   const { normalizePartnerName } = await import("@/utils/partner-matcher")
 
   const aiExtractedNev = aiResult.partner_nev || ""
-  // Ha az AI más partnert talált, mint az email feladó → az AI által kinyert névvel próbálunk egyeztetni
   const aiPartnerDiffersFromSender = aiExtractedNev &&
     emailSenderNevDb &&
     normalizePartnerName(aiExtractedNev) !== normalizePartnerName(emailSenderNevDb)
@@ -580,11 +613,25 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
   let matchedPartnerId = ""
   let partnerNevToUse = aiExtractedNev || emailSenderNevDb
 
-  const cleanTax = (tax?: string | null) => tax?.replace(/[-\s]/g, "") || ""
+  const cleanTax = (tax?: string | null) => tax?.replace(/[-\s.,/]/g, "").toUpperCase() || ""
 
-  // 1. Adószám alapú egyeztetés (legmegbízhatóbb)
-  if (aiResult.partner_adoszam) {
-    const foundByTax = partnersList.find((p: any) => p.adoszam && cleanTax(p.adoszam) === cleanTax(aiResult.partner_adoszam))
+  // 1. Adószám alapú egyeztetés (magyar vagy külföldi/EU)
+  if (aiResult.partner_adoszam || aiResult.partner_kulfoldi_adoszam) {
+    const cleanMagyar = cleanTax(aiResult.partner_adoszam)
+    const cleanKulfoldi = cleanTax(aiResult.partner_kulfoldi_adoszam)
+
+    const foundByTax = partnersList.find((p: any) => {
+      const pMagyar = cleanTax(p.adoszam)
+      const pKulfoldi = cleanTax(p.kulfoldi_adoszam)
+      if (cleanMagyar && (pMagyar === cleanMagyar || (cleanMagyar.length === 8 && pMagyar.startsWith(cleanMagyar)))) {
+        return true
+      }
+      if (cleanKulfoldi && (pKulfoldi === cleanKulfoldi || pMagyar === cleanKulfoldi)) {
+        return true
+      }
+      return false
+    })
+
     if (foundByTax) {
       matchedPartnerId = foundByTax.id
       partnerNevToUse = foundByTax.nev
@@ -599,7 +646,6 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
       matchedPartnerId = foundByAiName.id
       partnerNevToUse = foundByAiName.nev
     }
-    // Ha nem találtuk az adatbázisban, a partnerId marad üres → filing-actions majd create-el
   }
 
   // 3. Ha az AI ugyanazt a partnert jelölte mint az email feladó → megtartjuk az eredeti ID-t
@@ -660,6 +706,7 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
       partner_id: matchedPartnerId,
       partner_nev: partnerNevToUse,
       partner_adoszam: aiResult.partner_adoszam || "",
+      partner_kulfoldi_adoszam: aiResult.partner_kulfoldi_adoszam || "",
       hivatkozott_szam: aiResult.hivatkozott_szam || "",
       hatarido: aiResult.hatarido || "",
       department_id: validDept?.id || "",
@@ -686,9 +733,14 @@ export async function generateAISuggestions(iratId: string): Promise<AISuggestio
       .maybeSingle()
 
     if (cachedTask?.eredmeny) {
+      const suggestions = { ...cachedTask.eredmeny }
+      const { separateTaxNumbers } = await import("@/utils/tax-number")
+      const separated = separateTaxNumbers(suggestions.partner_adoszam, suggestions.partner_kulfoldi_adoszam)
+      suggestions.partner_adoszam = separated.magyarAdoszam || ""
+      suggestions.partner_kulfoldi_adoszam = separated.kulfoldiAdoszam || suggestions.partner_kulfoldi_adoszam || ""
       return {
         success: true,
-        suggestions: cachedTask.eredmeny
+        suggestions
       }
     }
   } catch (cErr) {

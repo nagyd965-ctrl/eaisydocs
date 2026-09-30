@@ -44,6 +44,7 @@ export interface FilingPartner {
   id: string
   nev: string
   adoszam?: string | null
+  kulfoldi_adoszam?: string | null
   [key: string]: unknown
 }
 
@@ -92,6 +93,7 @@ export function FilingPanelClient({
   const [partnerId, setPartnerId] = useState<string>((irat.partner as any)?.id || (irat as any).kuldo_partner_id || "")
   const [partnerNev, setPartnerNev] = useState<string>((irat.partner as any)?.nev || "")
   const [partnerAdoszam, setPartnerAdoszam] = useState<string>((irat.partner as any)?.adoszam || "")
+  const [partnerKulfoldiAdoszam, setPartnerKulfoldiAdoszam] = useState<string>((irat.partner as any)?.kulfoldi_adoszam || "")
   const [hivatkozottSzam, setHivatkozottSzam] = useState<string>("")
   const [hatarido, setHatarido] = useState<string>("")
   const [ugytipusId, setUgytipusId] = useState<string>("")
@@ -173,10 +175,11 @@ export function FilingPanelClient({
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  const filteredPartners = partnerNev.trim() || partnerAdoszam.trim()
+  const filteredPartners = partnerNev.trim() || partnerAdoszam.trim() || partnerKulfoldiAdoszam.trim()
     ? partners.filter(p => 
         (partnerNev.trim() && p.nev.toLowerCase().includes(partnerNev.toLowerCase())) ||
-        (partnerAdoszam.trim() && p.adoszam && p.adoszam.toLowerCase().includes(partnerAdoszam.toLowerCase()))
+        (partnerAdoszam.trim() && p.adoszam && p.adoszam.toLowerCase().includes(partnerAdoszam.toLowerCase())) ||
+        (partnerKulfoldiAdoszam.trim() && p.kulfoldi_adoszam && p.kulfoldi_adoszam.toLowerCase().includes(partnerKulfoldiAdoszam.toLowerCase()))
       ).slice(0, 6)
     : partners.slice(0, 6)
 
@@ -221,8 +224,9 @@ export function FilingPanelClient({
       if (s.targy) setTargy(s.targy)
       if (s.dokumentum_tipus) setDokumentumTipus(s.dokumentum_tipus)
       if (s.partner_nev) setPartnerNev(s.partner_nev)
-      if (s.partner_id) setPartnerId(s.partner_id)
-      if (s.partner_adoszam) setPartnerAdoszam(s.partner_adoszam)
+      if (s.partner_id !== undefined) setPartnerId(s.partner_id)
+      setPartnerAdoszam(s.partner_adoszam || "")
+      setPartnerKulfoldiAdoszam(s.partner_kulfoldi_adoszam || "")
       if (s.hivatkozott_szam) setHivatkozottSzam(s.hivatkozott_szam)
       if (s.hatarido) setHatarido(s.hatarido)
       if (s.irattari_tetel_id) setUgytipusId(s.irattari_tetel_id)
@@ -253,6 +257,7 @@ export function FilingPanelClient({
     formData.append("kuldo_partner_id", partnerId)
     formData.append("partner_nev", partnerNev)
     formData.append("partner_adoszam", partnerAdoszam)
+    formData.append("partner_kulfoldi_adoszam", partnerKulfoldiAdoszam)
     formData.append("hivatkozott_szam", hivatkozottSzam)
     formData.append("hatarido", hatarido)
     
@@ -507,8 +512,8 @@ export function FilingPanelClient({
                 </div>
               </div>
 
-              {/* Partner adatok (2 oszlop: Küldő partner neve + Partner adószáma) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Partner adatok */}
+              <div className="space-y-3">
                 {/* Küldő partner */}
                 <div className="space-y-1.5 relative" ref={partnerInputRef}>
                   <div className="flex items-center justify-between">
@@ -531,7 +536,7 @@ export function FilingPanelClient({
                       setShowPartnerSuggestions(true)
                     }}
                     onFocus={() => setShowPartnerSuggestions(true)}
-                    placeholder="Pl. Nemzeti Közművek Zrt." 
+                    placeholder="Pl. Think AI Korlátolt Felelősségű Társaság" 
                     autoComplete="off"
                     className={`text-xs sm:text-sm ${aiLoading ? "animate-pulse bg-muted" : ""}`}
                   />
@@ -539,7 +544,7 @@ export function FilingPanelClient({
                   {showPartnerSuggestions && filteredPartners.length > 0 && (
                     <div className="absolute top-[100%] left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-lg p-1">
                       <div className="text-[10px] font-semibold text-muted-foreground uppercase px-2 py-1 tracking-wider">
-                        {partnerNev.trim() || partnerAdoszam.trim() ? "Találatok a partnerek között" : "Mentett partnerek"}
+                        {partnerNev.trim() || partnerAdoszam.trim() || partnerKulfoldiAdoszam.trim() ? "Találatok a partnerek között" : "Mentett partnerek"}
                       </div>
                       {filteredPartners.map((p) => (
                         <button
@@ -549,41 +554,73 @@ export function FilingPanelClient({
                             setPartnerId(p.id)
                             setPartnerNev(p.nev)
                             setPartnerAdoszam(p.adoszam || "")
+                            setPartnerKulfoldiAdoszam((p as any).kulfoldi_adoszam || "")
                             setShowPartnerSuggestions(false)
                           }}
                           className="w-full flex items-center justify-between text-left px-2 py-1.5 text-xs rounded hover:bg-muted/80 transition-colors"
                         >
                           <span className="font-medium truncate">{p.nev}</span>
-                          {p.adoszam && (
-                            <span className="text-[10px] text-muted-foreground font-mono ml-2 shrink-0">
-                              {p.adoszam}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                            {p.adoszam && (
+                              <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">
+                                {p.adoszam}
+                              </span>
+                            )}
+                            {(p as any).kulfoldi_adoszam && (
+                              <span className="text-[10px] text-primary/80 font-mono bg-primary/10 px-1.5 py-0.5 rounded">
+                                {(p as any).kulfoldi_adoszam}
+                              </span>
+                            )}
+                          </div>
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
 
-                {/* Partner adószáma */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="partner_adoszam" className="text-xs font-medium">
-                      Partner adószáma
-                    </Label>
-                    <span className="text-[10px] text-muted-foreground">kötőjellel vagy egybe</span>
+                {/* Adószámok szétválasztva (2 oszlop: Belföldi magyar adószám + Külföldi / EU adószám) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Magyar adószám */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="partner_adoszam" className="text-xs font-medium">
+                        Partner adószáma
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground">8 vagy 11 jegyű belföldi</span>
+                    </div>
+                    <Input 
+                      id="partner_adoszam" 
+                      name="partner_adoszam" 
+                      value={partnerAdoszam}
+                      onChange={(e) => {
+                        setPartnerAdoszam(e.target.value)
+                        setPartnerId("")
+                      }}
+                      placeholder="Pl. 32478520-2-41" 
+                      className={`text-xs sm:text-sm font-mono ${aiLoading ? "animate-pulse bg-muted" : ""}`}
+                    />
                   </div>
-                  <Input 
-                    id="partner_adoszam" 
-                    name="partner_adoszam" 
-                    value={partnerAdoszam}
-                    onChange={(e) => {
-                      setPartnerAdoszam(e.target.value)
-                      setPartnerId("")
-                    }}
-                    placeholder="Pl. 12345678-2-42" 
-                    className={`text-xs sm:text-sm font-mono ${aiLoading ? "animate-pulse bg-muted" : ""}`}
-                  />
+
+                  {/* Külföldi / EU adóazonosító */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="partner_kulfoldi_adoszam" className="text-xs font-medium">
+                        Külföldi / EU adóazonosító
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground">EU VAT vagy PIB/TIN</span>
+                    </div>
+                    <Input 
+                      id="partner_kulfoldi_adoszam" 
+                      name="partner_kulfoldi_adoszam" 
+                      value={partnerKulfoldiAdoszam}
+                      onChange={(e) => {
+                        setPartnerKulfoldiAdoszam(e.target.value)
+                        setPartnerId("")
+                      }}
+                      placeholder="Pl. HU32478520, DE123456789" 
+                      className={`text-xs sm:text-sm font-mono ${aiLoading ? "animate-pulse bg-muted" : ""}`}
+                    />
+                  </div>
                 </div>
               </div>
 

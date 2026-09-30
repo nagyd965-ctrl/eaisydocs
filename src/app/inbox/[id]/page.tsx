@@ -30,7 +30,7 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
       erkezes_modja,
       ugyirat_id,
       kuldo_partner_id,
-      partner ( id, nev, adoszam )
+      partner ( id, nev, adoszam, kulfoldi_adoszam )
     `)
     .eq("id", resolvedParams.id)
     .single()
@@ -88,7 +88,7 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
 
   const { data: partners } = await supabase
     .from("partner")
-    .select("id, nev, adoszam")
+    .select("id, nev, adoszam, kulfoldi_adoszam")
     .order("nev")
 
   // Előzmény-ügyirat javaslat lekérése
