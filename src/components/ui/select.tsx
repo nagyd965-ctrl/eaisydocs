@@ -6,7 +6,65 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+function extractText(node: React.ReactNode): string {
+  if (node == null || typeof node === "boolean") return ""
+  if (typeof node === "string") return node
+  if (typeof node === "number") return String(node)
+  if (Array.isArray(node)) {
+    return node.map(extractText).filter(Boolean).join(" ").trim()
+  }
+  if (React.isValidElement(node)) {
+    const props = node.props as { label?: string; children?: React.ReactNode }
+    if (props?.label && typeof props.label === "string") {
+      return props.label
+    }
+    if (props?.children) {
+      return extractText(props.children)
+    }
+  }
+  return ""
+}
+
+function collectSelectItems(
+  children: React.ReactNode,
+  itemsMap: Record<string, React.ReactNode> = {}
+): Record<string, React.ReactNode> {
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return
+    const props = child.props as { value?: any; label?: string; children?: React.ReactNode }
+    if (props && "value" in props && props.value !== undefined) {
+      const valKey = props.value === null ? "null" : String(props.value)
+      if (props.label) {
+        itemsMap[valKey] = props.label
+      } else {
+        const text = extractText(props.children)
+        itemsMap[valKey] = text || props.children || valKey
+      }
+    }
+    if (props && props.children) {
+      collectSelectItems(props.children, itemsMap)
+    }
+  })
+  return itemsMap
+}
+
+function Select<Value = any, Multiple extends boolean = false>({
+  items: explicitItems,
+  children,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  const items = React.useMemo(() => {
+    if (explicitItems) return explicitItems
+    const map = collectSelectItems(children)
+    return Object.keys(map).length > 0 ? map : undefined
+  }, [explicitItems, children])
+
+  return (
+    <SelectPrimitive.Root items={items} {...props}>
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
@@ -114,10 +172,11 @@ function SelectItem({
   label,
   ...props
 }: SelectPrimitive.Item.Props & { label?: string }) {
+  const textLabel = label || extractText(children) || undefined
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
-      label={label}
+      label={textLabel}
       className={cn(
         "relative flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className

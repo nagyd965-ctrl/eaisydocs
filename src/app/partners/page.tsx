@@ -20,20 +20,53 @@ export default async function PartnersPage() {
   }
   const permissions = getPermissions(docs_szerepkor)
 
-  // Partnerek lekérése
-  const { data: realPartners } = await supabase.from("partner").select("*").order("nev")
+  // 1. Partnerek lekérése a kapcsolattartókkal együtt
+  const { data: realPartners } = await supabase
+    .from("partner")
+    .select(`
+      *,
+      kapcsolattartok:partner_kapcsolattarto(id, nev, email, telefonszam, elsodleges)
+    `)
+    .order("nev")
+
+  // 2. Iratforgalom darabszámok partnerek szerint (egyetlen gyors lekérdezéssel)
+  const { data: iratok } = await supabase
+    .from("irat")
+    .select("kuldo_partner_id")
+    .not("kuldo_partner_id", "is", null)
+
+  const docCountMap: Record<string, number> = {}
+  for (const ir of iratok || []) {
+    if (ir.kuldo_partner_id) {
+      docCountMap[ir.kuldo_partner_id] = (docCountMap[ir.kuldo_partner_id] || 0) + 1
+    }
+  }
+
+  // Partnerek dúsítása az iratszámlálóval és elsődleges kapcsolattartóval
+  const enrichedPartners = (realPartners || []).map((p: any) => {
+    const primaryContact = p.kapcsolattartok?.find((c: any) => c.elsodleges) || p.kapcsolattartok?.[0]
+    return {
+      ...p,
+      irat_darabszam: docCountMap[p.id] || 0,
+      elsodleges_kapcsolattarto: primaryContact ? {
+        nev: primaryContact.nev,
+        email: primaryContact.email,
+        telefonszam: primaryContact.telefonszam,
+      } : null,
+    }
+  })
 
   return (
     <div className="page-animate space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Partnerek</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          A rendszerben rögzített partnerek és ügyfelek listája.
+          A rendszerben rögzített partnerek, ügyfelek és hivatalok törzsadatai és forgalma.
         </p>
       </div>
 
       <PartnersTableClient
-        initialPartners={(realPartners as any) || []}
+        initialPartners={enrichedPartners}
         canEdit={permissions.canEdit}
       />
     </div>

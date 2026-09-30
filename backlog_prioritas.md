@@ -68,11 +68,16 @@ Ezek nem függenek más hiányzó moduloktól, a kódbázis nagy részük szám�
 
 ## 🟡 2. FÁZIS – Közepes komplexitású, de önálló (3-7 nap/db)
 
-### 📦 B7. Partnertörzs kibővítése (5.1)
-- **Mit kell tenni:** Bővítés: partner típusa (vevő/szállító/egyéb), kapcsolattartók, aktív/inaktív státusz, duplikációvédelem erősítése, adatforrás-jelölés
-- **Miért fontos:** Alap az EasyBill-integráció és a keresztmodulos kapcsolatokhoz
-- **Komplexitás:** 🟡 Közepes
-- **Állapot:** ✅ Alap kész, bővítendő
+### ~~📦 B7. Partnertörzs kibővítése (5.1)~~ ✅ KÉSZ (2026-09-30)
+- **Elvégezve:** 
+  - Kettős besorolási modell bevezetése: Jogi/szervezeti forma (`ceg`, `maganszemely`, `egyeni_vallalkozo`, `intezmeny`) + Üzleti szerepkör (`vevo`, `szallito`, `mindketto`, `hatosag`, `bank`, `egyeb`).
+  - Új relációs tábla: `partner_kapcsolattarto` kapcsolattartó személyek rögzítésére és kezelésére.
+  - Új mezők: `bankszamlaszam`, `fizetesi_hatarido_nap`, `fizetesi_mod`, `weboldal`, `megjegyzes`, `statusz` (aktív/inaktív).
+  - Partner lista (`/partners`): 4 db felső KPI összegző kártya, 6 db gyors szűrőfül, iratszámláló badge, aktív/inaktív szűrés.
+  - Partner adatlap (`/partners/[id]`): Kimenő iratok bekötése az iratforgalomba, Kapcsolattartók fül közvetlen műveletekkel, pénzügyi és számlázási blokk, aktív/inaktív toggle, gyors érkeztetési link.
+  - Partner dialógus (`PartnerDialog`): Kettős besorolás, élő duplikáció-figyelmeztető motor adószámra és névre.
+  - Dokumentáció: ADR A-024 és PRD P-024.
+- **Állapot:** ✅ KÉSZ és élesítve.
 
 ---
 
@@ -139,13 +144,13 @@ Ezek nem függenek más hiányzó moduloktól, a kódbázis nagy részük szám�
 | # | Feladat | Fázis | Komplexitás | Állapot | Prioritás |
 |---|---------|-------|-------------|---------|-----------|
 | ~~B1~~ | ~~Kötegelt érkeztetés stabilizálása~~ | 1 | ~~🟡~~ | ✅ **KÉSZ** | – |
-| B6 | Értesítési motor backend | 1 | 🟡 | 🔴 Kritikus | ⭐⭐⭐⭐⭐ |
-| B4 | Postgres FTS keresés | 1 | 🟢 | 🔴 Hiányzik | ⭐⭐⭐⭐ |
+| ~~B6~~ | ~~Értesítési motor backend~~ | 1 | ~~🟡~~ | ✅ **KÉSZ** | – |
+| ~~B4~~ | ~~Postgres FTS keresés (Ctrl+K)~~ | 1 | ~~🟢~~ | ✅ **KÉSZ** | – |
+| ~~B5~~ | ~~Dashboard statisztikák~~ | 1 | ~~🟢~~ | ✅ **KÉSZ** | – |
+| ~~B7~~ | ~~Partnertörzs bővítés (5.1)~~ | 2 | ~~🟡~~ | ✅ **KÉSZ** | – |
 | B2 | Selejtezési állapotgép | 1 | 🟡 | ⚠️ Részben | ⭐⭐⭐⭐ |
 | B3 | Feladatkatalógus + állapotok | 1 | 🟢 | ⚠️ Részben | ⭐⭐⭐⭐ |
 | B9 | HR → EaisyDOCS gomb | 2 | 🟢 | 🔴 Hiányzik | ⭐⭐⭐⭐ |
-| B5 | Dashboard statisztikák | 1 | 🟢 | 🟡 Alap kész | ⭐⭐⭐ |
-| B7 | Partnertörzs bővítés | 2 | 🟡 | ✅ Alap kész | ⭐⭐⭐ |
 | B10 | Konfigurálható négyszem-elv | 2 | 🟡 | 🔴 Hiányzik | ⭐⭐⭐ |
 | B8 | Szerződéskezelés (sablon+AI) | 2 | 🟠 | 🔴 Hiányzik | ⭐⭐⭐ |
 | B12 | Teljesítésigazolás | 3 | 🟠 | 🔴 Hiányzik | ⭐⭐ |

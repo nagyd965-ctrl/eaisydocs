@@ -3,11 +3,19 @@ import { SupabaseClient } from "@supabase/supabase-js"
 export interface PartnerLookupParams {
   nev: string
   tipus?: string | null
+  szerepkor?: string | null
+  statusz?: string | null
   adoszam?: string | null
   kulfoldi_adoszam?: string | null
+  cegjegyzekszam?: string | null
   email?: string | null
   telefonszam?: string | null
   cim?: string | null
+  bankszamlaszam?: string | null
+  fizetesi_hatarido_nap?: number | null
+  fizetesi_mod?: string | null
+  weboldal?: string | null
+  megjegyzes?: string | null
 }
 
 /**
@@ -138,11 +146,19 @@ export async function findOrCreatePartner(
     .insert({
       nev: trimmedName,
       tipus: tipus,
+      szerepkor: params.szerepkor || "vevo",
+      statusz: params.statusz || "aktiv",
       adoszam: params.adoszam || null,
       kulfoldi_adoszam: params.kulfoldi_adoszam || null,
+      cegjegyzekszam: params.cegjegyzekszam || null,
       email: params.email || null,
       telefonszam: params.telefonszam || null,
-      cim: params.cim || null
+      cim: params.cim || null,
+      bankszamlaszam: params.bankszamlaszam || null,
+      fizetesi_hatarido_nap: params.fizetesi_hatarido_nap ?? 8,
+      fizetesi_mod: params.fizetesi_mod || "atutalas",
+      weboldal: params.weboldal || null,
+      megjegyzes: params.megjegyzes || null,
     })
     .select("id")
     .single()

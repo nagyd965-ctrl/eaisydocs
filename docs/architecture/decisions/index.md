@@ -36,8 +36,10 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-021](./A-021-cron-jobs-and-scheduled-alerts-architecture.md) | 2026-09-30 | Időzített Cron Feladatok és Értesítési Háttérmotor | `[Közös]` | `Decided` | `src/app/api/cron/*` |
 | [A-022](./A-022-email-spam-and-relevance-prefilter-architecture.md) | 2026-09-30 | AI Email Spam és Relevancia Előszűrő Architektúra | `[Docs]` | `Decided` | `src/utils/email-spam-filter.ts`, `imap-service.ts` |
 | [A-023](./A-023-tax-number-foreign-vat-separation.md) | 2026-09-30 | Magyar Belföldi Adószám és Külföldi / EU Adóazonosító Szétválasztása | `[Docs]` | `Decided` | `tax-number.ts`, `filing-panel-client.tsx`, `partner-dialog.tsx` |
+| [A-024](./A-024-partner-dual-classification-and-contacts-architecture.md) | 2026-09-30 | Partnertörzs Kettős Besorolási Modell és Kapcsolattartói Architektúra | `[Docs]` | `Decided` | [P-024](../../product/decisions/P-024-partner-directory-and-contact-management-ux.md), `partner_expansion.sql` |
+| [A-025](./A-025-base-ui-select-automatic-label-resolution.md) | 2026-09-30 | Base UI Select Automatikus Címkefeloldási Architektúra | `[Közös]` | `Decided` | `src/components/ui/select.tsx`, `partner-dialog.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-024`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-026`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!

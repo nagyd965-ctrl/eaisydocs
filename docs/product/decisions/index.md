@@ -31,8 +31,9 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-021](./P-021-batch-scanner-separator-sheet-generator-ux.md) | 2026-09-30 | Kötegelt szkenner elválasztólap generátor UX | `[Docs]` | `Scanner / Batch` | `src/app/api/scanner/separator-sheet` |
 | [P-022](./P-022-dossier-access-sharing-and-templates-ux.md) | 2026-09-30 | Ügyiraton belüli egyedi hozzáférés-megosztás és sablonok UX | `[Docs]` | `Dossiers / Security` | `dossier-access-dialog.tsx`, `template-dialog.tsx` |
 | [P-023](./P-023-hr-manager-approvals-and-team-dashboard-ux.md) | 2026-09-30 | Vezetői csapat-jóváhagyási műszerfal UX | `[HR]` | `HR / Management` | `src/app/hr/manager/page.tsx` |
+| [P-024](./P-024-partner-directory-and-contact-management-ux.md) | 2026-09-30 | Partnertörzs és Kapcsolattartói Adatlap Megújított UX | `[Docs]` | `Partners / CRM` | `src/app/partners/*`, `partner-dialog.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-024`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-025`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
