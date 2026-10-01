@@ -7,8 +7,7 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogDescription, 
-  DialogFooter, 
-  DialogTrigger 
+  DialogFooter
 } from "@/components/ui/dialog"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -171,21 +170,34 @@ export function AssetHandoverDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger 
-        nativeButton={false}
-        render={
-          triggerButton ? (
-            (triggerButton as any)
-          ) : (
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <Laptop className="w-3.5 h-3.5" /> Eszközök átadása & Jkv
-            </Button>
-          )
-        }
-      />
+    <>
+      {triggerButton ? (
+        <span 
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen(true)
+          }} 
+          className="inline-flex cursor-pointer"
+        >
+          {triggerButton}
+        </span>
+      ) : (
+        <Button 
+          type="button" 
+          variant="outline" 
+          size="sm" 
+          className="gap-1.5 text-xs"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen(true)
+          }}
+        >
+          <Laptop className="w-3.5 h-3.5" /> Eszközök átadása & Jkv
+        </Button>
+      )}
 
-      <DialogContent className="sm:max-w-[800px] w-[95vw] max-h-[90vh] overflow-y-auto p-0 flex flex-col">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[800px] w-[95vw] max-h-[90vh] overflow-y-auto p-0 flex flex-col">
         {/* Fejléc */}
         <div className="bg-muted/40 p-6 border-b shrink-0">
           <div className="flex items-start justify-between gap-4">
@@ -464,5 +476,6 @@ export function AssetHandoverDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   )
 }
