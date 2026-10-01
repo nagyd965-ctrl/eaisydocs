@@ -53,7 +53,7 @@ import {
   reopenOnboarding,
   deleteOnboarding
 } from "@/app/hr/onboarding/actions"
-import { AssetHandoverDialog } from "@/components/hr/asset-handover-dialog"
+import { AssetHandoverPanel } from "@/components/hr/asset-handover-panel"
 import { toast } from "sonner"
 import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
 
@@ -64,6 +64,7 @@ interface OnboardingProfileModalProps {
 }
 
 export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog }: OnboardingProfileModalProps) {
+  const [activeModalTab, setActiveModalTab] = useState<"teendok" | "eszkozok">("teendok")
   const [newTaskName, setNewTaskName] = useState("")
   const [newTaskResp, setNewTaskResp] = useState("HR")
   const [isAdding, setIsAdding] = useState(false)
@@ -167,7 +168,7 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
   }
 
   return (
-    <DialogContent className="sm:max-w-[750px] w-[95vw] max-h-[90vh] p-0 overflow-hidden border shadow-2xl flex flex-col">
+    <DialogContent className="sm:max-w-[850px] w-[95vw] max-h-[90vh] p-0 overflow-hidden border shadow-2xl flex flex-col">
       {/* 1. Fejléc */}
       <div className="bg-muted/40 p-6 border-b shrink-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -221,17 +222,16 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
 
           {/* Műveleti gombok a fejlécben */}
           <div className="flex items-center gap-2 shrink-0">
-            <AssetHandoverDialog
-              employeeName={onboarding.nev}
-              dolgozoId={onboarding.dolgozo_id}
-              onboardingId={onboarding.id}
-              munkakor={onboarding.munkakor}
-              triggerButton={
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                  <Laptop className="w-3.5 h-3.5" /> Eszközök & Jkv
-                </Button>
-              }
-            />
+            <Button
+              type="button"
+              variant={activeModalTab === "eszkozok" ? "secondary" : "outline"}
+              size="sm"
+              className="gap-1.5 text-xs font-medium"
+              onClick={() => setActiveModalTab(activeModalTab === "eszkozok" ? "teendok" : "eszkozok")}
+            >
+              <Laptop className="w-3.5 h-3.5 text-primary" />
+              {activeModalTab === "eszkozok" ? "Teendők nézet" : "Eszközök & Jkv"}
+            </Button>
 
             {isClosed ? (
               <Button variant="outline" size="sm" onClick={handleReopenOnboarding} className="gap-1.5 text-xs">
@@ -287,8 +287,57 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
         </div>
       </div>
 
-      {/* 2. Görgethető Tartalom */}
+      {/* 2. Fülek: Teendők vs Munkahelyi Eszközök */}
+      <div className="flex border-b px-6 bg-muted/20 shrink-0 gap-1">
+        <button
+          type="button"
+          onClick={() => setActiveModalTab("teendok")}
+          className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+            activeModalTab === "teendok"
+              ? "border-primary text-primary bg-background/60"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/30"
+          }`}
+        >
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          Onboarding Teendők ({doneCount} / {totalCount})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveModalTab("eszkozok")}
+          className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+            activeModalTab === "eszkozok"
+              ? "border-primary text-primary bg-background/60"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/30"
+          }`}
+        >
+          <Laptop className="w-3.5 h-3.5" />
+          Munkahelyi Eszközök & Jkv (Mt. 179. §)
+        </button>
+      </div>
+
+      {/* 3. Görgethető Tartalom */}
       <div className="p-6 space-y-6 overflow-y-auto flex-1">
+        {activeModalTab === "eszkozok" ? (
+          <AssetHandoverPanel
+            employeeName={onboarding.nev}
+            dolgozoId={onboarding.dolgozo_id}
+            onboardingId={onboarding.id}
+            munkakor={onboarding.munkakor}
+            onBack={() => setActiveModalTab("teendok")}
+            onSuccess={() => {
+              const assetTask = onboarding.hr_onboarding_feladat?.find(t => 
+                (t.cim || "").toLowerCase().includes("eszköz") ||
+                (t.cim || "").toLowerCase().includes("laptop") ||
+                (t.cim || "").toLowerCase().includes("telefon")
+              )
+              if (assetTask && assetTask.statusz !== 'done') {
+                handleToggleTask(assetTask.id, assetTask.statusz)
+              }
+            }}
+          />
+        ) : (
+          <>
         {/* A) Kétlépcsős Fiókaktiválási Kártya */}
         {!isAccountActive ? (
           <div className="border border-amber-500/30 bg-amber-500/5 rounded-xl p-5 space-y-3">
@@ -490,27 +539,15 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
                         (task.cim || "").toLowerCase().includes("laptop") ||
                         (task.cim || "").toLowerCase().includes("telefon") ||
                         (task.cim || "").toLowerCase().includes("periféri")) && (
-                        <AssetHandoverDialog
-                          employeeName={onboarding.nev}
-                          dolgozoId={onboarding.dolgozo_id}
-                          onboardingId={onboarding.id}
-                          munkakor={onboarding.munkakor}
-                          triggerButton={
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10 shadow-2xs"
-                            >
-                              <Laptop className="w-3 h-3" /> Eszközök & Jkv
-                            </Button>
-                          }
-                          onSuccess={() => {
-                            if (!isTaskDone) {
-                              handleToggleTask(task.id, task.statusz)
-                            }
-                          }}
-                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10 shadow-2xs"
+                          onClick={() => setActiveModalTab("eszkozok")}
+                        >
+                          <Laptop className="w-3 h-3" /> Eszközök átadása
+                        </Button>
                       )}
 
                       <Button 
@@ -561,6 +598,8 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
             </Button>
           </div>
         </div>
+        </>
+      )}
       </div>
     </DialogContent>
   )
