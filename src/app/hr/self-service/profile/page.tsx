@@ -55,11 +55,16 @@ export default async function SelfServiceProfilePage() {
     .toUpperCase()
     .slice(0, 2)
 
-  // Orvosi lejárat figyelmeztetés (30 napon belül)
-  let orvosiWarning = false
-  if (orvosiErvenyesseg) {
+  // Orvosi lejárat és érvényesség állapotának ellenőrzése
+  let isOrvosiExpired = false
+  let isOrvosiExpiringSoon = false
+  if (orvosiErvenyesseg && !isNaN(new Date(orvosiErvenyesseg).getTime())) {
     const diff = new Date(orvosiErvenyesseg).getTime() - new Date().getTime()
-    orvosiWarning = diff < 30 * 24 * 60 * 60 * 1000
+    if (diff < 0) {
+      isOrvosiExpired = true
+    } else if (diff < 30 * 24 * 60 * 60 * 1000) {
+      isOrvosiExpiringSoon = true
+    }
   }
 
   let needsAcknowledgment = false;
@@ -152,14 +157,22 @@ export default async function SelfServiceProfilePage() {
               )}
               {orvosiErvenyesseg && (
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ${
-                  orvosiWarning
-                    ? "border-warning/40 bg-warning-subtle"
+                  isOrvosiExpired
+                    ? "border-destructive/40 bg-destructive/10 text-destructive"
+                    : isOrvosiExpiringSoon
+                    ? "border-warning/40 bg-warning-subtle text-warning"
                     : "border bg-muted/40"
                 }`}>
-                  <Stethoscope className={`w-4 h-4 shrink-0 ${orvosiWarning ? "text-warning" : "text-primary"}`} />
+                  <Stethoscope className={`w-4 h-4 shrink-0 ${
+                    isOrvosiExpired ? "text-destructive" : isOrvosiExpiringSoon ? "text-warning" : "text-primary"
+                  }`} />
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Orvosi</p>
-                    <p className={`font-medium text-xs ${orvosiWarning ? "text-warning" : ""}`}>
+                    <p className="text-[10px] uppercase tracking-wider font-medium opacity-80">
+                      Orvosi {isOrvosiExpired ? "(Lejárt!)" : isOrvosiExpiringSoon ? "(Hamarosan lejár)" : ""}
+                    </p>
+                    <p className={`font-medium text-xs ${
+                      isOrvosiExpired ? "text-destructive font-semibold" : isOrvosiExpiringSoon ? "text-warning font-semibold" : ""
+                    }`}>
                       {new Date(orvosiErvenyesseg).toLocaleDateString("hu-HU", { year: "numeric", month: "short", day: "numeric" })}
                     </p>
                   </div>
@@ -207,14 +220,34 @@ export default async function SelfServiceProfilePage() {
             </div>
             <div className="py-3">
               <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Orvosi Érvényesség</p>
-              <p className={`font-medium text-sm mt-1 ${orvosiWarning ? "text-warning" : ""}`}>
-                {orvosiErvenyesseg && !isNaN(new Date(orvosiErvenyesseg).getTime())
-                  ? <>
+              <div className="flex items-center gap-2 mt-1">
+                {orvosiErvenyesseg && !isNaN(new Date(orvosiErvenyesseg).getTime()) ? (
+                  <>
+                    <span className={`font-medium text-sm ${
+                      isOrvosiExpired ? "text-destructive font-semibold" : isOrvosiExpiringSoon ? "text-warning font-semibold" : ""
+                    }`}>
                       {new Date(orvosiErvenyesseg).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })}
-                      {orvosiWarning && <span className="ml-2 text-[11px] font-semibold text-warning bg-warning-subtle px-1.5 py-0.5 rounded">Hamarosan lejár</span>}
-                    </>
-                  : <span className="text-muted-foreground italic">Nincs megadva</span>}
-              </p>
+                    </span>
+                    {isOrvosiExpired && (
+                      <span className="text-[11px] font-semibold text-destructive bg-destructive/10 border border-destructive/30 px-1.5 py-0.5 rounded">
+                        Lejárt!
+                      </span>
+                    )}
+                    {isOrvosiExpiringSoon && (
+                      <span className="text-[11px] font-semibold text-warning bg-warning-subtle border border-warning/30 px-1.5 py-0.5 rounded">
+                        Hamarosan lejár
+                      </span>
+                    )}
+                    {!isOrvosiExpired && !isOrvosiExpiringSoon && (
+                      <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                        Érvényes
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-muted-foreground italic text-sm">Nincs megadva</span>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>

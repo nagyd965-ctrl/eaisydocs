@@ -183,6 +183,9 @@ export async function addOrvosiVizsgalat(employeeId: string, formData: FormData)
   const ervenyesseg_datuma = formData.get("ervenyesseg_datuma") as string
   const eredmeny = formData.get("eredmeny") as string
   const megjegyzes = formData.get("megjegyzes") as string
+  const orvos_neve = formData.get("orvos_neve") as string
+  const szakrendeles = formData.get("szakrendeles") as string
+  const file = formData.get("file") as File | null
 
   if (!tipus || !vizsgalat_datuma || !ervenyesseg_datuma || !eredmeny) {
     return { error: "Minden kötelező mezőt ki kell tölteni!" }
@@ -196,27 +199,322 @@ export async function addOrvosiVizsgalat(employeeId: string, formData: FormData)
     return { error: "A vizsgálat dátuma nem lehet később, mint az érvényesség dátuma!" }
   }
 
-  const { error } = await supabase.from("hr_orvosi_vizsgalat").insert({
-    dolgozo_id: employeeId,
-    tipus,
-    vizsgalat_datuma,
-    ervenyesseg_datuma,
-    eredmeny,
-    megjegyzes: megjegyzes || null
-  })
+  // 1. Dolgozó neve az elnevezéshez
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("nev")
+    .eq("id", employeeId)
+    .single()
+  const employeeName = profile?.nev || "Munkavállaló"
+
+  const tipusLabels: Record<string, string> = {
+    elozetes: "Előzetes",
+    idoszakos: "Időszakos",
+    soron_kivuli: "Soron Kívüli",
+    zaro: "Záró"
+  }
+  const tipusLabel = tipusLabels[tipus] || "Időszakos"
+
+  let storagePath: string | null = null
+  let docId: string | null = null
+
+  // 2. Fájl feltöltés ha van
+  if (file && file.size > 0 && typeof file.arrayBuffer === "function") {
+    try {
+      const arrayBuf = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuf)
+      const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
+      storagePath = `medical/${employeeId}/${Date.now()}_${cleanFileName}`
+
+      let { error: uploadError } = await supabase.storage
+        .from("irat_files")
+        .upload(storagePath, buffer, {
+          contentType: file.type || "application/pdf",
+          upsert: true,
+        })
+
+      if (uploadError) {
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        if (serviceRoleKey) {
+          const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+          const adminClient = createSupabaseClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            serviceRoleKey
+          )
+          const { error: adminUploadError } = await adminClient.storage
+            .from("irat_files")
+            .upload(storagePath, buffer, {
+              contentType: file.type || "application/pdf",
+              upsert: true,
+            })
+          if (adminUploadError) {
+            return { error: "Fájl feltöltési hiba: " + adminUploadError.message }
+          }
+        } else {
+          return { error: "Fájl feltöltési hiba: " + uploadError.message }
+        }
+      }
+
+      // Hozzunk létre egy hr_dokumentum bejegyzést is
+      const docName = `${employeeName} - Orvosi Alkalmassági Igazolás (${tipusLabel} - ${vizsgalat_datuma})`
+      const { data: newDoc, error: docError } = await supabase
+        .from("hr_dokumentum")
+        .insert({
+          dolgozo_id: employeeId,
+          nev: docName,
+          kategoria: "Orvosi alkalmassági igazolás",
+          url: storagePath
+        })
+        .select("id")
+        .single()
+
+      if (!docError && newDoc) {
+        docId = newDoc.id
+      }
+    } catch (e: any) {
+      console.error("Hiba az orvosi fájl mentésekor:", e)
+      return { error: "Fájl feldolgozási hiba: " + (e?.message || "") }
+    }
+  }
+
+  // 3. Mentés az adatbázisba
+  const { data: insertedOrvosi, error } = await supabase
+    .from("hr_orvosi_vizsgalat")
+    .insert({
+      dolgozo_id: employeeId,
+      tipus,
+      vizsgalat_datuma,
+      ervenyesseg_datuma,
+      eredmeny,
+      megjegyzes: megjegyzes || null,
+      orvos_neve: orvos_neve || null,
+      szakrendeles: szakrendeles || null,
+      fajl_url: storagePath,
+      dokumentum_id: docId
+    })
+    .select("id")
+    .single()
 
   if (error) return { error: error.message }
 
+  // 4. Szinkronizáljuk a hr_dolgozo_adatlap orvosi_alkalmassag_ervenyesseg mezőjét
+  try {
+    const { data: adatlap } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select("orvosi_alkalmassag_ervenyesseg")
+      .eq("id", employeeId)
+      .maybeSingle()
+
+    if (!adatlap?.orvosi_alkalmassag_ervenyesseg || ervenyesseg_datuma >= adatlap.orvosi_alkalmassag_ervenyesseg) {
+      await supabase
+        .from("hr_dolgozo_adatlap")
+        .update({ orvosi_alkalmassag_ervenyesseg: ervenyesseg_datuma })
+        .eq("id", employeeId)
+    }
+  } catch (e) {
+    console.warn("Nem sikerült szinkronizálni a dolgozó adatlap orvosi érvényességét:", e)
+  }
+
   revalidatePath(`/hr/employee/${employeeId}`)
-  return { success: true }
+  revalidatePath("/hr/self-service/profile")
+  revalidatePath("/hr")
+  return { success: true, id: insertedOrvosi.id }
 }
 
 export async function deleteOrvosiVizsgalat(id: string, employeeId: string) {
   const supabase = await createClient()
+
+  // 1. Integritási védelem: iktatott irat nem törölhető!
+  const { data: orvosi } = await supabase
+    .from("hr_orvosi_vizsgalat")
+    .select("iktatoszam")
+    .eq("id", id)
+    .single()
+
+  if (orvosi?.iktatoszam) {
+    return { error: `Iktatott orvosi alkalmassági irat (${orvosi.iktatoszam}) a levéltári szabályozás értelmében nem törölhető!` }
+  }
+
   const { error } = await supabase.from("hr_orvosi_vizsgalat").delete().eq("id", id).eq("dolgozo_id", employeeId)
   if (error) return { error: error.message }
+
+  // Frissítjük a dolgozó adatlap orvosi érvényességét a legújabb érvényes vizsgálatra
+  try {
+    const { data: latest } = await supabase
+      .from("hr_orvosi_vizsgalat")
+      .select("ervenyesseg_datuma")
+      .eq("dolgozo_id", employeeId)
+      .order("ervenyesseg_datuma", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    await supabase
+      .from("hr_dolgozo_adatlap")
+      .update({ orvosi_alkalmassag_ervenyesseg: latest?.ervenyesseg_datuma || null })
+      .eq("id", employeeId)
+  } catch (e) {
+    console.warn("Hiba az orvosi érvényesség újraszámításakor törlés után:", e)
+  }
+
   revalidatePath(`/hr/employee/${employeeId}`)
+  revalidatePath("/hr/self-service/profile")
+  revalidatePath("/hr")
   return { success: true }
+}
+
+export async function fileMedicalExaminationAction(orvosiId: string, employeeId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Nincs bejelentkezve" }
+
+  const { data: userProfile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isHrOrAdmin =
+    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
+    userProfile?.docs_szerepkor === "admin"
+
+  if (!isHrOrAdmin) {
+    return { success: false, error: "Nincs jogosultsága orvosi alkalmassági dokumentumot iktatni!" }
+  }
+
+  // 1. Lekérjük a vizsgálat rekordot
+  const { data: orvosi, error: orvosiErr } = await supabase
+    .from("hr_orvosi_vizsgalat")
+    .select("*")
+    .eq("id", orvosiId)
+    .single()
+
+  if (orvosiErr || !orvosi) {
+    return { success: false, error: "Orvosi vizsgálat nem található!" }
+  }
+
+  if (orvosi.iktatoszam) {
+    return { success: false, error: `Ez a vizsgálat már hivatalosan iktatva van (${orvosi.iktatoszam})!` }
+  }
+
+  // 2. Dolgozó neve
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("nev")
+    .eq("id", employeeId)
+    .single()
+  const employeeName = profile?.nev || "Munkavállaló"
+
+  const tipusNames: Record<string, string> = {
+    elozetes: "Előzetes",
+    idoszakos: "Időszakos",
+    soron_kivuli: "Soron Kívüli",
+    zaro: "Záró"
+  }
+  const tipusLabel = tipusNames[orvosi.tipus] || "Időszakos"
+  const docSubject = `${employeeName} - Orvosi Alkalmassági Vélemény (${tipusLabel} - ${orvosi.vizsgalat_datuma})`
+
+  let storagePath = orvosi.fajl_url
+  let docId = orvosi.dokumentum_id
+
+  // 3. Ha nincs feltöltött fájl, generáljuk le most a hivatalos PDF-et
+  if (!storagePath) {
+    const { generateMedicalPdfBuffer } = await import("@/utils/hr/medical-sheet-pdf-generator")
+    const { buffer, fileName } = await generateMedicalPdfBuffer(supabase, orvosiId)
+
+    storagePath = `medical/${employeeId}/${Date.now()}_${fileName}`
+
+    let { error: uploadError } = await supabase.storage
+      .from("irat_files")
+      .upload(storagePath, buffer, {
+        contentType: "application/pdf",
+        upsert: true,
+      })
+
+    if (uploadError) {
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (serviceRoleKey) {
+        const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+        const adminClient = createSupabaseClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          serviceRoleKey
+        )
+        const { error: adminUploadError } = await adminClient.storage
+          .from("irat_files")
+          .upload(storagePath, buffer, {
+            contentType: "application/pdf",
+            upsert: true,
+          })
+        if (adminUploadError) {
+          return { success: false, error: "Storage feltöltési hiba: " + adminUploadError.message }
+        }
+      } else {
+        return { success: false, error: "Storage feltöltési hiba: " + uploadError.message }
+      }
+    }
+  }
+
+  // 4. Ha még nincs hr_dokumentum bejegyzés, hozzunk létre egyet
+  if (!docId) {
+    const { data: newDoc, error: docError } = await supabase
+      .from("hr_dokumentum")
+      .insert({
+        dolgozo_id: employeeId,
+        nev: docSubject,
+        kategoria: "Orvosi alkalmassági igazolás",
+        url: storagePath
+      })
+      .select("id")
+      .single()
+
+    if (docError || !newDoc) {
+      return { success: false, error: "Nem sikerült a dokumentum rekordot rögzíteni: " + (docError?.message || "") }
+    }
+    docId = newDoc.id
+  }
+
+  // 5. Iktatás végrehajtása az eaisyDocs személyi dossziéba
+  const filingResult = await executeHrDocumentFiling(supabase, {
+    documentId: docId,
+    employeeId,
+    customTargy: docSubject,
+    currentUserId: user.id
+  })
+
+  if (!filingResult.success) {
+    return { success: false, error: filingResult.error }
+  }
+
+  // 6. Frissítjük a hr_orvosi_vizsgalat rekordot
+  await supabase
+    .from("hr_orvosi_vizsgalat")
+    .update({
+      dokumentum_id: docId,
+      fajl_url: storagePath,
+      iktatoszam: filingResult.iktatoszam,
+      ugyirat_id: filingResult.ugyirat_id,
+      irat_id: filingResult.irat_id
+    })
+    .eq("id", orvosiId)
+
+  // 7. Audit naplózás
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "adat_letrehozas",
+    entitas_tipus: "hr_dokumentum",
+    entitas_id: docId,
+    megjegyzes: `Orvosi alkalmassági vélemény hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`
+  })
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  revalidatePath("/hr")
+  revalidatePath("/dossiers")
+
+  return {
+    success: true,
+    iktatoszam: filingResult.iktatoszam,
+    ugyirat_id: filingResult.ugyirat_id,
+    docId
+  }
 }
 
 export async function addFegyelmi(employeeId: string, formData: FormData) {

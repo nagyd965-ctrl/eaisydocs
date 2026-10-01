@@ -6,6 +6,23 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-01)
 
+### 🩺 Foglalkozás-egészségügyi Alkalmassági Vizsgálatok Dokumentumkezelése és Érvényesség UX
+- **Érvényesség Számítási Hiba Javítása (`/hr/self-service/profile`):**
+  - Kijavítva a korábbi anomália, ahol a múltbeli lejárati dátumok (pl. `2025. október 10.`) hibásan „Hamarosan lejár” figyelmeztetésként jelentek meg.
+  - A rendszer immár szigorúan különválasztja a **Lejárt** (`diff < 0`, piros `text-destructive`, `bg-destructive/10`), **Hamarosan lejár** (`0 <= diff < 30 nap`, borostyán sárga), valamint **Érvényes** (`diff >= 30 nap`, zöld/diszkrét) státuszokat a profil fejléc chipjében és az alapadatok kártyán.
+- **Hivatalos Lelet / Igazolás Csatolás (`MedicalTab.tsx`):**
+  - Az új vizsgálat rögzítése modál kiegészült opcionális fájlfeltöltéssel (PDF vagy kép), kiadó orvos nevével és foglalkozás-egészségügyi szolgálat megnevezésével.
+  - A feltöltött fájlok biztonságosan az `irat_files` Supabase storage vödörbe kerülnek, automatikus `hr_dokumentum` tétel kapcsolással.
+- **33/1998. (VI. 24.) NM rendelet szerinti Hivatalos Alkalmassági Vélemény Generátor (`medical-sheet-pdf-generator.ts`):**
+  - Amennyiben nincs feltöltött szakorvosi igazolás, a rendszer automatikusan kiállítja az A4-es, hivatalos „Elsőfokú Munkaköri Alkalmassági Vélemény” PDF-et a dolgozó személyes adataival, munkakörével, kockázati tényezőivel, orvosi döntésével és 15 napos jogorvoslati záradékával.
+- **Közvetlen Megtekintés, Letöltés és eaisyDocs Személyi Dosszié Iktatás:**
+  - 👁️ **Megtekintés:** In-browser PDF előnézet `PdfViewerDialog` komponenssel az `/api/hr/medical-pdf` végponton keresztül (mind a feltöltött leletekre, mind a generált véleményekre).
+  - 📥 **Letöltés:** Közvetlen PDF letöltés.
+  - 📁 **Iktatás eaisyDocs-ba (`fileMedicalExaminationAction`):** Hivatalos személyi dosszié iktatás `HR/...` gap-mentes iktatószámmal, `3.1 - HR és Munkaügyi iratok` (50 év megőrzés, Mt. 134. §), szigorúan `bizalmas` minősítéssel (GDPR 9. cikk).
+  - 🗑️ **Törlésvédelem:** Az iktatott orvosi iratok levéltári védelem alatt állnak, a törlés inaktívvá válik magyarázó tooltip-pel.
+- **Adatbázis Migráció (`20261001000001_hr_orvosi_vizsgalat_filing.sql`):** `hr_orvosi_vizsgalat` bővítése `dokumentum_id`, `fajl_url`, `iktatoszam`, `ugyirat_id`, `irat_id`, `orvos_neve`, `szakrendeles` mezőkkel és indexekkel.
+- **Döntési háttér:** [PRD P-028](../product/decisions/P-028-occupational-health-examination-filing-and-validity-ux.md).
+
 ### 🏖️ Hivatalos Éves Szabadság Nyilvántartó Lap (Mt. 134. §) és Távolléti Igazolások
 - **Dolgozói Portál Megtekintés & Letöltés (`LeaveHistoryList`):** A korábbi letöltő `Igazolás` gomb helyett külön **Megtekintés** (`PdfViewerDialog` beágyazott PDF előnézettel) és **Letöltés** gomb került bevezetésre.
 - **Központi HR Távollét Fül (`LeaveTab.tsx`):**
