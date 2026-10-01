@@ -136,95 +136,135 @@ export function MedicalTab({
             <DialogTrigger className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-2`}>
               <Plus className="w-4 h-4" /> Hozzáadás
             </DialogTrigger>
-            <DialogContent className="max-w-xl">
-              <DialogHeader>
-                <DialogTitle>Új orvosi vizsgálat rögzítése</DialogTitle>
+            <DialogContent className="sm:max-w-[720px] w-full p-6 max-h-[92vh] overflow-y-auto">
+              <DialogHeader className="pb-3 border-b">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                    <Stethoscope className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-lg font-semibold">Új orvosi vizsgálat rögzítése</DialogTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Foglalkozás-egészségügyi vizsgálati adatok rögzítése és alkalmassági vélemény kezelése (33/1998. NM rendelet).
+                    </p>
+                  </div>
+                </div>
               </DialogHeader>
-              <form action={handleAdd} className="space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Vizsgálat típusa</Label>
-                    <Select name="tipus" value={tipus} onValueChange={(val) => val && setTipus(val)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Válassz típust">{tipusLabels[tipus]}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="elozetes">Előzetes</SelectItem>
-                        <SelectItem value="idoszakos">Időszakos</SelectItem>
-                        <SelectItem value="soron_kivuli">Soron Kívüli</SelectItem>
-                        <SelectItem value="zaro">Záró</SelectItem>
-                      </SelectContent>
-                    </Select>
+
+              <form action={handleAdd} className="space-y-5 pt-3">
+                {/* 1. Szekció: Vizsgálat és Eredmény */}
+                <div className="rounded-lg border bg-card/60 p-4 space-y-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-primary flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-primary" /> 1. Vizsgálat Alapadatok
+                  </p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Vizsgálat típusa</Label>
+                      <Select name="tipus" value={tipus} onValueChange={(val) => val && setTipus(val)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Válassz típust">{tipusLabels[tipus]}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="elozetes">Előzetes (Munkába lépéskor)</SelectItem>
+                          <SelectItem value="idoszakos">Időszakos (Éves / Kétéves)</SelectItem>
+                          <SelectItem value="soron_kivuli">Soron Kívüli (Visszatérés/Áthelyezés)</SelectItem>
+                          <SelectItem value="zaro">Záró (Munkaviszony végén)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Orvosi eredmény</Label>
+                      <Select name="eredmeny" value={eredmeny} onValueChange={(val) => val && setEredmeny(val)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Válassz eredményt">{eredmenyLabels[eredmeny]}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="alkalmas">Alkalmas</SelectItem>
+                          <SelectItem value="fetelekkel_alkalmas">Feltételekkel alkalmas (Korlátozással)</SelectItem>
+                          <SelectItem value="nem_alkalmas">Nem alkalmas</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Eredmény</Label>
-                    <Select name="eredmeny" value={eredmeny} onValueChange={(val) => val && setEredmeny(val)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Válassz eredményt">{eredmenyLabels[eredmeny]}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="alkalmas">Alkalmas</SelectItem>
-                        <SelectItem value="fetelekkel_alkalmas">Feltételekkel alkalmas</SelectItem>
-                        <SelectItem value="nem_alkalmas">Nem alkalmas</SelectItem>
-                      </SelectContent>
-                    </Select>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Vizsgálat elvégzésének dátuma</Label>
+                      <Input name="vizsgalat_datuma" type="date" max={today} required className="w-full" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Érvényesség lejárata (Következő vizsgálat)</Label>
+                      <Input name="ervenyesseg_datuma" type="date" required className="w-full" />
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Vizsgálat dátuma</Label>
-                    <Input name="vizsgalat_datuma" type="date" max={today} required />
+                {/* 2. Szekció: Kiállító orvos és megjegyzések */}
+                <div className="rounded-lg border bg-card/60 p-4 space-y-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-muted-foreground" /> 2. Orvos és Rendelő adatai (Opcionális)
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Vizsgáló szakorvos neve</Label>
+                      <Input name="orvos_neve" placeholder="Pl. Dr. Kovács István" className="w-full" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Foglalkozás-egészségügyi szolgálat</Label>
+                      <Input name="szakrendeles" placeholder="Pl. MediCare Foglalkozás-egészségügyi Kft." className="w-full" />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Érvényesség dátuma</Label>
-                    <Input name="ervenyesseg_datuma" type="date" required />
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Orvosi záradék / Megjegyzés / Korlátozás</Label>
+                    <Input 
+                      name="megjegyzes" 
+                      placeholder="Pl. Képernyő előtti munkavégzéshez éleslátást biztosító szemüveg viselése szükséges..." 
+                      className="w-full"
+                    />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Kiadó orvos neve (Opcionális)</Label>
-                    <Input name="orvos_neve" placeholder="Pl. Dr. Kovács István" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Foglalkozás-egészségügyi szolgálat</Label>
-                    <Input name="szakrendeles" placeholder="Pl. MediCare Foglalkozás-egészségügy" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Megjegyzés / Korlátozás (Opcionális)</Label>
-                  <Input name="megjegyzes" placeholder="Pl. Szemüveg viselése kötelező..." />
-                </div>
-
-                {/* Fájl feltöltés vagy automata generálás */}
-                <div className="space-y-2 p-3.5 rounded-lg border bg-muted/30">
+                {/* 3. Szekció: Hivatalos dokumentum / Lelet forrása */}
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
                   <div className="flex items-center gap-2">
-                    <Upload className="w-4 h-4 text-primary" />
+                    <Upload className="w-4 h-4 text-primary shrink-0" />
                     <Label className="font-semibold text-xs uppercase tracking-wide text-foreground">
                       Hivatalos lelet / igazolás csatolása (PDF vagy kép)
                     </Label>
                   </div>
+
                   <Input 
                     type="file" 
                     name="file" 
                     accept=".pdf,image/*" 
-                    className="cursor-pointer file:cursor-pointer text-xs" 
+                    className="cursor-pointer file:cursor-pointer text-xs bg-background" 
                     onChange={(e) => setSelectedFileName(e.target.files?.[0]?.name || null)}
                   />
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    {selectedFileName ? (
-                      <span className="text-primary font-medium">Kiválasztott fájl: {selectedFileName}</span>
-                    ) : (
-                      "Opcionális. Ha feltöltesz fájlt, a rendszer azt tárolja; ha nem töltesz fel semmit, a rendszer a hatályos 33/1998. NM rendelet szerinti hivatalos alkalmassági véleményt generálja automatikusan."
-                    )}
-                  </p>
+
+                  {selectedFileName ? (
+                    <div className="text-xs text-primary font-medium flex items-center gap-2 bg-primary/10 border border-primary/20 px-3 py-2 rounded-md">
+                      <FileCheck className="w-4 h-4 shrink-0" />
+                      <span>Feltöltésre kijelölt dokumentum: <strong>{selectedFileName}</strong></span>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      💡 <strong>Nincs külön szkennelt leleted?</strong> Nem probléma! Ha nem választasz ki fájlt, a rendszer a mentéskor <strong>automatikusan kiállítja</strong> a hatályos <strong>33/1998. (VI. 24.) NM rendelet</strong> szerinti, A4-es hivatalos alkalmassági véleményt a dolgozó adataival és munkakörével.
+                    </p>
+                  )}
                 </div>
                 
-                <DialogFooter className="mt-6">
-                  <Button type="button" variant="outline" onClick={() => setOpen(false)}>Mégse</Button>
-                  <Button type="submit" disabled={loading}>{loading ? "Mentés..." : "Mentés"}</Button>
+                <DialogFooter className="pt-2 border-t flex flex-row items-center justify-end gap-3">
+                  <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                    Mégse
+                  </Button>
+                  <Button type="submit" disabled={loading} className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Stethoscope className="w-4 h-4" />}
+                    <span>{loading ? "Rögzítés..." : "Vizsgálat mentése"}</span>
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
