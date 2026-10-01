@@ -35,7 +35,7 @@ import {
   generateAndFileSafetyTrainingAction,
   fileExistingSafetyTrainingDocument 
 } from "@/app/hr/actions/safety-training-actions"
-import { DEFAULT_SAFETY_TOPICS, TRAINING_TYPE_LABELS } from "@/utils/hr/safety-training-pdf-generator"
+import { DEFAULT_SAFETY_TOPICS, TRAINING_TYPE_LABELS } from "@/utils/hr/safety-training-constants"
 
 export interface SafetyTrainingDialogProps {
   employeeName: string
