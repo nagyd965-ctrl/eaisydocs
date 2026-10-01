@@ -224,32 +224,6 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
 
           {/* Műveleti gombok a fejlécben */}
           <div className="flex items-center gap-2 shrink-0">
-            <Button
-              type="button"
-              variant={activeModalTab === "eszkozok" ? "secondary" : "outline"}
-              size="sm"
-              className="gap-1.5 text-xs font-medium"
-              onClick={() => setActiveModalTab(activeModalTab === "eszkozok" ? "teendok" : "eszkozok")}
-            >
-              <Laptop className="w-3.5 h-3.5 text-primary" />
-              {activeModalTab === "eszkozok" ? "Teendők nézet" : "Eszközök & Jkv"}
-            </Button>
-
-            <Button
-              type="button"
-              variant={activeModalTab === "munkavedelem" ? "secondary" : "outline"}
-              size="sm"
-              className={`gap-1.5 text-xs font-medium ${
-                activeModalTab === "munkavedelem" 
-                  ? "bg-teal-500/20 text-teal-800 dark:text-teal-200 border-teal-500/40" 
-                  : "text-teal-700 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/10"
-              }`}
-              onClick={() => setActiveModalTab(activeModalTab === "munkavedelem" ? "teendok" : "munkavedelem")}
-            >
-              <HardHat className="w-3.5 h-3.5 text-teal-600" />
-              {activeModalTab === "munkavedelem" ? "Teendők nézet" : "Munkavédelmi Jkv"}
-            </Button>
-
             {isClosed ? (
               <Button variant="outline" size="sm" onClick={handleReopenOnboarding} className="gap-1.5 text-xs">
                 <RotateCcw className="w-3.5 h-3.5" /> Újranyitás
