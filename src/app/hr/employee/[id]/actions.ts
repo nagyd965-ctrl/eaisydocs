@@ -136,29 +136,100 @@ export async function deleteQualification(id: string, employeeId: string) {
 }
 
 // -----------------------------------------------------------------------------
-// Tanulmányi szerződések
+// Tanulmányi szerződések (Mt. 229. §)
 // -----------------------------------------------------------------------------
 
 export async function addStudyContract(employeeId: string, formData: FormData) {
   const supabase = await createClient()
 
-  const kepzes_neve = formData.get("kepzes_neve") as string
+  const kepzes_neve = (formData.get("kepzes_neve") as string)?.trim()
+  const intezmeny_neve = (formData.get("intezmeny_neve") as string)?.trim()
+  const kepzes_szintje = (formData.get("kepzes_szintje") as string)?.trim()
   const koltseg = formData.get("koltseg") as string
   const vallalt_munkaviszony_honap = formData.get("vallalt_munkaviszony_honap") as string
   const lejarat_datuma = formData.get("lejarat_datuma") as string
   const visszafizetesi_kotelezettseg = formData.get("visszafizetesi_kotelezettseg") === "on"
+  const munkaido_kedvezmeny = (formData.get("munkaido_kedvezmeny") as string)?.trim()
+  const file = formData.get("file") as File | null
 
   if (!kepzes_neve) {
     return { error: "A képzés nevének kitöltése kötelező!" }
   }
 
+  let storagePath: string | null = null
+  let docId: string | null = null
+
+  // Szkennelt / aláírt PDF dokumentum feltöltése ha mellékelve van
+  if (file && file.size > 0 && typeof file.arrayBuffer === "function") {
+    try {
+      const arrayBuf = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuf)
+      const cleanFileName = file.name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9._-]/g, "_")
+      storagePath = `study-contracts/${employeeId}/${Date.now()}_${cleanFileName}`
+
+      let { error: uploadError } = await supabase.storage
+        .from("irat_files")
+        .upload(storagePath, buffer, {
+          contentType: file.type || "application/pdf",
+          upsert: true,
+        })
+
+      if (uploadError) {
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        if (serviceRoleKey) {
+          const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+          const adminClient = createSupabaseClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            serviceRoleKey
+          )
+          const { error: adminUploadError } = await adminClient.storage
+            .from("irat_files")
+            .upload(storagePath, buffer, {
+              contentType: file.type || "application/pdf",
+              upsert: true,
+            })
+          if (adminUploadError) {
+            console.error("Storage upload hiba:", adminUploadError)
+          }
+        }
+      }
+
+      // HR dokumentum rekord létrehozása ha van feltöltött fájl
+      const { data: newDoc } = await supabase
+        .from("hr_dokumentum")
+        .insert({
+          dolgozo_id: employeeId,
+          nev: `Tanulmányi szerződés - ${kepzes_neve}`,
+          kategoria: "Tanulmányi szerződés",
+          url: storagePath
+        })
+        .select("id")
+        .single()
+
+      if (newDoc) {
+        docId = newDoc.id
+      }
+    } catch (e: any) {
+      console.warn("Fájlfeltöltési hiba a tanulmányi szerződésnél:", e)
+    }
+  }
+
   const { error } = await supabase.from("hr_tanulmanyi_szerzodes").insert({
     dolgozo_id: employeeId,
     kepzes_neve,
+    intezmeny_neve: intezmeny_neve || null,
+    kepzes_szintje: kepzes_szintje || null,
     koltseg: koltseg ? parseFloat(koltseg) : null,
     vallalt_munkaviszony_honap: vallalt_munkaviszony_honap ? parseInt(vallalt_munkaviszony_honap, 10) : null,
     lejarat_datuma: lejarat_datuma || null,
     visszafizetesi_kotelezettseg,
+    munkaido_kedvezmeny: munkaido_kedvezmeny || null,
+    fajl_url: storagePath,
+    dokumentum_url: storagePath,
+    dokumentum_id: docId,
   })
 
   if (error) return { error: error.message }
@@ -169,10 +240,173 @@ export async function addStudyContract(employeeId: string, formData: FormData) {
 
 export async function deleteStudyContract(id: string, employeeId: string) {
   const supabase = await createClient()
+
+  // Ellenőrizzük, hogy iktatva van-e már
+  const { data: existing } = await supabase
+    .from("hr_tanulmanyi_szerzodes")
+    .select("iktatoszam")
+    .eq("id", id)
+    .single()
+
+  if (existing?.iktatoszam) {
+    return { error: `A hivatalosan beiktatott tanulmányi szerződés (${existing.iktatoszam}) nem törölhető a rendszerből!` }
+  }
+
   const { error } = await supabase.from("hr_tanulmanyi_szerzodes").delete().eq("id", id).eq("dolgozo_id", employeeId)
   if (error) return { error: error.message }
   revalidatePath(`/hr/employee/${employeeId}`)
   return { success: true }
+}
+
+export async function fileStudyContractAction(contractId: string, employeeId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Nincs bejelentkezve" }
+
+  const { data: userProfile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isHrOrAdmin =
+    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
+    userProfile?.docs_szerepkor === "admin"
+
+  if (!isHrOrAdmin) {
+    return { success: false, error: "Nincs jogosultsága tanulmányi szerződést iktatni!" }
+  }
+
+  // 1. Rekord lekérése
+  const { data: contract, error: contractErr } = await supabase
+    .from("hr_tanulmanyi_szerzodes")
+    .select("*")
+    .eq("id", contractId)
+    .single()
+
+  if (contractErr || !contract) {
+    return { success: false, error: "Tanulmányi szerződés nem található!" }
+  }
+
+  if (contract.iktatoszam) {
+    return { success: false, error: `Ez a tanulmányi szerződés már hivatalosan iktatva van (${contract.iktatoszam})!` }
+  }
+
+  // 2. Dolgozó neve
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("nev")
+    .eq("id", employeeId)
+    .single()
+  const employeeName = profile?.nev || "Munkavállaló"
+  const docSubject = `${employeeName} - Tanulmányi Szerződés (${contract.kepzes_neve})`
+
+  let storagePath = contract.fajl_url
+  let docId = contract.dokumentum_id
+
+  // 3. Ha nincs feltöltött fájl, generáljuk le most a hivatalos Mt. 229. § PDF-et
+  if (!storagePath) {
+    const { generateStudyContractPdfBuffer } = await import("@/utils/hr/study-contract-pdf-generator")
+    const { buffer, fileName } = await generateStudyContractPdfBuffer(supabase, contractId)
+
+    const cleanFileName = fileName
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+    storagePath = `study-contracts/${employeeId}/${Date.now()}_${cleanFileName}`
+
+    let { error: uploadError } = await supabase.storage
+      .from("irat_files")
+      .upload(storagePath, buffer, {
+        contentType: "application/pdf",
+        upsert: true,
+      })
+
+    if (uploadError) {
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (serviceRoleKey) {
+        const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+        const adminClient = createSupabaseClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          serviceRoleKey
+        )
+        const { error: adminUploadError } = await adminClient.storage
+          .from("irat_files")
+          .upload(storagePath, buffer, {
+            contentType: "application/pdf",
+            upsert: true,
+          })
+        if (adminUploadError) {
+          return { success: false, error: "Storage feltöltési hiba: " + adminUploadError.message }
+        }
+      } else {
+        return { success: false, error: "Storage feltöltési hiba: " + uploadError.message }
+      }
+    }
+  }
+
+  // 4. Ha még nincs hr_dokumentum bejegyzés, hozzunk létre egyet
+  if (!docId) {
+    const { data: newDoc, error: docError } = await supabase
+      .from("hr_dokumentum")
+      .insert({
+        dolgozo_id: employeeId,
+        nev: docSubject,
+        kategoria: "Tanulmányi szerződés",
+        url: storagePath
+      })
+      .select("id")
+      .single()
+
+    if (docError || !newDoc) {
+      return { success: false, error: "Nem sikerült a dokumentum rekordot rögzíteni: " + (docError?.message || "") }
+    }
+    docId = newDoc.id
+  }
+
+  // 5. Iktatás végrehajtása az eaisyDocs személyi dossziéba
+  const filingResult = await executeHrDocumentFiling(supabase, {
+    documentId: docId,
+    employeeId,
+    customTargy: docSubject,
+    currentUserId: user.id
+  })
+
+  if (!filingResult.success) {
+    return { success: false, error: filingResult.error }
+  }
+
+  // 6. Frissítjük a hr_tanulmanyi_szerzodes rekordot
+  await supabase
+    .from("hr_tanulmanyi_szerzodes")
+    .update({
+      dokumentum_id: docId,
+      fajl_url: storagePath,
+      iktatoszam: filingResult.iktatoszam,
+      ugyirat_id: filingResult.ugyirat_id,
+      irat_id: filingResult.irat_id
+    })
+    .eq("id", contractId)
+
+  // 7. Audit naplózás
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "adat_letrehozas",
+    entitas_tipus: "hr_dokumentum",
+    entitas_id: docId,
+    megjegyzes: `Tanulmányi szerződés hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`
+  })
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  revalidatePath("/hr")
+  revalidatePath("/dossiers")
+
+  return {
+    success: true,
+    iktatoszam: filingResult.iktatoszam,
+    ugyirat_id: filingResult.ugyirat_id,
+    docId,
+  }
 }
 
 export async function addOrvosiVizsgalat(employeeId: string, formData: FormData) {

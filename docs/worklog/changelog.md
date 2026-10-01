@@ -6,6 +6,31 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-01)
 
+### 🎓 Tanulmányi Szerződések Életciklusa, Mt. 229. § Megfelelőség és eaisyDocs Iktatás UX
+- **Megújított Tanulmányi Szerződés Rögzítő Dialógus (`StudyContractTab.tsx`):**
+  - Tágas, áttekinthető modális felület (`sm:max-w-[720px]`) logikailag csoportosított mezőkkel:
+    - Képzés és intézmény adatai: képzés megnevezése, képző intézmény/egyetem megnevezése, képzés jellege/szintje.
+    - Anyagi és munkajogi feltételek: támogatás összege (Ft), vállalt munkaviszony (hónapban, Mt. szerinti max 36 hónap), tanulmányok befejezése / szerződés lejárata.
+    - Tanulmányi munkaidő-kedvezmény szöveges leírása (vizsganapok, mentesülés távolléti díjjal).
+    - Mt. 229. § (5) bek. szerinti időarányos visszafizetési záradék jelölőnégyzete.
+    - Opcionális: Mindkét fél által papíron aláírt és beszkennelt tanulmányi szerződés PDF csatolása.
+- **Hivatalos Mt. 229. § Tanulmányi Szerződés PDF Generátor (`study-contract-pdf-generator.ts`):**
+  - A4-es, nyomdai minőségű kétoldalú szerződés a Munkáltató és Munkavállaló adataival, Mt. 229. § preambulummal.
+  - Részletezi a képzés adatait, a munkáltató anyagi támogatását és munkaidő-kedvezményét, a munkavállaló eredményes tanulmányi és munkaviszony-fenntartási kötelezettségét.
+  - Szigorúan törvényi, időarányos visszafizetési és elszámolási záradék, cégszerű és munkavállalói aláírási blokk.
+  - Megjeleníti a hivatalos eaisyDocs iktatási fejlécet és a `3.1 - HR iratok` irattári tételt.
+- **In-Browser Megtekintés és Közvetlen Letöltés (`/api/hr/study-contract-pdf`):**
+  - 👁️ **Megtekintés:** `PdfViewerDialog` komponens a szerződés azonnali felugró megtekintéséhez inline módban.
+  - 📥 **Letöltés:** Közvetlen PDF letöltés.
+- **eaisyDocs Személyi Dosszié Iktatás (`fileStudyContractAction`):**
+  - Egykattintásos hivatalos iktatás az eaisyDocs munkavállalói személyi dossziéba (`HR/ÉÉÉÉ/SORSZÁM/ALSZÁM`).
+  - `3.1 - HR iratok` kategória, 50 év megőrzési idő, szigorúan `bizalmas` minősítés.
+  - Iktatás után zöld státuszjelvény (`Iktatva: HR/...`) közvetlen hivatkozással a személyi dossziéra.
+  - 🗑️ **Törlésvédelem:** Az iktatott tanulmányi szerződés adatbázis és UI szinten védett, nem törölhető a munkaügyi rendszerből.
+- **Adatbázis Migráció (`20261001000003_hr_tanulmanyi_szerzodes_filing.sql`):**
+  - `hr_tanulmanyi_szerzodes` tábla bővítve: `intezmeny_neve`, `kepzes_szintje`, `munkaido_kedvezmeny`, `szerzodes_szam`, `dokumentum_id`, `fajl_url`, `iktatoszam`, `ugyirat_id`, `irat_id` oszlopokkal és indexekkel.
+- **Döntési háttér:** [PRD P-030](../product/decisions/P-030-study-contract-lifecycle-and-filing-ux.md).
+
 ### ☕ Cafeteria Nyilatkozat In-Browser Megtekintés, Letöltés és eaisyDocs Iktatás UX
 - **Közvetlen In-Browser Megtekintés (`PdfViewerDialog`):**
   - Mind a HR dolgozói adatlapon (`CafeteriaTab.tsx`), mind a dolgozói önkiszolgáló portálon (`CafeteriaDeclaration.tsx`) bevezetésre került a felugró, böngészőn belüli hivatalos PDF megtekintő (Eye ikon).
