@@ -53,6 +53,7 @@ import {
   reopenOnboarding,
   deleteOnboarding
 } from "@/app/hr/onboarding/actions"
+import { AssetHandoverDialog } from "@/components/hr/asset-handover-dialog"
 import { toast } from "sonner"
 import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
 
@@ -220,6 +221,18 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
 
           {/* Műveleti gombok a fejlécben */}
           <div className="flex items-center gap-2 shrink-0">
+            <AssetHandoverDialog
+              employeeName={onboarding.nev}
+              dolgozoId={onboarding.dolgozo_id}
+              onboardingId={onboarding.id}
+              munkakor={onboarding.munkakor}
+              triggerButton={
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                  <Laptop className="w-3.5 h-3.5" /> Eszközök & Jkv
+                </Button>
+              }
+            />
+
             {isClosed ? (
               <Button variant="outline" size="sm" onClick={handleReopenOnboarding} className="gap-1.5 text-xs">
                 <RotateCcw className="w-3.5 h-3.5" /> Újranyitás
@@ -472,14 +485,43 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
                       </div>
                     </div>
 
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0" 
-                      onClick={() => handleDeleteTask(task.id)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {((task.cim || "").toLowerCase().includes("eszköz") ||
+                        (task.cim || "").toLowerCase().includes("laptop") ||
+                        (task.cim || "").toLowerCase().includes("telefon") ||
+                        (task.cim || "").toLowerCase().includes("periféri")) && (
+                        <AssetHandoverDialog
+                          employeeName={onboarding.nev}
+                          dolgozoId={onboarding.dolgozo_id}
+                          onboardingId={onboarding.id}
+                          munkakor={onboarding.munkakor}
+                          triggerButton={
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10 shadow-2xs"
+                            >
+                              <Laptop className="w-3 h-3" /> Eszközök & Jkv
+                            </Button>
+                          }
+                          onSuccess={() => {
+                            if (!isTaskDone) {
+                              handleToggleTask(task.id, task.statusz)
+                            }
+                          }}
+                        />
+                      )}
+
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0" 
+                        onClick={() => handleDeleteTask(task.id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 )
               })

@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { OnboardingList } from "@/components/hr/onboarding-list"
+import { AddOnboardingDialog } from "@/components/hr/add-onboarding-dialog"
 import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
@@ -48,13 +49,14 @@ export default async function OnboardingPage() {
 
   return (
     <div className="space-y-6 pb-10">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Onboarding</h1>
           <p className="text-muted-foreground mt-1">
-            Automatikus beléptetési folyamatok és feladatkövetés.
+            Beléptetési folyamatok, digitális feladatkövetés és eszközfelelősség.
           </p>
         </div>
+        <AddOnboardingDialog />
       </div>
       <OnboardingList onboardings={onboardings || []} />
     </div>

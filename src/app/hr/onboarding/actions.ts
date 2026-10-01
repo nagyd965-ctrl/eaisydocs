@@ -375,3 +375,110 @@ export async function deleteOnboarding(onboardingId: string) {
   revalidatePath("/hr/onboarding")
   return { success: true }
 }
+
+/**
+ * Manuális onboarding folyamat indítása (nem toborzásból érkező munkatársakhoz)
+ */
+export async function createManualOnboarding(formData: {
+  nev: string
+  email: string
+  munkakor: string
+  belepes_datuma?: string
+  sablon?: string
+  reszleg?: string
+}) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  if (!profile || !["admin", "hr_vezeto", "hr_munkatars"].includes(profile.hr_szerepkor)) {
+    return { error: "Nincs jogosultságod új beléptetési folyamat indításához." }
+  }
+
+  const adminClient = getAdminClient()
+  const sablonType = formData.sablon || "altalanos"
+
+  // 1. Beszúrjuk az Onboarding rekordot
+  const { data: newOnboarding, error: onbError } = await adminClient
+    .from("hr_onboarding")
+    .insert({
+      nev: formData.nev.trim(),
+      munkakor: formData.munkakor.trim(),
+      belepes_datuma: formData.belepes_datuma || "Hamarosan",
+      statusz: "folyamatban",
+      fiok_allapot: "varakozik",
+      reszleg: formData.reszleg || null
+    })
+    .select()
+    .single()
+
+  if (onbError || !newOnboarding) {
+    return { error: onbError?.message || "Nem sikerült létrehozni az onboarding folyamatot." }
+  }
+
+  // 2. Feladatok generálása a sablon alapján
+  let templateTasks = [
+    { cim: "Munkaszerződés előkészítése & aláírása", felelos_reszleg: "HR" },
+    { cim: "T1041 NAV bejelentés", felelos_reszleg: "Bérszámfejtés" },
+    { cim: "Munkahelyi eszközök átadása & jegyzőkönyv", felelos_reszleg: "IT" },
+    { cim: "Munkavédelmi és tűzvédelmi oktatás", felelos_reszleg: "EHS" },
+    { cim: "Munkavállalói fiók aktiválása & e-mail", felelos_reszleg: "HR" }
+  ]
+
+  if (sablonType === "it_fejleszto") {
+    templateTasks = [
+      { cim: "Munkaszerződés előkészítése & aláírása", felelos_reszleg: "HR" },
+      { cim: "T1041 NAV bejelentés", felelos_reszleg: "Bérszámfejtés" },
+      { cim: "Laptop & perifériák átadása (Jegyzőkönyvvel)", felelos_reszleg: "IT" },
+      { cim: "VPN, GitHub és Fejlesztői jogosultságok", felelos_reszleg: "IT" },
+      { cim: "Munkavédelmi és ergonómiai oktatás", felelos_reszleg: "EHS" },
+      { cim: "Munkavállalói fiók aktiválása & e-mail", felelos_reszleg: "HR" }
+    ]
+  } else if (sablonType === "vezeto") {
+    templateTasks = [
+      { cim: "Vezetői munkaszerződés & titoktartási (NDA)", felelos_reszleg: "HR" },
+      { cim: "T1041 NAV bejelentés", felelos_reszleg: "Bérszámfejtés" },
+      { cim: "Céges laptop és okostelefon átadása (Jegyzőkönyvvel)", felelos_reszleg: "IT" },
+      { cim: "Aláírási címpéldány és banki meghatalmazások", felelos_reszleg: "Pénzügy" },
+      { cim: "Munkavédelmi oktatás", felelos_reszleg: "EHS" },
+      { cim: "Munkavállalói fiók aktiválása & e-mail", felelos_reszleg: "HR" }
+    ]
+  } else if (sablonType === "fizikai") {
+    templateTasks = [
+      { cim: "Munkaszerződés előkészítése & aláírása", felelos_reszleg: "HR" },
+      { cim: "T1041 NAV bejelentés", felelos_reszleg: "Bérszámfejtés" },
+      { cim: "Munkaruha és védőeszközök kiosztása", felelos_reszleg: "EHS" },
+      { cim: "Foglalkozás-egészségügyi orvosi alkalmasság", felelos_reszleg: "HR" },
+      { cim: "Munkavédelmi és gépkezelői oktatás", felelos_reszleg: "EHS" },
+      { cim: "Szekrénykulcs és belépőkártya átadása", felelos_reszleg: "Iroda" }
+    ]
+  }
+
+  await adminClient.from("hr_onboarding_feladat").insert(
+    templateTasks.map(t => ({
+      onboarding_id: newOnboarding.id,
+      cim: t.cim,
+      felelos_reszleg: t.felelos_reszleg,
+      statusz: "pending"
+    }))
+  )
+
+  // Audit napló
+  await adminClient.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "munkatars_felvetel",
+    entitas_tipus: "hr_onboarding",
+    entitas_id: newOnboarding.id,
+    megjegyzes: `Új Onboarding folyamat indítva manuálisan (${sablonType} sablonnal): ${formData.nev}`
+  })
+
+  revalidatePath("/hr/onboarding")
+  return { success: true, onboarding: newOnboarding }
+}
+
