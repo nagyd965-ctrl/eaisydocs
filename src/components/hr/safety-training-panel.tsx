@@ -132,50 +132,32 @@ export function SafetyTrainingPanel({
   return (
     <div className="space-y-6">
       {/* 1. Fejléc és navigáció */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b">
         <div className="flex items-center gap-3">
           {onBack && (
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={onBack}
-              className="gap-1.5 text-xs text-muted-foreground hover:text-foreground h-8 px-2"
+              className="h-8 gap-1 text-xs shrink-0"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Vissza
+              <ArrowLeft className="w-3.5 h-3.5" /> Vissza a teendőkhöz
             </Button>
           )}
-          <div className="w-9 h-9 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 border border-teal-500/20">
-            <HardHat className="w-5 h-5" />
-          </div>
           <div>
-            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-              Munkavédelmi és Tűzvédelmi Oktatás
-              <Badge variant="outline" className="text-[10px] font-normal bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/20">
-                Mvt. 55. § & Ttv. 22. §
-              </Badge>
+            <h3 className="text-sm font-bold tracking-tight flex items-center gap-2">
+              <HardHat className="w-4 h-4 text-teal-600" /> Munkavédelmi és Tűzvédelmi Oktatás
             </h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Kötelező előzetes vagy ismétlődő oktatási jegyzőkönyv kiállítása és eaisyDocs iktatása (3.4 tétel, 10 év megőrzési idő).
             </p>
           </div>
         </div>
 
-        {existingDoc && (
-          <div className="flex items-center gap-2 shrink-0">
-            <PdfViewerDialog url={existingDoc.url} title="Munkavédelmi Jegyzőkönyv Előnézet" />
-            <a
-              href={existingDoc.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              download
-              className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-1.5 text-xs`}
-            >
-              <Download className="w-3.5 h-3.5" /> Letöltés
-            </a>
-          </div>
-        )}
+        <Badge variant="outline" className="text-xs bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/20 shrink-0 self-start sm:self-auto">
+          Mvt. 55. § & Ttv. 22. §
+        </Badge>
       </div>
 
       {/* 2. Létező jegyzőkönyv státusz kártya */}
@@ -228,6 +210,16 @@ export function SafetyTrainingPanel({
                 Iktatás a dossziéba
               </Button>
             )}
+            <PdfViewerDialog url={existingDoc.url} title="Munkavédelmi Oktatási Jegyzőkönyv" />
+            <a
+              href={existingDoc.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              download
+              className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-1.5 text-xs`}
+            >
+              <Download className="w-3.5 h-3.5" /> Letöltés
+            </a>
           </div>
         </div>
       )}
