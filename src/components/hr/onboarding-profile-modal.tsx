@@ -55,7 +55,7 @@ import {
   deleteOnboarding
 } from "@/app/hr/onboarding/actions"
 import { AssetHandoverPanel } from "@/components/hr/asset-handover-panel"
-import { SafetyTrainingDialog } from "@/components/hr/safety-training-dialog"
+import { SafetyTrainingPanel } from "@/components/hr/safety-training-panel"
 import { toast } from "sonner"
 import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
 
@@ -66,7 +66,7 @@ interface OnboardingProfileModalProps {
 }
 
 export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog }: OnboardingProfileModalProps) {
-  const [activeModalTab, setActiveModalTab] = useState<"teendok" | "eszkozok">("teendok")
+  const [activeModalTab, setActiveModalTab] = useState<"teendok" | "eszkozok" | "munkavedelem">("teendok")
   const [newTaskName, setNewTaskName] = useState("")
   const [newTaskResp, setNewTaskResp] = useState("HR")
   const [isAdding, setIsAdding] = useState(false)
@@ -235,24 +235,20 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
               {activeModalTab === "eszkozok" ? "Teendők nézet" : "Eszközök & Jkv"}
             </Button>
 
-            <SafetyTrainingDialog
-              employeeName={onboarding.nev}
-              dolgozoId={onboarding.dolgozo_id}
-              onboardingId={onboarding.id}
-              munkakor={onboarding.munkakor}
-              reszleg={onboarding.reszleg}
-              triggerButton={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-xs font-medium text-teal-700 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/10"
-                >
-                  <HardHat className="w-3.5 h-3.5 text-teal-600" />
-                  Munkavédelmi Jkv
-                </Button>
-              }
-            />
+            <Button
+              type="button"
+              variant={activeModalTab === "munkavedelem" ? "secondary" : "outline"}
+              size="sm"
+              className={`gap-1.5 text-xs font-medium ${
+                activeModalTab === "munkavedelem" 
+                  ? "bg-teal-500/20 text-teal-800 dark:text-teal-200 border-teal-500/40" 
+                  : "text-teal-700 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/10"
+              }`}
+              onClick={() => setActiveModalTab(activeModalTab === "munkavedelem" ? "teendok" : "munkavedelem")}
+            >
+              <HardHat className="w-3.5 h-3.5 text-teal-600" />
+              {activeModalTab === "munkavedelem" ? "Teendők nézet" : "Munkavédelmi Jkv"}
+            </Button>
 
             {isClosed ? (
               <Button variant="outline" size="sm" onClick={handleReopenOnboarding} className="gap-1.5 text-xs">
@@ -308,12 +304,12 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
         </div>
       </div>
 
-      {/* 2. Fülek: Teendők vs Munkahelyi Eszközök */}
-      <div className="flex border-b px-6 bg-muted/20 shrink-0 gap-1">
+      {/* 2. Fülek: Teendők vs Munkahelyi Eszközök vs Munkavédelmi Oktatás */}
+      <div className="flex border-b px-6 bg-muted/20 shrink-0 gap-1 overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveModalTab("teendok")}
-          className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+          className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             activeModalTab === "teendok"
               ? "border-primary text-primary bg-background/60"
               : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/30"
@@ -326,7 +322,7 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
         <button
           type="button"
           onClick={() => setActiveModalTab("eszkozok")}
-          className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+          className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             activeModalTab === "eszkozok"
               ? "border-primary text-primary bg-background/60"
               : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/30"
@@ -334,6 +330,19 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
         >
           <Laptop className="w-3.5 h-3.5" />
           Munkahelyi Eszközök & Jkv (Mt. 179. §)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveModalTab("munkavedelem")}
+          className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeModalTab === "munkavedelem"
+              ? "border-teal-600 text-teal-700 dark:text-teal-400 bg-background/60"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/30"
+          }`}
+        >
+          <HardHat className="w-3.5 h-3.5 text-teal-600" />
+          Munkavédelmi Oktatás (Mvt. 55. §)
         </button>
       </div>
 
@@ -354,6 +363,25 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
               )
               if (assetTask && assetTask.statusz !== 'done') {
                 handleToggleTask(assetTask.id, assetTask.statusz)
+              }
+            }}
+          />
+        ) : activeModalTab === "munkavedelem" ? (
+          <SafetyTrainingPanel
+            employeeName={onboarding.nev}
+            dolgozoId={onboarding.dolgozo_id}
+            onboardingId={onboarding.id}
+            munkakor={onboarding.munkakor}
+            reszleg={onboarding.reszleg}
+            onBack={() => setActiveModalTab("teendok")}
+            onSuccess={() => {
+              const safetyTask = onboarding.hr_onboarding_feladat?.find(t => 
+                (t.cim || "").toLowerCase().includes("munkavédel") ||
+                (t.cim || "").toLowerCase().includes("tűzvédel") ||
+                (t.cim || "").toLowerCase().includes("oktatás")
+              )
+              if (safetyTask && safetyTask.statusz !== 'done') {
+                handleToggleTask(safetyTask.id, safetyTask.statusz)
               }
             }}
           />
@@ -574,28 +602,15 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
                       {((task.cim || "").toLowerCase().includes("munkavédel") ||
                         (task.cim || "").toLowerCase().includes("tűzvédel") ||
                         (task.cim || "").toLowerCase().includes("ergonómi")) && (
-                        <SafetyTrainingDialog
-                          employeeName={onboarding.nev}
-                          dolgozoId={onboarding.dolgozo_id}
-                          onboardingId={onboarding.id}
-                          munkakor={onboarding.munkakor}
-                          reszleg={onboarding.reszleg}
-                          onSuccess={() => {
-                            if (!isTaskDone) {
-                              handleToggleTask(task.id, task.statusz)
-                            }
-                          }}
-                          triggerButton={
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs px-2 gap-1 text-teal-700 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/10 shadow-2xs"
-                            >
-                              <HardHat className="w-3 h-3 text-teal-600" /> Oktatási jkv.
-                            </Button>
-                          }
-                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs px-2 gap-1 text-teal-700 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/10 shadow-2xs"
+                          onClick={() => setActiveModalTab("munkavedelem")}
+                        >
+                          <HardHat className="w-3 h-3 text-teal-600" /> Oktatási jkv.
+                        </Button>
                       )}
 
                       <Button 

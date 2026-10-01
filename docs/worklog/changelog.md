@@ -16,9 +16,10 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
   - Amíg a belépő munkatárs fiókja nincs aktiválva, a jegyzőkönyv „Generálás (PDF)” gombbal előkészíthető és letárolható az onboarding folyamatban (letölthető, kinyomtatható a munkába állás napján történő aláíráshoz).
   - A kapcsolódó onboarding feladat (`Munkavédelmi és tűzvédelmi oktatás`) a jegyzőkönyv elkészültekor **automatikusan készre (done) pipálódik**.
   - Amint a HR aktiválja a fiókot, a rendszer az előkészített jegyzőkönyvet automatikusan beiktatja az újonnan megnyíló eaisyDocs Személyi Dossziéba.
-- **Közvetlen UI Integráció (`SafetyTrainingDialog.tsx`, `OnboardingProfileModal.tsx`, `MedicalTab.tsx`):**
-  - Az Onboarding profil modál fejlécében és a feladatlistában közvetlen gomb a jegyzőkönyv kiállítására / megtekintésére.
-  - A Munkavállalói adatlapon a *Megfelelőség & Egészségügy* (`MedicalTab`) fülön is elérhető éves ismétlő vagy rendkívüli oktatás rögzítéséhez.
+- **Közvetlen UI Integráció és Beágyazott Fül Architektúra (`SafetyTrainingPanel.tsx`, `SafetyTrainingDialog.tsx`, `OnboardingProfileModal.tsx`, `MedicalTab.tsx`):**
+  - **Megszüntetett modál a modálban ("popup a popupban"):** Az eszközátadási fülhöz hasonlóan a munkavédelmi oktatás közvetlen beágyazott fülként (`munkavedelem`) él az Onboarding profil modálban, tiszta füles navigációval (`Onboarding Teendők`, `Munkahelyi Eszközök`, `Munkavédelmi Oktatás`).
+  - Az Onboarding profil modál fejlécében a `Munkavédelmi Jkv` gomb és a teendőlistában lévő `Oktatási jkv.` gomb közvetlenül a beágyazott fülre vált át, vissza gombbal a teendőkhöz.
+  - A Munkavállalói adatlapon a *Megfelelőség & Egészségügy* (`MedicalTab`) fülön a `SafetyTrainingDialog` önálló párbeszédablakként nyitható meg, amely a közös `SafetyTrainingPanel` komponenst használja.
 - **Adatbázis Migráció (`20261001000009_hr_munkavedelmi_oktatas.sql`):**
   - Dedikált tábla a munkavédelmi oktatások nyilvántartására, RLS szabályok Munkavédelmi felelős (`munkavedelmi`), HR és Admin hozzáféréssel.
 - **Döntési háttér:** [PRD P-036](../product/decisions/P-036-occupational-safety-and-fire-training-protocol-ux.md).

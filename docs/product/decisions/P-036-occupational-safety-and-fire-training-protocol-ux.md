@@ -95,11 +95,13 @@ CREATE TABLE public.hr_munkavedelmi_oktatas (
 
 ## 5. UI Megjelenés és Integráció
 
-1. **Onboarding Profil Modál (`OnboardingProfileModal.tsx`):**
-   - A fejlécben gomb: `Munkavédelmi Jkv` (`HardHat` ikonnal).
-   - A Teendők listájában minden olyan feladatnál, amely a munkavédelemmel vagy tűzvédelemmel kapcsolatos, közvetlen akciógomb jelenik meg: `Oktatási jkv.`.
-2. **Dolgozói Karton (`MedicalTab.tsx`):**
-   - Az Orvosi Alkalmassági Vizsgálatok fejlécében megjelenik a `Munkavédelmi Oktatás` gomb.
-3. **Párbeszédablak (`SafetyTrainingDialog.tsx`):**
-   - Gyors űrlap az oktató nevével, dátummal, típussal és tematikával.
-   - Meglévő jegyzőkönyv esetén előnézet (`PdfViewerDialog`), letöltés és iktatási státusz.
+1. **Onboarding Profil Modál beágyazott fül architektúra (`OnboardingProfileModal.tsx` & `SafetyTrainingPanel.tsx`):**
+   - **Nincs modál a modálban ("popup a popupban"):** Az eszközátadási panelhez hasonlóan a munkavédelmi oktatás közvetlen beágyazott fülként (`munkavedelem`) él az Onboarding modálban a Teendők és a Munkahelyi Eszközök mellett.
+   - **Fejléc gomb:** A fejlécben a `Munkavédelmi Jkv` gombra kattintva a modál zökkenőmentesen átvált a munkavédelmi fülre (visszaváltás: `Teendők nézet`).
+   - **Teendőlista gyorsgomb:** A feladatlistában lévő munkavédelmi teendőnél az `Oktatási jkv.` gomb szintén a beágyazott fülre navigál.
+   - **Vissza gomb:** A panel tetején a `Vissza` gomb azonnal visszaviszi a felhasználót az `Onboarding Teendők` listához.
+2. **Dolgozói Karton (`MedicalTab.tsx` & `SafetyTrainingDialog.tsx`):**
+   - Az önálló munkavállalói adatlapon (`/hr/employee/[id]`) a *Megfelelőség & Egészségügy* fülről a `SafetyTrainingDialog` önálló modálként nyitható meg, amely a közös `SafetyTrainingPanel` komponenst használja fel újra.
+3. **Jegyzőkönyv Kezelés:**
+   - Űrlap az oktató nevével, beosztásával, oktatás típusával, dátumával és 7 pontos tematikájával.
+   - Meglévő jegyzőkönyv esetén állapotjelző kártya (iktatott vagy pre-onboarding tervezet), PDF előnézet (`PdfViewerDialog`), letöltés és manuális iktatási lehetőség.
