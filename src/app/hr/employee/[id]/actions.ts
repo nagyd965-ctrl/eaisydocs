@@ -763,22 +763,111 @@ export async function addFegyelmi(employeeId: string, formData: FormData) {
 
   const tipus = formData.get("tipus") as string
   const datum = formData.get("datum") as string
-  const indoklas = formData.get("indoklas") as string
+  const indoklas = (formData.get("indoklas") as string)?.trim()
+  const hatarozat_szam = (formData.get("hatarozat_szam") as string)?.trim()
+  const kar_osszeg = formData.get("kar_osszeg") as string
+  const reszletfizetes_leiras = (formData.get("reszletfizetes_leiras") as string)?.trim()
+  const atvetel_datuma = formData.get("atvetel_datuma") as string
+  const file = formData.get("file") as File | null
 
   if (!tipus || !datum || !indoklas) {
-    return { error: "Minden kötelező mezőt ki kell tölteni!" }
+    return { error: "A típus, az esemény dátuma és az indoklás megadása kötelező!" }
   }
 
   const today = new Date().toISOString().split("T")[0]
   if (datum > today) {
-    return { error: "A dátum nem lehet a jövőben!" }
+    return { error: "Az esemény dátuma nem lehet a jövőben!" }
+  }
+
+  // Számoljuk ki a 30 napos Mt. 285. § szerinti jogorvoslati határidőt az átvétel vagy az intézkedés napjától
+  const baseDateStr = atvetel_datuma || datum
+  const baseDate = new Date(baseDateStr)
+  baseDate.setDate(baseDate.getDate() + 30)
+  const jogorvoslat_hatarido = baseDate.toISOString().split("T")[0]
+
+  let storagePath: string | null = null
+  let docId: string | null = null
+
+  // Szkennelt / aláírt PDF dokumentum feltöltése ha mellékelve van
+  if (file && file.size > 0 && typeof file.arrayBuffer === "function") {
+    try {
+      const arrayBuf = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuf)
+      const cleanFileName = file.name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9._-]/g, "_")
+      storagePath = `disciplinary/${employeeId}/${Date.now()}_${cleanFileName}`
+
+      let { error: uploadError } = await supabase.storage
+        .from("irat_files")
+        .upload(storagePath, buffer, {
+          contentType: file.type || "application/pdf",
+          upsert: true,
+        })
+
+      if (uploadError) {
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        if (serviceRoleKey) {
+          const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+          const adminClient = createSupabaseClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            serviceRoleKey
+          )
+          const { error: adminUploadError } = await adminClient.storage
+            .from("irat_files")
+            .upload(storagePath, buffer, {
+              contentType: file.type || "application/pdf",
+              upsert: true,
+            })
+          if (adminUploadError) {
+            console.error("Storage upload hiba:", adminUploadError)
+          }
+        }
+      }
+
+      // HR dokumentum rekord létrehozása ha van feltöltött fájl
+      const tipusLabels: Record<string, string> = {
+        figyelmeztetes: "Írásbeli figyelmeztetés",
+        megrovas: "Írásbeli megrovás",
+        karterites: "Kártérítési felszólítás",
+        kituntetes: "Kitüntetés",
+        egyeb: "Munkáltatói határozat"
+      }
+      const label = tipusLabels[tipus] || "Fegyelmi határozat"
+
+      const { data: newDoc } = await supabase
+        .from("hr_dokumentum")
+        .insert({
+          dolgozo_id: employeeId,
+          nev: `${label} - ${datum}`,
+          kategoria: "Fegyelmi és kártérítési ügyek",
+          url: storagePath
+        })
+        .select("id")
+        .single()
+
+      if (newDoc) {
+        docId = newDoc.id
+      }
+    } catch (e: any) {
+      console.warn("Fájlfeltöltési hiba a fegyelmi határozatnál:", e)
+    }
   }
 
   const { error } = await supabase.from("hr_fegyelmi").insert({
     dolgozo_id: employeeId,
     tipus,
     datum,
-    indoklas
+    indoklas,
+    hatarozat_szam: hatarozat_szam || null,
+    kar_osszeg: kar_osszeg ? parseFloat(kar_osszeg) : null,
+    reszletfizetes_leiras: reszletfizetes_leiras || null,
+    atvetel_datuma: atvetel_datuma || null,
+    jogorvoslat_hatarido,
+    fajl_url: storagePath,
+    dokumentum_url: storagePath,
+    dokumentum_id: docId,
   })
 
   if (error) return { error: error.message }
@@ -789,10 +878,454 @@ export async function addFegyelmi(employeeId: string, formData: FormData) {
 
 export async function deleteFegyelmi(id: string, employeeId: string) {
   const supabase = await createClient()
+
+  // Ellenőrizzük, hogy iktatva van-e már
+  const { data: existing } = await supabase
+    .from("hr_fegyelmi")
+    .select("iktatoszam")
+    .eq("id", id)
+    .single()
+
+  if (existing?.iktatoszam) {
+    return { error: `A hivatalosan beiktatott fegyelmi határozat (${existing.iktatoszam}) a levéltári szabályok szerint nem törölhető!` }
+  }
+
   const { error } = await supabase.from("hr_fegyelmi").delete().eq("id", id).eq("dolgozo_id", employeeId)
   if (error) return { error: error.message }
   revalidatePath(`/hr/employee/${employeeId}`)
   return { success: true }
+}
+
+export async function fileDisciplinaryAction(disciplinaryId: string, employeeId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Nincs bejelentkezve" }
+
+  const { data: userProfile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isHrOrAdmin =
+    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
+    userProfile?.docs_szerepkor === "admin"
+
+  if (!isHrOrAdmin) {
+    return { success: false, error: "Nincs jogosultsága fegyelmi határozatot iktatni!" }
+  }
+
+  // 1. Rekord lekérése
+  const { data: item, error: itemErr } = await supabase
+    .from("hr_fegyelmi")
+    .select("*")
+    .eq("id", disciplinaryId)
+    .single()
+
+  if (itemErr || !item) {
+    return { success: false, error: "Fegyelmi határozat nem található!" }
+  }
+
+  if (item.iktatoszam) {
+    return { success: false, error: `Ez a határozat már hivatalosan iktatva van (${item.iktatoszam})!` }
+  }
+
+  // 2. Dolgozó neve
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("nev")
+    .eq("id", employeeId)
+    .single()
+  const employeeName = profile?.nev || "Munkavállaló"
+
+  const tipusLabels: Record<string, string> = {
+    figyelmeztetes: "Írásbeli figyelmeztetés",
+    megrovas: "Írásbeli megrovás",
+    karterites: "Kártérítési határozat",
+    kituntetes: "Kitüntetés",
+    egyeb: "Munkáltatói határozat"
+  }
+  const label = tipusLabels[item.tipus] || "Fegyelmi határozat"
+  const docSubject = `${employeeName} - ${label} (${item.datum})`
+
+  let storagePath = item.fajl_url
+  let docId = item.dokumentum_id
+
+  // 3. Ha nincs feltöltött fájl, generáljuk le most a hivatalos PDF-et
+  if (!storagePath) {
+    const { generateDisciplinaryPdfBuffer } = await import("@/utils/hr/disciplinary-pdf-generator")
+    const { buffer, fileName } = await generateDisciplinaryPdfBuffer(supabase, disciplinaryId)
+
+    const cleanFileName = fileName
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+    storagePath = `disciplinary/${employeeId}/${Date.now()}_${cleanFileName}`
+
+    let { error: uploadError } = await supabase.storage
+      .from("irat_files")
+      .upload(storagePath, buffer, {
+        contentType: "application/pdf",
+        upsert: true,
+      })
+
+    if (uploadError) {
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (serviceRoleKey) {
+        const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+        const adminClient = createSupabaseClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          serviceRoleKey
+        )
+        const { error: adminUploadError } = await adminClient.storage
+          .from("irat_files")
+          .upload(storagePath, buffer, {
+            contentType: "application/pdf",
+            upsert: true,
+          })
+        if (adminUploadError) {
+          return { success: false, error: "Storage feltöltési hiba: " + adminUploadError.message }
+        }
+      } else {
+        return { success: false, error: "Storage feltöltési hiba: " + uploadError.message }
+      }
+    }
+  }
+
+  // 4. Ha még nincs hr_dokumentum bejegyzés, hozzunk létre egyet
+  if (!docId) {
+    const { data: newDoc, error: docError } = await supabase
+      .from("hr_dokumentum")
+      .insert({
+        dolgozo_id: employeeId,
+        nev: docSubject,
+        kategoria: "Fegyelmi és kártérítési ügyek",
+        url: storagePath
+      })
+      .select("id")
+      .single()
+
+    if (docError || !newDoc) {
+      return { success: false, error: "Nem sikerült a dokumentum rekordot rögzíteni: " + (docError?.message || "") }
+    }
+    docId = newDoc.id
+  }
+
+  // 5. Iktatás végrehajtása az eaisyDocs személyi dossziéba (szigorúan bizalmas, 5 év)
+  const filingResult = await executeHrDocumentFiling(supabase, {
+    documentId: docId,
+    employeeId,
+    customTargy: docSubject,
+    currentUserId: user.id
+  })
+
+  if (!filingResult.success) {
+    return { success: false, error: filingResult.error }
+  }
+
+  // 6. Frissítjük a hr_fegyelmi rekordot
+  await supabase
+    .from("hr_fegyelmi")
+    .update({
+      dokumentum_id: docId,
+      fajl_url: storagePath,
+      iktatoszam: filingResult.iktatoszam,
+      ugyirat_id: filingResult.ugyirat_id,
+      irat_id: filingResult.irat_id
+    })
+    .eq("id", disciplinaryId)
+
+  // 7. Audit naplózás
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "adat_letrehozas",
+    entitas_tipus: "hr_dokumentum",
+    entitas_id: docId,
+    megjegyzes: `Munkáltatói fegyelmi határozat hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`
+  })
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  revalidatePath("/hr")
+  revalidatePath("/dossiers")
+
+  return {
+    success: true,
+    iktatoszam: filingResult.iktatoszam,
+    ugyirat_id: filingResult.ugyirat_id,
+    docId,
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Kitüntetések és Szakmai Elismerések
+// -----------------------------------------------------------------------------
+
+export async function addKituntetes(employeeId: string, formData: FormData) {
+  const supabase = await createClient()
+
+  const megnevezes = (formData.get("megnevezes") as string)?.trim()
+  const kategoria = (formData.get("kategoria") as string) || "vallalati_dij"
+  const datum = formData.get("datum") as string
+  const adomanyozo = (formData.get("adomanyozo") as string)?.trim()
+  const indoklas = (formData.get("indoklas") as string)?.trim()
+  const jutalom_osszeg = formData.get("jutalom_osszeg") as string
+  const file = formData.get("file") as File | null
+
+  if (!megnevezes || !datum || !indoklas) {
+    return { error: "A megnevezés, az adományozás dátuma és a méltatás kitöltése kötelező!" }
+  }
+
+  const today = new Date().toISOString().split("T")[0]
+  if (datum > today) {
+    return { error: "Az adományozás dátuma nem lehet a jövőben!" }
+  }
+
+  let storagePath: string | null = null
+  let docId: string | null = null
+
+  if (file && file.size > 0 && typeof file.arrayBuffer === "function") {
+    try {
+      const arrayBuf = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuf)
+      const cleanFileName = file.name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9._-]/g, "_")
+      storagePath = `awards/${employeeId}/${Date.now()}_${cleanFileName}`
+
+      let { error: uploadError } = await supabase.storage
+        .from("irat_files")
+        .upload(storagePath, buffer, {
+          contentType: file.type || "application/pdf",
+          upsert: true,
+        })
+
+      if (uploadError) {
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        if (serviceRoleKey) {
+          const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+          const adminClient = createSupabaseClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            serviceRoleKey
+          )
+          const { error: adminUploadError } = await adminClient.storage
+            .from("irat_files")
+            .upload(storagePath, buffer, {
+              contentType: file.type || "application/pdf",
+              upsert: true,
+            })
+          if (adminUploadError) {
+            console.error("Storage upload hiba:", adminUploadError)
+          }
+        }
+      }
+
+      const { data: newDoc } = await supabase
+        .from("hr_dokumentum")
+        .insert({
+          dolgozo_id: employeeId,
+          nev: `Elismerő Oklevél - ${megnevezes}`,
+          kategoria: "Kitüntetések és elismerések",
+          url: storagePath
+        })
+        .select("id")
+        .single()
+
+      if (newDoc) {
+        docId = newDoc.id
+      }
+    } catch (e: any) {
+      console.warn("Fájlfeltöltési hiba az elismerésnél:", e)
+    }
+  }
+
+  const { error } = await supabase.from("hr_kituntetes").insert({
+    dolgozo_id: employeeId,
+    megnevezes,
+    kategoria,
+    datum,
+    adomanyozo: adomanyozo || null,
+    indoklas,
+    jutalom_osszeg: jutalom_osszeg ? parseFloat(jutalom_osszeg) : null,
+    fajl_url: storagePath,
+    dokumentum_id: docId,
+  })
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function deleteKituntetes(id: string, employeeId: string) {
+  const supabase = await createClient()
+
+  // Ellenőrizzük, hogy iktatva van-e már
+  const { data: existing } = await supabase
+    .from("hr_kituntetes")
+    .select("iktatoszam")
+    .eq("id", id)
+    .single()
+
+  if (existing?.iktatoszam) {
+    return { error: `A hivatalosan beiktatott elismerés (${existing.iktatoszam}) a levéltári szabályzat szerint nem törölhető!` }
+  }
+
+  const { error } = await supabase.from("hr_kituntetes").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  if (error) return { error: error.message }
+  revalidatePath(`/hr/employee/${employeeId}`)
+  return { success: true }
+}
+
+export async function fileKituntetesAction(awardId: string, employeeId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Nincs bejelentkezve" }
+
+  const { data: userProfile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isHrOrAdmin =
+    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
+    userProfile?.docs_szerepkor === "admin"
+
+  if (!isHrOrAdmin) {
+    return { success: false, error: "Nincs jogosultsága elismerést iktatni!" }
+  }
+
+  // 1. Rekord lekérése
+  const { data: item, error: itemErr } = await supabase
+    .from("hr_kituntetes")
+    .select("*")
+    .eq("id", awardId)
+    .single()
+
+  if (itemErr || !item) {
+    return { success: false, error: "Elismerés rekord nem található!" }
+  }
+
+  if (item.iktatoszam) {
+    return { success: false, error: `Ez az elismerés már hivatalosan iktatva van (${item.iktatoszam})!` }
+  }
+
+  // 2. Dolgozó neve
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("nev")
+    .eq("id", employeeId)
+    .single()
+  const employeeName = profile?.nev || "Munkavállaló"
+  const docSubject = `${employeeName} - Elismerő Oklevél (${item.megnevezes})`
+
+  let storagePath = item.fajl_url
+  let docId = item.dokumentum_id
+
+  // 3. Ha nincs feltöltött fájl, generáljuk le az oklevelet
+  if (!storagePath) {
+    const { generateAwardCertificatePdfBuffer } = await import("@/utils/hr/award-certificate-pdf-generator")
+    const { buffer, fileName } = await generateAwardCertificatePdfBuffer(supabase, awardId)
+
+    const cleanFileName = fileName
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+    storagePath = `awards/${employeeId}/${Date.now()}_${cleanFileName}`
+
+    let { error: uploadError } = await supabase.storage
+      .from("irat_files")
+      .upload(storagePath, buffer, {
+        contentType: "application/pdf",
+        upsert: true,
+      })
+
+    if (uploadError) {
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (serviceRoleKey) {
+        const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+        const adminClient = createSupabaseClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          serviceRoleKey
+        )
+        const { error: adminUploadError } = await adminClient.storage
+          .from("irat_files")
+          .upload(storagePath, buffer, {
+            contentType: "application/pdf",
+            upsert: true,
+          })
+        if (adminUploadError) {
+          return { success: false, error: "Storage feltöltési hiba: " + adminUploadError.message }
+        }
+      } else {
+        return { success: false, error: "Storage feltöltési hiba: " + uploadError.message }
+      }
+    }
+  }
+
+  // 4. Ha még nincs hr_dokumentum bejegyzés, hozzunk létre egyet
+  if (!docId) {
+    const { data: newDoc, error: docError } = await supabase
+      .from("hr_dokumentum")
+      .insert({
+        dolgozo_id: employeeId,
+        nev: docSubject,
+        kategoria: "Kitüntetések és elismerések",
+        url: storagePath
+      })
+      .select("id")
+      .single()
+
+    if (docError || !newDoc) {
+      return { success: false, error: "Nem sikerült a dokumentum rekordot rögzíteni: " + (docError?.message || "") }
+    }
+    docId = newDoc.id
+  }
+
+  // 5. Iktatás az eaisyDocs személyi dossziéba (3.1 - HR iratok, 50 év)
+  const filingResult = await executeHrDocumentFiling(supabase, {
+    documentId: docId,
+    employeeId,
+    customTargy: docSubject,
+    currentUserId: user.id
+  })
+
+  if (!filingResult.success) {
+    return { success: false, error: filingResult.error }
+  }
+
+  // 6. Frissítjük a hr_kituntetes rekordot
+  await supabase
+    .from("hr_kituntetes")
+    .update({
+      dokumentum_id: docId,
+      fajl_url: storagePath,
+      iktatoszam: filingResult.iktatoszam,
+      ugyirat_id: filingResult.ugyirat_id,
+      irat_id: filingResult.irat_id
+    })
+    .eq("id", awardId)
+
+  // 7. Audit naplózás
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "adat_letrehozas",
+    entitas_tipus: "hr_dokumentum",
+    entitas_id: docId,
+    megjegyzes: `Szakmai elismerés (oklevél) hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`
+  })
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  revalidatePath("/hr")
+  revalidatePath("/dossiers")
+
+  return {
+    success: true,
+    iktatoszam: filingResult.iktatoszam,
+    ugyirat_id: filingResult.ugyirat_id,
+    docId,
+  }
 }
 
 export async function revealEmployeeSecretData(employeeId: string) {

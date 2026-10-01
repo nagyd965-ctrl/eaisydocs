@@ -11,6 +11,7 @@ import { QualificationTab } from "./tabs/QualificationTab"
 import { StudyContractTab } from "./tabs/StudyContractTab"
 import { MedicalTab } from "./tabs/MedicalTab"
 import { DisciplinaryTab } from "./tabs/DisciplinaryTab"
+import { AwardsTab } from "./tabs/AwardsTab"
 import { PersonalDataTab } from "./tabs/PersonalDataTab"
 import { GeneralPersonalInfoTab } from "./tabs/GeneralPersonalInfoTab"
 import { EmploymentTab } from "./tabs/EmploymentTab"
@@ -60,6 +61,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
         hr_tanulmanyi_szerzodes ( * ),
         hr_orvosi_vizsgalat ( * ),
         hr_fegyelmi ( * ),
+        hr_kituntetes ( * ),
         hr_jogviszony (
           *,
           hr_beosztas (
@@ -325,13 +327,17 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           {/* 2. Szakmai Háttér (Összevont) */}
           <TabsContent value="szakmai_hatter" className="mt-0 outline-none space-y-12">
             <div className="space-y-4">
-              <h2 className="text-xl font-semibold tracking-tight border-b pb-2">Előző Munkahelyek</h2>
-              <WorkplaceTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_elozo_munkahely || []} />
+              <AwardsTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_kituntetes || []} />
             </div>
-            
+
             <div className="space-y-4">
               <h2 className="text-xl font-semibold tracking-tight border-b pb-2">Képzettségek és Végzettségek</h2>
               <QualificationTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_kepzettseg || []} />
+            </div>
+
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold tracking-tight border-b pb-2">Előző Munkahelyek</h2>
+              <WorkplaceTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_elozo_munkahely || []} />
             </div>
           </TabsContent>
 
@@ -489,7 +495,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               {(isHrOrAdmin || ["auditor"].includes(currentUserProfile?.hr_szerepkor || "")) && (
                 <div className="space-y-4">
                   <h2 className="text-xl font-semibold tracking-tight text-destructive flex items-center gap-2 border-b pb-2">
-                    <ShieldAlert className="w-5 h-5" /> Fegyelmi és Kitüntetési Ügyek
+                    <ShieldAlert className="w-5 h-5" /> Fegyelmi és Károkozási Ügyek (Mt. 56. §, 179. §)
                   </h2>
                   <DisciplinaryTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_fegyelmi || []} />
                 </div>

@@ -38,8 +38,10 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-028](./P-028-occupational-health-examination-filing-and-validity-ux.md) | 2026-10-01 | Foglalkozás-egészségügyi Alkalmassági Vizsgálatok Dokumentumkezelése és Érvényesség UX | `[HR]` | `HR / Medical & Filing` | `MedicalTab.tsx`, `medical-sheet-pdf-generator.ts`, `src/app/api/hr/medical-pdf` |
 | [P-029](./P-029-cafeteria-declaration-filing-and-preview-ux.md) | 2026-10-01 | Cafeteria Nyilatkozat In-Browser Megtekintés, Letöltés és eaisyDocs Iktatás UX | `[HR]` | `HR / Cafeteria & Filing` | `CafeteriaTab.tsx`, `cafeteria-declaration.tsx`, `cafeteria-pdf-generator.ts` |
 | [P-030](./P-030-study-contract-lifecycle-and-filing-ux.md) | 2026-10-01 | Tanulmányi Szerződések Életciklusa, Mt. 229. § Megfelelőség és eaisyDocs Iktatás UX | `[HR]` | `HR / Study & Filing` | `StudyContractTab.tsx`, `study-contract-pdf-generator.ts`, `src/app/api/hr/study-contract-pdf` |
+| [P-031](./P-031-disciplinary-and-damage-liability-lifecycle-ux.md) | 2026-10-01 | Munkáltatói Fegyelmi és Károkozási Határozatok (Mt. 56. §, 179. §) és eaisyDocs Iktatás UX | `[HR]` | `HR / Disciplinary & Filing` | `DisciplinaryTab.tsx`, `disciplinary-pdf-generator.ts`, `src/app/api/hr/disciplinary-pdf` |
+| [P-032](./P-032-awards-and-honors-lifecycle-ux.md) | 2026-10-01 | Munkavállalói Kitüntetések, Szakmai Elismerések és Elismerő Oklevél UX | `[HR]` | `HR / Awards & Filing` | `AwardsTab.tsx`, `award-certificate-pdf-generator.ts`, `src/app/api/hr/award-pdf` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-031`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-033`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!

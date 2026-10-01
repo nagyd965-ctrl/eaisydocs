@@ -6,6 +6,42 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-01)
 
+### 🏆 Munkavállalói Kitüntetések, Szakmai Elismerések és Elismerő Oklevél UX
+- **Önálló Elismerési Modul a Szakmai Háttér Fülön (`AwardsTab.tsx`):**
+  - A korábbi gyakorlattal szakítva a kitüntetések és szakmai elismerések teljesen elválasztásra kerültek a fegyelmi ügyektől, és kiemelt, pozitív helyre kerültek a dolgozó *Szakmai Háttér* szekciójában.
+  - 7 dedikált elismerési kategória (Vállalati Kiválósági Díj, Szakmai és Technológiai Innováció, Kiemelkedő Projekt Teljesítmény, Törzsgárda és Jubileum, Kiemelkedő Csapatmunka, Vezérigazgatói Dicséret, Egyéb Szakmai Elismerés).
+  - Tágas modal (`sm:max-w-[700px]`) díj megnevezéssel, adományozó testülettel, opcionális pénzjutalom összeggel (Ft) és részletes hivatalos méltatással.
+  - Opcionális: Már átadott / papíron aláírt díszoklevél szkennelt példányának feltöltése.
+- **Reprezentatív Elismerő Oklevél PDF Generátor (`award-certificate-pdf-generator.ts`):**
+  - Fekvő A4 formátumú, díszes arany és teal keretes oklevél a 'Cinzel' és 'Montserrat' betűcsaládokkal.
+  - Fejlécben vállalati arculat és eaisyDocs iktatási pecsét (`Iktatószám: ...`, `Irattári tétel: 3.1 • eaisyDocs Személyi Dosszié`).
+  - Központi méltatás, díjazott neve és munkaköre, adományozó aláírási és pecsétmezője.
+- **In-Browser Megtekintés, Letöltés és eaisyDocs Iktatás (`/api/hr/award-pdf`, `fileKituntetesAction`):**
+  - 👁️ **Megtekintés:** `PdfViewerDialog` segítségével közvetlen felugró megtekintő a böngészőben.
+  - 📥 **Letöltés:** Közvetlen PDF letöltés.
+  - 📁 **Iktatás:** Egykattintásos hivatalos iktatás a dolgozó eaisyDocs személyi dossziéjába (`3.1 - HR iratok`, 50 év megőrzési idő).
+  - 🗑️ **Törlésvédelem:** Az iktatott elismerések törlése védett a levéltári szabályok szerint.
+- **Adatbázis Migráció (`20261001000005_hr_kituntetes_modul.sql`):**
+  - Új `public.hr_kituntetes` tábla RLS szabályokkal és idegen kulcsokkal (`hr_dolgozo_adatlap`, `hr_dokumentum`, `ugyirat`, `irat`).
+- **Döntési háttér:** [PRD P-032](../product/decisions/P-032-awards-and-honors-lifecycle-ux.md).
+
+### ⚖️ Munkáltatói Fegyelmi és Károkozási Határozatok (Mt. 56. §, 179. §) és eaisyDocs Iktatás UX
+- **Letisztított Fegyelmi és Károkozási Modul (`DisciplinaryTab.tsx`):**
+  - A *Bizalmas HR adatok* fülön kizárólag a jogi szankciók és kártérítési kötelezések maradtak meg, szigorúan HR-vezetőkre és auditorokra korlátozott jogosultsággal.
+  - Kategóriák: Írásbeli Figyelmeztetés (Mt. 56. §), Írásbeli Megrovás (Mt. 56. §), Kártérítési Kötelezés (Mt. 179. §), Egyéb munkáltatói intézkedés.
+  - Károkozás esetén a megfizetendő kárösszeg és munkabérből történő részletfizetési ütemezés rögzítése.
+- **Törvényes Munkáltatói Határozat PDF Generátor (`disciplinary-pdf-generator.ts`):**
+  - Alaki és tartalmi megfelelőség az Mt. szabályai szerint: I. Rendelkező rész, II. Tényállás és indoklás, III. Kötelező 30 napos bírósági jogorvoslati kioktatás (Mt. 285. § (1) bek.) a keresetindítás kártérítésre vonatkozó halasztó hatályának megjelölésével.
+  - eaisyDocs iktatási fejléc és személyi dosszié besorolás (`3.1 - HR iratok`, megőrzési idő: 5 év az Mt. 286. § szerinti 3 éves általános elévülés figyelembevételével, szigorúan `bizalmas`).
+- **In-Browser Megtekintés, Letöltés és eaisyDocs Iktatás (`/api/hr/disciplinary-pdf`, `fileDisciplinaryAction`):**
+  - 👁️ Megtekintés inline `PdfViewerDialog` ablakban.
+  - 📥 Letöltés PDF fájlként.
+  - 📁 Iktatás a személyi dossziéba iktatószámmal és dosszié linkkel.
+  - 🗑️ Törlésvédelem a hivatalosan beiktatott munkáltatói határozatokra.
+- **Adatbázis Migráció (`20261001000004_hr_fegyelmi_filing.sql`):**
+  - `hr_fegyelmi` tábla bővítése: `hatarozat_szam`, `kar_osszeg`, `reszletfizetes_leiras`, `jogorvoslat_hatarido`, `atvetel_datuma`, `dokumentum_id`, `fajl_url`, `iktatoszam`, `ugyirat_id`, `irat_id`.
+- **Döntési háttér:** [PRD P-031](../product/decisions/P-031-disciplinary-and-damage-liability-lifecycle-ux.md).
+
 ### 🎓 Tanulmányi Szerződések Életciklusa, Mt. 229. § Megfelelőség és eaisyDocs Iktatás UX
 - **Megújított Tanulmányi Szerződés Rögzítő Dialógus (`StudyContractTab.tsx`):**
   - Tágas, áttekinthető modális felület (`sm:max-w-[720px]`) logikailag csoportosított mezőkkel:
