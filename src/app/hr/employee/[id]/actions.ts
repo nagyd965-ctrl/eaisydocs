@@ -223,7 +223,10 @@ export async function addOrvosiVizsgalat(employeeId: string, formData: FormData)
     try {
       const arrayBuf = await file.arrayBuffer()
       const buffer = Buffer.from(arrayBuf)
-      const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
+      const cleanFileName = file.name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9._-]/g, "_")
       storagePath = `medical/${employeeId}/${Date.now()}_${cleanFileName}`
 
       let { error: uploadError } = await supabase.storage
@@ -421,7 +424,11 @@ export async function fileMedicalExaminationAction(orvosiId: string, employeeId:
     const { generateMedicalPdfBuffer } = await import("@/utils/hr/medical-sheet-pdf-generator")
     const { buffer, fileName } = await generateMedicalPdfBuffer(supabase, orvosiId)
 
-    storagePath = `medical/${employeeId}/${Date.now()}_${fileName}`
+    const cleanFileName = fileName
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+    storagePath = `medical/${employeeId}/${Date.now()}_${cleanFileName}`
 
     let { error: uploadError } = await supabase.storage
       .from("irat_files")

@@ -64,11 +64,32 @@ export async function fetchMedicalExaminationData(
   const employeeId = orvosi.dolgozo_id
 
   // Dolgozó alapadatok lekérése
+  let profileData: { id?: string; nev?: string; email?: string } | null = null
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
     .select("id, nev, email")
     .eq("id", employeeId)
-    .single()
+    .maybeSingle()
+
+  profileData = profile
+
+  if (!profileData?.nev && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+      const adminClient = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+      const { data: adminProfile } = await adminClient
+        .from("felhasznalo_profil")
+        .select("id, nev, email")
+        .eq("id", employeeId)
+        .maybeSingle()
+      if (adminProfile) profileData = adminProfile
+    } catch (e) {
+      console.warn("Nem sikerült admin klienssel profilt lekérni:", e)
+    }
+  }
 
   const { data: adatlap } = await supabase
     .from("hr_dolgozo_adatlap")
@@ -115,7 +136,7 @@ export async function fetchMedicalExaminationData(
     // Ha nem elérhető, maszkolt marad
   }
 
-  const employeeName = profile?.nev || "Munkavállaló"
+  const employeeName = profileData?.nev || "Munkavállaló"
   const szuletesiDatum = adatlap?.szuletesi_ido
     ? new Date(adatlap.szuletesi_ido).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })
     : "Nyilvántartásban rögzítve"
@@ -506,8 +527,11 @@ export async function generateMedicalPdfBuffer(
   })
   await browser.close()
 
-  const safeName = data.employeeName.replace(/[^a-zA-Z0-9áéíóöőúüűÁÉÍÓÖŐÚÜŰ]/g, "_")
-  const fileName = `Orvosi_Alkalmassagi_Velemeny_${safeName}_${data.id.slice(0, 6)}.pdf`
+  const asciiName = (data.employeeName || "Munkavallalo")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+  const fileName = `Orvosi_Alkalmassagi_Velemeny_${asciiName || "Munkavallalo"}_${data.id.slice(0, 6)}.pdf`
 
   return {
     buffer: Buffer.from(pdfBuffer),
