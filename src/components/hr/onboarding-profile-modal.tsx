@@ -56,6 +56,7 @@ import {
 } from "@/app/hr/onboarding/actions"
 import { AssetHandoverPanel } from "@/components/hr/asset-handover-panel"
 import { SafetyTrainingPanel } from "@/components/hr/safety-training-panel"
+import { EmploymentContractPanel } from "@/components/hr/employment-contract-panel"
 import { toast } from "sonner"
 import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
 
@@ -66,7 +67,7 @@ interface OnboardingProfileModalProps {
 }
 
 export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog }: OnboardingProfileModalProps) {
-  const [activeModalTab, setActiveModalTab] = useState<"teendok" | "eszkozok" | "munkavedelem">("teendok")
+  const [activeModalTab, setActiveModalTab] = useState<"teendok" | "szerzodes" | "eszkozok" | "munkavedelem">("teendok")
   const [newTaskName, setNewTaskName] = useState("")
   const [newTaskResp, setNewTaskResp] = useState("HR")
   const [isAdding, setIsAdding] = useState(false)
@@ -295,6 +296,19 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
 
         <button
           type="button"
+          onClick={() => setActiveModalTab("szerzodes")}
+          className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeModalTab === "szerzodes"
+              ? "border-primary text-primary bg-background/60"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/30"
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          Munkaszerződés (Mt. 42. §)
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveModalTab("eszkozok")}
           className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             activeModalTab === "eszkozok"
@@ -322,7 +336,26 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
 
       {/* 3. Görgethető Tartalom */}
       <div className="p-6 space-y-6 overflow-y-auto flex-1">
-        {activeModalTab === "eszkozok" ? (
+        {activeModalTab === "szerzodes" ? (
+          <EmploymentContractPanel
+            employeeName={onboarding.nev}
+            dolgozoId={onboarding.dolgozo_id}
+            onboardingId={onboarding.id}
+            munkakor={onboarding.munkakor}
+            reszleg={onboarding.reszleg}
+            belepesDatuma={onboarding.belepes_datuma}
+            onBack={() => setActiveModalTab("teendok")}
+            onSuccess={() => {
+              const contractTask = onboarding.hr_onboarding_feladat?.find(t => 
+                (t.cim || "").toLowerCase().includes("munkaszerződés") ||
+                (t.cim || "").toLowerCase().includes("szerződés")
+              )
+              if (contractTask && contractTask.statusz !== 'done') {
+                handleToggleTask(contractTask.id, contractTask.statusz)
+              }
+            }}
+          />
+        ) : activeModalTab === "eszkozok" ? (
           <AssetHandoverPanel
             employeeName={onboarding.nev}
             dolgozoId={onboarding.dolgozo_id}
@@ -558,6 +591,19 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {((task.cim || "").toLowerCase().includes("munkaszerződés") ||
+                        (task.cim || "").toLowerCase().includes("szerződés")) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10 shadow-2xs"
+                          onClick={() => setActiveModalTab("szerzodes")}
+                        >
+                          <FileText className="w-3 h-3" /> Szerződés előkészítése
+                        </Button>
+                      )}
+
                       {((task.cim || "").toLowerCase().includes("eszköz") ||
                         (task.cim || "").toLowerCase().includes("laptop") ||
                         (task.cim || "").toLowerCase().includes("telefon") ||

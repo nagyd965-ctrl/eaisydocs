@@ -320,8 +320,59 @@ export async function activateOnboardingAccount(onboardingId: string) {
         })
       }
     }
+
+    // Kapcsolódó munkaszerződések összekötése, adatlap szinkronizáció és iktatása
+    await adminClient
+      .from("hr_munkaszerzodes")
+      .update({ dolgozo_id: finalUserId })
+      .eq("onboarding_id", onboardingId)
+
+    const { data: contractRecords } = await adminClient
+      .from("hr_munkaszerzodes")
+      .select("*")
+      .eq("onboarding_id", onboardingId)
+      .order("created_at", { ascending: false })
+
+    if (contractRecords && contractRecords.length > 0) {
+      const latestContract = contractRecords[0]
+      // Szinkronizáljuk a munkaszerződés adatait a dolgozói adatlapra
+      await adminClient
+        .from("hr_dolgozo_adatlap")
+        .update({
+          belepes_datuma: latestContract.kezdes_datuma,
+          lakcim: latestContract.lakcim || undefined,
+          szuletesi_ido: latestContract.szuletesi_datum || undefined,
+          anyja_neve: latestContract.anyja_neve || undefined
+        })
+        .eq("id", finalUserId)
+
+      // Iktatás a személyi dossziéba
+      const contractDocIds = Array.from(new Set(contractRecords.map((r: any) => r.dokumentum_id).filter(Boolean)))
+      for (const docId of contractDocIds) {
+        await adminClient
+          .from("hr_dokumentum")
+          .update({ dolgozo_id: finalUserId })
+          .eq("id", docId)
+
+        const { data: docData } = await adminClient
+          .from("hr_dokumentum")
+          .select("iktatoszam, nev")
+          .eq("id", docId)
+          .single()
+
+        if (docData && !docData.iktatoszam) {
+          const { executeHrDocumentFiling } = await import("@/utils/hr-filing-bridge")
+          await executeHrDocumentFiling(adminClient, {
+            documentId: docId as string,
+            employeeId: finalUserId,
+            customTargy: docData.nev,
+            currentUserId: user.id
+          })
+        }
+      }
+    }
   } catch (err) {
-    console.error("Hiba az eszközök, munkavédelem és dokumentumok összekötésekor:", err)
+    console.error("Hiba az eszközök, munkavédelem, szerződés és dokumentumok összekötésekor:", err)
   }
 
   // Audit napló

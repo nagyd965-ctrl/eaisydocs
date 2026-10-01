@@ -44,8 +44,9 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-034](./P-034-onboarding-lifecycle-redesign-and-activation-ux.md) | 2026-10-01 | Megújított Onboarding Folyamat, Kétlépcsős Fiókaktiválás és Letisztult UX | `[HR]` | `HR / Onboarding` | `src/app/hr/onboarding/*`, `onboarding-list.tsx`, `onboarding-card.tsx`, `onboarding-profile-modal.tsx` |
 | [P-035](./P-035-onboarding-manual-intake-and-asset-handover-ux.md) | 2026-10-01 | Közvetlen Beléptetés Indítás és Munkahelyi Eszközfelelősségi Jegyzőkönyv (Mt. 179. §) UX | `[HR]` | `HR / Onboarding & Assets` | `add-onboarding-dialog.tsx`, `asset-handover-dialog.tsx`, `asset-actions.ts`, `asset-handover-pdf-generator.ts` |
 | [P-036](./P-036-occupational-safety-and-fire-training-protocol-ux.md) | 2026-10-01 | Munkavédelmi és Tűzvédelmi Oktatási Jegyzőkönyv (Mvt. 55. §, Ttv. 22. §) és Onboarding Iktatás UX | `[HR]` | `HR / Safety & Onboarding` | `safety-training-dialog.tsx`, `safety-training-actions.ts`, `safety-training-pdf-generator.ts`, `MedicalTab.tsx` |
+| [P-037](./P-037-onboarding-employment-contract-generator-and-filing-ux.md) | 2026-10-01 | Onboarding Munkaszerződés Előkészítés, Generálás (Mt. 42–45. §) és Személyi Dosszié Iktatás UX | `[HR]` | `HR / Contracts & Onboarding` | `employment-contract-panel.tsx`, `employment-contract-actions.ts`, `employment-contract-pdf-generator.ts`, `onboarding-profile-modal.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-036`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-037`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!

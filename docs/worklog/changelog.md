@@ -6,6 +6,24 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-01)
 
+### 📜 Onboarding Munkaszerződés Előkészítés, Generálás (Mt. 42–45. §) & Személyi Dosszié Iktatás UX
+- **Hivatalos Mt. 42–45. § Munkaszerződés Generátor (`employment-contract-pdf-generator.ts`, `employment-contract-actions.ts`):**
+  - Törvényi előírásoknak megfelelő, kétoldalú A4 PDF munkaszerződés előállítása Puppeteerrel.
+  - Tartalmazza a kötelező tartalmi elemeket: munkakör, kezdőnap, szerződés jellege (határozatlan / határozott lejárattal), munkaidő (teljes 8 óra / részmunkaidő napi órákkal), bruttó havi alapbér (számmal és betűvel kiírva), próbaidő (max 3 hónap), munkavégzés helye és távmunka megállapodás.
+  - Munkavállaló személyi és azonosító adatai: születési hely és idő, anyja neve, lakcím, adóazonosító jel, TAJ szám, bankszámlaszám.
+  - Fejlécben vállalati adatok és eaisyDocs iktatási pecsét (`1.2 - Munkaviszony létesítése iratok`, kötelező 50 éves megőrzési idő az 1997. évi LXXXI. tv. alapján).
+- **Kétlépcsős Pre-onboarding és Fiókaktiválási Életciklus:**
+  - Amíg a belépő munkavállaló még nem rendelkezik éles felhasználói fiókkal, a szerződés PDF tervezetként előkészíthető és letárolható a folyamatban (letölthető, kinyomtatható a belépéskori fizikai aláíráshoz).
+  - A kapcsolódó onboarding feladat (*„Munkaszerződés előkészítése & aláírása”*) a tervezet előállításakor **automatikusan készre (done) pipálódik**.
+  - Amint a HR aktiválja a fiókot az Onboarding modálban, a rendszer a szerződésben szereplő adatokat (belépés dátuma, lakcím, születési adatok, anyja neve) szinkronizálja a dolgozói adatlapra, és a munkaszerződést **automatikusan beiktatja az újonnan megnyíló eaisyDocs Személyi Dossziéba** (`1.2` irattári tétel, 50 év megőrzés).
+- **Beágyazott Fül az Onboarding Modálban (`OnboardingProfileModal.tsx`, `EmploymentContractPanel.tsx`):**
+  - **Megszüntetett „popup a popupban”:** Negyedik egyenrangú fülként (`Munkaszerződés (Mt. 42. §)`) került integrálásra az Onboarding modálba.
+  - Az onboarding teendőlistában a szerződéskötési feladat mellett elhelyezett **`[Szerződés előkészítése]`** gomb közvetlenül a beágyazott fülre vált át, visszagombbal a teendőkhöz.
+  - Egységes akciókártya az eszközökhöz és munkavédelemhez hasonlóan: *Megtekintés*, *Letöltés*, *Aláírt példány feltöltése* (`UploadSignedDocumentDialog`), valamint aktív profil esetén *Iktatás*.
+- **Adatbázis Migráció (`20261001000010_hr_munkaszerzodes.sql`):**
+  - Dedikált tábla a munkaszerződés rekordok nyilvántartására, RLS szabályok HR és Admin hozzáféréssel.
+- **Döntési háttér:** [PRD P-037](../product/decisions/P-037-onboarding-employment-contract-generator-and-filing-ux.md).
+
 ### 🦺 Munkavédelmi és Tűzvédelmi Oktatási Jegyzőkönyv (Mvt. 55. §, Ttv. 22. §) & Onboarding Iktatás UX
 - **Hivatalos Oktatási Jegyzőkönyv Generátor (`safety-training-pdf-generator.ts`, `safety-training-actions.ts`):**
   - Puppeteer PDF generálás a munkavédelemről szóló 1993. évi XCIII. tv. (Mvt.) 55. § és a tűzvédelemről szóló 1996. évi XXXI. tv. (Ttv.) 22. § alapján.
