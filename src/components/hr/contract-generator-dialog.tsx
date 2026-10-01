@@ -207,7 +207,7 @@ export function ContractGeneratorDialog({
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Közvetlen felettes vezető:</p>
-                  <p className="font-medium">{vezetoNev || "HR Vezető / Ügyvezető"}</p>
+                  <p className="font-medium min-h-[1.25rem]">{vezetoNev || ""}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Munkaviszony kezdete:</p>

@@ -93,8 +93,19 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       .from("felhasznalo_profil")
       .select("nev")
       .eq("id", profile.kozvetlen_vezeto_id)
-      .single()
-    if (vData) vezetoNev = vData.nev
+      .maybeSingle()
+    if (vData?.nev) {
+      vezetoNev = vData.nev
+    } else {
+      const { data: aData } = await supabase
+        .from("hr_dolgozo_adatlap")
+        .select("felhasznalo_profil(nev)")
+        .eq("id", profile.kozvetlen_vezeto_id)
+        .maybeSingle()
+      if (aData?.felhasznalo_profil) {
+        vezetoNev = (aData.felhasznalo_profil as any).nev || ""
+      }
+    }
   }
 
   const { data: hrDocumentsList } = await supabase
