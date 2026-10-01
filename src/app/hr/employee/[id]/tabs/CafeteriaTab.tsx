@@ -6,10 +6,37 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { Coffee, Settings, FileText, CheckCircle2, RotateCcw } from "lucide-react"
-import { setCafeteriaBudget, reopenCafeteriaDeclaration } from "@/app/hr/cafeteria-actions"
+import { Badge } from "@/components/ui/badge"
+import { 
+  Coffee, 
+  Settings, 
+  FileText, 
+  CheckCircle2, 
+  RotateCcw, 
+  Eye, 
+  Download, 
+  Archive, 
+  Loader2, 
+  ExternalLink 
+} from "lucide-react"
+import { 
+  setCafeteriaBudget, 
+  reopenCafeteriaDeclaration, 
+  fileCafeteriaDeclarationAction 
+} from "@/app/hr/cafeteria-actions"
 import { toast } from "sonner"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
+} from "@/components/ui/alert-dialog"
+import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 
 export function CafeteriaTab({ 
   employeeId, 
@@ -26,10 +53,12 @@ export function CafeteriaTab({
 }) {
   const [loading, setLoading] = useState(false)
   const [reopenLoading, setReopenLoading] = useState(false)
+  const [filing, setFiling] = useState(false)
   const [budgetAmount, setBudgetAmount] = useState<string>(budgetData?.osszeg?.toString() || "")
   
   const budget = budgetData?.osszeg || 0
   const isClosed = budgetData?.nyilatkozat_lezarva || false
+  const iktatoszam = budgetData?.iktatoszam || null
   const totalUsed = choices.reduce((sum, c) => sum + c.levont_keret_osszeg, 0)
   const remaining = budget - totalUsed
 
@@ -60,6 +89,22 @@ export function CafeteriaTab({
       toast.error(result.error)
     } else {
       toast.success("Nyilatkozat sikeresen újranyitva!")
+    }
+  }
+
+  const handleFile = async () => {
+    setFiling(true)
+    try {
+      const res = await fileCafeteriaDeclarationAction(employeeId, year)
+      if (res.success) {
+        toast.success(`Cafeteria nyilatkozat sikeresen beiktatva! Iktatószám: ${res.iktatoszam}`)
+      } else {
+        toast.error(res.error || "Hiba az iktatás során")
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Nem sikerült az iktatás")
+    } finally {
+      setFiling(false)
     }
   }
 
@@ -117,47 +162,120 @@ export function CafeteriaTab({
         {/* Jobb oldal: Dolgozó nyilatkozata */}
         <Card className="border border-border/50">
           <CardHeader>
-            <div className="flex justify-between items-start">
+            <div className="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-start">
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-primary" /> Leadott Nyilatkozat
                 </CardTitle>
-                <CardDescription className="mt-1.5">
-                  {isClosed 
-                    ? <span className="flex items-center gap-1 text-success"><CheckCircle2 className="w-4 h-4"/> A dolgozó véglegesítette a nyilatkozatát.</span>
-                    : <span className="text-warning">A dolgozó még nem adta le a nyilatkozatot.</span>
-                  }
-                </CardDescription>
+                <div className="mt-1.5 space-y-1">
+                  {isClosed ? (
+                    <>
+                      <div className="flex items-center gap-1.5 text-xs text-success font-medium">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>A dolgozó véglegesítette a nyilatkozatát.</span>
+                      </div>
+                      {iktatoszam && (
+                        <div className="flex items-center gap-2 pt-0.5">
+                          <Badge variant="outline" className="bg-success/10 text-success border-success/30 font-mono text-xs flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Iktatva: {iktatoszam}
+                          </Badge>
+                          <a 
+                            href={`/documents?search=${encodeURIComponent(iktatoszam)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-primary hover:underline inline-flex items-center gap-0.5"
+                            title="Megnyitás az eaisyDocs személyi dossziéban"
+                          >
+                            <span>Dosszié megnyitása</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-xs text-warning">A dolgozó még nem adta le a nyilatkozatot.</span>
+                  )}
+                </div>
               </div>
+
               {isClosed && (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {/* 1. In-browser Megtekintés modalban */}
+                  <PdfViewerDialog
+                    url={`/api/hr/cafeteria-pdf?employeeId=${employeeId}&year=${year}&preview=true`}
+                    title={`Cafeteria Nyilatkozat (${year})`}
+                    trigger={
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="gap-1.5 text-primary border-primary/30 hover:bg-primary/10 h-8"
+                        title="Nyilatkozat megtekintése a böngészőben"
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>Megtekintés</span>
+                      </Button>
+                    }
+                  />
+
+                  {/* 2. Közvetlen Letöltés */}
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="gap-1.5 h-8 text-muted-foreground hover:text-foreground"
+                    onClick={() => window.open(`/api/hr/cafeteria-pdf?employeeId=${employeeId}&year=${year}&download=true`, '_blank')}
+                    title="PDF letöltése közvetlenül lemezre"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Letöltés</span>
+                  </Button>
+
+                  {/* 3. Iktatás az eaisyDocs-ba (ha még nincs iktatva) */}
+                  {!iktatoszam ? (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="gap-1.5 h-8 bg-primary text-primary-foreground hover:bg-primary/90"
+                      onClick={handleFile}
+                      disabled={filing}
+                      title="Hivatalos iktatás a dolgozó személyi dossziéjába (50 év megőrzés, bizalmas)"
+                    >
+                      {filing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+                      <span>{filing ? "Iktatás..." : "Iktatás"}</span>
+                    </Button>
+                  ) : null}
+
+                  {/* 4. Újranyitás */}
                   <AlertDialog>
-                    <AlertDialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-warning/30 bg-transparent hover:bg-warning/10 text-warning h-8 px-3" disabled={reopenLoading}>
-                      <RotateCcw className="w-4 h-4 mr-2" /> Újranyítás
+                    <AlertDialogTrigger 
+                      className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-warning/30 bg-transparent hover:bg-warning/10 text-warning h-8 px-2.5" 
+                      disabled={reopenLoading}
+                      title="Nyilatkozat újranyitása módosításhoz"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 mr-1" /> Újranyitás
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Nyilatkozat újranyítása (Év közbeni módosítás)</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Biztosan újranyitod a dolgozó nyilatkozatát? Ezzel a korábbi (már lezárt és esetleg bérszámfejtés) nyilatkozat érvényét veszti, a dolgozónak újat kell leadnia, amilől új PDF fog készülni.
+                        <AlertDialogTitle>Nyilatkozat újranyitása (Év közbeni módosítás)</AlertDialogTitle>
+                        <AlertDialogDescription className="space-y-2">
+                          <p>
+                            Biztosan újranyitod a dolgozó nyilatkozatát? Ezzel a dolgozó újra módosíthatja és beküldheti a cafeteria választásait.
+                          </p>
+                          {iktatoszam && (
+                            <div className="p-3 bg-muted/60 border rounded-md text-xs text-foreground font-medium">
+                              ⚠️ <strong>Levéltári figyelem:</strong> Ez a nyilatkozat már hivatalosan be lett iktatva a személyi dossziéba (<strong>{iktatoszam}</strong>). A korábbi iktatott irat megőrzött archívumként megmarad, és az új nyilatkozat leadásakor új iratként iktatható.
+                            </div>
+                          )}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Mégse</AlertDialogCancel>
                         <AlertDialogAction onClick={handleReopen} className="bg-warning hover:bg-warning/90 text-warning-foreground">
-                          Igen, Újranyítás
+                          Igen, Újranyitás
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
-                  
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => window.open(`/api/hr/cafeteria-pdf?employeeId=${employeeId}&year=${year}`, '_blank')}
-                  >
-                    <FileText className="w-4 h-4 mr-2" /> PDF letöltése
-                  </Button>
                 </div>
               )}
             </div>
@@ -178,7 +296,7 @@ export function CafeteriaTab({
                       {choices.map((c) => {
                         const item = catalog.find(k => k.id === c.katalogus_elem_id)
                         return (
-                          <tr key={c.id} className="border-b last:border-0">
+                          <tr key={c.id} className="border-b last:border-0 hover:bg-muted/10 transition-colors">
                             <td className="p-4 font-medium">{item?.nev || "Ismeretlen elem"}</td>
                             <td className="p-4 text-right">{formatFt(c.kert_osszeg)}</td>
                             <td className="p-4 text-right text-muted-foreground font-medium">{formatFt(c.levont_keret_osszeg)}</td>
@@ -190,7 +308,7 @@ export function CafeteriaTab({
                 </div>
                 <div className="flex justify-between p-3 bg-muted rounded-md font-semibold mt-4 text-sm">
                   <span>Összesen levont:</span>
-                  <span>{formatFt(totalUsed)}</span>
+                  <span className="text-primary">{formatFt(totalUsed)}</span>
                 </div>
               </div>
             ) : (

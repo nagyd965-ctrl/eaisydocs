@@ -6,9 +6,11 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { Coffee, CheckCircle2, AlertCircle, Trash2, Plus } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Coffee, CheckCircle2, AlertCircle, Trash2, Plus, Eye, Download } from "lucide-react"
 import { submitCafeteriaDeclaration } from "@/app/hr/cafeteria-actions"
 import { toast } from "sonner"
+import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,14 +50,16 @@ export function CafeteriaDeclaration({
   budget, 
   isClosed, 
   catalog,
-  existingChoices 
+  existingChoices,
+  iktatoszam
 }: { 
   employeeId: string, 
   year: number, 
   budget: number, 
   isClosed: boolean,
   catalog: CatalogItem[],
-  existingChoices: ExistingCafeteriaChoice[]
+  existingChoices: ExistingCafeteriaChoice[],
+  iktatoszam?: string | null
 }) {
   const [choices, setChoices] = useState<DeclarationChoice[]>(
     existingChoices.map(c => ({
@@ -138,12 +142,49 @@ export function CafeteriaDeclaration({
 
   if (isClosed) {
     return (
-      <Card className="border-green-200 bg-green-50/30">
+      <Card className="border-green-200 bg-green-50/20 dark:bg-green-950/10">
         <CardHeader>
-          <CardTitle className="text-green-800 flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5" /> Cafeteria Nyilatkozat ({year}) - Leadva
-          </CardTitle>
-          <CardDescription>Erre az évre már leadtad és véglegesítetted a nyilatkozatodat.</CardDescription>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="text-green-800 dark:text-green-400 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-success" /> Cafeteria Nyilatkozat ({year}) – Leadva
+              </CardTitle>
+              <CardDescription className="mt-1">
+                Erre az évre már leadtad és véglegesítetted a nyilatkozatodat.
+              </CardDescription>
+              {iktatoszam && (
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge variant="outline" className="bg-success/10 text-success border-success/30 font-mono text-xs flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Iktatva: {iktatoszam}
+                  </Badge>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <PdfViewerDialog
+                url={`/api/hr/cafeteria-pdf?employeeId=${employeeId}&year=${year}&preview=true`}
+                title={`Cafeteria Nyilatkozat (${year})`}
+                trigger={
+                  <Button variant="outline" size="sm" className="gap-1.5 text-primary border-primary/30 hover:bg-primary/10 h-8">
+                    <Eye className="w-4 h-4" />
+                    <span>Megtekintés</span>
+                  </Button>
+                }
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-8 text-muted-foreground hover:text-foreground"
+                onClick={() => window.open(`/api/hr/cafeteria-pdf?employeeId=${employeeId}&year=${year}&download=true`, '_blank')}
+                title="Nyilatkozat letöltése (PDF)"
+              >
+                <Download className="w-4 h-4" />
+                <span>Letöltés</span>
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -158,7 +199,7 @@ export function CafeteriaDeclaration({
             })}
             <div className="flex justify-between p-3 bg-muted rounded-md font-semibold mt-4 text-sm">
               <span>Felhasznált keret összesen:</span>
-              <span>{formatFt(existingChoices.reduce((s, c) => s + c.levont_keret_osszeg, 0))}</span>
+              <span className="text-primary">{formatFt(existingChoices.reduce((s, c) => s + c.levont_keret_osszeg, 0))}</span>
             </div>
           </div>
         </CardContent>

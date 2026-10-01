@@ -53,6 +53,7 @@ export default async function SelfServiceBenefitsPage() {
             isClosed={cafeteriaKeret.nyilatkozat_lezarva}
             catalog={cafeteriaKatalogus || []}
             existingChoices={cafeteriaValasztasok || []}
+            iktatoszam={cafeteriaKeret.iktatoszam}
           />
         ) : (
           <Card className="border shadow-sm">

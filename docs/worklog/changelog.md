@@ -6,6 +6,24 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-01)
 
+### ☕ Cafeteria Nyilatkozat In-Browser Megtekintés, Letöltés és eaisyDocs Iktatás UX
+- **Közvetlen In-Browser Megtekintés (`PdfViewerDialog`):**
+  - Mind a HR dolgozói adatlapon (`CafeteriaTab.tsx`), mind a dolgozói önkiszolgáló portálon (`CafeteriaDeclaration.tsx`) bevezetésre került a felugró, böngészőn belüli hivatalos PDF megtekintő (Eye ikon).
+  - Az `/api/hr/cafeteria-pdf` végpont immár támogatja a `preview=true` (inline) és `download=true` (attachment) paramétereket.
+- **Hivatalos Szja tv. 71. § szerinti Cafeteria Nyilatkozat Generátor (`cafeteria-pdf-generator.ts`):**
+  - A4-es, nyomdai minőségű hivatalos dokumentum munkavállalói és céges adatokkal, keretgazdálkodási metrikákkal (300.000 Ft éves keret, felhasznált keret, kihasználtság %).
+  - Részletes választási táblázat elemenként (SZÉP Kártya, Egészségpénztár, Helyi bérlet stb.), alkalmazott adó/költségszorzókkal és bruttó levonásokkal.
+  - Törvényi munkavállalói jognyilatkozat és kétoldalú munkavállaló/munkáltató aláírási zóna.
+- **eaisyDocs Személyi Dosszié Iktatás (`fileCafeteriaDeclarationAction`):**
+  - Egykattintásos hivatalos iktatás a dolgozó eaisyDocs személyi dossziéjába (`HR/ÉÉÉÉ/SORSZÁM/ALSZÁM`).
+  - `3.1 - HR és Munkaügyi iratok` besorolás 50 év megőrzési idővel, szigorúan `bizalmas` minősítéssel.
+  - Iktatás után zöld státuszjelvény (`Iktatva: HR/...`) közvetlen hivatkozással a személyi dossziéra.
+- **Levéltári Védelemmel Ellátott Újranyitás:**
+  - Év közbeni módosítás esetén az újranyitási modál figyelmezteti a HR-est, hogy a korábban beiktatott példány megőrzött jogi archívum marad, és az új leadás új iktatási alszámot kap.
+- **Adatbázis Migráció (`20261001000002_hr_cafeteria_filing.sql`):**
+  - `hr_cafeteria_keret` kibővítése `dokumentum_id`, `fajl_url`, `iktatoszam`, `ugyirat_id`, `irat_id`, `lezaras_datuma` oszlopokkal és indexekkel.
+- **Döntési háttér:** [PRD P-029](../product/decisions/P-029-cafeteria-declaration-filing-and-preview-ux.md).
+
 ### 🩺 Foglalkozás-egészségügyi Alkalmassági Vizsgálatok Dokumentumkezelése és Érvényesség UX
 - **Érvényesség Számítási Hiba Javítása (`/hr/self-service/profile`):**
   - Kijavítva a korábbi anomália, ahol a múltbeli lejárati dátumok (pl. `2025. október 10.`) hibásan „Hamarosan lejár” figyelmeztetésként jelentek meg.

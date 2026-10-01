@@ -36,8 +36,9 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-026](./P-026-hr-document-templates-and-lifecycle-filing-roadmap.md) | 2026-10-01 | Munkavállalói Életciklus Dokumentumsablonok és Iratkezelési Terv | `[Közös]` | `HR / Lifecycle Templates` | `src/components/hr/*`, `src/utils/hr-filing-bridge.ts` |
 | [P-027](./P-027-annual-leave-sheet-and-leave-certificates-ux.md) | 2026-10-01 | Hivatalos Éves Szabadság-nyilvántartó Lap (Mt. 134. §) és Távolléti Igazolások Kezelése | `[HR]` | `HR / Leave & Filing` | `src/utils/hr/annual-leave-pdf-generator.ts`, `LeaveTab.tsx`, `leave-history-list.tsx` |
 | [P-028](./P-028-occupational-health-examination-filing-and-validity-ux.md) | 2026-10-01 | Foglalkozás-egészségügyi Alkalmassági Vizsgálatok Dokumentumkezelése és Érvényesség UX | `[HR]` | `HR / Medical & Filing` | `MedicalTab.tsx`, `medical-sheet-pdf-generator.ts`, `src/app/api/hr/medical-pdf` |
+| [P-029](./P-029-cafeteria-declaration-filing-and-preview-ux.md) | 2026-10-01 | Cafeteria Nyilatkozat In-Browser Megtekintés, Letöltés és eaisyDocs Iktatás UX | `[HR]` | `HR / Cafeteria & Filing` | `CafeteriaTab.tsx`, `cafeteria-declaration.tsx`, `cafeteria-pdf-generator.ts` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-029`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-030`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
