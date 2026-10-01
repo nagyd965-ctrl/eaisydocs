@@ -6,6 +6,28 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-01)
 
+### 💻 Munkahelyi Eszközök és Átadás-Átvételi Jegyzőkönyv (Mt. 179. §) & Beépített Onboarding Fül UX
+- **Integrált Modál Fül Nézet (`OnboardingProfileModal.tsx`, `AssetHandoverPanel.tsx`):**
+  - A korábbi zavaró, egymásba ágyazódó felugró ablakok ("popup a popupban") helyett az Onboarding profil modálban natív füles navigáció készült: `Onboarding Teendők` és `Munkahelyi Eszközök & Jkv (Mt. 179. §)`.
+  - Tételes eszközkezelés (IT laptop/PC, telekommunikáció mobil/SIM, irodai kulcs/belépőkártya, gépkocsi, egyéb munkaeszköz) gyári számmal/IMEI-vel, tartozékokkal és fizikai állapottal.
+  - Gyors sablon gombok: `+ Laptop`, `+ Telefon`, `+ Belépőkártya` azonnali 1-kattintásos felvitelhez.
+- **Hivatalos Átadás-Átvételi Jegyzőkönyv és Iktatás (`asset-actions.ts`, `asset-handover-pdf-generator.ts`):**
+  - Puppeteer PDF generálás az Mt. 179. § szerinti vétkességre tekintet nélküli leltár- és megőrzési felelősségvállalási záradékkal, felek adataival és visszaszolgáltatási kötelezettséggel.
+  - Automatikus eaisyDocs iktatás a személyi dossziéba az `Eszközfelelősség` kategória alá (3.3 tétel, 5 év megőrzési idő).
+  - Az onboarding folyamatban lévő eszközátadási feladat **automatikus készre pipálása** a jegyzőkönyv lezárásakor.
+- **Döntési háttér:** [PRD P-035](../product/decisions/P-035-onboarding-manual-intake-and-asset-handover-ux.md).
+
+### 🚀 Megújított Onboarding Folyamat, Kétlépcsős Fiókaktiválás és Közvetlen Beléptetés UX
+- **Kétlépcsős Fiókaktiválás és Duplikációvédelem (`onboarding-list.tsx`, `onboarding-card.tsx`, `onboarding-profile-modal.tsx`):**
+  - A toborzási kanbanból való átmozgatás szétválasztásra került: az azonnali auth fiók és e-mail helyett előkészületi onboarding rekord jön létre, megelőzve a duplikációkat.
+  - A tényleges eaisyHR fiókaktiválást és üdvözlő e-mail kiküldést a HR indítja el az Onboarding profil modálból, amikor a belépés esedékessé válik.
+  - Kétfülös navigáció: *Folyamatban lévő beléptetések* és *Lezárt beléptetések* különválasztása, beléptetés lezárása és újranyitása opciókkal.
+  - Felső statisztikai KPI kártyák (aktív belépők, aktiválásra várók, hamarosan kezdők, átlagos haladás).
+- **Közvetlen Manuális Beléptetés Sablonokkal (`add-onboarding-dialog.tsx`, `actions.ts`):**
+  - `[+ Új beléptetés indítása]` gomb a fejlécben, amely toborzási hirdetés nélkül teszi lehetővé új munkatárs indítását (pl. belső kinevezések, vezetők, ajánlások).
+  - Szerepkör-specifikus feladatsablonok: Általános irodai munkatárs, IT & Szoftverfejlesztő, Vezetői / C-Level, Fizikai / Operatív munkatárs.
+- **Döntési háttér:** [PRD P-034](../product/decisions/P-034-onboarding-lifecycle-redesign-and-activation-ux.md).
+
 ### ✍️ Hivatalos HR Dokumentumok Aláírt Példányának Csatolása és Verziókezelése UX
 - **Központi Aláírt Példány Kezelés a Hivatalos Dokumentumok Idővonalon (`page.tsx`, `UploadSignedDocumentDialog.tsx`):**
   - A *Munkaviszony & Szerződések* fül központi irat-idővonalán minden munkavállalói dokumentum közvetlen gombot kapott a beszkennelt, aláírt példány rögzítésére (`[Aláírt példány feltöltése]` ill. `[Aláírt példány cseréje]`).
