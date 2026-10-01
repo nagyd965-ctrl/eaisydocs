@@ -792,25 +792,32 @@ export async function fileAnnualLeaveSheet(employeeId: string, year: number) {
 
     // 2. Storage feltöltés
     const fileName = `eves_szabadsag_nyilvantartas_${year}_${Date.now()}.pdf`
-    const storagePath = `${employeeId}/${fileName}`
+    const storagePath = `annual_leaves/${employeeId}/${fileName}`
 
-    const { error: uploadError } = await supabase.storage
-      .from("hr-documents")
+    let { error: uploadError } = await supabase.storage
+      .from("irat_files")
       .upload(storagePath, buffer, {
         contentType: "application/pdf",
         upsert: true,
       })
 
     if (uploadError) {
-      if (uploadError.message?.includes("Bucket not found") || uploadError.message?.includes("not found")) {
-        await supabase.storage.createBucket("hr-documents", { public: false })
-        const { error: retryError } = await supabase.storage
-          .from("hr-documents")
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (serviceRoleKey) {
+        const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+        const supabaseAdmin = createSupabaseClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          serviceRoleKey
+        )
+        const { error: adminUploadError } = await supabaseAdmin.storage
+          .from("irat_files")
           .upload(storagePath, buffer, {
             contentType: "application/pdf",
             upsert: true,
           })
-        if (retryError) throw new Error("Storage feltöltési hiba: " + retryError.message)
+        if (adminUploadError) {
+          throw new Error("Storage feltöltési hiba: " + adminUploadError.message)
+        }
       } else {
         throw new Error("Storage feltöltési hiba: " + uploadError.message)
       }
