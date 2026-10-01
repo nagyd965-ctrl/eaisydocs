@@ -42,7 +42,8 @@ import {
   ShieldCheck,
   FileText,
   Laptop,
-  AlertTriangle
+  AlertTriangle,
+  HardHat
 } from "lucide-react"
 import { 
   addOnboardingTask, 
@@ -54,6 +55,7 @@ import {
   deleteOnboarding
 } from "@/app/hr/onboarding/actions"
 import { AssetHandoverPanel } from "@/components/hr/asset-handover-panel"
+import { SafetyTrainingDialog } from "@/components/hr/safety-training-dialog"
 import { toast } from "sonner"
 import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
 
@@ -232,6 +234,25 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
               <Laptop className="w-3.5 h-3.5 text-primary" />
               {activeModalTab === "eszkozok" ? "Teendők nézet" : "Eszközök & Jkv"}
             </Button>
+
+            <SafetyTrainingDialog
+              employeeName={onboarding.nev}
+              dolgozoId={onboarding.dolgozo_id}
+              onboardingId={onboarding.id}
+              munkakor={onboarding.munkakor}
+              reszleg={onboarding.reszleg}
+              triggerButton={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs font-medium text-teal-700 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/10"
+                >
+                  <HardHat className="w-3.5 h-3.5 text-teal-600" />
+                  Munkavédelmi Jkv
+                </Button>
+              }
+            />
 
             {isClosed ? (
               <Button variant="outline" size="sm" onClick={handleReopenOnboarding} className="gap-1.5 text-xs">
@@ -548,6 +569,33 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
                         >
                           <Laptop className="w-3 h-3" /> Eszközök átadása
                         </Button>
+                      )}
+
+                      {((task.cim || "").toLowerCase().includes("munkavédel") ||
+                        (task.cim || "").toLowerCase().includes("tűzvédel") ||
+                        (task.cim || "").toLowerCase().includes("ergonómi")) && (
+                        <SafetyTrainingDialog
+                          employeeName={onboarding.nev}
+                          dolgozoId={onboarding.dolgozo_id}
+                          onboardingId={onboarding.id}
+                          munkakor={onboarding.munkakor}
+                          reszleg={onboarding.reszleg}
+                          onSuccess={() => {
+                            if (!isTaskDone) {
+                              handleToggleTask(task.id, task.statusz)
+                            }
+                          }}
+                          triggerButton={
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs px-2 gap-1 text-teal-700 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/10 shadow-2xs"
+                            >
+                              <HardHat className="w-3 h-3 text-teal-600" /> Oktatási jkv.
+                            </Button>
+                          }
+                        />
                       )}
 
                       <Button 

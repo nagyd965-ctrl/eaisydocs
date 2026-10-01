@@ -6,6 +6,23 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-01)
 
+### 🦺 Munkavédelmi és Tűzvédelmi Oktatási Jegyzőkönyv (Mvt. 55. §, Ttv. 22. §) & Onboarding Iktatás UX
+- **Hivatalos Oktatási Jegyzőkönyv Generátor (`safety-training-pdf-generator.ts`, `safety-training-actions.ts`):**
+  - Puppeteer PDF generálás a munkavédelemről szóló 1993. évi XCIII. tv. (Mvt.) 55. § és a tűzvédelemről szóló 1996. évi XXXI. tv. (Ttv.) 22. § alapján.
+  - Fejlécben vállalati adatok és eaisyDocs iktatási pecsét (`3.4 - Munkavédelmi iratok`, 10 év megőrzési idő).
+  - 7 pontos szabványosított oktatási tematika (munkahelyi kockázatok, ergonómia 50/1999. EüM, baleset-elhárítás, tűzriadó és menekülés, kézi tűzoltó készülékek használata, villamos biztonság).
+  - Munkavállalói kifejezett elismerő és felelősségvállalási nyilatkozat, oktatói és dolgozói aláírási blokk.
+- **Kétlépcsős Pre-onboarding és Fiókaktiválási Életciklus:**
+  - Amíg a belépő munkatárs fiókja nincs aktiválva, a jegyzőkönyv „Generálás (PDF)” gombbal előkészíthető és letárolható az onboarding folyamatban (letölthető, kinyomtatható a munkába állás napján történő aláíráshoz).
+  - A kapcsolódó onboarding feladat (`Munkavédelmi és tűzvédelmi oktatás`) a jegyzőkönyv elkészültekor **automatikusan készre (done) pipálódik**.
+  - Amint a HR aktiválja a fiókot, a rendszer az előkészített jegyzőkönyvet automatikusan beiktatja az újonnan megnyíló eaisyDocs Személyi Dossziéba.
+- **Közvetlen UI Integráció (`SafetyTrainingDialog.tsx`, `OnboardingProfileModal.tsx`, `MedicalTab.tsx`):**
+  - Az Onboarding profil modál fejlécében és a feladatlistában közvetlen gomb a jegyzőkönyv kiállítására / megtekintésére.
+  - A Munkavállalói adatlapon a *Megfelelőség & Egészségügy* (`MedicalTab`) fülön is elérhető éves ismétlő vagy rendkívüli oktatás rögzítéséhez.
+- **Adatbázis Migráció (`20261001000009_hr_munkavedelmi_oktatas.sql`):**
+  - Dedikált tábla a munkavédelmi oktatások nyilvántartására, RLS szabályok Munkavédelmi felelős (`munkavedelmi`), HR és Admin hozzáféréssel.
+- **Döntési háttér:** [PRD P-036](../product/decisions/P-036-occupational-safety-and-fire-training-protocol-ux.md).
+
 ### 💻 Munkahelyi Eszközök és Átadás-Átvételi Jegyzőkönyv (Mt. 179. §) & Beépített Onboarding Fül UX
 - **Integrált Modál Fül Nézet (`OnboardingProfileModal.tsx`, `AssetHandoverPanel.tsx`):**
   - A korábbi zavaró, egymásba ágyazódó felugró ablakok ("popup a popupban") helyett az Onboarding profil modálban natív füles navigáció készült: `Onboarding Teendők` és `Munkahelyi Eszközök & Jkv (Mt. 179. §)`.

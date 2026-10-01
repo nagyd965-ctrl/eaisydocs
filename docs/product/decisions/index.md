@@ -43,6 +43,7 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-033](./P-033-signed-document-copy-upload-and-versioning-ux.md) | 2026-10-01 | Hivatalos HR Dokumentumok Aláírt Példányának Csatolása és Verziókezelése UX | `[HR]` | `HR / Signed Copy & Filing` | `UploadSignedDocumentDialog.tsx`, `page.tsx`, `actions.ts` |
 | [P-034](./P-034-onboarding-lifecycle-redesign-and-activation-ux.md) | 2026-10-01 | Megújított Onboarding Folyamat, Kétlépcsős Fiókaktiválás és Letisztult UX | `[HR]` | `HR / Onboarding` | `src/app/hr/onboarding/*`, `onboarding-list.tsx`, `onboarding-card.tsx`, `onboarding-profile-modal.tsx` |
 | [P-035](./P-035-onboarding-manual-intake-and-asset-handover-ux.md) | 2026-10-01 | Közvetlen Beléptetés Indítás és Munkahelyi Eszközfelelősségi Jegyzőkönyv (Mt. 179. §) UX | `[HR]` | `HR / Onboarding & Assets` | `add-onboarding-dialog.tsx`, `asset-handover-dialog.tsx`, `asset-actions.ts`, `asset-handover-pdf-generator.ts` |
+| [P-036](./P-036-occupational-safety-and-fire-training-protocol-ux.md) | 2026-10-01 | Munkavédelmi és Tűzvédelmi Oktatási Jegyzőkönyv (Mvt. 55. §, Ttv. 22. §) és Onboarding Iktatás UX | `[HR]` | `HR / Safety & Onboarding` | `safety-training-dialog.tsx`, `safety-training-actions.ts`, `safety-training-pdf-generator.ts`, `MedicalTab.tsx` |
 
 ---
 

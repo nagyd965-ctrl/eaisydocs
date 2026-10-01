@@ -544,6 +544,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                   </h2>
                   <MedicalTab 
                     employeeId={profile.id} 
+                    employeeName={profile.nev}
                     isHrOrAdmin={isHrOrAdmin} 
                     currentUserRole={currentUserProfile?.hr_szerepkor || "munkavallalo"}
                     initialData={adatlap?.hr_orvosi_vizsgalat || []} 
