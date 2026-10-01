@@ -214,6 +214,7 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
         adoazonosito_jel: params.adoazonositoJel || null,
         taj_szam: params.tajSzam || null,
         bankszamlaszam: params.bankszamlaszam || null,
+        reszleg: params.reszleg || null,
         dokumentum_id: newDoc.id
       })
       .select()
@@ -223,9 +224,19 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
       console.error("hr_munkaszerzodes insert error:", contractErr)
     }
 
-    // 6. Ha van onboarding feladat a munkaszerződésre, automatikusan készre állítjuk!
+    // 6. Ha van onboarding feladat a munkaszerződésre, automatikusan készre állítjuk és frissítjük az onboarding rekordot!
     if (params.onboardingId) {
       try {
+        // Frissítjük a belépési adatokat az onboarding rekordon is
+        await adminClient
+          .from("hr_onboarding")
+          .update({
+            munkakor: params.munkakor,
+            reszleg: params.reszleg || null,
+            belepes_datuma: params.kezdesDatuma
+          })
+          .eq("id", params.onboardingId)
+
         const { data: tasks } = await adminClient
           .from("hr_onboarding_feladat")
           .select("id, cim, statusz")

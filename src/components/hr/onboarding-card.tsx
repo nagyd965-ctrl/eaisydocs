@@ -18,14 +18,17 @@ import {
 } from "lucide-react"
 import { updateOnboardingDate } from "@/app/hr/onboarding/actions"
 import { OnboardingProfileModal } from "./onboarding-profile-modal"
+import type { OrgUnitOption, JobOption } from "@/app/hr/actions/job-org-actions"
 import { toast } from "sonner"
 import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
 
 interface OnboardingCardProps {
   onboarding: OnboardingProfile
+  orgUnits?: OrgUnitOption[]
+  jobs?: JobOption[]
 }
 
-export function OnboardingCard({ onboarding }: OnboardingCardProps) {
+export function OnboardingCard({ onboarding, orgUnits, jobs }: OnboardingCardProps) {
   const [open, setOpen] = useState(false)
 
   const tasks: OnboardingTask[] = onboarding.hr_onboarding_feladat || onboarding.tasks || []
@@ -112,7 +115,13 @@ export function OnboardingCard({ onboarding }: OnboardingCardProps) {
                 </CardTitle>
                 <CardDescription className="text-xs text-muted-foreground mt-0.5 truncate flex items-center gap-1.5">
                   <Briefcase className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                  {onboarding.munkakor || "Pozíció nincs megadva"}
+                  <span>{onboarding.munkakor || "Pozíció nincs megadva"}</span>
+                  {onboarding.reszleg && (
+                    <>
+                      <span className="opacity-40">•</span>
+                      <span className="font-medium text-foreground/80">{onboarding.reszleg}</span>
+                    </>
+                  )}
                 </CardDescription>
               </div>
             </div>
@@ -181,6 +190,8 @@ export function OnboardingCard({ onboarding }: OnboardingCardProps) {
 
       <OnboardingProfileModal 
         onboarding={onboarding} 
+        orgUnits={orgUnits}
+        jobs={jobs}
         onDateChange={handleDateChange} 
         onCloseDialog={() => setOpen(false)}
       />

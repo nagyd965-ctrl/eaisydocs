@@ -40,10 +40,20 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
 
   // Automatikus Onboarding profil létrehozása, ha "elfogadva" státuszba kerül (pre-onboarding)
   if (newStatus === "elfogadva") {
-    // 1. Lekérjük a jelölt nevét és pozícióját
+    // 1. Lekérjük a jelölt nevét, pozícióját és a munkakörhöz tartozó szervezeti egységet
     const { data: candidate, error: fetchErr } = await adminClient
       .from("hr_toborzas")
-      .select(`nev, email, megpalyazott_munkakor_id, hr_munkakor(megnevezes)`)
+      .select(`
+        nev, 
+        email, 
+        megpalyazott_munkakor_id, 
+        hr_munkakor (
+          id, 
+          megnevezes, 
+          szervezeti_egyseg_id,
+          hr_szervezeti_egyseg (id, nev)
+        )
+      `)
       .eq("id", candidateId)
       .single()
       
@@ -61,6 +71,7 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
 
       if (!existingOnboarding) {
         const munkakor = (candidate as any).hr_munkakor?.megnevezes || "Új munkatárs"
+        const reszleg = (candidate as any).hr_munkakor?.hr_szervezeti_egyseg?.nev || null
         
         // Létrehozzuk az Onboarding rekordot előkészületi ("varakozik") állapotban.
         // Fiók és e-mail még NEM készül, azt a HR indítja el az Onboarding felületen a belépés közeledtével.
@@ -70,6 +81,7 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
             toborzas_id: candidateId,
             nev: candidate.nev,
             munkakor: munkakor,
+            reszleg: reszleg,
             belepes_datuma: "Hamarosan",
             statusz: "folyamatban",
             fiok_allapot: "varakozik"

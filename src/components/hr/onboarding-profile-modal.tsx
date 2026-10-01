@@ -43,7 +43,8 @@ import {
   FileText,
   Laptop,
   AlertTriangle,
-  HardHat
+  HardHat,
+  Building2
 } from "lucide-react"
 import { 
   addOnboardingTask, 
@@ -58,15 +59,24 @@ import { AssetHandoverPanel } from "@/components/hr/asset-handover-panel"
 import { SafetyTrainingPanel } from "@/components/hr/safety-training-panel"
 import { EmploymentContractPanel } from "@/components/hr/employment-contract-panel"
 import { toast } from "sonner"
+import type { OrgUnitOption, JobOption } from "@/app/hr/actions/job-org-actions"
 import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
 
 interface OnboardingProfileModalProps {
   onboarding: OnboardingProfile
   onDateChange: (newDate: string) => void
   onCloseDialog?: () => void
+  orgUnits?: OrgUnitOption[]
+  jobs?: JobOption[]
 }
 
-export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog }: OnboardingProfileModalProps) {
+export function OnboardingProfileModal({ 
+  onboarding, 
+  onDateChange, 
+  onCloseDialog,
+  orgUnits,
+  jobs
+}: OnboardingProfileModalProps) {
   const [activeModalTab, setActiveModalTab] = useState<"teendok" | "szerzodes" | "eszkozok" | "munkavedelem">("teendok")
   const [newTaskName, setNewTaskName] = useState("")
   const [newTaskResp, setNewTaskResp] = useState("HR")
@@ -207,9 +217,20 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
                   </Badge>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
-                <Briefcase className="w-3.5 h-3.5" />
-                {onboarding.munkakor || "Pozíció nincs megadva"}
+              <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1.5">
+                  <Briefcase className="w-3.5 h-3.5" />
+                  {onboarding.munkakor || "Pozíció nincs megadva"}
+                </span>
+                {onboarding.reszleg && (
+                  <>
+                    <span>•</span>
+                    <span className="flex items-center gap-1.5 text-foreground/80 font-medium">
+                      <Building2 className="w-3.5 h-3.5 text-teal-600" />
+                      {onboarding.reszleg}
+                    </span>
+                  </>
+                )}
                 {candidateEmail && (
                   <>
                     <span>•</span>
@@ -344,6 +365,8 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
             munkakor={onboarding.munkakor}
             reszleg={onboarding.reszleg}
             belepesDatuma={onboarding.belepes_datuma}
+            orgUnits={orgUnits}
+            jobs={jobs}
             onBack={() => setActiveModalTab("teendok")}
             onSuccess={() => {
               const contractTask = onboarding.hr_onboarding_feladat?.find(t => 

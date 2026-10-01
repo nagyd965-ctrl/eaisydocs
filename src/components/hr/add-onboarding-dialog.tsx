@@ -16,10 +16,14 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UserPlus, Loader2, Sparkles, Briefcase, Calendar, Mail, Building2 } from "lucide-react"
 import { createManualOnboarding } from "@/app/hr/onboarding/actions"
+import { JobOrgSelector } from "@/components/hr/job-org-selector"
+import type { OrgUnitOption, JobOption } from "@/app/hr/actions/job-org-actions"
 import { toast } from "sonner"
 
 interface AddOnboardingDialogProps {
   triggerButton?: React.ReactNode
+  orgUnits?: OrgUnitOption[]
+  jobs?: JobOption[]
 }
 
 const TEMPLATES = [
@@ -45,13 +49,13 @@ const TEMPLATES = [
   },
 ]
 
-export function AddOnboardingDialog({ triggerButton }: AddOnboardingDialogProps) {
+export function AddOnboardingDialog({ triggerButton, orgUnits, jobs }: AddOnboardingDialogProps) {
   const [open, setOpen] = useState(false)
   const [nev, setNev] = useState("")
   const [email, setEmail] = useState("")
   const [munkakor, setMunkakor] = useState("")
   const [belepesDatuma, setBelepesDatuma] = useState("")
-  const [reszleg, setReszleg] = useState("Fejlesztés")
+  const [reszleg, setReszleg] = useState("")
   const [sablon, setSablon] = useState("altalanos")
   const [isLoading, setIsLoading] = useState(false)
 
@@ -160,41 +164,16 @@ export function AddOnboardingDialog({ triggerButton }: AddOnboardingDialogProps)
               </div>
             </div>
 
-            {/* Munkakör és Részleg */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="munkakor" className="text-xs font-semibold">
-                  Munkakör / Pozíció <span className="text-destructive">*</span>
-                </Label>
-                <div className="relative">
-                  <Briefcase className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="munkakor"
-                    placeholder="pl. Senior Frontend Fejlesztő"
-                    className="pl-9 h-9 text-sm"
-                    value={munkakor}
-                    onChange={(e) => setMunkakor(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="reszleg" className="text-xs font-semibold">
-                  Szervezeti Egység / Részleg
-                </Label>
-                <div className="relative">
-                  <Building2 className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="reszleg"
-                    placeholder="pl. Fejlesztés, HR, Értékesítés"
-                    className="pl-9 h-9 text-sm"
-                    value={reszleg}
-                    onChange={(e) => setReszleg(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
+            {/* Szervezeti Egység és Munkakör (Összekapcsolt Választó) */}
+            <JobOrgSelector
+              orgUnits={orgUnits}
+              jobs={jobs}
+              selectedOrgUnitName={reszleg}
+              selectedMunkakor={munkakor}
+              onOrgUnitChange={(orgName) => setReszleg(orgName)}
+              onMunkakorChange={(jobTitle) => setMunkakor(jobTitle)}
+              required
+            />
 
             {/* Tervezett belépési dátum */}
             <div className="space-y-1.5">

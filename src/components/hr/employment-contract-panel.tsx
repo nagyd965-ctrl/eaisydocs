@@ -29,6 +29,8 @@ import {
   generateAndFileEmploymentContractAction, 
   fileExistingEmploymentContractDocument 
 } from "@/app/hr/actions/employment-contract-actions"
+import { JobOrgSelector } from "@/components/hr/job-org-selector"
+import type { OrgUnitOption, JobOption } from "@/app/hr/actions/job-org-actions"
 
 export interface EmploymentContractPanelProps {
   employeeName: string
@@ -37,6 +39,8 @@ export interface EmploymentContractPanelProps {
   munkakor?: string | null
   reszleg?: string | null
   belepesDatuma?: string | null
+  orgUnits?: OrgUnitOption[]
+  jobs?: JobOption[]
   onSuccess?: () => void
   onBack?: () => void
 }
@@ -48,6 +52,8 @@ export function EmploymentContractPanel({
   munkakor: initialMunkakor,
   reszleg: initialReszleg,
   belepesDatuma,
+  orgUnits,
+  jobs,
   onSuccess,
   onBack
 }: EmploymentContractPanelProps) {
@@ -58,8 +64,8 @@ export function EmploymentContractPanel({
   const [existingDoc, setExistingDoc] = useState<any>(null)
 
   // Szerződés paraméterek
-  const [munkakor, setMunkakor] = useState(initialMunkakor || "Munkatárs")
-  const [reszleg, setReszleg] = useState(initialReszleg || "Központi")
+  const [munkakor, setMunkakor] = useState(initialMunkakor || "")
+  const [reszleg, setReszleg] = useState(initialReszleg || "")
   const [kezdesDatuma, setKezdesDatuma] = useState(belepesDatuma || new Date().toISOString().split("T")[0])
   const [szerzodesTipusa, setSzerzodesTipusa] = useState<"hatarozatlan" | "hatarozott">("hatarozatlan")
   const [hatarozottLejarat, setHatarozottLejarat] = useState("")
@@ -87,6 +93,7 @@ export function EmploymentContractPanel({
     if (res.data) {
       setExistingRecord(res.data)
       setMunkakor(res.data.munkakor || munkakor)
+      if (res.data.reszleg) setReszleg(res.data.reszleg)
       setKezdesDatuma(res.data.kezdes_datuma || kezdesDatuma)
       setSzerzodesTipusa(res.data.szerzodes_tipusa || "hatarozatlan")
       if (res.data.hatarozott_lejarat) setHatarozottLejarat(res.data.hatarozott_lejarat)
@@ -331,30 +338,17 @@ export function EmploymentContractPanel({
             <FileSignature className="w-3.5 h-3.5 text-primary" /> Munkaviszony Alapvető Feltételei (Mt. 42–45. §)
           </h4>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">
-                Munkakör Megnevezése <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                value={munkakor}
-                onChange={(e) => setMunkakor(e.target.value)}
-                placeholder="Pl. Senior Frontend Fejlesztő"
-                className="h-8 text-xs font-medium"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Szervezeti Egység / Részleg</Label>
-              <Input
-                value={reszleg}
-                onChange={(e) => setReszleg(e.target.value)}
-                placeholder="Pl. IT & Termékfejlesztés"
-                className="h-8 text-xs"
-              />
-            </div>
-          </div>
+          {/* Szervezeti Egység és Munkakör Összekapcsolt Választó */}
+          <JobOrgSelector
+            orgUnits={orgUnits}
+            jobs={jobs}
+            selectedOrgUnitName={reszleg}
+            selectedMunkakor={munkakor}
+            onOrgUnitChange={(orgName) => setReszleg(orgName)}
+            onMunkakorChange={(jobTitle) => setMunkakor(jobTitle)}
+            compact
+            required
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">

@@ -27,14 +27,17 @@ import {
 import { updateOnboardingDate } from "@/app/hr/onboarding/actions"
 import { OnboardingCard } from "./onboarding-card"
 import { OnboardingProfileModal } from "./onboarding-profile-modal"
+import type { OrgUnitOption, JobOption } from "@/app/hr/actions/job-org-actions"
 import { toast } from "sonner"
 import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
 
 interface OnboardingListProps {
   onboardings: OnboardingProfile[]
+  orgUnits?: OrgUnitOption[]
+  jobs?: JobOption[]
 }
 
-export function OnboardingList({ onboardings }: OnboardingListProps) {
+export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListProps) {
   const [activeTab, setActiveTab] = useState<string>("folyamatban")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [search, setSearch] = useState("")
@@ -277,7 +280,7 @@ export function OnboardingList({ onboardings }: OnboardingListProps) {
           ) : viewMode === "grid" ? (
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {filteredList.map((person) => (
-                <OnboardingCard key={person.id} onboarding={person} />
+                <OnboardingCard key={person.id} onboarding={person} orgUnits={orgUnits} jobs={jobs} />
               ))}
             </div>
           ) : (
@@ -304,7 +307,15 @@ export function OnboardingList({ onboardings }: OnboardingListProps) {
                       <TableRow key={person.id} className="hover:bg-muted/30 transition-colors">
                         <TableCell>
                           <div className="font-semibold text-sm text-foreground">{person.nev}</div>
-                          <div className="text-xs text-muted-foreground">{person.munkakor || "Nincs megadva"}</div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                            <span>{person.munkakor || "Nincs megadva"}</span>
+                            {person.reszleg && (
+                              <>
+                                <span className="opacity-40">•</span>
+                                <span className="font-medium text-foreground/80">{person.reszleg}</span>
+                              </>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <span className="text-sm font-medium">{person.belepes_datuma || "Hamarosan"}</span>
@@ -356,6 +367,8 @@ export function OnboardingList({ onboardings }: OnboardingListProps) {
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
           <OnboardingProfileModal
             onboarding={selectedOnboarding}
+            orgUnits={orgUnits}
+            jobs={jobs}
             onDateChange={(newDate) => handleDateChange(selectedOnboarding.id, newDate)}
             onCloseDialog={() => setModalOpen(false)}
           />

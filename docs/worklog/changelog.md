@@ -6,6 +6,24 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-01)
 
+### 🏢 Dinamikus Szervezeti Egység és Munkakör Katalógus Választó UX
+- **eaisyHR Nyilvántartott Munkakörök és Szervezeti Egységek Integrációja (`job-org-actions.ts`, `job-org-selector.tsx`):**
+  - Központi szerver action (`getJobsAndOrgUnitsAction`) a jóváhagyott `hr_szervezeti_egyseg` és `hr_munkakor` katalógustételek lekérdezésére.
+  - Új univerzális, kétirányúan szinkronizált komponens (`JobOrgSelector`):
+    - **Egység szerinti szűrés (Unit First):** Szervezeti egység (pl. `IT`, `HR`, `FCM`) kiválasztásakor a munkakör legördülő lista dinamikusan szűkül a részleghez kapcsolt munkakörökre.
+    - **Munkakör alapú automatikus kitöltés (Job First / ATS):** Munkakör (pl. `Flottakezelő`) kiválasztásakor a rendszer azonnal és automatikusan beállítja a kapcsolódó szervezeti egységet (`FCM`).
+    - **Fallback egyéni mód:** Megmaradt a szabad szöveges bevitel lehetősége ad-hoc munkakörök és egységek rögzítésére.
+- **Toborzási (ATS) Pipeline Átadás (`recruitment/actions.ts`):**
+  - Amikor egy jelölt felvételt nyer (`elfogadva` státusz), a munkakörhöz tartozó szervezeti egység (`hr_munkakor -> hr_szervezeti_egyseg.nev`) automatikusan lekeresésre kerül és elmentődik az újonnan induló `hr_onboarding` rekord `reszleg` mezőjébe.
+- **Onboarding és Szerződéskötési Felületek Frissítése:**
+  - `AddOnboardingDialog`: Közvetlen manuális felvételnél kötelezően a katalógusból választandó ki az egység és a munkakör.
+  - `EmploymentContractPanel`: A munkaszerződés előkészítésekor a részleg és a munkakör dinamikusan választható és szinkronizálódik a szerződés és az onboarding rekordok között.
+  - `OnboardingCard`, `OnboardingList`, `OnboardingProfileModal`: A munkatárs szervezeti egysége (`Building2` ikonnal) közvetlenül megjelenik a munkakör mellett (pl. `Flottakezelő • FCM`).
+- **Adatbázis Migráció (`20261001000011_hr_munkaszerzodes_reszleg.sql`):**
+  - `reszleg TEXT` oszlop hozzáadása a `hr_munkaszerzodes` táblához.
+  - Létező Onboarding adatok retroaktív korrigálása (`Nagy Dániel` - `Flottakezelő` -> `FCM`).
+- **Döntési háttér:** [PRD P-038](../product/decisions/P-038-onboarding-dynamic-job-and-org-unit-catalog-selector-ux.md).
+
 ### 📜 Onboarding Munkaszerződés Előkészítés, Generálás (Mt. 42–45. §) & Személyi Dosszié Iktatás UX
 - **Hivatalos Mt. 42–45. § Munkaszerződés Generátor (`employment-contract-pdf-generator.ts`, `employment-contract-actions.ts`):**
   - Törvényi előírásoknak megfelelő, kétoldalú A4 PDF munkaszerződés előállítása Puppeteerrel.

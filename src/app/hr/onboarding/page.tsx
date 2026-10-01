@@ -47,6 +47,19 @@ export default async function OnboardingPage() {
     console.error("Hiba onboarding adatok lekérésekor:", error)
   }
 
+  // Lekérjük a hivatalos szervezeti egységeket és munkaköröket a katalógusból
+  const [orgUnitsRes, jobsRes] = await Promise.all([
+    supabaseAdmin.from("hr_szervezeti_egyseg").select("id, nev, szulo_id").order("nev"),
+    supabaseAdmin.from("hr_munkakor").select("id, megnevezes, feor_kod, szervezeti_egyseg_id").order("megnevezes")
+  ])
+
+  const orgUnits = orgUnitsRes.data || []
+  const orgMap = new Map(orgUnits.map((o) => [o.id, o.nev]))
+  const jobs = (jobsRes.data || []).map((j) => ({
+    ...j,
+    szervezeti_egyseg_nev: j.szervezeti_egyseg_id ? orgMap.get(j.szervezeti_egyseg_id) || null : null
+  }))
+
   return (
     <div className="space-y-6 pb-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
@@ -56,9 +69,9 @@ export default async function OnboardingPage() {
             Beléptetési folyamatok, digitális feladatkövetés és eszközfelelősség.
           </p>
         </div>
-        <AddOnboardingDialog />
+        <AddOnboardingDialog orgUnits={orgUnits} jobs={jobs} />
       </div>
-      <OnboardingList onboardings={onboardings || []} />
+      <OnboardingList onboardings={onboardings || []} orgUnits={orgUnits} jobs={jobs} />
     </div>
   )
 }
