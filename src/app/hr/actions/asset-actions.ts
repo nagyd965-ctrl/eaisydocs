@@ -50,10 +50,32 @@ export async function getEmployeeAssets(options: {
   const { data, error } = await query
   if (error) {
     console.error("Hiba az eszközök lekérésekor:", error)
-    return { error: error.message, data: [] }
+    return { error: error.message, data: [], existingDocument: null }
   }
 
-  return { data: data || [] }
+  // Lekérjük a kapcsolt jegyzőkönyvet (ha már készült)
+  let existingDocument: any = null
+  const docId = data?.find(item => item.dokumentum_id)?.dokumentum_id
+  if (docId) {
+    const { data: doc } = await adminClient
+      .from("hr_dokumentum")
+      .select("*")
+      .eq("id", docId)
+      .single()
+
+    if (doc) {
+      let viewUrl = doc.url
+      if (doc.url && !doc.url.startsWith("http")) {
+        const { data: signed } = await adminClient.storage
+          .from("irat_files")
+          .createSignedUrl(doc.url, 3600)
+        if (signed?.signedUrl) viewUrl = signed.signedUrl
+      }
+      existingDocument = { ...doc, url: viewUrl }
+    }
+  }
+
+  return { data: data || [], existingDocument }
 }
 
 /**
@@ -313,10 +335,49 @@ export async function generateAndFileAssetHandoverAction(params: {
         nev: newDoc.nev,
         url: signedUrlData?.signedUrl || storagePath,
         iktatoszam: filingResult?.iktatoszam || null
-      }
+      },
+      isFiled: !!filingResult?.iktatoszam
     }
   } catch (err: any) {
     console.error("Váratlan hiba az eszközátadás generálásakor:", err)
     return { error: err.message || "Váratlan hiba történt a generálás során." }
   }
 }
+
+/**
+ * Már meglévő vázlat jegyzőkönyv iktatása az eaisyDocs személyi dossziéba
+ * (pl. miután a munkavállaló fiókja aktiválásra került)
+ */
+export async function fileExistingAssetHandoverDocument(params: {
+  documentId: string
+  dolgozoId: string
+  employeeName: string
+}) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const adminClient = getAdminClient()
+  const docNev = `Munkahelyi Eszköz Átadás-Átvételi Jegyzőkönyv - ${params.employeeName}`
+
+  try {
+    const filingResult = await executeHrDocumentFiling(adminClient, {
+      documentId: params.documentId,
+      employeeId: params.dolgozoId,
+      customTargy: docNev,
+      currentUserId: user.id
+    })
+
+    revalidatePath("/hr/onboarding")
+    revalidatePath(`/hr/employee/${params.dolgozoId}`)
+
+    return { 
+      success: true, 
+      iktatoszam: filingResult.iktatoszam 
+    }
+  } catch (err: any) {
+    console.error("Hiba a jegyzőkönyv iktatásakor:", err)
+    return { error: err?.message || "Nem sikerült az iktatás a dossziéba." }
+  }
+}
+

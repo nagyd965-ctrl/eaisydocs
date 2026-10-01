@@ -26,7 +26,8 @@ import {
   getEmployeeAssets, 
   saveAssetItem, 
   deleteAssetItem, 
-  generateAndFileAssetHandoverAction 
+  generateAndFileAssetHandoverAction,
+  fileExistingAssetHandoverDocument
 } from "@/app/hr/actions/asset-actions"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 
@@ -67,6 +68,7 @@ export function AssetHandoverPanel({
   const [assets, setAssets] = useState<any[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedDoc, setGeneratedDoc] = useState<any>(null)
+  const [isFileLoading, setIsFileLoading] = useState(false)
 
   // Form state új eszköz hozzáadásához
   const [kategoria, setKategoria] = useState("it")
@@ -81,11 +83,11 @@ export function AssetHandoverPanel({
     const res = await getEmployeeAssets({ dolgozoId, onboardingId })
     setLoading(false)
     if (res.data) setAssets(res.data)
+    if (res.existingDocument) setGeneratedDoc(res.existingDocument)
   }
 
   useEffect(() => {
     loadAssets()
-    setGeneratedDoc(null)
   }, [dolgozoId, onboardingId])
 
   const handleAddAsset = async (e: React.FormEvent) => {
@@ -145,8 +147,31 @@ export function AssetHandoverPanel({
     if (res.error) {
       toast.error(res.error)
     } else {
-      toast.success("Átadás-átvételi jegyzőkönyv sikeresen legenerálva és beiktatva!")
+      if (res.isFiled) {
+        toast.success("Átadás-átvételi jegyzőkönyv sikeresen legenerálva és beiktatva az eaisyDocs-ba!")
+      } else {
+        toast.success("Jegyzőkönyv (PDF) sikeresen legenerálva és mentve! Az iktatás a fiók aktiválásakor történik meg.")
+      }
       setGeneratedDoc(res.document)
+      if (onSuccess) onSuccess()
+    }
+  }
+
+  const handleFileExistingDoc = async () => {
+    if (!generatedDoc?.id || !dolgozoId) return
+    setIsFileLoading(true)
+    const res = await fileExistingAssetHandoverDocument({
+      documentId: generatedDoc.id,
+      dolgozoId,
+      employeeName
+    })
+    setIsFileLoading(false)
+
+    if (res.error) {
+      toast.error(res.error)
+    } else {
+      toast.success(`Jegyzőkönyv sikeresen beiktatva! Iktatószám: ${res.iktatoszam}`)
+      setGeneratedDoc((prev: any) => prev ? { ...prev, iktatoszam: res.iktatoszam } : prev)
       if (onSuccess) onSuccess()
     }
   }
@@ -188,21 +213,56 @@ export function AssetHandoverPanel({
         </Badge>
       </div>
 
-      {/* Sikeres generálás értesítés */}
+      {/* Létező vagy épp generált jegyzőkönyv kártya */}
       {generatedDoc && (
-        <div className="border border-emerald-500/30 bg-emerald-500/10 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+        <div className={`border rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200 ${
+          generatedDoc.iktatoszam 
+            ? "border-emerald-500/30 bg-emerald-500/10" 
+            : "border-amber-500/30 bg-amber-500/5"
+        }`}>
           <div className="flex items-center gap-3">
-            <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+            {generatedDoc.iktatoszam ? (
+              <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+            ) : (
+              <FileCheck className="w-5 h-5 text-amber-600 shrink-0" />
+            )}
             <div>
-              <h4 className="text-sm font-semibold text-foreground">
-                Jegyzőkönyv sikeresen kiállítva és beiktatva!
-              </h4>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-sm font-semibold text-foreground">
+                  Munkahelyi Eszköz Átadás-Átvételi Jegyzőkönyv
+                </h4>
+                {generatedDoc.iktatoszam ? (
+                  <Badge variant="outline" className="text-xs bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+                    Beiktatva: {generatedDoc.iktatoszam}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-xs bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30">
+                    Generálva (Iktatás a fiók aktiválásakor)
+                  </Badge>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {generatedDoc.iktatoszam ? `Iktatószám: ${generatedDoc.iktatoszam}` : "Dokumentum a rendszerbe mentve."}
+                {generatedDoc.iktatoszam 
+                  ? "Hivatalosan beiktatva az eaisyDocs személyi dossziéba (Mt. 179. § leltárfelelősség)." 
+                  : "A jegyzőkönyv PDF elkészült és el van mentve az onboardingban. A fiók aktiválásakor a rendszer automatikusan beiktatja a személyi dossziéba."
+                }
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            {dolgozoId && !generatedDoc.iktatoszam && (
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                onClick={handleFileExistingDoc}
+                disabled={isFileLoading}
+                className="gap-1.5 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+              >
+                {isFileLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                Iktatás a dossziéba
+              </Button>
+            )}
             <PdfViewerDialog url={generatedDoc.url} title="Eszköz Átadás-Átvételi Jegyzőkönyv" />
             <a
               href={generatedDoc.url}
@@ -427,10 +487,14 @@ export function AssetHandoverPanel({
       <div className="border-t pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border">
         <div className="space-y-0.5 text-xs text-muted-foreground">
           <p className="font-semibold text-foreground flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-primary" /> Hivatalos eaisyDocs Iktatás (3.3 - Eszközfelelősség)
+            <Sparkles className="w-3.5 h-3.5 text-primary" /> 
+            {dolgozoId ? "Hivatalos eaisyDocs Iktatás (3.3 - Eszközfelelősség)" : "Jegyzőkönyv Előkészítése (Pre-onboarding)"}
           </p>
           <p>
-            A jegyzőkönyv generálása elkészíti az Mt. 179. § szerinti felelősségvállalási dokumentumot, és beiktatja a személyi dossziéba (5 év megőrzési idő).
+            {dolgozoId 
+              ? "A jegyzőkönyv generálása elkészíti az Mt. 179. § szerinti felelősségvállalási dokumentumot, és beiktatja a munkavállaló személyi dossziéjába (5 év megőrzési idő)."
+              : "A jegyzőkönyv generálása elkészíti a letölthető és aláírható PDF dokumentumot az onboardingban. Az eaisyDocs személyi dossziéba történő iktatás a fiók aktiválásakor történik meg automatikusan."
+            }
           </p>
         </div>
 
@@ -443,12 +507,12 @@ export function AssetHandoverPanel({
           {isGenerating ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Generálás & Iktatás...
+              {dolgozoId ? "Generálás & Iktatás..." : "Jegyzőkönyv generálása..."}
             </>
           ) : (
             <>
               <FileCheck className="w-4 h-4" />
-              Jegyzőkönyv Generálása & Iktatás
+              {dolgozoId ? "Jegyzőkönyv Generálása & Iktatás" : "Jegyzőkönyv Generálása (PDF)"}
             </>
           )}
         </Button>
