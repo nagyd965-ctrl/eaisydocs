@@ -101,5 +101,22 @@ test("HR Filing Bridge Unit Tests", async (t) => {
     assert.strictEqual(filed[1].iktatoszam, "HR/2026/000088/2")
     assert.strictEqual(filed[2].iktatoszam, "HR/2026/000088/3")
   })
+
+  await t.test("Job description document subject and category formatting", () => {
+    const subject = formatDocumentSubject("Munkaköri Leírás (Flottakezelő v1) - Flotta Kezelő Józsi", "Munkaköri leírás")
+    assert.strictEqual(subject, "Munkaköri Leírás (Flottakezelő v1) - Flotta Kezelő Józsi")
+
+    const fallbackSubject = formatDocumentSubject("", "Munkaköri leírás")
+    assert.strictEqual(fallbackSubject, "HR dokumentum (Munkaköri leírás)")
+  })
+
+  await t.test("Job description assignment naming schema", () => {
+    const employeeName = "Flotta Kezelő Józsi"
+    const munkakorNev = "Flottakezelő"
+    const verzioSzam = 1
+    const expectedDocName = `${employeeName} - Munkaköri Leírás (${munkakorNev} v${verzioSzam})`
+
+    assert.strictEqual(expectedDocName, "Flotta Kezelő Józsi - Munkaköri Leírás (Flottakezelő v1)")
+  })
 })
 

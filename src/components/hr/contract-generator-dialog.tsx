@@ -30,10 +30,14 @@ export interface ContractAdatlapData {
 
 export function ContractGeneratorDialog({ 
   employee, 
-  adatlap 
+  adatlap,
+  munkakor,
+  vezetoNev
 }: { 
   employee: ContractEmployeeData
-  adatlap: ContractAdatlapData 
+  adatlap: ContractAdatlapData
+  munkakor?: any
+  vezetoNev?: string
 }) {
   const [open, setOpen] = useState(false)
   const [template, setTemplate] = useState("alap_munkaszerzodes")
@@ -79,32 +83,34 @@ export function ContractGeneratorDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button className="gap-2 bg-primary/10 hover:bg-primary/20 text-primary border-primary/20 border" />}>
         <FileText className="w-4 h-4" />
-        Szerződés Generálása
+        Szerződés / Irat Generálása
         <ChevronDown className="w-3 h-3 ml-1 opacity-50" />
       </DialogTrigger>
       
-      <DialogContent className="sm:max-w-[800px] w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden print:max-w-none print:w-full print:m-0 print:p-0 print:border-none print:shadow-none">
+      <DialogContent className="sm:max-w-[850px] w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden print:max-w-none print:w-full print:m-0 print:p-0 print:border-none print:shadow-none">
         <div className="print:hidden">
           <DialogHeader>
-            <DialogTitle>Szerződés Generátor</DialogTitle>
+            <DialogTitle>Szerződés & Dokumentum Generátor</DialogTitle>
             <DialogDescription>
-              Válassz sablont a dokumentum legenerálásához, majd nyomtasd ki vagy mentsd el a rendszerbe.
+              Válassz sablont a dokumentum legenerálásához, majd nyomtasd ki vagy mentsd el közvetlenül a dolgozó iratai közé.
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-4 flex flex-col sm:flex-row gap-4 items-start sm:items-end border-b pb-6 mb-6">
             <div className="space-y-2 flex-1 w-full">
-              <Label>Szerződés Sablon</Label>
+              <Label>Dokumentum Sablon</Label>
               <Select value={template} onValueChange={(val) => val && setTemplate(val)} disabled={isSaving}>
                 <SelectTrigger>
                   <SelectValue placeholder="Válassz sablont...">
                     {template === "alap_munkaszerzodes" && "Alap Munkaszerződés"}
+                    {template === "munkakori_leiras" && "Hivatalos Munkaköri Leírás"}
                     {template === "bermodositas" && "Bérmódosítás (Tájékoztató)"}
                     {template === "titoktartasi" && "Titoktartási Nyilatkozat (NDA)"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="alap_munkaszerzodes">Alap Munkaszerződés</SelectItem>
+                  <SelectItem value="munkakori_leiras">Hivatalos Munkaköri Leírás</SelectItem>
                   <SelectItem value="bermodositas">Bérmódosítás (Tájékoztató)</SelectItem>
                   <SelectItem value="titoktartasi">Titoktartási Nyilatkozat (NDA)</SelectItem>
                 </SelectContent>
@@ -142,7 +148,7 @@ export function ContractGeneratorDialog({
 
               <ol className="list-decimal pl-6 space-y-4 text-justify leading-relaxed mt-6">
                 <li>
-                  A Munkáltató a Munkavállalót <strong>{adatlap?.hr_munkakor?.megnevezes || "kijelölt munkakör"}</strong> munkakörben foglalkoztatja. 
+                  A Munkáltató a Munkavállalót <strong>{munkakor?.megnevezes || adatlap?.hr_munkakor?.megnevezes || "kijelölt munkakör"}</strong> munkakörben foglalkoztatja. 
                   A munkakörhöz tartozó feladatokat a Munkaköri Leírás tartalmazza, amely jelen szerződés elválaszthatatlan mellékletét képezi.
                 </li>
                 <li>
@@ -170,6 +176,115 @@ export function ContractGeneratorDialog({
                 <div className="text-center">
                   <div className="w-48 border-b border-black mb-2"></div>
                   <p>Munkavállaló</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {template === "munkakori_leiras" && (
+            <div className="space-y-6">
+              <div className="border-b pb-4 text-center">
+                <h2 className="text-xs font-semibold tracking-wider uppercase text-gray-500">eaisyDocs Zrt. • Munkaköri Nyilvántartás</h2>
+                <h1 className="text-2xl font-bold uppercase tracking-widest mt-2">Hivatalos Munkaköri Leírás</h1>
+                <p className="text-xs text-gray-600 mt-1">
+                  A Munka Törvénykönyvéről szóló 2012. évi I. törvény alapján
+                </p>
+              </div>
+
+              {/* Alapadatok rács */}
+              <div className="grid grid-cols-2 gap-4 text-sm bg-gray-50 p-4 rounded border">
+                <div>
+                  <p className="text-xs text-gray-500">Munkavállaló neve:</p>
+                  <p className="font-bold text-base">{employee?.nev || "Ismeretlen"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Munkakör megnevezése:</p>
+                  <p className="font-bold text-base">{munkakor?.megnevezes || adatlap?.hr_munkakor?.megnevezes || "Kijelölt munkakör"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">FEOR kód / Besorolás:</p>
+                  <p className="font-medium">{munkakor?.feor_kod ? `FEOR: ${munkakor.feor_kod}` : "-"} {munkakor?.besorolasi_szint ? `(${munkakor.besorolasi_szint})` : ""}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Közvetlen felettes vezető:</p>
+                  <p className="font-medium">{vezetoNev || "HR Vezető / Ügyvezető"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Munkaviszony kezdete:</p>
+                  <p className="font-medium">{adatlap?.belepes_datuma ? new Date(adatlap.belepes_datuma).toLocaleDateString("hu-HU") : "Szerződés szerint"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Munkarend / Időtartam:</p>
+                  <p className="font-medium">{adatlap?.szerzodes_tipusa === "határozott" ? "Határozott idejű" : "Határozatlan idejű"}</p>
+                </div>
+              </div>
+
+              {/* 1. Munkakör célja */}
+              <div>
+                <h3 className="font-bold text-sm uppercase tracking-wider border-b pb-1 mb-2">1. A munkakör célja és küldetése</h3>
+                <p className="text-justify leading-relaxed text-sm">
+                  {munkakor?.leiras || `A(z) ${munkakor?.megnevezes || "munkakör"} célja a társaság szakmai színvonalának biztosítása, a szakterülethez tartozó feladatok precíz, határidőre történő megvalósítása a belső szabályzatok és jogszabályi keretek betartása mellett.`}
+                </p>
+              </div>
+
+              {/* 2. Feladatok és hatáskörök */}
+              <div>
+                <h3 className="font-bold text-sm uppercase tracking-wider border-b pb-1 mb-2">2. Főbb feladatok és hatáskörök</h3>
+                {Array.isArray(munkakor?.feladatok_es_hataskorok) && munkakor.feladatok_es_hataskorok.length > 0 ? (
+                  <ol className="list-decimal pl-6 space-y-1.5 text-justify text-sm leading-relaxed">
+                    {munkakor.feladatok_es_hataskorok.map((f: string, idx: number) => (
+                      <li key={idx}>{f}</li>
+                    ))}
+                  </ol>
+                ) : (
+                  <ul className="list-disc pl-6 space-y-1.5 text-justify text-sm leading-relaxed">
+                    <li>A munkakörhöz kapcsolódó operatív és szakmai feladatok önálló, felelősségteljes ellátása.</li>
+                    <li>Rendszeres kapcsolattartás és együttműködés a társaság belső szervezeti egységeivel.</li>
+                    <li>Szakmai és adminisztratív nyilvántartások, valamint feladatok naprakész vezetése.</li>
+                    <li>A közvetlen felettes vezető által meghatározott eseti szakmai feladatok végrehajtása.</li>
+                  </ul>
+                )}
+              </div>
+
+              {/* 3. Elvárt kompetenciák */}
+              <div>
+                <h3 className="font-bold text-sm uppercase tracking-wider border-b pb-1 mb-2">3. Elvárt szaktudás és kompetenciák</h3>
+                {Array.isArray(munkakor?.elvart_kompetenciak) && munkakor.elvart_kompetenciak.length > 0 ? (
+                  <ul className="list-disc pl-6 space-y-1 text-sm">
+                    {munkakor.elvart_kompetenciak.map((k: string, idx: number) => (
+                      <li key={idx}>{k}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-700">Szakirányú végzettség, megbízhatóság, önálló munkavégzési készség és szakmai precizitás.</p>
+                )}
+              </div>
+
+              {/* 4. Munkavédelem & Egészségügy */}
+              <div>
+                <h3 className="font-bold text-sm uppercase tracking-wider border-b pb-1 mb-2">4. Munkavédelem & Egészségügyi alkalmasság</h3>
+                <div className="space-y-1 text-sm">
+                  <p><strong>Kötelező orvosi vizsgálat:</strong> {munkakor?.orvosi_vizsgalat_tipus ? `${munkakor.orvosi_vizsgalat_tipus} (Gyakoriság: minden ${munkakor.orvosi_vizsgalat_gyakorisag_ho || 12} hónapban)` : "Előzetes és időszakos foglalkozás-egészségügyi alkalmassági vizsgálat."}</p>
+                  <p><strong>Egyéni védőeszköz juttatás:</strong> {munkakor?.vedoeszkoz_igeny || munkakor?.kockazatertekeles_munkavedelmi || "Munkavédelmi szabályzat szerint előírt védőfelszerelés betartása kötelező."}</p>
+                </div>
+              </div>
+
+              {/* 5. Átvételi nyilatkozat */}
+              <div className="pt-4 border-t">
+                <p className="text-xs text-justify text-gray-600 leading-relaxed">
+                  A Munkavállaló kijelenti, hogy jelen munkaköri leírásban foglaltakat megismerte, megértette, azt magára nézve kötelezőnek ismeri el. Egyúttal igazolja, hogy a munkaköri leírás 1 (egy) eredeti példányát átvette.
+                </p>
+              </div>
+
+              {/* Aláírások */}
+              <div className="mt-12 pt-6 flex justify-between">
+                <div className="text-center">
+                  <div className="w-48 border-b border-black mb-2"></div>
+                  <p className="text-xs font-medium">Munkáltató (Kiadó)</p>
+                </div>
+                <div className="text-center">
+                  <div className="w-48 border-b border-black mb-2"></div>
+                  <p className="text-xs font-medium">Munkavállaló (Átvevő)</p>
                 </div>
               </div>
             </div>

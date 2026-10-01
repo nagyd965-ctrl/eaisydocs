@@ -81,6 +81,7 @@ export async function generateAndSaveContract(
     let kategoria = "Munkaszerződés"
     if (template_name === "bermodositas") kategoria = "Bérmódosítás"
     if (template_name === "titoktartasi") kategoria = "Titoktartási Nyilatkozat"
+    if (template_name === "munkakori_leiras") kategoria = "Munkaköri leírás"
 
     const displayNev = `${nev} - ${kategoria} (${new Date().toLocaleDateString('hu-HU')})`
 
@@ -106,6 +107,76 @@ export async function generateAndSaveContract(
   } catch (error) {
     console.error("PDF generation error:", error)
     return { success: false, error: "Váratlan hiba történt a PDF generálása során." }
+  }
+}
+
+export async function assignJobDescriptionToEmployee(
+  employeeId: string,
+  munkakorId: string,
+  employeeName: string,
+  versionId?: string
+) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { success: false, error: "Nincs bejelentkezve" }
+    }
+
+    // 1. Lekérjük a munkakör leírás verzióját
+    let query = supabase
+      .from("hr_munkakor_leiras_verzio")
+      .select("*, hr_munkakor(megnevezes)")
+      .eq("munkakor_id", munkakorId)
+
+    if (versionId) {
+      query = query.eq("id", versionId)
+    } else {
+      query = query.order("verzio_szam", { ascending: false }).limit(1)
+    }
+
+    const { data: versions, error: vError } = await query
+    const version = versions?.[0]
+
+    if (vError || !version) {
+      return { success: false, error: "Ehhez a munkakörhöz nem található hivatalos munkaköri leírás fájl." }
+    }
+
+    const munkakorNev = (version.hr_munkakor as any)?.megnevezes || "Munkakör"
+    const docNev = `${employeeName} - Munkaköri Leírás (${munkakorNev} v${version.verzio_szam})`
+
+    // 2. Beillesztjük a hr_dokumentum táblába
+    const { data: newDoc, error: insertError } = await supabase
+      .from("hr_dokumentum")
+      .insert({
+        dolgozo_id: employeeId,
+        nev: docNev,
+        kategoria: "Munkaköri leírás",
+        url: version.fajl_path
+      })
+      .select()
+      .single()
+
+    if (insertError) {
+      console.error("Error inserting hr_dokumentum:", insertError)
+      return { success: false, error: "Nem sikerült hozzárendelni a dokumentumot: " + insertError.message }
+    }
+
+    // 3. Naplózás a HR eseménynaplóba
+    await supabase.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      esemeny_tipus: "adat_letrehozas",
+      entitas_tipus: "hr_dokumentum",
+      entitas_id: newDoc.id,
+      megjegyzes: `Hivatalos munkaköri leírás (v${version.verzio_szam} - ${version.fajl_nev}) hozzárendelve a dolgozóhoz.`
+    })
+
+    revalidatePath(`/hr/employee/${employeeId}`)
+    return { success: true, docId: newDoc.id }
+  } catch (err: any) {
+    console.error("assignJobDescriptionToEmployee error:", err)
+    return { success: false, error: err.message || "Váratlan hiba történt a hozzárendelés során." }
   }
 }
 

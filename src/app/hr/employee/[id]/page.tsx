@@ -24,6 +24,7 @@ import { DeleteContractButton } from "@/components/hr/delete-contract-button"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 import { FileHrDocumentDialog } from "@/components/hr/file-hr-document-dialog"
 import { BatchFileHrDocumentsDialog } from "@/components/hr/batch-file-hr-documents-dialog"
+import { JobDescriptionBadgeAction } from "@/components/hr/job-description-badge-action"
 import { ExternalLink, FileCheck, Lock } from "lucide-react"
 import { IDPTab } from "./tabs/IDPTab"
 
@@ -63,7 +64,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           *,
           hr_beosztas (
             *,
-            munkakor: hr_munkakor ( megnevezes )
+            munkakor: hr_munkakor ( * )
           )
         )
       )
@@ -130,6 +131,40 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   }
 
   const adatlap = profile?.hr_dolgozo_adatlap as any
+
+  // Munkakör adatok és legfrissebb hivatalos munkaköri leírás verzió feloldása
+  const jogviszonyok = adatlap?.hr_jogviszony || []
+  const currentJogviszony = jogviszonyok.find((j: any) => !j.kilepes_datuma) || jogviszonyok[0]
+  const beosztasok = currentJogviszony?.hr_beosztas || []
+  const sortedBeosztasok = [...beosztasok].sort((a: any, b: any) => new Date(b.ervenyes_tol).getTime() - new Date(a.ervenyes_tol).getTime())
+  const currentBeosztas = sortedBeosztasok.find((b: any) => !b.ervenyes_ig || new Date(b.ervenyes_ig) >= new Date()) || sortedBeosztasok[0]
+  let activeMunkakor = currentBeosztas?.munkakor || null
+  const activeMunkakorId = currentBeosztas?.munkakor_id || adatlap?.munkakor_id || null
+
+  if (activeMunkakorId && !activeMunkakor) {
+    const { data: jData } = await supabase
+      .from("hr_munkakor")
+      .select("*")
+      .eq("id", activeMunkakorId)
+      .maybeSingle()
+    activeMunkakor = jData
+  }
+
+  let latestJobVersion = null
+  if (activeMunkakorId) {
+    const { data: vData } = await supabase
+      .from("hr_munkakor_leiras_verzio")
+      .select("*")
+      .eq("munkakor_id", activeMunkakorId)
+      .order("verzio_szam", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    latestJobVersion = vData
+  }
+
+  const existingJobDoc = hrDocuments?.find((d: any) => 
+    d.kategoria === "Munkaköri leírás" || d.nev?.toLowerCase().includes("munkaköri leírás")
+  ) || null
 
   // Cafeteria adatok
   const currentYear = new Date().getFullYear()
@@ -318,10 +353,27 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                       ) : null
                     })()}
                     <ManualUploadDialog employeeId={profile.id} />
-                    <ContractGeneratorDialog employee={profile} adatlap={adatlap} />
+                    <ContractGeneratorDialog 
+                      employee={profile} 
+                      adatlap={adatlap} 
+                      munkakor={activeMunkakor}
+                      vezetoNev={vezetoNev}
+                    />
                   </div>
                 )}
               </div>
+
+              {/* Munkaköri leírás verziójelző / átvételi akciókártya */}
+              {activeMunkakor && (
+                <JobDescriptionBadgeAction
+                  employeeId={profile.id}
+                  employeeName={profile.nev}
+                  munkakor={activeMunkakor}
+                  latestJobVersion={latestJobVersion}
+                  existingDoc={existingJobDoc}
+                  isHrOrAdmin={isHrOrAdmin}
+                />
+              )}
 
               <div className="border rounded-lg relative overflow-hidden bg-card">
                 <div className="absolute left-8 top-0 bottom-0 w-px bg-border"></div>
