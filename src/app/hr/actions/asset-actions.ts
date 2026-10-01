@@ -240,10 +240,7 @@ export async function generateAndFileAssetHandoverAction(params: {
         nev: docNev,
         kategoria: "Eszközfelelősség",
         url: storagePath,
-        alairas_statusz: "vazlat",
-        fajl_nev: `eszkoz_atadas_atvetel_${timestamp}.pdf`,
-        meret_byte: pdfBuffer.length,
-        sha256_hash: sha256
+        alairas_statusz: "vazlat"
       })
       .select()
       .single()

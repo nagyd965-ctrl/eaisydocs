@@ -248,6 +248,46 @@ export async function activateOnboardingAccount(onboardingId: string) {
       .eq("id", activationTask.id)
   }
 
+  // Kapcsolódó eszközök és jegyzőkönyvek összekötése az új dolgozói profillal és iktatás a dossziéba
+  try {
+    await adminClient
+      .from("hr_munkahelyi_eszkoz")
+      .update({ dolgozo_id: finalUserId })
+      .eq("onboarding_id", onboardingId)
+
+    const { data: assetRecords } = await adminClient
+      .from("hr_munkahelyi_eszkoz")
+      .select("dokumentum_id")
+      .eq("onboarding_id", onboardingId)
+      .not("dokumentum_id", "is", null)
+
+    const docIds = Array.from(new Set((assetRecords || []).map((r: any) => r.dokumentum_id).filter(Boolean)))
+    for (const docId of docIds) {
+      await adminClient
+        .from("hr_dokumentum")
+        .update({ dolgozo_id: finalUserId })
+        .eq("id", docId)
+
+      const { data: docData } = await adminClient
+        .from("hr_dokumentum")
+        .select("iktatoszam, nev")
+        .eq("id", docId)
+        .single()
+
+      if (docData && !docData.iktatoszam) {
+        const { executeHrDocumentFiling } = await import("@/utils/hr-filing-bridge")
+        await executeHrDocumentFiling(adminClient, {
+          documentId: docId as string,
+          employeeId: finalUserId,
+          customTargy: docData.nev,
+          currentUserId: user.id
+        })
+      }
+    }
+  } catch (err) {
+    console.error("Hiba az eszközök és dokumentumok összekötésekor:", err)
+  }
+
   // Audit napló
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
