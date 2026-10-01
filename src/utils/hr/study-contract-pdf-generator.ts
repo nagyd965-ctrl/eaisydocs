@@ -50,10 +50,10 @@ export async function fetchStudyContractPdfData(
   const employeeId = contract.dolgozo_id
 
   // 1. Profil adatok
-  let profileData: { id?: string; nev?: string; email?: string } | null = null
+  let profileData: { id?: string; nev?: string } | null = null
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("id, nev, email")
+    .select("id, nev")
     .eq("id", employeeId)
     .maybeSingle()
 
@@ -68,7 +68,7 @@ export async function fetchStudyContractPdfData(
       )
       const { data: adminProfile } = await adminClient
         .from("felhasznalo_profil")
-        .select("id, nev, email")
+        .select("id, nev")
         .eq("id", employeeId)
         .maybeSingle()
       if (adminProfile) profileData = adminProfile
