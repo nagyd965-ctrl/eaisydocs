@@ -92,14 +92,14 @@ export function BatchFileHrDocumentsDialog({
       <DialogTrigger
         render={
           <Button
-            variant="default"
+            variant="outline"
             size="sm"
-            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 text-xs shadow-xs"
+            className="h-8 gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/5 hover:border-primary transition-colors"
           />
         }
       >
-        <Archive className="w-4 h-4" />
-        Összes vázlat iktatása ({unfiledDocs.length})
+        <Archive className="w-3.5 h-3.5" />
+        Összes iktatása eaisyDocs-ba ({unfiledDocs.length})
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-[560px]">

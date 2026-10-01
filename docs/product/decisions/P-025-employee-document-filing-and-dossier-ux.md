@@ -47,7 +47,7 @@ A modál automatikusan előkészíti az iktatást:
 ## 4. Egygombos Kötegelt Iktatás (`BatchFileHrDocumentsDialog`)
 
 A HR munkatársak hatékonyságának maximalizálására megvalósítottuk a személyi dosszié „telibe áthúzását” / kötegelt iktatását:
-- **Dinamikus Fejléc Gomb:** Amennyiben az adott dolgozónak van legalább 1 iktatatlan belső vázlata, a „Hivatalos Dokumentumok” fejlécében automatikusan megjelenik az **„Összes vázlat iktatása ({darabszám})”** kiemelt műveleti gomb.
+- **Dinamikus Fejléc Gomb:** Amennyiben az adott dolgozónak van legalább 1 iktatatlan belső vázlata, a „Hivatalos Dokumentumok” fejlécében automatikusan megjelenik az **„Összes iktatása eaisyDocs-ba ({darabszám})”** műveleti gomb (az egyes iratoknál látható gombbal harmonizáló outline stílusban).
 - **Áttekintő Dialógus:**
   - Összegzi az érintett dokumentumokat (címek, kategóriák, tervezett sorszámok).
   - Megjeleníti a cél személyi dossziét (új dosszié nyitása vagy meglévő folytatása).
