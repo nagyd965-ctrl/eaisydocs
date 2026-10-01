@@ -9,6 +9,7 @@ import {
   formatDossierSubject,
 } from "@/utils/hr-filing-bridge"
 import { getClientInfo } from "@/utils/client-info"
+import { generateAnnualLeavePdfBuffer } from "@/utils/hr/annual-leave-pdf-generator"
 
 // -----------------------------------------------------------------------------
 // Előző munkahelyek
@@ -735,6 +736,148 @@ export async function fileAllHrDocumentsAction(employeeId: string) {
     ugyirat_id: result.ugyirat_id,
     isNewDossier: result.isNewDossier,
     items: result.items,
+  }
+}
+
+export async function getAnnualLeaveDocument(employeeId: string, year: number) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("hr_dokumentum")
+    .select("id, nev, iktatoszam, created_at, url")
+    .eq("dolgozo_id", employeeId)
+    .eq("kategoria", "Éves szabadság nyilvántartás")
+    .ilike("nev", `%${year}%`)
+    .maybeSingle()
+
+  if (!data) return null
+
+  let dossierId: string | null = null
+  if (data.iktatoszam) {
+    const { data: irat } = await supabase
+      .from("irat")
+      .select("ugyirat_id")
+      .eq("iktatoszam", data.iktatoszam)
+      .maybeSingle()
+    dossierId = irat?.ugyirat_id || null
+  }
+
+  return {
+    ...data,
+    dossierId,
+  }
+}
+
+export async function fileAnnualLeaveSheet(employeeId: string, year: number) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Nincs bejelentkezve" }
+
+  const { data: userProfile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isHrOrAdmin =
+    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
+    userProfile?.docs_szerepkor === "admin"
+
+  if (!isHrOrAdmin) {
+    return { success: false, error: "Nincs jogosultsága éves szabadság-nyilvántartást iktatni!" }
+  }
+
+  try {
+    // 1. PDF generálás
+    const { buffer, employeeName } = await generateAnnualLeavePdfBuffer(supabase, employeeId, year)
+
+    // 2. Storage feltöltés
+    const fileName = `eves_szabadsag_nyilvantartas_${year}_${Date.now()}.pdf`
+    const storagePath = `${employeeId}/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from("hr-documents")
+      .upload(storagePath, buffer, {
+        contentType: "application/pdf",
+        upsert: true,
+      })
+
+    if (uploadError) {
+      if (uploadError.message?.includes("Bucket not found") || uploadError.message?.includes("not found")) {
+        await supabase.storage.createBucket("hr-documents", { public: false })
+        const { error: retryError } = await supabase.storage
+          .from("hr-documents")
+          .upload(storagePath, buffer, {
+            contentType: "application/pdf",
+            upsert: true,
+          })
+        if (retryError) throw new Error("Storage feltöltési hiba: " + retryError.message)
+      } else {
+        throw new Error("Storage feltöltési hiba: " + uploadError.message)
+      }
+    }
+
+    // 3. Dokumentum rekord létrehozása / keresése
+    const docName = `${employeeName} - Éves Szabadság Nyilvántartás (${year})`
+    const { data: existingDoc } = await supabase
+      .from("hr_dokumentum")
+      .select("id, iktatoszam")
+      .eq("dolgozo_id", employeeId)
+      .eq("kategoria", "Éves szabadság nyilvántartás")
+      .ilike("nev", `%${year}%`)
+      .maybeSingle()
+
+    let docId = existingDoc?.id
+
+    if (!docId) {
+      const { data: newDoc, error: insertError } = await supabase
+        .from("hr_dokumentum")
+        .insert({
+          dolgozo_id: employeeId,
+          nev: docName,
+          kategoria: "Éves szabadság nyilvántartás",
+          url: storagePath
+        })
+        .select("id")
+        .single()
+
+      if (insertError) throw new Error("Dokumentum mentési hiba: " + insertError.message)
+      docId = newDoc.id
+    }
+
+    // 4. Hivatalos iktatás végrehajtása az eaisyDocs személyi dossziéba
+    const filingResult = await executeHrDocumentFiling(supabase, {
+      documentId: docId,
+      employeeId,
+      customTargy: docName,
+      currentUserId: user.id
+    })
+
+    if (!filingResult.success) {
+      return { success: false, error: filingResult.error }
+    }
+
+    // 5. Naplózás
+    await supabase.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      esemeny_tipus: "adat_letrehozas",
+      entitas_tipus: "hr_dokumentum",
+      entitas_id: docId,
+      megjegyzes: `Éves szabadság- és távollét nyilvántartás (${year}) hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`
+    })
+
+    revalidatePath(`/hr/employee/${employeeId}`)
+    revalidatePath("/hr")
+    revalidatePath("/dossiers")
+
+    return {
+      success: true,
+      iktatoszam: filingResult.iktatoszam,
+      ugyirat_id: filingResult.ugyirat_id,
+      docId,
+    }
+  } catch (error: any) {
+    console.error("Hiba az éves szabadság-nyilvántartás iktatása során:", error)
+    return { success: false, error: error.message || "Váratlan hiba történt az iktatás során." }
   }
 }
 

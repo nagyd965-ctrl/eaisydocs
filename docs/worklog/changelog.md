@@ -6,6 +6,15 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-01)
 
+### 🏖️ Hivatalos Éves Szabadság Nyilvántartó Lap (Mt. 134. §) és Távolléti Igazolások
+- **Dolgozói Portál Megtekintés & Letöltés (`LeaveHistoryList`):** A korábbi letöltő `Igazolás` gomb helyett külön **Megtekintés** (`PdfViewerDialog` beágyazott PDF előnézettel) és **Letöltés** gomb került bevezetésre.
+- **Központi HR Távollét Fül (`LeaveTab.tsx`):**
+  - A korábbi puszta táblázat kibővült soronkénti **Megtekintés** és **Letöltés** gombokkal minden jóváhagyott távollétnél.
+  - **Hivatalos Éves Szabadság-nyilvántartó Lap (Mt. 134. §):** Gomb a tárgyévi nyomtatvány megnyitására, letöltésére és közvetlen beiktatására a dolgozó eaisyDocs személyi dossziéjába (`HR/ÉÉÉÉ/SORSZÁM/ALSZÁM`).
+- **Mt. szerinti Törvényes Keretlevezetés (`leave-calculator.ts`):** `getAnnualLeaveBreakdown` és `calculateAnnualLeave` a születési év (életkori pótszabadság Mt. 117. §), gyermekek száma (Mt. 118. §) és megváltozott munkaképesség (Mt. 120. §) alapján automatikusan részletezi a törvényes keretet az A4-es hivatalos nyomtatványban.
+- **Tárgyévi Távolléti Napló & Egyenlegzárás:** Kronologikus táblázat munkanap-számítással és aláírási záradékkal.
+- **Döntési háttér:** [PRD P-027](../product/decisions/P-027-annual-leave-sheet-and-leave-certificates-ux.md).
+
 ### ⏱️ Havi Jelenléti Ív PDF Generálás & eaisyDocs Személyi Dosszié Iktatási Híd
 - **Hiteles Mt. 99–106. § szerinti Munkaidő-nyilvántartás:** Elkészült a hivatalos havi jelenléti ív PDF generáló motor ([src/utils/hr/timesheet-pdf-generator.ts](../../src/utils/hr/timesheet-pdf-generator.ts)), amely a havi rögzített jelenléti napok, jóváhagyott távollétek (szabadság, betegség) és munkaszüneti napok alapján állít elő nyomdai minőségű A4-es hivatalos elszámolást.
 - **Naponkénti Részletező & Összesítő:** Naponkénti érkezési/távozási időpontok, ledolgozott munkaórák, jogcímek, valamint havi összesített munkaóra, elvárt norma (FTE alapján) és időszaki egyenleg / túlóra kimutatás.

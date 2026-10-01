@@ -2,11 +2,26 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { CalendarDays, Clock, CheckCircle2 } from "lucide-react"
-import { useState } from "react"
+import { 
+  CalendarDays, 
+  Clock, 
+  CheckCircle2, 
+  Eye, 
+  Download, 
+  Archive, 
+  FileText, 
+  FileCheck, 
+  Loader2 
+} from "lucide-react"
+import { useState, useEffect } from "react"
+import Link from "next/link"
+import { toast } from "sonner"
 import { HrLeaveRequestDialog } from "@/components/hr/hr-leave-request-dialog"
 import { calculateAnnualLeave } from "@/utils/hr/leave-calculator"
+import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
+import { getAnnualLeaveDocument, fileAnnualLeaveSheet } from "../actions"
 
 export function LeaveTab({ 
   employeeId, 
@@ -19,8 +34,34 @@ export function LeaveTab({
   leaves: any[],
   adatlap?: any
 }) {
-  const [loading, setLoading] = useState(false)
   const currentYear = new Date().getFullYear()
+  const [annualDoc, setAnnualDoc] = useState<{ id: string; iktatoszam?: string | null; dossierId?: string | null } | null>(null)
+  const [filingLoading, setFilingLoading] = useState(false)
+
+  useEffect(() => {
+    if (employeeId) {
+      getAnnualLeaveDocument(employeeId, currentYear).then((doc) => {
+        if (doc) setAnnualDoc(doc)
+      })
+    }
+  }, [employeeId, currentYear])
+
+  const handleFileAnnualSheet = async () => {
+    setFilingLoading(true)
+    try {
+      const res = await fileAnnualLeaveSheet(employeeId, currentYear)
+      if (res.success) {
+        toast.success(`Az éves szabadság nyilvántartás sikeresen beiktatva a személyi dossziéba! (${res.iktatoszam})`)
+        setAnnualDoc({ id: res.docId || "", iktatoszam: res.iktatoszam, dossierId: res.ugyirat_id })
+      } else {
+        toast.error(res.error || "Hiba történt az iktatás során.")
+      }
+    } catch (err: any) {
+      toast.error("Váratlan hiba történt: " + (err?.message || "Ismeretlen hiba"))
+    } finally {
+      setFilingLoading(false)
+    }
+  }
 
   const totalLeave = calculateAnnualLeave(
     adatlap?.szuletesi_datum,
@@ -69,7 +110,7 @@ export function LeaveTab({
               </div>
               <div className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">Összesen: {totalLeave} nap</div>
             </div>
-            <Progress value={(usedLeave / totalLeave) * 100} className="mt-6 h-2.5" />
+            <Progress value={totalLeave > 0 ? (usedLeave / totalLeave) * 100 : 0} className="mt-6 h-2.5" />
             <div className="mt-4 flex items-center justify-between text-sm font-medium text-muted-foreground">
               <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-success" /> Felhasznált: {usedLeave} nap</span>
               <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-amber-500" /> Tervezett: {plannedLeave} nap</span>
@@ -93,9 +134,78 @@ export function LeaveTab({
 
       {/* Távollét Történet */}
       <Card className="border border-border/50">
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Távollétek és Kérelmek Története</CardTitle>
-          <CardDescription>A dolgozó összes eddigi és tervezett távolléte</CardDescription>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3">
+          <div>
+            <CardTitle className="text-lg font-semibold">Távollétek és Kérelmek Története</CardTitle>
+            <CardDescription>A dolgozó összes eddigi és tervezett távolléte a(z) {currentYear}. évben</CardDescription>
+          </div>
+          {isHrOrAdmin && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {annualDoc?.iktatoszam && (
+                <Link
+                  href={annualDoc.dossierId ? `/dossiers/${annualDoc.dossierId}` : "#"}
+                  className="inline-flex"
+                >
+                  <Badge
+                    variant="outline"
+                    className="h-8 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors gap-1.5 px-2.5 text-xs font-medium cursor-pointer"
+                  >
+                    <FileCheck className="w-3.5 h-3.5" />
+                    Iktatva: {annualDoc.iktatoszam}
+                  </Badge>
+                </Link>
+              )}
+
+              <PdfViewerDialog
+                url={`/api/hr/annual-leave-pdf?employeeId=${employeeId}&year=${currentYear}&preview=true`}
+                title={`Éves Szabadság- és Távollét Nyilvántartó Lap (${currentYear}) - Mt. 134. §`}
+                trigger={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    title="Hivatalos éves szabadság-nyilvántartó lap megtekintése böngészőben"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-primary" />
+                    <span>Éves Nyilvántartó Lap (Mt. 134. §)</span>
+                  </Button>
+                }
+              />
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1 text-xs"
+                onClick={() =>
+                  window.open(
+                    `/api/hr/annual-leave-pdf?employeeId=${employeeId}&year=${currentYear}&download=true`,
+                    "_blank"
+                  )
+                }
+                title="Éves nyilvántartó lap letöltése (PDF)"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </Button>
+
+              {!annualDoc?.iktatoszam && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/5 hover:border-primary transition-colors"
+                  onClick={handleFileAnnualSheet}
+                  disabled={filingLoading}
+                  title="Éves szabadság nyilvántartás beiktatása az eaisyDocs személyi dossziéba"
+                >
+                  {filingLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Archive className="w-3.5 h-3.5" />
+                  )}
+                  <span>Iktatás eaisyDocs-ba</span>
+                </Button>
+              )}
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {leaves && leaves.length > 0 ? (
@@ -108,6 +218,7 @@ export function LeaveTab({
                     <th className="h-10 px-4 text-left font-medium text-muted-foreground">Vége</th>
                     <th className="h-10 px-4 text-left font-medium text-muted-foreground">Hossz</th>
                     <th className="h-10 px-4 text-left font-medium text-muted-foreground">Státusz</th>
+                    <th className="h-10 px-4 text-right font-medium text-muted-foreground">Műveletek</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -124,6 +235,39 @@ export function LeaveTab({
                         <td className="p-4">{endDate.toLocaleDateString("hu-HU")}</td>
                         <td className="p-4">{durationDays} nap</td>
                         <td className="p-4">{getStatusBadge(leave.statusz)}</td>
+                        <td className="p-4 text-right">
+                          {leave.statusz === "jovahagyva" ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <PdfViewerDialog
+                                url={`/api/hr/leave-pdf?tavolletId=${leave.id}&preview=true`}
+                                title={`Távolléti Igazolás - ${String(leave.tipus).toUpperCase()} (${startDate.toLocaleDateString("hu-HU")})`}
+                                trigger={
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
+                                    title="Távolléti igazolás megtekintése böngészőben"
+                                  >
+                                    <Eye className="w-3.5 h-3.5 text-primary" />
+                                    <span>Megtekintés</span>
+                                  </Button>
+                                }
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
+                                onClick={() => window.open(`/api/hr/leave-pdf?tavolletId=${leave.id}&download=true`, "_blank")}
+                                title="Távolléti igazolás letöltése (PDF)"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>Letöltés</span>
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50">—</span>
+                          )}
+                        </td>
                       </tr>
                     )
                   })}

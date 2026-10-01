@@ -15,6 +15,7 @@ const TIPUS_LABEL: Record<string, string> = {
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const tavolletId = searchParams.get("tavolletId")
+  const isPreview = searchParams.get("preview") === "true"
 
   if (!tavolletId) {
     return new NextResponse("Hiányzó tavolletId paraméter", { status: 400 })
@@ -233,10 +234,12 @@ export async function GET(request: NextRequest) {
     })
     await browser.close()
 
+    const dispositionType = isPreview ? "inline" : "attachment"
     return new NextResponse(pdfBuffer as any, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="tavollet_igazolas_${igazolasAzonosito}.pdf"`
+        "Content-Disposition": `${dispositionType}; filename="tavollet_igazolas_${igazolasAzonosito}.pdf"`,
+        "Cache-Control": "private, max-age=60",
       }
     })
   } catch (error) {

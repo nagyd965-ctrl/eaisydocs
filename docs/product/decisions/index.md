@@ -34,8 +34,9 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-024](./P-024-partner-directory-and-contact-management-ux.md) | 2026-09-30 | Partnertörzs és Kapcsolattartói Adatlap Megújított UX | `[Docs]` | `Partners / CRM` | `src/app/partners/*`, `partner-dialog.tsx` |
 | [P-025](./P-025-employee-document-filing-and-dossier-ux.md) | 2026-09-30 | Munkavállalói Hivatalos Dokumentumok Iktatása és Személyi Dosszié UX | `[HR]` | `HR / Filing Bridge` | `src/app/hr/employee/[id]/*`, `file-hr-document-dialog.tsx` |
 | [P-026](./P-026-hr-document-templates-and-lifecycle-filing-roadmap.md) | 2026-10-01 | Munkavállalói Életciklus Dokumentumsablonok és Iratkezelési Terv | `[Közös]` | `HR / Lifecycle Templates` | `src/components/hr/*`, `src/utils/hr-filing-bridge.ts` |
+| [P-027](./P-027-annual-leave-sheet-and-leave-certificates-ux.md) | 2026-10-01 | Hivatalos Éves Szabadság-nyilvántartó Lap (Mt. 134. §) és Távolléti Igazolások Kezelése | `[HR]` | `HR / Leave & Filing` | `src/utils/hr/annual-leave-pdf-generator.ts`, `LeaveTab.tsx`, `leave-history-list.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-027`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-028`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
