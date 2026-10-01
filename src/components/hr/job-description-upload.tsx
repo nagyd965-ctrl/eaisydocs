@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Upload, FileText, Download, Trash2, Loader2, Calendar } from "lucide-react"
+import { Upload, FileText, Download, Eye, Trash2, Loader2, Calendar } from "lucide-react"
 import { toast } from "sonner"
 import { uploadJobDescription, deleteJobDescriptionVersion } from "@/app/hr/settings/actions"
+import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 
 interface Version {
   id: string
@@ -89,11 +90,26 @@ export function JobDescriptionUpload({ munkakorId, versions = [], isHrOrAdmin = 
                 </div>
               </div>
               <div className="flex items-center gap-1">
+                <PdfViewerDialog
+                  url={`/api/hr/download-document?path=${encodeURIComponent(v.fajl_path)}&bucket=irat_files`}
+                  title={`${v.fajl_nev} (v${v.verzio_szam})`}
+                  trigger={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
+                      title="Megtekintés a böngészőben"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  }
+                />
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-8 w-8 p-0"
                   onClick={() => handleDownload(v.fajl_path, v.fajl_nev)}
+                  title="Letöltés"
                 >
                   <Download className="w-4 h-4" />
                 </Button>

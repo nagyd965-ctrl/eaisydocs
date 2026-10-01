@@ -170,7 +170,15 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       .order("verzio_szam", { ascending: false })
       .limit(1)
       .maybeSingle()
-    latestJobVersion = vData
+    if (vData?.fajl_path) {
+      const { data: sData } = await supabase.storage.from("irat_files").createSignedUrl(vData.fajl_path, 3600)
+      latestJobVersion = {
+        ...vData,
+        signedUrl: sData?.signedUrl || `/api/hr/download-document?path=${encodeURIComponent(vData.fajl_path)}&bucket=irat_files`
+      }
+    } else {
+      latestJobVersion = vData
+    }
   }
 
   const existingJobDoc = hrDocuments?.find((d: any) => 

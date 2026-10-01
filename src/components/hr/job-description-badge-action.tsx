@@ -3,9 +3,10 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { FileText, Download, FilePlus, CheckCircle2, Loader2, Info } from "lucide-react"
+import { FileText, Eye, FilePlus, CheckCircle2, Loader2, Info } from "lucide-react"
 import { toast } from "sonner"
 import { assignJobDescriptionToEmployee } from "@/app/hr/actions/contract-actions"
+import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 
 interface JobDescriptionBadgeActionProps {
   employeeId: string
@@ -22,6 +23,7 @@ interface JobDescriptionBadgeActionProps {
     fajl_nev: string
     fajl_path: string
     kiadas_datum: string
+    signedUrl?: string | null
   } | null
   existingDoc: {
     id: string
@@ -45,23 +47,6 @@ export function JobDescriptionBadgeAction({
     return null
   }
 
-  const handleDownload = async () => {
-    if (!latestJobVersion) return
-    try {
-      const response = await fetch(`/api/hr/download-document?path=${encodeURIComponent(latestJobVersion.fajl_path)}&bucket=irat_files`)
-      if (!response.ok) throw new Error("Letöltés sikertelen")
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = latestJobVersion.fajl_nev
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch {
-      toast.error("A munkaköri leírás fájl letöltése sikertelen.")
-    }
-  }
-
   const handleAssign = async () => {
     if (!latestJobVersion) return
     setLoading(true)
@@ -83,6 +68,8 @@ export function JobDescriptionBadgeAction({
       setLoading(false)
     }
   }
+
+  const previewUrl = latestJobVersion?.signedUrl || (latestJobVersion ? `/api/hr/download-document?path=${encodeURIComponent(latestJobVersion.fajl_path)}&bucket=irat_files` : "")
 
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-primary/20 bg-primary/5 transition-all">
@@ -123,14 +110,19 @@ export function JobDescriptionBadgeAction({
 
       <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
         {latestJobVersion && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-xs h-8"
-            onClick={handleDownload}
-          >
-            <Download className="w-3.5 h-3.5" /> Megtekintés
-          </Button>
+          <PdfViewerDialog
+            url={previewUrl}
+            title={`Munkaköri leírás - ${munkakor.megnevezes} (v${latestJobVersion.verzio_szam})`}
+            trigger={
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-8 text-foreground hover:text-primary hover:bg-primary/10"
+              >
+                <Eye className="w-3.5 h-3.5 text-primary" /> Megtekintés
+              </Button>
+            }
+          />
         )}
 
         {isHrOrAdmin && latestJobVersion && !existingDoc && (
