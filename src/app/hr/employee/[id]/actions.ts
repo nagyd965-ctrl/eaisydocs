@@ -2,6 +2,13 @@
 
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
+import {
+  executeHrDocumentFiling,
+  executeBatchHrDocumentsFiling,
+  findEmployeeDossier,
+  formatDossierSubject,
+} from "@/utils/hr-filing-bridge"
+import { getClientInfo } from "@/utils/client-info"
 
 // -----------------------------------------------------------------------------
 // Előző munkahelyek
@@ -578,3 +585,156 @@ export async function getEmployeeAuditLogs(employeeId: string) {
 
   return { data: formattedLogs, error: null }
 }
+
+// -----------------------------------------------------------------------------
+// eaisyHR ↔ eaisyDocs Iratkezelési Híd (Munkavállalói Személyi Dosszié & Iktatás)
+// -----------------------------------------------------------------------------
+
+export async function getEmployeeDossierInfo(employeeId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const existing = await findEmployeeDossier(supabase, employeeId)
+  if (existing) {
+    const { count } = await supabase
+      .from("irat")
+      .select("id", { count: "exact", head: true })
+      .eq("ugyirat_id", existing.id)
+
+    return {
+      hasDossier: true,
+      dossierId: existing.id,
+      iktatoszam: existing.iktatoszam,
+      statusz: existing.statusz,
+      iratCount: count || 0,
+    }
+  }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("nev")
+    .eq("id", employeeId)
+    .single()
+
+  return {
+    hasDossier: false,
+    dossierId: null,
+    iktatoszam: null,
+    proposedSubject: formatDossierSubject(profile?.nev || ""),
+    iratCount: 0,
+  }
+}
+
+export async function fileHrDocumentAction(
+  documentId: string,
+  employeeId: string,
+  customTargy?: string
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: userProfile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isHrOrAdmin =
+    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
+    userProfile?.docs_szerepkor === "admin"
+
+  if (!isHrOrAdmin) {
+    return { error: "Nincs jogosultságod HR dokumentumot iktatni az eaisyDocs rendszerbe!" }
+  }
+
+  let clientInfo = undefined
+  try {
+    const { ip, userAgent } = await getClientInfo()
+    clientInfo = { ip, userAgent }
+  } catch (err) {
+    // kliens infó opcionális
+  }
+
+  const result = await executeHrDocumentFiling(supabase, {
+    documentId,
+    employeeId,
+    customTargy,
+    currentUserId: user.id,
+    clientInfo,
+  })
+
+  if (!result.success) {
+    return { error: result.error }
+  }
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  revalidatePath("/dossiers")
+  if (result.ugyirat_id) {
+    revalidatePath(`/dossiers/${result.ugyirat_id}`)
+  }
+
+  return {
+    success: true,
+    iktatoszam: result.iktatoszam,
+    ugyirat_id: result.ugyirat_id,
+    irat_id: result.irat_id,
+    alszam: result.alszam,
+    isNewDossier: result.isNewDossier,
+  }
+}
+
+export async function fileAllHrDocumentsAction(employeeId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve", filedCount: 0 }
+
+  const { data: userProfile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isHrOrAdmin =
+    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
+    userProfile?.docs_szerepkor === "admin"
+
+  if (!isHrOrAdmin) {
+    return { error: "Nincs jogosultságod HR dokumentumokat kötegelten iktatni az eaisyDocs rendszerbe!", filedCount: 0 }
+  }
+
+  let clientInfo = undefined
+  try {
+    const { ip, userAgent } = await getClientInfo()
+    clientInfo = { ip, userAgent }
+  } catch (err) {
+    // kliens infó opcionális
+  }
+
+  const result = await executeBatchHrDocumentsFiling(supabase, {
+    employeeId,
+    currentUserId: user.id,
+    clientInfo,
+  })
+
+  if (!result.success) {
+    return { error: result.error, filedCount: 0 }
+  }
+
+  revalidatePath(`/hr/employee/${employeeId}`)
+  revalidatePath("/dossiers")
+  if (result.ugyirat_id) {
+    revalidatePath(`/dossiers/${result.ugyirat_id}`)
+  }
+
+  return {
+    success: true,
+    filedCount: result.filedCount,
+    iktatoszam: result.iktatoszam,
+    ugyirat_id: result.ugyirat_id,
+    isNewDossier: result.isNewDossier,
+    items: result.items,
+  }
+}
+

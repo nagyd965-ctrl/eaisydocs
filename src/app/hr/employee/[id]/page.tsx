@@ -22,6 +22,9 @@ import { ContractGeneratorDialog } from "@/components/hr/contract-generator-dial
 import { ManualUploadDialog } from "@/components/hr/manual-upload-dialog"
 import { DeleteContractButton } from "@/components/hr/delete-contract-button"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
+import { FileHrDocumentDialog } from "@/components/hr/file-hr-document-dialog"
+import { BatchFileHrDocumentsDialog } from "@/components/hr/batch-file-hr-documents-dialog"
+import { ExternalLink, FileCheck, Lock } from "lucide-react"
 import { IDPTab } from "./tabs/IDPTab"
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -303,7 +306,17 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                   <p className="text-sm text-muted-foreground mt-1">Szerződések idővonala és generálása.</p>
                 </div>
                 {isHrOrAdmin && (
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {(() => {
+                      const unfiled = (hrDocuments || []).filter((d: any) => !d.iktatoszam)
+                      return unfiled.length > 0 ? (
+                        <BatchFileHrDocumentsDialog
+                          employeeId={profile.id}
+                          employeeName={profile.nev}
+                          unfiledDocs={unfiled}
+                        />
+                      ) : null
+                    })()}
                     <ManualUploadDialog employeeId={profile.id} />
                     <ContractGeneratorDialog employee={profile} adatlap={adatlap} />
                   </div>
@@ -315,20 +328,57 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                 <div className="p-6 space-y-8">
                   {hrDocuments && hrDocuments.length > 0 ? hrDocuments.map((doc: any) => (
                     <div key={doc.id} className="flex gap-6 relative">
-                      <div className="w-4 h-4 rounded-full bg-primary mt-1 relative z-10 outline outline-4 outline-background"></div>
+                      <div className={`w-4 h-4 rounded-full ${doc.iktatoszam ? "bg-emerald-600" : "bg-primary"} mt-1 relative z-10 outline outline-4 outline-background`}></div>
                       <div className="flex-1 border rounded-lg p-4 bg-background hover:bg-muted/50 transition-colors shadow-sm">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-medium text-primary">{doc.nev}</h4>
-                            <p className="text-sm text-muted-foreground mt-1">Kategória: {doc.kategoria || "Egyéb"}</p>
-                            <p className="text-xs text-muted-foreground mt-2">Dátum: {new Date(doc.created_at).toLocaleString("hu-HU")}</p>
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-medium text-foreground">{doc.nev}</h4>
+                              {doc.iktatoszam ? (
+                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs font-mono gap-1">
+                                  <FileCheck className="w-3 h-3" />
+                                  Iktatva: {doc.iktatoszam}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/40">
+                                  Belső HR vázlat
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">Kategória: {doc.kategoria || "Egyéb"}</p>
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                              <span>Létrehozva: {new Date(doc.created_at).toLocaleString("hu-HU")}</span>
+                              {doc.iktatva_ekor && (
+                                <span>• Iktatás ideje: {new Date(doc.iktatva_ekor).toLocaleString("hu-HU")}</span>
+                              )}
+                              {doc.ugyirat_id && (
+                                <Link 
+                                  href={`/dossiers/${doc.ugyirat_id}`} 
+                                  className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
+                                  target="_blank"
+                                >
+                                  <ExternalLink className="w-3 h-3" /> Megtekintés dossziéban
+                                </Link>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 self-end sm:self-center">
                             {doc.url && (
                               <PdfViewerDialog url={doc.signedUrl || doc.url} title={doc.nev} />
                             )}
-                            {isHrOrAdmin && (
+                            {isHrOrAdmin && !doc.iktatoszam && (
+                              <FileHrDocumentDialog 
+                                document={doc} 
+                                employeeId={profile.id} 
+                                employeeName={profile.nev} 
+                              />
+                            )}
+                            {isHrOrAdmin && !doc.iktatoszam ? (
                               <DeleteContractButton documentId={doc.id} fileUrl={doc.url} dolgozoId={profile.id} />
+                            ) : isHrOrAdmin && (
+                              <div className="p-1 text-muted-foreground" title="Hivatalosan iktatott irat az irattári szabályok szerint nem törölhető">
+                                <Lock className="w-4 h-4 opacity-50" />
+                              </div>
                             )}
                           </div>
                         </div>

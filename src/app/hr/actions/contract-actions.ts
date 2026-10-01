@@ -118,6 +118,20 @@ export async function deleteContract(documentId: string, fileUrl: string | null,
       return { success: false, error: "Nincs bejelentkezve" }
     }
 
+    // Integritás védelem: iktatott irat soha nem törölhető a HR felületről
+    const { data: existingDoc } = await supabase
+      .from('hr_dokumentum')
+      .select('iktatoszam')
+      .eq('id', documentId)
+      .single()
+
+    if (existingDoc?.iktatoszam) {
+      return { 
+        success: false, 
+        error: `A(z) ${existingDoc.iktatoszam} számon iktatott dokumentum nem törölhető a HR felületről, mert hivatalos eaisyDocs iratkezelési nyilvántartásba került!` 
+      }
+    }
+
     // Törlés az adatbázisból
     const { error: dbError } = await supabase
       .from('hr_dokumentum')
