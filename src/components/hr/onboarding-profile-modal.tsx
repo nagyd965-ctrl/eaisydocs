@@ -87,7 +87,7 @@ export function OnboardingProfileModal({ onboarding, onDateChange, onCloseDialog
   const isAccountActive = onboarding.fiok_allapot === "aktivalva" || Boolean(onboarding.dolgozo_id)
 
   const candidateEmail = onboarding.hr_toborzas?.email || onboarding.email || null
-  const candidatePhone = onboarding.hr_toborzas?.telefonszam || onboarding.telefonszam || null
+  const candidatePhone = onboarding.hr_toborzas?.telefon || onboarding.hr_toborzas?.telefonszam || onboarding.telefonszam || onboarding.telefon || null
 
   const filteredTasks = tasks.filter((t) => {
     if (activeDepartment === "all") return true
