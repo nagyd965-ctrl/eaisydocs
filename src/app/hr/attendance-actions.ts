@@ -340,3 +340,143 @@ export async function approveMonthlyTimesheet(employeeId: string, year: number, 
     return { error: err.message }
   }
 }
+
+// 7. Get Monthly Timesheet Filed Document
+export async function getMonthlyTimesheetDocument(employeeId: string, year: number, month: number) {
+  try {
+    const supabase = await createClient()
+    const monthNames = [
+      "január", "február", "március", "április", "május", "június",
+      "július", "augusztus", "szeptember", "október", "november", "december"
+    ]
+    const monthName = monthNames[month - 1]
+
+    const { data: docs } = await supabase
+      .from("hr_dokumentum")
+      .select("id, nev, kategoria, url, iktatoszam, ugyirat_id, created_at")
+      .eq("dolgozo_id", employeeId)
+      .eq("kategoria", "Havi jelenléti ív")
+      .order("created_at", { ascending: false })
+
+    const matchingDoc = docs?.find(d => 
+      d.nev.includes(`${year}`) && (d.nev.toLowerCase().includes(monthName) || d.nev.includes(`.${month}.`))
+    )
+
+    if (matchingDoc?.url) {
+      const { data } = await supabase.storage.from("irat_files").createSignedUrl(matchingDoc.url, 3600)
+      return { doc: { ...matchingDoc, signedUrl: data?.signedUrl || matchingDoc.url } }
+    }
+
+    return { doc: matchingDoc || null }
+  } catch (err: any) {
+    return { doc: null, error: err.message }
+  }
+}
+
+// 8. File Monthly Timesheet into Personal Dossier (eaisyDocs)
+export async function fileMonthlyTimesheet(employeeId: string, year: number, month: number) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Nincs bejelentkezve")
+
+    const { generateTimesheetPdfBuffer } = await import("@/utils/hr/timesheet-pdf-generator")
+    const { executeHrDocumentFiling } = await import("@/utils/hr-filing-bridge")
+    const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+
+    // 1. PDF Buffer generálása
+    const { buffer, employeeName, monthName } = await generateTimesheetPdfBuffer(supabase, employeeId, year, month)
+    const storagePath = `timesheets/${employeeId}/${year}_${month}_jelenleti_iv_${Date.now()}.pdf`
+
+    // 2. Feltöltés a Supabase Storage-be
+    let { error: uploadError } = await supabase.storage
+      .from("irat_files")
+      .upload(storagePath, buffer, {
+        contentType: "application/pdf",
+        upsert: true
+      })
+
+    if (uploadError) {
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (serviceRoleKey) {
+        const supabaseAdmin = createSupabaseClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          serviceRoleKey
+        )
+        const { error: adminUploadError } = await supabaseAdmin.storage
+          .from("irat_files")
+          .upload(storagePath, buffer, {
+            contentType: "application/pdf",
+            upsert: true
+          })
+        if (adminUploadError) {
+          throw new Error("Storage feltöltési hiba: " + adminUploadError.message)
+        }
+      } else {
+        throw new Error("Storage feltöltési hiba: " + uploadError.message)
+      }
+    }
+
+    // 3. Dokumentum rekord létrehozása / keresése
+    const docName = `${employeeName} - Havi jelenléti ív (${year}. ${monthName})`
+    const { data: existingDoc } = await supabase
+      .from("hr_dokumentum")
+      .select("id, iktatoszam")
+      .eq("dolgozo_id", employeeId)
+      .eq("kategoria", "Havi jelenléti ív")
+      .ilike("nev", `%${year}.%${monthName}%`)
+      .maybeSingle()
+
+    let docId = existingDoc?.id
+
+    if (!docId) {
+      const { data: newDoc, error: insertError } = await supabase
+        .from("hr_dokumentum")
+        .insert({
+          dolgozo_id: employeeId,
+          nev: docName,
+          kategoria: "Havi jelenléti ív",
+          url: storagePath
+        })
+        .select("id")
+        .single()
+
+      if (insertError) throw new Error("Dokumentum mentési hiba: " + insertError.message)
+      docId = newDoc.id
+    }
+
+    // 4. Hivatalos iktatás végrehajtása az eaisyDocs személyi dossziéba
+    const filingResult = await executeHrDocumentFiling(supabase, {
+      documentId: docId,
+      employeeId,
+      customTargy: docName,
+      currentUserId: user.id
+    })
+
+    if (!filingResult.success) {
+      return { success: false, error: filingResult.error }
+    }
+
+    // 5. Naplózás
+    await supabase.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      esemeny_tipus: "adat_letrehozas",
+      entitas_tipus: "hr_dokumentum",
+      entitas_id: docId,
+      megjegyzes: `Havi jelenléti ív (${year}. ${monthName}) hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`
+    })
+
+    revalidatePath(`/hr/employee/${employeeId}`)
+    revalidatePath("/hr")
+
+    return { 
+      success: true, 
+      iktatoszam: filingResult.iktatoszam, 
+      ugyirat_id: filingResult.ugyirat_id 
+    }
+  } catch (err: any) {
+    console.error("fileMonthlyTimesheet error:", err)
+    return { success: false, error: err.message || "Váratlan hiba történt a jelenléti ív iktatásakor." }
+  }
+}
+

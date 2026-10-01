@@ -1,13 +1,25 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ChevronLeft, ChevronRight, CalendarDays, Loader2, Edit2, Trash2, CheckCircle2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, CalendarDays, Loader2, Edit2, Trash2, CheckCircle2, Eye, FileCheck, FilePlus, ExternalLink } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { getMonthlyTimesheet, saveAttendanceRecord, deleteAttendanceRecord, getMonthlyClosingStatus, submitMonthlyTimesheet, approveMonthlyTimesheet, type TimesheetEntry } from "@/app/hr/attendance-actions"
+import { 
+  getMonthlyTimesheet, 
+  saveAttendanceRecord, 
+  deleteAttendanceRecord, 
+  getMonthlyClosingStatus, 
+  submitMonthlyTimesheet, 
+  approveMonthlyTimesheet, 
+  getMonthlyTimesheetDocument,
+  fileMonthlyTimesheet,
+  type TimesheetEntry 
+} from "@/app/hr/attendance-actions"
+import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 import { toast } from "sonner"
 import { calculateMonthlyTimesheet } from "@/utils/hr/timesheet-calculator"
 import {
@@ -51,6 +63,8 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
   const [timesheet, setTimesheet] = useState<TimesheetEntry[]>([])
   const [closingStatus, setClosingStatus] = useState<string>("nyitott")
   const [employeeFte, setEmployeeFte] = useState<number>(1.0)
+  const [monthlyDoc, setMonthlyDoc] = useState<any>(null)
+  const [filingLoading, setFilingLoading] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const [editOpen, setEditOpen] = useState(false)
@@ -67,6 +81,7 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
     setLoading(true)
     const { data, fte, error } = await getMonthlyTimesheet(employeeId, year, month)
     const { data: closingData } = await getMonthlyClosingStatus(employeeId, year, month)
+    const { doc } = await getMonthlyTimesheetDocument(employeeId, year, month)
     
     if (error) {
       toast.error("Hiba történt a jelenléti ív betöltésekor: " + error)
@@ -78,6 +93,8 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
     if (closingData) {
       setClosingStatus(closingData.statusz)
     }
+
+    setMonthlyDoc(doc || null)
     
     setLoading(false)
   }
@@ -178,6 +195,23 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
     }
   }
 
+  const handleFileTimesheet = async () => {
+    setFilingLoading(true)
+    try {
+      const result = await fileMonthlyTimesheet(employeeId, year, month)
+      if (result.success) {
+        toast.success(`A havi jelenléti ív sikeresen beiktatva a személyi dossziéba! (${result.iktatoszam})`)
+        await loadData()
+      } else {
+        toast.error(result.error || "Hiba történt az iktatás során.")
+      }
+    } catch (err: any) {
+      toast.error("Váratlan hiba: " + err.message)
+    } finally {
+      setFilingLoading(false)
+    }
+  }
+
   const timesheetInput = timesheet.map(t => ({
     date: t.datum,
     type: t.type,
@@ -190,11 +224,13 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
   const totalDaysWorked = timesheet.filter(t => t.type === "munka" && t.becsekkolas_ideje).length
   const totalLeaveDays = timesheet.filter(t => t.type === "szabadsag" || t.type === "betegseg").length
 
+  const timesheetPdfUrl = `/api/hr/timesheet-pdf?employeeId=${employeeId}&year=${year}&month=${month}`
+
   return (
     <div className="space-y-6">
       <Card className="border border-border/50">
         <CardHeader className="pb-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <CalendarDays className="w-5 h-5 text-primary" /> Havi Jelenléti Ív
@@ -204,31 +240,74 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
               </CardDescription>
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end w-full lg:w-auto">
+              {/* Megtekintés PDF-ben */}
+              <PdfViewerDialog
+                url={monthlyDoc?.signedUrl || timesheetPdfUrl}
+                title={`Havi Jelenléti Ív - ${year}. ${new Date(year, month - 1).toLocaleString('hu-HU', { month: 'long' })}`}
+                trigger={
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+                    <Eye className="w-3.5 h-3.5 text-primary" /> Megtekintés
+                  </Button>
+                }
+              />
+
+              {/* Ha már be van iktatva */}
+              {monthlyDoc?.iktatoszam ? (
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs font-mono gap-1 h-8 px-2.5">
+                    <FileCheck className="w-3.5 h-3.5" />
+                    Iktatva: {monthlyDoc.iktatoszam}
+                  </Badge>
+                  {monthlyDoc.ugyirat_id && (
+                    <Link
+                      href={`/dossiers/${monthlyDoc.ugyirat_id}`}
+                      target="_blank"
+                      className="text-xs text-primary hover:underline inline-flex items-center gap-1 font-medium"
+                    >
+                      <ExternalLink className="w-3 h-3" /> Dosszié
+                    </Link>
+                  )}
+                </div>
+              ) : closingStatus === "jovahagyva" ? (
+                /* Ha le van zárva, de még nincs iktatva */
+                <Button
+                  size="sm"
+                  className="gap-1.5 text-xs h-8 bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={handleFileTimesheet}
+                  disabled={filingLoading}
+                >
+                  {filingLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FilePlus className="w-3.5 h-3.5" />}
+                  Iktatás dossziéba
+                </Button>
+              ) : null}
+
               {closingStatus === "nyitott" && (
-                <Button variant="outline" size="sm" onClick={handleSubmitMonth} className="mr-2">
+                <Button variant="outline" size="sm" onClick={handleSubmitMonth} className="h-8 text-xs">
                   Beküldés lezárásra
                 </Button>
               )}
               {closingStatus === "jovahagyasra_var" && (
-                <Button size="sm" onClick={handleApproveMonth} className="mr-2 bg-success hover:bg-success/90">
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                <Button size="sm" onClick={handleApproveMonth} className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
                   Jóváhagyás
                 </Button>
               )}
-              {closingStatus === "jovahagyva" && (
-                <Badge className="bg-success/10 text-success border border-success/30 mr-2">Lezárva</Badge>
+              {closingStatus === "jovahagyva" && !monthlyDoc?.iktatoszam && (
+                <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 text-xs h-8 px-2.5">Lezárva</Badge>
               )}
               
-              <Button variant="outline" size="icon" onClick={prevMonth} className="h-8 w-8">
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <div className="font-semibold text-sm w-32 text-center">
-                {year}. {new Date(year, month - 1).toLocaleString('hu-HU', { month: 'long' })}
+              <div className="flex items-center gap-1 ml-1">
+                <Button variant="outline" size="icon" onClick={prevMonth} className="h-8 w-8">
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <div className="font-semibold text-xs sm:text-sm w-28 sm:w-32 text-center select-none">
+                  {year}. {new Date(year, month - 1).toLocaleString('hu-HU', { month: 'long' })}
+                </div>
+                <Button variant="outline" size="icon" onClick={nextMonth} className="h-8 w-8">
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
               </div>
-              <Button variant="outline" size="icon" onClick={nextMonth} className="h-8 w-8">
-                <ChevronRight className="w-4 h-4" />
-              </Button>
             </div>
           </div>
         </CardHeader>

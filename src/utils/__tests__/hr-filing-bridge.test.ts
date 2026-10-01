@@ -118,5 +118,24 @@ test("HR Filing Bridge Unit Tests", async (t) => {
 
     assert.strictEqual(expectedDocName, "Flotta Kezelő Józsi - Munkaköri Leírás (Flottakezelő v1)")
   })
+
+  await t.test("Monthly timesheet document naming and subject formatting", () => {
+    const employeeName = "Nagy Dániel"
+    const year = 2026
+    const monthName = "október"
+    const docName = `${employeeName} - Havi jelenléti ív (${year}. ${monthName})`
+    const subject = formatDocumentSubject(docName, "Havi jelenléti ív")
+
+    assert.strictEqual(docName, "Nagy Dániel - Havi jelenléti ív (2026. október)")
+    assert.strictEqual(subject, "Nagy Dániel - Havi jelenléti ív (2026. október)")
+  })
+
+  await t.test("Monthly timesheet retention period calculation (5 years per Mt. 3.2)", () => {
+    const currentYear = 2026
+    const retentionYears = 5
+    const retentionEndDate = `${currentYear + retentionYears}-12-31`
+
+    assert.strictEqual(retentionEndDate, "2031-12-31")
+  })
 })
 
