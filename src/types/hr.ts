@@ -157,10 +157,17 @@ export interface OnboardingProfile {
   kezdes_datuma?: string | null
   belepes_datuma?: string | null
   mentor_id?: string | null
-  statusz: "folyamatban" | "befejezve" | "megszakitva" | string
+  statusz: "folyamatban" | "lezart" | "befejezve" | "megszakitva" | string
+  fiok_allapot?: "varakozik" | "aktivalva" | string | null
+  fiok_aktivalva_ekor?: string | null
+  lezarva_ekor?: string | null
+  lezarta_id?: string | null
+  lezarta?: { id?: string; nev?: string | null } | null
+  dolgozo?: { id?: string; nev?: string | null } | null
+  reszleg?: string | null
   tasks?: OnboardingTask[]
   hr_onboarding_feladat?: OnboardingTask[]
-  hr_toborzas?: { pozicio?: string; email?: string; [key: string]: any } | null
+  hr_toborzas?: { id?: string; pozicio?: string; email?: string; telefonszam?: string | null; cv_storage_path?: string | null; [key: string]: any } | null
   [key: string]: any
 }
 

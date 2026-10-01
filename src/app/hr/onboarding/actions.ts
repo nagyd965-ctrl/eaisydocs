@@ -1,7 +1,16 @@
 "use server"
 
 import { createClient } from "@/utils/supabase/server"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
+import { onboardEmployee } from "@/app/hr/admin/actions"
+
+function getAdminClient() {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 export async function toggleTaskStatus(taskId: string, currentStatus: string) {
   const supabase = await createClient()
@@ -48,7 +57,6 @@ export async function toggleTaskStatus(taskId: string, currentStatus: string) {
 export async function updateOnboardingDate(onboardingId: string, newDate: string) {
   const supabase = await createClient()
 
-  // Biztonsági ellenőrzés
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
@@ -78,7 +86,6 @@ export async function updateOnboardingDate(onboardingId: string, newDate: string
 export async function addOnboardingTask(onboardingId: string, cim: string, felelos_reszleg: string) {
   const supabase = await createClient()
 
-  // Biztonsági ellenőrzés
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
@@ -115,7 +122,6 @@ export async function deleteOnboardingTask(taskId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  // Get task info for log before delete
   const { data: taskData } = await supabase
     .from("hr_onboarding_feladat")
     .select(`cim, onboarding_id`)
@@ -132,7 +138,6 @@ export async function deleteOnboardingTask(taskId: string) {
     return { error: error.message }
   }
 
-  // Logolás
   if (taskData) {
     await supabase.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
@@ -142,6 +147,230 @@ export async function deleteOnboardingTask(taskId: string) {
       megjegyzes: `Feladat törölve: ${taskData.cim}`
     })
   }
+
+  revalidatePath("/hr/onboarding")
+  return { success: true }
+}
+
+/**
+ * Munkavállalói fiók aktiválása és hivatalos Welcome e-mail kiküldése
+ * Ezt a HR indítja el az Onboarding felületen a belépés közeledtével vagy az 1. munkanapon
+ */
+export async function activateOnboardingAccount(onboardingId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  if (!profile || !["admin", "hr_vezeto", "hr_munkatars"].includes(profile.hr_szerepkor)) {
+    return { error: "Nincs jogosultságod a munkavállalói fiók aktiválásához." }
+  }
+
+  const adminClient = getAdminClient()
+
+  // Lekérjük az onboarding adatokat a toborzási jelölttel és feladatokkal együtt
+  const { data: onboarding, error: onbErr } = await adminClient
+    .from("hr_onboarding")
+    .select(`
+      *,
+      hr_toborzas (*),
+      hr_onboarding_feladat (*)
+    `)
+    .eq("id", onboardingId)
+    .single()
+
+  if (onbErr || !onboarding) {
+    return { error: "Nem található az onboarding profil." }
+  }
+
+  if (onboarding.fiok_allapot === "aktivalva" && onboarding.dolgozo_id) {
+    return { error: "Ez a munkavállalói fiók már korábban aktiválva lett." }
+  }
+
+  let finalUserId = onboarding.dolgozo_id
+
+  if (!finalUserId && onboarding.toborzas_id) {
+    // Meghívjuk a bevált onboardEmployee admin akciót, ami elkészíti az auth fiókot, adatlapot, jogviszonyt és kiküldi az e-mailt
+    const candidate = onboarding.hr_toborzas
+    const result = await onboardEmployee({
+      mode: "select_candidate",
+      candidateId: onboarding.toborzas_id,
+      role: "munkavallalo",
+      munkakorId: candidate?.megpalyazott_munkakor_id || "none",
+      belepes_datuma: onboarding.belepes_datuma && onboarding.belepes_datuma !== "Hamarosan" 
+        ? onboarding.belepes_datuma 
+        : new Date().toISOString()
+    })
+
+    if (result.error) {
+      console.error("Hiba a fiók generálásakor:", result.error)
+      return { error: result.error }
+    }
+
+    finalUserId = result.userId
+  }
+
+  if (!finalUserId) {
+    return { error: "Nem sikerült a felhasználói azonosítót meghatározni a fiók aktiválásához." }
+  }
+
+  // Frissítjük az Onboarding rekordot
+  const nowIso = new Date().toISOString()
+  const { error: updateErr } = await adminClient
+    .from("hr_onboarding")
+    .update({
+      dolgozo_id: finalUserId,
+      fiok_allapot: "aktivalva",
+      fiok_aktivalva_ekor: nowIso
+    })
+    .eq("id", onboardingId)
+
+  if (updateErr) {
+    console.error("Hiba az onboarding rekord frissítésekor:", updateErr)
+    return { error: updateErr.message }
+  }
+
+  // Automatikusan készre állítjuk a fiókaktiválási feladatot a listában (ha van ilyen)
+  const activationTask = (onboarding.hr_onboarding_feladat || []).find((t: any) =>
+    t.cim.toLowerCase().includes("fiók") || 
+    t.cim.toLowerCase().includes("aktivál") || 
+    t.cim.toLowerCase().includes("hozzáférés")
+  )
+  if (activationTask && activationTask.statusz !== "done") {
+    await adminClient
+      .from("hr_onboarding_feladat")
+      .update({ statusz: "done" })
+      .eq("id", activationTask.id)
+  }
+
+  // Audit napló
+  await adminClient.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "munkatars_felvetel",
+    entitas_tipus: "hr_onboarding",
+    entitas_id: onboardingId,
+    megjegyzes: `Munkavállalói eaisyHR fiók sikeresen aktiválva és belépési adatok kiküldve: ${onboarding.nev}`
+  })
+
+  revalidatePath("/hr/onboarding")
+  revalidatePath(`/hr/employee/${finalUserId}`)
+  return { success: true, userId: finalUserId }
+}
+
+/**
+ * Onboarding folyamat sikeres lezárása (Archiválás)
+ * A folyamat átkerül a "Lezárt beléptetések" fülre
+ */
+export async function closeOnboarding(onboardingId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  if (!profile || !["admin", "hr_vezeto", "hr_munkatars"].includes(profile.hr_szerepkor)) {
+    return { error: "Nincs jogosultságod a beléptetés lezárásához." }
+  }
+
+  const adminClient = getAdminClient()
+  const nowIso = new Date().toISOString()
+
+  const { error } = await adminClient
+    .from("hr_onboarding")
+    .update({
+      statusz: "lezart",
+      lezarva_ekor: nowIso,
+      lezarta_id: user.id
+    })
+    .eq("id", onboardingId)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  // Audit log
+  await adminClient.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "adat_modositas",
+    entitas_tipus: "hr_onboarding",
+    entitas_id: onboardingId,
+    megjegyzes: `Beléptetési (Onboarding) folyamat sikeresen lezárva és archiválva.`
+  })
+
+  revalidatePath("/hr/onboarding")
+  return { success: true }
+}
+
+/**
+ * Lezárt onboarding újranyitása szükség esetén
+ */
+export async function reopenOnboarding(onboardingId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const adminClient = getAdminClient()
+
+  const { error } = await adminClient
+    .from("hr_onboarding")
+    .update({
+      statusz: "folyamatban",
+      lezarva_ekor: null,
+      lezarta_id: null
+    })
+    .eq("id", onboardingId)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  await adminClient.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "adat_modositas",
+    entitas_tipus: "hr_onboarding",
+    entitas_id: onboardingId,
+    megjegyzes: `Beléptetési folyamat újranyitva.`
+  })
+
+  revalidatePath("/hr/onboarding")
+  return { success: true }
+}
+
+/**
+ * Onboarding folyamat törlése
+ */
+export async function deleteOnboarding(onboardingId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const adminClient = getAdminClient()
+
+  const { error } = await adminClient
+    .from("hr_onboarding")
+    .delete()
+    .eq("id", onboardingId)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  await adminClient.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "adat_torles",
+    entitas_tipus: "hr_onboarding",
+    entitas_id: onboardingId,
+    megjegyzes: `Onboarding folyamat törölve.`
+  })
 
   revalidatePath("/hr/onboarding")
   return { success: true }

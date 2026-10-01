@@ -1,16 +1,24 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogTrigger } from "@/components/ui/dialog"
-import { CheckCircle2 } from "lucide-react"
-import { toggleTaskStatus, updateOnboardingDate } from "@/app/hr/onboarding/actions"
+import { 
+  Calendar, 
+  CheckCircle2, 
+  Clock, 
+  UserCheck, 
+  UserPlus, 
+  ChevronRight, 
+  Briefcase,
+  Layers,
+  Sparkles
+} from "lucide-react"
+import { updateOnboardingDate } from "@/app/hr/onboarding/actions"
 import { OnboardingProfileModal } from "./onboarding-profile-modal"
 import { toast } from "sonner"
-
 import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
 
 interface OnboardingCardProps {
@@ -18,97 +26,164 @@ interface OnboardingCardProps {
 }
 
 export function OnboardingCard({ onboarding }: OnboardingCardProps) {
-  const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
 
   const tasks: OnboardingTask[] = onboarding.hr_onboarding_feladat || onboarding.tasks || []
-  const doneCount = tasks.filter((t) => t.statusz === 'done').length
-  const progress = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0
-
-  const handleToggle = async (taskId: string, currentStatus: string) => {
-    setLoadingTaskId(taskId)
-    const result = await toggleTaskStatus(taskId, currentStatus)
-    setLoadingTaskId(null)
-    
-    if (result.error) {
-      toast.error(result.error)
-    } else {
-      toast.success(currentStatus === 'pending' ? 'Feladat elvégezve!' : 'Feladat visszanyitva.')
-    }
-  }
+  const doneCount = tasks.filter((t) => t.statusz === "done").length
+  const totalCount = tasks.length
+  const progress = totalCount > 0 ? (doneCount / totalCount) * 100 : 0
+  const isDone = progress === 100
+  const isClosed = onboarding.statusz === "lezart"
+  const isAccountActive = onboarding.fiok_allapot === "aktivalva" || Boolean(onboarding.dolgozo_id)
 
   const handleDateChange = async (newDate: string) => {
     if (!newDate) return
     const result = await updateOnboardingDate(onboarding.id, newDate)
     if (result.error) toast.error(result.error)
-    else toast.success("Dátum sikeresen frissítve!")
+    else toast.success("Belépési dátum sikeresen frissítve!")
   }
 
+  // Belépési dátum intelligens formázása
+  const formatEntryDate = () => {
+    if (!onboarding.belepes_datuma || onboarding.belepes_datuma === "Hamarosan") {
+      return { text: "Hamarosan", badgeClass: "bg-muted text-muted-foreground" }
+    }
+
+    try {
+      const entryDate = new Date(onboarding.belepes_datuma)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      entryDate.setHours(0, 0, 0, 0)
+
+      const diffDays = Math.round((entryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      const formatted = entryDate.toLocaleDateString("hu-HU", { month: "short", day: "numeric" })
+
+      if (diffDays === 0) {
+        return { text: "Ma kezd!", badgeClass: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold animate-pulse" }
+      } else if (diffDays === 1) {
+        return { text: "Holnap kezd", badgeClass: "bg-primary/10 text-primary border-primary/20 font-medium" }
+      } else if (diffDays > 1 && diffDays <= 14) {
+        return { text: `${formatted} (${diffDays} nap múlva)`, badgeClass: "bg-primary/10 text-primary border-primary/20 font-medium" }
+      } else if (diffDays > 14) {
+        return { text: formatted, badgeClass: "bg-muted/50 text-muted-foreground border-border/50" }
+      } else {
+        return { text: `${formatted} (${Math.abs(diffDays)} napja)`, badgeClass: "bg-muted text-muted-foreground" }
+      }
+    } catch {
+      return { text: onboarding.belepes_datuma, badgeClass: "bg-muted text-muted-foreground" }
+    }
+  }
+
+  const dateInfo = formatEntryDate()
+
+  // Initials for avatar
+  const initials = (onboarding.nev || "Új munkatárs")
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase()
+
   return (
-    <Card className="flex flex-col relative overflow-hidden h-full">
-      <div 
-        className="absolute top-0 left-0 h-1 transition-all duration-500 bg-primary" 
-        style={{ width: `${progress}%` }} 
-      />
-      <Dialog>
-        <DialogTrigger nativeButton={false} render={<CardHeader className="border-b pb-4 pt-5 cursor-pointer hover:bg-muted/30 transition-colors group" />}>
-            <div className="flex justify-between items-start">
-              <div>
-                <CardTitle className="group-hover:text-primary transition-colors">{onboarding.nev}</CardTitle>
-                <CardDescription className="mt-1">
-                  {onboarding.munkakor} • Belépés: <span className="font-semibold text-foreground">{onboarding.belepes_datuma}</span>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger 
+        nativeButton={false}
+        render={
+          <Card className="flex flex-col relative overflow-hidden h-full cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-all duration-200 group border shadow-sm" />
+        }
+      >
+        {/* Felső vékony csík a haladásnak */}
+        <div 
+          className={`absolute top-0 left-0 h-1 transition-all duration-500 ${
+            isClosed ? "bg-muted-foreground/40" : isDone ? "bg-emerald-500" : "bg-primary"
+          }`}
+          style={{ width: `${progress}%` }} 
+        />
+
+        <CardHeader className="p-5 pb-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-semibold text-sm shrink-0 group-hover:scale-105 transition-transform">
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <CardTitle className="text-base font-semibold group-hover:text-primary transition-colors truncate">
+                  {onboarding.nev}
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-0.5 truncate flex items-center gap-1.5">
+                  <Briefcase className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                  {onboarding.munkakor || "Pozíció nincs megadva"}
                 </CardDescription>
               </div>
-              <Badge variant={progress === 100 ? "default" : "secondary"}>
-                {progress === 100 ? "Kész" : "Folyamatban"}
+            </div>
+
+            {/* Fő Státusz Badge */}
+            {isClosed ? (
+              <Badge variant="outline" className="text-xs bg-muted text-muted-foreground shrink-0 font-normal">
+                Lezárva
+              </Badge>
+            ) : isDone ? (
+              <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20 shrink-0 font-medium gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Kész
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20 shrink-0 font-medium">
+                Folyamatban
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-5 pt-2 flex-1 flex flex-col justify-between space-y-4">
+          {/* Információs sorok: Belépési dátum & Fiók állapot */}
+          <div className="flex items-center justify-between gap-2 text-xs flex-wrap pt-1">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <span>Belépés:</span>
+              <Badge variant="outline" className={`text-[11px] px-2 py-0 h-5 ${dateInfo.badgeClass}`}>
+                {dateInfo.text}
               </Badge>
             </div>
-            <div className="mt-4 flex items-center gap-3">
-              <Progress value={progress} className="h-2 flex-1" />
-              <span className="text-xs font-semibold tabular-nums text-muted-foreground w-8 text-right">
-                {Math.round(progress)}%
+
+            {/* Fiókállapot jelző */}
+            {isAccountActive ? (
+              <Badge variant="outline" className="text-[11px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 px-2 py-0 h-5 gap-1 font-medium">
+                <UserCheck className="w-3 h-3" /> Fiók aktív
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[11px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 px-2 py-0 h-5 gap-1 font-medium">
+                <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" /> Fiók aktiválásra vár
+              </Badge>
+            )}
+          </div>
+
+          {/* Haladási sáv és feladatszámláló */}
+          <div className="space-y-1.5 pt-2 border-t border-border/50">
+            <div className="flex justify-between items-center text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5" />
+                Előrehaladás
+              </span>
+              <span className="font-medium text-foreground tabular-nums">
+                {doneCount} / {totalCount} feladat ({Math.round(progress)}%)
               </span>
             </div>
-        </DialogTrigger>
-        <OnboardingProfileModal onboarding={onboarding} onDateChange={handleDateChange} />
-      </Dialog>
-      <CardContent className="pt-4 flex-1 flex flex-col gap-3">
-        {tasks.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">Nincsenek rögzített feladatok.</p>
-        )}
-        {tasks.map((task) => {
-          const isDone = task.statusz === 'done'
-          const isLoading = loadingTaskId === task.id
-          
-          return (
-            <div 
-              key={task.id} 
-              className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                isDone ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-border/50'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`h-6 w-6 rounded-full shrink-0 p-0 ${isDone ? 'text-primary hover:text-primary/80' : 'text-muted-foreground hover:text-foreground'}`}
-                  disabled={isLoading}
-                  onClick={() => handleToggle(task.id, task.statusz)}
-                >
-                  {isDone ? <CheckCircle2 className="h-5 w-5" /> : <div className="h-4 w-4 rounded-full border-2" />}
-                </Button>
-                <div>
-                  <p className={`text-sm font-medium ${isDone ? 'line-through text-muted-foreground' : ''}`}>
-                    {task.cim}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Felelős: <span className="font-semibold">{task.felelos_reszleg}</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </CardContent>
-    </Card>
+            <Progress value={progress} className="h-1.5 bg-muted" />
+          </div>
+
+          {/* Alsó megnyitási segédsáv */}
+          <div className="flex items-center justify-between text-xs text-primary font-medium pt-1 opacity-80 group-hover:opacity-100 transition-opacity">
+            <span>Részletek és teendők megnyitása</span>
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </CardContent>
+      </DialogTrigger>
+
+      <OnboardingProfileModal 
+        onboarding={onboarding} 
+        onDateChange={handleDateChange} 
+        onCloseDialog={() => setOpen(false)}
+      />
+    </Dialog>
   )
 }

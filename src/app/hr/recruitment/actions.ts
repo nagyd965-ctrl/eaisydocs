@@ -38,7 +38,7 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
     return { error: error.message }
   }
 
-  // Automatikus Onboarding profil létrehozása, ha "elfogadva" státuszba kerül
+  // Automatikus Onboarding profil létrehozása, ha "elfogadva" státuszba kerül (pre-onboarding)
   if (newStatus === "elfogadva") {
     // 1. Lekérjük a jelölt nevét és pozícióját
     const { data: candidate, error: fetchErr } = await adminClient
@@ -52,52 +52,50 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
     }
 
     if (candidate) {
-      // Automatikusan átemeljük a munkavállalót (ami kiküldi az e-mailt)
-      try {
-        const { onboardEmployee } = await import("@/app/hr/admin/actions")
-        await onboardEmployee({
-          mode: "select_candidate",
-          candidateId: candidateId,
-          role: "munkavallalo",
-          munkakorId: candidate.megpalyazott_munkakor_id || "none",
-          belepes_datuma: new Date().toISOString()
-        })
-      } catch (e) {
-        console.error("Hiba az automatikus átemelésnél", e)
-      }
-
-      const munkakor = (candidate as any).hr_munkakor?.megnevezes || "Új munkatárs"
-      
-      // 2. Létrehozzuk az Onboarding rekordot
-      const { data: newOnboarding, error: onbError } = await adminClient
+      // Duplikációvédelem: ellenőrizzük, hogy létezik-e már onboarding folyamat ehhez a jelölthöz
+      const { data: existingOnboarding } = await adminClient
         .from("hr_onboarding")
-        .insert({
-          toborzas_id: candidateId,
-          nev: candidate.nev,
-          munkakor: munkakor,
-          belepes_datuma: "Hamarosan",
-          statusz: "folyamatban"
-        })
-        .select()
-        .single()
+        .select("id")
+        .eq("toborzas_id", candidateId)
+        .maybeSingle()
 
-      if (newOnboarding && !onbError) {
-        // 3. Hozzáadjuk az alapértelmezett feladatokat
-        await adminClient.from("hr_onboarding_feladat").insert([
-          { onboarding_id: newOnboarding.id, cim: "Munkaszerződés aláírása", felelos_reszleg: "HR", statusz: "pending" },
-          { onboarding_id: newOnboarding.id, cim: "T1041 NAV bejelentés", felelos_reszleg: "Bérszámfejtés", statusz: "pending" },
-          { onboarding_id: newOnboarding.id, cim: "Eszközigénylés (Laptop, Telefon)", felelos_reszleg: "IT", statusz: "pending" },
-          { onboarding_id: newOnboarding.id, cim: "Munkavédelmi oktatás (EHS)", felelos_reszleg: "EHS", statusz: "pending" }
-        ])
+      if (!existingOnboarding) {
+        const munkakor = (candidate as any).hr_munkakor?.megnevezes || "Új munkatárs"
         
-        // Logolás
-        await adminClient.from("hr_esemeny_naplo").insert({
-          felhasznalo_id: user.id,
-          esemeny_tipus: "rendszer_inditas", 
-          entitas_tipus: "hr_onboarding",
-          entitas_id: newOnboarding.id,
-          megjegyzes: `Automatikus Onboarding profil létrehozva a sikeres toborzás után: ${candidate.nev}`
-        })
+        // Létrehozzuk az Onboarding rekordot előkészületi ("varakozik") állapotban.
+        // Fiók és e-mail még NEM készül, azt a HR indítja el az Onboarding felületen a belépés közeledtével.
+        const { data: newOnboarding, error: onbError } = await adminClient
+          .from("hr_onboarding")
+          .insert({
+            toborzas_id: candidateId,
+            nev: candidate.nev,
+            munkakor: munkakor,
+            belepes_datuma: "Hamarosan",
+            statusz: "folyamatban",
+            fiok_allapot: "varakozik"
+          })
+          .select()
+          .single()
+
+        if (newOnboarding && !onbError) {
+          // Standard belépési feladatok hozzáadása
+          await adminClient.from("hr_onboarding_feladat").insert([
+            { onboarding_id: newOnboarding.id, cim: "Munkaszerződés előkészítése & aláírása", felelos_reszleg: "HR", statusz: "pending" },
+            { onboarding_id: newOnboarding.id, cim: "T1041 NAV bejelentés", felelos_reszleg: "Bérszámfejtés", statusz: "pending" },
+            { onboarding_id: newOnboarding.id, cim: "Eszközigény leadása (Laptop, Telefon)", felelos_reszleg: "IT", statusz: "pending" },
+            { onboarding_id: newOnboarding.id, cim: "Munkavédelmi és tűzvédelmi oktatás", felelos_reszleg: "EHS", statusz: "pending" },
+            { onboarding_id: newOnboarding.id, cim: "Munkavállalói fiók aktiválása & e-mail", felelos_reszleg: "HR", statusz: "pending" }
+          ])
+          
+          // Logolás
+          await adminClient.from("hr_esemeny_naplo").insert({
+            felhasznalo_id: user.id,
+            esemeny_tipus: "rendszer_inditas", 
+            entitas_tipus: "hr_onboarding",
+            entitas_id: newOnboarding.id,
+            megjegyzes: `Onboarding előkészület indítva (fiók aktiválásra vár): ${candidate.nev}`
+          })
+        }
       }
     }
   } else if (newStatus === "interju") {

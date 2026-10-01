@@ -48,10 +48,17 @@ export async function onboardEmployee(data: {
     })
 
     if (authError || !authData.user) {
-      return { error: authError?.message || "Nem sikerült a felhasználót létrehozni az átemelés során." }
+      // Ha a felhasználó már létezik ezzel az email címmel, megkeressük
+      const { data: userList } = await supabaseAdmin.auth.admin.listUsers()
+      const existingUser = userList?.users?.find(u => u.email?.toLowerCase() === candidate.email?.toLowerCase())
+      if (existingUser) {
+        finalUserId = existingUser.id
+      } else {
+        return { error: authError?.message || "Nem sikerült a felhasználót létrehozni az átemelés során." }
+      }
+    } else {
+      finalUserId = authData.user.id
     }
-
-    finalUserId = authData.user.id
     await new Promise(resolve => setTimeout(resolve, 500))
 
     // 3. Felülírjuk a nevet
@@ -187,5 +194,5 @@ export async function onboardEmployee(data: {
   }
 
   revalidatePath("/hr/settings")
-  return { success: true }
+  return { success: true, userId: finalUserId }
 }

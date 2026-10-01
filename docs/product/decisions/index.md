@@ -41,8 +41,9 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-031](./P-031-disciplinary-and-damage-liability-lifecycle-ux.md) | 2026-10-01 | Munkáltatói Fegyelmi és Károkozási Határozatok (Mt. 56. §, 179. §) és eaisyDocs Iktatás UX | `[HR]` | `HR / Disciplinary & Filing` | `DisciplinaryTab.tsx`, `disciplinary-pdf-generator.ts`, `src/app/api/hr/disciplinary-pdf` |
 | [P-032](./P-032-awards-and-honors-lifecycle-ux.md) | 2026-10-01 | Munkavállalói Kitüntetések, Szakmai Elismerések és Elismerő Oklevél UX | `[HR]` | `HR / Awards & Filing` | `AwardsTab.tsx`, `award-certificate-pdf-generator.ts`, `src/app/api/hr/award-pdf` |
 | [P-033](./P-033-signed-document-copy-upload-and-versioning-ux.md) | 2026-10-01 | Hivatalos HR Dokumentumok Aláírt Példányának Csatolása és Verziókezelése UX | `[HR]` | `HR / Signed Copy & Filing` | `UploadSignedDocumentDialog.tsx`, `page.tsx`, `actions.ts` |
+| [P-034](./P-034-onboarding-lifecycle-redesign-and-activation-ux.md) | 2026-10-01 | Megújított Onboarding Folyamat, Kétlépcsős Fiókaktiválás és Letisztult UX | `[HR]` | `HR / Onboarding` | `src/app/hr/onboarding/*`, `onboarding-list.tsx`, `onboarding-card.tsx`, `onboarding-profile-modal.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-034`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-035`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!

@@ -36,7 +36,9 @@ export default async function OnboardingPage() {
     .select(`
       *,
       hr_onboarding_feladat (*),
-      hr_toborzas (email, cv_storage_path)
+      hr_toborzas (id, email, telefonszam, cv_storage_path),
+      dolgozo:felhasznalo_profil!dolgozo_id (id, nev),
+      lezarta:felhasznalo_profil!lezarta_id (id, nev)
     `)
     .order("created_at", { ascending: false })
 
