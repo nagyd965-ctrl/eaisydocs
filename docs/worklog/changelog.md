@@ -13,8 +13,9 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
   - Gyors sablon gombok: `+ Laptop`, `+ Telefon`, `+ Belépőkártya` azonnali 1-kattintásos felvitelhez.
 - **Hivatalos Átadás-Átvételi Jegyzőkönyv és Iktatás (`asset-actions.ts`, `asset-handover-pdf-generator.ts`):**
   - Puppeteer PDF generálás az Mt. 179. § szerinti vétkességre tekintet nélküli leltár- és megőrzési felelősségvállalási záradékkal, felek adataival és visszaszolgáltatási kötelezettséggel.
-  - Automatikus eaisyDocs iktatás a személyi dossziéba az `Eszközfelelősség` kategória alá (3.3 tétel, 5 év megőrzési idő).
-  - Az onboarding folyamatban lévő eszközátadási feladat **automatikus készre pipálása** a jegyzőkönyv lezárásakor.
+  - **Pre-onboarding és Fiókaktiválási Iktatási Életciklus:** Amíg a belépő munkavállaló még nem rendelkezik éles fiókkal (`dolgozo_id` nincs aktiválva), a rendszer „Jegyzőkönyv generálása (PDF)” műveletként előkészíti és letárolja az iratot az onboarding folyamaton belül (letölthető, kinyomtatható a belépéskori fizikai aláíráshoz).
+  - **Automatikus és Utólagos Iktatás:** Amint a HR rákattint a „Fiók aktiválása” gombra, a létrehozott dolgozói profilhoz és az újonnan megnyíló eaisyDocs Személyi Dossziéba az előkészített jegyzőkönyv automatikusan beiktatásra kerül (vagy az Eszközök fülön közvetlenül beiktatható). Ha a fiók eleve aktív, a generálás egy lépésben azonnal be is iktat.
+  - Az onboarding folyamatban lévő eszközátadási feladat **automatikus készre pipálása** a jegyzőkönyv kiállításakor.
 - **Döntési háttér:** [PRD P-035](../product/decisions/P-035-onboarding-manual-intake-and-asset-handover-ux.md).
 
 ### 🚀 Megújított Onboarding Folyamat, Kétlépcsős Fiókaktiválás és Közvetlen Beléptetés UX
