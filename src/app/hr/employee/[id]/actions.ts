@@ -1960,3 +1960,182 @@ export async function fileAnnualLeaveSheet(employeeId: string, year: number) {
   }
 }
 
+export async function uploadSignedDocumentAction(
+  documentId: string,
+  employeeId: string,
+  formData: FormData
+) {
+  const supabase = await createClient()
+
+  // 1. Jogosultság ellenőrzése
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Nincs bejelentkezve!" }
+
+  const { data: userProfile } = await supabase
+    .from("felhasznalo_profil")
+    .select("nev, hr_szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isHrOrAdmin =
+    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
+    userProfile?.docs_szerepkor === "admin"
+
+  if (!isHrOrAdmin) {
+    return { success: false, error: "Nincs jogosultsága aláírt példányt feltölteni!" }
+  }
+
+  // 2. Fájl kinyerése
+  const file = formData.get("file") as File
+  if (!file || file.size === 0 || typeof file.arrayBuffer !== "function") {
+    return { success: false, error: "Nem választott ki feltöltendő fájlt!" }
+  }
+
+  // 3. Fájl feldolgozása
+  try {
+    const arrayBuf = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuf)
+    const cleanFileName = file.name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+    const storagePath = `signed_documents/${employeeId}/${Date.now()}_${cleanFileName}`
+
+    // Feltöltés a Supabase Storage irat_files vödörbe
+    let { error: uploadError } = await supabase.storage
+      .from("irat_files")
+      .upload(storagePath, buffer, {
+        contentType: file.type || "application/pdf",
+        upsert: true,
+      })
+
+    if (uploadError) {
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (serviceRoleKey) {
+        const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+        const adminClient = createSupabaseClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          serviceRoleKey
+        )
+        const { error: adminUploadError } = await adminClient.storage
+          .from("irat_files")
+          .upload(storagePath, buffer, {
+            contentType: file.type || "application/pdf",
+            upsert: true,
+          })
+        if (adminUploadError) {
+          return { success: false, error: "Fájl feltöltési hiba: " + adminUploadError.message }
+        }
+      } else {
+        return { success: false, error: "Fájl feltöltési hiba: " + uploadError.message }
+      }
+    }
+
+    // 4. Lekérjük a dokumentum adatait
+    const { data: doc, error: docErr } = await supabase
+      .from("hr_dokumentum")
+      .select("*")
+      .eq("id", documentId)
+      .single()
+
+    if (docErr || !doc) {
+      return { success: false, error: "Dokumentum nem található!" }
+    }
+
+    const crypto = await import("crypto")
+    const fileSha256 = crypto.createHash("sha256").update(buffer).digest("hex")
+
+    // 5. Ha a dokumentum már be van iktatva az eaisyDocs-ba (irat_id létezik):
+    if (doc.irat_id) {
+      // Megkeressük a legmagasabb verziószámot
+      const { data: maxVerzioItem } = await supabase
+        .from("irat_fajl")
+        .select("verzio")
+        .eq("irat_id", doc.irat_id)
+        .order("verzio", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const nextVerzio = (maxVerzioItem?.verzio || 1) + 1
+
+      // Új verzióként beszúrjuk az irat_fajl táblába
+      await supabase.from("irat_fajl").insert({
+        irat_id: doc.irat_id,
+        storage_path: storagePath,
+        eredeti_fajlnev: `[ALÁÍRT] ${file.name}`,
+        mime_type: file.type || "application/pdf",
+        meret_byte: buffer.length,
+        sha256: fileSha256,
+        verzio: nextVerzio,
+      })
+
+      // Audit naplózás az eaisyDocs esemeny_naplo táblába
+      try {
+        await supabase.from("esemeny_naplo").insert({
+          felhasznalo_id: user.id,
+          esemeny_tipus: "irat_modositas",
+          entitas_tipus: "irat",
+          entitas_id: doc.irat_id,
+          reszletek: {
+            muvelet: "alairt_peldany_csatolasa",
+            iktatoszam: doc.iktatoszam,
+            verzio: nextVerzio,
+            fajlnev: file.name,
+            tarolasi_ut: storagePath,
+          }
+        })
+      } catch (e) {
+        console.warn("Audit naplózási figyelmeztetés:", e)
+      }
+    }
+
+    // 6. Frissítjük a hr_dokumentum rekordot
+    const nowIso = new Date().toISOString()
+    const { error: updateDocErr } = await supabase
+      .from("hr_dokumentum")
+      .update({
+        alairt_fajl_url: storagePath,
+        alairva_ekor: nowIso,
+        alairas_statusz: "alairva",
+        alairo_neve: userProfile?.nev || "HR Munkatárs"
+      })
+      .eq("id", documentId)
+
+    if (updateDocErr) {
+      return { success: false, error: "Hiba a dokumentum státuszának frissítésekor: " + updateDocErr.message }
+    }
+
+    // 7. Szinkronizáljuk a kapcsolódó domain rekordokat ha vannak (tanulmányi, fegyelmi, elismerés, orvosi)
+    await Promise.all([
+      supabase.from("hr_tanulmanyi_szerzodes").update({ fajl_url: storagePath }).eq("dokumentum_id", documentId),
+      supabase.from("hr_fegyelmi").update({ fajl_url: storagePath }).eq("dokumentum_id", documentId),
+      supabase.from("hr_kituntetes").update({ fajl_url: storagePath }).eq("dokumentum_id", documentId),
+      supabase.from("hr_orvosi_vizsgalat").update({ fajl_url: storagePath }).eq("dokumentum_id", documentId),
+    ])
+
+    // 8. HR eseménynapló bejegyzés
+    await supabase.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      esemeny_tipus: "adat_modositas",
+      entitas_tipus: "hr_dokumentum",
+      entitas_id: documentId,
+      megjegyzes: `Aláírt példány csatolva a(z) "${doc.nev}" irathoz (${doc.iktatoszam || "nem iktatott"}).`
+    })
+
+    revalidatePath(`/hr/employee/${employeeId}`)
+    revalidatePath("/hr")
+    revalidatePath("/dossiers")
+
+    return { 
+      success: true, 
+      storagePath, 
+      alairva_ekor: nowIso,
+      iktatoszam: doc.iktatoszam
+    }
+  } catch (error: any) {
+    console.error("Hiba az aláírt példány feltöltése során:", error)
+    return { success: false, error: error.message || "Váratlan hiba történt a feltöltés során." }
+  }
+}
+
+

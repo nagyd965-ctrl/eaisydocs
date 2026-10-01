@@ -25,8 +25,9 @@ import { DeleteContractButton } from "@/components/hr/delete-contract-button"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 import { FileHrDocumentDialog } from "@/components/hr/file-hr-document-dialog"
 import { BatchFileHrDocumentsDialog } from "@/components/hr/batch-file-hr-documents-dialog"
+import { UploadSignedDocumentDialog } from "@/components/hr/upload-signed-document-dialog"
 import { JobDescriptionBadgeAction } from "@/components/hr/job-description-badge-action"
-import { ExternalLink, FileCheck, Lock } from "lucide-react"
+import { ExternalLink, FileCheck, Lock, CheckCircle2, Download } from "lucide-react"
 import { IDPTab } from "./tabs/IDPTab"
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -116,14 +117,28 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     .eq("dolgozo_id", resolvedParams.id)
     .order("created_at", { ascending: false })
 
-  // Aláírt URL-ek generálása a privát fájlokhoz
+  // Aláírt URL-ek generálása a privát fájlokhoz (eredeti és aláírt példány)
   const hrDocuments = await Promise.all(
     (hrDocumentsList || []).map(async (doc) => {
+      let signedUrl = doc.url
+      let alairtSignedUrl: string | null = null
+
       if (doc.url) {
         const { data } = await supabase.storage.from("irat_files").createSignedUrl(doc.url, 3600)
-        return { ...doc, signedUrl: data?.signedUrl || doc.url }
+        signedUrl = data?.signedUrl || doc.url
       }
-      return doc
+
+      if (doc.alairt_fajl_url) {
+        const { data: aData } = await supabase.storage.from("irat_files").createSignedUrl(doc.alairt_fajl_url, 3600)
+        alairtSignedUrl = aData?.signedUrl || doc.alairt_fajl_url
+      }
+
+      return {
+        ...doc,
+        signedUrl,
+        alairtSignedUrl,
+        displayUrl: alairtSignedUrl || signedUrl,
+      }
     })
   )
 
@@ -421,12 +436,27 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                                   Belső HR vázlat
                                 </Badge>
                               )}
+                              {doc.alairt_fajl_url || doc.alairas_statusz === "alairva" ? (
+                                <Badge variant="outline" className="bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20 text-xs gap-1 font-medium">
+                                  <CheckCircle2 className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                                  Aláírt példány
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/20 font-normal">
+                                  Tervezet
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-sm text-muted-foreground">Kategória: {doc.kategoria || "Egyéb"}</p>
                             <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                               <span>Létrehozva: {new Date(doc.created_at).toLocaleString("hu-HU")}</span>
                               {doc.iktatva_ekor && (
                                 <span>• Iktatás ideje: {new Date(doc.iktatva_ekor).toLocaleString("hu-HU")}</span>
+                              )}
+                              {doc.alairva_ekor && (
+                                <span className="text-teal-600 dark:text-teal-400 font-medium">
+                                  • Aláírva: {new Date(doc.alairva_ekor).toLocaleString("hu-HU")}
+                                </span>
                               )}
                               {doc.ugyirat_id && (
                                 <Link 
@@ -439,10 +469,39 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 self-end sm:self-center">
-                            {doc.url && (
-                              <PdfViewerDialog url={doc.signedUrl || doc.url} title={doc.nev} />
+                          <div className="flex items-center gap-1.5 self-end sm:self-center">
+                            {/* 1. Aláírt példány feltöltése / cseréje */}
+                            {isHrOrAdmin && (
+                              <UploadSignedDocumentDialog
+                                document={doc}
+                                employeeId={profile.id}
+                                employeeName={profile.nev}
+                              />
                             )}
+
+                            {/* 2. In-browser Megtekintés (ha van aláírt példány, azt nyitja meg!) */}
+                            {(doc.displayUrl || doc.signedUrl || doc.url) && (
+                              <PdfViewerDialog 
+                                url={doc.displayUrl || doc.signedUrl || doc.url} 
+                                title={doc.alairt_fajl_url ? `${doc.nev} (Aláírt példány)` : doc.nev} 
+                              />
+                            )}
+
+                            {/* 3. Közvetlen Letöltés */}
+                            {(doc.displayUrl || doc.signedUrl || doc.url) && (
+                              <a
+                                href={doc.displayUrl || doc.signedUrl || doc.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors inline-flex items-center justify-center"
+                                title="Letöltés"
+                              >
+                                <Download className="w-4 h-4" />
+                              </a>
+                            )}
+
+                            {/* 4. Iktatás (ha még nincs iktatva) */}
                             {isHrOrAdmin && !doc.iktatoszam && (
                               <FileHrDocumentDialog 
                                 document={doc} 

@@ -6,6 +6,20 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-01)
 
+### ✍️ Hivatalos HR Dokumentumok Aláírt Példányának Csatolása és Verziókezelése UX
+- **Központi Aláírt Példány Kezelés a Hivatalos Dokumentumok Idővonalon (`page.tsx`, `UploadSignedDocumentDialog.tsx`):**
+  - A *Munkaviszony & Szerződések* fül központi irat-idővonalán minden munkavállalói dokumentum közvetlen gombot kapott a beszkennelt, aláírt példány rögzítésére (`[Aláírt példány feltöltése]` ill. `[Aláírt példány cseréje]`).
+  - Átlátható állapotjelzés: `Tervezet` (szürke) vs. `✓ Aláírt példány` (zöldesszürke / teal kiemelt jelvény), feltöltési dátumbélyegzővel.
+  - Tágas, modern modális ablak drag & drop PDF/kép feltöltővel és fájlméret-ellenőrzéssel.
+- **Automatikus eaisyDocs Verziókövetés és Archiválás (`uploadSignedDocumentAction`):**
+  - Ha az irat már be volt iktatva, az aláírt példány új verzióként (`verzio: 2`, `[ALÁÍRT]` előtaggal és SHA-256 hash-sel) csatolódik a meglévő iktatószám alá az `irat_fajl` táblába.
+  - Automatikus eseménynaplózás az eaisyDocs `esemeny_naplo` és `hr_esemeny_naplo` táblákban.
+  - A megtekintés (`PdfViewerDialog`) és a közvetlen letöltés prioritásként azonnal a feltöltött aláírt változatot nyitja meg.
+  - Szinkronizáció a kapcsolódó domain rekordokkal (`hr_tanulmanyi_szerzodes`, `hr_fegyelmi`, `hr_kituntetes`, `hr_orvosi_vizsgalat`).
+- **Adatbázis Migráció (`20261001000006_hr_dokumentum_signed_copy.sql`):**
+  - `hr_dokumentum` tábla bővítése: `alairt_fajl_url`, `alairva_ekor`, `alairas_statusz`, `alairo_neve` oszlopokkal és indexszel.
+- **Döntési háttér:** [PRD P-033](../product/decisions/P-033-signed-document-copy-upload-and-versioning-ux.md).
+
 ### 🏆 Munkavállalói Kitüntetések, Szakmai Elismerések és Elismerő Oklevél UX
 - **Önálló Elismerési Modul a Szakmai Háttér Fülön (`AwardsTab.tsx`):**
   - A korábbi gyakorlattal szakítva a kitüntetések és szakmai elismerések teljesen elválasztásra kerültek a fegyelmi ügyektől, és kiemelt, pozitív helyre kerültek a dolgozó *Szakmai Háttér* szekciójában.
