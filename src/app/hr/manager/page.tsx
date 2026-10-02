@@ -136,8 +136,7 @@ export default async function ManagerPage() {
         {/* Bal oszlop: Jóváhagyások + Naptár */}
         <div className="md:col-span-2 space-y-6">
 
-          {/* Jóváhagyásra váró kérelmek */}
-          <Card className={`border-l-4 ${pendingCount > 0 ? "border-l-warning" : "border-l-success"}`}>
+          <Card className="border shadow-xs bg-card">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

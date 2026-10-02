@@ -46,8 +46,11 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-036](./P-036-occupational-safety-and-fire-training-protocol-ux.md) | 2026-10-01 | Munkavédelmi és Tűzvédelmi Oktatási Jegyzőkönyv (Mvt. 55. §, Ttv. 22. §) és Onboarding Iktatás UX | `[HR]` | `HR / Safety & Onboarding` | `safety-training-dialog.tsx`, `safety-training-actions.ts`, `safety-training-pdf-generator.ts`, `MedicalTab.tsx` |
 | [P-037](./P-037-onboarding-employment-contract-generator-and-filing-ux.md) | 2026-10-01 | Onboarding Munkaszerződés Előkészítés, Generálás (Mt. 42–45. §) és Személyi Dosszié Iktatás UX | `[HR]` | `HR / Contracts & Onboarding` | `employment-contract-panel.tsx`, `employment-contract-actions.ts`, `employment-contract-pdf-generator.ts`, `onboarding-profile-modal.tsx` |
 | [P-038](./P-038-onboarding-dynamic-job-and-org-unit-catalog-selector-ux.md) | 2026-10-01 | Dinamikus Szervezeti Egység és Munkakör Katalógus Választó UX | `[HR]` | `HR / Onboarding & Catalog` | `job-org-selector.tsx`, `job-org-actions.ts`, `employment-contract-panel.tsx`, `add-onboarding-dialog.tsx` |
+| [P-039](./P-039-onboarding-t1041-job-description-and-mt46-ux.md) | 2026-10-01 | Pre-Onboarding Munkaköri Leírás, NAV T1041 Adatlap & Mt. 46. § Írásbeli Tájékoztató Generátor UX | `[HR]` | `HR / Onboarding & Compliance` | `t1041-panel.tsx`, `job-description-panel.tsx`, `t1041-actions.ts`, `onboarding-job-actions.ts` |
+| [P-040](./P-040-hr-offboarding-analytics-and-filing-revamp.md) | 2026-10-02 | Megújított Offboarding Folyamat, Mt. Jogi Dokumentumgenerálás, eaisyDocs Iktatás és Kilépési HR Analytics UX | `[HR]` | `HR / Offboarding & Analytics` | `src/app/hr/offboarding/*`, `offboarding-profile-modal.tsx`, `exit-interview-summary.tsx` |
+| [P-041](./P-041-statutory-exit-certificate-and-handover-ux.md) | 2026-10-02 | Törvényes Kilépő Igazolások Kiadása (Mt. 80. §), Átvételi Nyugta és eaisyDocs Iktatás UX | `[HR]` | `HR / Offboarding & Compliance` | `exit-certificate-panel.tsx`, `exit-certificate-pdf-generator.ts`, `offboarding-profile-modal.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-038`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-042`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!

@@ -126,55 +126,55 @@ export default async function HrOverviewPage() {
 
       {/* Stat kártyák */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-
-        <Card className="border-l-4 border-l-primary">
-          <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Users className="w-4 h-4 text-primary" />
-            </div>
+        <Card className="border shadow-xs bg-card">
+          <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-2xl font-semibold tabular-nums text-primary">{activeEmployees ?? 0} fő</p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">Aktív Dolgozók</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktív Dolgozók</p>
+              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{activeEmployees ?? 0} fő</h3>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-warning">
-          <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-warning-subtle flex items-center justify-center shrink-0">
-              <CalendarX className="w-4 h-4 text-warning" />
-            </div>
+        <Card className={`border shadow-xs transition-colors ${(todayAbsences ?? 0) > 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-card"}`}>
+          <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-2xl font-semibold tabular-nums text-warning">{todayAbsences ?? 0} fő</p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">Mai Hiányzók</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Mai Hiányzók</p>
+              <h3 className={`text-2xl font-bold tracking-tight mt-1 tabular-nums ${(todayAbsences ?? 0) > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
+                {todayAbsences ?? 0} fő
+              </h3>
+            </div>
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${(todayAbsences ?? 0) > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground"}`}>
+              <CalendarX className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-info">
-          <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-info-subtle flex items-center justify-center shrink-0">
-              <Briefcase className="w-4 h-4 text-info" />
-            </div>
+        <Card className="border shadow-xs bg-card">
+          <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-2xl font-semibold tabular-nums text-info">{openPositions ?? 0} db</p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">Nyitott Pozíciók</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Nyitott Pozíciók</p>
+              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{openPositions ?? 0} db</h3>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-info-subtle text-info flex items-center justify-center shrink-0">
+              <Briefcase className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-violet-500">
-          <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center shrink-0">
-              <UserPlus className="w-4 h-4 text-violet-600" />
-            </div>
+        <Card className="border shadow-xs bg-card">
+          <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-2xl font-semibold tabular-nums text-violet-600">{activeOnboardings ?? 0} fő</p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">Aktív Onboarding</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktív Onboarding</p>
+              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-violet-600 dark:text-violet-400">{activeOnboardings ?? 0} fő</h3>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
+              <UserPlus className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
-
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
@@ -198,7 +198,7 @@ export default async function HrOverviewPage() {
 
               {/* Lejáró orvosi */}
               {expiringMedicals?.map((doc) => (
-                <div key={`med-${doc.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-destructive hover:bg-muted/40 transition-colors">
+                <div key={`med-${doc.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 transition-colors">
                   <AlertCircle className="w-4 h-4 text-destructive shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">Lejáró orvosi alkalmassági</p>
@@ -214,8 +214,8 @@ export default async function HrOverviewPage() {
 
               {/* Jóváhagyásra váró szabadság */}
               {pendingLeaves?.map((leave) => (
-                <div key={`leave-${leave.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-warning hover:bg-muted/40 transition-colors">
-                  <Clock className="w-4 h-4 text-warning shrink-0" />
+                <div key={`leave-${leave.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors">
+                  <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">Jóváhagyásra váró szabadság</p>
                     <p className="text-xs text-muted-foreground truncate">
@@ -230,8 +230,8 @@ export default async function HrOverviewPage() {
 
               {/* Lejáró próbaidő */}
               {expiringProbations?.map((prob) => (
-                <div key={`prob-${prob.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-success hover:bg-muted/40 transition-colors">
-                  <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                <div key={`prob-${prob.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">Próbaidő lejár – {(prob.felhasznalo_profil as any)?.nev}</p>
                     <p className="text-xs text-muted-foreground">Értékelés szükséges. Lejár: {prob.probaido_vege}</p>
@@ -244,8 +244,8 @@ export default async function HrOverviewPage() {
 
               {/* Lejáró határozott idejű szerződések */}
               {expiringContracts?.map((emp) => (
-                <div key={`contract-${emp.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-l-4 border-l-orange-400 hover:bg-muted/40 transition-colors">
-                  <AlertCircle className="w-4 h-4 text-orange-500 shrink-0" />
+                <div key={`contract-${emp.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors">
+                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">Lejáró Munkaszerződés</p>
                     <p className="text-xs text-muted-foreground truncate">

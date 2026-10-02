@@ -1,23 +1,49 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Star, ThumbsUp, ThumbsDown, Users, TrendingUp, MessageSquare } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { 
+  Star, 
+  ThumbsUp, 
+  ThumbsDown, 
+  Users, 
+  TrendingUp, 
+  MessageSquare, 
+  Sparkles, 
+  Briefcase, 
+  Building2, 
+  Calendar, 
+  Compass, 
+  HeartHandshake, 
+  Search, 
+  Filter, 
+  Quote, 
+  UserCheck, 
+  ShieldAlert,
+  HelpCircle,
+  ExternalLink
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export interface ExitInterviewItem {
   id: string
-  felhasznalo_profil?: { nev?: string | null } | null
-  datum?: string | null
+  felhasznalo_profil?: { nev?: string | null; munkakor?: string | null; reszleg?: string | null } | null
+  kilepes_datuma?: string | null
+  kilepes_kategoria?: string | null
   kilepes_oka?: string | null
-  elegedettseg_pontszam?: number | null
-  vezeto_elegedettseg?: number | null
-  csapat_elegedettseg?: number | null
-  ber_elegedettseg?: number | null
-  uj_allomashely?: string | null
-  megjegyzes?: string | null
+  altalanos_elegedettseg?: number | null
+  vezeto_kapcsolat?: number | null
+  munkakornyezet_ertekeles?: number | null
+  csapat_ertekeles?: number | null
+  mi_tetszett?: string | null
+  mit_valtoztatna?: string | null
+  ajanlana?: boolean | null
+  kovetkezo_allomashely?: string | null
+  created_at?: string | null
   [key: string]: any
 }
 
@@ -28,17 +54,17 @@ interface ExitInterviewSummaryProps {
 const KATEGORIA_LABELS: Record<string, string> = {
   jobb_ajanlat:    "Jobb ajánlat / magasabb bér",
   magnaleti:       "Magánéleti okok",
-  elorelep:        "Előrelépési lehetőség",
+  elorelep:        "Előrelépési lehetőség máshol",
   vezeto:          "Vezető / management",
-  munkakornyezet:  "Munkahelyi légkör",
+  munkakornyezet:  "Munkahelyi légkör / csapat",
   munkakor:        "Munkakör / feladatok",
-  tavolsag:        "Távolság / home office",
+  tavolsag:        "Távolság / home office hiánya",
   nyugdij:         "Nyugdíjba vonulás",
-  egyeb:           "Egyéb",
+  egyeb:           "Egyéb ok",
 }
 
 const ALLOMASHELY_LABELS: Record<string, string> = {
-  versenyzo_ceg:   "Versenytárs",
+  versenyzo_ceg:   "Versenytárs / hasonló iparág",
   mas_ipar:        "Más iparág",
   tanulas:         "Továbbtanulás",
   nyugdij:         "Nyugdíj",
@@ -53,21 +79,31 @@ function StarDisplay({ value }: { value: number | null }) {
       {[1, 2, 3, 4, 5].map(s => (
         <Star
           key={s}
-          className={cn("w-3.5 h-3.5", s <= value ? "fill-amber-400 text-amber-400" : "fill-transparent text-muted-foreground/20")}
+          className={cn(
+            "w-3.5 h-3.5",
+            s <= Math.round(value) ? "fill-amber-400 text-amber-400" : "fill-transparent text-muted-foreground/25"
+          )}
         />
       ))}
-      <span className="text-xs text-muted-foreground ml-1 tabular-nums">{value.toFixed(1)}</span>
+      <span className="text-xs font-semibold text-foreground ml-1.5 tabular-nums">
+        {value.toFixed(1)}
+      </span>
     </div>
   )
 }
 
-function avg(arr: (number | null)[]): number | null {
-  const vals = arr.filter((v): v is number => v !== null && v > 0)
+function avg(arr: (number | null | undefined)[]): number | null {
+  const vals = arr.filter((v): v is number => v !== null && v !== undefined && v > 0)
   if (vals.length === 0) return null
   return vals.reduce((a, b) => a + b, 0) / vals.length
 }
 
 export function ExitInterviewSummary({ interviews }: ExitInterviewSummaryProps) {
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all")
+  const [selectedInterview, setSelectedInterview] = useState<ExitInterviewItem | null>(null)
+
+  // Statisztikai összesítés
   const stats = useMemo(() => {
     const total = interviews.length
     if (total === 0) return null
@@ -87,7 +123,8 @@ export function ExitInterviewSummary({ interviews }: ExitInterviewSummaryProps) 
 
     const ajanlanaCount   = interviews.filter(i => i.ajanlana === true).length
     const nemAjanljaCount = interviews.filter(i => i.ajanlana === false).length
-    const ajanlanaPercent = total > 0 ? Math.round((ajanlanaCount / total) * 100) : 0
+    const answeredAjanlas = ajanlanaCount + nemAjanljaCount
+    const ajanlanaPercent = answeredAjanlas > 0 ? Math.round((ajanlanaCount / answeredAjanlas) * 100) : 0
 
     // Kategória megoszlás
     const kategoriak: Record<string, number> = {}
@@ -104,368 +141,587 @@ export function ExitInterviewSummary({ interviews }: ExitInterviewSummaryProps) 
       }
     })
 
+    const topCategoryEntry = Object.entries(kategoriak).sort((a, b) => b[1] - a[1])[0]
+    const topCategoryLabel = topCategoryEntry ? (KATEGORIA_LABELS[topCategoryEntry[0]] || topCategoryEntry[0]) : "Nincs adat"
+    const topCategoryCount = topCategoryEntry ? topCategoryEntry[1] : 0
+
     return {
-      total, avgAltalanos, avgVezeto, avgKornyezet, avgCsapat, avgOsszes,
-      ajanlanaCount, nemAjanljaCount, ajanlanaPercent,
-      kategoriak, allomashely,
+      total,
+      avgAltalanos,
+      avgVezeto,
+      avgKornyezet,
+      avgCsapat,
+      avgOsszes,
+      ajanlanaCount,
+      nemAjanljaCount,
+      ajanlanaPercent,
+      kategoriak,
+      allomashely,
+      topCategoryLabel,
+      topCategoryCount
     }
+  }, [interviews])
+
+  // Szűrt interjúk
+  const filteredInterviews = useMemo(() => {
+    return interviews.filter(i => {
+      const name = (i.felhasznalo_profil?.nev || "").toLowerCase()
+      const reason = (i.kilepes_oka || "").toLowerCase()
+      const liked = (i.mi_tetszett || "").toLowerCase()
+      const changes = (i.mit_valtoztatna || "").toLowerCase()
+      const q = searchQuery.toLowerCase().trim()
+
+      const matchesSearch = !q || name.includes(q) || reason.includes(q) || liked.includes(q) || changes.includes(q)
+      const matchesCategory = selectedCategoryFilter === "all" || i.kilepes_kategoria === selectedCategoryFilter
+
+      return matchesSearch && matchesCategory
+    })
+  }, [interviews, searchQuery, selectedCategoryFilter])
+
+  // Pozitívumok és változtatási javaslatok listája
+  const positiveFeedbacks = useMemo(() => {
+    return interviews
+      .filter(i => (i.mi_tetszett || "").trim().length > 0)
+      .map(i => ({
+        id: i.id,
+        text: i.mi_tetszett!,
+        name: i.felhasznalo_profil?.nev || "Munkatárs",
+        role: i.felhasznalo_profil?.munkakor
+      }))
+  }, [interviews])
+
+  const constructiveFeedbacks = useMemo(() => {
+    return interviews
+      .filter(i => (i.mit_valtoztatna || "").trim().length > 0)
+      .map(i => ({
+        id: i.id,
+        text: i.mit_valtoztatna!,
+        name: i.felhasznalo_profil?.nev || "Munkatárs",
+        role: i.felhasznalo_profil?.munkakor
+      }))
   }, [interviews])
 
   if (interviews.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground border-2 border-dashed rounded-xl">
-        <MessageSquare className="w-10 h-10 mb-4 opacity-30" />
-        <p className="font-medium">Még nincs kitöltött kilépési interjú</p>
-        <p className="text-sm mt-1">Az interjúk a kiléptetési folyamat Kilépési Interjú fülén rögzíthetők.</p>
+      <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground border-2 border-dashed rounded-xl bg-muted/5">
+        <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-4">
+          <MessageSquare className="w-6 h-6" />
+        </div>
+        <p className="font-semibold text-base text-foreground">Még nincs kitöltött kilépési interjú</p>
+        <p className="text-sm mt-1 max-w-md text-muted-foreground">
+          Amikor a távozó munkatársak lefolytatják a kilépési interjút az Offboarding profil modálban, itt jelennek meg a mélyreható fluktuációs statisztikák és a távozási motivációk.
+        </p>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-
-      {/* Összesítő kártyák */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
+      {/* 1. Fő KPI Kártyák */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Összes Interjú */}
+        <Card className="border border-border/70 shadow-xs relative overflow-hidden bg-card">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-8 -mt-8 pointer-events-none" />
           <CardContent className="p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Users className="w-4 h-4 text-primary" />
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Rögzített Interjúk
+              </span>
+              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Users className="w-4 h-4" />
               </div>
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Interjúk</p>
             </div>
-            <p className="text-3xl font-semibold tabular-nums">{stats!.total}</p>
-            <p className="text-xs text-muted-foreground mt-1">kitöltve</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <Star className="w-4 h-4 text-amber-500" />
-              </div>
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Átlag elégedettség</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tracking-tight tabular-nums text-foreground">
+                {stats!.total}
+              </span>
+              <span className="text-xs text-muted-foreground font-medium">kitöltött interjú</span>
             </div>
-            <p className="text-3xl font-semibold tabular-nums">
-              {stats!.avgOsszes ? stats!.avgOsszes.toFixed(1) : "–"}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">/ 5.0 összesített</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <ThumbsUp className="w-4 h-4 text-emerald-500" />
-              </div>
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Ajánlaná</p>
-            </div>
-            <p className="text-3xl font-semibold tabular-nums">{stats!.ajanlanaPercent}%</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {stats!.ajanlanaCount} igen / {stats!.nemAjanljaCount} nem
+            <p className="text-[11px] text-muted-foreground mt-2">
+              100%-ban archiválva az eaisyDocs-ban
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        {/* Átlagos Elégedettség */}
+        <Card className="border border-border/70 shadow-xs relative overflow-hidden bg-card">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full -mr-8 -mt-8 pointer-events-none" />
           <CardContent className="p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <TrendingUp className="w-4 h-4 text-blue-500" />
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Vállalati Hangulatindex
+              </span>
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                <Star className="w-4 h-4 fill-amber-500" />
               </div>
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Leggyakoribb ok</p>
             </div>
-            {Object.keys(stats!.kategoriak).length > 0 ? (
-              <>
-                <p className="text-sm font-semibold leading-tight">
-                  {KATEGORIA_LABELS[Object.entries(stats!.kategoriak).sort((a, b) => b[1] - a[1])[0][0]] || "–"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {Object.entries(stats!.kategoriak).sort((a, b) => b[1] - a[1])[0][1]} eset
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">Nincs adat</p>
-            )}
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tracking-tight tabular-nums text-foreground">
+                {stats!.avgOsszes ? stats!.avgOsszes.toFixed(1) : "–"}
+              </span>
+              <span className="text-xs text-muted-foreground font-medium">/ 5.0 pont</span>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              <StarDisplay value={stats!.avgOsszes} />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Vállalati Ajánlási Arány (eNPS) */}
+        <Card className="border border-border/70 shadow-xs relative overflow-hidden bg-card">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full -mr-8 -mt-8 pointer-events-none" />
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Vállalati Ajánlás (eNPS)
+              </span>
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                <ThumbsUp className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tracking-tight tabular-nums text-foreground">
+                {stats!.ajanlanaPercent}%
+              </span>
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                ajánlaná a céget
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              {stats!.ajanlanaCount} pozitív / {stats!.nemAjanljaCount} negatív válasz
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Fő Távozási Ok */}
+        <Card className="border border-border/70 shadow-xs relative overflow-hidden bg-card">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full -mr-8 -mt-8 pointer-events-none" />
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Fő Távozási Húzóerő
+              </span>
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+                <TrendingUp className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-sm font-semibold text-foreground line-clamp-1 leading-snug">
+              {stats!.topCategoryLabel}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1 tabular-nums">
+              {stats!.topCategoryCount} eset ({stats!.total > 0 ? Math.round((stats!.topCategoryCount / stats!.total) * 100) : 0}%)
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Értékelések és megoszlások */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-        {/* Elégedettségi dimenziók */}
-        <Card className="md:col-span-1">
+      {/* 2. Dimenziós Értékelések & Távozási Okok Bontása */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Bal oldal: 4 Értékelési Dimenzió (5 cols) */}
+        <Card className="lg:col-span-5 border border-border/70 shadow-xs">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Átlagos Értékelések</CardTitle>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+              Szervezeti Értékelési Dimenziók (1–5 skála)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              A kilépő munkatársak visszajelzéseinek súlyozott átlaga
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-1">
             {[
-              { label: "Általános elégedettség", val: stats!.avgAltalanos },
-              { label: "Vezető kapcsolata",       val: stats!.avgVezeto },
-              { label: "Munkahelyi környezet",    val: stats!.avgKornyezet },
-              { label: "Csapat / Kollégák",       val: stats!.avgCsapat },
-            ].map(({ label, val }) => (
-              <div key={label} className="space-y-1">
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <StarDisplay value={val ? Math.round(val * 10) / 10 : null} />
-                {val && (
-                  <div className="w-full bg-muted rounded-full h-1 mt-1">
+              { label: "Általános elégedettség a vállalattal", val: stats!.avgAltalanos, icon: Compass },
+              { label: "Közvetlen vezetői támogatás & kapcsolat", val: stats!.avgVezeto, icon: UserCheck },
+              { label: "Munkahelyi környezet & infrastruktúra", val: stats!.avgKornyezet, icon: Building2 },
+              { label: "Csapat légkör & kollégákkal való viszony", val: stats!.avgCsapat, icon: HeartHandshake },
+            ].map(({ label, val, icon: Icon }) => {
+              const score = val ? Math.round(val * 10) / 10 : 0
+              const percentage = (score / 5) * 100
+              const isHigh = score >= 4.0
+              const isMedium = score >= 3.0 && score < 4.0
+
+              return (
+                <div key={label} className="p-3 rounded-lg border bg-muted/15 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                      <Icon className="w-3.5 h-3.5 text-primary" />
+                      {label}
+                    </span>
+                    <span className="text-xs font-bold tabular-nums text-foreground">
+                      {val ? val.toFixed(1) : "–"} / 5.0
+                    </span>
+                  </div>
+
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
                     <div
-                      className="bg-amber-400 h-1 rounded-full transition-all"
-                      style={{ width: `${(val / 5) * 100}%` }}
+                      className={cn(
+                        "h-full rounded-full transition-all duration-500",
+                        isHigh ? "bg-emerald-500" : isMedium ? "bg-amber-400" : "bg-destructive"
+                      )}
+                      style={{ width: `${percentage}%` }}
                     />
                   </div>
-                )}
-              </div>
-            ))}
+
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
+                    <span>{isHigh ? "Kiváló / Megtartó" : isMedium ? "Megfelelő" : "Fejlesztendő terület"}</span>
+                    <StarDisplay value={val ? Math.round(val * 10) / 10 : null} />
+                  </div>
+                </div>
+              )
+            })}
           </CardContent>
         </Card>
 
-        {/* Kilépési ok megoszlás */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Kilépési Okok</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {Object.entries(stats!.kategoriak).length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">Nincs adat</p>
-            ) : (
-              Object.entries(stats!.kategoriak)
-                .sort((a, b) => b[1] - a[1])
-                .map(([key, count]) => (
-                  <div key={key} className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-foreground">{KATEGORIA_LABELS[key] || key}</span>
-                      <span className="text-xs font-semibold tabular-nums text-muted-foreground">{count}</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-1.5">
-                      <div
-                        className="bg-primary h-1.5 rounded-full"
-                        style={{ width: `${(count / stats!.total) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ))
-            )}
-          </CardContent>
-        </Card>
+        {/* Jobb oldal: Távozási Okok & Destináció (7 cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          {/* Távozási Okok */}
+          <Card className="border border-border/70 shadow-xs">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-primary" />
+                Fluktuációs Tényezők (Miért távoznak?)
+              </CardTitle>
+              <CardDescription className="text-xs">
+                A munkaviszony megszüntetéséhez vezető döntő indokok megoszlása
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-1">
+              {Object.entries(stats!.kategoriak).length === 0 ? (
+                <p className="text-xs text-muted-foreground italic py-3 text-center">Nincs rögzített adat</p>
+              ) : (
+                Object.entries(stats!.kategoriak)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([key, count]) => {
+                    const percent = Math.round((count / stats!.total) * 100)
+                    return (
+                      <div key={key} className="space-y-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-medium text-foreground">{KATEGORIA_LABELS[key] || key}</span>
+                          <span className="font-semibold tabular-nums text-muted-foreground">
+                            {count} fő ({percent}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                          <div
+                            className="bg-primary h-2 rounded-full transition-all duration-500"
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Következő állomáshely */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Hova Mentek?</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {Object.entries(stats!.allomashely).length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">Nincs adat</p>
-            ) : (
-              Object.entries(stats!.allomashely)
-                .sort((a, b) => b[1] - a[1])
-                .map(([key, count]) => (
-                  <div key={key} className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-foreground">{ALLOMASHELY_LABELS[key] || key}</span>
-                      <span className="text-xs font-semibold tabular-nums text-muted-foreground">{count}</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-1.5">
-                      <div
-                        className="bg-blue-500 h-1.5 rounded-full"
-                        style={{ width: `${(count / stats!.total) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ))
-            )}
-          </CardContent>
-        </Card>
+          {/* Következő Állomáshelyek */}
+          <Card className="border border-border/70 shadow-xs">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Compass className="w-4 h-4 text-blue-500" />
+                Következő Karrier Állomás (Hova mentek?)
+              </CardTitle>
+              <CardDescription className="text-xs">
+                A kilépő munkatársak jövőbeli szakmai és életpálya iránya
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-1">
+              {Object.entries(stats!.allomashely).length === 0 ? (
+                <p className="text-xs text-muted-foreground italic py-3 text-center">Nincs rögzített adat</p>
+              ) : (
+                Object.entries(stats!.allomashely)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([key, count]) => {
+                    const percent = Math.round((count / stats!.total) * 100)
+                    return (
+                      <div key={key} className="space-y-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-medium text-foreground">{ALLOMASHELY_LABELS[key] || key}</span>
+                          <span className="font-semibold tabular-nums text-muted-foreground">
+                            {count} fő ({percent}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                          <div
+                            className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* Részletes lista */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">Részletes Interjúk</CardTitle>
+      {/* 3. Minőségi Visszajelzések & Idézetek Gyűjteménye */}
+      {(positiveFeedbacks.length > 0 || constructiveFeedbacks.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Pozitívumok */}
+          <Card className="border border-emerald-500/20 bg-emerald-500/5 shadow-xs">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-emerald-950 dark:text-emerald-200 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                Mi tetszett legjobban? (Megtartó Erősségek)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {positiveFeedbacks.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">Nincs rögzített szöveges dicséret</p>
+              ) : (
+                positiveFeedbacks.slice(0, 3).map((fb, idx) => (
+                  <div key={idx} className="p-3 bg-background/80 rounded-lg border border-emerald-500/20 space-y-1.5 shadow-2xs">
+                    <p className="text-xs text-foreground italic leading-relaxed">
+                      „{fb.text}"
+                    </p>
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium">
+                      <span>{fb.name}</span>
+                      {fb.role && <span>• {fb.role}</span>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Konstruktív Javaslatok */}
+          <Card className="border border-amber-500/20 bg-amber-500/5 shadow-xs">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-amber-950 dark:text-amber-200 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                Min változtatna? (Szervezeti Fejlesztési Pontok)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {constructiveFeedbacks.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">Nincs rögzített kritika</p>
+              ) : (
+                constructiveFeedbacks.slice(0, 3).map((fb, idx) => (
+                  <div key={idx} className="p-3 bg-background/80 rounded-lg border border-amber-500/20 space-y-1.5 shadow-2xs">
+                    <p className="text-xs text-foreground italic leading-relaxed">
+                      „{fb.text}"
+                    </p>
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium">
+                      <span>{fb.name}</span>
+                      {fb.role && <span>• {fb.role}</span>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* 4. Részletes Kilépési Interjúk Kártyás Grid Nézete */}
+      <Card className="border border-border/70 shadow-xs">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-semibold">Részletes Kilépési Interjúk ({filteredInterviews.length})</CardTitle>
+              <CardDescription className="text-xs">
+                Kattints bármelyik munkatárs kártyájára a teljes jegyzőkönyv és értékelések megtekintéséhez
+              </CardDescription>
+            </div>
+
+            {/* Kereső és szűrő */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative w-48 sm:w-60">
+                <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <Input
+                  placeholder="Keresés név vagy szöveg..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8 pl-8 text-xs"
+                />
+              </div>
+
+              <select
+                value={selectedCategoryFilter}
+                onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                className="h-8 px-2.5 rounded-md border border-input bg-background text-xs font-medium"
+              >
+                <option value="all">Minden ok</option>
+                {Object.entries(KATEGORIA_LABELS).map(([k, label]) => (
+                  <option key={k} value={k}>{label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="divide-y">
-            {interviews.map((interview) => (
-              <InterviewDetailRow key={interview.id} interview={interview} />
-            ))}
+
+        <CardContent className="p-6 pt-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredInterviews.length === 0 ? (
+              <div className="col-span-full py-12 text-center text-muted-foreground text-xs">
+                Nem található interjú a megadott szűrési feltételekkel.
+              </div>
+            ) : (
+              filteredInterviews.map((interview) => {
+                const ratings = [
+                  interview.altalanos_elegedettseg,
+                  interview.vezeto_kapcsolat,
+                  interview.munkakornyezet_ertekeles,
+                  interview.csapat_ertekeles
+                ].filter((v): v is number => v !== null && v !== undefined && v > 0)
+                const interviewAvg = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null
+
+                return (
+                  <div
+                    key={interview.id}
+                    onClick={() => setSelectedInterview(interview)}
+                    className="p-4 rounded-xl border border-border/70 bg-card hover:border-primary/40 hover:shadow-xs transition-all cursor-pointer group space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                          {interview.felhasznalo_profil?.nev || "Ismeretlen munkatárs"}
+                        </h4>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {interview.kilepes_datuma || "Ismeretlen"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {interview.ajanlana === true ? (
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 shrink-0">
+                          <ThumbsUp className="w-3 h-3" /> Ajánlaná
+                        </span>
+                      ) : interview.ajanlana === false ? (
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full border border-destructive/20 shrink-0">
+                          <ThumbsDown className="w-3 h-3" /> Nem ajánlaná
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {interview.kilepes_kategoria && (
+                        <Badge variant="outline" className="text-[10px] font-medium py-0 h-5 bg-muted/40">
+                          {KATEGORIA_LABELS[interview.kilepes_kategoria] || interview.kilepes_kategoria}
+                        </Badge>
+                      )}
+                      {interview.kovetkezo_allomashely && (
+                        <Badge variant="secondary" className="text-[10px] font-medium py-0 h-5">
+                          → {ALLOMASHELY_LABELS[interview.kovetkezo_allomashely] || interview.kovetkezo_allomashely}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {interview.kilepes_oka && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 italic bg-muted/20 p-2 rounded">
+                        „{interview.kilepes_oka}"
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1 border-t text-xs">
+                      <StarDisplay value={interviewAvg} />
+                      <span className="text-[11px] text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        Részletek <ExternalLink className="w-3 h-3" />
+                      </span>
+                    </div>
+                  </div>
+                )
+              })
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Részletes Interjú Modál */}
+      {selectedInterview && (
+        <Dialog open={Boolean(selectedInterview)} onOpenChange={(open) => !open && setSelectedInterview(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <div className="flex items-center justify-between gap-3">
+                <DialogTitle className="text-lg font-bold">
+                  {selectedInterview.felhasznalo_profil?.nev || "Munkatárs"} – Kilépési Interjú Jegyzőkönyv
+                </DialogTitle>
+                {selectedInterview.ajanlana === true ? (
+                  <Badge className="bg-emerald-600 text-white">Ajánlaná a céget</Badge>
+                ) : selectedInterview.ajanlana === false ? (
+                  <Badge variant="destructive">Nem ajánlaná</Badge>
+                ) : null}
+              </div>
+              <DialogDescription className="text-xs">
+                Utolsó munkanap: {selectedInterview.kilepes_datuma || "Nincs adat"}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2 text-xs">
+              {/* Ok és cél */}
+              <div className="grid grid-cols-2 gap-3 p-3 bg-muted/20 rounded-lg">
+                <div>
+                  <span className="text-[11px] text-muted-foreground uppercase font-semibold">Távozás oka:</span>
+                  <p className="font-medium text-foreground mt-0.5">
+                    {KATEGORIA_LABELS[selectedInterview.kilepes_kategoria || ""] || selectedInterview.kilepes_kategoria || "–"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[11px] text-muted-foreground uppercase font-semibold">Következő cél:</span>
+                  <p className="font-medium text-foreground mt-0.5">
+                    {ALLOMASHELY_LABELS[selectedInterview.kovetkezo_allomashely || ""] || selectedInterview.kovetkezo_allomashely || "–"}
+                  </p>
+                </div>
+              </div>
+
+              {selectedInterview.kilepes_oka && (
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase">Részletes indoklás:</span>
+                  <p className="p-3 bg-muted/10 rounded-lg border text-foreground italic">
+                    „{selectedInterview.kilepes_oka}"
+                  </p>
+                </div>
+              )}
+
+              {/* Értékelési dimenziók */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase">Értékelési dimenziók:</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2.5 rounded-lg border bg-card flex justify-between items-center">
+                    <span>Általános elégedettség:</span>
+                    <StarDisplay value={selectedInterview.altalanos_elegedettseg ?? null} />
+                  </div>
+                  <div className="p-2.5 rounded-lg border bg-card flex justify-between items-center">
+                    <span>Vezetői kapcsolat:</span>
+                    <StarDisplay value={selectedInterview.vezeto_kapcsolat ?? null} />
+                  </div>
+                  <div className="p-2.5 rounded-lg border bg-card flex justify-between items-center">
+                    <span>Munkahelyi környezet:</span>
+                    <StarDisplay value={selectedInterview.munkakornyezet_ertekeles ?? null} />
+                  </div>
+                  <div className="p-2.5 rounded-lg border bg-card flex justify-between items-center">
+                    <span>Csapat & Kollégák:</span>
+                    <StarDisplay value={selectedInterview.csapat_ertekeles ?? null} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Szöveges visszajelzések */}
+              {selectedInterview.mi_tetszett && (
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase">Mi tetszett legjobban:</span>
+                  <p className="p-3 bg-emerald-500/5 rounded-lg border border-emerald-500/20 text-foreground">
+                    {selectedInterview.mi_tetszett}
+                  </p>
+                </div>
+              )}
+
+              {selectedInterview.mit_valtoztatna && (
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 uppercase">Min változtatna:</span>
+                  <p className="p-3 bg-amber-500/5 rounded-lg border border-amber-500/20 text-foreground">
+                    {selectedInterview.mit_valtoztatna}
+                  </p>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Részletes interjú sor + popup
-// ---------------------------------------------------------------------------
-function InterviewDetailRow({ interview }: { interview: ExitInterviewItem }) {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="w-full text-left p-4 hover:bg-muted/40 transition-colors group"
-      >
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1.5">
-              <p className="font-medium text-sm group-hover:text-primary transition-colors">
-                {interview.felhasznalo_profil?.nev || "Ismeretlen"}
-              </p>
-              {interview.kilepes_kategoria && (
-                <Badge variant="outline" className="text-[10px]">
-                  {KATEGORIA_LABELS[interview.kilepes_kategoria] || interview.kilepes_kategoria}
-                </Badge>
-              )}
-              {interview.kovetkezo_allomashely && (
-                <Badge variant="secondary" className="text-[10px]">
-                  {ALLOMASHELY_LABELS[interview.kovetkezo_allomashely] || interview.kovetkezo_allomashely}
-                </Badge>
-              )}
-              {interview.ajanlana === true && (
-                <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                  <ThumbsUp className="w-2.5 h-2.5" /> Ajánlaná
-                </span>
-              )}
-              {interview.ajanlana === false && (
-                <span className="flex items-center gap-1 text-[10px] font-medium text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">
-                  <ThumbsDown className="w-2.5 h-2.5" /> Nem ajánlaná
-                </span>
-              )}
-            </div>
-            {interview.kilepes_oka && (
-              <p className="text-xs text-muted-foreground line-clamp-1 italic">
-                „{interview.kilepes_oka}"
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <p className="text-xs text-muted-foreground">{interview.kilepes_datuma || "–"}</p>
-            <span className="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">Megnyitás →</span>
-          </div>
-        </div>
-      </button>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm uppercase shrink-0">
-                {interview.felhasznalo_profil?.nev?.split(' ').map((n: string) => n[0]).join('').substring(0, 2) || "?"}
-              </div>
-              <div>
-                <p>{interview.felhasznalo_profil?.nev || "Ismeretlen"}</p>
-                <p className="text-xs font-normal text-muted-foreground mt-0.5">
-                  Kilépési interjú · {interview.kilepes_datuma || "–"}
-                </p>
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-5 mt-2">
-            {/* Kategória + Állomáshely */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Kilépés Oka</p>
-                <p className="text-sm font-medium">
-                  {KATEGORIA_LABELS[interview.kilepes_kategoria] || <span className="italic text-muted-foreground">Nem megadva</span>}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Következő állomás</p>
-                <p className="text-sm font-medium">
-                  {ALLOMASHELY_LABELS[interview.kovetkezo_allomashely] || <span className="italic text-muted-foreground">Nem megadva</span>}
-                </p>
-              </div>
-            </div>
-
-            {/* Részletes leírás */}
-            {interview.kilepes_oka && (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Részletes Leírás</p>
-                <p className="text-sm bg-muted/40 rounded-lg p-3 italic leading-relaxed">
-                  „{interview.kilepes_oka}"
-                </p>
-              </div>
-            )}
-
-            {/* Értékelések */}
-            <div className="border rounded-lg p-4">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">Elégedettségi Értékelések</p>
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { label: "Általános Elégedettség", val: interview.altalanos_elegedettseg },
-                  { label: "Vezető Kapcsolata",      val: interview.vezeto_kapcsolat },
-                  { label: "Munkahelyi Környezet",   val: interview.munkakornyezet_ertekeles },
-                  { label: "Csapat / Kollégák",      val: interview.csapat_ertekeles },
-                ].map(({ label, val }) => (
-                  <div key={label} className="space-y-1">
-                    <p className="text-xs text-muted-foreground">{label}</p>
-                    <div className="flex items-center gap-1.5">
-                      <div className="flex gap-0.5">
-                        {[1,2,3,4,5].map(s => (
-                          <Star key={s} className={cn("w-4 h-4", val && s <= val ? "fill-amber-400 text-amber-400" : "fill-transparent text-muted-foreground/20")} />
-                        ))}
-                      </div>
-                      {val ? (
-                        <span className="text-xs font-semibold tabular-nums">{val}/5</span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">–</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Szabad szöveges válaszok */}
-            {(interview.mi_tetszett || interview.mit_valtoztatna) && (
-              <div className="grid grid-cols-2 gap-4">
-                {interview.mi_tetszett && (
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Mi tetszett legjobban?</p>
-                    <p className="text-sm bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3 leading-relaxed">
-                      {interview.mi_tetszett}
-                    </p>
-                  </div>
-                )}
-                {interview.mit_valtoztatna && (
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Min változtatna?</p>
-                    <p className="text-sm bg-amber-500/5 border border-amber-500/10 rounded-lg p-3 leading-relaxed">
-                      {interview.mit_valtoztatna}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Ajánlaná */}
-            <div className="flex items-center gap-3 pt-1 border-t">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Ajánlaná a céget?</p>
-              {interview.ajanlana === true && (
-                <span className="flex items-center gap-1.5 text-sm font-semibold text-emerald-600 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-                  <ThumbsUp className="w-4 h-4" /> Igen, ajánlaná
-                </span>
-              )}
-              {interview.ajanlana === false && (
-                <span className="flex items-center gap-1.5 text-sm font-semibold text-destructive bg-destructive/10 px-3 py-1 rounded-full border border-destructive/20">
-                  <ThumbsDown className="w-4 h-4" /> Nem ajánlaná
-                </span>
-              )}
-              {interview.ajanlana === null && (
-                <span className="text-sm text-muted-foreground italic">Nem válaszolt</span>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
   )
 }

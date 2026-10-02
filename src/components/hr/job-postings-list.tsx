@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   ExternalLink, Edit, Trash2, Briefcase, CheckCircle,
   Users, Search, Clock, Plus
@@ -129,37 +130,48 @@ export function JobPostingsList({
     <div className="space-y-5">
 
       {/* Stat kártyák */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-lg p-4 flex items-center gap-4 border-l-4 border-l-primary">
-          <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-            <Briefcase className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Összes hirdetés</p>
-            <p className="text-2xl font-semibold tabular-nums">{postings.length}</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Összes hirdetés */}
+        <Card className="border shadow-xs bg-card">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Összes Hirdetés</p>
+              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{postings.length} db</h3>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Briefcase className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-card border border-border rounded-lg p-4 flex items-center gap-4 border-l-4 border-l-success">
-          <div className="h-9 w-9 rounded-md bg-success/10 flex items-center justify-center shrink-0">
-            <CheckCircle className="h-4 w-4 text-success" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Aktív & Publikus</p>
-            <p className="text-2xl font-semibold tabular-nums">{activePublicCount}</p>
-            <p className="text-[11px] text-muted-foreground">karrieroldalon látható</p>
-          </div>
-        </div>
+        {/* Aktív & Publikus */}
+        <Card className="border shadow-xs bg-card">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktív & Publikus</p>
+              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-emerald-600 dark:text-emerald-400">
+                {activePublicCount} db
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">karrieroldalon látható</p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <CheckCircle className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-card border border-border rounded-lg p-4 flex items-center gap-4 border-l-4 border-l-info">
-          <div className="h-9 w-9 rounded-md bg-info/10 flex items-center justify-center shrink-0">
-            <Users className="h-4 w-4 text-info" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Összes jelentkező</p>
-            <p className="text-2xl font-semibold tabular-nums">{candidates.length}</p>
-          </div>
-        </div>
+        {/* Összes jelentkező */}
+        <Card className="border shadow-xs bg-card">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Összes Jelentkező</p>
+              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{candidates.length} fő</h3>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Keresés + Filter + Új hirdetés */}

@@ -47,12 +47,14 @@ export async function onboardEmployee(data: {
       }
     })
 
+    let isExistingUser = false
     if (authError || !authData.user) {
       // Ha a felhasználó már létezik ezzel az email címmel, megkeressük
       const { data: userList } = await supabaseAdmin.auth.admin.listUsers()
       const existingUser = userList?.users?.find(u => u.email?.toLowerCase() === candidate.email?.toLowerCase())
       if (existingUser) {
         finalUserId = existingUser.id
+        isExistingUser = true
       } else {
         return { error: authError?.message || "Nem sikerült a felhasználót létrehozni az átemelés során." }
       }
@@ -61,37 +63,40 @@ export async function onboardEmployee(data: {
     }
     await new Promise(resolve => setTimeout(resolve, 500))
 
-    // 3. Felülírjuk a nevet
-    await supabaseAdmin
-      .from("felhasznalo_profil")
-      .update({ nev: candidate.nev })
-      .eq("id", finalUserId)
+    // 3. Ha teljesen új fiók, beállítjuk a nevet
+    if (!isExistingUser) {
+      await supabaseAdmin
+        .from("felhasznalo_profil")
+        .update({ nev: candidate.nev })
+        .eq("id", finalUserId)
 
-    // 4. Kiküldjük az e-mailt a Brevo-n keresztül
-    const emailHtml = `
-      <h2>Üdvözlünk a csapatban, ${candidate.nev}!</h2>
-      <p>A jelentkezésedet elfogadtuk, és örömmel értesítünk, hogy létrehoztuk számodra a hozzáférést a vállalati HR rendszerhez (eaisyHR).</p>
-      <br/>
-      <p><b>Bejelentkezési adataid:</b></p>
-      <p>E-mail cím: ${candidate.email}</p>
-      <p>Ideiglenes jelszó: <b>${generatedPassword}</b></p>
-      <br/>
-      <p>Kérjük, az első bejelentkezés után azonnal változtasd meg a jelszavadat a Profil beállítások menüpontban!</p>
-      <br/>
-      <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/login" style="display:inline-block;padding:10px 20px;background-color:#14b8a6;color:white;text-decoration:none;border-radius:5px;">Bejelentkezés az eaisyHR-be</a>
-      <br/><br/>
-      <p>Üdvözlettel,<br/>A HR Csapat</p>
-    `
+      // 4. Kiküldjük az e-mailt a Brevo-n keresztül kizárólag új felhasználónak
+      const emailHtml = `
+        <h2>Üdvözlünk a csapatban, ${candidate.nev}!</h2>
+        <p>A jelentkezésedet elfogadtuk, és örömmel értesítünk, hogy létrehoztuk számodra a hozzáférést a vállalati HR rendszerhez (eaisyHR).</p>
+        <br/>
+        <p><b>Bejelentkezési adataid:</b></p>
+        <p>E-mail cím: ${candidate.email}</p>
+        <p>Ideiglenes jelszó: <b>${generatedPassword}</b></p>
+        <br/>
+        <p>Kérjük, az első bejelentkezés után azonnal változtasd meg a jelszavadat a Profil beállítások menüpontban!</p>
+        <br/>
+        <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/login" style="display:inline-block;padding:10px 20px;background-color:#14b8a6;color:white;text-decoration:none;border-radius:5px;">Bejelentkezés az eaisyHR-be</a>
+        <br/><br/>
+        <p>Üdvözlettel,<br/>A HR Csapat</p>
+      `
 
-    await sendNotificationEmail({
-      to: candidate.email,
-      subject: "Üdvözlünk a csapatban! - eaisyHR hozzáférés",
-      html: emailHtml,
-      senderName: "eaisyHR Rendszer",
-      senderEmail: "eaisyhr@thinkai.hu"
-    })
+      await sendNotificationEmail({
+        to: candidate.email,
+        subject: "Üdvözlünk a csapatban! - eaisyHR hozzáférés",
+        html: emailHtml,
+        senderName: "eaisyHR Rendszer",
+        senderEmail: "eaisyhr@thinkai.hu"
+      })
+    }
   } else if (data.mode === "create_new") {
     // 0. Hozzuk létre az új felhasználót az Auth-ban
+    let isExistingUser = false
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: data.email!,
       email_confirm: true,
@@ -102,19 +107,28 @@ export async function onboardEmployee(data: {
     })
 
     if (authError || !authData.user) {
-      return { error: authError?.message || "Nem sikerült a felhasználót létrehozni." }
+      // Ha már létezik, feloldjuk a meglévőt
+      const { data: userList } = await supabaseAdmin.auth.admin.listUsers()
+      const existingUser = userList?.users?.find(u => u.email?.toLowerCase() === data.email?.toLowerCase())
+      if (existingUser) {
+        finalUserId = existingUser.id
+        isExistingUser = true
+      } else {
+        return { error: authError?.message || "Nem sikerült a felhasználót létrehozni." }
+      }
+    } else {
+      finalUserId = authData.user.id
     }
-
-    finalUserId = authData.user.id
 
     // Várjunk egy pillanatot, hogy lefusson a trigger, ami létrehozza a felhasznalo_profilt
     await new Promise(resolve => setTimeout(resolve, 500))
 
-    // A trigger az e-mailt teszi be névnek, ezt felülírjuk a valódira
-    await supabaseAdmin
-      .from("felhasznalo_profil")
-      .update({ nev: data.nev! })
-      .eq("id", finalUserId)
+    if (!isExistingUser) {
+      await supabaseAdmin
+        .from("felhasznalo_profil")
+        .update({ nev: data.nev! })
+        .eq("id", finalUserId)
+    }
   }
 
   if (!finalUserId) {
@@ -134,11 +148,25 @@ export async function onboardEmployee(data: {
     }
   }
 
-  // 1. Frissítjük a hr_szerepkort a felhasznalo_profilban, és KIZÁRÓLAG a HR modult adjuk hozzá a hozzáférésekhez
-  const updateData: any = {
-    hr_szerepkor: data.role,
-    elerheto_modulok: ["hr"]
+  // 1. Meglévő profil lekérdezése a meglévő szerepkör és modulok védelmére
+  const { data: existingProf } = await supabaseAdmin
+    .from("felhasznalo_profil")
+    .select("szerepkor, hr_szerepkor, elerheto_modulok")
+    .eq("id", finalUserId)
+    .single()
+
+  const updateData: any = {}
+
+  // SOHA ne fokozzunk le admint vagy hr_vezetőt munkavállalóvá!
+  const isHighPrivilege = existingProf?.hr_szerepkor === "admin" || existingProf?.szerepkor === "admin" || existingProf?.hr_szerepkor === "hr_vezeto"
+  if (!isHighPrivilege) {
+    updateData.hr_szerepkor = data.role
   }
+
+  // Modulok: a meglévő modulokat (pl. docs) SOHA ne töröljük, hanem uniózzuk a hr-rel!
+  const existingModules = Array.isArray(existingProf?.elerheto_modulok) ? existingProf.elerheto_modulok : []
+  updateData.elerheto_modulok = Array.from(new Set([...existingModules, "hr"]))
+
   if (orgUnitId) {
     updateData.hr_szervezeti_egyseg_id = orgUnitId
   }

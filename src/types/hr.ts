@@ -98,6 +98,8 @@ export interface Employee {
   taj_szam?: string | null
   szuletesi_datum?: string | null
   munkaido_fte?: number | null
+  hasActiveOffboarding?: boolean
+  isClosedOffboarding?: boolean
   kpis?: KpiItem[]
   [key: string]: any
 }

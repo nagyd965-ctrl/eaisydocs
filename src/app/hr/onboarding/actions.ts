@@ -194,25 +194,47 @@ export async function activateOnboardingAccount(onboardingId: string) {
 
   let finalUserId = onboarding.dolgozo_id
 
-  if (!finalUserId && onboarding.toborzas_id) {
-    // Meghívjuk a bevált onboardEmployee admin akciót, ami elkészíti az auth fiókot, adatlapot, jogviszonyt és kiküldi az e-mailt
-    const candidate = onboarding.hr_toborzas
-    const result = await onboardEmployee({
-      mode: "select_candidate",
-      candidateId: onboarding.toborzas_id,
-      role: "munkavallalo",
-      munkakorId: candidate?.megpalyazott_munkakor_id || "none",
-      belepes_datuma: onboarding.belepes_datuma && onboarding.belepes_datuma !== "Hamarosan" 
-        ? onboarding.belepes_datuma 
-        : new Date().toISOString()
-    })
+  if (!finalUserId) {
+    if (onboarding.toborzas_id) {
+      // Meghívjuk a bevált onboardEmployee admin akciót, ami elkészíti az auth fiókot, adatlapot, jogviszonyt és kiküldi az e-mailt
+      const candidate = onboarding.hr_toborzas
+      const result = await onboardEmployee({
+        mode: "select_candidate",
+        candidateId: onboarding.toborzas_id,
+        role: "munkavallalo",
+        munkakorId: candidate?.megpalyazott_munkakor_id || "none",
+        belepes_datuma: onboarding.belepes_datuma && onboarding.belepes_datuma !== "Hamarosan" 
+          ? onboarding.belepes_datuma 
+          : new Date().toISOString()
+      })
 
-    if (result.error) {
-      console.error("Hiba a fiók generálásakor:", result.error)
-      return { error: result.error }
+      if (result.error) {
+        console.error("Hiba a fiók generálásakor:", result.error)
+        return { error: result.error }
+      }
+
+      finalUserId = result.userId
+    } else if (onboarding.email) {
+      const result = await onboardEmployee({
+        mode: "create_new",
+        email: onboarding.email,
+        password: "Welcome2026!",
+        nev: onboarding.nev,
+        telefon: onboarding.telefon || undefined,
+        role: "munkavallalo",
+        munkakorId: "none",
+        belepes_datuma: onboarding.belepes_datuma && onboarding.belepes_datuma !== "Hamarosan" 
+          ? onboarding.belepes_datuma 
+          : new Date().toISOString()
+      })
+
+      if (result.error) {
+        console.error("Hiba a fiók generálásakor:", result.error)
+        return { error: result.error }
+      }
+
+      finalUserId = result.userId
     }
-
-    finalUserId = result.userId
   }
 
   if (!finalUserId) {
@@ -371,8 +393,84 @@ export async function activateOnboardingAccount(onboardingId: string) {
         }
       }
     }
+
+    // Kapcsolódó NAV T1041 bejelentések összekötése és iktatása
+    await adminClient
+      .from("hr_t1041_bejelentes")
+      .update({ dolgozo_id: finalUserId })
+      .eq("onboarding_id", onboardingId)
+
+    const { data: t1041Records } = await adminClient
+      .from("hr_t1041_bejelentes")
+      .select("adatlap_dokumentum_id, nyugta_dokumentum_id")
+      .eq("onboarding_id", onboardingId)
+
+    const t1041DocIds = Array.from(new Set(
+      (t1041Records || [])
+        .flatMap((r: any) => [r.adatlap_dokumentum_id, r.nyugta_dokumentum_id])
+        .filter(Boolean)
+    ))
+
+    for (const docId of t1041DocIds) {
+      await adminClient
+        .from("hr_dokumentum")
+        .update({ dolgozo_id: finalUserId })
+        .eq("id", docId)
+
+      const { data: docData } = await adminClient
+        .from("hr_dokumentum")
+        .select("iktatoszam, nev")
+        .eq("id", docId)
+        .single()
+
+      if (docData && !docData.iktatoszam) {
+        const { executeHrDocumentFiling } = await import("@/utils/hr-filing-bridge")
+        await executeHrDocumentFiling(adminClient, {
+          documentId: docId as string,
+          employeeId: finalUserId,
+          customTargy: docData.nev,
+          currentUserId: user.id
+        })
+      }
+    }
+
+    // Kapcsolódó Munkaköri leírás összekötése és iktatása
+    await adminClient
+      .from("hr_onboarding_munkakor")
+      .update({ dolgozo_id: finalUserId })
+      .eq("onboarding_id", onboardingId)
+
+    const { data: jobDescRecords } = await adminClient
+      .from("hr_onboarding_munkakor")
+      .select("dokumentum_id")
+      .eq("onboarding_id", onboardingId)
+      .not("dokumentum_id", "is", null)
+
+    const jobDocIds = Array.from(new Set((jobDescRecords || []).map((r: any) => r.dokumentum_id).filter(Boolean)))
+    for (const docId of jobDocIds) {
+      await adminClient
+        .from("hr_dokumentum")
+        .update({ dolgozo_id: finalUserId })
+        .eq("id", docId)
+
+      const { data: docData } = await adminClient
+        .from("hr_dokumentum")
+        .select("iktatoszam, nev")
+        .eq("id", docId)
+        .single()
+
+      if (docData && !docData.iktatoszam) {
+        const { executeHrDocumentFiling } = await import("@/utils/hr-filing-bridge")
+        await executeHrDocumentFiling(adminClient, {
+          documentId: docId as string,
+          employeeId: finalUserId,
+          customTargy: docData.nev,
+          currentUserId: user.id
+        })
+      }
+    }
   } catch (err) {
-    console.error("Hiba az eszközök, munkavédelem, szerződés és dokumentumok összekötésekor:", err)
+    console.error("Hiba az eszközök, munkavédelem, szerződés, T1041, munkaköri leírás és dokumentumok összekötésekor:", err)
   }
 
   // Audit napló

@@ -39,8 +39,9 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-024](./A-024-partner-dual-classification-and-contacts-architecture.md) | 2026-09-30 | Partnertörzs Kettős Besorolási Modell és Kapcsolattartói Architektúra | `[Docs]` | `Decided` | [P-024](../../product/decisions/P-024-partner-directory-and-contact-management-ux.md), `partner_expansion.sql` |
 | [A-025](./A-025-base-ui-select-automatic-label-resolution.md) | 2026-09-30 | Base UI Select Automatikus Címkefeloldási Architektúra | `[Közös]` | `Decided` | `src/components/ui/select.tsx`, `partner-dialog.tsx` |
 | [A-026](./A-026-employee-personal-dossier-and-hr-filing-bridge.md) | 2026-09-30 | Munkavállalói Személyi Dosszié és eaisyHR ↔ eaisyDocs Iratkezelési Híd Architektúra | `[Közös]` | `Decided` | [P-025](../../product/decisions/P-025-employee-document-filing-and-dossier-ux.md), `hr_filing_bridge.sql` |
+| [A-027](./A-027-pre-onboarding-filing-and-t1041-bridge.md) | 2026-10-01 | Pre-Onboarding Munkaköri Leírás, NAV T1041 Hatósági Bejelentés és eaisyDocs Iratkezelési Híd | `[Közös]` | `Decided` | `hr_t1041_bejelentes.sql`, `hr_onboarding_munkakor.sql`, `onboarding/actions.ts` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-027`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-028`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!

@@ -1,3 +1,11 @@
+export interface CompanyDetails {
+  nev: string
+  szekhely: string
+  adoszam: string
+  cegjegyzekszam: string
+  kepviselo: string
+}
+
 export interface EmploymentContractPdfData {
   id?: string
   contractNumber: string
@@ -20,13 +28,7 @@ export interface EmploymentContractPdfData {
   alapber: number
   munkavegzesHelye: string
   tavmunkaMegallapodas?: boolean
-  cegAdatok: {
-    nev: string
-    szekhely: string
-    adoszam: string
-    cegjegyzekszam: string
-    kepviselo: string
-  }
+  cegAdatok: CompanyDetails
   iktatoszam?: string | null
   iktatvaEkor?: string | null
   isDraft?: boolean

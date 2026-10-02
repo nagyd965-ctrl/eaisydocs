@@ -41,6 +41,7 @@ export default async function HrAdminPage() {
       avatar_url,
       hr_dolgozo_adatlap (
         id,
+        munkaviszony_vege,
         hr_jogviszony (
           id,
           belepes_datuma,
@@ -98,7 +99,11 @@ export default async function HrAdminPage() {
     })
   }
 
-  const activeEmployees = employees?.filter((emp: any) => emp.hr_dolgozo_adatlap !== null) || []
+  const activeEmployees = employees?.filter((emp: any) => {
+    if (!emp.hr_dolgozo_adatlap) return false
+    const isExited = emp.hr_szerepkor === "inaktiv" || (emp.hr_dolgozo_adatlap.munkaviszony_vege && new Date(emp.hr_dolgozo_adatlap.munkaviszony_vege) <= new Date())
+    return !isExited
+  }) || []
 
   return (
     <div className="space-y-6 pb-10">
@@ -120,54 +125,52 @@ export default async function HrAdminPage() {
 
       {/* Stat kártyák */}
       <div className="grid gap-4 md:grid-cols-3">
-
-        <Card className="border-l-4 border-l-primary">
-          <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Users className="w-4 h-4 text-primary" />
-            </div>
+        {/* Teljes Állomány */}
+        <Card className="border shadow-xs bg-card">
+          <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-2xl font-semibold tabular-nums text-primary">
-                {activeEmployees.length} fő
-              </p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">Teljes Állomány</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Teljes Állomány</p>
+              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{activeEmployees.length} fő</h3>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-info">
-          <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-info-subtle flex items-center justify-center shrink-0">
-              <Briefcase className="w-4 h-4 text-info" />
-            </div>
+        {/* Nyitott Pozíciók */}
+        <Card className="border shadow-xs bg-card">
+          <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-2xl font-semibold tabular-nums text-info">
-                {activeAdsCount} db
-              </p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">Nyitott Pozíciók</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Nyitott Pozíciók</p>
+              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{activeAdsCount} db</h3>
               {activeCandidatesCount > 0 && (
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   {activeCandidatesCount} aktív jelentkező
                 </p>
               )}
             </div>
+            <div className="w-10 h-10 rounded-lg bg-info-subtle text-info flex items-center justify-center shrink-0">
+              <Briefcase className="w-5 h-5" />
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-warning">
-          <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <div className="h-9 w-9 rounded-lg bg-warning-subtle flex items-center justify-center shrink-0">
-              <AlertCircle className="w-4 h-4 text-warning" />
-            </div>
+        {/* Figyelmeztetés */}
+        <Card className={`border shadow-xs transition-colors ${alerts.length > 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-card"}`}>
+          <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-2xl font-semibold tabular-nums text-warning">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Figyelmeztetés</p>
+              <h3 className={`text-2xl font-bold tracking-tight mt-1 tabular-nums ${alerts.length > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
                 {alerts.length} db
-              </p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">Kritikus Figyelmeztetés</p>
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{alerts.length > 0 ? "Azonnali teendő" : "Minden rendben"}</p>
+            </div>
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${alerts.length > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground"}`}>
+              <AlertCircle className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
-
       </div>
 
       {/* Alert sáv – csak ha van figyelmeztetés */}
@@ -176,7 +179,7 @@ export default async function HrAdminPage() {
           {alerts.map((alert: any) => (
             <div
               key={alert.id}
-              className="flex items-center gap-3 p-4 rounded-lg border border-l-4 border-l-warning hover:bg-muted/30 transition-colors"
+              className="flex items-center gap-3 p-4 rounded-lg border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 transition-colors"
             >
               <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
               <div className="flex-1 min-w-0">

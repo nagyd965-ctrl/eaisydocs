@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
-import { OffboardingTabs } from "@/components/hr/offboarding-tabs"
+import { OffboardingList } from "@/components/hr/offboarding-list"
+import { AddOffboardingDialog } from "@/components/hr/add-offboarding-dialog"
 import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
@@ -31,12 +32,16 @@ export default async function OffboardingPage() {
   }
 
   // Offboarding folyamatok (feladatokkal és profilokkal)
-  const { data: offboardings, error: offError } = await supabaseAdmin
+  const { data: rawOffboardings, error: offError } = await supabaseAdmin
     .from("hr_offboarding")
     .select(`
       *,
       hr_offboarding_feladat (*),
-      felhasznalo_profil (nev),
+      felhasznalo_profil (
+        id,
+        nev,
+        hr_szervezeti_egyseg:hr_szervezeti_egyseg_id (nev)
+      ),
       hr_kilepes_interju (*)
     `)
     .order("created_at", { ascending: false })
@@ -45,16 +50,102 @@ export default async function OffboardingPage() {
     console.error("Hiba offboarding adatok lekérésekor:", offError)
   }
 
-  // Dolgozók a legördülő listához
-  const { data: employees, error: empError } = await supabaseAdmin
-    .from("felhasznalo_profil")
-    .select("id, nev, hr_dolgozo_adatlap!inner(id)")
-    .contains("elerheto_modulok", ["hr"])
-    .order("nev", { ascending: true })
+  // Fallback feloldás hiányzó munkakör és részleg esetén
+  const offboardings = await Promise.all(
+    (rawOffboardings || []).map(async (item: any) => {
+      let munkakor = item.munkakor
+      let reszleg = item.reszleg || item.felhasznalo_profil?.hr_szervezeti_egyseg?.nev || null
+
+      if ((!munkakor || !reszleg) && item.dolgozo_id) {
+        // 1. Megpróbáljuk hr_jogviszony -> hr_beosztas -> hr_munkakor-ból
+        const { data: jogviszony } = await supabaseAdmin
+          .from("hr_jogviszony")
+          .select("hr_beosztas(hr_munkakor(megnevezes, szervezeti_egyseg:szervezeti_egyseg_id(nev)))")
+          .eq("dolgozo_id", item.dolgozo_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        const beosztas: any = Array.isArray(jogviszony?.hr_beosztas) ? jogviszony?.hr_beosztas[0] : jogviszony?.hr_beosztas
+        const munkakorData: any = Array.isArray(beosztas?.hr_munkakor) ? beosztas?.hr_munkakor[0] : beosztas?.hr_munkakor
+        if (munkakorData?.megnevezes && !munkakor) {
+          munkakor = munkakorData.megnevezes
+        }
+        const szEgyseg: any = Array.isArray(munkakorData?.szervezeti_egyseg) ? munkakorData?.szervezeti_egyseg[0] : munkakorData?.szervezeti_egyseg
+        if (szEgyseg?.nev && !reszleg) {
+          reszleg = szEgyseg.nev
+        }
+
+        // 2. Ha még mindig hiányzik, felhasznalo_profil.pozicio
+        if (!munkakor) {
+          const { data: prof } = await supabaseAdmin
+            .from("felhasznalo_profil")
+            .select("pozicio")
+            .eq("id", item.dolgozo_id)
+            .maybeSingle()
+          if (prof?.pozicio) munkakor = prof.pozicio
+        }
+
+        // Ha találtunk adatot és a DB-ben hiányzott, perzisztáljuk csendben
+        if ((munkakor && !item.munkakor) || (reszleg && !item.reszleg)) {
+          await supabaseAdmin
+            .from("hr_offboarding")
+            .update({
+              munkakor: munkakor || item.munkakor,
+              reszleg: reszleg || item.reszleg,
+            })
+            .eq("id", item.id)
+        }
+      }
+
+      return {
+        ...item,
+        munkakor: munkakor || item.munkakor,
+        reszleg: reszleg || item.reszleg,
+      }
+    })
+  )
+
+  // Dolgozók a legördülő listához (valós eaisyHR munkatársak a hr_dolgozo_adatlap alapján)
+  const { data: adatlapEmployees, error: empError } = await supabaseAdmin
+    .from("hr_dolgozo_adatlap")
+    .select(`
+      id,
+      felhasznalo_profil (
+        id,
+        nev
+      )
+    `)
 
   if (empError) {
     console.error("Hiba dolgozók lekérésekor:", empError)
   }
+
+  // Folyamatban lévő és lezárt offboardinggal rendelkező dolgozók azonosítói
+  const activeOffboardingDolgozoIds = new Set(
+    (rawOffboardings || [])
+      .filter((o: any) => o.statusz === "folyamatban")
+      .map((o: any) => o.dolgozo_id)
+  )
+
+  const closedOffboardingDolgozoIds = new Set(
+    (rawOffboardings || [])
+      .filter((o: any) => o.statusz === "lezart")
+      .map((o: any) => o.dolgozo_id)
+  )
+
+  const employees = (adatlapEmployees || [])
+    .map((item: any) => {
+      const prof = Array.isArray(item.felhasznalo_profil) ? item.felhasznalo_profil[0] : item.felhasznalo_profil
+      return {
+        id: item.id,
+        nev: prof?.nev || "Névtelen munkatárs",
+        hasActiveOffboarding: activeOffboardingDolgozoIds.has(item.id),
+        isClosedOffboarding: closedOffboardingDolgozoIds.has(item.id),
+      }
+    })
+    .filter((emp: any) => emp.nev && !emp.isClosedOffboarding)
+    .sort((a: any, b: any) => a.nev.localeCompare(b.nev, "hu"))
 
   // Kilépési interjúk az összesítő tabhoz
   const { data: exitInterviews, error: interviewError } = await supabaseAdmin
@@ -81,14 +172,17 @@ export default async function OffboardingPage() {
 
   return (
     <div className="space-y-6 pb-10">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Kiléptetés (Offboarding)</h1>
-        <p className="text-muted-foreground mt-1">
-          Eszközvisszavételek, jogosultságmegvonások, kilépési feladatok és interjúk nyomon követése.
-        </p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Kiléptetés (Offboarding)</h1>
+          <p className="text-muted-foreground mt-1">
+            Eszközvisszavételek, jogosultságmegvonások, kilépési feladatok és interjúk nyomon követése.
+          </p>
+        </div>
+        <AddOffboardingDialog employees={employees || []} />
       </div>
 
-      <OffboardingTabs
+      <OffboardingList
         offboardings={offboardings || []}
         employees={employees || []}
         exitInterviews={flatInterviews}

@@ -85,7 +85,7 @@ export function OvertimeRequestsPanel({ managerId }: { managerId: string }) {
   if (loading || requests.length === 0) return null
 
   return (
-    <Card className="border-l-4 border-l-warning">
+    <Card className="border border-amber-500/20 bg-amber-500/5 shadow-xs">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-warning" />

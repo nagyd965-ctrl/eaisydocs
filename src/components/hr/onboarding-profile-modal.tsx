@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { 
   DialogContent, 
   DialogTitle, 
@@ -44,7 +45,8 @@ import {
   Laptop,
   AlertTriangle,
   HardHat,
-  Building2
+  Building2,
+  ArrowLeft
 } from "lucide-react"
 import { 
   addOnboardingTask, 
@@ -58,6 +60,8 @@ import {
 import { AssetHandoverPanel } from "@/components/hr/asset-handover-panel"
 import { SafetyTrainingPanel } from "@/components/hr/safety-training-panel"
 import { EmploymentContractPanel } from "@/components/hr/employment-contract-panel"
+import { T1041Panel } from "@/components/hr/t1041-panel"
+import { JobDescriptionPanel } from "@/components/hr/job-description-panel"
 import { toast } from "sonner"
 import type { OrgUnitOption, JobOption } from "@/app/hr/actions/job-org-actions"
 import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
@@ -77,7 +81,8 @@ export function OnboardingProfileModal({
   orgUnits,
   jobs
 }: OnboardingProfileModalProps) {
-  const [activeModalTab, setActiveModalTab] = useState<"teendok" | "szerzodes" | "eszkozok" | "munkavedelem">("teendok")
+  const router = useRouter()
+  const [activeModalTab, setActiveModalTab] = useState<"teendok" | "szerzodes" | "eszkozok" | "munkavedelem" | "t1041" | "munkakor_leiras">("teendok")
   const [newTaskName, setNewTaskName] = useState("")
   const [newTaskResp, setNewTaskResp] = useState("HR")
   const [isAdding, setIsAdding] = useState(false)
@@ -181,9 +186,31 @@ export function OnboardingProfileModal({
   }
 
   return (
-    <DialogContent className="sm:max-w-[850px] w-[95vw] max-h-[90vh] p-0 overflow-hidden border shadow-2xl flex flex-col">
+    <DialogContent className="sm:max-w-[960px] lg:max-w-[1000px] w-[95vw] max-h-[90vh] p-0 overflow-hidden border shadow-2xl flex flex-col">
       {/* 1. Fejléc */}
       <div className="bg-muted/40 p-6 border-b shrink-0">
+        {activeModalTab !== "teendok" && (
+          <div className="flex items-center gap-2 mb-3.5 -mt-1 animate-in fade-in duration-150">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveModalTab("teendok")}
+              className="h-7 -ml-2 px-2.5 gap-1.5 text-xs font-semibold text-primary hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer group"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+              Vissza az onboarding teendőkhöz
+            </Button>
+            <span className="text-muted-foreground/30">•</span>
+            <Badge variant="outline" className="text-[11px] font-medium bg-background text-foreground/80 border-border">
+              {activeModalTab === "szerzodes" && "Munkaszerződés (Mt. 42–45. §)"}
+              {activeModalTab === "eszkozok" && "Munkahelyi Eszközök & Jkv (Mt. 179. §)"}
+              {activeModalTab === "munkavedelem" && "Munkavédelmi Oktatás (Mvt. 55. §)"}
+              {activeModalTab === "t1041" && "NAV T1041 Bejelentés & Nyugta (Art. 22. §)"}
+              {activeModalTab === "munkakor_leiras" && "Hivatalos Munkaköri Leírás (Mt. 45. §)"}
+            </Badge>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-primary/10 text-primary border-2 border-primary/20 flex items-center justify-center font-bold text-xl shrink-0 shadow-sm">
@@ -300,62 +327,7 @@ export function OnboardingProfileModal({
         </div>
       </div>
 
-      {/* 2. Fülek: Teendők vs Munkahelyi Eszközök vs Munkavédelmi Oktatás */}
-      <div className="flex border-b px-6 bg-muted/20 shrink-0 gap-1 overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setActiveModalTab("teendok")}
-          className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeModalTab === "teendok"
-              ? "border-primary text-primary bg-background/60"
-              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/30"
-          }`}
-        >
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          Onboarding Teendők ({doneCount} / {totalCount})
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveModalTab("szerzodes")}
-          className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeModalTab === "szerzodes"
-              ? "border-primary text-primary bg-background/60"
-              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/30"
-          }`}
-        >
-          <FileText className="w-3.5 h-3.5" />
-          Munkaszerződés (Mt. 42. §)
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveModalTab("eszkozok")}
-          className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeModalTab === "eszkozok"
-              ? "border-primary text-primary bg-background/60"
-              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/30"
-          }`}
-        >
-          <Laptop className="w-3.5 h-3.5" />
-          Munkahelyi Eszközök & Jkv (Mt. 179. §)
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveModalTab("munkavedelem")}
-          className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeModalTab === "munkavedelem"
-              ? "border-teal-600 text-teal-700 dark:text-teal-400 bg-background/60"
-              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/30"
-          }`}
-        >
-          <HardHat className="w-3.5 h-3.5 text-teal-600" />
-          Munkavédelmi Oktatás (Mvt. 55. §)
-        </button>
-      </div>
-
-      {/* 3. Görgethető Tartalom */}
+      {/* 2. Görgethető Tartalom */}
       <div className="p-6 space-y-6 overflow-y-auto flex-1">
         {activeModalTab === "szerzodes" ? (
           <EmploymentContractPanel
@@ -367,7 +339,6 @@ export function OnboardingProfileModal({
             belepesDatuma={onboarding.belepes_datuma}
             orgUnits={orgUnits}
             jobs={jobs}
-            onBack={() => setActiveModalTab("teendok")}
             onSuccess={() => {
               const contractTask = onboarding.hr_onboarding_feladat?.find(t => 
                 (t.cim || "").toLowerCase().includes("munkaszerződés") ||
@@ -384,7 +355,6 @@ export function OnboardingProfileModal({
             dolgozoId={onboarding.dolgozo_id}
             onboardingId={onboarding.id}
             munkakor={onboarding.munkakor}
-            onBack={() => setActiveModalTab("teendok")}
             onSuccess={() => {
               const assetTask = onboarding.hr_onboarding_feladat?.find(t => 
                 (t.cim || "").toLowerCase().includes("eszköz") ||
@@ -403,7 +373,6 @@ export function OnboardingProfileModal({
             onboardingId={onboarding.id}
             munkakor={onboarding.munkakor}
             reszleg={onboarding.reszleg}
-            onBack={() => setActiveModalTab("teendok")}
             onSuccess={() => {
               const safetyTask = onboarding.hr_onboarding_feladat?.find(t => 
                 (t.cim || "").toLowerCase().includes("munkavédel") ||
@@ -412,6 +381,34 @@ export function OnboardingProfileModal({
               )
               if (safetyTask && safetyTask.statusz !== 'done') {
                 handleToggleTask(safetyTask.id, safetyTask.statusz)
+              }
+            }}
+          />
+        ) : activeModalTab === "t1041" ? (
+          <T1041Panel
+            employeeName={onboarding.nev}
+            dolgozoId={onboarding.dolgozo_id}
+            onboardingId={onboarding.id}
+            munkakor={onboarding.munkakor}
+            reszleg={onboarding.reszleg}
+            onSuccess={() => {
+              router.refresh()
+            }}
+          />
+        ) : activeModalTab === "munkakor_leiras" ? (
+          <JobDescriptionPanel
+            employeeName={onboarding.nev}
+            dolgozoId={onboarding.dolgozo_id}
+            onboardingId={onboarding.id}
+            munkakor={onboarding.munkakor}
+            reszleg={onboarding.reszleg}
+            onSuccess={() => {
+              const jobTask = onboarding.hr_onboarding_feladat?.find(t => 
+                (t.cim || "").toLowerCase().includes("munkakör") ||
+                (t.cim || "").toLowerCase().includes("munkaköri")
+              )
+              if (jobTask && jobTask.statusz !== 'done') {
+                handleToggleTask(jobTask.id, jobTask.statusz)
               }
             }}
           />
@@ -449,10 +446,21 @@ export function OnboardingProfileModal({
                   <AlertDialogHeader>
                     <AlertDialogTitle>Munkavállalói fiók aktiválása</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Biztosan létrehozod a munkavállalói eaisyHR fiókot <strong>{onboarding.nev}</strong> számára?
-                      <br /><br />
-                      A rendszer létrehozza az auth felhasználót és kiküldi a bejelentkezési adatokat a(z) <strong>{candidateEmail || "regisztrált"}</strong> címre.
+                      Biztosan aktiválod a munkavállalói eaisyHR fiókot {onboarding.nev} számára?
                     </AlertDialogDescription>
+                    <div className="space-y-2 text-xs text-muted-foreground pt-1 text-left">
+                      <p>
+                        Aktiváláskor a rendszer összekapcsolja az elkészült szerződést, munkaköri leírást, T1041-et és oktatási jegyzőkönyvet az eaisyDocs Személyi Dossziéval.
+                      </p>
+                      <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-700 dark:text-amber-400 space-y-1">
+                        <p className="font-semibold flex items-center gap-1.5">
+                          🛡️ Fiók- és Jogosultságvédelmi Garancia:
+                        </p>
+                        <p>
+                          Ha a(z) <strong>{candidateEmail || "megadott"}</strong> cím már egy létező felhasználóhoz (pl. Adminisztrátorhoz) tartozik, a rendszer <strong>SOHA nem írja felül a jelszavadat</strong>, és <strong>nem fokozza le az admin jogosultságaidat</strong>, hanem biztonságosan összeköti a belépési dokumentációt a fiókkal.
+                        </p>
+                      </div>
+                    </div>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Mégse</AlertDialogCancel>
@@ -653,6 +661,33 @@ export function OnboardingProfileModal({
                           onClick={() => setActiveModalTab("munkavedelem")}
                         >
                           <HardHat className="w-3 h-3 text-teal-600" /> Oktatási jkv.
+                        </Button>
+                      )}
+
+                      {((task.cim || "").toLowerCase().includes("t1041") ||
+                        (task.cim || "").toLowerCase().includes("nav") ||
+                        (task.cim || "").toLowerCase().includes("hatósági bejelentés")) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs px-2 gap-1 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 shadow-2xs"
+                          onClick={() => setActiveModalTab("t1041")}
+                        >
+                          <Building2 className="w-3 h-3 text-emerald-600" /> T1041 bejelentés
+                        </Button>
+                      )}
+
+                      {((task.cim || "").toLowerCase().includes("munkakör") ||
+                        (task.cim || "").toLowerCase().includes("munkaköri")) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10 shadow-2xs"
+                          onClick={() => setActiveModalTab("munkakor_leiras")}
+                        >
+                          <Briefcase className="w-3 h-3" /> Munkaköri leírás
                         </Button>
                       )}
 

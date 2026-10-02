@@ -4,7 +4,90 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ---
 
+## [Unreleased] – Fejlesztés alatt (2026-10-02)
+
+### 🚪 Megújított Offboarding (Kiléptetés) Folyamat, Mt. Jogi Dokumentumgenerálás & Prémium HR Analytics UX
+- **Globális KPI Stat Kártya Harmonizáció (Linear Flat Design) (`job-postings-list.tsx`, `hr/page.tsx`, `admin/page.tsx`, `admin/overview/page.tsx`, `employee-timesheet.tsx`):**
+  - A korábbi elavult `border-l-4` vastag színes szegélyes kártyastílus teljes kivezetése a design rendszer elveinek megfelelően.
+  - Egységesített, prémium Linear flat Onboarding / Offboarding kártyamodell bevezetése minden felületen:
+    - Bal oldal: kisméretű uppercase felirat (`text-xs font-medium text-muted-foreground uppercase tracking-wider`) és nagy, tabular-nums érték (`text-2xl font-bold tracking-tight mt-1`).
+    - Jobb oldal: kerekített finom ikon-konténer (`w-10 h-10 rounded-lg bg-... flex items-center justify-center shrink-0`).
+    - Figyelmeztetések és teendők esetén finom átlátszó háttérszínezés (`bg-amber-500/5 border-amber-500/20`).
+  - Átalakított nézetek: **Toborzás (Álláshirdetések)**, **Főoldal (Dolgozói önkiszolgáló)**, **HR Munkaasztal**, **Admin Áttekintés** és **Munkaidő-nyilvántartás (Timesheet)**.
+- **Automatikus Supabase Auth Fiókletiltás & Jogosultságmegvonás (`actions.ts`):**
+  - A kiléptetési folyamat lezárásakor (`closeOffboarding`) a rendszer a Supabase Admin API-n keresztül azonnal és automatikusan letiltja a távozó munkatárs Auth felhasználói fiókját (`ban_duration: '876000h'`), megelőzve az illetéktelen belépést vagy adatletöltést.
+  - Azonnali szerepkör-megvonás az adatbázisban: `felhasznalo_profil.hr_szerepkor = 'inaktiv'`, valamint `hr_dolgozo_adatlap.munkaviszony_vege` rögzítése a jogszabályi kilépési dátummal.
+  - Kiléptetés téves lezárása esetén az újranyitáskor (`reopenOffboarding`) a rendszer automatikusan feloldja a fióktiltást (`ban_duration: 'none'`), visszaállítja a `munkavallalo` szerepkört és törli a jogviszony vége záradékot.
+- **Szervezet és Munkatársak Intelligens Állapotszűrés (`settings-employee-table.tsx`, `settings/page.tsx`):**
+  - Munkajogi és nyugdíjtörvényi előírás (Mt. 80. §, 1997. évi LXXXI. tv.) miatt a volt dolgozók fizikai törlése (SQL DELETE) szigorúan tilos az 50 éves megőrzési idő alatt.
+  - A Beállítások felületen új 3-állású szűrősáv: `Aktív munkatársak (X)` (alapértelmezett, letisztult nézet), `Kilépett / Archivált (Y)` és `Összes (Z)`.
+  - A kártya fejléce kizárólag a valós aktív létszámot mutatja (`Munkatársak (X aktív fő)`).
+  - Az archivált munkatársak sorában áthúzott név, lakat ikonnal ellátott `Kilépett (Fiók letiltva)` badge és a kilépés dátuma jelenik meg, az aktív munkatársak névsorát nem zavarva.
+- **HR Vezetői Műszerfal Létszámszinkron (`admin/page.tsx`):**
+  - Az aktív dolgozói létszám és bérköltség statisztikák kalkulációja automatikusan kiszűri a már kilépett vagy inaktivált munkavállalókat.
+- **Teljes Modál Átalakítás (`OffboardingProfileModal.tsx`, `OffboardingCard.tsx`):**
+  - Beágyazott, egymásra nyíló popoverek nélküli 5 paneles navigáció: `Teendők (Checklist)`, `Megszüntetés`, `Eszközök`, `T1041 Kijelentés`, `Kilépési Interjú`.
+  - Szervezeti egység / felelős szerinti szűrőchipek: `HR`, `IT`, `Bérszámfejtés`, `Üzemeltetés`, `Vezető`.
+  - Kontextuális funkciógombok a checklist feladatok mellett (`[ Megszüntetés előkészítése ]`, `[ Eszköz visszavétel & Jkv ]`, `[ NAV T1041 kijelentés ]`, `[ Kilépési interjú ]`), amelyek közvetlenül a megfelelő szakaszra navigálnak.
+  - Fejléc avatarral, munkakörrel, részleggel (`Building2`), kilépési jogcímmel, élő előrehaladási sávval és biztonsági megerősítéses archiváló lezárással.
+- **Munkaviszony Megszüntetési Megállapodás Generátor & eaisyDocs Iktatás (`termination-pdf-generator.ts`, `termination-panel.tsx`, `actions.ts`):**
+  - Mt. 64–85. § szerinti jogszabályi megfelelőség valamennyi kilépési jogcímre: Közös megegyezés, Munkáltatói felmondás (30 napos Mt. 287. § keresetlevél jogorvoslati tájékoztatással), Munkavállalói felmondás, Azonnali hatályú felmondás próbaidő alatt, Rendkívüli felmondás.
+  - Pénzügyi paraméterezés: felmentési idő munkanapokban, megváltandó szabadság napok száma, végkielégítés összege forintban, utolsó munkában töltött nap.
+  - Puppeteerrel generált, céges pecséttel ellátott hivatalos A4 PDF.
+  - Automatikus iktatás az eaisyDocs Személyi Dossziéba az `1.2 - Munkaviszony megszüntetés` tétel alá (**50 év megőrzési idővel**).
+  - Automatikusan készre pipálja a megszüntetési checklist feladatot.
+- **Eszköz Visszavételi és Vagyoni Leszámoló Lap & Leltári Mentesség (`asset-return-pdf-generator.ts`, `asset-return-panel.tsx`):**
+  - Mt. 179. § és Mt. 80. § szerinti munkaügyi vagyoni elszámolás: tételes eszközlista a dolgozónak kiadott munkahelyi eszközökből (`hr_munkahelyi_eszkoz`) állapotminősítéssel (*Ép / Hibátlan*, *Rendeltetésszerűen kopott*, *Sérült / Hibás*, *Hiányzik*).
+  - Sérülés vagy hiány esetén kártérítési összeg meghatározása és levonási záradék (Mt. 161. §).
+  - Teljes vagyoni és eszközbeli tartozásmentességi záradék: végérvényesen megszünteti a munkavállaló leltári felelősségét.
+  - Automatikus iktatás az eaisyDocs Személyi Dossziéba az `1.4 - Eszköz átadás-átvételi jegyzőkönyvek` tétel alá (**5 év megőrzési idővel**).
+  - Automatikusan teljesítettnek jelöli az eszközök és belépőkártyák leadása feladatokat.
+- **NAV T1041 Kijelentés & Nyugta Csatolás (`t1041-panel.tsx`, `t1041-actions.ts`):**
+  - T1041 kijelentési mód támogatása (`initialType = "T"`) az offboarding folyamatban.
+  - ÁNYK / ONYA egykattintásos másoló chipek, hatósági PDF adatlap és NAV befogadási nyugta feltöltési híd, amely teljesíti a hatósági kijelentési teendőt.
+- **Új Prémium Kilépési HR Analytics & Fluktuációs Műszerfal (`exit-interview-summary.tsx`):**
+  - A korábbi egyszerű lista helyett egy átfogó HCM műszerfal készült.
+  - 4 Felső KPI Kártya: Összes lefolytatott interjú, Átlagos össz-elégedettség (1-5 csillag), eNPS ajánlási arány, Top távozási főok.
+  - 4 Dimenziós Értékelési sávok: Vezetés és Menedzsment, Munkakörülmények, Előrelépési lehetőségek, Kompenzáció és juttatások.
+  - Távozási mozgatórugók és új célállomások (karrier elágazások) százalékos megoszlása.
+  - Kereshető és szűrhető szöveges idézetkártyák és részletes interjú-megtekintő modál.
+- **Gazdagabb Kilépő Dolgozó Hozzáadási Dialógus (`AddOffboardingDialog.tsx`):**
+  - Munkavállaló kiválasztása, távozás jogcíme, utolsó munkanap és jogviszony vége dátumok, valamint munkakör és részleg automatikus átemelése.
+- **Adatbázis Migráció (`supabase/migrations/20261001000014_hr_offboarding_enhancements.sql`):**
+  - `hr_offboarding` mezők: `megszunes_modja`, `indoklas`, `utolso_munkaban_toltott_nap`, `felmentesi_ido_nap`, `megvaltott_szabadsag_nap`, `vegkielegites_osszeg`, `reszleg`, `munkakor`, `szerzodes_pdf_url`, `eszkoz_elszamolas_pdf_url`, `t1041_nyugta_url`.
+  - `hr_munkahelyi_eszkoz` és `hr_t1041_bejelentes` kapcsolata `offboarding_id`-val.
+- **Törvényes Kilépő Igazolás & Átadás-Átvételi Nyugta Generátor (`exit-certificate-pdf-generator.ts`, `exit-certificate-panel.tsx`, `actions.ts`):**
+  - Mt. 80. § (2) bek., Flt. 36/A. §, és az adózási-TB jogszabályok szerinti törvényes munkáltatói kilépő igazolás és átadás-átvételi nyugta generálása Puppeteerrel.
+  - Tartalmazza a munkaviszony időtartamát, munkakört, FEOR-08 kódot, megszűnés jogcímét, adó- és TB azonosítókat, igénybe vett betegszabadság napokat (Mt. 126. §), kifizetett végkielégítést és a munkabérből történő letiltások/levonások jogszabályi nyilatkozatát.
+  - Választható átadási mód (személyes átvétel munkavállalói aláírással vs. postai tértivevényes feladás ragszámmal és feladási dátummal).
+  - Közvetlen in-browser PDF előnézet (`PdfViewerDialog`) és letöltés.
+  - A generálás befejeztével a rendszer automatikusan készre jelöli a *"Törvényes kilépő igazolások kiadása (Mt. 80. §)"* feladatot, és a folyamat lezárásakor beiktatja a dokumentumot az eaisyDocs személyi dossziéba (`1.2 Munkaviszony`, 50 év megőrzés).
+- **Döntési háttér:** [PRD P-040](../product/decisions/P-040-hr-offboarding-analytics-and-filing-revamp.md), [PRD P-041](../product/decisions/P-041-statutory-exit-certificate-and-handover-ux.md).
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-01)
+
+### 📑 Pre-Onboarding Munkaköri Leírás, NAV T1041 Hatósági Bejelentés & Mt. 46. § Tájékoztató UX
+- **Hivatalos NAV T1041 Bejelentési Adatlap & ÁNYK / ONYA Segédlet (`t1041-pdf-generator.ts`, `t1041-actions.ts`, `t1041-panel.tsx`):**
+  - Art. 22. § és Tbj. 40. § szerinti hivatalos A4 PDF bejelentő adatlap generálása Puppeteerrel (Új bejelentés `U`, Változás `V`, Törlés `T`).
+  - ÁNYK 13-as pótlap és ONYA másoló segédlet: egykattintásos vágólapra másolási chipek (Adószám, Adóazonosító, TAJ, Jogviszony kód `1101`, Kezdete, FEOR kód `4121`, Heti óraszám).
+  - Visszaigazoló NAV nyugta / igazolás PDF feltöltése közvetlenül az onboarding felületen, amely azonnal elvégzettnek jelöli a hatósági bejelentési feladatot.
+  - Fiókaktiváláskor automatikus iktatás az eaisyDocs Személyi Dossziéba (`1.3 - Hatósági bejelentések`, 50 év megőrzési idő).
+- **Hivatalos Munkaköri Leírás a Pre-Onboarding Szakaszban (`job-description-pdf-generator.ts`, `onboarding-job-actions.ts`, `job-description-panel.tsx`):**
+  - Munkavállalói profil előtti (pre-onboarding) munkaköri leírás kezelés 3 rugalmas opcióval:
+    1. *Központi Katalógus Verzió kiválasztása* a jóváhagyott munkaköri leírás sablonokból.
+    2. *Dinamikus A4 PDF generálás* Mt. 45. § (4) szerinti kötelező feladatokkal, felelősségekkel, kompetenciákkal, FEOR számmal és iktatási pecséttel.
+    3. *Aláírt / Egyedi PDF feltöltése*.
+  - Fiókaktiváláskor automatikus iktatás az eaisyDocs Személyi Dossziéba (`1.1 - Munkaköri leírások`, 50 év megőrzési idő) és átkötés a létrejövő munkatársi profilra.
+- **Mt. 46. § Munkáltatói Írásbeli Tájékoztató Generátor (`mt46-notice-generator.ts`, `employment-contract-panel.tsx`):**
+  - Törvényi előírásoknak megfelelő kétoldalas A4 PDF írásbeli tájékoztató generálása az Mt. 46. § (1) bekezdés mind a 9 kötelező pontjával (munkaidő-beosztás, pihenőnapok, pótlékok, bérfizetés napja, felmondási idők, kollektív szerződés hiánya, NAV bejelentés helye).
+  - Egykattintásos generálás és letöltés közvetlenül a munkaszerződés panelből.
+- **Onboarding Felület Megújítása & Tiszta Fül Navigáció (`OnboardingProfileModal.tsx`):**
+  - Töröltük a zavaró vízszintes oldalsávot/gombhúzót: helyette tiszta, áttekinthető beágyazott füles rendszer készült (`Teendők`, `Munkaszerződés`, `Munkaköri leírás`, `NAV T1041`, `Munkahelyi eszközök`, `Munkavédelmi oktatás`).
+  - Fejlécben közvetlen navigációs gombok és állapotjelvények (Munkaszerződés, Munkaköri leírás, T1041), a teendőlistában pedig kontextuális ugrógombok találhatók a megfelelő fülre.
+- **Adatbázis Migrációk:**
+  - `supabase/migrations/20261001000012_hr_t1041_bejelentes.sql`: `hr_t1041_bejelentes` tábla, RLS házirendek és storage bucket házirendek.
+  - `supabase/migrations/20261001000013_hr_onboarding_munkakor.sql`: `onboarding_id` oszlop a `hr_munkakori_leiras_dokumentum` és `hr_munkakor_leiras_verzio` táblákban, valamint RLS jogosultságok.
+- **Döntési háttér:** [ADR A-027](../architecture/decisions/A-027-pre-onboarding-filing-and-t1041-bridge.md), [PRD P-039](../product/decisions/P-039-onboarding-t1041-job-description-and-mt46-ux.md).
 
 ### 🏢 Dinamikus Szervezeti Egység és Munkakör Katalógus Választó UX
 - **eaisyHR Nyilvántartott Munkakörök és Szervezeti Egységek Integrációja (`job-org-actions.ts`, `job-org-selector.tsx`):**

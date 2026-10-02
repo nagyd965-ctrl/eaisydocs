@@ -68,10 +68,29 @@ export async function getEmploymentContractRecord({ dolgozoId, onboardingId }: G
       }
     }
 
-    return { data: record, existingDocument }
+    let mt46Document: any = null
+    const adminClient = getAdminClient()
+    let mtQuery = adminClient.from("hr_dokumentum").select("*").ilike("nev", "%Mt. 46%")
+    if (dolgozoId) {
+      mtQuery = mtQuery.eq("dolgozo_id", dolgozoId)
+    } else if (onboardingId) {
+      mtQuery = mtQuery.ilike("url", `%${onboardingId}%`)
+    }
+    const { data: mtList } = await mtQuery.order("created_at", { ascending: false }).limit(1)
+    if (mtList && mtList.length > 0) {
+      const mtDoc = mtList[0]
+      let mUrl = mtDoc.url
+      if (mtDoc.url && !mtDoc.url.startsWith("http")) {
+        const { data: s } = await adminClient.storage.from("irat_files").createSignedUrl(mtDoc.url, 3600)
+        if (s?.signedUrl) mUrl = s.signedUrl
+      }
+      mt46Document = { ...mtDoc, displayUrl: mUrl, url: mUrl }
+    }
+
+    return { data: record, existingDocument, mt46Document }
   } catch (err: any) {
     console.error("getEmploymentContractRecord exception:", err)
-    return { data: null, existingDocument: null, error: err.message }
+    return { data: null, existingDocument: null, mt46Document: null, error: err.message }
   }
 }
 
@@ -346,5 +365,108 @@ export async function fileExistingEmploymentContractDocument({
   } catch (err: any) {
     console.error("fileExistingEmploymentContractDocument error:", err)
     return { error: err.message }
+  }
+}
+
+/**
+ * Mt. 46. § Munkáltatói Írásbeli Tájékoztató generálása és mentése
+ */
+export async function generateMt46NoticeAction(params: GenerateEmploymentContractActionParams) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: "Nincs bejelentkezve" }
+
+    const adminClient = getAdminClient()
+    const { generateMt46NoticePdfBuffer } = await import("@/utils/hr/mt46-notice-generator")
+
+    const pdfData: EmploymentContractPdfData = {
+      contractNumber: "Mt. 46 Tájékoztató",
+      employeeName: params.employeeName,
+      szuletesiHely: params.szuletesiHely,
+      szuletesiDatum: params.szuletesiDatum,
+      anyjaNeve: params.anyjaNeve,
+      lakcim: params.lakcim,
+      adoazonositoJel: params.adoazonositoJel,
+      tajSzam: params.tajSzam,
+      bankszamlaszam: params.bankszamlaszam,
+      munkakor: params.munkakor,
+      reszleg: params.reszleg || "Központi",
+      kezdesDatuma: params.kezdesDatuma,
+      szerzodesTipusa: params.szerzodesTipusa || "hatarozatlan",
+      hatarozottLejarat: params.hatarozottLejarat,
+      munkaidoTipus: params.munkaidoTipus || "teljes",
+      napiMunkaidoOra: Number(params.napiMunkaidoOra || 8),
+      probaidoHonap: Number(params.probaidoHonap ?? 3),
+      alapber: Number(params.alapber || 500000),
+      munkavegzesHelye: params.munkavegzesHelye || "A Munkáltató mindenkori székhelye és telephelyei",
+      tavmunkaMegallapodas: Boolean(params.tavmunkaMegallapodas),
+      cegAdatok: DEFAULT_COMPANY_DETAILS,
+      isDraft: !params.dolgozoId
+    }
+
+    const buffer = await generateMt46NoticePdfBuffer(pdfData)
+    const timestamp = Date.now()
+    const storagePath = `hr/contracts/${params.dolgozoId || params.onboardingId || "onboarding"}/mt46_tajekoztato_${timestamp}.pdf`
+
+    const { error: uploadErr } = await adminClient.storage
+      .from("irat_files")
+      .upload(storagePath, buffer, {
+        contentType: "application/pdf",
+        upsert: true
+      })
+
+    if (uploadErr) {
+      console.error("Storage upload error (Mt. 46):", uploadErr)
+      return { error: `Nem sikerült feltölteni a tájékoztatót: ${uploadErr.message}` }
+    }
+
+    const docName = `Munkáltatói Tájékoztató (Mt. 46. §) - ${params.employeeName}`
+    const { data: newDoc, error: docErr } = await adminClient
+      .from("hr_dokumentum")
+      .insert({
+        dolgozo_id: params.dolgozoId || null,
+        nev: docName,
+        kategoria: "Tájékoztató",
+        url: storagePath
+      })
+      .select()
+      .single()
+
+    if (docErr || !newDoc) {
+      return { error: "Nem sikerült menteni a tájékoztató dokumentumot az adatbázisba." }
+    }
+
+    let viewUrl = storagePath
+    const { data: signed } = await adminClient.storage.from("irat_files").createSignedUrl(storagePath, 3600)
+    if (signed?.signedUrl) viewUrl = signed.signedUrl
+
+    // Ha van dolgozoId, azonnal iktatjuk
+    let iktatoszam = null
+    if (params.dolgozoId) {
+      const filingRes = await executeHrDocumentFiling(adminClient, {
+        documentId: newDoc.id,
+        employeeId: params.dolgozoId,
+        customTargy: docName,
+        currentUserId: user.id
+      })
+      if (filingRes.success && filingRes.iktatoszam) {
+        iktatoszam = filingRes.iktatoszam
+      }
+    }
+
+    revalidatePath("/hr/onboarding")
+    if (params.dolgozoId) revalidatePath(`/hr/employee/${params.dolgozoId}`)
+
+    return {
+      success: true,
+      documentId: newDoc.id,
+      url: viewUrl,
+      displayUrl: viewUrl,
+      iktatoszam
+    }
+  } catch (err: any) {
+    console.error("generateMt46NoticeAction error:", err)
+    return { error: err.message || "Hiba történt a tájékoztató generálása során." }
   }
 }

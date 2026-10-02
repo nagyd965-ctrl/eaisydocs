@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { CalendarDays, ArrowRight, Coffee, FileSignature } from "lucide-react"
+import { CalendarDays, ArrowRight, Coffee, FileSignature, Clock, AlertCircle, Wallet } from "lucide-react"
 import { createClient } from "@/utils/supabase/server"
 import { TimeTrackingCard } from "@/components/hr/time-tracking-card"
 import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
@@ -194,31 +194,57 @@ export default async function SelfServicePage() {
       {/* Stat kártyák sora */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {/* Szabadság marad */}
-        <Card className="border-l-4 border-l-primary">
-          <CardContent className="pt-5 pb-4">
-            <p className="text-2xl font-semibold tabular-nums text-primary">{remainingLeave}</p>
-            <p className="text-xs text-muted-foreground mt-1 font-medium">Szabadság marad</p>
+        <Card className="border shadow-xs bg-card">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Szabadság Marad</p>
+              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{remainingLeave} nap</h3>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <CalendarDays className="w-5 h-5" />
+            </div>
           </CardContent>
         </Card>
+
         {/* Felhasznált */}
-        <Card className="border-l-4 border-l-warning">
-          <CardContent className="pt-5 pb-4">
-            <p className="text-2xl font-semibold tabular-nums text-warning">{usedLeave}</p>
-            <p className="text-xs text-muted-foreground mt-1 font-medium">Felhasznált nap</p>
+        <Card className="border shadow-xs bg-card">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Felhasznált Nap</p>
+              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-amber-600 dark:text-amber-400">{usedLeave} nap</h3>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <Clock className="w-5 h-5" />
+            </div>
           </CardContent>
         </Card>
+
         {/* Függőben lévő kérelem */}
-        <Card className="border-l-4 border-l-destructive">
-          <CardContent className="pt-5 pb-4">
-            <p className="text-2xl font-semibold tabular-nums text-destructive">{pendingLeavesCount}</p>
-            <p className="text-xs text-muted-foreground mt-1 font-medium">Függőben lévő kérelem</p>
+        <Card className={`border shadow-xs transition-colors ${pendingLeavesCount > 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-card"}`}>
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Függőben Lévő</p>
+              <h3 className={`text-2xl font-bold tracking-tight mt-1 tabular-nums ${pendingLeavesCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
+                {pendingLeavesCount} kérelem
+              </h3>
+            </div>
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${pendingLeavesCount > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground"}`}>
+              <AlertCircle className="w-5 h-5" />
+            </div>
           </CardContent>
         </Card>
+
         {/* Cafeteria */}
-        <Card className="border-l-4 border-l-violet-500">
-          <CardContent className="pt-5 pb-4">
-            <p className="text-2xl font-semibold tabular-nums text-violet-600">{cafeteriaKeret ? currentYear : "–"}</p>
-            <p className="text-xs text-muted-foreground mt-1 font-medium">Cafeteria aktív</p>
+        <Card className="border shadow-xs bg-card">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cafeteria Keret</p>
+              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{cafeteriaKeret ? currentYear : "–"}</h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{cafeteriaKeret ? "Aktív keret" : "Nincs keret"}</p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
+              <Wallet className="w-5 h-5" />
+            </div>
           </CardContent>
         </Card>
       </div>

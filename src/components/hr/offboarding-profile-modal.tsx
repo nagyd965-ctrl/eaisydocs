@@ -1,501 +1,712 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { addOffboardingTask, deleteOffboardingTask, toggleOffboardingTaskStatus, closeOffboarding, getExitInterview, saveExitInterview } from "@/app/hr/offboarding/actions"
-import { Check, Plus, Trash2, Calendar, Edit2, Loader2, Save, X, Lock, ClipboardList, MessageSquare, Star, ThumbsUp, ThumbsDown } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Progress } from "@/components/ui/progress"
+import { 
+  DialogContent, 
+  DialogTitle, 
+  DialogHeader,
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog"
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Label } from "@/components/ui/label"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
+import { 
+  Mail, 
+  CalendarDays, 
+  Briefcase, 
+  CheckCircle2, 
+  Clock, 
+  Trash2, 
+  Plus, 
+  Loader2, 
+  Archive, 
+  RotateCcw,
+  ShieldCheck,
+  FileText,
+  Laptop,
+  Building2,
+  ArrowLeft,
+  MessageSquare,
+  FileCheck
+} from "lucide-react"
+import { 
+  addOffboardingTask, 
+  deleteOffboardingTask, 
+  toggleOffboardingTaskStatus,
+  closeOffboardingProcess,
+  reopenOffboardingProcess,
+  deleteOffboardingProcess,
+  getOffboardingDetailData
+} from "@/app/hr/offboarding/actions"
+import { TerminationPanel } from "@/components/hr/termination-panel"
+import { AssetReturnPanel } from "@/components/hr/asset-return-panel"
+import { T1041Panel } from "@/components/hr/t1041-panel"
+import { ExitInterviewPanel } from "@/components/hr/exit-interview-panel"
+import { ExitCertificatePanel } from "@/components/hr/exit-certificate-panel"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-
 import { type OffboardingListItem, type OffboardingTask } from "./offboarding-list"
+import { TERMINATION_SHORT_LABELS, type TerminationType } from "@/utils/hr/termination-constants"
 
-interface OffboardingProfileModalProps {
+export interface OffboardingProfileModalProps {
   offboarding: OffboardingListItem
-  onDateChange: (newDate: string) => Promise<void>
+  onDateChange?: (newDate: string) => void
+  onCloseDialog?: () => void
 }
 
-// Csillag értékelő komponens
-function StarRating({ value, onChange, disabled }: { value: number | null, onChange: (v: number) => void, disabled?: boolean }) {
-  const [hover, setHover] = useState<number | null>(null)
-  return (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <button
-          key={star}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(star === value ? 0 : star)}
-          onMouseEnter={() => !disabled && setHover(star)}
-          onMouseLeave={() => setHover(null)}
-          className={cn(
-            "transition-colors",
-            disabled ? "cursor-default" : "cursor-pointer hover:scale-110"
-          )}
-        >
-          <Star
-            className={cn(
-              "w-5 h-5",
-              (hover ?? value ?? 0) >= star
-                ? "fill-amber-400 text-amber-400"
-                : "fill-transparent text-muted-foreground/30"
-            )}
-          />
-        </button>
-      ))}
-    </div>
-  )
-}
-
-const KILEPES_KATEGORIA_OPTIONS = [
-  { value: "", label: "Válassz kategóriát..." },
-  { value: "jobb_ajanlat", label: "Jobb ajánlat / magasabb bér" },
-  { value: "magnaleti", label: "Magánéleti okok" },
-  { value: "elorelep", label: "Előrelépési lehetőség máshol" },
-  { value: "vezeto", label: "Vezető / management" },
-  { value: "munkakornyezet", label: "Munkahelyi légkör / csapat" },
-  { value: "munkakor", label: "Munkakör / feladatok" },
-  { value: "tavolsag", label: "Távolság / home office" },
-  { value: "nyugdij", label: "Nyugdíjba vonulás" },
-  { value: "egyeb", label: "Egyéb" },
-]
-
-const ALLOMASHELY_OPTIONS = [
-  { value: "", label: "Válassz..." },
-  { value: "versenyzo_ceg", label: "Versenytárs / hasonló iparág" },
-  { value: "mas_ipar", label: "Más iparág" },
-  { value: "tanulas", label: "Továbbtanulás" },
-  { value: "nyugdij", label: "Nyugdíj" },
-  { value: "vallalkozas", label: "Saját vállalkozás" },
-  { value: "nem_mondja_meg", label: "Nem kívánja megmondani" },
-]
-
-export function OffboardingProfileModal({ offboarding, onDateChange }: OffboardingProfileModalProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [isAlertOpen, setIsAlertOpen] = useState(false)
-  const [isEditingDate, setIsEditingDate] = useState(false)
-  const [tempDate, setTempDate] = useState(offboarding.kilepes_datuma || "")
+export function OffboardingProfileModal({ 
+  offboarding, 
+  onDateChange,
+  onCloseDialog 
+}: OffboardingProfileModalProps) {
+  const [activeModalTab, setActiveModalTab] = useState<"teendok" | "megszuntetes" | "eszkozok" | "t1041" | "interju" | "kilepo_igazolas">("teendok")
   const [newTaskName, setNewTaskName] = useState("")
   const [newTaskResp, setNewTaskResp] = useState("HR")
   const [isAdding, setIsAdding] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
+  const [activeDepartment, setActiveDepartment] = useState<string>("all")
+  const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null)
+  const [detailData, setDetailData] = useState<any>(null)
 
-  // Exit interview state – prefill from server-side loaded data (offboarding.hr_kilepes_interju)
-  const existingInterview = offboarding.hr_kilepes_interju?.[0] ?? null
+  const employeeName = offboarding.felhasznalo_profil?.nev || (offboarding as any).nev || "Kilépő munkatárs"
+  const munkakor = detailData?.munkakor || offboarding.munkakor || offboarding.felhasznalo_profil?.munkakor || null
+  const reszleg = detailData?.reszleg || offboarding.reszleg || offboarding.felhasznalo_profil?.reszleg || (offboarding.felhasznalo_profil as any)?.hr_szervezeti_egyseg?.nev || null
 
-  const [interviewLoading, setInterviewLoading] = useState(false)
-  const [interviewSaving, setInterviewSaving] = useState(false)
-  const [interviewLoaded, setInterviewLoaded] = useState(!!existingInterview)
-  const [interview, setInterview] = useState<{
-    kilepes_kategoria: string
-    kilepes_oka: string
-    altalanos_elegedettseg: number | null
-    vezeto_kapcsolat: number | null
-    munkakornyezet_ertekeles: number | null
-    csapat_ertekeles: number | null
-    mi_tetszett: string
-    mit_valtoztatna: string
-    ajanlana: boolean | null
-    kovetkezo_allomashely: string
-  }>({
-    kilepes_kategoria:       existingInterview?.kilepes_kategoria      ?? "",
-    kilepes_oka:             existingInterview?.kilepes_oka             ?? "",
-    altalanos_elegedettseg:  existingInterview?.altalanos_elegedettseg  ?? null,
-    vezeto_kapcsolat:        existingInterview?.vezeto_kapcsolat        ?? null,
-    munkakornyezet_ertekeles:existingInterview?.munkakornyezet_ertekeles?? null,
-    csapat_ertekeles:        existingInterview?.csapat_ertekeles        ?? null,
-    mi_tetszett:             existingInterview?.mi_tetszett             ?? "",
-    mit_valtoztatna:         existingInterview?.mit_valtoztatna         ?? "",
-    ajanlana:                existingInterview?.ajanlana                ?? null,
-    kovetkezo_allomashely:   existingInterview?.kovetkezo_allomashely   ?? "",
-  })
+  const initials = employeeName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase()
 
-  const initials = offboarding.felhasznalo_profil?.nev
-    ? offboarding.felhasznalo_profil.nev.split(' ').map((n: string) => n[0]).join('').substring(0, 2)
-    : "U"
-
-  const tasks: OffboardingTask[] = offboarding.hr_offboarding_feladat || []
-  const doneTasks = tasks.filter((t) => t.statusz === 'done').length
-  const progress = tasks.length > 0 ? (doneTasks / tasks.length) * 100 : 0
-
-  const handleDateSave = async () => {
-    await onDateChange(tempDate)
-    setIsEditingDate(false)
+  const loadFullDetails = async () => {
+    try {
+      const data = await getOffboardingDetailData(offboarding.id)
+      if (data && !("error" in data)) {
+        setDetailData(data)
+      }
+    } catch (err) {
+      console.error("Hiba offboarding részletek betöltésekor:", err)
+    }
   }
 
+  useEffect(() => {
+    loadFullDetails()
+  }, [offboarding.id])
+
+  const tasks: OffboardingTask[] = detailData?.feladatok || offboarding.hr_offboarding_feladat || []
+  const doneCount = tasks.filter((t) => t.statusz === "done").length
+  const totalCount = tasks.length
+  const progress = totalCount > 0 ? (doneCount / totalCount) * 100 : 0
+  const isDone = progress === 100
+  const isClosed = offboarding.statusz === "lezart"
+
+  const filteredTasks = tasks.filter((t) => {
+    if (activeDepartment === "all") return true
+    return (t.felelos_reszleg || "HR").toLowerCase() === activeDepartment.toLowerCase()
+  })
+
+  // Feladat állapot váltása
+  const handleToggleTask = async (taskId: string, currentStatus: string) => {
+    setLoadingTaskId(taskId)
+    const res = await toggleOffboardingTaskStatus(taskId, currentStatus)
+    setLoadingTaskId(null)
+    if (res.error) toast.error(res.error)
+    else {
+      await loadFullDetails()
+    }
+  }
+
+  // Új feladat hozzáadása
   const handleAddTask = async () => {
     if (!newTaskName.trim()) return
     setIsAdding(true)
-    await addOffboardingTask(offboarding.id, newTaskName, newTaskResp)
-    setNewTaskName("")
+    const res = await addOffboardingTask(offboarding.id, newTaskName.trim(), newTaskResp)
     setIsAdding(false)
+    if (res.error) toast.error(res.error)
+    else {
+      toast.success("Feladat hozzáadva!")
+      setNewTaskName("")
+      await loadFullDetails()
+    }
   }
 
+  // Feladat törlése
   const handleDeleteTask = async (taskId: string) => {
-    if (confirm("Biztosan törlöd ezt a feladatot?")) {
-      await deleteOffboardingTask(taskId)
+    const res = await deleteOffboardingTask(taskId)
+    if (res.error) toast.error(res.error)
+    else {
+      toast.success("Feladat törölve!")
+      await loadFullDetails()
     }
   }
 
-  const handleToggleStatus = async (taskId: string, currentStatus: string) => {
-    await toggleOffboardingTaskStatus(taskId, currentStatus)
-  }
-
+  // Lezárás
   const handleCloseOffboarding = async () => {
-    setIsAlertOpen(true)
-  }
-
-  const confirmCloseOffboarding = async () => {
-    await closeOffboarding(offboarding.id)
-    setIsAlertOpen(false)
-    setIsOpen(false)
-  }
-
-  // Interjú adatok betöltése tab váltáskor
-  const handleInterviewTabLoad = async () => {
-    if (interviewLoaded) return
-    setInterviewLoading(true)
-    const result = await getExitInterview(offboarding.id)
-    setInterviewLoading(false)
-    setInterviewLoaded(true)
-    if (result.data) {
-      setInterview({
-        kilepes_kategoria: result.data.kilepes_kategoria || "",
-        kilepes_oka: result.data.kilepes_oka || "",
-        altalanos_elegedettseg: result.data.altalanos_elegedettseg ?? null,
-        vezeto_kapcsolat: result.data.vezeto_kapcsolat ?? null,
-        munkakornyezet_ertekeles: result.data.munkakornyezet_ertekeles ?? null,
-        csapat_ertekeles: result.data.csapat_ertekeles ?? null,
-        mi_tetszett: result.data.mi_tetszett || "",
-        mit_valtoztatna: result.data.mit_valtoztatna || "",
-        ajanlana: result.data.ajanlana ?? null,
-        kovetkezo_allomashely: result.data.kovetkezo_allomashely || "",
-      })
-    }
-  }
-
-  const handleSaveInterview = async () => {
-    setInterviewSaving(true)
-    const result = await saveExitInterview(offboarding.id, interview)
-    setInterviewSaving(false)
-    if (result.error) {
-      toast.error(result.error)
+    setIsClosing(true)
+    const res = await closeOffboardingProcess(offboarding.id)
+    setIsClosing(false)
+    if (res.error) {
+      toast.error(res.error)
     } else {
-      toast.success("Kilépési interjú mentve!")
+      const filedCount = (res as any).filedCount ?? 0
+      if (filedCount > 0) {
+        toast.success(`Kiléptetési folyamat lezárva! ${filedCount} dokumentum beiktatva a személyi dossziéba.`)
+      } else {
+        toast.success("Kiléptetési folyamat sikeresen lezárva és archiválva!")
+      }
+      if (onCloseDialog) onCloseDialog()
     }
   }
 
-  const interviewFilled = interviewLoaded && (
-    interview.kilepes_kategoria || interview.kilepes_oka || interview.altalanos_elegedettseg
-  )
+  // Újranyitás
+  const handleReopenOffboarding = async () => {
+    const res = await reopenOffboardingProcess(offboarding.id)
+    if (res.error) {
+      toast.error(res.error)
+    } else {
+      toast.success("Kiléptetés újranyitva!")
+      await loadFullDetails()
+    }
+  }
+
+  // Törlés
+  const handleDeleteOffboarding = async () => {
+    const res = await deleteOffboardingProcess(offboarding.id)
+    if (res.error) {
+      toast.error(res.error)
+    } else {
+      toast.success("Kiléptetési folyamat törölve.")
+      if (onCloseDialog) onCloseDialog()
+    }
+  }
+
+  const terminationLabel = detailData?.megszunes_modja 
+    ? (TERMINATION_SHORT_LABELS[detailData.megszunes_modja as TerminationType] || detailData.megszunes_modja)
+    : (offboarding as any).megszunes_modja
+      ? (TERMINATION_SHORT_LABELS[(offboarding as any).megszunes_modja as TerminationType] || (offboarding as any).megszunes_modja)
+      : "Közös megegyezés"
+
+  const hasTerminationAgreement = Boolean(detailData?.szerzodes_pdf_url || (offboarding as any).szerzodes_pdf_url)
+  const hasAssetReturn = Boolean(detailData?.eszkoz_elszamolas_pdf_url || (offboarding as any).eszkoz_elszamolas_pdf_url)
+  const hasExitCertificate = Boolean(detailData?.kilepo_igazolas_pdf_url || (offboarding as any).kilepo_igazolas_pdf_url || detailData?.kilepoIgazolasDoc)
 
   return (
-    <>
-      <div className="absolute inset-0 w-full h-full cursor-pointer z-10" onClick={(e) => { e.stopPropagation(); setIsOpen(true); }} />
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-3xl p-0 overflow-hidden bg-background border-border/50">
-          {/* Fejléc */}
-          <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-background p-6 border-b">
-            <div className="flex gap-5 items-start">
-              <div className="w-16 h-16 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xl uppercase shadow-sm border border-primary/10">
-                {initials}
+    <DialogContent className="sm:max-w-[960px] lg:max-w-[1000px] w-[95vw] max-h-[90vh] p-0 overflow-hidden border shadow-2xl flex flex-col bg-background">
+      <DialogTitle className="sr-only">Kiléptetési Folyamat - {employeeName}</DialogTitle>
+      <DialogDescription className="sr-only">Kiléptetési feladatok és iratok kezelése</DialogDescription>
+
+      {/* 1. Fejléc (EXACT match to Onboarding) */}
+      <div className="bg-muted/40 p-6 border-b shrink-0">
+        {activeModalTab !== "teendok" && (
+          <div className="flex items-center gap-2 mb-3.5 -mt-1 animate-in fade-in duration-150">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveModalTab("teendok")}
+              className="h-7 -ml-2 px-2.5 gap-1.5 text-xs font-semibold text-primary hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer group"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+              Vissza a kiléptetési teendőkhöz
+            </Button>
+            <span className="text-muted-foreground/30">•</span>
+            <Badge variant="outline" className="text-[11px] font-medium bg-background text-foreground/80 border-border">
+              {activeModalTab === "megszuntetes" && "Munkaviszony Megszüntetés (Mt. 64–85. §)"}
+              {activeModalTab === "eszkozok" && "Eszköz Visszavétel & Vagyoni Leszámolás (Mt. 179. §)"}
+              {activeModalTab === "t1041" && "NAV T1041 Kijelentés & Nyugta (Art. 22. §)"}
+              {activeModalTab === "interju" && "Kilépési Interjú & Visszajelzés"}
+              {activeModalTab === "kilepo_igazolas" && "Törvényes Kilépő Igazolások (Mt. 80. §)"}
+            </Badge>
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-primary/10 text-primary border-2 border-primary/20 flex items-center justify-center font-bold text-xl shrink-0 shadow-sm">
+              {initials}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xl font-bold tracking-tight text-foreground">
+                  {employeeName}
+                </span>
+                {isClosed ? (
+                  <Badge variant="outline" className="bg-muted text-muted-foreground text-xs">
+                    Lezárva
+                  </Badge>
+                ) : isDone ? (
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs gap-1 font-medium">
+                    <CheckCircle2 className="w-3 h-3" /> 100% Kész
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-medium">
+                    Folyamatban
+                  </Badge>
+                )}
+                <Badge variant="secondary" className="text-[11px] font-medium">
+                  {terminationLabel}
+                </Badge>
               </div>
-              <div className="flex-1 pt-1">
-                <h2 className="text-2xl font-bold tracking-tight">
-                  {offboarding.felhasznalo_profil?.nev || "Ismeretlen"}
-                </h2>
-                <div className="mt-4 flex flex-wrap gap-4 text-sm">
-                  <div className="flex items-center gap-1.5 text-muted-foreground bg-background/50 px-2.5 py-1 rounded-md border">
-                    <Calendar className="w-4 h-4 text-primary/70" />
-                    {isEditingDate ? (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="date"
-                          className="h-7 w-[140px] text-xs px-2"
-                          value={tempDate}
-                          onChange={(e) => setTempDate(e.target.value)}
-                        />
-                        <Button size="icon" variant="ghost" className="h-6 w-6 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50" onClick={handleDateSave}>
-                          <Save className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setIsEditingDate(false)}>
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        <span>Utolsó munkanap: <strong className="text-foreground font-medium">{offboarding.kilepes_datuma || "Nincs megadva"}</strong></span>
-                        <Button size="icon" variant="ghost" className="h-5 w-5 ml-1 opacity-50 hover:opacity-100" onClick={() => setIsEditingDate(true)}>
-                          <Edit2 className="h-3 w-3" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
+
+              <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1.5">
+                  <Briefcase className="w-3.5 h-3.5" />
+                  {munkakor || "Munkakör nincs megadva"}
+                </span>
+                {reszleg && (
+                  <>
+                    <span>•</span>
+                    <span className="flex items-center gap-1.5 text-foreground/80 font-medium">
+                      <Building2 className="w-3.5 h-3.5 text-teal-600" />
+                      {reszleg}
+                    </span>
+                  </>
+                )}
+              </p>
             </div>
           </div>
 
-          {/* Tabos tartalom */}
-          <Tabs defaultValue="feladatok" onValueChange={(v) => v === "interju" && handleInterviewTabLoad()}>
-            <div className="px-6 pt-4 border-b">
-              <TabsList className="h-9">
-                <TabsTrigger value="feladatok" className="gap-2 text-xs">
-                  Kiléptetési Feladatok
-                  <Badge variant="outline" className="bg-background text-[10px] h-4 px-1.5">{doneTasks}/{tasks.length}</Badge>
-                </TabsTrigger>
-                <TabsTrigger value="interju" className="gap-2 text-xs" onClick={handleInterviewTabLoad}>
-                  Kilépési Interjú
-                  {interviewFilled && (
-                    <Badge className="bg-emerald-500/20 text-emerald-600 text-[10px] h-4 px-1.5 border-emerald-500/30">Kitöltve</Badge>
-                  )}
-                </TabsTrigger>
-              </TabsList>
+          {/* Fejléc Műveleti gombok */}
+          <div className="flex items-center gap-2 shrink-0">
+            {isClosed ? (
+              <Button variant="outline" size="sm" onClick={handleReopenOffboarding} className="gap-1.5 text-xs">
+                <RotateCcw className="w-3.5 h-3.5" /> Újranyitás
+              </Button>
+            ) : (
+              <AlertDialog>
+                <AlertDialogTrigger className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "gap-1.5 text-xs border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600 cursor-pointer"
+                )}>
+                  <Archive className="w-3.5 h-3.5" /> Kiléptetés lezárása
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Kiléptetési folyamat lezárása</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Biztosan lezárod {employeeName} kiléptetési folyamatát?
+                      A folyamat során előkészített kilépő iratok (megszüntetési megállapodás, eszközleszámolás, NAV igazolások) automatikusan beiktatásra kerülnek az eaisyDocs személyi dossziéba, és a folyamat archivált státuszba lép.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Mégse</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={handleCloseOffboarding} 
+                      disabled={isClosing}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      {isClosing ? "Lezárás folyamatban..." : "Igen, lezárás és archiválás"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+
+            <AlertDialog>
+              <AlertDialogTrigger className={cn(
+                buttonVariants({ variant: "ghost", size: "icon" }),
+                "h-8 w-8 text-destructive hover:bg-destructive/10 cursor-pointer"
+              )}>
+                <Trash2 className="w-4 h-4" />
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Kiléptetési folyamat törlése</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Biztosan véglegesen törlöd ezt a kiléptetési folyamatot? Ez a művelet nem vonható vissza.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Mégse</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteOffboarding} className="bg-destructive hover:bg-destructive/90 text-white">
+                    Végleges törlés
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Görgethető Tartalom */}
+      <div className="p-6 space-y-6 overflow-y-auto flex-1">
+        {activeModalTab === "megszuntetes" ? (
+          <TerminationPanel
+            offboardingId={offboarding.id}
+            employeeName={employeeName}
+            dolgozoId={offboarding.dolgozo_id}
+            munkakor={munkakor}
+            reszleg={reszleg}
+            kilepesDatuma={offboarding.kilepes_datuma || offboarding.utolso_munkanap}
+            initialData={detailData}
+            adatlap={detailData?.adatlap}
+            onSuccess={() => {
+              loadFullDetails()
+            }}
+          />
+        ) : activeModalTab === "eszkozok" ? (
+          <AssetReturnPanel
+            offboardingId={offboarding.id}
+            employeeName={employeeName}
+            dolgozoId={offboarding.dolgozo_id}
+            munkakor={munkakor}
+            reszleg={reszleg}
+            initialAssets={detailData?.assets || []}
+            initialData={detailData}
+            onSuccess={() => {
+              loadFullDetails()
+            }}
+          />
+        ) : activeModalTab === "t1041" ? (
+          <T1041Panel
+            initialType="T"
+            offboardingId={offboarding.id}
+            dolgozoId={offboarding.dolgozo_id}
+            employeeName={employeeName}
+            munkakor={munkakor}
+            reszleg={reszleg}
+            onSuccess={() => {
+              loadFullDetails()
+            }}
+          />
+        ) : activeModalTab === "interju" ? (
+          <ExitInterviewPanel
+            offboardingId={offboarding.id}
+            employeeName={employeeName}
+            initialData={detailData?.interju}
+            onSuccess={() => {
+              loadFullDetails()
+            }}
+          />
+        ) : activeModalTab === "kilepo_igazolas" ? (
+          <ExitCertificatePanel
+            offboardingId={offboarding.id}
+            employeeName={employeeName}
+            dolgozoId={offboarding.dolgozo_id}
+            munkakor={munkakor}
+            reszleg={reszleg}
+            kilepesDatuma={offboarding.kilepes_datuma || offboarding.utolso_munkanap}
+            initialData={detailData}
+            adatlap={detailData?.adatlap}
+            onSuccess={() => {
+              loadFullDetails()
+            }}
+          />
+        ) : (
+          <>
+            {/* A) Felső Kiemelt Műveleti Kártya (Matches Onboarding) */}
+            {!hasTerminationAgreement ? (
+              <div className="border border-amber-500/30 bg-amber-500/5 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 border border-amber-500/20">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground">
+                      Munkaviszony Megszüntetési Megállapodás (Mt. 64–85. §)
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      A munkaviszony hivatalos megszüntetéséhez állítsd össze a felmondási vagy közös megegyezési okiratot. 
+                      A rendszer generálja a hiteles PDF-et és automatikusan beiktatja az eaisyDocs személyi dossziéba (1.2 tétel, 50 év megőrzés).
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => setActiveModalTab("megszuntetes")}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-medium gap-1.5 shrink-0"
+                  size="sm"
+                >
+                  <FileText className="w-4 h-4" /> Megszüntetés előkészítése
+                </Button>
+              </div>
+            ) : (
+              <div className="border border-emerald-500/30 bg-emerald-500/5 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-500/20">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                      Munkaviszony Megszüntetés Beiktatva
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      A hivatalos megszüntetési okirat elkészült és beiktatásra került az eaisyDocs személyi dossziéba (1.2 tétel, 50 év megőrzés).
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveModalTab("megszuntetes")}
+                  className="border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 gap-1.5 shrink-0"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Megállapodás megtekintése
+                </Button>
+              </div>
+            )}
+
+            {/* B) Alapadatok és Utolsó Munkanap (Matches Onboarding Image 4) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border rounded-xl p-4 bg-card">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Hivatalos Utolsó Munkanap
+                </label>
+                <div className="relative">
+                  <CalendarDays className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    type="date" 
+                    className="pl-9 h-9 text-sm font-medium bg-muted/20 border-border/50 focus:bg-background"
+                    defaultValue={offboarding.utolso_munkanap || ""} 
+                    onChange={(e) => onDateChange && onDateChange(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Megszűnés Módja & Jogcíme
+                </label>
+                <Input 
+                  disabled 
+                  readOnly 
+                  value={terminationLabel} 
+                  className="h-9 text-sm bg-muted/20 text-muted-foreground font-medium"
+                />
+              </div>
             </div>
 
-            {/* === FELADATOK TAB === */}
-            <TabsContent value="feladatok" className="p-6 pt-4 bg-muted/10 m-0">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Haladás
-                </h3>
-                <div className="flex-1 max-w-[200px] ml-4 flex items-center gap-4">
-                  <Progress value={progress} className="h-2 flex-1" />
-                  {progress === 100 && offboarding.statusz !== 'lezart' && (
-                    interview.kilepes_kategoria ? (
-                      <Button size="sm" variant="default" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 shrink-0" onClick={handleCloseOffboarding}>
-                        <Lock className="w-3.5 h-3.5 mr-1" /> Lezárás
-                      </Button>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground text-right leading-tight shrink-0">
-                        Lezáráshoz töltsd ki<br/>a kilépési interjút
-                      </span>
-                    )
-                  )}
+            {/* C) Kiléptetési Feladatlista (Checklist - Matches Onboarding Image 4) */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                    Kiléptetési Teendők ({doneCount} / {totalCount} kész)
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Részlegek közötti feladatmegosztás és előkészület.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Progress value={progress} className="w-28 h-2" />
+                  <span className="text-xs font-bold text-primary tabular-nums">{Math.round(progress)}%</span>
                 </div>
               </div>
 
-              <div className="bg-background border rounded-xl shadow-sm divide-y">
-                {tasks.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground text-sm">
-                    Nincsenek még feladatok rögzítve.
+              {/* Részleg szűrő gombok */}
+              <div className="flex gap-1.5 flex-wrap">
+                {["all", "HR", "IT", "Bérszámfejtés", "Üzemeltetés", "Vezető"].map((dept) => (
+                  <Button
+                    key={dept}
+                    type="button"
+                    variant={activeDepartment === dept ? "default" : "outline"}
+                    size="sm"
+                    className="h-7 text-xs px-2.5 rounded-full"
+                    onClick={() => setActiveDepartment(dept)}
+                  >
+                    {dept === "all" ? "Összes feladat" : dept}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Feladat kártyák */}
+              <div className="space-y-2">
+                {filteredTasks.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
+                    Nincsenek feladatok a kiválasztott részleghez.
                   </div>
                 ) : (
-                  tasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className={`flex items-center gap-4 p-3 hover:bg-muted/30 transition-colors ${task.statusz === 'done' ? 'opacity-60 bg-muted/10' : ''}`}
-                    >
-                      <button
-                        onClick={() => handleToggleStatus(task.id, task.statusz)}
-                        className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors
-                          ${task.statusz === 'done'
-                            ? 'bg-emerald-500 border-emerald-600 text-white'
-                            : 'border-muted-foreground/30 hover:border-primary text-transparent hover:text-primary/20'}`}
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium truncate ${task.statusz === 'done' ? 'line-through text-muted-foreground' : ''}`}>
-                          {task.cim}
-                        </p>
-                      </div>
-                      <Badge variant="secondary" className="text-[10px] font-medium bg-muted">
-                        {task.felelos_reszleg}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive/40 hover:text-destructive hover:bg-destructive/10 -mr-1"
-                        onClick={() => handleDeleteTask(task.id)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  ))
-                )}
-                <div className="p-3 bg-muted/10 flex items-center gap-2">
-                  <Input
-                    placeholder="Új feladat hozzáadása..."
-                    className="h-8 text-sm flex-1 bg-background"
-                    value={newTaskName}
-                    onChange={(e) => setNewTaskName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
-                  />
-                  <select
-                    className="h-8 text-sm bg-background border rounded-md px-2 text-muted-foreground outline-none focus:ring-1 focus:ring-ring"
-                    value={newTaskResp}
-                    onChange={(e) => setNewTaskResp(e.target.value)}
-                  >
-                    <option value="HR">HR</option>
-                    <option value="IT">IT</option>
-                    <option value="Bérszámfejtés">Bérszámfejtés</option>
-                    <option value="Üzemeltetés">Üzemeltetés</option>
-                    <option value="Vezető">Vezető</option>
-                  </select>
-                  <Button size="sm" className="h-8" onClick={handleAddTask} disabled={isAdding || !newTaskName.trim()}>
-                    {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
-                    Mentés
-                  </Button>
-                </div>
-              </div>
-            </TabsContent>
+                  filteredTasks.map((task) => {
+                    const isTaskDone = task.statusz === "done"
+                    const isLoading = loadingTaskId === task.id
+                    const cimLower = (task.cim || "").toLowerCase()
 
-            {/* === KILÉPÉSI INTERJÚ TAB === */}
-            <TabsContent value="interju" className="m-0">
-              {interviewLoading ? (
-                <div className="flex items-center justify-center py-16 gap-3 text-muted-foreground">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span className="text-sm">Betöltés...</span>
-                </div>
-              ) : (
-                <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
-
-                  {/* Kilépés oka */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kilépés Oka (Kategória)</Label>
-                      <select
-                        className="w-full h-9 text-sm bg-background border rounded-md px-3 outline-none focus:ring-1 focus:ring-ring"
-                        value={interview.kilepes_kategoria}
-                        onChange={(e) => setInterview(p => ({ ...p, kilepes_kategoria: e.target.value }))}
+                    return (
+                      <div 
+                        key={task.id}
+                        className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                          isTaskDone 
+                            ? "bg-muted/30 border-border/40 text-muted-foreground" 
+                            : "bg-background border-border/70 shadow-xs hover:border-primary/30"
+                        }`}
                       >
-                        {KILEPES_KATEGORIA_OPTIONS.map(o => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Következő Állomáshely</Label>
-                      <select
-                        className="w-full h-9 text-sm bg-background border rounded-md px-3 outline-none focus:ring-1 focus:ring-ring"
-                        value={interview.kovetkezo_allomashely}
-                        onChange={(e) => setInterview(p => ({ ...p, kovetkezo_allomashely: e.target.value }))}
-                      >
-                        {ALLOMASHELY_OPTIONS.map(o => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className={`h-6 w-6 rounded-full shrink-0 p-0 ${
+                              isTaskDone 
+                                ? "text-primary hover:text-primary/80" 
+                                : "text-muted-foreground hover:text-foreground border"
+                            }`}
+                            disabled={isLoading}
+                            onClick={() => handleToggleTask(task.id, task.statusz)}
+                          >
+                            {isTaskDone ? (
+                              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                            ) : (
+                              <div className="h-3.5 w-3.5 rounded-full" />
+                            )}
+                          </Button>
 
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kilépés Oka – Részletes Leírás</Label>
-                    <Textarea
-                      placeholder="A dolgozó szavaival leírva, miért döntött a kilépés mellett..."
-                      className="resize-none text-sm"
-                      rows={3}
-                      value={interview.kilepes_oka}
-                      onChange={(e) => setInterview(p => ({ ...p, kilepes_oka: e.target.value }))}
-                    />
-                  </div>
-
-                  {/* Értékelések */}
-                  <div className="border rounded-lg p-4 space-y-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Elégedettségi Értékelések (1–5 csillag)</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      {[
-                        { key: "altalanos_elegedettseg", label: "Általános Elégedettség" },
-                        { key: "vezeto_kapcsolat", label: "Vezető Kapcsolata" },
-                        { key: "munkakornyezet_ertekeles", label: "Munkahelyi Környezet" },
-                        { key: "csapat_ertekeles", label: "Csapat / Kollégák" },
-                      ].map(({ key, label }) => (
-                        <div key={key} className="space-y-1.5">
-                          <p className="text-xs text-muted-foreground font-medium">{label}</p>
-                          <StarRating
-                            value={interview[key as keyof typeof interview] as number | null}
-                            onChange={(v) => setInterview(p => ({ ...p, [key]: v === 0 ? null : v }))}
-                          />
+                          <div className="min-w-0">
+                            <p className={`text-sm font-medium leading-snug truncate ${isTaskDone ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                              {task.cim}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] font-semibold uppercase px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+                                {task.felelos_reszleg || "HR"}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  {/* Szabad szöveges kérdések */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mi tetszett legjobban?</Label>
-                      <Textarea
-                        placeholder="Pozitívumok, amiket magával visz..."
-                        className="resize-none text-sm"
-                        rows={3}
-                        value={interview.mi_tetszett}
-                        onChange={(e) => setInterview(p => ({ ...p, mi_tetszett: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Min változtatna?</Label>
-                      <Textarea
-                        placeholder="Javaslatok, kritikák a cég számára..."
-                        className="resize-none text-sm"
-                        rows={3}
-                        value={interview.mit_valtoztatna}
-                        onChange={(e) => setInterview(p => ({ ...p, mit_valtoztatna: e.target.value }))}
-                      />
-                    </div>
-                  </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {(cimLower.includes("megszüntet") || cimLower.includes("kilépő papír") || cimLower.includes("szerződés") || cimLower.includes("felmond")) && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className={cn(
+                                "h-7 text-xs px-2 gap-1 shadow-2xs",
+                                hasTerminationAgreement 
+                                  ? "text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10" 
+                                  : "text-primary border-primary/30 hover:bg-primary/10"
+                              )}
+                              onClick={() => setActiveModalTab("megszuntetes")}
+                            >
+                              {hasTerminationAgreement ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <FileText className="w-3 h-3" />}
+                              {hasTerminationAgreement ? "Megállapodás megtekintése" : "Megszüntetés előkészítése"}
+                            </Button>
+                          )}
 
-                  {/* Ajánlaná? */}
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ajánlaná-e a céget munkahelyként?</Label>
-                    <div className="flex gap-3">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={interview.ajanlana === true ? "default" : "outline"}
-                        className={cn("gap-2", interview.ajanlana === true && "bg-emerald-600 hover:bg-emerald-700 border-emerald-600")}
-                        onClick={() => setInterview(p => ({ ...p, ajanlana: p.ajanlana === true ? null : true }))}
-                      >
-                        <ThumbsUp className="w-4 h-4" /> Igen
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={interview.ajanlana === false ? "default" : "outline"}
-                        className={cn("gap-2", interview.ajanlana === false && "bg-destructive hover:bg-destructive/90 border-destructive")}
-                        onClick={() => setInterview(p => ({ ...p, ajanlana: p.ajanlana === false ? null : false }))}
-                      >
-                        <ThumbsDown className="w-4 h-4" /> Nem
-                      </Button>
-                    </div>
-                  </div>
+                          {(cimLower.includes("eszköz") || cimLower.includes("laptop") || cimLower.includes("telefon") || cimLower.includes("visszavétel") || cimLower.includes("kulcs") || cimLower.includes("belépő")) && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className={cn(
+                                "h-7 text-xs px-2 gap-1 shadow-2xs",
+                                hasAssetReturn 
+                                  ? "text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10" 
+                                  : "text-primary border-primary/30 hover:bg-primary/10"
+                              )}
+                              onClick={() => setActiveModalTab("eszkozok")}
+                            >
+                              {hasAssetReturn ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <Laptop className="w-3 h-3" />}
+                              {hasAssetReturn ? "Leszámoló lap megtekintése" : "Eszközök visszavétele"}
+                            </Button>
+                          )}
 
-                  {/* Mentés */}
-                  <div className="flex justify-end pt-2 border-t">
-                    <Button onClick={handleSaveInterview} disabled={interviewSaving} className="gap-2">
-                      {interviewSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                      Interjú Mentése
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
+                          {(cimLower.includes("t1041") || cimLower.includes("nav") || cimLower.includes("kijelentés") || cimLower.includes("hatósági")) && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs px-2 gap-1 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 shadow-2xs"
+                              onClick={() => setActiveModalTab("t1041")}
+                            >
+                              <Building2 className="w-3 h-3 text-emerald-600" /> T1041 bejelentés
+                            </Button>
+                          )}
 
-      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Kiléptetés lezárása</AlertDialogTitle>
-            <AlertDialogDescription>
-              Biztosan lezárod ezt a kiléptetést? A művelet nem vonható vissza, és a dolgozó átkerül a lezárt kiléptetések közé.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Mégse</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmCloseOffboarding} className="bg-emerald-600 hover:bg-emerald-700">
-              Lezárás
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+                          {(cimLower.includes("interjú") || cimLower.includes("kérdőív") || cimLower.includes("visszajelzés")) && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10 shadow-2xs"
+                              onClick={() => setActiveModalTab("interju")}
+                            >
+                              <MessageSquare className="w-3 h-3" /> Kilépési interjú
+                            </Button>
+                          )}
+
+                          {(cimLower.includes("igazolás") || cimLower.includes("mt. 80")) && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className={cn(
+                                "h-7 text-xs px-2 gap-1 shadow-2xs",
+                                hasExitCertificate 
+                                  ? "text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10" 
+                                  : "text-primary border-primary/30 hover:bg-primary/10"
+                              )}
+                              onClick={() => setActiveModalTab("kilepo_igazolas")}
+                            >
+                              {hasExitCertificate ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <FileCheck className="w-3 h-3" />}
+                              {hasExitCertificate ? "Igazolások megtekintése" : "Igazolások kiadása"}
+                            </Button>
+                          )}
+
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0" 
+                            onClick={() => handleDeleteTask(task.id)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              {/* Új feladat felvétele */}
+              <div className="flex gap-2 pt-2">
+                <Input 
+                  placeholder="Új feladat elnevezése..." 
+                  value={newTaskName} 
+                  onChange={(e) => setNewTaskName(e.target.value)} 
+                  className="h-9 text-sm" 
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAddTask()
+                  }}
+                />
+                <select
+                  value={newTaskResp}
+                  onChange={(e) => setNewTaskResp(e.target.value)}
+                  className="h-9 text-xs px-2 rounded-md border border-input bg-background font-medium"
+                >
+                  <option value="HR">HR</option>
+                  <option value="IT">IT</option>
+                  <option value="Bérszámfejtés">Bérszámfejtés</option>
+                  <option value="Üzemeltetés">Üzemeltetés</option>
+                  <option value="Vezető">Vezető</option>
+                </select>
+                <Button 
+                  onClick={handleAddTask} 
+                  disabled={isAdding || !newTaskName.trim()} 
+                  className="h-9 px-3 gap-1 shrink-0" 
+                  size="sm"
+                >
+                  {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Hozzáadás
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </DialogContent>
   )
 }

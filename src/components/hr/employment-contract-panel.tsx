@@ -27,7 +27,8 @@ import { UploadSignedDocumentDialog } from "@/components/hr/upload-signed-docume
 import { 
   getEmploymentContractRecord, 
   generateAndFileEmploymentContractAction, 
-  fileExistingEmploymentContractDocument 
+  fileExistingEmploymentContractDocument,
+  generateMt46NoticeAction
 } from "@/app/hr/actions/employment-contract-actions"
 import { JobOrgSelector } from "@/components/hr/job-org-selector"
 import type { OrgUnitOption, JobOption } from "@/app/hr/actions/job-org-actions"
@@ -59,9 +60,11 @@ export function EmploymentContractPanel({
 }: EmploymentContractPanelProps) {
   const [loading, setLoading] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isGeneratingNotice, setIsGeneratingNotice] = useState(false)
   const [isFileLoading, setIsFileLoading] = useState(false)
   const [existingRecord, setExistingRecord] = useState<any>(null)
   const [existingDoc, setExistingDoc] = useState<any>(null)
+  const [mt46Doc, setMt46Doc] = useState<any>(null)
 
   // Szerződés paraméterek
   const [munkakor, setMunkakor] = useState(initialMunkakor || "")
@@ -116,11 +119,57 @@ export function EmploymentContractPanel({
     if (res.existingDocument) {
       setExistingDoc(res.existingDocument)
     }
+    if (res.mt46Document) {
+      setMt46Doc(res.mt46Document)
+    }
   }
 
   useEffect(() => {
     loadData()
   }, [dolgozoId, onboardingId])
+
+  const handleGenerateMt46Notice = async () => {
+    if (!munkakor.trim()) {
+      toast.error("Válassz ki egy munkakört a tájékoztatóhoz!")
+      return
+    }
+    setIsGeneratingNotice(true)
+    const res = await generateMt46NoticeAction({
+      employeeName,
+      dolgozoId,
+      onboardingId,
+      szuletesiHely,
+      szuletesiDatum,
+      anyjaNeve,
+      lakcim,
+      adoazonositoJel,
+      tajSzam,
+      bankszamlaszam,
+      munkakor,
+      reszleg,
+      kezdesDatuma,
+      szerzodesTipusa,
+      hatarozottLejarat,
+      munkaidoTipus,
+      napiMunkaidoOra,
+      probaidoHonap,
+      alapber,
+      munkavegzesHelye,
+      tavmunkaMegallapodas
+    })
+    setIsGeneratingNotice(false)
+
+    if (res.error) {
+      toast.error(res.error)
+    } else {
+      toast.success(
+        res.iktatoszam
+          ? `Mt. 46. § Tájékoztató sikeresen generálva és iktatva! (${res.iktatoszam})`
+          : "Mt. 46. § Írásbeli Munkáltatói Tájékoztató (PDF) sikeresen generálva!"
+      )
+      setMt46Doc(res)
+    }
+  }
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -302,6 +351,44 @@ export function EmploymentContractPanel({
                 employeeName={employeeName}
               />
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 2b. Mt. 46. § Tájékoztató Kártya (ha van) */}
+      {mt46Doc && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-teal-500/30 bg-teal-500/5">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-md bg-teal-500/10 text-teal-600 shrink-0">
+              <FileCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-xs text-foreground">
+                  Munkáltatói Írásbeli Tájékoztató (Mt. 46. §)
+                </span>
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] gap-1 font-mono">
+                  <CheckCircle2 className="w-3 h-3" />
+                  {mt46Doc.iktatoszam ? `Iktatva: ${mt46Doc.iktatoszam}` : "PDF Kész"}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Kötelező munkafeltételi tájékoztató (munkaidő, bérfizetés, szabadság, felmondás, NAV).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+            <PdfViewerDialog url={mt46Doc.displayUrl || mt46Doc.url} title="Mt. 46. § Munkáltatói Tájékoztató" />
+            <a
+              href={mt46Doc.displayUrl || mt46Doc.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              download
+              className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-1 text-xs h-7 border-teal-500/30`}
+            >
+              <Download className="w-3 h-3" /> Letöltés
+            </a>
           </div>
         </div>
       )}
@@ -568,23 +655,46 @@ export function EmploymentContractPanel({
             </span>
           </div>
 
-          <Button
-            type="submit"
-            disabled={isGenerating || !munkakor.trim()}
-            className="gap-2 shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {dolgozoId ? "Generálás & Iktatás..." : "Szerződés generálása..."}
-              </>
-            ) : (
-              <>
-                <FileCheck className="w-4 h-4" />
-                {dolgozoId ? "Munkaszerződés Generálása & Iktatás" : "Munkaszerződés Generálása (PDF)"}
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              size="default"
+              disabled={isGeneratingNotice || !munkakor.trim()}
+              onClick={handleGenerateMt46Notice}
+              className="gap-1.5 shrink-0 border-primary/30 text-primary hover:bg-primary/10 font-medium"
+            >
+              {isGeneratingNotice ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Tájékoztató készítése...
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4" />
+                  Mt. 46. § Tájékoztató (PDF)
+                </>
+              )}
+            </Button>
+
+            <Button
+              type="submit"
+              disabled={isGenerating || !munkakor.trim()}
+              className="gap-2 shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {dolgozoId ? "Generálás & Iktatás..." : "Szerződés generálása..."}
+                </>
+              ) : (
+                <>
+                  <FileCheck className="w-4 h-4" />
+                  {dolgozoId ? "Munkaszerződés Generálása & Iktatás" : "Munkaszerződés Generálása (PDF)"}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </form>
     </div>

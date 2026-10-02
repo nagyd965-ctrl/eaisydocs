@@ -20,6 +20,7 @@ import { OrgUnitActionMenu } from "@/components/hr/org-unit-action-menu"
 import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
 import { EmployeeDeleteDialog } from "@/components/hr/employee-delete-dialog"
 import { HrOrgUnitCreateDialog } from "@/components/hr/org-unit-create-dialog"
+import { SettingsEmployeeTable } from "@/components/hr/settings-employee-table"
 import Link from "next/link"
 import { SecuritySettingsTab } from "./security-tab"
 import { HrNotificationSettings } from "./notification-settings"
@@ -374,7 +375,12 @@ export default async function HrSettingsPage() {
                     <div>
                       <CardTitle className="text-xl flex items-center gap-2">
                         <Briefcase className="w-5 h-5 text-primary" />
-                        Munkatársak ({employees?.length || 0} fő)
+                        Munkatársak ({employees?.filter((e: any) => {
+                          const role = e.felhasznalo_profil?.hr_szerepkor
+                          const isInactive = role === 'inaktiv' || role === 'kilepett'
+                          const isPastEnd = e.munkaviszony_vege && new Date(e.munkaviszony_vege).getTime() < new Date().setHours(0, 0, 0, 0) && role !== 'admin' && role !== 'hr_vezeto'
+                          return !isInactive && !isPastEnd
+                        }).length || 0} aktív fő)
                       </CardTitle>
                       <CardDescription>
                         A dolgozói nyilvántartás és a szerepkörök szerkesztése.
@@ -382,73 +388,11 @@ export default async function HrSettingsPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b">
-                          <tr>
-                            <th className="px-6 py-4 font-semibold">Név</th>
-                            <th className="px-6 py-4 font-semibold">Munkakör</th>
-                            <th className="px-6 py-4 font-semibold">Szervezeti Egység</th>
-                            <th className="px-6 py-4 font-semibold">Szerepkör</th>
-                            <th className="px-6 py-4 font-semibold">Közvetlen vezető</th>
-                            <th className="px-6 py-4 font-semibold">Belépés</th>
-                            <th className="px-6 py-4 text-right font-semibold">Műveletek</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {employees?.map((emp) => {
-                            const nev = emp.felhasznalo_profil?.nev || "Ismeretlen"
-                            const initials = nev.substring(0,2).toUpperCase()
-                            const activeJogviszony = emp.hr_jogviszony?.[0]
-                            const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
-                            const munkakor = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
-                            const egysegId = (emp.felhasznalo_profil as any)?.hr_szervezeti_egyseg_id
-                            const egyseg = (egysegId && orgUnits.find((u: any) => u.id === egysegId)?.nev) || "Nincs besorolva"
-                            const hr_szerepkor = emp.felhasznalo_profil?.hr_szerepkor || "Ismeretlen"
-                            const belepes = activeJogviszony?.belepes_datuma ? new Date(activeJogviszony.belepes_datuma).toLocaleDateString("hu-HU") : "-"
-                            const managerId = (emp.felhasznalo_profil as any)?.kozvetlen_vezeto_id
-                            const manager = managerId ? employees.find(m => m.id === managerId) : null
-                            const managerName = manager?.felhasznalo_profil?.nev || "Nincs beállítva"
-                            let roleColor = "bg-secondary text-secondary-foreground"
-                            let roleName = "Ismeretlen"
-                            if (hr_szerepkor === "admin") { roleColor = "bg-destructive/10 text-destructive border-destructive/20 border"; roleName = "Admin" }
-                            else if (hr_szerepkor === "rendszergazda") { roleColor = "bg-destructive/10 text-destructive border-destructive/20 border"; roleName = "Rendszergazda (IT)" }
-                            else if (hr_szerepkor === "hr_vezeto") { roleColor = "bg-primary/10 text-primary border-primary/20 border"; roleName = "HR Vezető (Igazgató)" }
-                            else if (hr_szerepkor === "hr_munkatars") { roleColor = "bg-primary/10 text-primary border-primary/20 border"; roleName = "HR Munkatárs" }
-                            else if (hr_szerepkor === "vezeto") { roleColor = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 border"; roleName = "Vezető (Közvetlen)" }
-                            else if (hr_szerepkor === "munkavallalo") { roleName = "Munkavállaló (Alap)" }
-                            else if (hr_szerepkor === "berugyi") { roleColor = "bg-blue-500/10 text-blue-600 border-blue-500/20 border"; roleName = "Bérügyi / Bérszámfejtő" }
-                            else if (hr_szerepkor === "toborzo") { roleColor = "bg-orange-500/10 text-orange-600 border-orange-500/20 border"; roleName = "Tobarzó (ATS)" }
-                            else if (hr_szerepkor === "munkavedelmi") { roleColor = "bg-amber-500/10 text-amber-600 border-amber-500/20 border"; roleName = "Munkavédelmi Felelős" }
-                            else if (hr_szerepkor === "auditor") { roleColor = "bg-indigo-500/10 text-indigo-600 border-indigo-500/20 border"; roleName = "Auditor (Könyvélszámoló)" }
-                            return (
-                              <tr key={emp.id} className="bg-card hover:bg-muted/30 transition-colors">
-                                <td className="px-6 py-4 font-medium whitespace-nowrap flex items-center gap-3">
-                                  <Avatar className="w-8 h-8">
-                                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{initials}</AvatarFallback>
-                                  </Avatar>
-                                  {nev}
-                                </td>
-                                <td className="px-6 py-4 text-muted-foreground">{munkakor}</td>
-                                <td className="px-6 py-4"><Badge variant="outline" className="font-normal">{egyseg}</Badge></td>
-                                <td className="px-6 py-4"><Badge variant="secondary" className={`font-normal ${roleColor}`}>{roleName}</Badge></td>
-                                <td className="px-6 py-4 text-muted-foreground">{managerName}</td>
-                                <td className="px-6 py-4 text-muted-foreground">{belepes}</td>
-                                <td className="px-6 py-4 text-right flex items-center justify-end gap-1">
-                                  <EmployeeEditDialog employee={emp} jobs={jobs || []} orgUnits={orgUnits || []} managers={employees || []} />
-                                  <EmployeeDeleteDialog employeeId={emp.id} employeeName={nev} />
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    {(!employees || employees.length === 0) && (
-                      <div className="p-8 text-center text-muted-foreground">
-                        Nincsenek megjeleníthető dolgozók az adatbázisban.
-                      </div>
-                    )}
+                    <SettingsEmployeeTable
+                      employees={employees || []}
+                      jobs={jobs || []}
+                      orgUnits={orgUnits || []}
+                    />
                   </CardContent>
                   <div className="px-0 py-2">
                     <AddEmployeeDialog
