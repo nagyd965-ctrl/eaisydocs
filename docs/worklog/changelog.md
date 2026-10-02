@@ -6,6 +6,54 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-02)
 
+### 🔍 Partner Adatlap: Szabványos TableToolbar Szűrő & Gyors Megtekintés Modálok (`src/components/partner-documents-table.tsx`)
+- **Szabványos Jobb Oldali `TableToolbar` Integráció:**
+  - Teljes vizuális és funkcionális összhang az eaisyDocs többi felületével (pl. Partnerek lista, Bejövő sor).
+  - Bal oldalon: Valós idejű keresőmező (`Search` és gyors `X` törlő gombbal).
+  - Jobb oldalon:
+    - **Oszlopválasztó Popover (`Columns3` ikon):** Irány, Azonosító, Tárgy, Ügyirat, Dátum és Műveletek oszlopok dinamikus ki/bekapcsolása.
+    - **Jobb oldali `Szűrés` Popover Gomb (aktív számláló badge-dzsel):**
+      - Dátum tartomány szűrés (`Dátum tól` / `Dátum ig`).
+      - Irat iránya szűrőcsoport (`Bejövő iratok`, `Kimenő iratok`).
+      - Iktatási állapot szűrőcsoport (`Iktatott iratok`, `Iktatlan iratok`).
+      - Biztonsági minősítés szűrőcsoport (`Nyílt`, `Belső`, `Bizalmas`, `Szigorúan bizalmas`).
+      - "Szűrők törlése" gomb.
+- **Gyors Megtekintés (Quick View):**
+  - **Irat / Fájl Gyors Megtekintés:** Minden irat sorában dedikált Megtekintés (`Eye`) gomb:
+    - Csatolt fájl esetén azonnal megnyitja a beépített `DocumentViewer`-t (biztonságos jogosultságellenőrzéssel és auditnaplózással).
+    - Fájl nélküli irat esetén megnyit egy részletes Irat Adatlap gyorsbetekintő dialógust közvetlen iktatói navigációval.
+  - **Ügyirat Gyors Betekintő:** Az iktatott iratoknál az "Ügyirat" oszlopban megjelenő diszkrét "Betekintés" gombra kattintva felugró modál mutatja az ügyirat iktatószámát, státuszát (`StatusBadge`), tárgyát, ügyszámát, iktatási dátumát, határidejét és irattári helyét, egykattintásos ugrással az iktatókönyvi nézetre (`/dossiers/[id]`).
+
+### 🐛 Partner Adatlap Iratforgalom Hibajavítás (`src/app/partners/[id]/page.tsx`)
+- **Hiba oka:** A partner részletes adatlapon az iratok lekérdezésében közvetlenül szerepelt az `irat.iktatoszam` oszlop (`.select("... iktatoszam ...")`). Mivel a relációs sémában az `iktatoszam` kizárólag az `ugyirat` táblán létezik (az `irat` táblán `erkeztetoszam`, `alszam` és `ugyirat_id` van), a PostgREST/Postgres `42703: column irat.iktatoszam does not exist` hibát dobott, emiatt a lekérdezés `null`-lal tért vissza.
+- **Tünet:** A partner adatlapon 0 db iratforgalmat és üres listát mutatott a rendszer, miközben a partnerek listázásánál látszott a forgalom.
+- **Megoldás és Továbbfejlesztés:**
+  - A lekérdezés relációs összekapcsolással (`ugyirat:ugyirat_id (id, iktatoszam, ugy:ugy_id (targy))`) és az `alszam` bevonásával kéri le az iktatási adatokat.
+  - A felületen a dokumentum azonosítója iktatott irat esetén automatikusan feloldja a teljes iktatószámot (`iktatoszam/alszam`), iktatlan irat esetén az `erkeztetoszam`-ot jeleníti meg.
+  - Az "Ügyirat" oszlopban megjelenik az ügyirat valós iktatószáma (vagy "Iktatlan" badge), amely közvetlen hivatkozásként szolgál a dossier nézetre.
+  - A "Csatolt Ügyek" fülön a kapcsolt iratok esetén is feloldásra került az `iktatoszam` és a közvetlen `/inbox/[id]` link.
+
+### ⚖️ Konfigurálható Négyszem-elv (B10) & Rendszerbeállítások Tábla
+- **Új `rendszer_beallitas` Adatbázis Tábla & Migráció (`supabase/migrations/20261002000001_configurable_four_eyes.sql`):**
+  - Generikus kulcs-érték tábla JSONB struktúrával (`kulcs TEXT PK`, `ertek JSONB NOT NULL`, `leiras TEXT`).
+  - Beültetett kulcs: `'negy_szem_elve_selejtezesnel'` (`{"kotelezo": true}` alapértelmezett értékkel).
+  - PostgreSQL segédfüggvény: `is_negy_szem_elve_kotelezo()` SECURITY DEFINER jogosultsággal.
+  - Frissített `selejtezes_csomag` UPDATE RLS szabály: `NOT public.is_negy_szem_elve_kotelezo() OR auth.uid() != javaslattevo_user_id`.
+- **Rendszerbeállítás Segédmodul (`src/utils/system-settings.ts`):**
+  - `getSystemSetting<T>()` és `isFourEyesDisposalRequired()` típusbiztos szerveroldali segédfüggvények.
+- **Rendszergazda Beállítások Kezelőfelület (`settings-client.tsx`, `admin-actions.ts`):**
+  - Új dedikált kártya a Rendszergazda fülön: **Selejtezési Szabályzat & Négyszem-elv (B10)**.
+  - Váltókapcsoló (Switch) Sonner toast visszajelzéssel:
+    - *Bekapcsolva (alapértelmezett / szigorú audit mód):* A felterjesztő munkatárs semmilyen szerepkörben nem hagyhatja jóvá a saját javaslatát.
+    - *Kikapcsolva (egyfelhasználós / KKV / tesztelési mód):* A vezető vagy adminisztrátor saját felterjesztését is jóváhagyhatja egyetlen lépésben.
+- **Irattár Kliensoldali Dinamikus Viselkedés (`archive-client.tsx`, `src/app/archive/page.tsx`):**
+  - Ha a négyszem-elv fel van oldva (KKV mód), a rendszer **nem tiltja le a jelölőnégyzetet**, hanem smaragdzöld kísérő badge-dzsel jelzi: `Saját felterjesztés (Jóváhagyható)`.
+  - A fejléc banner és a megerősítő modál dinamikusan adaptálódik a beállításhoz.
+- **Audit Naplózás & Hivatalos Jegyzőkönyv Integritás (`disposal-actions.ts`, `disposal-protocol-pdf.ts`):**
+  - Egyfelhasználós jóváhagyáskor az `esemeny_naplo`-ba bekerül a záradék: `(Egyfelhasználós jóváhagyás - a négyszem-elv feloldva a rendszerbeállítások alapján)`.
+  - A PDF Selejtezési Jegyzőkönyv jogi nyilatkozata és aláírási sávja tanúsítja az egyfelhasználós eljárásrendet.
+- **Kapcsolódó döntések:** ADR [A-028](../../architecture/decisions/A-028-configurable-four-eyes-disposal.md), PRD [P-042](../../product/decisions/P-042-configurable-four-eyes-disposal-ux.md), BRD [BRD-008](../../business/decisions/008-configurable-four-eyes-disposal-and-sme-mode.md).
+
 ### 🚪 Megújított Offboarding (Kiléptetés) Folyamat, Mt. Jogi Dokumentumgenerálás & Prémium HR Analytics UX
 - **Globális KPI Stat Kártya Harmonizáció (Linear Flat Design) (`job-postings-list.tsx`, `hr/page.tsx`, `admin/page.tsx`, `admin/overview/page.tsx`, `employee-timesheet.tsx`):**
   - A korábbi elavult `border-l-4` vastag színes szegélyes kártyastílus teljes kivezetése a design rendszer elveinek megfelelően.

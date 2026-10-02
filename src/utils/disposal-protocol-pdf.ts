@@ -22,6 +22,7 @@ export interface DisposalProtocolData {
   proposerName: string
   approverName: string
   items: DisposalProtocolItem[]
+  isSingleUserApproval?: boolean
 }
 
 /**
@@ -240,14 +241,24 @@ export async function generateDisposalProtocolPdf(data: DisposalProtocolData): P
   })
   y -= 13
 
-  const statementLines = [
-    "Alulírott felek igazoljuk, hogy a fenti jegyzékben szereplő ügyiratok megőrzési ideje az érvényes irattári terv",
-    "alapján lejárt. Megállapítjuk, hogy az iratok sem a folyamatos feladatellátáshoz, sem ellenőrzésekhez,",
-    "sem pedig egyéb jogviták tisztázásához a továbbiakban nem szükségesek.",
-    "A négy-szem elvű jóváhagyási eljárást lefolytattuk. A selejtezhető iratok fizikai és logikai digitális",
-    "állományai véglegesen és helyreállíthatatlanul törlésre kerültek, míg a maradandó értékű iratok",
-    "az illetékes közlevéltár részére történő átadásra előkészítést nyertek.",
-  ]
+  const statementLines = data.isSingleUserApproval
+    ? [
+        "Alulírott igazolom, hogy a fenti jegyzékben szereplő ügyiratok megőrzési ideje az érvényes irattári terv",
+        "alapján lejárt. Megállapítom, hogy az iratok sem a folyamatos feladatellátáshoz, sem ellenőrzésekhez,",
+        "sem pedig egyéb jogviták tisztázásához a továbbiakban nem szükségesek.",
+        "A jóváhagyási eljárás a rendszerbeállítások szerinti egyfelhasználós / KKV eljárásrendben történt",
+        "(a szigorú négyszem-elv feloldásával). A felterjesztő és jóváhagyó személye megegyezik.",
+        "A selejtezhető iratok fizikai és logikai digitális állományai véglegesen és helyreállíthatatlanul törlésre kerültek,",
+        "míg a maradandó értékű iratok az illetékes közlevéltár részére történő átadásra előkészítést nyertek.",
+      ]
+    : [
+        "Alulírott felek igazoljuk, hogy a fenti jegyzékben szereplő ügyiratok megőrzési ideje az érvényes irattári terv",
+        "alapján lejárt. Megállapítjuk, hogy az iratok sem a folyamatos feladatellátáshoz, sem ellenőrzésekhez,",
+        "sem pedig egyéb jogviták tisztázásához a továbbiakban nem szükségesek.",
+        "A négy-szem elvű jóváhagyási eljárást lefolytattuk. A selejtezhető iratok fizikai és logikai digitális",
+        "állományai véglegesen és helyreállíthatatlanul törlésre kerültek, míg a maradandó értékű iratok",
+        "az illetékes közlevéltár részére történő átadásra előkészítést nyertek.",
+      ]
 
   for (const line of statementLines) {
     page.drawText(clean(line), {
@@ -310,13 +321,20 @@ export async function generateDisposalProtocolPdf(data: DisposalProtocolData): P
     color: rgb(0.4, 0.4, 0.4),
   })
 
-  page.drawText(clean("Jóváhagyó (Vezető / Selejtezési Bizottság)"), {
-    x: col2X + 10,
-    y,
-    size: 8,
-    font: helvetica,
-    color: rgb(0.4, 0.4, 0.4),
-  })
+  page.drawText(
+    clean(
+      data.isSingleUserApproval
+        ? "Jóváhagyó (Egyfelhasználós jóváhagyás)"
+        : "Jóváhagyó (Vezető / Selejtezési Bizottság)"
+    ),
+    {
+      x: col2X + 10,
+      y,
+      size: 8,
+      font: helvetica,
+      color: rgb(0.4, 0.4, 0.4),
+    }
+  )
 
   // Lábléc minden oldalon
   const totalPages = pdfDoc.getPageCount()

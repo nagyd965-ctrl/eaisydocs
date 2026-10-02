@@ -43,3 +43,19 @@ Ezek a szabályok a `design/` mappa és az `eaisyDocs_szoftverterv.md` alapján 
 - **Hatókörök jelölése:** A dokumentumok címe és fejléce kötelezően tartalmazza a hatókört: `[Docs]`, `[HR]` vagy `[Közös]`.
 - **Automatikus Szinkronizáció:** Minden fejlesztési feladat / session végén kötelező lefutnia az `eaisydocs-doc-sync` skillnek (vagy `npx tsx scripts/doc-sync.ts`), amely frissíti az `index.md` nyilvántartásokat és a `docs/worklog/changelog.md` naplót.
 
+## 7. Rendszerszintű UI/UX Egységesség és Kanonikus Komponens Használat (Global UI Consistency)
+- **FŐ ALAPELV:** A cél az **egységes felépítés a program minden részén**. Tilos egyedi, eltérő elrendezésű vagy ad-hoc megoldásokat építeni, ha a rendszerben már létezik kanonikus mintakomponens. Mindenhol ugyanazokat az építőelemeket kell alkalmazni, hogy a végfelhasználó egy teljesen harmonikus, megbízható és prémium szoftvert tapasztaljon (lásd ADR [A-029](../docs/architecture/decisions/A-029-global-ui-consistency-and-unified-components.md) és PRD [P-043](../docs/product/decisions/P-043-global-ui-consistency-and-unified-components.md)).
+- **Táblázatok és Szűrés (`TableToolbar`):**
+  - Minden táblázat, lista és részletes adatlap irat/ügyirattáblázata felett a szabványos `TableToolbar` (`src/components/table-toolbar/table-toolbar.tsx`) használandó.
+  - **Bal oldalon:** Keresőmező (`Search` ikon, instant gépelési szűrés, `X` törlő gomb).
+  - **Jobb oldalon:** Oszlopválasztó Popover (`Columns3` ikon) és a zöld/teal **`Szűrés` Popover Gomb** (dátumtartománnyal, tematikus checkbox szűrőcsoportokkal és aktív szűrő darabszám jelvénnyel).
+  - Tilos ad-hoc különálló szűrősávokat, eltérő pill-sorokat bevezetni a táblázatoknál.
+- **Gyors Megtekintés (Quick View):**
+  - Minden dokumentumot és ügyiratot listázó nézetben kötelező biztosítani az in-place gyors megtekintést:
+    - Csatolt fájlokhoz (PDF/kép): `DocumentViewer` (`src/components/document-viewer.tsx`) biztonságos audit naplózással.
+    - Ügyiratokhoz: Ügyirat gyors betekintő modál (iktatószám, státusz, tárgy, határidő, irattári hely és közvetlen ugrás).
+- **Statisztikai Kártyák (Linear Flat KPI Grid):**
+  - Minden statisztikai sávban egységes Linear flat kártyák: felső kisméretű uppercase felirat + tabular-nums kiemelt érték bal oldalon, kerekített ikon-konténer jobb oldalon. Vastag bal oldali színes szegély (`border-l-4`) szigorúan tiltott.
+- **Státuszok és Badge-ek:**
+  - Kizárólag a központi `StatusBadge` és standard szemantikus HSL színek (`success`, `warning`, `info`, `destructive`, `primary`) alkalmazhatók.
+

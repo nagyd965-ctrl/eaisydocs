@@ -59,9 +59,12 @@ export function DocumentViewer({
     }}>
       <DialogContent className="sm:max-w-4xl md:max-w-5xl lg:max-w-6xl w-full h-[90vh] flex flex-col p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="text-xl">{fajl?.eredeti_fajlnev}</DialogTitle>
+          <DialogTitle className="text-xl">{fajl?.eredeti_fajlnev || "Dokumentum előnézet"}</DialogTitle>
           <DialogDescription>
-            {fajl && `${(fajl.meret_byte / 1024).toFixed(1)} KB • SHA256: ${fajl.sha256.substring(0, 16)}...`}
+            {fajl && [
+              typeof fajl.meret_byte === "number" && fajl.meret_byte > 0 ? `${(fajl.meret_byte / 1024).toFixed(1)} KB` : null,
+              fajl.sha256 ? `SHA256: ${fajl.sha256.substring(0, 16)}...` : null
+            ].filter(Boolean).join(" • ")}
           </DialogDescription>
         </DialogHeader>
         

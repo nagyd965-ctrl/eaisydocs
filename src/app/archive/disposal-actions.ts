@@ -6,6 +6,7 @@ import { sendNotificationEmail, buildHtmlEmail } from "@/utils/mailer"
 import { getBaseUrl } from "@/utils/url"
 import { getClientInfo } from "@/utils/client-info"
 import { generateDisposalProtocolPdf, DisposalProtocolItem } from "@/utils/disposal-protocol-pdf"
+import { isFourEyesDisposalRequired } from "@/utils/system-settings"
 
 // 1. Felterjesztés Selejtezésre (Iratkezelő csinálja)
 export async function proposeDisposal(ugyiratIds: string[], note?: string) {
@@ -174,7 +175,8 @@ export async function approveDisposal(
 
   let finalProposerName = "Iratkezelő"
 
-  // 2. Négy szem elve ellenőrzése: A felterjesztő munkatárs szigorúan NEM hagyhatja jóvá a saját javaslatát!
+  // 2. Négy szem elve ellenőrzése: A felterjesztő munkatárs alapesetben nem hagyhatja jóvá a saját javaslatát
+  const fourEyesRequired = await isFourEyesDisposalRequired()
   const proposerUserIds = new Set<string>()
 
   // A) Csomagok felterjesztőinek kigyűjtése
@@ -220,10 +222,12 @@ export async function approveDisposal(
     }
   }
 
-  // Szigorú elutasítás, ha az aktuális jóváhagyó megegyezik bármelyik felterjesztővel
-  if (proposerUserIds.has(user.id)) {
+  const isSelfApproval = Boolean(user.id && proposerUserIds.has(user.id))
+
+  // Szigorú elutasítás, ha a szigorú négyszem-elv be van kapcsolva és az aktuális jóváhagyó megegyezik a felterjesztővel
+  if (isSelfApproval && fourEyesRequired) {
     return {
-      error: "A négy szem elve alapján a selejtezési javaslatot felterjesztő munkatárs nem hagyhatja jóvá a saját javaslatát! A jóváhagyást egy másik vezetőnek vagy adminisztrátornak kell elvégeznie.",
+      error: "A szigorú négyszem-elv alapján a selejtezési javaslatot felterjesztő munkatárs nem hagyhatja jóvá a saját javaslatát! A jóváhagyást egy másik vezetőnek vagy adminisztrátornak kell elvégeznie (vagy a Rendszergazda beállításokban engedélyezhető az egyfelhasználós mód).",
     }
   }
 
@@ -238,6 +242,8 @@ export async function approveDisposal(
     if (profile?.nev) {
       finalProposerName = profile.nev
     }
+  } else if (isSelfApproval && approverProfile?.nev) {
+    finalProposerName = approverProfile.nev
   }
 
   // 2. Ügyiratok adatainak kigyűjtése a tételes jegyzőkönyvhöz
@@ -323,13 +329,17 @@ export async function approveDisposal(
       // Ügyirat státuszának átállítása "selejtezett"-re
       await dbAdmin.from("ugyirat").update({ statusz: "selejtezett" }).eq("id", item.id)
 
+      const disposalLogIndoklas = isSelfApproval && !fourEyesRequired
+        ? `A megőrzési idő lejárt. Az ügyiratot leselejteztük, a fizikai és digitális fájlokat véglegesen megsemmisítettük a rendszerből (Egyfelhasználós jóváhagyás - a négyszem-elv feloldva a rendszerbeállítások alapján). Jóváhagyta: ${approverName}`
+        : `A megőrzési idő lejárt. Az ügyiratot leselejteztük, a fizikai és digitális fájlokat véglegesen megsemmisítettük a rendszerből. Jóváhagyta: ${approverName}`
+
       // Eseménynapló bejegyzés
       await supabase.from("esemeny_naplo").insert({
         entitas_tipus: "ugyirat",
         entitas_id: item.id,
         esemeny_tipus: "selejtezve",
         user_id: user.id,
-        indoklas: `A megőrzési idő lejárt. Az ügyiratot leselejteztük, a fizikai és digitális fájlokat véglegesen megsemmisítettük a rendszerből. Jóváhagyta: ${approverName}`,
+        indoklas: disposalLogIndoklas,
         ip_cim: ip,
         user_agent: userAgent,
       })
@@ -342,12 +352,16 @@ export async function approveDisposal(
       // Ügyirat státuszának visszaállítása "irattarban"-ra (hogy lekerüljön a jóváhagyandó listáról)
       await dbAdmin.from("ugyirat").update({ statusz: "irattarban" }).eq("id", item.id)
 
+      const archiveLogIndoklas = isSelfApproval && !fourEyesRequired
+        ? `A megőrzési idő lejárt. Maradandó értékű irattári tétel miatt levéltári átadásra átadva és rögzítve (Egyfelhasználós jóváhagyás - a négyszem-elv feloldva a rendszerbeállítások alapján). Jóváhagyta: ${approverName}`
+        : `A megőrzési idő lejárt. Maradandó értékű irattári tétel miatt levéltári átadásra átadva és rögzítve. Jóváhagyta: ${approverName}`
+
       await supabase.from("esemeny_naplo").insert({
         entitas_tipus: "ugyirat",
         entitas_id: item.id,
         esemeny_tipus: "irattarozva",
         user_id: user.id,
-        indoklas: `A megőrzési idő lejárt. Maradandó értékű irattári tétel miatt levéltári átadásra átadva és rögzítve. Jóváhagyta: ${approverName}`,
+        indoklas: archiveLogIndoklas,
         ip_cim: ip,
         user_agent: userAgent,
       })
@@ -368,6 +382,7 @@ export async function approveDisposal(
     proposerName: finalProposerName,
     approverName: approverName.trim(),
     items: protocolItems,
+    isSingleUserApproval: isSelfApproval && !fourEyesRequired,
   })
 
   // 4. PDF feltöltése a Supabase Storage-ba tartós megőrzésre

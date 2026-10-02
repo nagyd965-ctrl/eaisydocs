@@ -166,3 +166,59 @@ export async function getGlobalisAuditNaplo(filters: AuditFilters = {}) {
   }))
 }
 
+// ─────────────────────────────────────────────
+// RENDSZERBEÁLLÍTÁSOK (B10 - NÉGYSZEM-ELV)
+// ─────────────────────────────────────────────
+
+export async function getFourEyesSetting(): Promise<boolean> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("rendszer_beallitas")
+    .select("ertek")
+    .eq("kulcs", "negy_szem_elve_selejtezesnel")
+    .maybeSingle()
+
+  if (error || !data) return true
+  return (data.ertek as any)?.kotelezo !== false
+}
+
+export async function setFourEyesSetting(kotelezo: boolean) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("docs_szerepkor, szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isAdmin =
+    profile?.docs_szerepkor === "admin" ||
+    profile?.docs_szerepkor === "rendszergazda" ||
+    profile?.szerepkor === "admin" ||
+    profile?.szerepkor === "rendszergazda"
+
+  if (!isAdmin) {
+    return { error: "Csak adminisztrátor vagy rendszergazda módosíthatja a selejtezési szabályzatot." }
+  }
+
+  const { error } = await supabase
+    .from("rendszer_beallitas")
+    .upsert({
+      kulcs: "negy_szem_elve_selejtezesnel",
+      ertek: { kotelezo },
+      updated_at: new Date().toISOString(),
+      updated_by: user.id,
+    })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath("/settings")
+  revalidatePath("/archive")
+  return { success: true, kotelezo }
+}
+

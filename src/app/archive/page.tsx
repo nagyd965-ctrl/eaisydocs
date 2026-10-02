@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
 import { ArchiveClient } from "@/components/archive-client"
+import { isFourEyesDisposalRequired } from "@/utils/system-settings"
 
 export default async function ArchivePage(props: {
   searchParams?: Promise<{ cutoffDate?: string }>
@@ -8,6 +9,9 @@ export default async function ArchivePage(props: {
   const supabase = await createClient()
   const todayStr = new Date().toISOString().split("T")[0] // 'YYYY-MM-DD'
   const cutoffDate = searchParams?.cutoffDate || todayStr
+
+  // Lekérjük a négyszem-elv beállítást
+  const fourEyesRequired = await isFourEyesDisposalRequired()
 
   // Lekérjük az ügyiratokat az irattári tervvel és iratok számával együtt
   const { data: dossiers } = await supabase
@@ -160,6 +164,7 @@ export default async function ArchivePage(props: {
         todayStr={todayStr}
         currentUserRole={currentUserRole}
         currentUserId={currentUserId}
+        fourEyesRequired={fourEyesRequired}
       />
     </div>
   )

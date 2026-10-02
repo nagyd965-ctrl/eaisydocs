@@ -4,6 +4,19 @@
 
 ---
 
+## 0. Kanonikus Táblázat Eszköztár (`TableToolbar`) Mandátum
+
+> [!IMPORTANT]
+> **KÖTELEZŐ SZABÁLYZAT (ADR [A-029](../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md) és PRD [P-043](../product/decisions/P-043-global-ui-consistency-and-unified-components.md)):**  
+> Minden táblázatos felületen (Partnerek, Iktatókönyv, Bejövő sor, HR és részletes adatlapok irattáblázatai) kötelező az egységes `TableToolbar` (`src/components/table-toolbar/table-toolbar.tsx`) alkalmazása.
+> - **Bal oldalon:** Szabadszavas keresőmező (`Search` ikon, valós idejű gépelési szűrés, `X` törlő gomb).
+> - **Jobb oldalon:** 
+>   - Oszlopválasztó Popover (`Columns3` ikon) az oszlopok dinamikus ki/bekapcsolásához.
+>   - Zöld/teal **`Szűrés` Popover Gomb**, amely tartalmazza a dátumtartományt (`tól - ig`), a tematikus checkbox szűrőcsoportokat és a bekapcsolt szűrők számát jelző Badge-et.
+> - Szigorúan tilos egyedi, eltérő kinézetű szűrősávokat fejleszteni!
+
+---
+
 ## Compact Table Stílus
 
 **Fájl:** `index.css`

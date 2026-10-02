@@ -1,5 +1,5 @@
 import { getUserProfile, getTeamMembers, getDepartments } from "./settings-actions"
-import { getIrattariTervek, getGlobalisAuditNaplo } from "./admin-actions"
+import { getIrattariTervek, getGlobalisAuditNaplo, getFourEyesSetting } from "./admin-actions"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Info, User, Building, Bell, Monitor, Shield, Users, Plane, Settings2 } from "lucide-react"
 import { SettingsClient } from "./settings-client"
@@ -51,6 +51,7 @@ export default async function SettingsPage() {
   // Admin adatok (csak adminoknak)
   const irattariTervek = isAdmin ? await getIrattariTervek() : []
   const adminAuditNaplo = isAdmin ? await getGlobalisAuditNaplo() : []
+  const initialFourEyesRequired = isAdmin ? await getFourEyesSetting() : true
 
   const { data: helyettesitesek } = await supabase
     .from("helyettesites")
@@ -144,6 +145,7 @@ export default async function SettingsPage() {
           totpFactor={totpFactor}
           irattariTervek={irattariTervek}
           adminAuditNaplo={adminAuditNaplo}
+          initialFourEyesRequired={initialFourEyesRequired}
         />
       </Tabs>
     </div>

@@ -10,6 +10,14 @@
 
 Ez a design rendszer nem egyetlen alkalmazásra, hanem az **eaisybill termékcsaládra** vonatkozik. Minden új szoftver (számlázó, könyvelési modul, HR, stb.) erre a design vonalra épül: azonos szín tokenek, tipográfia, komponensek, animációk.
 
+> [!IMPORTANT]
+> **ALAPKÖVETELMÉNY: TELJES RENDSZERSZINTŰ UI/UX EGYSÉGESSÉG**  
+> A platform minden egyes aloldalán és moduljában **kötelező a teljesen egységes felépítés és az azonos komponensek alkalmazása**.
+> - **Táblázatok és listák:** Mindenhol a szabványos `TableToolbar` használandó (balra a keresőmező, jobbra az Oszlopválasztó és a `Szűrés` Popover gomb). Szigorúan tilos egyedi, ad-hoc szűrősávokat vagy eltérő gombelrendezéseket készíteni!
+> - **Gyors megtekintés:** Minden irat- és ügyiratlistában biztosítani kell a beépített `DocumentViewer` előnézetet és az ügyirat betekintő modált.
+> - **Statisztikák:** Mindenütt a szabványos Linear flat KPI kártya elrendezés érvényes.  
+> Részletes szabályzat: ADR [A-029](../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md) és PRD [P-043](../product/decisions/P-043-global-ui-consistency-and-unified-components.md).
+
 ---
 
 ## Tartalomjegyzék — Design Dokumentáció

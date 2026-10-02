@@ -55,6 +55,7 @@ export function ArchiveClient({
   todayStr,
   currentUserRole = "ugyintezo",
   currentUserId = "",
+  fourEyesRequired = true,
 }: {
   archivedDossiers: any[]
   scrappingSuggestions: any[]
@@ -65,6 +66,7 @@ export function ArchiveClient({
   todayStr: string
   currentUserRole?: string
   currentUserId?: string
+  fourEyesRequired?: boolean
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -252,16 +254,18 @@ export function ArchiveClient({
       return
     }
 
-    // Négy szem elve előzetes kliens oldali ellenőrzés
-    const selfProposedItem = pendingApprovals.find(
-      (p) => selectedApprovals.includes(p.id) && currentUserId && p.javaslattevo_user_id === currentUserId
-    )
-    if (selfProposedItem) {
-      toast.error("Négy szem elve korlátozás", {
-        description: `A(z) ${selfProposedItem.iktatoszam} ügyiratot te terjesztetted fel! Saját javaslatodat nem hagyhatod jóvá.`,
-      })
-      setApprovePromptOpen(false)
-      return
+    // Négy szem elve előzetes kliens oldali ellenőrzés (csak ha a szigorú négyszem-elv aktív)
+    if (fourEyesRequired) {
+      const selfProposedItem = pendingApprovals.find(
+        (p) => selectedApprovals.includes(p.id) && currentUserId && p.javaslattevo_user_id === currentUserId
+      )
+      if (selfProposedItem) {
+        toast.error("Négy szem elve korlátozás", {
+          description: `A(z) ${selfProposedItem.iktatoszam} ügyiratot te terjesztetted fel! A szigorú négyszem-elv szerint saját javaslatodat nem hagyhatod jóvá.`,
+        })
+        setApprovePromptOpen(false)
+        return
+      }
     }
 
     setLoading(true)
@@ -349,9 +353,9 @@ export function ArchiveClient({
 
   const toggleApproval = (id: string) => {
     const item = pendingApprovals.find((p) => p.id === id)
-    if (currentUserId && item?.javaslattevo_user_id === currentUserId) {
+    if (fourEyesRequired && currentUserId && item?.javaslattevo_user_id === currentUserId) {
       toast.error("Négy szem elve korlátozás", {
-        description: "A saját magad által felterjesztett ügyiratot nem hagyhatod jóvá!",
+        description: "A szigorú négyszem-elv alapján a saját magad által felterjesztett ügyiratot nem hagyhatod jóvá! A beállításokban engedélyezhető az egyfelhasználós jóváhagyás.",
       })
       return
     }
@@ -361,10 +365,11 @@ export function ArchiveClient({
   }
 
   const toggleAllApprovals = () => {
-    // Négy szem elve: Csak azokat jelöljük ki, amelyeket nem a jelenlegi felhasználó terjesztett fel!
-    const approvable = filteredApprovals.filter(
-      (p) => !currentUserId || p.javaslattevo_user_id !== currentUserId
-    )
+    // Négy szem elve: ha kötelező, csak azokat jelöljük ki, amelyeket nem az aktuális felhasználó terjesztett fel
+    const approvable = fourEyesRequired
+      ? filteredApprovals.filter((p) => !currentUserId || p.javaslattevo_user_id !== currentUserId)
+      : filteredApprovals
+
     if (selectedApprovals.length === approvable.length && approvable.length > 0) {
       setSelectedApprovals([])
     } else {
@@ -602,11 +607,26 @@ export function ArchiveClient({
           <div className="border border-border/50 rounded-md bg-card mb-4 overflow-hidden">
             <div className="p-4 bg-muted/30 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                <AlertTriangle className={`h-5 w-5 shrink-0 mt-0.5 ${fourEyesRequired ? "text-amber-500" : "text-emerald-500"}`} />
                 <div className="text-sm">
-                  <p className="font-semibold mb-0.5">Jóváhagyandó Selejtezések (Négy-szem elve)</p>
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <p className="font-semibold">
+                      Jóváhagyandó Selejtezések {fourEyesRequired ? "(Szigorú Négy-szem elve)" : "(Egyfelhasználós / KKV Mód)"}
+                    </p>
+                    {fourEyesRequired ? (
+                      <Badge variant="outline" className="text-[11px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                        Szigorú audit mód aktív
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                        Négyszem-elv feloldva (Egyfelhasználós mód)
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-muted-foreground text-xs">
-                    Az iratkezelő által felterjesztett ügyiratok. Csak az intézményvezető hagyhatja jóvá.
+                    {fourEyesRequired
+                      ? "Az iratkezelő által felterjesztett ügyiratok. A felterjesztő a szigorú audit szabályok szerint nem hagyhatja jóvá a saját javaslatát."
+                      : "A négyszem-elv feloldva: Vezetőként vagy rendszergazdaként a saját felterjesztéseidet is jóváhagyhatod egyetlen lépésben."}
                   </p>
                 </div>
               </div>
@@ -635,7 +655,10 @@ export function ArchiveClient({
                     <Checkbox
                       checked={
                         filteredApprovals.length > 0 &&
-                        selectedApprovals.length === filteredApprovals.filter(p => !currentUserId || p.javaslattevo_user_id !== currentUserId).length &&
+                        selectedApprovals.length ===
+                          (fourEyesRequired
+                            ? filteredApprovals.filter(p => !currentUserId || p.javaslattevo_user_id !== currentUserId).length
+                            : filteredApprovals.length) &&
                         selectedApprovals.length > 0
                       }
                       onCheckedChange={toggleAllApprovals}
@@ -659,13 +682,25 @@ export function ArchiveClient({
                     return (
                       <TableRow
                         key={item.id}
-                        className={`hover:bg-muted/50 transition-colors ${isSelected ? "bg-muted/40" : ""} ${isSelfProposed ? "bg-amber-500/5 opacity-80" : ""}`}
+                        className={`hover:bg-muted/50 transition-colors ${isSelected ? "bg-muted/40" : ""} ${
+                          isSelfProposed
+                            ? fourEyesRequired
+                              ? "bg-amber-500/5 opacity-80"
+                              : "bg-emerald-500/5"
+                            : ""
+                        }`}
                       >
                         <TableCell>
                           <Checkbox
                             checked={isSelected}
-                            disabled={isSelfProposed}
-                            title={isSelfProposed ? "A négy szem elve alapján a saját felterjesztésedet nem hagyhatod jóvá!" : "Kijelölés jóváhagyásra"}
+                            disabled={fourEyesRequired && isSelfProposed}
+                            title={
+                              isSelfProposed
+                                ? fourEyesRequired
+                                  ? "A szigorú négy szem elve alapján a saját felterjesztésedet nem hagyhatod jóvá!"
+                                  : "Saját felterjesztés - Egyfelhasználós módban kijelölhető és jóváhagyható"
+                                : "Kijelölés jóváhagyásra"
+                            }
                             onCheckedChange={() => toggleApproval(item.id)}
                           />
                         </TableCell>
@@ -682,9 +717,15 @@ export function ArchiveClient({
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-medium text-foreground">{item.javaslattevo_nev || "Iratkezelő"}</span>
                               {isSelfProposed && (
-                                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[10px] py-0 px-1.5 font-normal">
-                                  Saját felterjesztés
-                                </Badge>
+                                fourEyesRequired ? (
+                                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[10px] py-0 px-1.5 font-normal">
+                                    Saját felterjesztés (Zárolva)
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] py-0 px-1.5 font-normal">
+                                    Saját felterjesztés (Jóváhagyható)
+                                  </Badge>
+                                )
                               )}
                             </div>
                           </TableCell>
@@ -1041,9 +1082,15 @@ export function ArchiveClient({
       <Dialog open={approvePromptOpen} onOpenChange={setApprovePromptOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Selejtezés Jóváhagyása (Négy szem elve)</DialogTitle>
+            <DialogTitle>
+              {fourEyesRequired
+                ? "Selejtezés Jóváhagyása (Szigorú Négy-szem elve)"
+                : "Selejtezés Jóváhagyása (Egyfelhasználós eljárás)"}
+            </DialogTitle>
             <DialogDescription>
-              Kérlek, add meg az intézményvezető vagy a selejtezési bizottság elnökének nevét a jegyzőkönyv hitelesítéséhez.
+              {fourEyesRequired
+                ? "Kérlek, add meg az intézményvezető vagy a selejtezési bizottság elnökének nevét a jegyzőkönyv hitelesítéséhez."
+                : "A négyszem-elv fel van oldva. Vezetői jóváhagyásként a felterjesztő saját jóváhagyása is engedélyezett egyetlen lépésben."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1057,7 +1104,9 @@ export function ArchiveClient({
                 autoFocus
               />
               <p className="text-[11px] text-muted-foreground">
-                Figyelem: A négy-szem elve értelmében a jóváhagyó nem egyezhet meg az ügyiratot felterjesztő munkatárssal.
+                {fourEyesRequired
+                  ? "Figyelem: A szigorú négy-szem elve értelmében a jóváhagyó nem egyezhet meg az ügyiratot felterjesztő munkatárssal."
+                  : "Infó: A rendszer egyfelhasználós / KKV módban fut, a felterjesztő és jóváhagyó azonossága a hivatalos jegyzőkönyvben és az eseménynaplóban rögzítésre kerül."}
               </p>
             </div>
           </div>

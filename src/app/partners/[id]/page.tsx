@@ -25,6 +25,7 @@ import { DeletePartnerContactButton } from "@/components/delete-partner-contact-
 import { PartnerStatusToggle } from "@/components/partner-status-toggle"
 import { getPermissions } from "@/utils/permissions"
 import { cn } from "@/lib/utils"
+import { PartnerDocumentsTable } from "@/components/partner-documents-table"
 
 export default async function PartnerDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
@@ -32,13 +33,15 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
 
   const { data: { user } } = await supabase.auth.getUser()
   let docs_szerepkor = ""
+  let userProfile: any = null
   if (user) {
     const { data: profile } = await supabase
       .from("felhasznalo_profil")
-      .select("docs_szerepkor")
+      .select("docs_szerepkor, max_minosites")
       .eq("id", user.id)
       .single()
     docs_szerepkor = profile?.docs_szerepkor || ""
+    userProfile = profile
   }
   const permissions = getPermissions(docs_szerepkor)
 
@@ -56,7 +59,42 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
   // 2. Partnerhez kapcsolódó iratok (bejövő és kimenő)
   const { data: iratokMintPartner } = await supabase
     .from("irat")
-    .select("id, targy, erkeztetoszam, iktatoszam, erkezes_datuma, ugyirat_id, irany")
+    .select(`
+      id,
+      targy,
+      erkeztetoszam,
+      alszam,
+      erkezes_datuma,
+      erkezes_modja,
+      ugyirat_id,
+      irany,
+      minosites,
+      leiras,
+      statusz,
+      irat_fajl (
+        id,
+        storage_path,
+        eredeti_fajlnev,
+        meret_byte,
+        mime_type,
+        sha256,
+        pdfa_path
+      ),
+      ugyirat:ugyirat_id (
+        id,
+        iktatoszam,
+        iktatas_datuma,
+        statusz,
+        helye,
+        ugy:ugy_id (
+          id,
+          ugyszam,
+          targy,
+          hatarido,
+          statusz
+        )
+      )
+    `)
     .eq("kuldo_partner_id", partner.id)
     .order("erkezes_datuma", { ascending: false })
 
@@ -69,8 +107,23 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
     .from("irat_kapcsolat")
     .select(`
       kapcsolat_tipusa,
-      irat:irat_id ( id, targy, erkeztetoszam, iktatoszam, erkezes_datuma, ugyirat_id ),
-      ugyirat:ugyirat_id ( id, iktatoszam, ugy:ugy_id (targy) )
+      irat:irat_id (
+        id,
+        targy,
+        erkeztetoszam,
+        alszam,
+        erkezes_datuma,
+        ugyirat_id,
+        ugyirat:ugyirat_id (
+          id,
+          iktatoszam
+        )
+      ),
+      ugyirat:ugyirat_id (
+        id,
+        iktatoszam,
+        ugy:ugy_id ( targy )
+      )
     `)
     .eq("entitas_tipus", "partner")
     .eq("entitas_id", partner.id)
@@ -370,92 +423,12 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
 
         {/* ── 1. FÜL: IRATFORGALOM (Bejövő & Kimenő) */}
         <TabsContent value="documents" className="space-y-4">
-          <Card className="border border-border/60 bg-card">
-            <CardHeader className="p-5 pb-3 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-semibold">Partnerrel kapcsolatos iratforgalom</CardTitle>
-                <CardDescription className="text-xs">
-                  A partner által beküldött (bejövő) és a partner részére postázott/küldött (kimenő) hivatalos iratok.
-                </CardDescription>
-              </div>
-              <div className="text-xs text-muted-foreground font-mono tabular-nums">
-                {incomingDocs.length} bejövő • {outgoingDocs.length} kimenő
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[100px]">Irány</TableHead>
-                    <TableHead>Azonosító</TableHead>
-                    <TableHead>Tárgy</TableHead>
-                    <TableHead>Ügyirat</TableHead>
-                    <TableHead className="text-right">Dátum</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {allDocs.length > 0 ? (
-                    allDocs.map((irat) => {
-                      const isIncoming = irat.irany === "bejovo" || !irat.irany
-                      return (
-                        <TableRow key={`irat-${irat.id}`} className="hover:bg-muted/40 transition-colors">
-                          <TableCell>
-                            <span className={cn(
-                              "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium",
-                              isIncoming ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                            )}>
-                              {isIncoming ? (
-                                <><ArrowDownLeft className="h-3 w-3" /> Bejövő</>
-                              ) : (
-                                <><ArrowUpRight className="h-3 w-3" /> Kimenő</>
-                              )}
-                            </span>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs font-semibold">
-                            {irat.iktatoszam ? (
-                              <Link href={`/inbox/${irat.id}`} className="hover:underline text-foreground">
-                                {irat.iktatoszam}
-                              </Link>
-                            ) : irat.erkeztetoszam ? (
-                              <Link href={`/inbox/${irat.id}`} className="hover:underline text-primary">
-                                {irat.erkeztetoszam}
-                              </Link>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-sm font-medium text-foreground">
-                            {irat.targy}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {irat.ugyirat_id ? (
-                              <Link href={`/dossiers/${irat.ugyirat_id}`} className="text-primary hover:underline font-mono">
-                                Ügyirat megtekintése →
-                              </Link>
-                            ) : (
-                              <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
-                                Iktatlan
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right text-xs text-muted-foreground font-mono tabular-nums">
-                            {irat.erkezes_datuma ? new Date(irat.erkezes_datuma).toLocaleDateString("hu-HU") : "—"}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-28 text-center text-muted-foreground text-xs">
-                        <FolderOpen className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                        Nem található a partnerhez rendelt irat.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <PartnerDocumentsTable
+            documents={allDocs as any}
+            partnerName={partner.nev}
+            currentUserClearance={userProfile?.max_minosites || "nyilt"}
+            isAdmin={docs_szerepkor === "admin"}
+          />
         </TabsContent>
 
         {/* ── 2. FÜL: KAPCSOLATTARTÓK (ÚJ!) */}
@@ -599,6 +572,10 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
                       const isUgyirat = !!kapcs.ugyirat
                       const u = kapcs.ugyirat as any
                       const ir = kapcs.irat as any
+                      const irUgyirat = Array.isArray(ir?.ugyirat) ? ir?.ugyirat[0] : ir?.ugyirat
+                      const irIktatoszam = irUgyirat?.iktatoszam
+                        ? (ir?.alszam ? `${irUgyirat.iktatoszam}/${ir.alszam}` : irUgyirat.iktatoszam)
+                        : null
 
                       return (
                         <TableRow key={`kapcs-${i}`} className="hover:bg-muted/40 transition-colors">
@@ -612,14 +589,12 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
                               <Link href={`/dossiers/${u.id}`} className="hover:underline text-primary">
                                 {u.iktatoszam}
                               </Link>
+                            ) : ir ? (
+                              <Link href={`/inbox/${ir.id}`} className="hover:underline text-primary">
+                                {irIktatoszam || ir.erkeztetoszam || "—"}
+                              </Link>
                             ) : (
-                              ir?.ugyirat_id ? (
-                                <Link href={`/dossiers/${ir.ugyirat_id}`} className="hover:underline text-primary">
-                                  {ir.erkeztetoszam}
-                                </Link>
-                              ) : (
-                                ir?.erkeztetoszam || "—"
-                              )
+                              "—"
                             )}
                           </TableCell>
                           <TableCell className="text-muted-foreground text-xs">

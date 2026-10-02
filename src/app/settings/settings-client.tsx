@@ -24,9 +24,36 @@ import { useRouter } from "next/navigation"
 import { createSubstitution, deleteSubstitution } from "./substitution-actions"
 import { MfaSettingsCard } from "@/components/mfa-settings-card"
 import { IrattariTervManager } from "@/components/irattari-terv-manager"
-import { Archive, ScrollText, Download, Filter } from "lucide-react"
+import { Archive, ScrollText, Download, Filter, Scale } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
 
-export function SettingsClient({ initialProfile, email, teamMembers, departments, szabalyok, naplo, helyettesitesek = [], isAdmin, totpFactor, irattariTervek = [], adminAuditNaplo = [] }: { initialProfile: any, email: string | undefined, teamMembers: any[], departments?: any[], szabalyok?: any[], naplo?: any[], helyettesitesek?: any[], isAdmin?: boolean, totpFactor?: any, irattariTervek?: any[], adminAuditNaplo?: any[] }) {
+export function SettingsClient({ 
+  initialProfile, 
+  email, 
+  teamMembers, 
+  departments, 
+  szabalyok, 
+  naplo, 
+  helyettesitesek = [], 
+  isAdmin, 
+  totpFactor, 
+  irattariTervek = [], 
+  adminAuditNaplo = [],
+  initialFourEyesRequired = true
+}: { 
+  initialProfile: any, 
+  email: string | undefined, 
+  teamMembers: any[], 
+  departments?: any[], 
+  szabalyok?: any[], 
+  naplo?: any[], 
+  helyettesitesek?: any[], 
+  isAdmin?: boolean, 
+  totpFactor?: any, 
+  irattariTervek?: any[], 
+  adminAuditNaplo?: any[],
+  initialFourEyesRequired?: boolean
+}) {
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -48,6 +75,8 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
   const [selectedMemberClearance, setSelectedMemberClearance] = useState<string>("nyilt")
   const [editRoleLoading, setEditRoleLoading] = useState(false)
   const [departmentLoading, setDepartmentLoading] = useState(false)
+  const [fourEyesRequired, setFourEyesRequired] = useState(initialFourEyesRequired)
+  const [fourEyesLoading, setFourEyesLoading] = useState(false)
   
   // Helyettesítés állapotok
   const [substituteUser, setSubstituteUser] = useState("")
@@ -1110,6 +1139,73 @@ export function SettingsClient({ initialProfile, email, teamMembers, departments
       {/* RENDSZERGAZDA TAB — csak adminoknak */}
       {isAdmin && (
         <TabsContent value="rendszergazda" className="space-y-6 outline-none">
+
+          {/* Selejtezési Szabályzat & Négyszem-elv (B10) */}
+          <Card className="border-border/50 shadow-none">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Scale className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-xl">Selejtezési Szabályzat & Négyszem-elv</CardTitle>
+                </div>
+                {fourEyesRequired ? (
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs font-normal">
+                    Audit / Megfelelőségi Mód (Szigorú)
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs font-normal">
+                    Egyfelhasználós / KKV Mód (Engedékeny)
+                  </Badge>
+                )}
+              </div>
+              <CardDescription>
+                A lejárt megőrzési idejű ügyiratok selejtezési és megsemmisítési jóváhagyási láncának szabályozása.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-muted/20">
+                <div className="space-y-1 pr-4">
+                  <Label htmlFor="four-eyes-toggle" className="text-sm font-semibold text-foreground cursor-pointer">
+                    Szigorú négyszem-elv megkövetelése selejtezéskor
+                  </Label>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {fourEyesRequired ? (
+                      <span>
+                        <strong className="text-foreground">Bekapcsolva (Szigorú):</strong> A selejtezési javaslatot felterjesztő iratkezelő munkatárs semmilyen szerepkörben nem hagyhatja jóvá a saját javaslatát. A jóváhagyást kizárólag egy másik, független vezető vagy rendszergazda végezheti el. (Nagyvállalati / államigazgatási megfelelőség).
+                      </span>
+                    ) : (
+                      <span>
+                        <strong className="text-foreground">Kikapcsolva (Engedékeny):</strong> A javaslattevő vezető vagy admin a saját maga által felterjesztett ügyiratokat is közvetlenül jóváhagyhatja. A selejtezési jegyzőkönyvben és az audit naplóban rögzítésre kerül az egyfelhasználós jóváhagyás. (Kisvállalkozások és gyorsított tesztelés számára ajánlott).
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Switch
+                    id="four-eyes-toggle"
+                    checked={fourEyesRequired}
+                    disabled={fourEyesLoading}
+                    onCheckedChange={async (checked) => {
+                      setFourEyesLoading(true)
+                      const { setFourEyesSetting } = await import("./admin-actions")
+                      const res = await setFourEyesSetting(checked)
+                      setFourEyesLoading(false)
+                      if (res.error) {
+                        toast.error("Hiba a beállítás mentésekor", { description: res.error })
+                      } else {
+                        setFourEyesRequired(checked)
+                        toast.success("Selejtezési szabályzat frissítve!", {
+                          description: checked
+                            ? "A szigorú négyszem-elv mostantól kötelező a selejtezésekhez."
+                            : "Az egyfelhasználós selejtezési jóváhagyás engedélyezve lett.",
+                        })
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Irattári terv */}
           <Card className="border-border/50 shadow-none">
