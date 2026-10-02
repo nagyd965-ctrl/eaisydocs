@@ -1,5 +1,5 @@
 "use client"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { HrSidebar } from "@/components/hr-sidebar"
@@ -21,14 +21,28 @@ function DynamicSidebarTrigger() {
 export function LayoutWrapper({ 
   children, 
   docsRole,
-  hrRole
+  hrRole,
+  elerhetoModulok = []
 }: { 
   children: React.ReactNode; 
   docsRole?: string;
   hrRole?: string;
+  elerhetoModulok?: string[];
 }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [timeoutMinutes, setTimeoutMinutes] = useState<number | null>(null)
+
+  useEffect(() => {
+    const isPublic = pathname === "/login" || pathname.startsWith("/auth") || pathname.startsWith("/embed") || pathname.startsWith("/archive/print") || pathname.startsWith("/karrier")
+    if (!isPublic && !pathname.startsWith("/hr")) {
+      // Ha a felhasználónak NINCS docs modulja, de van hr modulja, azonnal átirányítjuk a HR felületre
+      if (elerhetoModulok.length > 0 && !elerhetoModulok.includes("docs") && elerhetoModulok.includes("hr")) {
+        const isHrStaff = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda", "auditor"].includes(hrRole || "")
+        router.replace(isHrStaff ? "/hr/admin" : "/hr")
+      }
+    }
+  }, [pathname, elerhetoModulok, hrRole, router])
   
   useEffect(() => {
     async function getSettings() {
@@ -61,6 +75,16 @@ export function LayoutWrapper({
       <main className="flex-1 w-full flex flex-col bg-slate-50 print:bg-white h-screen">
         {children}
       </main>
+    )
+  }
+
+  // Ha a felhasználó egy docs oldalon áll, de nincs hozzá joga (csak HR modulja van), ne villanjon fel a docs felület
+  const isRestrictedFromDocs = !pathname.startsWith("/hr") && elerhetoModulok.length > 0 && !elerhetoModulok.includes("docs") && elerhetoModulok.includes("hr")
+  if (isRestrictedFromDocs) {
+    return (
+      <div className="flex-1 w-full flex items-center justify-center p-8 text-muted-foreground text-sm">
+        Átirányítás az eaisyHR modulba...
+      </div>
     )
   }
   

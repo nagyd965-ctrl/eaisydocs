@@ -572,7 +572,7 @@ export function ExitInterviewSummary({ interviews }: ExitInterviewSummaryProps) 
                   <div
                     key={interview.id}
                     onClick={() => setSelectedInterview(interview)}
-                    className="p-4 rounded-xl border border-border/70 bg-card hover:border-primary/40 hover:shadow-xs transition-all cursor-pointer group space-y-3"
+                    className="p-4 rounded-xl border border-border/70 bg-card hover:border-primary/40 transition-colors cursor-pointer group space-y-3"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>

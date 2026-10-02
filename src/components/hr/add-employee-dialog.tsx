@@ -19,7 +19,18 @@ export interface AvailableUserItem {
   id: string
   nev?: string | null
   email?: string | null
+  docs_szerepkor?: string | null
+  isAlreadyAssigned?: boolean
   [key: string]: unknown
+}
+
+const docsRoleMap: Record<string, string> = {
+  "admin": "Adminisztrátor",
+  "iktato": "Iktató",
+  "vezeto": "Vezető",
+  "ugyintezo": "Ügyintéző",
+  "betekinto": "Betekintő",
+  "auditor": "Auditor"
 }
 
 export interface CandidateOptionItem {
@@ -35,12 +46,12 @@ export function AddEmployeeDialog({
   availableUsers, 
   jobs, 
   candidates = [], 
-  customTrigger 
+  customTrigger
 }: { 
   availableUsers: AvailableUserItem[]
   jobs: CandidateJobOption[]
   candidates?: CandidateOptionItem[]
-  customTrigger?: ReactElement 
+  customTrigger?: ReactElement
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -110,11 +121,11 @@ export function AddEmployeeDialog({
           Új Dolgozó Felvétele
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[540px]">
         <DialogHeader>
           <DialogTitle>Új Dolgozó Felvétele</DialogTitle>
           <DialogDescription>
-            Rendelj hozzá HR adatokat egy meglévő felhasználóhoz, vagy hozz létre egy teljesen újat az eaisyHR modulba.
+            Rendelj hozzá eaisyHR jogosultságot egy meglévő eaisyDocs felhasználóhoz, vagy hozz létre egy dedikált új munkatársi fiókot.
           </DialogDescription>
         </DialogHeader>
 
@@ -124,28 +135,55 @@ export function AddEmployeeDialog({
           className="w-full"
         >
           <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="select_existing">Meglévő fiók</TabsTrigger>
-            <TabsTrigger value="create_new">Új fiók</TabsTrigger>
+            <TabsTrigger value="select_existing">Meglévő eaisyDocs fiók</TabsTrigger>
+            <TabsTrigger value="create_new">Új fiók (Csak eaisyHR)</TabsTrigger>
           </TabsList>
 
           <TabsContent value="select_existing" className="space-y-4">
+            <div className="rounded-lg border border-teal-500/30 bg-teal-500/5 dark:bg-teal-500/10 p-3 text-xs text-foreground/85 leading-relaxed">
+              Ha a meglévő eaisyDocs fiókok közül választasz munkatársat, a felhasználó hozzáférést kap az eaisyHR modulhoz is.
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="user">Regisztrált Felhasználó</Label>
+              <Label htmlFor="user">eaisyDocs Felhasználó Kiválasztása ({availableUsers.length} fiók)</Label>
               <Select value={formData.userId} onValueChange={(val) => setFormData({ ...formData, userId: val || "" })}>
                 <SelectTrigger>
                   {formData.userId 
-                    ? <span>{availableUsers.find(u => u.id === formData.userId)?.nev || "Kiválasztva"}</span>
-                    : <span className="text-muted-foreground">Válassz egy felhasználót...</span>}
+                    ? (() => {
+                        const selected = availableUsers.find(u => u.id === formData.userId)
+                        return selected ? (
+                          <span>{selected.nev} {selected.email ? `(${selected.email})` : ""}</span>
+                        ) : <span>Kiválasztva</span>
+                      })()
+                    : <span className="text-muted-foreground">Válassz eaisyDocs felhasználót...</span>}
                 </SelectTrigger>
                 <SelectContent>
-                  {availableUsers.map(user => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.nev} ({user.email})
-                    </SelectItem>
-                  ))}
+                  {availableUsers.map(user => {
+                    const roleName = user.docs_szerepkor ? (docsRoleMap[user.docs_szerepkor as string] || user.docs_szerepkor) : null
+                    return (
+                      <SelectItem key={user.id} value={user.id}>
+                        <div className="flex items-center justify-between gap-3 w-full py-0.5">
+                          <span className="font-medium text-foreground">{user.nev}</span>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            {user.email && <span>{user.email}</span>}
+                            {roleName && (
+                              <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">
+                                {roleName}
+                              </span>
+                            )}
+                            {user.isAlreadyAssigned && (
+                              <span className="text-[10px] text-teal-600 dark:text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded font-medium">
+                                Már HR dolgozó
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </SelectItem>
+                    )
+                  })}
                   {availableUsers.length === 0 && (
                     <SelectItem value="none" disabled>
-                      Minden felhasználó már dolgozó!
+                      Nem található felhasználó!
                     </SelectItem>
                   )}
                 </SelectContent>
@@ -154,6 +192,10 @@ export function AddEmployeeDialog({
           </TabsContent>
 
           <TabsContent value="create_new" className="space-y-4">
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
+              Ez a fiók kizárólag az eaisyHR rendszerhez kap hozzáférést, az eaisyDocs iratkezelőt nem éri el.
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="nev">Teljes Név</Label>
               <Input 

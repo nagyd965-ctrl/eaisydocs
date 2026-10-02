@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     // 3. Ha van feltöltött fájl a storage-ban, azt adjuk vissza
     if (orvosi.fajl_url) {
       let fileBlob: Blob | null = null
-      let { data: blob, error: downloadErr } = await supabase.storage
+      const { data: blob, error: downloadErr } = await supabase.storage
         .from("irat_files")
         .download(orvosi.fajl_url)
 

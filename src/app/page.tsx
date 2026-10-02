@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
 import { DashboardOverview } from "@/components/dashboard-overview"
+import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -8,13 +9,23 @@ export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: authUser } = await supabase.auth.getUser()
 
+  if (!authUser?.user) {
+    redirect("/login")
+  }
+
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("id, nev, docs_szerepkor, szervezeti_egyseg_id")
-    .eq("id", authUser?.user?.id || "")
+    .select("id, nev, docs_szerepkor, hr_szerepkor, elerheto_modulok, szervezeti_egyseg_id")
+    .eq("id", authUser.user.id)
     .maybeSingle()
 
-  const userId = authUser?.user?.id || ""
+  // Ha a felhasználónak NINCS eaisyDocs hozzáférése, de van eaisyHR, azonnal átirányítjuk a HR-re
+  if (userProfile?.elerheto_modulok && !userProfile.elerheto_modulok.includes("docs") && userProfile.elerheto_modulok.includes("hr")) {
+    const isHrStaff = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda", "auditor"].includes(userProfile.hr_szerepkor || "")
+    redirect(isHrStaff ? "/hr/admin" : "/hr")
+  }
+
+  const userId = authUser.user.id
   const userName = userProfile?.nev || "Felhasználó"
   const userRole = userProfile?.docs_szerepkor || "ugyintezo"
 

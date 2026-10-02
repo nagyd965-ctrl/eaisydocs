@@ -10,6 +10,7 @@ import { OvertimeBalanceCard } from "@/components/hr/overtime-balance-card"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { calculateAnnualLeave } from "@/utils/hr/leave-calculator"
+import { KpiCard } from "@/components/kpi-card"
 export default async function SelfServicePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -193,60 +194,28 @@ export default async function SelfServicePage() {
 
       {/* Stat kártyák sora */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        {/* Szabadság marad */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Szabadság Marad</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{remainingLeave} nap</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <CalendarDays className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Felhasznált */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Felhasznált Nap</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-amber-600 dark:text-amber-400">{usedLeave} nap</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <Clock className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Függőben lévő kérelem */}
-        <Card className={`border shadow-xs transition-colors ${pendingLeavesCount > 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-card"}`}>
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Függőben Lévő</p>
-              <h3 className={`text-2xl font-bold tracking-tight mt-1 tabular-nums ${pendingLeavesCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
-                {pendingLeavesCount} kérelem
-              </h3>
-            </div>
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${pendingLeavesCount > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground"}`}>
-              <AlertCircle className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Cafeteria */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cafeteria Keret</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{cafeteriaKeret ? currentYear : "–"}</h3>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{cafeteriaKeret ? "Aktív keret" : "Nincs keret"}</p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
-              <Wallet className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
+        <KpiCard
+          label="Szabadság Marad"
+          value={`${remainingLeave} nap`}
+          href="/hr/self-service/time"
+        />
+        <KpiCard
+          label="Felhasznált Nap"
+          value={`${usedLeave} nap`}
+          href="/hr/self-service/time"
+        />
+        <KpiCard
+          label="Függőben Lévő"
+          value={`${pendingLeavesCount} kérelem`}
+          highlight={pendingLeavesCount > 0}
+          href="/hr/self-service/time"
+        />
+        <KpiCard
+          label="Cafeteria Keret"
+          value={cafeteriaKeret ? currentYear : "–"}
+          sub={cafeteriaKeret ? "Aktív keret" : "Nincs keret"}
+          href="/hr/self-service/benefits"
+        />
       </div>
 
       {/* Főrács: Időrögzítés + Szabadság + Kérelmek */}

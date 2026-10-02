@@ -35,7 +35,8 @@ export async function login(formData: FormData) {
 
   if (profile?.elerheto_modulok) {
     if (profile.elerheto_modulok.includes("hr") && !profile.elerheto_modulok.includes("docs")) {
-      return redirect("/hr/admin")
+      const isHrStaff = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda", "auditor"].includes(profile.hr_szerepkor || "")
+      return redirect(isHrStaff ? "/hr/admin" : "/hr")
     }
   }
 

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
+import { KpiCard } from "@/components/kpi-card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
 import { Dialog } from "@/components/ui/dialog"
@@ -134,59 +135,23 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
     <div className="space-y-6">
       {/* 1. Felső Statisztikai Sáv (KPI kártyák - EXACT match to Onboarding Image 1) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Aktív kilépők */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktív Kilépők</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1">{totalActive} fő</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Users className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Megszüntetésre vár */}
-        <Card className={`border shadow-xs transition-colors ${waitingTermination > 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-card"}`}>
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Megszüntetésre Vár</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 text-amber-600 dark:text-amber-400">
-                {waitingTermination} fő
-              </h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <FileText className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Hamarosan távozik */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Hamarosan Távozik</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1">{upcomingDepartures} fő</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Calendar className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Átlagos előrehaladás */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Átlagos Haladás</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1">{avgProgress}%</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
+        <KpiCard
+          label="Aktív Kilépők"
+          value={`${totalActive} fő`}
+        />
+        <KpiCard
+          label="Megszüntetésre Vár"
+          value={`${waitingTermination} fő`}
+          highlight={waitingTermination > 0}
+        />
+        <KpiCard
+          label="Hamarosan Távozik"
+          value={`${upcomingDepartures} fő`}
+        />
+        <KpiCard
+          label="Átlagos Haladás"
+          value={`${avgProgress}%`}
+        />
       </div>
 
       {/* 2. Füles Navigáció (Folyamatban lévő vs Lezárt vs Interjúk) */}

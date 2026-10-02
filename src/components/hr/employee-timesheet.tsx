@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { KpiCard } from "@/components/kpi-card"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, CalendarDays, Loader2, Clock, CalendarCheck, Umbrella, ChevronDown, ChevronUp } from "lucide-react"
 import { getMonthlyTimesheet, type TimesheetEntry } from "@/app/hr/attendance-actions"
@@ -80,53 +81,18 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
     <div className="space-y-4">
       {/* Stat kártyák – frissülnek a hónapváltással */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ledolgozott Órák</p>
-              {loading ? (
-                <div className="h-7 w-16 bg-muted animate-pulse rounded mt-1" />
-              ) : (
-                <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{totalHours.toFixed(1)} h</h3>
-              )}
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <Clock className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Munkanapok</p>
-              {loading ? (
-                <div className="h-7 w-16 bg-muted animate-pulse rounded mt-1" />
-              ) : (
-                <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-amber-600 dark:text-amber-400">{totalDaysWorked} nap</h3>
-              )}
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <CalendarCheck className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Távollét</p>
-              {loading ? (
-                <div className="h-7 w-16 bg-muted animate-pulse rounded mt-1" />
-              ) : (
-                <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-violet-600 dark:text-violet-400">{totalLeaveDays} nap</h3>
-              )}
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
-              <Umbrella className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
+        <KpiCard
+          label="Ledolgozott Órák"
+          value={loading ? "..." : `${totalHours.toFixed(1)} h`}
+        />
+        <KpiCard
+          label="Munkanapok"
+          value={loading ? "..." : `${totalDaysWorked} nap`}
+        />
+        <KpiCard
+          label="Távollét"
+          value={loading ? "..." : `${totalLeaveDays} nap`}
+        />
       </div>
 
       {/* Jelenléti ív kártya – nyitható/csukható */}

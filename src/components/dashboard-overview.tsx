@@ -9,6 +9,7 @@ import {
   Users, TrendingUp, ChevronRight, Zap, FileText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { KpiCard } from "@/components/kpi-card"
 import {
   ResponsiveContainer, AreaChart, Area,
   XAxis, YAxis, Tooltip, PieChart, Pie, Cell,
@@ -184,40 +185,7 @@ function daysUntil(iso: string | null): number | null {
   )
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────────
 
-function KpiCard({
-  label, value, sub, accentColor, href,
-}: {
-  label: string; value: number | string; sub: string
-  accentColor: string; href: string
-}) {
-  return (
-    <Link href={href} className="group block">
-      <div
-        className="relative overflow-hidden rounded-xl border border-border/60 bg-card p-5 transition-all duration-200 hover:border-border"
-        style={{ borderLeftColor: accentColor, borderLeftWidth: 3 }}
-      >
-        <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-            {label}
-          </p>
-          <p
-            className="text-3xl font-semibold tabular-nums tracking-tight"
-            style={{ color: accentColor }}
-          >
-            {value}
-          </p>
-          <p className="text-xs text-muted-foreground">{sub}</p>
-        </div>
-        <div className="mt-4 flex items-center gap-1 text-[11px] text-muted-foreground/50">
-          <ArrowUpRight className="h-3 w-3" />
-          <span>Megnyitás</span>
-        </div>
-      </div>
-    </Link>
-  )
-}
 
 function SectionHeader({
   title, sub, action,
@@ -558,26 +526,26 @@ export function DashboardOverview({
           label="Bejövő iratok"
           value={incomingTotal || filteredIratok.length}
           sub={`${inboxCount} iktatásra vár`}
-          accentColor={COLORS.teal} href="/inbox"
+          href="/inbox"
         />
         <KpiCard
           label="Kritikus határidők"
           value={urgentDossiers.length}
           sub={overdueCount > 0 ? `${overdueCount} lejárt határidő!` : "3 napon belüli"}
-          accentColor={urgentDossiers.length > 0 ? COLORS.rose : COLORS.slate}
+          highlight={urgentDossiers.length > 0}
           href="/dossiers"
         />
         <KpiCard
           label="Aktív ügyiratok"
           value={activeDossiers.length}
           sub={`${allUgyiratok.length} ügyirat összesen`}
-          accentColor={COLORS.emerald} href="/dossiers"
+          href="/dossiers"
         />
         <KpiCard
           label="Irattár & Selejtezés"
           value={archivedCount + scrapCount}
           sub={`${scrapCount} selejtezésre vár`}
-          accentColor={COLORS.blue} href="/archive"
+          href="/archive"
         />
       </div>
 

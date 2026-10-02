@@ -132,8 +132,8 @@ export async function fetchDisciplinaryPdfData(
   let cegNev = "eaisyDocs Vállalati Rendszerek Zrt."
   let cegSzekhely = "1054 Budapest, Szabadság tér 7."
   let cegAdoszam = "12345678-2-41"
-  let cegCegjegyzekszam = "01-10-123456"
-  let cegKepviselo = "Munkáltatói jogkör gyakorlója"
+  const cegCegjegyzekszam = "01-10-123456"
+  const cegKepviselo = "Munkáltatói jogkör gyakorlója"
 
   try {
     const { data: settings } = await supabase

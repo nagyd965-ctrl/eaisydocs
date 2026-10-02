@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Users, UserPlus, CalendarX, Briefcase, AlertCircle, Clock, ChevronRight, PlusCircle, CheckCircle2 } from "lucide-react"
+import { KpiCard } from "@/components/kpi-card"
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { ReassignLeavesButton } from "@/components/hr/reassign-leaves-button"
@@ -126,55 +127,27 @@ export default async function HrOverviewPage() {
 
       {/* Stat kártyák */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktív Dolgozók</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{activeEmployees ?? 0} fő</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={`border shadow-xs transition-colors ${(todayAbsences ?? 0) > 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-card"}`}>
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Mai Hiányzók</p>
-              <h3 className={`text-2xl font-bold tracking-tight mt-1 tabular-nums ${(todayAbsences ?? 0) > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
-                {todayAbsences ?? 0} fő
-              </h3>
-            </div>
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${(todayAbsences ?? 0) > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground"}`}>
-              <CalendarX className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Nyitott Pozíciók</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{openPositions ?? 0} db</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-info-subtle text-info flex items-center justify-center shrink-0">
-              <Briefcase className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktív Onboarding</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-violet-600 dark:text-violet-400">{activeOnboardings ?? 0} fő</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
-              <UserPlus className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
+        <KpiCard
+          label="Aktív Dolgozók"
+          value={`${activeEmployees ?? 0} fő`}
+          href="/hr/employee"
+        />
+        <KpiCard
+          label="Mai Hiányzók"
+          value={`${todayAbsences ?? 0} fő`}
+          highlight={(todayAbsences ?? 0) > 0}
+          href="/hr/time"
+        />
+        <KpiCard
+          label="Nyitott Pozíciók"
+          value={`${openPositions ?? 0} db`}
+          href="/hr/recruitment"
+        />
+        <KpiCard
+          label="Aktív Onboarding"
+          value={`${activeOnboardings ?? 0} fő`}
+          href="/hr/onboarding"
+        />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">

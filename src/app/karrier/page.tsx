@@ -43,7 +43,7 @@ export default async function KarrierPage() {
         {hirdetesek && hirdetesek.length > 0 ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {hirdetesek.map((hirdetes) => (
-              <Card key={hirdetes.id} className="flex flex-col hover:shadow-md transition-shadow bg-white">
+              <Card key={hirdetes.id} className="flex flex-col hover:border-primary/40 transition-colors bg-card">
                 <CardHeader>
                   <CardTitle className="text-xl">{hirdetes.cim}</CardTitle>
                   <CardDescription className="flex items-center gap-2 mt-2">

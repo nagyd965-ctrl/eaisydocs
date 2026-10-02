@@ -188,7 +188,7 @@ export async function generateAndFileAssetHandoverAction(params: {
   let lakcim: string | null = null
   let tajSzam: string | null = null
   let adoazonosito: string | null = null
-  let finalMunkakor = params.munkakor || "Munkatárs"
+  const finalMunkakor = params.munkakor || "Munkatárs"
 
   if (params.dolgozoId) {
     const { data: adatlap } = await adminClient

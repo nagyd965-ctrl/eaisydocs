@@ -174,16 +174,6 @@ function GlobalHeaderSearchContent() {
     }
   }, [])
 
-  // ── Read URL query parameter if present ────────────────────────────────────
-  useEffect(() => {
-    const qParam = searchParams.get("q")
-    if (qParam?.trim()) {
-      setQuery(qParam)
-      setOpen(true)
-      performDeepSearch(qParam, defaultFilters)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
 
   // ── Load recent searches and saved searches ────────────────────────────────
   useEffect(() => {
@@ -262,6 +252,17 @@ function GlobalHeaderSearchContent() {
     },
     [query, filters, recentSearches]
   )
+
+  // ── Read URL query parameter if present ────────────────────────────────────
+  useEffect(() => {
+    const qParam = searchParams.get("q")
+    if (qParam?.trim()) {
+      setQuery(qParam)
+      setOpen(true)
+      performDeepSearch(qParam, defaultFilters)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   // ── Debounced Quick Search (while typing) ──────────────────────────────────
   useEffect(() => {

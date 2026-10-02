@@ -215,7 +215,7 @@ export function SearchClientPage() {
       setQuery(qParam)
       performSearch(qParam, defaultFilters)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchParams, performSearch])
 
   // Close autocomplete on outside click

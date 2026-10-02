@@ -39,11 +39,14 @@ Elfogadásra kerül a **Globális UI/UX Egységességi Szabályzat (Global UI Co
   - **Irat metaadatok:** Fájl nélküli irat esetén szabványos Irat Részletek modál.
   - **Ügyiratok:** Ügyirat betekintő gomb, amely felugró modálban összegzi az ügyirat iktatási és felelősségi adatait.
 
-### 2.3. Statisztikai Kártyák (Linear Flat KPI Grid)
-- A statisztikai kártyák felépítése egységesen Linear-inspirált flat dizájnt követ:
-  - Nincs vastag bal oldali szegély (`border-l-4` kivezetve),
-  - Felül kisméretű uppercase felirat + tabular-nums kiemelt számérték,
-  - Jobb oldalon kerekített ikon-konténer diszkrét háttérrel (`rounded-lg bg-...`).
+### 2.3. Statisztikai Kártyák (Linear Flat KPI Grid & Kanonikus `KpiCard`)
+- Minden statisztikai sávban kötelező a központi `KpiCard` (`src/components/kpi-card.tsx`) komponens alkalmazása:
+  - **Szigorúan tilos dekoratív ikonokat, emojikat vagy kerekített ikondobozokat tenni a kártyákra.** A kártyák kizárólag a tiszta adatokra és feliratokra fókuszálnak.
+  - **Vastag bal oldali színes szegélyek (`border-l-4`, `borderLeftWidth: 3`) és aszimmetrikus bal oldali csíkozás szigorúan tiltott.**
+  - Felül kisméretű uppercase felirat (`text-xs font-medium text-muted-foreground uppercase tracking-wider`),
+  - Alatta a kiemelt tabular-nums számérték (`text-2xl font-semibold tabular-nums text-foreground`),
+  - Alatta a diszkrét kontextus felirat (`text-[11px] text-muted-foreground`).
+  - Nincsenek lebegő hover árnyékok (`hover:shadow-*`), csak finom keretszín-átmenet (`hover:border-primary/40 transition-colors`).
 
 ### 2.4. Státuszok és Szemantikus Tokenek
 - Minden entitás állapotmegjelenítésére a központi `StatusBadge` és a globális HSL változók (`success`, `warning`, `info`, `destructive`, `primary`) használandók.

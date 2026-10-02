@@ -40,7 +40,7 @@ export default async function InternalCareerPage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {hirdetesek?.map((hirdetes) => (
-          <Card key={hirdetes.id} className={cn("flex flex-col hover:shadow-md transition-shadow", hirdetes.is_internal ? "border-primary/50 bg-primary/5" : "")}>
+          <Card key={hirdetes.id} className={cn("flex flex-col hover:border-primary/40 transition-colors", hirdetes.is_internal ? "border-primary/50 bg-primary/5" : "")}>
             <CardHeader>
               <div className="flex justify-between items-start">
                 <CardTitle className="text-xl">{hirdetes.cim}</CardTitle>

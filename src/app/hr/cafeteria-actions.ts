@@ -231,7 +231,7 @@ export async function fileCafeteriaDeclarationAction(employeeId: string, year: n
     .replace(/[^a-zA-Z0-9._-]/g, "_")
   const storagePath = `cafeteria/${employeeId}/${Date.now()}_${cleanFileName}`
 
-  let { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await supabase.storage
     .from("irat_files")
     .upload(storagePath, buffer, {
       contentType: "application/pdf",

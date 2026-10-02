@@ -370,17 +370,17 @@ export function CandidateProfileSheet({
           )}
 
           <div className="space-y-4 pt-2">
-            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
               <span className="h-px bg-border flex-1"></span>
               Csatolt dokumentumok
               <span className="h-px bg-border flex-1"></span>
             </h4>
             
-            <div className="group relative bg-card border shadow-sm rounded-xl p-5 hover:shadow-md hover:border-primary/30 transition-all overflow-hidden mt-4">
+            <div className="group relative bg-card border rounded-xl p-5 hover:border-primary/50 transition-colors overflow-hidden mt-4">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
               <div className="relative z-10 flex flex-col gap-5">
                 <div className="flex items-start gap-4">
-                  <div className="bg-red-500/10 text-red-600 rounded-lg p-3 group-hover:scale-110 transition-transform shadow-sm">
+                  <div className="bg-red-500/10 text-red-600 rounded-lg p-3 group-hover:scale-105 transition-transform">
                     <FileText className="w-7 h-7" />
                   </div>
                   <div className="flex-1 min-w-0 pt-1">
@@ -392,7 +392,7 @@ export function CandidateProfileSheet({
                 </div>
                 
                 <Button 
-                  className="w-full shadow-sm group-hover:shadow transition-all font-semibold rounded-lg"
+                  className="w-full font-semibold rounded-lg"
                   variant="default"
                   disabled={!candidate.cv_storage_path || isLoadingCv}
                   onClick={handleOpenCv}

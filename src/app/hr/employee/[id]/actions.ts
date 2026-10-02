@@ -170,7 +170,7 @@ export async function addStudyContract(employeeId: string, formData: FormData) {
         .replace(/[^a-zA-Z0-9._-]/g, "_")
       storagePath = `study-contracts/${employeeId}/${Date.now()}_${cleanFileName}`
 
-      let { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("irat_files")
         .upload(storagePath, buffer, {
           contentType: file.type || "application/pdf",
@@ -315,7 +315,7 @@ export async function fileStudyContractAction(contractId: string, employeeId: st
       .replace(/[^a-zA-Z0-9._-]/g, "_")
     storagePath = `study-contracts/${employeeId}/${Date.now()}_${cleanFileName}`
 
-    let { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("irat_files")
       .upload(storagePath, buffer, {
         contentType: "application/pdf",
@@ -463,7 +463,7 @@ export async function addOrvosiVizsgalat(employeeId: string, formData: FormData)
         .replace(/[^a-zA-Z0-9._-]/g, "_")
       storagePath = `medical/${employeeId}/${Date.now()}_${cleanFileName}`
 
-      let { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("irat_files")
         .upload(storagePath, buffer, {
           contentType: file.type || "application/pdf",
@@ -664,7 +664,7 @@ export async function fileMedicalExaminationAction(orvosiId: string, employeeId:
       .replace(/[^a-zA-Z0-9._-]/g, "_")
     storagePath = `medical/${employeeId}/${Date.now()}_${cleanFileName}`
 
-    let { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("irat_files")
       .upload(storagePath, buffer, {
         contentType: "application/pdf",
@@ -799,7 +799,7 @@ export async function addFegyelmi(employeeId: string, formData: FormData) {
         .replace(/[^a-zA-Z0-9._-]/g, "_")
       storagePath = `disciplinary/${employeeId}/${Date.now()}_${cleanFileName}`
 
-      let { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("irat_files")
         .upload(storagePath, buffer, {
           contentType: file.type || "application/pdf",
@@ -962,7 +962,7 @@ export async function fileDisciplinaryAction(disciplinaryId: string, employeeId:
       .replace(/[^a-zA-Z0-9._-]/g, "_")
     storagePath = `disciplinary/${employeeId}/${Date.now()}_${cleanFileName}`
 
-    let { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("irat_files")
       .upload(storagePath, buffer, {
         contentType: "application/pdf",
@@ -1093,7 +1093,7 @@ export async function addKituntetes(employeeId: string, formData: FormData) {
         .replace(/[^a-zA-Z0-9._-]/g, "_")
       storagePath = `awards/${employeeId}/${Date.now()}_${cleanFileName}`
 
-      let { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("irat_files")
         .upload(storagePath, buffer, {
           contentType: file.type || "application/pdf",
@@ -1234,7 +1234,7 @@ export async function fileKituntetesAction(awardId: string, employeeId: string) 
       .replace(/[^a-zA-Z0-9._-]/g, "_")
     storagePath = `awards/${employeeId}/${Date.now()}_${cleanFileName}`
 
-    let { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("irat_files")
       .upload(storagePath, buffer, {
         contentType: "application/pdf",
@@ -1866,7 +1866,7 @@ export async function fileAnnualLeaveSheet(employeeId: string, year: number) {
     const fileName = `eves_szabadsag_nyilvantartas_${year}_${Date.now()}.pdf`
     const storagePath = `annual_leaves/${employeeId}/${fileName}`
 
-    let { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("irat_files")
       .upload(storagePath, buffer, {
         contentType: "application/pdf",
@@ -2002,7 +2002,7 @@ export async function uploadSignedDocumentAction(
     const storagePath = `signed_documents/${employeeId}/${Date.now()}_${cleanFileName}`
 
     // Feltöltés a Supabase Storage irat_files vödörbe
-    let { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("irat_files")
       .upload(storagePath, buffer, {
         contentType: file.type || "application/pdf",

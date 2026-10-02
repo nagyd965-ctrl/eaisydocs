@@ -90,19 +90,10 @@ export function LeaveHistoryList({ leaves }: { leaves: LeaveHistoryItem[] }) {
                 ? Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
                 : null
 
-            const statusBg =
-              leave.statusz === "jovahagyva"
-                ? "hover:border-l-emerald-400"
-                : leave.statusz === "jovahagyasra_var"
-                ? "hover:border-l-amber-400"
-                : leave.statusz === "elutasitva"
-                ? "hover:border-l-destructive"
-                : "hover:border-l-primary"
-
             return (
               <div
                 key={leave.id}
-                className={`flex items-center justify-between px-6 py-4 border-l-4 border-l-transparent transition-colors hover:bg-muted/30 ${statusBg}`}
+                className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-muted/40"
               >
                 <div className="flex items-center gap-4">
                   <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">

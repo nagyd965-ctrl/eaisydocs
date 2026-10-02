@@ -54,8 +54,13 @@ Ezek a szabályok a `design/` mappa és az `eaisyDocs_szoftverterv.md` alapján 
   - Minden dokumentumot és ügyiratot listázó nézetben kötelező biztosítani az in-place gyors megtekintést:
     - Csatolt fájlokhoz (PDF/kép): `DocumentViewer` (`src/components/document-viewer.tsx`) biztonságos audit naplózással.
     - Ügyiratokhoz: Ügyirat gyors betekintő modál (iktatószám, státusz, tárgy, határidő, irattári hely és közvetlen ugrás).
-- **Statisztikai Kártyák (Linear Flat KPI Grid):**
-  - Minden statisztikai sávban egységes Linear flat kártyák: felső kisméretű uppercase felirat + tabular-nums kiemelt érték bal oldalon, kerekített ikon-konténer jobb oldalon. Vastag bal oldali színes szegély (`border-l-4`) szigorúan tiltott.
+- **Statisztikai Kártyák (Linear Flat KPI Grid & Kanonikus `KpiCard`):**
+  - Minden statisztikai és dashboard sávban kötelezően a központi `KpiCard` (`src/components/kpi-card.tsx`) komponens használandó.
+  - **Struktúra:** Felső kisméretű uppercase felirat (`text-xs font-medium text-muted-foreground uppercase tracking-wider`), alatta a kiemelt számérték (`text-2xl font-semibold tabular-nums text-foreground`), alatta az opcionális diszkrét kontextus felirat (`text-[11px] text-muted-foreground`).
+  - **SZIGORÚAN TILTOTT ELEMEK:**
+    - **Dekoratív ikonok, emojik és kerekített ikondobozok használata a kártyákon szigorúan tilos.** A kártyák kizárólag a tiszta adatokra és feliratokra fókuszálnak.
+    - **Vastag bal oldali színes szegélyek (`border-l-4`, `borderLeftWidth: 3`) és aszimmetrikus bal csíkok szigorúan tiltottak.**
+    - A hover shadow használata tilos, kizárólag finom keretszín-átmenet (`hover:border-primary/40 transition-colors`) engedélyezett.
 - **Státuszok és Badge-ek:**
   - Kizárólag a központi `StatusBadge` és standard szemantikus HSL színek (`success`, `warning`, `info`, `destructive`, `primary`) alkalmazhatók.
 

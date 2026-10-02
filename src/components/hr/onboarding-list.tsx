@@ -6,6 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
+import { KpiCard } from "@/components/kpi-card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogTrigger } from "@/components/ui/dialog"
@@ -110,59 +111,23 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
     <div className="space-y-6">
       {/* 1. Felső Statisztikai Sáv (KPI kártyák) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Aktív belépők */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktív Belépők</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1">{totalActive} fő</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Users className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Fiók aktiválásra vár */}
-        <Card className={`border shadow-xs transition-colors ${waitingForAccount > 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-card"}`}>
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktiválásra Vár</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 text-amber-600 dark:text-amber-400">
-                {waitingForAccount} fő
-              </h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <UserPlus className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Közelgő kezdések */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Hamarosan Kezd</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1">{upcomingCount} fő</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Calendar className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Átlagos előrehaladás */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Átlagos Haladás</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1">{avgProgress}%</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
+        <KpiCard
+          label="Aktív Belépők"
+          value={`${totalActive} fő`}
+        />
+        <KpiCard
+          label="Aktiválásra Vár"
+          value={`${waitingForAccount} fő`}
+          highlight={waitingForAccount > 0}
+        />
+        <KpiCard
+          label="Hamarosan Kezd"
+          value={`${upcomingCount} fő`}
+        />
+        <KpiCard
+          label="Átlagos Haladás"
+          value={`${avgProgress}%`}
+        />
       </div>
 
       {/* 2. Füles Navigáció (Folyamatban lévő vs Lezárt) */}

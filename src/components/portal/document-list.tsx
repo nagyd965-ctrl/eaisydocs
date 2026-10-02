@@ -151,9 +151,9 @@ export function DocumentList({ documents, userName }: DocumentListProps) {
         const isRequired = doc.kotelezo_mindenkinek
         
         return (
-          <div key={doc.id} className="bg-card rounded-xl border p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex flex-col">
+          <div key={doc.id} className="bg-card rounded-xl border p-5 hover:border-primary/40 transition-colors relative overflow-hidden flex flex-col">
             {isAcknowledged && (
-              <div className="absolute top-0 right-0 bg-primary/10 text-primary px-3 py-1 rounded-bl-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+              <div className="absolute top-0 right-0 bg-primary/10 text-primary px-3 py-1 rounded-bl-xl text-xs font-semibold uppercase tracking-wider flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Elfogadva
               </div>
             )}

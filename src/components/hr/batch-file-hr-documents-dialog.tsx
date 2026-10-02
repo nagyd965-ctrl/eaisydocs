@@ -44,11 +44,6 @@ export function BatchFileHrDocumentsDialog({
     proposedSubject?: string
   } | null>(null)
 
-  // Ha nincs iktatatlan dokumentum, a gomb meg sem jelenik
-  if (!unfiledDocs || unfiledDocs.length === 0) {
-    return null
-  }
-
   useEffect(() => {
     if (open) {
       setDossierLoading(true)
@@ -66,6 +61,11 @@ export function BatchFileHrDocumentsDialog({
         })
     }
   }, [open, employeeId])
+
+  // Ha nincs iktatatlan dokumentum, a gomb meg sem jelenik
+  if (!unfiledDocs || unfiledDocs.length === 0) {
+    return null
+  }
 
   const handleBatchFiling = async () => {
     setLoading(true)

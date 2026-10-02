@@ -6,6 +6,44 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-02)
 
+### 👥 Egységesített Munkatársi Beléptetés & eaisyDocs Integrációs Modál ([P-045](../product/decisions/P-045-unified-employee-intake-and-docs-integration-ux.md), [A-005](../architecture/decisions/A-005-hr-modular-independence-architecture.md), [A-029](../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md))
+- **Teljes Felületi Egységesség a HR Munkaasztalon és a HR Beállításokban:**
+  - A HR Munkaasztalon (`src/app/hr/admin/page.tsx`) és a HR Beállításokban (`src/app/hr/settings/page.tsx`) azonos kanonikus `AddEmployeeDialog` (`src/components/hr/add-employee-dialog.tsx`) működik.
+  - Mindkét felület a központi `availableDocsUsers` lekérdezést használja, amely szűri az eaisyDocs-hoz rendelt fiókokat és feloldja a szerepköröket.
+- **Letisztult Vizuális Kommunikáció & Kétfülös Működés:**
+  - **Meglévő eaisyDocs fiók fül:**
+    - Finom teal/zöldes háttérszínű doboz (`border-teal-500/30 bg-teal-500/5 dark:bg-teal-500/10`) felesleges ikonok nélkül:
+      > *"Ha a meglévő eaisyDocs fiókok közül választasz munkatársat, a felhasználó hozzáférést kap az eaisyHR modulhoz is."*
+    - Dinamikus címke és kereshető legördülő lista eaisyDocs szerepkörökkel és *"Már HR dolgozó"* indikátorral.
+  - **Új fiók (Csak eaisyHR) fül:**
+    - Diszkrét tájékoztató sáv a moduláris szeparációról:
+      > *"Ez a fiók kizárólag az eaisyHR rendszerhez kap hozzáférést, az eaisyDocs iratkezelőt nem éri el."*
+
+### 🎨 Linear Flat Design Tisztítás & ESLint 0-Hiba Kódminőség
+- **Tiltott Hover Árnyékok Teljes Kivezetése (Design Drift Fix):**
+  - Eltávolítva az összes `hover:shadow-md`, `hover:shadow-xs` és `shadow-sm` lebegtetés:
+    - `src/components/portal/document-list.tsx`
+    - `src/components/hr/candidate-profile-sheet.tsx`
+    - `src/components/hr/exit-interview-summary.tsx`
+    - `src/app/karrier/page.tsx`
+    - `src/app/hr/self-service/career/page.tsx`
+  - Helyette a kanonikus Linear flat stílus (`border hover:border-primary/40 transition-colors`) érvényesül.
+- **Tiltott Bal Oldali Vastag Szegély (`border-l-4`) Kivezetése:**
+  - `src/components/hr/leave-history-list.tsx`: Letisztított, egységes `hover:bg-muted/40` sorstílus státusz-border nélkül.
+- **Kanonikus KPI Kártya Komponens & Kezdő Képernyők Teljes Egységesítése (`src/components/kpi-card.tsx`):**
+  - Elkészült a központi, kanonikus `KpiCard` komponens az ADR [A-029](../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md) és a design szabályzat alapján.
+  - **eaisyDocs kezdőképernyő (`src/components/dashboard-overview.tsx`):** Megszüntetve az aszimmetrikus bal oldali vastag szegély (`borderLeftWidth: 3`), a színezett nagyméretű szám és az alsó "Megnyitás" link. Helyette a kanonikus Linear flat grid működik jobb oldali kerekített, színezett ikondobozzal (`w-10 h-10 rounded-lg`), uppercase felirattal és `text-2xl font-semibold tabular-nums` számokkal.
+  - **eaisyHR kezdőképernyő (`src/app/hr/page.tsx` és `src/app/hr/admin/overview/page.tsx`):** A kézi kártyák átállítva a központi `KpiCard` komponensre, `font-bold` helyett `font-semibold tabular-nums` tipográfiával és egységes interaktivitással.
+- **KPI Tipográfia és Tabular Nums Egységesítés:**
+  - `src/components/hr/onboarding-list.tsx` és `src/components/hr/offboarding-list.tsx`: A KPI számoknál `font-bold` helyett a szabványos `font-semibold tabular-nums` formázás bevezetése.
+- **Kritikus ESLint & React Hook Hibák Megszüntetése (25 hiba ➔ 0 hiba):**
+  - `src/components/hr/batch-file-hr-documents-dialog.tsx`: React Rules of Hooks hiba javítva (a feltételes kilépés elé helyezve az `useEffect`).
+  - `src/components/global-header-search.tsx`: `performDeepSearch` deklaráció előtti hívásának megszüntetése az `useEffect` átrendezésével.
+  - `src/components/document-preview-frame.tsx`: Rekurzív önhívás ref-be csomagolása és render közbeni ref-módosítás megszüntetése.
+  - `src/utils/pdf-extractor.ts`: `@ts-ignore` cseréje szigorúbb `@ts-expect-error`-ra.
+  - `src/app/api/hr/download-document/route.ts` és PDF generátorok: `prefer-const` és nem használt változók automatikus rendezése.
+  - **Eredmény:** Az ESLint hibák száma 0 (`npx eslint --quiet src/` hibátlanul lefut), a TypeScript fordítás (`npx tsc --noEmit`) 0 hibás.
+
 ### 🛡️ ThinkAI Biztonsági Audit & Alkalmazásszintű Keményítés ([A-030](../architecture/decisions/A-030-code-level-security-hardening.md), [P-044](../product/decisions/P-044-code-level-security-hardening.md))
 - **Nyílt E-mail Relé Lezárása (`src/app/api/send-email/route.ts`):**
   - Autentikációs kapu (`supabase.auth.getUser()`) bevezetése.

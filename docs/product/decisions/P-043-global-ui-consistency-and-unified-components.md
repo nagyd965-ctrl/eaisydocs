@@ -41,3 +41,14 @@ akkor elvárás, hogy a partner részletes adatlapján, a dolgozói személyi do
 
 ### 2.3. Reszponzív és Letisztult Megjelenés
 - Minden elem követi a platform Linear-flat design szabályait (nincsenek lebegő árnyékok, 1px finom szegélyek, kényelmes sormagasságok, dark mode teljes támogatás).
+
+### 2.4. Statisztikai Kártyák (Linear Flat KPI Grid & Kanonikus KpiCard)
+1. **Egységes komponens:** Minden dashboard és statisztikai sáv a központi `KpiCard` (`src/components/kpi-card.tsx`) komponenst alkalmazza.
+2. **Struktúra:**
+   - Felső kisméretű uppercase felirat (`text-xs font-medium text-muted-foreground uppercase tracking-wider`),
+   - Kiemelt számérték (`text-2xl font-semibold tabular-nums text-foreground`),
+   - Kontextus felirat alatta (`text-[11px] text-muted-foreground`).
+3. **SZIGORÚAN TILTOTT ELEMEK:**
+   - **Tilos dekoratív ikonokat, emojikat vagy kerekített ikondobozokat elhelyezni a kártyákon.** A statisztikák kizárólag a tiszta adatokra és feliratokra koncentrálnak.
+   - **Tilos a vastag színes szegély (`border-l-4`, `borderLeftWidth: 3`) és az aszimmetrikus bal csíkozás.**
+   - **Tilos a lebegő hover árnyék (`hover:shadow-*`).** Kizárólag finom keretszín-átmenet (`hover:border-primary/40 transition-colors`) engedélyezett.

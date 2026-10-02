@@ -102,7 +102,7 @@ export async function fetchAwardCertificatePdfData(
   // 3. Cégadatok
   let cegNev = "eaisyDocs Vállalati Rendszerek Zrt."
   let cegSzekhely = "1054 Budapest, Szabadság tér 7."
-  let cegKepviselo = "Vezérigazgató"
+  const cegKepviselo = "Vezérigazgató"
 
   try {
     const { data: settings } = await supabase

@@ -389,7 +389,7 @@ export async function fileMonthlyTimesheet(employeeId: string, year: number, mon
     const storagePath = `timesheets/${employeeId}/${year}_${month}_jelenleti_iv_${Date.now()}.pdf`
 
     // 2. Feltöltés a Supabase Storage-be
-    let { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("irat_files")
       .upload(storagePath, buffer, {
         contentType: "application/pdf",

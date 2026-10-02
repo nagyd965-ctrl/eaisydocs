@@ -22,6 +22,7 @@ export async function onboardEmployee(data: {
   )
 
   let finalUserId = data.userId
+  let isNewAccountCreated = false
 
   if (data.mode === "select_candidate") {
     // 1. Kikeressük a jelentkezőt
@@ -65,6 +66,7 @@ export async function onboardEmployee(data: {
 
     // 3. Ha teljesen új fiók, beállítjuk a nevet
     if (!isExistingUser) {
+      isNewAccountCreated = true
       await supabaseAdmin
         .from("felhasznalo_profil")
         .update({ nev: candidate.nev })
@@ -124,6 +126,7 @@ export async function onboardEmployee(data: {
     await new Promise(resolve => setTimeout(resolve, 500))
 
     if (!isExistingUser) {
+      isNewAccountCreated = true
       await supabaseAdmin
         .from("felhasznalo_profil")
         .update({ nev: data.nev! })
@@ -163,9 +166,15 @@ export async function onboardEmployee(data: {
     updateData.hr_szerepkor = data.role
   }
 
-  // Modulok: a meglévő modulokat (pl. docs) SOHA ne töröljük, hanem uniózzuk a hr-rel!
-  const existingModules = Array.isArray(existingProf?.elerheto_modulok) ? existingProf.elerheto_modulok : []
-  updateData.elerheto_modulok = Array.from(new Set([...existingModules, "hr"]))
+  // Modulok: ha teljesen új fiók jött létre eaisyHR-ből, KIZÁRÓLAG az eaisyHR modul érhető el számára!
+  // Csak akkor uniózzuk a meglévő modulokkal (pl. docs), ha egy már létező eaisyDocs fiókot kapcsoltunk be!
+  if (isNewAccountCreated) {
+    updateData.elerheto_modulok = ["hr"]
+    updateData.docs_szerepkor = "betekinto"
+  } else {
+    const existingModules = Array.isArray(existingProf?.elerheto_modulok) ? existingProf.elerheto_modulok : []
+    updateData.elerheto_modulok = Array.from(new Set([...existingModules, "hr"]))
+  }
 
   if (orgUnitId) {
     updateData.hr_szervezeti_egyseg_id = orgUnitId

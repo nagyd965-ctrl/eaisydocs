@@ -11,7 +11,7 @@
 async function getPdfJs() {
   if (!(globalThis as any).pdfjsWorker) {
     try {
-      // @ts-ignore - pdfjs worker does not export TS definitions
+      // @ts-expect-error - pdfjs worker does not export TS definitions
       const workerMod = await import("pdfjs-dist/legacy/build/pdf.worker.mjs")
       ;(globalThis as any).pdfjsWorker = (workerMod as any).default || workerMod
     } catch (workerErr) {

@@ -52,8 +52,9 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-042](./P-042-configurable-four-eyes-disposal-ux.md) | 2026-10-02 | Konfigurálható Négyszem-Elv Kezelőfelület és Dinamikus UX | `[Docs]` | `UX / Settings & Archive` | `settings-client.tsx`, `archive-client.tsx`, `admin-actions.ts` |
 | [P-043](./P-043-global-ui-consistency-and-unified-components.md) | 2026-10-02 | Globális UI/UX Egységességi Irányelv és Egységesített Képernyőfelépítés | `[Közös]` | `UI/UX Standards` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), `table-toolbar.tsx`, `partner-documents-table.tsx` |
 | [P-044](./P-044-code-level-security-hardening.md) | 2026-10-02 | Rendszerszintű Alkalmazásbiztonság és Adatvédelmi Kapuk | `[Közös]` | `Application Security / Data Protection` | [A-030](../../architecture/decisions/A-030-code-level-security-hardening.md), `send-email/route.ts`, `download-document/route.ts`, `middleware.ts` |
+| [P-045](./P-045-unified-employee-intake-and-docs-integration-ux.md) | 2026-10-02 | Egységesített Munkatársi Beléptetés és eaisyDocs Integrációs Modál UX | `[HR]` | `HR / Admin & Settings` | `add-employee-dialog.tsx`, `hr/admin/page.tsx`, `hr/settings/page.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-045`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-046`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!

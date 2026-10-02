@@ -39,6 +39,8 @@ export function DocumentPreviewFrame({
     }
   }, [cleanupBlob])
 
+  const loadDocumentRef = useRef<((isRetry?: boolean) => Promise<void>) | null>(null)
+
   const loadDocument = useCallback(async (isRetry = false) => {
     if (!src) {
       cleanupBlob()
@@ -62,7 +64,7 @@ export function DocumentPreviewFrame({
         if (!isRetry && retryCount === 0 && (response.status === 404 || response.status === 502)) {
           setRetryCount(prev => prev + 1)
           setTimeout(() => {
-            loadDocument(true)
+            loadDocumentRef.current?.(true)
           }, 1200)
           return
         }
@@ -100,6 +102,10 @@ export function DocumentPreviewFrame({
       setError(err instanceof Error ? err.message : "Váratlan hiba történt a dokumentum betöltésekor.")
     }
   }, [src, retryCount, cleanupBlob])
+
+  useEffect(() => {
+    loadDocumentRef.current = loadDocument
+  }, [loadDocument])
 
   useEffect(() => {
     setRetryCount(0)

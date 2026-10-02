@@ -52,9 +52,11 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Fájl letöltése felhasználói auth kontextussal
-    let { data: fileData, error: downloadError } = await supabase.storage
+    const downloadRes = await supabase.storage
       .from(bucket)
       .download(filePath)
+    let fileData = downloadRes.data
+    const downloadError = downloadRes.error
 
     // Ha RLS miatt nem érhető el közvetlenül, de a fenti ABAC/RBAC jogosultság-ellenőrzés sikeres volt:
     if (downloadError || !fileData) {

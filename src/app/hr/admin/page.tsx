@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { UserPlus, AlertCircle, Users, Briefcase, AlertTriangle, ChevronRight } from "lucide-react"
 import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
 import { EmployeeTable } from "@/components/hr/employee-table"
+import { KpiCard } from "@/components/kpi-card"
 import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
@@ -56,17 +57,32 @@ export default async function HrAdminPage() {
 
   // 2. Felvételi adatok
   const { data: jobs } = await supabase.from("hr_munkakor").select("id, megnevezes")
-  const { data: allUsers } = await supabase.from("felhasznalo_profil").select("id, nev")
   const assignedIds = employees?.filter(e => e.hr_dolgozo_adatlap !== null).map(e => e.id) || []
-  const unassignedUsers = allUsers?.filter(u => !assignedIds.includes(u.id)) || []
+
+  // Kizárólag az eaisyDocs (iratkezelő) fiókokat kérjük le a meglévő fiók választóhoz
+  const { data: docsProfiles } = await supabaseAdmin
+    .from("felhasznalo_profil")
+    .select("id, nev, docs_szerepkor, szerepkor, elerheto_modulok")
+    .contains("elerheto_modulok", ["docs"])
+    .order("nev", { ascending: true })
+
+  const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+  const emailMap = new Map(authUsers?.users?.map(u => [u.id, u.email]) || [])
+
+  const availableDocsUsers = (docsProfiles || []).map(u => ({
+    id: u.id,
+    nev: u.nev,
+    email: emailMap.get(u.id) || "",
+    docs_szerepkor: u.docs_szerepkor || u.szerepkor || "ugyintezo",
+    isAlreadyAssigned: assignedIds.includes(u.id)
+  }))
 
   const { data: elfogadottJelentkezok } = await supabaseAdmin
     .from("hr_toborzas")
     .select("id, nev, email, megpalyazott_munkakor_id")
     .eq("statusz", "elfogadva")
 
-  const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
-  const userEmails = authUsers.users.map(u => u.email)
+  const userEmails = authUsers?.users?.map(u => u.email) || []
   const availableCandidates = elfogadottJelentkezok?.filter(j => !userEmails.includes(j.email)) || []
 
   // 3. Toborzási statisztikák
@@ -117,7 +133,7 @@ export default async function HrAdminPage() {
           </p>
         </div>
         <AddEmployeeDialog
-          availableUsers={unassignedUsers}
+          availableUsers={availableDocsUsers}
           jobs={jobs || []}
           candidates={availableCandidates}
         />
@@ -125,52 +141,21 @@ export default async function HrAdminPage() {
 
       {/* Stat kártyák */}
       <div className="grid gap-4 md:grid-cols-3">
-        {/* Teljes Állomány */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Teljes Állomány</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{activeEmployees.length} fő</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Nyitott Pozíciók */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Nyitott Pozíciók</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{activeAdsCount} db</h3>
-              {activeCandidatesCount > 0 && (
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {activeCandidatesCount} aktív jelentkező
-                </p>
-              )}
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-info-subtle text-info flex items-center justify-center shrink-0">
-              <Briefcase className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Figyelmeztetés */}
-        <Card className={`border shadow-xs transition-colors ${alerts.length > 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-card"}`}>
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Figyelmeztetés</p>
-              <h3 className={`text-2xl font-bold tracking-tight mt-1 tabular-nums ${alerts.length > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
-                {alerts.length} db
-              </h3>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{alerts.length > 0 ? "Azonnali teendő" : "Minden rendben"}</p>
-            </div>
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${alerts.length > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground"}`}>
-              <AlertCircle className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
+        <KpiCard
+          label="Teljes Állomány"
+          value={`${activeEmployees.length} fő`}
+        />
+        <KpiCard
+          label="Nyitott Pozíciók"
+          value={`${activeAdsCount} db`}
+          sub={activeCandidatesCount > 0 ? `${activeCandidatesCount} aktív jelentkező` : undefined}
+        />
+        <KpiCard
+          label="Figyelmeztetés"
+          value={`${alerts.length} db`}
+          sub={alerts.length > 0 ? "Azonnali teendő" : "Minden rendben"}
+          highlight={alerts.length > 0}
+        />
       </div>
 
       {/* Alert sáv – csak ha van figyelmeztetés */}

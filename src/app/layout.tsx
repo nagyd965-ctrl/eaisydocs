@@ -26,13 +26,14 @@ export default async function RootLayout({
   const supabase = await createClient();
   let docsRole = "ugyintezo";
   let hrRole = "munkavallalo";
+  let elerhetoModulok: string[] = [];
 
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data: profile } = await supabase
         .from("felhasznalo_profil")
-        .select("docs_szerepkor, hr_szerepkor")
+        .select("docs_szerepkor, hr_szerepkor, elerheto_modulok")
         .eq("id", user.id)
         .single();
       if (profile?.docs_szerepkor) {
@@ -40,6 +41,9 @@ export default async function RootLayout({
       }
       if (profile?.hr_szerepkor) {
         hrRole = profile.hr_szerepkor;
+      }
+      if (profile?.elerheto_modulok) {
+        elerhetoModulok = profile.elerheto_modulok;
       }
     }
   } catch (e) {
@@ -60,7 +64,7 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider>
-            <LayoutWrapper docsRole={docsRole} hrRole={hrRole}>
+            <LayoutWrapper docsRole={docsRole} hrRole={hrRole} elerhetoModulok={elerhetoModulok}>
               {children}
             </LayoutWrapper>
             <Toaster />

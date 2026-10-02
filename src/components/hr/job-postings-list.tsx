@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent } from "@/components/ui/card"
+import { KpiCard } from "@/components/kpi-card"
 import {
   ExternalLink, Edit, Trash2, Briefcase, CheckCircle,
   Users, Search, Clock, Plus
@@ -131,47 +132,19 @@ export function JobPostingsList({
 
       {/* Stat kártyák */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Összes hirdetés */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Összes Hirdetés</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{postings.length} db</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <Briefcase className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Aktív & Publikus */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktív & Publikus</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-emerald-600 dark:text-emerald-400">
-                {activePublicCount} db
-              </h3>
-              <p className="text-[11px] text-muted-foreground mt-0.5">karrieroldalon látható</p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <CheckCircle className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Összes jelentkező */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Összes Jelentkező</p>
-              <h3 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{candidates.length} fő</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
+        <KpiCard
+          label="Összes Hirdetés"
+          value={`${postings.length} db`}
+        />
+        <KpiCard
+          label="Aktív & Publikus"
+          value={`${activePublicCount} db`}
+          sub="karrieroldalon látható"
+        />
+        <KpiCard
+          label="Összes Jelentkező"
+          value={`${candidates.length} fő`}
+        />
       </div>
 
       {/* Keresés + Filter + Új hirdetés */}

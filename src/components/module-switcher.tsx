@@ -16,7 +16,7 @@ import { createClient } from "@/utils/supabase/client"
 export function ModuleSwitcher() {
   const pathname = usePathname()
   const isHR = pathname.startsWith("/hr")
-  const [modules, setModules] = React.useState<string[]>(["docs", "hr"]) // Default fallback for UI
+  const [modules, setModules] = React.useState<string[]>([])
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
@@ -25,14 +25,16 @@ export function ModuleSwitcher() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data } = await supabase.from("felhasznalo_profil").select("elerheto_modulok").eq("id", user.id).single()
-        if (data?.elerheto_modulok) {
+        if (data?.elerheto_modulok && Array.isArray(data.elerheto_modulok) && data.elerheto_modulok.length > 0) {
           setModules(data.elerheto_modulok)
+        } else {
+          setModules(isHR ? ["hr"] : ["docs"])
         }
       }
       setLoading(false)
     }
     fetchModules()
-  }, [])
+  }, [isHR])
 
   const hasDocs = modules.includes("docs")
   const hasHR = modules.includes("hr")
@@ -58,9 +60,7 @@ export function ModuleSwitcher() {
     </div>
   )
 
-  if (loading) return <div className="p-2 h-10"></div>
-
-  if (!canSwitch) {
+  if (loading || !canSwitch) {
     return (
       <div className="flex items-center gap-2 p-2 w-full">
         {logoContent}

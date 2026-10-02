@@ -53,6 +53,7 @@ export default async function HrSettingsPage() {
   let jobs: any[] = []
   let allUsers: any[] = []
   let unassignedUsers: any[] = []
+  let availableDocsUsers: any[] = []
   let availableCandidates: any[] = []
   let rootOrgUnits: OrgUnitNode[] = []
 
@@ -156,14 +157,31 @@ export default async function HrSettingsPage() {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    // Kizárólag az eaisyDocs (iratkezelő) fiókokat kérjük le a meglévő fiók választóhoz
+    const { data: docsProfiles } = await supabaseAdmin
+      .from("felhasznalo_profil")
+      .select("id, nev, docs_szerepkor, szerepkor, elerheto_modulok")
+      .contains("elerheto_modulok", ["docs"])
+      .order("nev", { ascending: true })
+
+    const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+    const emailMap = new Map(authUsers?.users?.map(u => [u.id, u.email]) || [])
+
+    availableDocsUsers = (docsProfiles || []).map(u => ({
+      id: u.id,
+      nev: u.nev,
+      email: emailMap.get(u.id) || "",
+      docs_szerepkor: u.docs_szerepkor || u.szerepkor || "ugyintezo",
+      isAlreadyAssigned: assignedIds.includes(u.id)
+    }))
+
     // 4. Toborzásból (ATS) elfogadott jelentkezők lekérése
     const { data: elfogadottJelentkezok } = await supabaseAdmin
       .from("hr_toborzas")
       .select("id, nev, email, megpalyazott_munkakor_id")
       .eq("statusz", "elfogadva")
       
-    const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
-    const userEmails = authUsers.users.map(u => u.email)
+    const userEmails = authUsers?.users?.map(u => u.email) || []
     availableCandidates = elfogadottJelentkezok?.filter(j => !userEmails.includes(j.email)) || []
   }
 
@@ -396,7 +414,7 @@ export default async function HrSettingsPage() {
                   </CardContent>
                   <div className="px-0 py-2">
                     <AddEmployeeDialog
-                      availableUsers={unassignedUsers}
+                      availableUsers={availableDocsUsers}
                       jobs={jobs || []}
                       candidates={availableCandidates}
                       customTrigger={
