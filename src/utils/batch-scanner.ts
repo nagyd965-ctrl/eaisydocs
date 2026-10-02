@@ -490,7 +490,10 @@ export async function ingestSplitDocuments(
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
       fetch(`${appUrl}/api/pdf/convert`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-secret": process.env.CRON_SECRET || "",
+        },
         body: JSON.stringify({ fajl_id: fajlResult.id }),
       }).catch((err) => console.warn("[BatchScanner] PDF/A worker trigger warning:", err))
     }

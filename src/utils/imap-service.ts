@@ -224,11 +224,18 @@ export async function processIncomingEmails() {
         // Process attachments
         if (parsed.attachments && parsed.attachments.length > 0) {
           for (const attachment of parsed.attachments) {
-            const fileName = attachment.filename || 'ismeretlen_fajl.dat';
+            const rawFileName = (attachment.filename || 'ismeretlen_fajl.dat').trim();
+            const safeBaseName = rawFileName
+              .replace(/\0/g, '')
+              .replace(/\\/g, '/')
+              .split('/')
+              .pop() || 'ismeretlen_fajl.dat';
+            const fileName = safeBaseName;
+            const sanitizedFileName = safeBaseName.replace(/[^a-zA-Z0-9._-]/g, '_');
             const fileBuffer = attachment.content;
             
-            // Upload to Supabase Storage
-            const filePath = `${iratId}/${fileName}`;
+            // Upload to Supabase Storage with sanitized path
+            const filePath = `${iratId}/${sanitizedFileName}`;
             const { error: uploadError } = await supabase.storage
               .from('irat_files')
               .upload(filePath, fileBuffer, {

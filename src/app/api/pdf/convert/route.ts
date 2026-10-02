@@ -5,6 +5,25 @@ import { convertToPdfA } from '@/utils/pdfa-converter'
 // Ezt a végpontot a háttérben (aszinkron módon) fogjuk meghívni a fájlfeltöltések után.
 export async function POST(request: Request) {
   try {
+    const internalSecret = request.headers.get("x-internal-secret");
+    const authHeader = request.headers.get("authorization");
+    const validSecret = process.env.CRON_SECRET;
+    const isSecretValid = Boolean(validSecret && (internalSecret === validSecret || authHeader === `Bearer ${validSecret}`));
+
+    let isAuthorized = isSecretValid;
+    if (!isAuthorized) {
+      const { createClient: createServerSupabase } = await import("@/utils/supabase/server");
+      const supabaseUserClient = await createServerSupabase();
+      const { data: { user } } = await supabaseUserClient.auth.getUser();
+      if (user) {
+        isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) {
+      return NextResponse.json({ error: "Unauthorized: Hitelesítés szükséges" }, { status: 401 });
+    }
+
     const { fajl_id } = await request.json()
 
     if (!fajl_id) {

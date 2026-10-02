@@ -6,7 +6,35 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-02)
 
-### 🔍 Partner Adatlap: Szabványos TableToolbar Szűrő & Gyors Megtekintés Modálok (`src/components/partner-documents-table.tsx`)
+### 🛡️ ThinkAI Biztonsági Audit & Alkalmazásszintű Keményítés ([A-030](../architecture/decisions/A-030-code-level-security-hardening.md), [P-044](../product/decisions/P-044-code-level-security-hardening.md))
+- **Nyílt E-mail Relé Lezárása (`src/app/api/send-email/route.ts`):**
+  - Autentikációs kapu (`supabase.auth.getUser()`) bevezetése.
+  - Szigorú regex validáció a címzettre és feladóra, belső hibaüzenetek maszkolása.
+- **HR Dokumentum Letöltési Jogosultság & IDOR Védelem (`src/app/api/hr/download-document/route.ts`):**
+  - Jogosultságellenőrzés a `hr-documents` vödörből való letöltéseknél:
+    - Belső munkaköri leírások megtekinthetők munkatársak számára.
+    - Személyi és munkajogi iratok kizárólag a dokumentum tulajdonosa (dolgozó) vagy HR/Rendszergazda számára tölthetők le.
+- **Időzített Cron Végpontok Keményítése (`src/app/api/cron/*`):**
+  - Eltávolítva a beégetett teszt fallback kulcs (`teszt-cron-kulcs-123`) a `nightly` és `morning` végpontokról.
+  - Szigorú `CRON_SECRET` kötelezettség a `src/app/api/cron/imap/route.ts` végponton.
+- **PDF Konverziós Végpont Védelem (`src/app/api/pdf/convert/route.ts`):**
+  - Autentikált munkamenet VAGY belső `x-internal-secret` (`CRON_SECRET`) fejléc megkövetelése.
+  - Belső hívások (`inbox/actions.ts`, `batch-scanner.ts`) felkészítve a belső secret átadására.
+- **AI CV Feldolgozás Védelem (`src/app/api/hr/parse-cv/route.ts`):**
+  - Munkamenet-hitelesítés és `hr_admin` / `admin` szerepkör ellenőrzés a Gemini AI modell hívása előtt.
+- **Karrier Portál Fájlfeltöltési Validáció & XSS Megelőzés (`src/app/karrier/[id]/*`):**
+  - Kiterjesztés- és MIME típus fehérlista (`.pdf`, `.docx`, `.doc`), magic bytes ellenőrzés (`%PDF-`), 10 MB méretlimit.
+  - Kivezetve a `dangerouslySetInnerHTML` a pozícióleírásoknál (`whitespace-pre-wrap` biztonságos szövegformázás).
+- **IMAP Csatolmány Path Traversal Védelem (`src/utils/imap-service.ts`):**
+  - Csatolmány fájlnevek tisztítása (`replace(/[^a-zA-Z0-9._-]/g, '_')` és `..` szekvenciák tiltása).
+- **Middleware Védett Útvonalak Bővítése (`src/utils/supabase/middleware.ts` & `src/app/partners/page.tsx`):**
+  - Bővítve a védett útvonalak köre: `/partners`, `/tasks`, `/settings`, `/security-policy`, `/documents`, `/hr`.
+- **OAuth Callback Handler (`src/app/auth/callback/route.ts`):**
+  - Megvalósítva a PKCE kódcsere (`exchangeCodeForSession`), nyílt átirányítás (Open Redirect) elleni védelemmel.
+- **HTTP Biztonsági Fejlécek (`next.config.ts`):**
+  - `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`.
+- **Teljes Git Reverzibilitás:**
+  - Valamennyi biztonsági javítás kizárólag a kód/alkalmazás rétegben valósult meg, távoli Supabase adatbázis mutáció nélkül.
 - **Szabványos Jobb Oldali `TableToolbar` Integráció:**
   - Teljes vizuális és funkcionális összhang az eaisyDocs többi felületével (pl. Partnerek lista, Bejövő sor).
   - Bal oldalon: Valós idejű keresőmező (`Search` és gyors `X` törlő gombbal).

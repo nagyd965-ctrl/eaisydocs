@@ -17,47 +17,75 @@ export async function submitApplication(formData: FormData) {
       return { error: "Hiányzó kötelező mezők!" }
     }
 
+    // 1. E-mail validáció
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email.trim())) {
+      return { error: "Kérjük, érvényes e-mail címet adjon meg!" }
+    }
+
+    // 2. Fájl méret és típus ellenőrzés (max 10MB, csak PDF és Word)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024
+    if (cvFile.size > MAX_FILE_SIZE) {
+      return { error: "A feltöltött önéletrajz mérete nem haladhatja meg a 10 MB-ot!" }
+    }
+    if (cvFile.size === 0) {
+      return { error: "A kiválasztott fájl üres (0 bájt)!" }
+    }
+
+    const allowedExtensions = ["pdf", "docx", "doc"]
+    const fileExt = cvFile.name.split('.').pop()?.toLowerCase() || ""
+    if (!allowedExtensions.includes(fileExt)) {
+      return { error: "Kérjük, kizárólag PDF vagy Word (.doc, .docx) formátumú önéletrajzot töltsön fel!" }
+    }
+
+    // PDF fájl esetén mágikus bájtok vizsgálata
+    const fileBuffer = Buffer.from(await cvFile.arrayBuffer())
+    if (fileExt === "pdf") {
+      if (fileBuffer.length < 32 || !fileBuffer.subarray(0, 5).toString("utf-8").startsWith("%PDF-")) {
+        return { error: "A feltöltött fájl nem valódi PDF állomány!" }
+      }
+    }
+
     // Használjuk az Admin klienst, mivel bejelentkezés nélküli kérésről van szó
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // 1. Önéletrajz feltöltése
-    const fileExt = cvFile.name.split('.').pop()
+    // 3. Önéletrajz feltöltése biztonságos generált névvel
     const fileName = `${crypto.randomUUID()}.${fileExt}`
     const storagePath = `cv/${fileName}`
     
     const { data: uploadData, error: uploadError } = await supabaseAdmin
       .storage
       .from('hr_dokumentumok')
-      .upload(storagePath, cvFile, {
-        contentType: cvFile.type,
+      .upload(storagePath, fileBuffer, {
+        contentType: cvFile.type || (fileExt === "pdf" ? "application/pdf" : "application/octet-stream"),
         upsert: false
       })
 
     if (uploadError) {
       console.error("Storage hiba:", uploadError)
-      return { error: "Nem sikerült feltölteni az önéletrajzot: " + uploadError.message }
+      return { error: "Nem sikerült feltölteni az önéletrajzot. Kérjük, próbálja újra később." }
     }
 
-    // 2. Adatbázis bejegyzés létrehozása
+    // 4. Adatbázis bejegyzés létrehozása
     const { error: dbError } = await supabaseAdmin
       .from("hr_toborzas")
       .insert({
         allashirdetes_id: allashirdetesId,
         megpalyazott_munkakor_id: munkakorId,
-        nev,
-        email,
-        telefon,
-        uzenet,
+        nev: nev.trim(),
+        email: email.trim(),
+        telefon: telefon?.trim() || null,
+        uzenet: uzenet?.trim() || null,
         cv_storage_path: uploadData.path,
         statusz: "uj"
       })
 
     if (dbError) {
       console.error("Adatbázis hiba:", dbError)
-      return { error: "Nem sikerült elmenteni a jelentkezést: " + dbError.message }
+      return { error: "Nem sikerült elmenteni a jelentkezést. Kérjük, próbálja újra később." }
     }
 
     // Opcionális: Rögzítés az eseménynaplóban, mint külső esemény

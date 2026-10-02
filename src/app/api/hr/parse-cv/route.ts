@@ -1,11 +1,32 @@
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "@/utils/supabase/server";
 import { GoogleGenAI } from "@google/genai";
 if (typeof global !== "undefined" && typeof (global as any).DOMMatrix === "undefined") {
   (global as any).DOMMatrix = class {};
 }
 
 export async function POST(req: Request) {
+  const supabaseUser = await createServerClient();
+  const { data: { user } } = await supabaseUser.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized: Bejelentkezés szükséges" }, { status: 401 });
+  }
+
+  const { data: profile } = await supabaseUser
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .single();
+
+  const isHr = ["hr_munkatars", "hr_vezeto", "admin"].includes(profile?.hr_szerepkor || "") ||
+               ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "");
+
+  if (!isHr) {
+    return NextResponse.json({ error: "Forbidden: Nincs jogosultsága AI önéletrajz elemzés indításához" }, { status: 403 });
+  }
+
   let toborzas_id: string | null = null;
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

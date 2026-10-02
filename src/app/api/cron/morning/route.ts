@@ -10,9 +10,9 @@ export async function GET(request: Request) {
     const authHeader = request.headers.get('authorization');
     const { searchParams } = new URL(request.url);
     const secretQuery = searchParams.get('secret');
-    const expectedSecret = process.env.CRON_SECRET || 'teszt-cron-kulcs-123';
+    const expectedSecret = process.env.CRON_SECRET;
     
-    if (authHeader !== `Bearer ${expectedSecret}` && authHeader !== expectedSecret && secretQuery !== expectedSecret) {
+    if (!expectedSecret || (authHeader !== `Bearer ${expectedSecret}` && authHeader !== expectedSecret && secretQuery !== expectedSecret)) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 

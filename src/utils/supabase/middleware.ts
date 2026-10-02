@@ -39,7 +39,13 @@ export async function updateSession(request: NextRequest) {
                            request.nextUrl.pathname.startsWith('/dossiers') ||
                            request.nextUrl.pathname.startsWith('/search') ||
                            request.nextUrl.pathname.startsWith('/archive') ||
-                           request.nextUrl.pathname.startsWith('/admin')
+                           request.nextUrl.pathname.startsWith('/admin') ||
+                           request.nextUrl.pathname.startsWith('/partners') ||
+                           request.nextUrl.pathname.startsWith('/tasks') ||
+                           request.nextUrl.pathname.startsWith('/settings') ||
+                           request.nextUrl.pathname.startsWith('/security-policy') ||
+                           request.nextUrl.pathname.startsWith('/documents') ||
+                           request.nextUrl.pathname.startsWith('/hr')
 
   // Default redirect for unauthenticated users on protected routes
   if (!user && isProtectedRoute) {

@@ -77,7 +77,9 @@ export default async function HirdetesReszletekPage({ params }: { params: Promis
 
           <div className="prose max-w-none prose-slate">
             {hirdetes.reszletes_leiras ? (
-              <div dangerouslySetInnerHTML={{ __html: hirdetes.reszletes_leiras.replace(/\n/g, '<br/>') }} />
+              <div className="whitespace-pre-wrap leading-relaxed text-foreground/90 font-normal">
+                {hirdetes.reszletes_leiras}
+              </div>
             ) : (
               <div>
                 <p>Csatlakozz hozzánk <strong>{hirdetes.cim}</strong> pozícióba!</p>

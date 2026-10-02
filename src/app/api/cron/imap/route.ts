@@ -3,11 +3,14 @@ import { processIncomingEmails } from '@/utils/imap-service';
 
 // Ez egy cron végpont, amit meghívhat egy külső szolgáltató (pl. Vercel Cron, UptimeRobot) 5 percenként.
 export async function GET(request: Request) {
-  // Opcionálisan: Ellenőrizd a CRON_SECRET fejlécet a jogosulatlan futtatások ellen
   const authHeader = request.headers.get('authorization');
+  const { searchParams } = new URL(request.url);
+  const secretQuery = searchParams.get('secret');
+  const expectedSecret = process.env.CRON_SECRET;
+
   if (
-    process.env.CRON_SECRET && 
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
+    !expectedSecret ||
+    (authHeader !== `Bearer ${expectedSecret}` && authHeader !== expectedSecret && secretQuery !== expectedSecret)
   ) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
