@@ -118,12 +118,12 @@ export function SettingsEmployeeTable({
     else if (hr_szerepkor === "rendszergazda") { roleColor = "bg-destructive/10 text-destructive border-destructive/20 border"; roleName = "Rendszergazda (IT)" }
     else if (hr_szerepkor === "hr_vezeto") { roleColor = "bg-primary/10 text-primary border-primary/20 border"; roleName = "HR Vezető (Igazgató)" }
     else if (hr_szerepkor === "hr_munkatars") { roleColor = "bg-primary/10 text-primary border-primary/20 border"; roleName = "HR Munkatárs" }
-    else if (hr_szerepkor === "vezeto") { roleColor = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 border"; roleName = "Vezető (Közvetlen)" }
+    else if (hr_szerepkor === "vezeto") { roleColor = "bg-success/10 text-success border-success/20 border"; roleName = "Vezető (Közvetlen)" }
     else if (hr_szerepkor === "munkavallalo") { roleName = "Munkavállaló (Alap)" }
-    else if (hr_szerepkor === "berugyi") { roleColor = "bg-blue-500/10 text-blue-600 border-blue-500/20 border"; roleName = "Bérügyi / Bérszámfejtő" }
-    else if (hr_szerepkor === "toborzo") { roleColor = "bg-orange-500/10 text-orange-600 border-orange-500/20 border"; roleName = "Toborzó (ATS)" }
-    else if (hr_szerepkor === "munkavedelmi") { roleColor = "bg-amber-500/10 text-amber-600 border-amber-500/20 border"; roleName = "Munkavédelmi Felelős" }
-    else if (hr_szerepkor === "auditor") { roleColor = "bg-indigo-500/10 text-indigo-600 border-indigo-500/20 border"; roleName = "Auditor (Könyvvizsgáló)" }
+    else if (hr_szerepkor === "berugyi") { roleColor = "bg-info/10 text-info border-info/20 border"; roleName = "Bérügyi / Bérszámfejtő" }
+    else if (hr_szerepkor === "toborzo") { roleColor = "bg-warning/10 text-warning border-warning/20 border"; roleName = "Toborzó (ATS)" }
+    else if (hr_szerepkor === "munkavedelmi") { roleColor = "bg-warning/10 text-warning border-warning/20 border"; roleName = "Munkavédelmi Felelős" }
+    else if (hr_szerepkor === "auditor") { roleColor = "bg-primary/10 text-primary border-primary/20 border"; roleName = "Auditor (Könyvvizsgáló)" }
 
     return (
       <Badge variant="secondary" className={`font-normal ${roleColor}`}>
@@ -148,7 +148,7 @@ export function SettingsEmployeeTable({
             <UserCheck className="w-3.5 h-3.5" />
             Aktív munkatársak
             <span className={cn(
-              "ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold",
+              "ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-semibold tabular-nums",
               statusFilter === "aktiv" ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
             )}>
               {activeCount}
@@ -168,7 +168,7 @@ export function SettingsEmployeeTable({
             <UserX className="w-3.5 h-3.5" />
             Kilépett / Archivált
             <span className={cn(
-              "ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold",
+              "ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-semibold tabular-nums",
               statusFilter === "kilepett" ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
             )}>
               {exitedCount}
@@ -200,7 +200,7 @@ export function SettingsEmployeeTable({
 
       {/* Táblázat */}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
+        <table className="w-full text-sm text-left compact-table">
           <thead className="text-xs text-muted-foreground uppercase bg-muted/40 border-b">
             <tr>
               <th className="px-6 py-3.5 font-semibold">Név</th>

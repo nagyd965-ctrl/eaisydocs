@@ -227,14 +227,14 @@ export function AssetReturnPanel({
       {isAlreadyGenerated && (
         <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200 ${
           iktatoszam 
-            ? "bg-emerald-500/10 border-emerald-500/20" 
-            : "bg-amber-500/5 border-amber-500/30"
+            ? "bg-success/10 border-success/20" 
+            : "bg-warning/5 border-warning/30"
         }`}>
           <div className="flex items-center gap-3">
             <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
               iktatoszam 
-                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" 
-                : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                ? "bg-success/20 text-success" 
+                : "bg-warning/20 text-warning"
             }`}>
               {iktatoszam ? <ShieldCheck className="w-5 h-5" /> : <PackageCheck className="w-5 h-5" />}
             </div>
@@ -249,11 +249,11 @@ export function AssetReturnPanel({
                   1.4 Tétel (5 év)
                 </Badge>
                 {iktatoszam ? (
-                  <Badge variant="outline" className="text-xs bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 font-medium">
+                  <Badge variant="outline" className="text-xs bg-success/15 text-success border-success/30 font-medium">
                     Beiktatva: {iktatoszam}
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-xs bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 font-medium">
+                  <Badge variant="outline" className="text-xs bg-warning/15 text-warning border-warning/30 font-medium">
                     Mentve (Iktatás a kiléptetés lezárásakor)
                   </Badge>
                 )}

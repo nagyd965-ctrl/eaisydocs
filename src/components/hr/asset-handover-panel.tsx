@@ -199,7 +199,7 @@ export function AssetHandoverPanel({
             </Button>
           )}
           <div>
-            <h3 className="text-sm font-bold tracking-tight flex items-center gap-2">
+            <h3 className="text-sm font-semibold tracking-tight flex items-center gap-2">
               <Laptop className="w-4 h-4 text-primary" /> Munkahelyi Eszközök és Jegyzőkönyv
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -217,14 +217,14 @@ export function AssetHandoverPanel({
       {generatedDoc && (
         <div className={`border rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200 ${
           generatedDoc.iktatoszam 
-            ? "border-emerald-500/30 bg-emerald-500/10" 
-            : "border-amber-500/30 bg-amber-500/5"
+            ? "border-success/30 bg-success/10" 
+            : "border-warning/30 bg-warning/5"
         }`}>
           <div className="flex items-center gap-3">
             {generatedDoc.iktatoszam ? (
-              <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+              <ShieldCheck className="w-5 h-5 text-success shrink-0" />
             ) : (
-              <FileCheck className="w-5 h-5 text-amber-600 shrink-0" />
+              <FileCheck className="w-5 h-5 text-warning shrink-0" />
             )}
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -232,11 +232,11 @@ export function AssetHandoverPanel({
                   Munkahelyi Eszköz Átadás-Átvételi Jegyzőkönyv
                 </h4>
                 {generatedDoc.iktatoszam ? (
-                  <Badge variant="outline" className="text-xs bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+                  <Badge variant="outline" className="text-xs bg-success/15 text-success border-success/30">
                     Beiktatva: {generatedDoc.iktatoszam}
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-xs bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30">
+                  <Badge variant="outline" className="text-xs bg-warning/15 text-warning border-warning/30">
                     Generálva (Iktatás a fiók aktiválásakor)
                   </Badge>
                 )}
@@ -299,8 +299,8 @@ export function AssetHandoverPanel({
             <p>Az alábbi űrlapon vagy a fenti gyors gombokkal add hozzá az átadandó laptopot, telefont vagy kulcsot!</p>
           </div>
         ) : (
-          <div className="border rounded-lg overflow-x-auto bg-card shadow-2xs">
-            <Table>
+          <div className="border rounded-lg overflow-x-auto bg-card">
+            <Table className="compact-table">
               <TableHeader>
                 <TableRow className="bg-muted/30">
                   <TableHead className="w-9 text-center">#</TableHead>
@@ -502,7 +502,7 @@ export function AssetHandoverPanel({
           type="button"
           onClick={handleGenerateHandover}
           disabled={isGenerating || assets.length === 0}
-          className="gap-2 shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs"
+          className="gap-2 shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
         >
           {isGenerating ? (
             <>

@@ -72,7 +72,7 @@ export function AddOffboardingDialog({ employees, triggerButton }: AddOffboardin
       {triggerButton ? (
         <span onClick={() => setOpen(true)}>{triggerButton}</span>
       ) : (
-        <Button onClick={() => setOpen(true)} className="gap-2 shadow-xs">
+        <Button onClick={() => setOpen(true)} className="gap-2">
           <UserMinus className="h-4 w-4" />
           Új kilépő hozzáadása
         </Button>
@@ -87,7 +87,7 @@ export function AddOffboardingDialog({ employees, triggerButton }: AddOffboardin
                 <UserMinus className="w-5 h-5" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-bold tracking-tight">
+                <DialogTitle className="text-lg font-semibold tracking-tight">
                   Új Kiléptetési Folyamat Indítása
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground mt-0.5">
@@ -120,7 +120,7 @@ export function AddOffboardingDialog({ employees, triggerButton }: AddOffboardin
                         <div className="flex items-center justify-between w-full gap-2">
                           <span className="font-medium">{emp.nev || "Ismeretlen"}</span>
                           {emp.hasActiveOffboarding && (
-                            <span className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded font-normal">
+                            <span className="text-[10px] text-warning bg-warning/10 px-1.5 py-0.5 rounded font-normal">
                               Kiléptetés folyamatban
                             </span>
                           )}

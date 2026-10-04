@@ -204,7 +204,7 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
                 type="button"
                 variant={accountFilter === "varakozik" ? "default" : "outline"}
                 size="sm"
-                className="h-8 text-xs px-2.5 rounded-full gap-1 text-amber-600 dark:text-amber-400"
+                className="h-8 text-xs px-2.5 rounded-full gap-1 text-warning"
                 onClick={() => setAccountFilter("varakozik")}
               >
                 <Clock className="w-3 h-3" /> Aktiválásra vár
@@ -213,7 +213,7 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
                 type="button"
                 variant={accountFilter === "aktivalva" ? "default" : "outline"}
                 size="sm"
-                className="h-8 text-xs px-2.5 rounded-full gap-1 text-emerald-600"
+                className="h-8 text-xs px-2.5 rounded-full gap-1 text-success"
                 onClick={() => setAccountFilter("aktivalva")}
               >
                 <UserCheck className="w-3 h-3" /> Fiók aktív
@@ -249,8 +249,8 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
               ))}
             </div>
           ) : (
-            <div className="rounded-xl border overflow-x-auto bg-card shadow-xs">
-              <Table className="min-w-[850px]">
+            <div className="rounded-xl border overflow-x-auto bg-card">
+              <Table className="min-w-[850px] compact-table">
                 <TableHeader className="bg-muted/40">
                   <TableRow>
                     <TableHead>Munkavállaló</TableHead>
@@ -283,15 +283,15 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm font-medium">{person.belepes_datuma || "Hamarosan"}</span>
+                          <span className="text-sm font-medium tabular-nums">{person.belepes_datuma || "Hamarosan"}</span>
                         </TableCell>
                         <TableCell>
                           {isAccountActive ? (
-                            <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20 gap-1 font-medium">
+                            <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/20 gap-1 font-medium">
                               <UserCheck className="w-3 h-3" /> Fiók aktív
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 gap-1 font-medium">
+                            <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/20 gap-1 font-medium">
                               <Clock className="w-3 h-3" /> Aktiválásra vár
                             </Badge>
                           )}

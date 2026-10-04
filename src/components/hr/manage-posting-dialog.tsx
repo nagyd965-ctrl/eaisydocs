@@ -124,12 +124,12 @@ export function ManagePostingDialog({
         
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
           <div className="space-y-2">
-            <Label htmlFor="cim">Hirdetés Nyilvános Címe <span className="text-red-500">*</span></Label>
+            <Label htmlFor="cim">Hirdetés Nyilvános Címe <span className="text-destructive">*</span></Label>
             <Input id="cim" name="cim" required defaultValue={existingData?.cim} placeholder="pl. Senior Full-Stack Fejlesztő" />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="munkakor_id">Belső Munkakör <span className="text-red-500">*</span></Label>
+            <Label htmlFor="munkakor_id">Belső Munkakör <span className="text-destructive">*</span></Label>
             <Select name="munkakor_id" value={munkakorId} onValueChange={(val) => val && setMunkakorId(val)}>
               <SelectTrigger>
                 <SelectValue placeholder="Válassz munkakört...">

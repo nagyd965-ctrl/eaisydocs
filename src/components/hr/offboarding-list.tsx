@@ -240,7 +240,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
                   type="button"
                   variant={agreementFilter === "missing" ? "default" : "outline"}
                   size="sm"
-                  className="h-8 text-xs px-2.5 rounded-full gap-1 text-amber-600 dark:text-amber-400"
+                  className="h-8 text-xs px-2.5 rounded-full gap-1 text-warning"
                   onClick={() => setAgreementFilter("missing")}
                 >
                   <Clock className="w-3 h-3" /> Megszüntetés hiányzik
@@ -249,7 +249,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
                   type="button"
                   variant={agreementFilter === "ready" ? "default" : "outline"}
                   size="sm"
-                  className="h-8 text-xs px-2.5 rounded-full gap-1 text-emerald-600"
+                  className="h-8 text-xs px-2.5 rounded-full gap-1 text-success"
                   onClick={() => setAgreementFilter("ready")}
                 >
                   <ShieldCheck className="w-3 h-3" /> Beiktatva
@@ -282,8 +282,8 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
               ))}
             </div>
           ) : (
-            <div className="rounded-xl border bg-card overflow-hidden">
-              <Table>
+            <div className="rounded-xl border bg-card overflow-x-auto">
+              <Table className="compact-table">
                 <TableHeader className="bg-muted/40">
                   <TableRow>
                     <TableHead>Munkavállaló</TableHead>
@@ -304,7 +304,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
                     const reszleg = person.reszleg || person.felhasznalo_profil?.reszleg
 
                     const termLabel = (person as any).megszunes_modja 
-                      ? (TERMINATION_SHORT_LABELS[(person as any).megszunes_modja as TerminationType] || (person as any).megszunes_modja)
+                       ? (TERMINATION_SHORT_LABELS[(person as any).megszunes_modja as TerminationType] || (person as any).megszunes_modja)
                       : "Közös megegyezés"
 
                     return (
@@ -322,7 +322,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm font-medium">{person.utolso_munkanap || "Hamarosan"}</span>
+                          <span className="text-sm font-medium tabular-nums">{person.utolso_munkanap || "Hamarosan"}</span>
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary" className="text-xs font-normal">
@@ -377,8 +377,8 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
               ))}
             </div>
           ) : (
-            <div className="rounded-xl border bg-card overflow-hidden">
-              <Table>
+            <div className="rounded-xl border bg-card overflow-x-auto">
+              <Table className="compact-table">
                 <TableHeader className="bg-muted/40">
                   <TableRow>
                     <TableHead>Munkavállaló</TableHead>
@@ -399,7 +399,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
                     const reszleg = person.reszleg || person.felhasznalo_profil?.reszleg
 
                     const termLabel = (person as any).megszunes_modja 
-                      ? (TERMINATION_SHORT_LABELS[(person as any).megszunes_modja as TerminationType] || (person as any).megszunes_modja)
+                       ? (TERMINATION_SHORT_LABELS[(person as any).megszunes_modja as TerminationType] || (person as any).megszunes_modja)
                       : "Közös megegyezés"
 
                     return (
@@ -417,7 +417,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm font-medium">{person.utolso_munkanap || "Hamarosan"}</span>
+                          <span className="text-sm font-medium tabular-nums">{person.utolso_munkanap || "Hamarosan"}</span>
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary" className="text-xs font-normal">

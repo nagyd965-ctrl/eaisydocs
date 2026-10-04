@@ -56,7 +56,7 @@ export default async function SelfServiceBenefitsPage() {
             iktatoszam={cafeteriaKeret.iktatoszam}
           />
         ) : (
-          <Card className="border shadow-sm">
+          <Card className="border-border">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2">
                 <Coffee className="w-5 h-5 text-primary" /> Cafeteria Nyilatkozat

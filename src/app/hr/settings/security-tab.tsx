@@ -39,7 +39,7 @@ export function SecuritySettingsTab({ initialTimeout, totpFactor }: { initialTim
   return (
       <TabsContent value="biztonsag" className="space-y-6 outline-none">
         <div className="space-y-6">
-        <Card className="border-border shadow-sm">
+        <Card className="border-border">
           <CardHeader className="pb-4">
             <div className="flex items-center space-x-2">
               <ShieldCheck className="h-5 w-5" />
@@ -96,7 +96,7 @@ export function SecuritySettingsTab({ initialTimeout, totpFactor }: { initialTim
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button type="submit" disabled={passwordLoading} className="bg-[#02b8cc] hover:bg-[#029db0] text-white">
+                      <Button type="submit" disabled={passwordLoading} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                         {passwordLoading ? "Mentés..." : passwordSuccess ? "Sikeres módosítás!" : "Jelszó mentése"}
                       </Button>
                     </DialogFooter>
@@ -108,7 +108,7 @@ export function SecuritySettingsTab({ initialTimeout, totpFactor }: { initialTim
             {/* Munkamenet időtúllépés */}
             <div className="flex items-center justify-between p-4 bg-muted/30 border rounded-xl hover:bg-muted/50 transition-colors">
               <div className="flex items-center space-x-4">
-                <div className="h-10 w-10 shrink-0 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center">
+                <div className="h-10 w-10 shrink-0 bg-warning/10 text-warning border border-warning/20 rounded-lg flex items-center justify-center">
                   <Clock className="h-5 w-5" />
                 </div>
                 <div>
@@ -119,7 +119,7 @@ export function SecuritySettingsTab({ initialTimeout, totpFactor }: { initialTim
               <select 
                 name="munkamenet_idotullepes" 
                 defaultValue={initialTimeout || 15}
-                className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <option value="5">5 perc</option>
                 <option value="15">15 perc</option>
@@ -129,7 +129,7 @@ export function SecuritySettingsTab({ initialTimeout, totpFactor }: { initialTim
             </div>
           </CardContent>
           <CardFooter className="flex justify-end border-t pt-6 pb-6">
-            <Button type="submit" disabled={loading} className="bg-[#02b8cc] hover:bg-[#029db0] text-white">
+            <Button type="submit" disabled={loading} className="bg-primary hover:bg-primary/90 text-primary-foreground">
               <Save className="h-4 w-4 mr-2" />
               {loading ? "Mentés..." : success ? "Sikeres mentés!" : "Mentés"}
             </Button>

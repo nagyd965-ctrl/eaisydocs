@@ -370,18 +370,18 @@ export function EmploymentTab({
                 return (
                   <div key={beosztas.id} className="relative">
                     {/* Timeline Dot */}
-                    <div className={`absolute -left-[31px] top-1.5 h-3.5 w-3.5 rounded-full ring-4 ring-background ${isFuture ? 'bg-blue-500' : isCurrent ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
+                    <div className={`absolute -left-[31px] top-1.5 h-3.5 w-3.5 rounded-full ring-4 ring-background ${isFuture ? 'bg-info' : isCurrent ? 'bg-success' : 'bg-muted-foreground'}`} />
                     
                     {/* Content Card */}
                     <div className="bg-card border border-border/50 rounded-md p-4 hover:border-border transition-colors">
                       <div className="flex flex-col gap-3">
                         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                          <span className="font-semibold text-foreground">
+                          <span className="font-semibold text-foreground tabular-nums">
                             {formatDate(beosztas.ervenyes_tol)} - {formatDate(beosztas.ervenyes_ig)}
                           </span>
                           <div className="flex gap-2">
-                            {isFuture && <Badge variant="outline" className="text-blue-500 border-blue-500/30 bg-blue-500/10 rounded-sm">Jövőbeli</Badge>}
-                            {isCurrent && <Badge variant="outline" className="text-emerald-600 border-emerald-600/30 bg-emerald-600/10 rounded-sm">Jelenlegi</Badge>}
+                            {isFuture && <Badge variant="outline" className="text-info border-info/30 bg-info/10 rounded-sm">Jövőbeli</Badge>}
+                            {isCurrent && <Badge variant="outline" className="text-success border-success/30 bg-success/10 rounded-sm">Jelenlegi</Badge>}
                             {isPast && <Badge variant="outline" className="text-muted-foreground border-border rounded-sm">Lezárt</Badge>}
                           </div>
                         </div>

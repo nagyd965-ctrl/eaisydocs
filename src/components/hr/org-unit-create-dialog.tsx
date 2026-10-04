@@ -43,7 +43,7 @@ export function HrOrgUnitCreateDialog({ customTrigger }: { customTrigger?: React
       {customTrigger ? (
         <DialogTrigger render={customTrigger} />
       ) : (
-        <DialogTrigger render={<Button size="sm" className="bg-[#02b8cc] hover:bg-[#029db0] text-white" />}>
+        <DialogTrigger render={<Button size="sm" />}>
           <Plus className="w-4 h-4 mr-2" />
           Új Szervezeti Egység
         </DialogTrigger>

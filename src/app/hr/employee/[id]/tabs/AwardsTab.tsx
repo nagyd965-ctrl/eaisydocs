@@ -70,37 +70,37 @@ export function AwardsTab({
   const kategoriaMeta: Record<string, { label: string; badgeClass: string; icon: any }> = {
     vallalati_dij: {
       label: "Vállalati Kiválósági Díj",
-      badgeClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+      badgeClass: "bg-warning/10 text-warning border-warning/20",
       icon: Trophy,
     },
     szakmai_innovacio: {
       label: "Szakmai és Technológiai Innováció",
-      badgeClass: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20",
+      badgeClass: "bg-primary/10 text-primary border-primary/20",
       icon: Sparkles,
     },
     projekt_kivalosag: {
       label: "Kiemelkedő Projekt Teljesítmény",
-      badgeClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+      badgeClass: "bg-info/10 text-info border-info/20",
       icon: Award,
     },
     jubileum: {
       label: "Törzsgárda és Jubileumi Elismerés",
-      badgeClass: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
+      badgeClass: "bg-primary/10 text-primary border-primary/20",
       icon: Medal,
     },
     csapatmunka: {
       label: "Kiemelkedő Csapatmunka",
-      badgeClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+      badgeClass: "bg-success/10 text-success border-success/20",
       icon: CheckCircle2,
     },
     vezeto_dicseret: {
       label: "Vezérigazgatói Dicséret",
-      badgeClass: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+      badgeClass: "bg-warning/10 text-warning border-warning/20",
       icon: Trophy,
     },
     egyeb: {
       label: "Szakmai Elismerés",
-      badgeClass: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20",
+      badgeClass: "bg-muted text-muted-foreground border-border",
       icon: Award,
     },
   }
@@ -148,7 +148,7 @@ export function AwardsTab({
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <div>
           <CardTitle className="text-lg flex items-center gap-2 font-semibold">
-            <Trophy className="w-5 h-5 text-amber-500" /> Kitüntetések és Szakmai Elismerések
+            <Trophy className="w-5 h-5 text-warning" /> Kitüntetések és Szakmai Elismerések
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
             Vállalati díjak, jubileumi törzsgárda elismerések, innovációs nívódíjak és formális elismerő oklevelek.
@@ -162,7 +162,7 @@ export function AwardsTab({
             <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-amber-500" />
+                  <Trophy className="w-5 h-5 text-warning" />
                   Új szakmai kitüntetés és elismerés adományozása
                 </DialogTitle>
                 <DialogDescription>
@@ -242,7 +242,7 @@ export function AwardsTab({
 
                   <div className="space-y-1.5">
                     <Label htmlFor="jutalom_osszeg" className="text-xs font-medium flex items-center gap-1.5">
-                      <Coins className="w-3.5 h-3.5 text-amber-500" />
+                      <Coins className="w-3.5 h-3.5 text-warning" />
                       Kapcsolódó pénzjutalom összege (Ft, opcionális)
                     </Label>
                     <Input
@@ -298,7 +298,7 @@ export function AwardsTab({
                   <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
                     Mégse
                   </Button>
-                  <Button type="submit" disabled={loading} className="gap-2 bg-amber-600 hover:bg-amber-700 text-white">
+                  <Button type="submit" disabled={loading} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
                     {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                     Elismerés Rögzítése
                   </Button>
@@ -319,8 +319,8 @@ export function AwardsTab({
             </p>
           </div>
         ) : (
-          <div className="border rounded-md overflow-hidden bg-card">
-            <Table>
+          <div className="border rounded-md overflow-x-auto bg-card">
+            <Table className="compact-table">
               <TableHeader>
                 <TableRow className="bg-muted/40 text-xs">
                   <TableHead className="font-semibold">Elismerés / Díj</TableHead>
@@ -340,7 +340,7 @@ export function AwardsTab({
                     <TableRow key={item.id} className="text-sm hover:bg-muted/30 transition-colors">
                       <TableCell>
                         <div className="font-medium text-foreground flex items-center gap-2">
-                          <Icon className="w-4 h-4 text-amber-500 shrink-0" />
+                          <Icon className="w-4 h-4 text-warning shrink-0" />
                           <span>{item.megnevezes}</span>
                         </div>
                         <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5 pl-6" title={item.indoklas}>
@@ -352,7 +352,7 @@ export function AwardsTab({
                           {meta.label}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
+                      <TableCell className="text-xs text-muted-foreground tabular-nums">
                         {item.datum ? new Date(item.datum).toLocaleDateString("hu-HU") : "–"}
                       </TableCell>
                       <TableCell className="text-xs font-medium text-foreground">
@@ -360,7 +360,7 @@ export function AwardsTab({
                       </TableCell>
                       <TableCell className="font-medium">
                         {item.jutalom_osszeg ? (
-                          <span className="text-amber-600 dark:text-amber-400 font-mono text-xs">
+                          <span className="text-warning font-mono text-xs tabular-nums">
                             {item.jutalom_osszeg.toLocaleString("hu-HU")} Ft
                           </span>
                         ) : (
@@ -374,7 +374,7 @@ export function AwardsTab({
                             className="inline-flex items-center gap-1.5"
                             title="Megtekintés a személyi dossziéban"
                           >
-                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20 transition-colors cursor-pointer gap-1 text-xs font-mono">
+                            <Badge variant="outline" className="bg-success/10 text-success border-success/20 hover:bg-success/20 transition-colors cursor-pointer gap-1 text-xs font-mono">
                               <FileCheck className="w-3.5 h-3.5" />
                               {item.iktatoszam}
                             </Badge>

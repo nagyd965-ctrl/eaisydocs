@@ -40,7 +40,7 @@ export function LeaveActionButtons({ leaveId }: { leaveId: string }) {
       </Button>
       <Button 
         size="sm" 
-        className="bg-green-600 hover:bg-green-700 text-white"
+        className="bg-success text-success-foreground hover:bg-success/90"
         onClick={handleApprove}
         disabled={loading}
       >

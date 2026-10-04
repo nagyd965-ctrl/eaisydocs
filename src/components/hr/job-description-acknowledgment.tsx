@@ -37,14 +37,14 @@ export function JobDescriptionAcknowledgment({ munkakor }: JobDescriptionAcknowl
   if (acknowledged) return null
 
   return (
-    <Alert className="border-amber-500/50 bg-amber-500/10 mb-6">
-      <AlertCircle className="h-4 w-4 text-amber-600" />
-      <AlertTitle className="text-amber-800 dark:text-amber-500">Új munkaköri leírás elfogadása szükséges</AlertTitle>
-      <AlertDescription className="text-amber-700/80 dark:text-amber-500/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
+    <Alert className="border-warning/40 bg-warning/10 mb-6">
+      <AlertCircle className="h-4 w-4 text-warning" />
+      <AlertTitle className="text-warning font-semibold">Új munkaköri leírás elfogadása szükséges</AlertTitle>
+      <AlertDescription className="text-foreground/85 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
         <span>
           A jelenlegi pozíciódhoz ({munkakor.megnevezes}) tartozó munkaköri leírást még nem nyugtáztad. Kérjük, olvasd el a feladataidat és erősítsd meg, hogy megismerted őket.
         </span>
-        <Button size="sm" onClick={handleAcknowledge} disabled={loading} className="whitespace-nowrap bg-amber-600 hover:bg-amber-700 text-white">
+        <Button size="sm" onClick={handleAcknowledge} disabled={loading} className="whitespace-nowrap bg-warning hover:bg-warning/90 text-warning-foreground font-semibold">
           <CheckCircle2 className="w-4 h-4 mr-2" />
           {loading ? "Nyugtázás..." : "Megismertem és elfogadom"}
         </Button>

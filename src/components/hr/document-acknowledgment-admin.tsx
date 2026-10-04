@@ -185,7 +185,7 @@ export function DocumentAcknowledgmentAdmin({ dokumentumok, osszesDolgozo }: Pro
                             {n.hr_dolgozo_adatlap?.felhasznalo_profil?.nev ?? "Ismeretlen"}
                           </TableCell>
                           <TableCell>
-                            <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                            <span className="inline-flex items-center gap-1 text-xs text-success font-medium">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Nyugtázva
                             </span>
                           </TableCell>

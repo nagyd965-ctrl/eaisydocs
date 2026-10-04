@@ -126,7 +126,8 @@ export function TasksTab({
   const completedTasks = taskList.filter((t) => t.allapot === "kesz").length
   const inProgressTasks = taskList.filter((t) => t.allapot === "folyamatban").length
   const rejectedTasks = taskList.filter((t) => t.allapot === "elutasitott").length
-  const allTasksDone = totalTasks > 0 && completedTasks + rejectedTasks === totalTasks
+  const allTasksCompleted = totalTasks > 0 && completedTasks === totalTasks && rejectedTasks === 0
+  const hasRejectedTasks = rejectedTasks > 0
   const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
 
   const handleAddComment = async () => {
@@ -242,38 +243,13 @@ export function TasksTab({
               Határidős feladatok és felelősök kezelése az ügyiratban.
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Elintézettnek jelölés – csak ha minden feladat kész (vagy nincs feladat) */}
-            <Button
-              onClick={() => handleStatusChange("elintezett")}
-              disabled={
-                !canEdit ||
-                status === "elintezett" ||
-                status === "lezart" ||
-                statusLoading !== null ||
-                (totalTasks > 0 && !allTasksDone)
-              }
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs"
-              title={
-                totalTasks > 0 && !allTasksDone
-                  ? `Még ${totalTasks - completedTasks - rejectedTasks} feladat nincs elintézve`
-                  : undefined
-              }
-            >
-              {statusLoading === "elintezett" && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              Elintézettnek jelölés
-            </Button>
-
-            {canEdit && (
-              <AddTaskDialog
-                ugyiratId={ugyiratId}
-                users={users}
-                onTaskCreated={() => router.refresh()}
-              />
-            )}
-          </div>
+          {canEdit && (
+            <AddTaskDialog
+              ugyiratId={ugyiratId}
+              users={users}
+              onTaskCreated={() => router.refresh()}
+            />
+          )}
         </CardHeader>
         <CardContent>
           {/* Progress bar – ha vannak feladatok */}
@@ -295,13 +271,59 @@ export function TasksTab({
                 </span>
                 <span
                   className={`font-semibold tabular-nums text-xs ${
-                    allTasksDone ? "text-success" : "text-muted-foreground"
+                    allTasksCompleted ? "text-success" : "text-muted-foreground"
                   }`}
                 >
                   {progressPercent}%
                 </span>
               </div>
               <Progress value={progressPercent} className="h-1.5" />
+            </div>
+          )}
+
+          {/* Elutasított feladat figyelmeztető banner */}
+          {hasRejectedTasks && (
+            <div className="mb-4 p-3 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive flex items-start gap-2.5 text-xs">
+              <Ban className="h-4 w-4 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <span className="font-semibold block">
+                  Elutasított feladat az ügyiratban ({rejectedTasks} db)
+                </span>
+                <p className="text-muted-foreground leading-relaxed">
+                  Az ügyiratban elutasított feladat található, ami akadályozza az ügyirat elintézettként történő lezárását. Kérjük vizsgálja felül a feladatot (újra kiadás vagy egyeztetés a felelőssel).
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Siker banner: minden feladat kész */}
+          {allTasksCompleted && status !== "elintezett" && status !== "lezart" && status !== "irattarban" && (
+            <div className="mb-4 p-3 rounded-lg border border-success/30 bg-success/5 text-foreground flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
+                <span>
+                  <strong>Minden feladat sikeresen lezárult ({completedTasks}/{totalTasks}).</strong> Az ügyirat elintézhető.
+                </span>
+              </div>
+              {canEdit && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleStatusChange("elintezett")}
+                  disabled={statusLoading !== null}
+                  className="h-7 text-xs border-success/40 text-success hover:bg-success/10 hover:text-success cursor-pointer"
+                >
+                  {statusLoading === "elintezett" && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                  Ügyirat elintézése
+                </Button>
+              )}
+            </div>
+          )}
+
+          {allTasksCompleted && status === "elintezett" && (
+            <div className="mb-4 p-2.5 rounded-lg border border-border/40 bg-muted/30 flex items-center gap-2 text-xs text-muted-foreground">
+              <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0" />
+              <span>Minden feladat lezárva. Az ügyirat szakmailag elintézett státuszban van.</span>
             </div>
           )}
 

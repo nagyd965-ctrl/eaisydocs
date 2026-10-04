@@ -130,7 +130,7 @@ export function ContractGeneratorDialog({
         </div>
 
         {/* Nyomtatható A4-es nézet */}
-        <div ref={contentRef} className="print:block bg-white text-black p-6 sm:p-12 min-h-0 sm:min-h-[297mm] w-full max-w-[210mm] mx-auto border shadow-sm print:border-none print:shadow-none">
+        <div ref={contentRef} className="print:block bg-white text-black p-6 sm:p-12 min-h-0 sm:min-h-[297mm] w-full max-w-[210mm] mx-auto border print:border-none print:shadow-none">
           {template === "alap_munkaszerzodes" && (
             <div className="space-y-6">
               <h1 className="text-2xl font-bold text-center mb-10 uppercase tracking-widest">Munkaszerződés</h1>

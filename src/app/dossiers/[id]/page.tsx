@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Timeline, TimelineEvent, TimelineIconName } from "@/components/timeline"
 import { IratokLista } from "@/components/iratok-lista"
 import { createClient } from "@/utils/supabase/server"
-import { CloseDossierButton } from "@/components/close-dossier-button"
+import { DossierLifecycleActions } from "@/components/dossier-lifecycle-actions"
 import { PolymorphicLinksTab } from "@/components/polymorphic-links-tab"
 import { AssignDossierDialog } from "@/components/assign-dossier-dialog"
 import { StatusBadge } from "@/components/status-badge"
@@ -235,6 +235,11 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       description = log.reszletek || "Az ügyirat véglegesen lezárásra került.";
       icon = "lock";
       color = "text-success";
+    } else if (log.esemeny_tipus === "elintezve") {
+      title = "Ügyirat elintézve";
+      description = log.indoklas || "Az ügyintézés befejeződött, az ügyirat elintézett státuszba került.";
+      icon = "check-circle";
+      color = "text-success";
     } else if (log.esemeny_tipus === "modositva") {
       if (log.indoklas && log.indoklas.includes("Válasz e-mail elküldve")) {
         title = "Levélküldés";
@@ -290,9 +295,16 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
   const iratokSzama = Array.isArray(dossier.irat) ? dossier.irat.length : 0;
   const felelosNev = (ugy?.felelos_user as any)?.full_name || null;
 
+  // Feladat statisztikák az életciklus vezérlőhöz
+  const taskList = tasks || [];
+  const totalTasks = taskList.length;
+  const completedTasks = taskList.filter((t: any) => t.allapot === "kesz").length;
+  const rejectedTasks = taskList.filter((t: any) => t.allapot === "elutasitott").length;
+  const openTasks = taskList.filter((t: any) => t.allapot === "nyitott" || t.allapot === "folyamatban").length;
+
   return (
     <div className="page-animate space-y-6">
-      {/* Fejléc — iktatószám + státusz + lezárás gomb */}
+      {/* Fejléc — iktatószám + státusz + életciklus kezelő */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" render={<Link href="/dossiers" />} nativeButton={false} className="shrink-0 mt-0.5">
@@ -313,14 +325,26 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
             canManage={canAssign || isVezeto || currentUserProfile?.docs_szerepkor === 'admin'}
             allUsers={users || []}
           />
-          {permissions.canEdit && dossier.statusz !== "lezart" && dossier.statusz !== "irattarban" && dossier.statusz !== "selejtezheto" && (
-            <CloseDossierButton ugyiratId={dossier.id} />
-          )}
+          <DossierLifecycleActions
+            ugyiratId={dossier.id}
+            ugyId={ugy?.id}
+            status={dossier.statusz}
+            canEdit={permissions.canEdit}
+            isUgyintezo={isUgyintezo}
+            isVezeto={isVezeto}
+            isAdmin={isAdmin}
+            taskStats={{
+              total: totalTasks,
+              completed: completedTasks,
+              rejected: rejectedTasks,
+              open: openTasks,
+            }}
+          />
         </div>
       </div>
 
       {isClearanceRestricted && (
-        <div className="p-4 rounded-xl border border-destructive/40 bg-destructive/10 text-destructive flex items-start gap-3 shadow-sm">
+        <div className="p-4 rounded-xl border border-destructive/40 bg-destructive/10 text-destructive flex items-start gap-3">
           <Lock className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
           <div>
             <h4 className="text-sm font-semibold text-destructive flex items-center gap-1.5">

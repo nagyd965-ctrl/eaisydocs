@@ -88,12 +88,12 @@ export function JobDescriptionBadgeAction({
               </Badge>
             )}
             {existingDoc ? (
-              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs gap-1">
+              <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs gap-1">
                 <CheckCircle2 className="w-3 h-3" />
                 {existingDoc.iktatoszam ? `Iktatva: ${existingDoc.iktatoszam}` : "Hozzáadva a vázlatokhoz"}
               </Badge>
             ) : latestJobVersion ? (
-              <Badge variant="outline" className="text-xs text-amber-600 border-amber-500/30 bg-amber-500/10">
+              <Badge variant="outline" className="text-xs text-warning border-warning/30 bg-warning/10">
                 Új verzió elérhető a katalógusból
               </Badge>
             ) : null}

@@ -1,7 +1,5 @@
-"use client"
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Target, CheckCircle2, XCircle } from "lucide-react"
+import { KpiCard } from "@/components/kpi-card"
 
 export interface CandidateAnalyticsItem {
   id: string
@@ -43,73 +41,42 @@ export function RecruitmentAnalytics({
 
   return (
     <div className="space-y-6">
-      {/* Fő metrikák */}
+      {/* Fő metrikák – Kanonikus KpiCard Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Összes Jelentkező</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalCandidates}</div>
-            <p className="text-xs text-muted-foreground">
-              {generalApplicants} általános, {positionApplicants} hirdetésre
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Interjúra jutott</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{interviewRate}%</div>
-            <p className="text-xs text-muted-foreground">
-              A jelentkezők aránya
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Felvéve (Elfogadta)</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-success">{elfogadva}</div>
-            <p className="text-xs text-muted-foreground">
-              {offerAcceptanceRate}%-os ajánlat elfogadási arány
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Elutasítva</CardTitle>
-            <XCircle className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{elutasitva}</div>
-            <p className="text-xs text-muted-foreground">
-              {totalCandidates > 0 ? Math.round(elutasitva / totalCandidates * 100) : 0}%-os elutasítási arány
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard
+          label="Összes Jelentkező"
+          value={`${totalCandidates} fő`}
+          sub={`${generalApplicants} általános, ${positionApplicants} hirdetésre`}
+        />
+        <KpiCard
+          label="Interjúra Jutott"
+          value={`${interviewRate}%`}
+          sub="A jelentkezők aránya"
+        />
+        <KpiCard
+          label="Felvéve (Elfogadta)"
+          value={`${elfogadva} fő`}
+          sub={`${offerAcceptanceRate}%-os ajánlat elfogadási arány`}
+        />
+        <KpiCard
+          label="Elutasítva"
+          value={`${elutasitva} fő`}
+          sub={totalCandidates > 0 ? `${Math.round(elutasitva / totalCandidates * 100)}%-os elutasítási arány` : "0%"}
+        />
       </div>
 
-      {/* Tölcsér (Funnel) Vizuális megjelenítése egyszerű sávokkal */}
+      {/* Tölcsér (Funnel) Vizuális megjelenítése */}
       <Card>
         <CardHeader>
-          <CardTitle>Toborzási Tölcsér (Funnel)</CardTitle>
+          <CardTitle className="text-base font-semibold">Toborzási Tölcsér (Funnel)</CardTitle>
           <CardDescription>Jelentkezők eloszlása a kiválasztási folyamatban</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <FunnelBar label="1. Új Jelentkezők" value={uj} total={totalCandidates} color="bg-slate-300" />
-          <FunnelBar label="2. Előszűrtek" value={eloszurt} total={totalCandidates} color="bg-blue-300" />
-          <FunnelBar label="3. Interjún" value={interju} total={totalCandidates} color="bg-indigo-400" />
-          <FunnelBar label="4. Ajánlatot kapott" value={ajanlat} total={totalCandidates} color="bg-purple-400" />
-          <FunnelBar label="5. Felvéve" value={elfogadva} total={totalCandidates} color="bg-emerald-500" />
+          <FunnelBar label="1. Új Jelentkezők" value={uj} total={totalCandidates} color="bg-muted-foreground/30" />
+          <FunnelBar label="2. Előszűrtek" value={eloszurt} total={totalCandidates} color="bg-info/70" />
+          <FunnelBar label="3. Interjún" value={interju} total={totalCandidates} color="bg-primary/80" />
+          <FunnelBar label="4. Ajánlatot kapott" value={ajanlat} total={totalCandidates} color="bg-warning" />
+          <FunnelBar label="5. Felvéve" value={elfogadva} total={totalCandidates} color="bg-success" />
         </CardContent>
       </Card>
     </div>
@@ -123,12 +90,12 @@ function FunnelBar({ label, value, total, color }: { label: string, value: numbe
     <div className="space-y-1">
       <div className="flex justify-between text-sm">
         <span className="font-medium">{label}</span>
-        <span className="text-muted-foreground">{value} fő ({Math.round(percentage)}%)</span>
+        <span className="text-muted-foreground tabular-nums">{value} fő ({Math.round(percentage)}%)</span>
       </div>
-      <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden">
+      <div className="h-2.5 w-full bg-secondary rounded-full overflow-hidden">
         <div 
-          className={`h-full ${color} transition-all duration-500 ease-in-out`} 
-          style={{ width: `${Math.max(percentage, 1)}%` }} // Minimum 1% a láthatóságért
+          className={`h-full ${color} rounded-full transition-all duration-500 ease-in-out`} 
+          style={{ width: `${Math.max(percentage, 1)}%` }}
         />
       </div>
     </div>

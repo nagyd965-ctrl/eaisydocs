@@ -43,25 +43,25 @@ export function LeaveHistoryList({ leaves }: { leaves: LeaveHistoryItem[] }) {
     switch (status) {
       case "jovahagyasra_var":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-warning/10 text-warning border border-warning/20">
             <Clock className="w-3 h-3" /> Folyamatban
           </span>
         )
       case "jovahagyva":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-success/10 text-success border border-success/20">
             <CheckCircle2 className="w-3 h-3" /> Jóváhagyva
           </span>
         )
       case "elutasitva":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-destructive/10 text-destructive">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-destructive/10 text-destructive border border-destructive/20">
             <XCircle className="w-3 h-3" /> Elutasítva
           </span>
         )
       case "tervezet":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border text-muted-foreground">
             Tervezett
           </span>
         )

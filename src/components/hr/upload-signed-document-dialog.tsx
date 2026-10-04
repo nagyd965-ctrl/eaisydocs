@@ -95,7 +95,7 @@ export function UploadSignedDocumentDialog({
       <DialogTrigger
         className={
           isAlreadySigned
-            ? `${buttonVariants({ variant: "ghost", size: "icon" })} h-8 w-8 text-teal-600 dark:text-teal-400 hover:bg-teal-500/10`
+            ? `${buttonVariants({ variant: "ghost", size: "icon" })} h-8 w-8 text-primary hover:bg-primary/10`
             : `${buttonVariants({ variant: "outline", size: "sm" })} h-8 gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/10`
         }
         title={isAlreadySigned ? "Aláírt példány cseréje / új verzió" : "Aláírt példány feltöltése"}
@@ -131,16 +131,16 @@ export function UploadSignedDocumentDialog({
           {document.iktatoszam && (
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/40 border text-xs">
               <span className="text-muted-foreground">Kapcsolódó iktatószám:</span>
-              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-mono text-xs gap-1">
+              <Badge variant="outline" className="bg-success/10 text-success border-success/20 font-mono text-xs gap-1">
                 <FileCheck className="w-3 h-3" />
                 {document.iktatoszam}
               </Badge>
             </div>
           )}
 
-          <div className="p-3 rounded-lg bg-teal-500/5 border border-teal-500/20 text-xs text-teal-900 dark:text-teal-200 space-y-1">
+          <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-foreground space-y-1">
             <div className="font-semibold flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+              <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
               Levéltári hitelesség és verziókövetés
             </div>
             <p className="text-muted-foreground text-[11px] leading-relaxed">

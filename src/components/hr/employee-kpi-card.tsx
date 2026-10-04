@@ -91,15 +91,15 @@ export function EmployeeKpiCard({
           let textClass = "text-primary"
 
           if (percent >= 80) {
-            colorClass = "bg-green-600"; bgClass = "bg-green-100 dark:bg-green-950"; textClass = "text-green-600"
+            colorClass = "bg-success"; bgClass = "bg-success/10"; textClass = "text-success"
           } else if (percent <= 30) {
-            colorClass = "bg-orange-500"; bgClass = "bg-orange-100 dark:bg-orange-950"; textClass = "text-orange-500"
+            colorClass = "bg-warning"; bgClass = "bg-warning/10"; textClass = "text-warning"
           }
 
           const isMyTurn = phase === "celkituzes"
 
           return (
-            <AccordionItem key={kpi.id} value={kpi.id} className="border rounded-md bg-card shadow-sm px-3 mb-3">
+            <AccordionItem key={kpi.id} value={kpi.id} className="border rounded-md bg-card px-3 mb-3">
               <AccordionTrigger className="hover:no-underline py-3">
                 <div className="flex items-start justify-between gap-4 w-full pr-4 text-left">
                   <div>
@@ -115,8 +115,8 @@ export function EmployeeKpiCard({
                         <Lock className="w-5 h-5 text-success" />
                       </div>
                     ) : percent >= 100 ? (
-                      <div className="flex items-center justify-center bg-green-100 dark:bg-green-950 w-10 h-10 rounded-full">
-                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      <div className="flex items-center justify-center bg-success/10 w-10 h-10 rounded-full">
+                        <CheckCircle2 className="w-5 h-5 text-success" />
                       </div>
                     ) : (
                       <div className="flex items-center justify-center bg-muted w-10 h-10 rounded-full">
@@ -244,11 +244,11 @@ export function EmployeeKpiCard({
                   {kpi.onertekeles_szovege && (
                     <div className="pt-3 border-t space-y-2">
                       <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-blue-500" />
+                        <User className="w-4 h-4 text-primary" />
                         <span className="font-medium text-sm">Önértékelésedet leadtad</span>
                         <Badge className="bg-success/10 text-success border-0 text-[10px]">Elküldve</Badge>
                       </div>
-                      <p className="text-sm bg-blue-500/5 p-3 rounded-md border border-blue-500/20">
+                      <p className="text-sm bg-primary/5 p-3 rounded-md border border-primary/20">
                         {kpi.onertekeles_szovege}
                       </p>
                     </div>
@@ -271,7 +271,7 @@ export function EmployeeKpiCard({
                   {kpi.megbeszeles_datum && (
                     <div className="pt-3 border-t">
                       <div className="flex items-center gap-2 text-sm">
-                        <CalendarCheck className="w-4 h-4 text-purple-500" />
+                        <CalendarCheck className="w-4 h-4 text-primary" />
                         <span className="font-medium">Értékelő megbeszélés megtörtént</span>
                         <span className="text-xs text-muted-foreground">{kpi.megbeszeles_datum ? new Date(kpi.megbeszeles_datum).toLocaleDateString("hu-HU") : "-"}</span>
                       </div>
@@ -285,7 +285,7 @@ export function EmployeeKpiCard({
                     </div>
                   )}
                   {phase === "vezetoi_ertekeles" && (
-                    <div className="flex items-center gap-2 justify-center py-3 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 text-sm">
+                    <div className="flex items-center gap-2 justify-center py-3 rounded-md bg-primary/10 text-primary text-sm font-medium">
                       <CalendarCheck className="w-4 h-4" /> Várakozás az értékelő megbeszélésre...
                     </div>
                   )}

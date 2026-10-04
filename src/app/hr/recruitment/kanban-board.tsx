@@ -62,7 +62,7 @@ function SortableItem({ id, candidate, onClick }: { id: string, candidate: any, 
       {...attributes} 
       {...listeners} 
       onClick={onClick}
-      className={`cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors ${isDragging ? 'z-50 shadow-lg border-primary' : ''}`}
+      className={`cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors ${isDragging ? 'z-50 border-primary' : ''}`}
     >
       <CardContent className="p-4 space-y-2">
         <div className="font-medium text-sm flex items-center gap-2 flex-wrap">
@@ -80,8 +80,8 @@ function SortableItem({ id, candidate, onClick }: { id: string, candidate: any, 
         </div>
         <div className="text-xs text-muted-foreground">{candidate.hr_munkakor?.megnevezes || candidate.pozicio || "Nincs megadva"}</div>
         <div className="flex items-center justify-between pt-2">
-          <span className="text-[10px] text-muted-foreground">{new Date(candidate.created_at).toLocaleDateString("hu-HU")}</span>
-          <div className="h-6 w-6 bg-primary/10 text-primary rounded flex items-center justify-center text-[10px] font-bold">
+          <span className="text-[10px] text-muted-foreground tabular-nums">{new Date(candidate.created_at).toLocaleDateString("hu-HU")}</span>
+          <div className="h-6 w-6 bg-primary/10 text-primary rounded flex items-center justify-center text-[10px] font-semibold">
             CV
           </div>
         </div>
@@ -283,16 +283,16 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
   return (
     <div className="flex flex-col h-full gap-4">
       <div className="flex justify-end">
-        <div className="bg-muted p-1 rounded-md inline-flex">
+        <div className="bg-muted p-1 rounded-md inline-flex border">
           <button 
             onClick={() => setView("kanban")}
-            className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${view === "kanban" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${view === "kanban" ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >
             Kanban Nézet
           </button>
           <button 
             onClick={() => setView("list")}
-            className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${view === "list" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${view === "list" ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >
             Lista Nézet
           </button>
@@ -320,7 +320,7 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
 
           <DragOverlay>
             {activeCandidate ? (
-              <Card className="cursor-grabbing shadow-2xl scale-105 border-primary opacity-80">
+              <Card className="cursor-grabbing scale-105 border-primary opacity-80">
                 <CardContent className="p-4 space-y-2">
                   <div className="font-medium text-sm">{activeCandidate.nev}</div>
                   <div className="text-xs text-muted-foreground">{activeCandidate.hr_munkakor?.megnevezes || "Nincs megadva"}</div>
@@ -330,15 +330,15 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
           </DragOverlay>
         </DndContext>
       ) : (
-        <div className="bg-card border rounded-lg overflow-hidden flex-1">
-          <table className="w-full text-sm text-left">
+        <div className="bg-card border rounded-lg overflow-x-auto flex-1">
+          <table className="w-full text-sm text-left compact-table">
             <thead className="bg-muted/50 border-b">
               <tr>
-                <th className="px-4 py-3 font-medium text-muted-foreground">Név</th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">Pozíció</th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">Jelentkezés Dátuma</th>
-                <th className="px-4 py-3 font-medium text-muted-foreground">Státusz</th>
-                <th className="px-4 py-3 font-medium text-muted-foreground text-right">Műveletek</th>
+                <th className="px-4 py-2.5 font-medium text-muted-foreground">Név</th>
+                <th className="px-4 py-2.5 font-medium text-muted-foreground">Pozíció</th>
+                <th className="px-4 py-2.5 font-medium text-muted-foreground">Jelentkezés Dátuma</th>
+                <th className="px-4 py-2.5 font-medium text-muted-foreground">Státusz</th>
+                <th className="px-4 py-2.5 font-medium text-muted-foreground text-right">Műveletek</th>
               </tr>
             </thead>
             <tbody>
@@ -347,16 +347,16 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
                 return (
                   <tr 
                     key={candidate.id} 
-                    className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
+                    className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
                     onClick={() => handleCandidateClick(candidate)}
                   >
-                    <td className="px-4 py-3 font-medium">{candidate.nev}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{candidate.hr_munkakor?.megnevezes || candidate.pozicio || "Nincs megadva"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{new Date(candidate.created_at).toLocaleDateString("hu-HU")}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2.5 font-medium">{candidate.nev}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{candidate.hr_munkakor?.megnevezes || candidate.pozicio || "Nincs megadva"}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground tabular-nums">{new Date(candidate.created_at).toLocaleDateString("hu-HU")}</td>
+                    <td className="px-4 py-2.5">
                       <Badge variant="secondary">{statusName}</Badge>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-2.5 text-right">
                       <AlertDialog>
                         <AlertDialogTrigger 
                           className={`${buttonVariants({ variant: "ghost", size: "icon" })} text-muted-foreground hover:text-destructive transition-colors`}

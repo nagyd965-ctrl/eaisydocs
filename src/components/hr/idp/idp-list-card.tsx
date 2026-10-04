@@ -52,7 +52,7 @@ function getDeadlineInfo(hatarido: string | null, statusz: IDPStatus) {
     return { label: `${Math.abs(daysLeft)} napja lejárt`, color: "text-destructive", bg: "bg-destructive/10 border-destructive/20", icon: AlertTriangle }
   }
   if (daysLeft <= 30) {
-    return { label: `${daysLeft} nap múlva`, color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/20", icon: Clock }
+    return { label: `${daysLeft} nap múlva`, color: "text-warning", bg: "bg-warning/10 border-warning/20", icon: Clock }
   }
   return { label: `${daysLeft} nap múlva`, color: "text-muted-foreground", bg: "", icon: Calendar }
 }
@@ -60,8 +60,8 @@ function getDeadlineInfo(hatarido: string | null, statusz: IDPStatus) {
 function PriorityBadge({ prioritas }: { prioritas: string | null }) {
   const map: Record<string, { label: string; cls: string }> = {
     magas:   { label: "Magas",   cls: "bg-destructive/10 text-destructive border-destructive/20" },
-    kozepes: { label: "Közepes", cls: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
-    alacsony:{ label: "Alacsony",cls: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
+    kozepes: { label: "Közepes", cls: "bg-warning/10 text-warning border-warning/20" },
+    alacsony:{ label: "Alacsony",cls: "bg-info/10 text-info border-info/20" },
   }
   const p = prioritas ?? "kozepes"
   const { label, cls } = map[p] ?? map.kozepes
@@ -71,9 +71,9 @@ function PriorityBadge({ prioritas }: { prioritas: string | null }) {
 function StatusBadge({ statusz }: { statusz: IDPStatus }) {
   const map: Record<IDPStatus, { label: string; cls: string }> = {
     nyitott:          { label: "Nyitott",          cls: "bg-muted text-muted-foreground" },
-    folyamatban:      { label: "Folyamatban",      cls: "bg-blue-500/10 text-blue-600" },
-    jovahagyasra_var: { label: "Jóváhagyásra vár", cls: "bg-amber-500/10 text-amber-600" },
-    teljesitve:       { label: "Teljesítve",       cls: "bg-emerald-500/10 text-emerald-600" },
+    folyamatban:      { label: "Folyamatban",      cls: "bg-info/10 text-info" },
+    jovahagyasra_var: { label: "Jóváhagyásra vár", cls: "bg-warning/10 text-warning" },
+    teljesitve:       { label: "Teljesítve",       cls: "bg-success/10 text-success" },
     elmaradt:         { label: "Elmaradt",         cls: "bg-destructive/10 text-destructive" },
   }
   const { label, cls } = map[statusz] ?? map.nyitott
@@ -82,7 +82,7 @@ function StatusBadge({ statusz }: { statusz: IDPStatus }) {
 
 function PlanStatusBadge({ statusz }: { statusz: string }) {
   if (statusz === 'lezart') return <Badge className="bg-muted text-muted-foreground text-xs">Lezárva</Badge>
-  if (statusz === 'folyamatban') return <Badge className="bg-blue-500/10 text-blue-600 text-xs border-blue-500/20">Folyamatban</Badge>
+  if (statusz === 'folyamatban') return <Badge className="bg-info/10 text-info text-xs border-info/20">Folyamatban</Badge>
   return <Badge className="bg-primary/10 text-primary text-xs border-primary/20">Aktív</Badge>
 }
 
@@ -228,7 +228,7 @@ export function IdpListCard({ tervek, dolgozoId, isManagerView = false }: IdpLis
                         <Button
                           size="sm"
                           variant="default"
-                          className="h-6 text-[11px] px-2 bg-emerald-600 hover:bg-emerald-700"
+                          className="h-6 text-[11px] px-2 bg-success hover:bg-success/90 text-success-foreground"
                           onClick={() => handleClosePlan(terv.id)}
                         >
                           <Lock className="w-3 h-3 mr-1" /> Lezárás
@@ -272,11 +272,11 @@ export function IdpListCard({ tervek, dolgozoId, isManagerView = false }: IdpLis
                         <div className="flex items-start gap-2 flex-1 min-w-0">
                           <div className="mt-0.5 shrink-0">
                             {isDone
-                              ? <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                              ? <CheckCircle2 className="w-4 h-4 text-success" />
                               : cel.statusz === 'jovahagyasra_var'
-                                ? <Clock className="w-4 h-4 text-amber-500" />
+                                ? <Clock className="w-4 h-4 text-warning" />
                                 : cel.statusz === 'folyamatban'
-                                  ? <Circle className="w-4 h-4 text-blue-500 fill-blue-500/20" />
+                                  ? <Circle className="w-4 h-4 text-info fill-info/20" />
                                   : <Circle className="w-4 h-4 text-muted-foreground" />
                             }
                           </div>
@@ -320,7 +320,7 @@ export function IdpListCard({ tervek, dolgozoId, isManagerView = false }: IdpLis
                                 </span>
                               )}
                               {isDone && cel.teljesites_datuma && (
-                                <span className="flex items-center gap-1 text-emerald-600">
+                                <span className="flex items-center gap-1 text-success">
                                   <CheckCircle2 className="w-3 h-3" />
                                   Teljesítve: {format(new Date(cel.teljesites_datuma), "yyyy. MM. dd.", { locale: hu })}
                                 </span>
@@ -376,7 +376,7 @@ export function IdpListCard({ tervek, dolgozoId, isManagerView = false }: IdpLis
                                   )}
                                   {isManagerView && (
                                     <>
-                                      <DropdownMenuItem onClick={() => handleStatusChange(cel.id, 'teljesitve')} className="text-emerald-600">
+                                      <DropdownMenuItem onClick={() => handleStatusChange(cel.id, 'teljesitve')} className="text-success">
                                         Jóváhagyás (Teljesítve)
                                       </DropdownMenuItem>
                                       <DropdownMenuItem onClick={() => handleStatusChange(cel.id, 'elmaradt')} className="text-destructive">

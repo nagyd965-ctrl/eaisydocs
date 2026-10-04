@@ -42,16 +42,16 @@ function OrgUnitCard({ unit, depth }: { unit: OrgUnitNode; depth: number }) {
   // Mélység szerinti szín árnyalás
   const depthColors: Record<number, string> = {
     0: "border-primary/40 bg-primary/5",
-    1: "border-blue-400/40 bg-blue-400/5",
-    2: "border-emerald-400/40 bg-emerald-400/5",
-    3: "border-amber-400/40 bg-amber-400/5",
+    1: "border-info/40 bg-info/5",
+    2: "border-success/40 bg-success/5",
+    3: "border-warning/40 bg-warning/5",
   }
   const cardColor = depthColors[Math.min(depth, 3)]
 
   return (
     <div className="flex flex-col items-center">
       {/* Egység doboz */}
-      <div className={`border-2 rounded-xl w-64 shadow-sm z-10 relative overflow-hidden ${cardColor}`}>
+      <div className={`border-2 rounded-xl w-64 z-10 relative overflow-hidden ${cardColor}`}>
         {/* Fejléc */}
         <button
           onClick={() => hasChildren && setCollapsed(c => !c)}
@@ -62,7 +62,7 @@ function OrgUnitCard({ unit, depth }: { unit: OrgUnitNode; depth: number }) {
             <span className="font-semibold text-sm text-foreground truncate">{unit.nev}</span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0 ml-1">
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono tabular-nums">
               {totalHeadcount} fő
             </Badge>
             {hasChildren && (
@@ -157,10 +157,10 @@ export function OrgChartTree({ rootUnits }: { rootUnits: OrgUnitNode[] }) {
           <span className="inline-block w-3 h-3 rounded border-2 border-primary/40 bg-primary/10" /> Főszint
         </span>
         <span className="text-xs text-muted-foreground flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded border-2 border-blue-400/40 bg-blue-400/10" /> 2. szint
+          <span className="inline-block w-3 h-3 rounded border-2 border-info/40 bg-info/10" /> 2. szint
         </span>
         <span className="text-xs text-muted-foreground flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded border-2 border-emerald-400/40 bg-emerald-400/10" /> 3. szint
+          <span className="inline-block w-3 h-3 rounded border-2 border-success/40 bg-success/10" /> 3. szint
         </span>
         <span className="text-xs text-muted-foreground flex items-center gap-1.5 ml-auto">
           <Users className="w-3 h-3" /> Kattintson egy egységre a összecsukáshoz

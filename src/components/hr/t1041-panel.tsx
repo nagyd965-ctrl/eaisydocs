@@ -283,15 +283,15 @@ export function T1041Panel({
               NAV T1041 Hatósági Bejelentés & Igazolás
             </h3>
             {isVerified ? (
-              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs gap-1 font-medium">
+              <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs gap-1 font-medium">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Igazolva (NAV nyugta feltöltve)
               </Badge>
             ) : isAdatlapReady ? (
-              <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs gap-1 font-medium">
+              <Badge variant="outline" className="bg-info/10 text-info border-info/20 text-xs gap-1 font-medium">
                 <Clock className="w-3.5 h-3.5" /> Adatlap kész (Befogadásra vár)
               </Badge>
             ) : (
-              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-xs gap-1 font-medium">
+              <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-xs gap-1 font-medium">
                 <Clock className="w-3.5 h-3.5" /> Bejelentésre vár
               </Badge>
             )}
@@ -326,7 +326,7 @@ export function T1041Panel({
             className="h-8 gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary/10"
           >
             {copiedKey === "all" ? (
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <Check className="w-3.5 h-3.5 text-success" />
             ) : (
               <Copy className="w-3.5 h-3.5" />
             )}
@@ -434,15 +434,15 @@ export function T1041Panel({
               <>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-warning flex items-center justify-between">
                       <span>Jogviszony Vége (Megszűnés napja)</span>
-                      <span className="text-[10px] text-amber-600/80 font-normal">Kötelező</span>
+                      <span className="text-[10px] text-warning/80 font-normal">Kötelező</span>
                     </Label>
                     <Input
                       type="date"
                       value={jogviszonyVege || jogviszonyKezdete}
                       onChange={(e) => setJogviszonyVege(e.target.value)}
-                      className="h-8 text-xs border-amber-500/40 bg-amber-500/5 font-medium"
+                      className="h-8 text-xs border-warning/40 bg-warning/5 font-medium"
                     />
                   </div>
 
@@ -505,15 +505,15 @@ export function T1041Panel({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-sky-600 dark:text-sky-400 flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-info flex items-center justify-between">
                       <span>Változás Időpontja (hatálya)</span>
-                      <span className="text-[10px] text-sky-600/80 font-normal">7. rovat (Kötelező)</span>
+                      <span className="text-[10px] text-info/80 font-normal">7. rovat (Kötelező)</span>
                     </Label>
                     <Input
                       type="date"
                       value={valtozasDatuma}
                       onChange={(e) => setValtozasDatuma(e.target.value)}
-                      className="h-8 text-xs border-sky-500/40 bg-sky-500/5 font-medium"
+                      className="h-8 text-xs border-info/30 bg-info/5 font-medium tabular-nums"
                     />
                   </div>
 
@@ -618,7 +618,7 @@ export function T1041Panel({
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Generált Adatlap:</span>
                 {t1041Data.adatlapDoc.iktatoszam ? (
-                  <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-mono">
+                  <Badge variant="outline" className="text-[10px] bg-success/10 text-success border-success/20 font-mono">
                     <ShieldCheck className="w-3 h-3 mr-1" />
                     Iktatva: {t1041Data.adatlapDoc.iktatoszam}
                   </Badge>
@@ -635,7 +635,7 @@ export function T1041Panel({
                   title="NAV T1041 Hivatalos Adatlap"
                   trigger={
                     <Button variant="outline" size="sm" className="h-7 text-xs gap-1 flex-1">
-                      <FileCheck className="w-3.5 h-3.5 text-blue-600" />
+                      <FileCheck className="w-3.5 h-3.5 text-primary" />
                       Megtekintés
                     </Button>
                   }
@@ -674,7 +674,7 @@ export function T1041Panel({
           <div className="space-y-3">
             <div className="border-b pb-3">
               <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <ShieldCheck className="w-4 h-4 text-success" />
                 2. NAV Befogadási Nyugta (Hivatalos Igazolás)
               </h4>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -684,13 +684,13 @@ export function T1041Panel({
 
             {/* Ha már fel van töltve a nyugta */}
             {t1041Data?.nyugtaDoc ? (
-              <div className="border border-emerald-500/30 bg-emerald-500/5 rounded-xl p-4 space-y-3">
+              <div className="border border-success/30 bg-success/5 rounded-xl p-4 space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-500/20">
+                  <div className="w-9 h-9 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0 border border-success/20">
                     <CheckCircle2 className="w-5 h-5" />
                   </div>
                   <div className="space-y-1 min-w-0">
-                    <h5 className="text-sm font-bold text-foreground">
+                    <h5 className="text-sm font-semibold text-foreground">
                       Hivatalos NAV Nyugta Érvényesítve
                     </h5>
                     <p className="text-xs text-muted-foreground">
@@ -700,12 +700,12 @@ export function T1041Panel({
                       Dokumentum: {t1041Data.nyugtaDoc.nev}
                     </div>
                     {t1041Data.nyugtaDoc.iktatoszam ? (
-                      <div className="text-xs font-semibold text-emerald-600 pt-0.5 flex items-center gap-1">
+                      <div className="text-xs font-semibold text-success pt-0.5 flex items-center gap-1">
                         <ShieldCheck className="w-3.5 h-3.5" />
                         Iktatószám: {t1041Data.nyugtaDoc.iktatoszam} (1.3 Hatósági bejelentések)
                       </div>
                     ) : (
-                      <div className="text-xs text-amber-600 pt-0.5 flex items-center gap-1">
+                      <div className="text-xs text-warning pt-0.5 flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5" />
                         Fiókaktiváláskor automatikusan iktatásra kerül.
                       </div>
@@ -713,12 +713,12 @@ export function T1041Panel({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 pt-2 border-t border-emerald-500/20">
+                <div className="flex items-center gap-2 pt-2 border-t border-success/20">
                   <PdfViewerDialog
                     url={t1041Data.nyugtaDoc.displayUrl || t1041Data.nyugtaDoc.url}
                     title="Hivatalos NAV T1041 Befogadási Nyugta"
                     trigger={
-                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 flex-1">
+                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-success/30 text-success hover:bg-success/10 flex-1">
                         <FileCheck className="w-3.5 h-3.5" />
                         Nyugta Megtekintése
                       </Button>
@@ -729,7 +729,7 @@ export function T1041Panel({
                     target="_blank"
                     rel="noopener noreferrer"
                     download
-                    className={`${buttonVariants({ variant: "outline", size: "sm" })} h-7 text-xs gap-1 border-emerald-500/30`}
+                    className={`${buttonVariants({ variant: "outline", size: "sm" })} h-7 text-xs gap-1 border-success/30`}
                   >
                     <Download className="w-3.5 h-3.5" />
                     Letöltés
@@ -740,7 +740,7 @@ export function T1041Panel({
                       type="button"
                       variant="default"
                       size="sm"
-                      className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="h-7 text-xs gap-1 bg-success hover:bg-success/90 text-success-foreground"
                       onClick={() => handleFileExisting(t1041Data.nyugtaDoc.id, "nyugta")}
                       disabled={isFileLoading}
                     >
@@ -752,7 +752,7 @@ export function T1041Panel({
               </div>
             ) : (
               <div className="border border-dashed border-border rounded-xl p-4 space-y-3 bg-muted/10 text-center">
-                <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
+                <AlertCircle className="w-8 h-8 text-warning mx-auto" />
                 <div className="space-y-1">
                   <p className="text-xs font-semibold text-foreground">
                     Még nincs feltöltve a NAV befogadási nyugta
@@ -782,7 +782,7 @@ export function T1041Panel({
               <Button
                 type="submit"
                 disabled={isUploading || !receiptFile}
-                className="w-full h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                className="w-full h-8 text-xs gap-1.5 bg-success hover:bg-success/90 text-success-foreground font-medium"
               >
                 {isUploading ? (
                   <>
@@ -800,7 +800,7 @@ export function T1041Panel({
           </div>
 
           <div className="pt-3 border-t text-[11px] text-muted-foreground flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <ShieldCheck className="w-3.5 h-3.5 text-success shrink-0" />
             <span>
               A feltöltött nyugta azonnal készre állítja a {offboardingId || bejelentesTipus === "T" ? "kiléptetés" : "onboarding"} T1041 feladatát, és bekerül a személyi dossziéba.
             </span>

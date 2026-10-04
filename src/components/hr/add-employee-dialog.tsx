@@ -140,7 +140,7 @@ export function AddEmployeeDialog({
           </TabsList>
 
           <TabsContent value="select_existing" className="space-y-4">
-            <div className="rounded-lg border border-teal-500/30 bg-teal-500/5 dark:bg-teal-500/10 p-3 text-xs text-foreground/85 leading-relaxed">
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-foreground/85 leading-relaxed">
               Ha a meglévő eaisyDocs fiókok közül választasz munkatársat, a felhasználó hozzáférést kap az eaisyHR modulhoz is.
             </div>
 
@@ -172,7 +172,7 @@ export function AddEmployeeDialog({
                               </span>
                             )}
                             {user.isAlreadyAssigned && (
-                              <span className="text-[10px] text-teal-600 dark:text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded font-medium">
+                              <span className="text-[10px] text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded font-medium">
                                 Már HR dolgozó
                               </span>
                             )}
@@ -290,7 +290,7 @@ export function AddEmployeeDialog({
               value={formData.belepes_datuma}
               onChange={(e) => setFormData({ ...formData, belepes_datuma: e.target.value })}
             />
-            <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-500/10 dark:text-amber-400 p-2 rounded border border-amber-200 dark:border-amber-500/20">
+            <div className="text-xs text-warning bg-warning/10 p-2 rounded border border-warning/20">
               Figyelem: A T1041 biztosítotti bejelentés határideje a munkába állás megkezdése előtt van!
             </div>
           </div>

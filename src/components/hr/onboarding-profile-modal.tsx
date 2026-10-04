@@ -186,7 +186,7 @@ export function OnboardingProfileModal({
   }
 
   return (
-    <DialogContent className="sm:max-w-[960px] lg:max-w-[1000px] w-[95vw] max-h-[90vh] p-0 overflow-hidden border shadow-2xl flex flex-col">
+    <DialogContent className="sm:max-w-[960px] lg:max-w-[1000px] w-[95vw] max-h-[90vh] p-0 overflow-hidden border flex flex-col">
       {/* 1. Fejléc */}
       <div className="bg-muted/40 p-6 border-b shrink-0">
         {activeModalTab !== "teendok" && (
@@ -213,12 +213,12 @@ export function OnboardingProfileModal({
         )}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-primary/10 text-primary border-2 border-primary/20 flex items-center justify-center font-bold text-xl shrink-0 shadow-sm">
+            <div className="w-14 h-14 rounded-full bg-primary/10 text-primary border-2 border-primary/20 flex items-center justify-center font-semibold text-xl shrink-0">
               {initials}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <DialogTitle className="text-xl font-bold tracking-tight">
+                <DialogTitle className="text-xl font-semibold tracking-tight">
                   {onboarding.nev}
                 </DialogTitle>
                 {isClosed ? (
@@ -226,7 +226,7 @@ export function OnboardingProfileModal({
                     Lezárva
                   </Badge>
                 ) : isDone ? (
-                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs gap-1 font-medium">
+                  <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs gap-1 font-medium">
                     <CheckCircle2 className="w-3 h-3" /> 100% Kész
                   </Badge>
                 ) : (
@@ -235,11 +235,11 @@ export function OnboardingProfileModal({
                   </Badge>
                 )}
                 {isAccountActive ? (
-                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs gap-1 font-medium">
+                  <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs gap-1 font-medium">
                     <UserCheck className="w-3 h-3" /> Fiók aktív
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs gap-1 font-medium">
+                  <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-xs gap-1 font-medium">
                     <Clock className="w-3 h-3" /> Fiók aktiválásra vár
                   </Badge>
                 )}
@@ -253,7 +253,7 @@ export function OnboardingProfileModal({
                   <>
                     <span>•</span>
                     <span className="flex items-center gap-1.5 text-foreground/80 font-medium">
-                      <Building2 className="w-3.5 h-3.5 text-teal-600" />
+                      <Building2 className="w-3.5 h-3.5 text-primary" />
                       {onboarding.reszleg}
                     </span>
                   </>
@@ -279,7 +279,7 @@ export function OnboardingProfileModal({
               </Button>
             ) : (
               <AlertDialog>
-                <AlertDialogTrigger className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-1.5 text-xs border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600`}>
+                <AlertDialogTrigger className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-1.5 text-xs border-success/30 hover:bg-success/10 text-success`}>
                   <Archive className="w-3.5 h-3.5" /> Beléptetés lezárása
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -295,7 +295,7 @@ export function OnboardingProfileModal({
                     <AlertDialogAction 
                       onClick={handleCloseOnboarding} 
                       disabled={isClosing}
-                      className="bg-emerald-600 hover:bg-emerald-700"
+                      className="bg-success hover:bg-success/90 text-success-foreground"
                     >
                       {isClosing ? "Lezárás folyamatban..." : "Igen, lezárás és archiválás"}
                     </AlertDialogAction>
@@ -416,10 +416,10 @@ export function OnboardingProfileModal({
           <>
         {/* A) Kétlépcsős Fiókaktiválási Kártya */}
         {!isAccountActive ? (
-          <div className="border border-amber-500/30 bg-amber-500/5 rounded-xl p-5 space-y-3">
+          <div className="border border-warning/30 bg-warning/5 rounded-xl p-5 space-y-3">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 border border-amber-500/20">
+                <div className="w-9 h-9 rounded-lg bg-warning/10 text-warning flex items-center justify-center shrink-0 mt-0.5 border border-warning/20">
                   <UserPlus className="w-5 h-5" />
                 </div>
                 <div>
@@ -439,7 +439,7 @@ export function OnboardingProfileModal({
               </div>
 
               <AlertDialog>
-                <AlertDialogTrigger className={`${buttonVariants({ variant: "default", size: "sm" })} shrink-0 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-medium`}>
+                <AlertDialogTrigger className={`${buttonVariants({ variant: "default", size: "sm" })} shrink-0 gap-1.5 bg-warning hover:bg-warning/90 text-warning-foreground font-medium`}>
                   <UserPlus className="w-4 h-4" /> Fiók aktiválása
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -452,7 +452,7 @@ export function OnboardingProfileModal({
                       <p>
                         Aktiváláskor a rendszer összekapcsolja az elkészült szerződést, munkaköri leírást, T1041-et és oktatási jegyzőkönyvet az eaisyDocs Személyi Dossziéval.
                       </p>
-                      <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-700 dark:text-amber-400 space-y-1">
+                      <div className="p-2.5 bg-warning/10 border border-warning/30 rounded-lg text-xs text-warning space-y-1">
                         <p className="font-semibold flex items-center gap-1.5">
                           🛡️ Fiók- és Jogosultságvédelmi Garancia:
                         </p>
@@ -467,7 +467,7 @@ export function OnboardingProfileModal({
                     <AlertDialogAction 
                       onClick={handleActivateAccount} 
                       disabled={isActivating}
-                      className="bg-amber-600 hover:bg-amber-700 text-white"
+                      className="bg-warning hover:bg-warning/90 text-warning-foreground"
                     >
                       {isActivating ? "Aktiválás és küldés..." : "Igen, fiók aktiválása és e-mail küldése"}
                     </AlertDialogAction>
@@ -477,9 +477,9 @@ export function OnboardingProfileModal({
             </div>
           </div>
         ) : (
-          <div className="border border-emerald-500/30 bg-emerald-500/5 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="border border-success/30 bg-success/5 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-500/20">
+              <div className="w-9 h-9 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0 border border-success/20">
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
@@ -497,7 +497,7 @@ export function OnboardingProfileModal({
             {onboarding.dolgozo_id && (
               <Link 
                 href={`/hr/employee/${onboarding.dolgozo_id}`}
-                className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-1.5 shrink-0 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10`}
+                className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-1.5 shrink-0 border-success/30 text-success hover:bg-success/10`}
                 target="_blank"
               >
                 <ExternalLink className="w-3.5 h-3.5" /> Megnyitás a Dolgozói Kartonon
@@ -586,7 +586,7 @@ export function OnboardingProfileModal({
                     className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
                       isTaskDone 
                         ? "bg-muted/30 border-border/40 text-muted-foreground" 
-                        : "bg-background border-border/70 shadow-xs hover:border-primary/30"
+                        : "bg-background border-border/70 hover:border-primary/30"
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -628,7 +628,7 @@ export function OnboardingProfileModal({
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10 shadow-2xs"
+                          className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10"
                           onClick={() => setActiveModalTab("szerzodes")}
                         >
                           <FileText className="w-3 h-3" /> Szerződés előkészítése
@@ -643,7 +643,7 @@ export function OnboardingProfileModal({
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10 shadow-2xs"
+                          className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10"
                           onClick={() => setActiveModalTab("eszkozok")}
                         >
                           <Laptop className="w-3 h-3" /> Eszközök átadása
@@ -657,10 +657,10 @@ export function OnboardingProfileModal({
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs px-2 gap-1 text-teal-700 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/10 shadow-2xs"
+                          className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10"
                           onClick={() => setActiveModalTab("munkavedelem")}
                         >
-                          <HardHat className="w-3 h-3 text-teal-600" /> Oktatási jkv.
+                          <HardHat className="w-3 h-3 text-primary" /> Oktatási jkv.
                         </Button>
                       )}
 
@@ -671,10 +671,10 @@ export function OnboardingProfileModal({
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs px-2 gap-1 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 shadow-2xs"
+                          className="h-7 text-xs px-2 gap-1 text-success border-success/30 hover:bg-success/10"
                           onClick={() => setActiveModalTab("t1041")}
                         >
-                          <Building2 className="w-3 h-3 text-emerald-600" /> T1041 bejelentés
+                          <Building2 className="w-3 h-3 text-success" /> T1041 bejelentés
                         </Button>
                       )}
 
@@ -684,7 +684,7 @@ export function OnboardingProfileModal({
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10 shadow-2xs"
+                          className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10"
                           onClick={() => setActiveModalTab("munkakor_leiras")}
                         >
                           <Briefcase className="w-3 h-3" /> Munkaköri leírás

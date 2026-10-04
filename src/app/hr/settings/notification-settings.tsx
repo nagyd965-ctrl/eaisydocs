@@ -105,7 +105,7 @@ export function HrNotificationSettings({ rules = [] }: { rules: Rule[] }) {
         </div>
       )}
       {/* HR Riasztások */}
-      <Card className="border-border shadow-sm">
+      <Card className="border-border">
         <CardHeader className="pb-4">
           <div className="flex items-center space-x-2">
             <Bell className="h-5 w-5" />

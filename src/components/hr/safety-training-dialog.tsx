@@ -25,8 +25,8 @@ export function SafetyTrainingDialog({
       {triggerButton ? (
         <DialogTrigger render={triggerButton as any} />
       ) : (
-        <DialogTrigger className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-1.5 text-xs text-teal-700 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/10`}>
-          <HardHat className="w-3.5 h-3.5 text-teal-600" />
+        <DialogTrigger className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/10`}>
+          <HardHat className="w-3.5 h-3.5 text-primary" />
           Munkavédelmi Oktatás
         </DialogTrigger>
       )}

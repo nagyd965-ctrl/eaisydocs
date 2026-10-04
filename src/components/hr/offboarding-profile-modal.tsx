@@ -205,7 +205,7 @@ export function OffboardingProfileModal({
   const hasExitCertificate = Boolean(detailData?.kilepo_igazolas_pdf_url || (offboarding as any).kilepo_igazolas_pdf_url || detailData?.kilepoIgazolasDoc)
 
   return (
-    <DialogContent className="sm:max-w-[960px] lg:max-w-[1000px] w-[95vw] max-h-[90vh] p-0 overflow-hidden border shadow-2xl flex flex-col bg-background">
+    <DialogContent className="sm:max-w-[960px] lg:max-w-[1000px] w-[95vw] max-h-[90vh] p-0 overflow-hidden border flex flex-col bg-background">
       <DialogTitle className="sr-only">Kiléptetési Folyamat - {employeeName}</DialogTitle>
       <DialogDescription className="sr-only">Kiléptetési feladatok és iratok kezelése</DialogDescription>
 
@@ -236,12 +236,12 @@ export function OffboardingProfileModal({
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-primary/10 text-primary border-2 border-primary/20 flex items-center justify-center font-bold text-xl shrink-0 shadow-sm">
+            <div className="w-14 h-14 rounded-full bg-primary/10 text-primary border-2 border-primary/20 flex items-center justify-center font-semibold text-xl shrink-0">
               {initials}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xl font-bold tracking-tight text-foreground">
+                <span className="text-xl font-semibold tracking-tight text-foreground">
                   {employeeName}
                 </span>
                 {isClosed ? (
@@ -249,7 +249,7 @@ export function OffboardingProfileModal({
                     Lezárva
                   </Badge>
                 ) : isDone ? (
-                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs gap-1 font-medium">
+                  <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs gap-1 font-medium">
                     <CheckCircle2 className="w-3 h-3" /> 100% Kész
                   </Badge>
                 ) : (
@@ -271,7 +271,7 @@ export function OffboardingProfileModal({
                   <>
                     <span>•</span>
                     <span className="flex items-center gap-1.5 text-foreground/80 font-medium">
-                      <Building2 className="w-3.5 h-3.5 text-teal-600" />
+                      <Building2 className="w-3.5 h-3.5 text-primary" />
                       {reszleg}
                     </span>
                   </>
@@ -290,7 +290,7 @@ export function OffboardingProfileModal({
               <AlertDialog>
                 <AlertDialogTrigger className={cn(
                   buttonVariants({ variant: "outline", size: "sm" }),
-                  "gap-1.5 text-xs border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600 cursor-pointer"
+                  "gap-1.5 text-xs border-success/30 hover:bg-success/10 text-success cursor-pointer"
                 )}>
                   <Archive className="w-3.5 h-3.5" /> Kiléptetés lezárása
                 </AlertDialogTrigger>
@@ -307,7 +307,7 @@ export function OffboardingProfileModal({
                     <AlertDialogAction 
                       onClick={handleCloseOffboarding} 
                       disabled={isClosing}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="bg-success hover:bg-success/90 text-success-foreground"
                     >
                       {isClosing ? "Lezárás folyamatban..." : "Igen, lezárás és archiválás"}
                     </AlertDialogAction>
@@ -410,9 +410,9 @@ export function OffboardingProfileModal({
           <>
             {/* A) Felső Kiemelt Műveleti Kártya (Matches Onboarding) */}
             {!hasTerminationAgreement ? (
-              <div className="border border-amber-500/30 bg-amber-500/5 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="border border-warning/30 bg-warning/5 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 border border-amber-500/20">
+                  <div className="w-9 h-9 rounded-lg bg-warning/10 text-warning flex items-center justify-center shrink-0 mt-0.5 border border-warning/20">
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>
@@ -428,16 +428,16 @@ export function OffboardingProfileModal({
 
                 <Button
                   onClick={() => setActiveModalTab("megszuntetes")}
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-medium gap-1.5 shrink-0"
+                  className="bg-warning hover:bg-warning/90 text-warning-foreground font-medium gap-1.5 shrink-0"
                   size="sm"
                 >
                   <FileText className="w-4 h-4" /> Megszüntetés előkészítése
                 </Button>
               </div>
             ) : (
-              <div className="border border-emerald-500/30 bg-emerald-500/5 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="border border-success/30 bg-success/5 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-500/20">
+                  <div className="w-9 h-9 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0 border border-success/20">
                     <ShieldCheck className="w-5 h-5" />
                   </div>
                   <div>
@@ -454,7 +454,7 @@ export function OffboardingProfileModal({
                   variant="outline"
                   size="sm"
                   onClick={() => setActiveModalTab("megszuntetes")}
-                  className="border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 gap-1.5 shrink-0"
+                  className="border-success/30 text-success hover:bg-success/10 gap-1.5 shrink-0"
                 >
                   <FileText className="w-3.5 h-3.5" /> Megállapodás megtekintése
                 </Button>
@@ -542,7 +542,7 @@ export function OffboardingProfileModal({
                         className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
                           isTaskDone 
                             ? "bg-muted/30 border-border/40 text-muted-foreground" 
-                            : "bg-background border-border/70 shadow-xs hover:border-primary/30"
+                            : "bg-background border-border/70 hover:border-primary/30"
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
@@ -559,7 +559,7 @@ export function OffboardingProfileModal({
                             onClick={() => handleToggleTask(task.id, task.statusz)}
                           >
                             {isTaskDone ? (
-                              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                              <CheckCircle2 className="h-5 w-5 text-success" />
                             ) : (
                               <div className="h-3.5 w-3.5 rounded-full" />
                             )}
@@ -584,14 +584,14 @@ export function OffboardingProfileModal({
                               variant="outline"
                               size="sm"
                               className={cn(
-                                "h-7 text-xs px-2 gap-1 shadow-2xs",
+                                "h-7 text-xs px-2 gap-1",
                                 hasTerminationAgreement 
-                                  ? "text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10" 
+                                  ? "text-success border-success/30 hover:bg-success/10" 
                                   : "text-primary border-primary/30 hover:bg-primary/10"
                               )}
                               onClick={() => setActiveModalTab("megszuntetes")}
                             >
-                              {hasTerminationAgreement ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <FileText className="w-3 h-3" />}
+                              {hasTerminationAgreement ? <CheckCircle2 className="w-3 h-3 text-success" /> : <FileText className="w-3 h-3" />}
                               {hasTerminationAgreement ? "Megállapodás megtekintése" : "Megszüntetés előkészítése"}
                             </Button>
                           )}
@@ -602,14 +602,14 @@ export function OffboardingProfileModal({
                               variant="outline"
                               size="sm"
                               className={cn(
-                                "h-7 text-xs px-2 gap-1 shadow-2xs",
+                                "h-7 text-xs px-2 gap-1",
                                 hasAssetReturn 
-                                  ? "text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10" 
+                                  ? "text-success border-success/30 hover:bg-success/10" 
                                   : "text-primary border-primary/30 hover:bg-primary/10"
                               )}
                               onClick={() => setActiveModalTab("eszkozok")}
                             >
-                              {hasAssetReturn ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <Laptop className="w-3 h-3" />}
+                              {hasAssetReturn ? <CheckCircle2 className="w-3 h-3 text-success" /> : <Laptop className="w-3 h-3" />}
                               {hasAssetReturn ? "Leszámoló lap megtekintése" : "Eszközök visszavétele"}
                             </Button>
                           )}
@@ -619,10 +619,10 @@ export function OffboardingProfileModal({
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="h-7 text-xs px-2 gap-1 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 shadow-2xs"
+                              className="h-7 text-xs px-2 gap-1 text-success border-success/30 hover:bg-success/10"
                               onClick={() => setActiveModalTab("t1041")}
                             >
-                              <Building2 className="w-3 h-3 text-emerald-600" /> T1041 bejelentés
+                              <Building2 className="w-3 h-3 text-success" /> T1041 bejelentés
                             </Button>
                           )}
 
@@ -631,7 +631,7 @@ export function OffboardingProfileModal({
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10 shadow-2xs"
+                              className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10"
                               onClick={() => setActiveModalTab("interju")}
                             >
                               <MessageSquare className="w-3 h-3" /> Kilépési interjú
@@ -644,14 +644,14 @@ export function OffboardingProfileModal({
                               variant="outline"
                               size="sm"
                               className={cn(
-                                "h-7 text-xs px-2 gap-1 shadow-2xs",
+                                "h-7 text-xs px-2 gap-1",
                                 hasExitCertificate 
-                                  ? "text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10" 
+                                  ? "text-success border-success/30 hover:bg-success/10" 
                                   : "text-primary border-primary/30 hover:bg-primary/10"
                               )}
                               onClick={() => setActiveModalTab("kilepo_igazolas")}
                             >
-                              {hasExitCertificate ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <FileCheck className="w-3 h-3" />}
+                              {hasExitCertificate ? <CheckCircle2 className="w-3 h-3 text-success" /> : <FileCheck className="w-3 h-3" />}
                               {hasExitCertificate ? "Igazolások megtekintése" : "Igazolások kiadása"}
                             </Button>
                           )}

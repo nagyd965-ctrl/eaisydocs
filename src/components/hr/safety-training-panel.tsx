@@ -146,8 +146,8 @@ export function SafetyTrainingPanel({
             </Button>
           )}
           <div>
-            <h3 className="text-sm font-bold tracking-tight flex items-center gap-2">
-              <HardHat className="w-4 h-4 text-teal-600" /> Munkavédelmi és Tűzvédelmi Oktatás
+            <h3 className="text-sm font-semibold tracking-tight flex items-center gap-2">
+              <HardHat className="w-4 h-4 text-primary" /> Munkavédelmi és Tűzvédelmi Oktatás
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               Kötelező előzetes vagy ismétlődő oktatási jegyzőkönyv kiállítása és eaisyDocs iktatása (3.4 tétel, 10 év megőrzési idő).
@@ -155,7 +155,7 @@ export function SafetyTrainingPanel({
           </div>
         </div>
 
-        <Badge variant="outline" className="text-xs bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/20 shrink-0 self-start sm:self-auto">
+        <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20 shrink-0 self-start sm:self-auto font-mono">
           Mvt. 55. § & Ttv. 22. §
         </Badge>
       </div>
@@ -164,14 +164,14 @@ export function SafetyTrainingPanel({
       {existingDoc && (
         <div className={`border rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200 ${
           existingDoc.iktatoszam 
-            ? "border-emerald-500/30 bg-emerald-500/10" 
-            : "border-amber-500/30 bg-amber-500/5"
+            ? "border-success/30 bg-success/10" 
+            : "border-warning/30 bg-warning/10"
         }`}>
           <div className="flex items-center gap-3">
             {existingDoc.iktatoszam ? (
-              <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+              <ShieldCheck className="w-5 h-5 text-success shrink-0" />
             ) : (
-              <FileCheck className="w-5 h-5 text-amber-600 shrink-0" />
+              <FileCheck className="w-5 h-5 text-warning shrink-0" />
             )}
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -179,11 +179,11 @@ export function SafetyTrainingPanel({
                   Elkészült Munkavédelmi & Tűzvédelmi Jegyzőkönyv
                 </h4>
                 {existingDoc.iktatoszam ? (
-                  <Badge variant="outline" className="text-xs bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 font-medium">
+                  <Badge variant="outline" className="text-xs bg-success/15 text-success border-success/30 font-medium">
                     Beiktatva: {existingDoc.iktatoszam}
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-xs bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 font-medium">
+                  <Badge variant="outline" className="text-xs bg-warning/15 text-warning border-warning/30 font-medium">
                     Mentve (Iktatás fiókaktiváláskor)
                   </Badge>
                 )}
@@ -306,10 +306,10 @@ export function SafetyTrainingPanel({
         <div className="border rounded-lg p-3.5 bg-muted/10 space-y-2">
           <div className="flex items-center justify-between">
             <h5 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+              <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
               Jegyzőkönyvezett Oktatási Tematika ({DEFAULT_SAFETY_TOPICS.length} pont)
             </h5>
-            <Badge variant="outline" className="text-[10px] bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/20 font-medium">
+            <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-medium">
               Mvt. 55. § & OTSZ
             </Badge>
           </div>
@@ -347,7 +347,7 @@ export function SafetyTrainingPanel({
           <Button
             type="submit"
             disabled={isGenerating || !oktatoNeve.trim()}
-            className="gap-2 shrink-0 bg-teal-600 hover:bg-teal-700 text-white font-semibold"
+            className="gap-2 shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
           >
             {isGenerating ? (
               <>

@@ -149,7 +149,7 @@ export default async function SelfServicePage() {
             <FileSignature className="w-4 h-4 mr-2 text-primary" />
             Céges Szabályzatok
             {pendingDocsCount > 0 && (
-              <span className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-white text-[10px] font-bold flex items-center justify-center rounded-full animate-pulse">
+              <span className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-destructive-foreground text-[10px] font-semibold flex items-center justify-center rounded-full animate-pulse tabular-nums">
                 {pendingDocsCount}
               </span>
             )}
@@ -158,7 +158,7 @@ export default async function SelfServicePage() {
       </div>
 
       {/* Hero üdvözlő banner */}
-      <div className="rounded-xl bg-gradient-to-r from-primary to-primary/80 p-6 flex justify-between items-center">
+      <div className="rounded-lg bg-gradient-to-r from-primary to-primary/80 p-6 flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-semibold text-primary-foreground">
             Üdvözlünk, {nev}!
@@ -179,10 +179,8 @@ export default async function SelfServicePage() {
         <div className="flex flex-col items-end gap-2">
           <span className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
             timeStatus === "checked_in"
-              ? "bg-emerald-500/20 text-emerald-100 border-emerald-400/40"
-              : timeStatus === "checked_out"
-              ? "bg-white/10 text-white/70 border-white/20"
-              : "bg-white/10 text-white/70 border-white/20"
+              ? "bg-success/20 text-success-foreground border-success/40"
+              : "bg-background/20 text-foreground/80 border-border/30"
           }`}>
             {timeStatus === "checked_in" ? "Becsekkolva" : timeStatus === "checked_out" ? "Mai nap lezárva" : "Még nincs becsekkolva"}
           </span>
@@ -235,9 +233,7 @@ export default async function SelfServicePage() {
               <CardTitle className="text-base font-semibold">Szabadság ({new Date().getFullYear()})</CardTitle>
               <p className="text-xs text-muted-foreground">Éves alapszabadság + pótszabadságok</p>
             </div>
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <CalendarDays className="w-4 h-4 text-primary" />
-            </div>
+            <CalendarDays className="w-5 h-5 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="flex items-end justify-between mt-2">
@@ -245,10 +241,10 @@ export default async function SelfServicePage() {
                 <span className="text-4xl font-semibold tabular-nums">{remainingLeave}</span>
                 <span className="text-muted-foreground text-sm">nap maradt</span>
               </div>
-              <span className="text-sm text-muted-foreground">Összesen: {totalLeave} nap</span>
+              <span className="text-sm text-muted-foreground tabular-nums">Összesen: {totalLeave} nap</span>
             </div>
             <Progress value={(usedLeave / totalLeave) * 100} className="mt-4 h-2" />
-            <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+            <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground tabular-nums">
               <span>Felhasznált: {usedLeave} nap</span>
               <span>Tervezett: {plannedLeave} nap</span>
             </div>
@@ -269,10 +265,10 @@ export default async function SelfServicePage() {
                 recentLeaves.map((leave: any) => (
                   <div key={leave.id} className="flex justify-between items-center text-sm border-b border-border pb-3 last:border-0 last:pb-0">
                     <div>
-                      <p className="font-medium">
+                      <p className="font-medium text-foreground">
                         {leave.tipus === "szabadsag" ? "Szabadság" : leave.tipus}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">
                         {leave.kezdet_datuma && !isNaN(new Date(leave.kezdet_datuma).getTime())
                           ? new Date(leave.kezdet_datuma).toLocaleDateString("hu-HU")
                           : "–"}
@@ -282,12 +278,12 @@ export default async function SelfServicePage() {
                           : "–"}
                       </p>
                     </div>
-                    <span className={`px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
                       leave.statusz === "jovahagyva"
-                        ? "bg-emerald-500/10 text-emerald-600"
+                        ? "bg-success/10 text-success border border-success/20"
                         : leave.statusz === "elutasitva"
-                        ? "bg-destructive/10 text-destructive"
-                        : "bg-amber-500/10 text-amber-600"
+                        ? "bg-destructive/10 text-destructive border border-destructive/20"
+                        : "bg-warning/10 text-warning border border-warning/20"
                     }`}>
                       {statuszLabel[leave.statusz] ?? leave.statusz}
                     </span>

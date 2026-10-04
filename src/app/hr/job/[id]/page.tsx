@@ -141,7 +141,7 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
         </TabsList>
 
         <TabsContent value="employees" className="space-y-4 outline-none">
-          <Card className="border-border shadow-sm">
+          <Card className="border-border">
             <CardHeader className="flex flex-row items-center justify-between pb-4 border-b">
               <div>
                 <CardTitle className="text-lg font-semibold">Betöltött Pozíciók</CardTitle>
@@ -152,14 +152,15 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
               )}
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-6">Név</TableHead>
-                    <TableHead>Belépés Dátuma</TableHead>
-                    {isHrOrAdmin && <TableHead className="text-right pr-6">Művelet</TableHead>}
-                  </TableRow>
-                </TableHeader>
+              <div className="overflow-x-auto">
+                <Table className="compact-table">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="pl-6">Név</TableHead>
+                      <TableHead>Belépés Dátuma</TableHead>
+                      {isHrOrAdmin && <TableHead className="text-right pr-6">Művelet</TableHead>}
+                    </TableRow>
+                  </TableHeader>
                 <TableBody>
                   {employees && employees.length > 0 ? employees.map((emp) => (
                     <TableRow key={emp.id} className="hover:bg-muted/50">
@@ -184,14 +185,15 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
                   )}
                 </TableBody>
               </Table>
-            </CardContent>
+            </div>
+          </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="details" className="space-y-6 outline-none">
           
           {/* Feladatok és Hatáskörök */}
-          <Card className="border-border shadow-sm">
+          <Card className="border-border">
             <CardHeader>
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <ClipboardList className="w-5 h-5 text-primary" /> Feladatok és Hatáskörök
@@ -214,7 +216,7 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
           </Card>
 
           {/* Elvárt Kompetenciák */}
-          <Card className="border-border shadow-sm">
+          <Card className="border-border">
             <CardHeader>
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <GraduationCap className="w-5 h-5 text-primary" /> Elvárt Kompetenciák és Végzettség
@@ -235,16 +237,16 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
 
           <div className="grid md:grid-cols-2 gap-6">
             {/* Kockázatértékelés + Védőeszköz */}
-            <Card className="border-border shadow-sm">
+            <Card className="border-border">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <ShieldAlert className="w-5 h-5 text-amber-500" /> Kockázatértékelés (Munkavédelem)
+                  <ShieldAlert className="w-5 h-5 text-warning" /> Kockázatértékelés (Munkavédelem)
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {job.kockazat_tipusa ? (
-                  <div className="flex items-start gap-3 bg-amber-500/5 p-4 rounded-md border border-amber-500/20">
-                    <ShieldAlert className="w-5 h-5 text-amber-500 mt-0.5" />
+                  <div className="flex items-start gap-3 bg-warning/5 p-4 rounded-md border border-warning/20">
+                    <ShieldAlert className="w-5 h-5 text-warning mt-0.5" />
                     <div>
                       <p className="font-medium text-sm">Bejelentett Kockázat</p>
                       <p className="text-sm text-muted-foreground mt-1">{job.kockazat_tipusa}</p>
@@ -254,8 +256,8 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
                   <p className="text-muted-foreground text-sm">Nincs különleges munkavédelmi kockázat rögzítve.</p>
                 )}
                 {job.vedoeszkoz_igeny && (
-                  <div className="flex items-start gap-3 bg-blue-500/5 p-4 rounded-md border border-blue-500/20">
-                    <HardHat className="w-5 h-5 text-blue-500 mt-0.5" />
+                  <div className="flex items-start gap-3 bg-info/5 p-4 rounded-md border border-info/20">
+                    <HardHat className="w-5 h-5 text-info mt-0.5" />
                     <div>
                       <p className="font-medium text-sm">Védőeszköz Igény</p>
                       <p className="text-sm text-muted-foreground mt-1">{job.vedoeszkoz_igeny}</p>
@@ -266,7 +268,7 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
             </Card>
 
             {/* Orvosi Vizsgálat */}
-            <Card className="border-border shadow-sm">
+            <Card className="border-border">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <Stethoscope className="w-5 h-5 text-primary" /> Kötelező Orvosi Vizsgálat
@@ -294,7 +296,7 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
           </div>
 
           {/* Munkaköri Leírás Dokumentum (verziókövetéssel) */}
-          <Card className="border-border shadow-sm">
+          <Card className="border-border">
             <CardHeader>
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" /> Hivatalos Munkaköri Leírás

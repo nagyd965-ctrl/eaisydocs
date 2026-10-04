@@ -45,7 +45,7 @@ export function AssignEmployeeOrgDialog({ orgUnitId, availableEmployees }: Assig
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className={buttonVariants({ className: "gap-2 bg-[#02b8cc] hover:bg-[#029db0] text-white" })}>
+      <DialogTrigger className={buttonVariants({ className: "gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" })}>
         <UserPlus className="w-4 h-4" />
         Dolgozó Hozzárendelése
       </DialogTrigger>
@@ -82,7 +82,7 @@ export function AssignEmployeeOrgDialog({ orgUnitId, availableEmployees }: Assig
           <button type="button" className={buttonVariants({ variant: "outline" })} onClick={() => setOpen(false)} disabled={loading}>
             Mégse
           </button>
-          <button type="button" className={buttonVariants({ className: "bg-[#02b8cc] hover:bg-[#029db0] text-white" })} onClick={handleAssign} disabled={loading || !selectedEmployeeId}>
+          <button type="button" className={buttonVariants({ className: "bg-primary hover:bg-primary/90 text-primary-foreground" })} onClick={handleAssign} disabled={loading || !selectedEmployeeId}>
             {loading ? "Hozzárendelés..." : "Hozzárendelés"}
           </button>
         </DialogFooter>

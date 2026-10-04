@@ -36,7 +36,7 @@ function DeadlineInfo({ hatarido, statusz }: { hatarido?: string | null; statusz
   }
   if (daysLeft <= 30) {
     return (
-      <span className="flex items-center gap-1 text-amber-600">
+      <span className="flex items-center gap-1 text-warning">
         <Clock className="w-3 h-3" />
         {daysLeft} nap múlva esedékes
       </span>
@@ -56,8 +56,8 @@ function DeadlineInfo({ hatarido, statusz }: { hatarido?: string | null; statusz
 function PriorityBadge({ prioritas }: { prioritas?: string | null }) {
   const map: Record<string, { label: string; cls: string }> = {
     magas:    { label: "Magas",    cls: "bg-destructive/10 text-destructive border-destructive/20" },
-    kozepes:  { label: "Közepes",  cls: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
-    alacsony: { label: "Alacsony", cls: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
+    kozepes:  { label: "Közepes",  cls: "bg-warning/10 text-warning border-warning/20" },
+    alacsony: { label: "Alacsony", cls: "bg-info/10 text-info border-info/20" },
   }
   const p = prioritas ?? "kozepes"
   const { label, cls } = map[p] ?? map.kozepes
@@ -246,17 +246,17 @@ export function EmployeeIdpView({ tervek }: { tervek: IDPPlanItem[] }) {
                     key={cel.id}
                     className={cn(
                       "rounded-xl border p-4 transition-colors",
-                      isDone    ? "bg-emerald-500/5 border-emerald-500/20 opacity-75" :
-                      isPending ? "bg-amber-500/5 border-amber-500/20" :
+                      isDone    ? "bg-success/5 border-success/20 opacity-75" :
+                      isPending ? "bg-warning/5 border-warning/20" :
                                   "bg-card hover:bg-accent/20"
                     )}
                   >
                     {/* Fejléc */}
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 shrink-0">
-                        {isDone    ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> :
-                         isPending ? <Clock className="w-5 h-5 text-amber-500" /> :
-                         isInProgress ? <Circle className="w-5 h-5 text-blue-500 fill-blue-500/20" /> :
+                        {isDone    ? <CheckCircle2 className="w-5 h-5 text-success" /> :
+                         isPending ? <Clock className="w-5 h-5 text-warning" /> :
+                         isInProgress ? <Circle className="w-5 h-5 text-info fill-info/20" /> :
                                         <Circle className="w-5 h-5 text-muted-foreground/40" />}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -293,7 +293,7 @@ export function EmployeeIdpView({ tervek }: { tervek: IDPPlanItem[] }) {
                             </span>
                           )}
                           {isDone && cel.teljesites_datuma && (
-                            <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                            <span className="flex items-center gap-1 text-success font-medium">
                               <CheckCircle2 className="w-3 h-3" />
                               Teljesítve: {cel.teljesites_datuma ? format(new Date(cel.teljesites_datuma), "yyyy. MM. dd.", { locale: hu }) : ""}
                             </span>
@@ -302,13 +302,13 @@ export function EmployeeIdpView({ tervek }: { tervek: IDPPlanItem[] }) {
 
                         {/* Státusz jelző szöveg */}
                         {isPending && (
-                          <div className="mt-2 text-xs text-amber-600 bg-amber-500/10 rounded-md px-3 py-2 flex items-center gap-2">
+                          <div className="mt-2 text-xs text-warning bg-warning/10 rounded-md px-3 py-2 flex items-center gap-2">
                             <Clock className="w-3.5 h-3.5 shrink-0" />
                             Jóváhagyásra vár – a HR hamarosan visszajelzést ad.
                           </div>
                         )}
                         {isDone && (
-                          <div className="mt-2 text-xs text-emerald-600 bg-emerald-500/10 rounded-md px-3 py-2 flex items-center gap-2">
+                          <div className="mt-2 text-xs text-success bg-success/10 rounded-md px-3 py-2 flex items-center gap-2">
                             <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                             A HR jóváhagyta – sikeresen teljesítetted ezt a célt!
                           </div>
@@ -331,7 +331,7 @@ export function EmployeeIdpView({ tervek }: { tervek: IDPPlanItem[] }) {
                             )}
                             <Button
                               size="sm"
-                              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+                              className="h-7 text-xs bg-success hover:bg-success/90 text-success-foreground"
                               disabled={isLoading}
                               onClick={() => handleMarkDone(cel.id)}
                             >

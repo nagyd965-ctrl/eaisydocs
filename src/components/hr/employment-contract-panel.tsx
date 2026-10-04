@@ -258,7 +258,7 @@ export function EmploymentContractPanel({
             </Button>
           )}
           <div>
-            <h3 className="text-sm font-bold tracking-tight flex items-center gap-2">
+            <h3 className="text-sm font-semibold tracking-tight flex items-center gap-2">
               <FileText className="w-4 h-4 text-primary" /> Munkaszerződés Előkészítése és Kezelése
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -276,14 +276,14 @@ export function EmploymentContractPanel({
       {existingDoc && (
         <div className={`border rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200 ${
           existingDoc.iktatoszam 
-            ? "border-emerald-500/30 bg-emerald-500/10" 
-            : "border-amber-500/30 bg-amber-500/5"
+            ? "border-success/30 bg-success/10" 
+            : "border-warning/30 bg-warning/5"
         }`}>
           <div className="flex items-center gap-3">
             {existingDoc.iktatoszam ? (
-              <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+              <ShieldCheck className="w-5 h-5 text-success shrink-0" />
             ) : (
-              <FileCheck className="w-5 h-5 text-amber-600 shrink-0" />
+              <FileCheck className="w-5 h-5 text-warning shrink-0" />
             )}
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -291,17 +291,17 @@ export function EmploymentContractPanel({
                   Elkészült Munkaszerződés
                 </h4>
                 {existingDoc.iktatoszam ? (
-                  <Badge variant="outline" className="text-xs bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 font-medium">
+                  <Badge variant="outline" className="text-xs bg-success/15 text-success border-success/30 font-medium">
                     Beiktatva: {existingDoc.iktatoszam}
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-xs bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 font-medium">
+                  <Badge variant="outline" className="text-xs bg-warning/15 text-warning border-warning/30 font-medium">
                     Tervezet (Iktatás fiókaktiváláskor)
                   </Badge>
                 )}
                 {existingDoc.alairas_statusz === "alairva" && (
-                  <Badge variant="outline" className="text-xs bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-500/30 font-medium gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-teal-600" /> Aláírt példány csatolva
+                  <Badge variant="outline" className="text-xs bg-primary/15 text-primary border-primary/30 font-medium gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-primary" /> Aláírt példány csatolva
                   </Badge>
                 )}
               </div>
@@ -357,9 +357,9 @@ export function EmploymentContractPanel({
 
       {/* 2b. Mt. 46. § Tájékoztató Kártya (ha van) */}
       {mt46Doc && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-teal-500/30 bg-teal-500/5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-primary/30 bg-primary/5">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-md bg-teal-500/10 text-teal-600 shrink-0">
+            <div className="p-2 rounded-md bg-primary/10 text-primary shrink-0">
               <FileCheck className="w-4 h-4" />
             </div>
             <div>
@@ -367,7 +367,7 @@ export function EmploymentContractPanel({
                 <span className="font-semibold text-xs text-foreground">
                   Munkáltatói Írásbeli Tájékoztató (Mt. 46. §)
                 </span>
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] gap-1 font-mono">
+                <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-[10px] gap-1 font-mono">
                   <CheckCircle2 className="w-3 h-3" />
                   {mt46Doc.iktatoszam ? `Iktatva: ${mt46Doc.iktatoszam}` : "PDF Kész"}
                 </Badge>
@@ -385,7 +385,7 @@ export function EmploymentContractPanel({
               target="_blank"
               rel="noopener noreferrer"
               download
-              className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-1 text-xs h-7 border-teal-500/30`}
+              className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-1 text-xs h-7 border-primary/30`}
             >
               <Download className="w-3 h-3" /> Letöltés
             </a>

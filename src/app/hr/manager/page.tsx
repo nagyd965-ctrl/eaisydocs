@@ -121,7 +121,7 @@ export default async function ManagerPage() {
             <span className="text-muted-foreground">függő kérelem</span>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-card text-sm">
-            <CalendarX className="w-3.5 h-3.5 text-blue-500" />
+            <CalendarX className="w-3.5 h-3.5 text-info" />
             <span className="font-medium tabular-nums">{todayAbsentCount}</span>
             <span className="text-muted-foreground">ma távol</span>
           </div>
@@ -136,7 +136,7 @@ export default async function ManagerPage() {
         {/* Bal oszlop: Jóváhagyások + Naptár */}
         <div className="md:col-span-2 space-y-6">
 
-          <Card className="border shadow-xs bg-card">
+          <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -148,7 +148,7 @@ export default async function ManagerPage() {
                     Jóváhagyásra váró kérelmek
                   </CardTitle>
                   {pendingCount > 0 && (
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-warning text-white text-[11px] font-bold">
+                    <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-warning text-warning-foreground text-[11px] font-semibold tabular-nums">
                       {pendingCount}
                     </span>
                   )}
@@ -171,7 +171,7 @@ export default async function ManagerPage() {
                     return (
                       <div
                         key={approval.id}
-                        className="flex items-center gap-4 p-3 rounded-lg border border-l-2 border-l-warning hover:bg-muted/30 transition-colors"
+                        className="flex items-center gap-4 p-3 rounded-lg border border-warning/30 bg-warning/5 hover:bg-warning/10 transition-colors"
                       >
                         <Avatar className="h-9 w-9 shrink-0">
                           <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">

@@ -36,8 +36,8 @@ export default async function DokumentumokPage() {
   return (
     <div className="space-y-8 pb-10">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-          <FileSignature className="w-8 h-8 text-primary" />
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground flex items-center gap-3">
+          <FileSignature className="w-6 h-6 text-primary" />
           Céges Dokumentumok
         </h1>
         <p className="text-muted-foreground mt-2 max-w-2xl">

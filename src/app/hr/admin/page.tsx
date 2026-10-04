@@ -164,7 +164,7 @@ export default async function HrAdminPage() {
           {alerts.map((alert: any) => (
             <div
               key={alert.id}
-              className="flex items-center gap-3 p-4 rounded-lg border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 transition-colors"
+              className="flex items-center gap-3 p-4 rounded-lg border border-warning/30 bg-warning/5 hover:bg-warning/10 transition-colors"
             >
               <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
               <div className="flex-1 min-w-0">

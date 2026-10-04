@@ -22,7 +22,7 @@ export default async function RecruitmentPage() {
       <div className="flex items-center justify-center h-[50vh] text-center">
         <div>
           <Shield className="w-12 h-12 text-destructive mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-destructive mb-2">Hozzáférés Megtagadva</h2>
+          <h2 className="text-2xl font-semibold text-destructive mb-2">Hozzáférés Megtagadva</h2>
           <p className="text-muted-foreground">Nincs jogosultságod a toborzási rendszer megtekintéséhez.</p>
         </div>
       </div>

@@ -77,13 +77,13 @@ export function OffboardingCard({ offboarding }: OffboardingCardProps) {
       })
 
       if (diffDays === 0) {
-        return { text: "Ma (utolsó nap)", badgeClass: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold" }
+        return { text: "Ma (utolsó nap)", badgeClass: "bg-warning/15 text-warning border-warning/30 font-semibold" }
       } else if (diffDays < 0) {
         return { text: `${formatted} (${Math.abs(diffDays)} napja kilépett)`, badgeClass: "bg-muted text-muted-foreground" }
       } else if (diffDays <= 7) {
-        return { text: `${formatted} (${diffDays} nap múlva)`, badgeClass: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30" }
+        return { text: `${formatted} (${diffDays} nap múlva)`, badgeClass: "bg-warning/15 text-warning border-warning/30" }
       } else {
-        return { text: `${formatted} (${diffDays} nap múlva)`, badgeClass: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20" }
+        return { text: `${formatted} (${diffDays} nap múlva)`, badgeClass: "bg-primary/10 text-primary border-primary/20" }
       }
     } catch {
       return { text: offboarding.utolso_munkanap, badgeClass: "bg-muted text-muted-foreground" }
@@ -97,13 +97,13 @@ export function OffboardingCard({ offboarding }: OffboardingCardProps) {
       <DialogTrigger 
         nativeButton={false}
         render={
-          <Card className="flex flex-col relative overflow-hidden h-full cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-all duration-200 group border shadow-sm text-left" />
+          <Card className="flex flex-col relative overflow-hidden h-full cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-all duration-200 group border text-left" />
         }
       >
         {/* Felső vékony csík a haladásnak */}
         <div 
           className={`absolute top-0 left-0 h-1 transition-all duration-500 ${
-            isClosed ? "bg-muted-foreground/40" : isDone ? "bg-emerald-500" : "bg-primary"
+            isClosed ? "bg-muted-foreground/40" : isDone ? "bg-success" : "bg-primary"
           }`}
           style={{ width: `${progress}%` }} 
         />
@@ -137,7 +137,7 @@ export function OffboardingCard({ offboarding }: OffboardingCardProps) {
                 Lezárva
               </Badge>
             ) : isDone ? (
-              <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20 shrink-0 font-medium gap-1">
+              <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/20 shrink-0 font-medium gap-1">
                 <CheckCircle2 className="w-3 h-3" /> Kész
               </Badge>
             ) : (

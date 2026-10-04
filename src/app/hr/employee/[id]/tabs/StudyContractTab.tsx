@@ -281,8 +281,8 @@ export function StudyContractTab({
             <p className="text-xs mt-1">Az Mt. 229. § szerinti képzési támogatásokat a jobb felső gombbal adhatja hozzá.</p>
           </div>
         ) : (
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="compact-table">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="font-semibold">Képzés és Intézmény</TableHead>
@@ -305,22 +305,22 @@ export function StudyContractTab({
                         {item.kepzes_szintje && <span className="text-[11px] opacity-75">• {item.kepzes_szintje}</span>}
                       </div>
                     </TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium tabular-nums">
                       {item.koltseg ? `${item.koltseg.toLocaleString("hu-HU")} Ft` : "Költségmentes"}
                     </TableCell>
                     <TableCell>
                       {item.vallalt_munkaviszony_honap ? (
-                        <span className="font-medium">{item.vallalt_munkaviszony_honap} hónap</span>
+                        <span className="font-medium tabular-nums">{item.vallalt_munkaviszony_honap} hónap</span>
                       ) : (
                         "–"
                       )}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="text-xs text-muted-foreground tabular-nums">
                       {item.lejarat_datuma || "–"}
                     </TableCell>
                     <TableCell>
                       {item.visszafizetesi_kotelezettseg !== false ? (
-                        <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs">
+                        <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-xs">
                           Időarányos
                         </Badge>
                       ) : (
@@ -336,7 +336,7 @@ export function StudyContractTab({
                           className="inline-flex items-center gap-1.5"
                           title="Megtekintés a személyi dossziéban"
                         >
-                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20 transition-colors cursor-pointer gap-1 text-xs">
+                          <Badge variant="outline" className="bg-success/10 text-success border-success/20 hover:bg-success/20 transition-colors cursor-pointer gap-1 text-xs font-mono">
                             <FileCheck className="w-3.5 h-3.5" />
                             {item.iktatoszam}
                           </Badge>

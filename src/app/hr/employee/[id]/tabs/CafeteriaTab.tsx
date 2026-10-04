@@ -145,15 +145,15 @@ export function CafeteriaTab({
                 <div className="flex justify-between items-end mb-2">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Felhasználható maradt</p>
-                    <p className="text-2xl font-bold text-primary">{formatFt(remaining)}</p>
+                    <p className="text-2xl font-semibold tabular-nums text-primary">{formatFt(remaining)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-muted-foreground">Teljes keret</p>
-                    <p className="font-semibold">{formatFt(budget)}</p>
+                    <p className="font-semibold tabular-nums">{formatFt(budget)}</p>
                   </div>
                 </div>
                 <Progress value={(totalUsed / budget) * 100} className="h-2.5 mt-4" />
-                <p className="text-xs text-muted-foreground text-right mt-2">Felhasznált: {formatFt(totalUsed)}</p>
+                <p className="text-xs text-muted-foreground text-right mt-2">Felhasznált: <span className="tabular-nums">{formatFt(totalUsed)}</span></p>
               </div>
             )}
           </CardContent>
@@ -283,8 +283,8 @@ export function CafeteriaTab({
           <CardContent>
             {choices.length > 0 ? (
               <div className="space-y-3">
-                <div className="rounded-md border overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="rounded-md border overflow-x-auto">
+                  <table className="w-full text-sm compact-table">
                     <thead className="bg-muted/50 border-b">
                       <tr>
                         <th className="h-10 px-4 text-left font-medium text-muted-foreground">Elem</th>
@@ -298,8 +298,8 @@ export function CafeteriaTab({
                         return (
                           <tr key={c.id} className="border-b last:border-0 hover:bg-muted/10 transition-colors">
                             <td className="p-4 font-medium">{item?.nev || "Ismeretlen elem"}</td>
-                            <td className="p-4 text-right">{formatFt(c.kert_osszeg)}</td>
-                            <td className="p-4 text-right text-muted-foreground font-medium">{formatFt(c.levont_keret_osszeg)}</td>
+                            <td className="p-4 text-right tabular-nums">{formatFt(c.kert_osszeg)}</td>
+                            <td className="p-4 text-right text-muted-foreground font-medium tabular-nums">{formatFt(c.levont_keret_osszeg)}</td>
                           </tr>
                         )
                       })}
@@ -308,7 +308,7 @@ export function CafeteriaTab({
                 </div>
                 <div className="flex justify-between p-3 bg-muted rounded-md font-semibold mt-4 text-sm">
                   <span>Összesen levont:</span>
-                  <span className="text-primary">{formatFt(totalUsed)}</span>
+                  <span className="text-primary tabular-nums">{formatFt(totalUsed)}</span>
                 </div>
               </div>
             ) : (

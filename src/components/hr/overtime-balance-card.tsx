@@ -100,19 +100,19 @@ export function OvertimeBalanceCard({ employeeId }: { employeeId: string }) {
       <CardContent className="space-y-4">
         {/* Egyenleg kijelző */}
         <div className={`flex items-center justify-between p-4 rounded-lg border ${
-          isPositive ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800"
-          : isNegative ? "bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:border-rose-800"
+          isPositive ? "bg-success/10 border-success/30"
+          : isNegative ? "bg-destructive/10 border-destructive/30"
           : "bg-muted/30 border-border"
         }`}>
           <div className="flex items-center gap-3">
-            {isPositive ? <TrendingUp className="w-5 h-5 text-emerald-600" />
-              : isNegative ? <TrendingDown className="w-5 h-5 text-rose-600" />
+            {isPositive ? <TrendingUp className="w-5 h-5 text-success" />
+              : isNegative ? <TrendingDown className="w-5 h-5 text-destructive" />
               : <Minus className="w-5 h-5 text-muted-foreground" />}
             <div>
               <p className="text-xs text-muted-foreground">Jelenlegi egyenleg</p>
-              <p className={`text-2xl font-bold tabular-nums ${
-                isPositive ? "text-emerald-700 dark:text-emerald-400"
-                : isNegative ? "text-rose-700 dark:text-rose-400"
+              <p className={`text-2xl font-semibold tabular-nums ${
+                isPositive ? "text-success"
+                : isNegative ? "text-destructive"
                 : "text-foreground"
               }`}>
                 {balanceSign}{formatMinutes(balance ?? 0)}

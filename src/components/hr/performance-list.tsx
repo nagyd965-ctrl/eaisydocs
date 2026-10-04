@@ -138,9 +138,9 @@ export function PerformanceList({
                   let textClass = "text-primary"
 
                   if (percent >= 80) {
-                    colorClass = "bg-green-600"; bgClass = "bg-green-100 dark:bg-green-950"; textClass = "text-green-600"
+                    colorClass = "bg-success"; bgClass = "bg-success/20"; textClass = "text-success"
                   } else if (percent <= 30) {
-                    colorClass = "bg-orange-500"; bgClass = "bg-orange-100 dark:bg-orange-950"; textClass = "text-orange-500"
+                    colorClass = "bg-warning"; bgClass = "bg-warning/20"; textClass = "text-warning"
                   }
 
                   return (
@@ -236,12 +236,12 @@ export function PerformanceList({
                             {/* Önértékelés megjelenítése */}
                             {kpi.onertekeles_szovege && (
                               <div className="relative">
-                                <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-blue-500/20 border-2 border-blue-500 ring-4 ring-background" />
+                                <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-info/20 border-2 border-info ring-4 ring-background" />
                                 <div className="flex items-center gap-2 mb-1">
-                                  <User className="w-3 h-3 text-blue-500" />
+                                  <User className="w-3 h-3 text-info" />
                                   <span className="font-medium text-sm">Dolgozói önértékelés leadva</span>
                                 </div>
-                                <p className="text-sm bg-blue-500/5 p-3 rounded-md border border-blue-500/20 mt-2">
+                                <p className="text-sm bg-info/5 p-3 rounded-md border border-info/20 mt-2">
                                   {kpi.onertekeles_szovege}
                                 </p>
                               </div>
@@ -254,9 +254,9 @@ export function PerformanceList({
                                   {log.esemeny_tipus === "kpi_bejegyzes" ? (
                                     <MessageSquare className="w-3 h-3 text-primary" />
                                   ) : log.esemeny_tipus === "kpi_onertekeles" ? (
-                                    <User className="w-3 h-3 text-blue-500" />
+                                    <User className="w-3 h-3 text-info" />
                                   ) : log.esemeny_tipus === "kpi_megbeszeles" ? (
-                                    <CalendarCheck className="w-3 h-3 text-purple-500" />
+                                    <CalendarCheck className="w-3 h-3 text-primary" />
                                   ) : (
                                     <History className="w-3 h-3 text-muted-foreground" />
                                   )}
@@ -298,14 +298,14 @@ export function PerformanceList({
                             {/* Megbeszélés szekció */}
                             {kpi.megbeszeles_datum && (
                               <div className="relative">
-                                <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-purple-500/20 border-2 border-purple-500 ring-4 ring-background" />
+                                <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-primary/20 border-2 border-primary ring-4 ring-background" />
                                 <div className="flex items-center gap-2 mb-1">
-                                  <CalendarCheck className="w-3 h-3 text-purple-500" />
+                                  <CalendarCheck className="w-3 h-3 text-primary" />
                                   <span className="font-medium text-sm">Értékelő megbeszélés megtörtént</span>
                                   <span className="text-xs text-muted-foreground">{new Date(kpi.megbeszeles_datum).toLocaleDateString("hu-HU")}</span>
                                 </div>
                                 {kpi.megbeszeles_megjegyzes && (
-                                  <p className="text-sm bg-purple-500/5 p-3 rounded-md border border-purple-500/20 mt-2">
+                                  <p className="text-sm bg-primary/5 p-3 rounded-md border border-primary/20 mt-2">
                                     {kpi.megbeszeles_megjegyzes}
                                   </p>
                                 )}
@@ -420,16 +420,17 @@ export function PerformanceList({
                                 }}
                                 className="space-y-2"
                               >
-                                <div className="flex items-center gap-2 text-sm font-medium text-purple-600 dark:text-purple-400">
+                                <div className="flex items-center gap-2 text-sm font-medium text-primary">
                                   <CalendarCheck className="w-4 h-4" /> Értékelő Megbeszélés Rögzítése
-                                  <Badge className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-0 text-[10px]">Te jössz!</Badge>
+                                  <Badge className="bg-primary/10 text-primary border-0 text-[10px]">Te jössz!</Badge>
                                 </div>
                                 <Textarea
                                   name="megjegyzes"
                                   placeholder="Jegyzőkönyv / megjegyzés (opcionális)..."
                                   className="min-h-[60px] text-sm"
+                                  rows={2}
                                 />
-                                <Button type="submit" size="sm" variant="outline" className="w-full border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10">
+                                <Button type="submit" size="sm" variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10">
                                   <CalendarCheck className="w-4 h-4 mr-2" /> Megbeszélés megtörtént
                                 </Button>
                               </form>

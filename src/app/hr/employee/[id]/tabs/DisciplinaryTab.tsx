@@ -71,22 +71,22 @@ export function DisciplinaryTab({
   const tipusMeta: Record<string, { label: string; badgeClass: string; icon: any }> = {
     figyelmeztetes: {
       label: "Írásbeli Figyelmeztetés (Mt. 56. §)",
-      badgeClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+      badgeClass: "bg-warning/10 text-warning border-warning/20",
       icon: AlertTriangle,
     },
     megrovas: {
       label: "Írásbeli Megrovás (Mt. 56. §)",
-      badgeClass: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20",
+      badgeClass: "bg-destructive/10 text-destructive border-destructive/20",
       icon: AlertTriangle,
     },
     karterites: {
       label: "Kártérítési Kötelezés (Mt. 179. §)",
-      badgeClass: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+      badgeClass: "bg-destructive/10 text-destructive border-destructive/20",
       icon: Coins,
     },
     egyeb: {
       label: "Egyéb Munkáltatói Intézkedés",
-      badgeClass: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20",
+      badgeClass: "bg-muted text-muted-foreground border-border",
       icon: Scale,
     },
   }
@@ -226,8 +226,8 @@ export function DisciplinaryTab({
 
                 {/* 2. Kártérítés specifikus mezők */}
                 {selectedTipus === "karterites" && (
-                  <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-3 space-y-3">
-                    <div className="text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                  <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 space-y-3">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-destructive flex items-center gap-1.5">
                       <Coins className="w-3.5 h-3.5" /> Kártérítési összeg és levonási megállapodás (Mt. 179. §)
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -316,8 +316,8 @@ export function DisciplinaryTab({
             <p className="text-xs mt-1">A munkavállaló aktája fegyelmi szempontból tiszta és rendezett.</p>
           </div>
         ) : (
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="compact-table">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="font-semibold">Intézkedés Típusa</TableHead>
@@ -363,7 +363,7 @@ export function DisciplinaryTab({
                           {item.indoklas}
                         </p>
                         {isKarterites && item.kar_osszeg && (
-                          <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400">
+                          <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-destructive tabular-nums">
                             <Coins className="w-3.5 h-3.5" />
                             Kárérték: {item.kar_osszeg.toLocaleString("hu-HU")} Ft
                             {item.reszletfizetes_leiras && (
@@ -390,7 +390,7 @@ export function DisciplinaryTab({
                             className="inline-flex items-center gap-1.5"
                             title="Megtekintés a személyi dossziéban"
                           >
-                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20 transition-colors cursor-pointer gap-1 text-xs">
+                            <Badge variant="outline" className="bg-success/10 text-success border-success/20 hover:bg-success/20 transition-colors cursor-pointer gap-1 text-xs">
                               <FileCheck className="w-3.5 h-3.5" />
                               {item.iktatoszam}
                             </Badge>

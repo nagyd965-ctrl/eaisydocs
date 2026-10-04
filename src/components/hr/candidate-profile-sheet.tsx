@@ -107,12 +107,12 @@ export function CandidateProfileSheet({
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "uj": return <Badge variant="default" className="bg-blue-500 shadow-sm">Új jelentkező</Badge>
-      case "eloszurt": return <Badge variant="secondary" className="shadow-sm">Előszűrt</Badge>
-      case "interju": return <Badge variant="default" className="bg-purple-500 shadow-sm">Interjú</Badge>
-      case "ajanlat": return <Badge variant="default" className="bg-amber-500 shadow-sm">Ajánlat</Badge>
-      case "elfogadva": return <Badge variant="default" className="bg-green-500 shadow-sm">Elfogadva</Badge>
-      case "elutasitva": return <Badge variant="destructive" className="shadow-sm">Elutasítva</Badge>
+      case "uj": return <Badge variant="default" className="bg-info text-info-foreground">Új jelentkező</Badge>
+      case "eloszurt": return <Badge variant="secondary">Előszűrt</Badge>
+      case "interju": return <Badge variant="default" className="bg-primary text-primary-foreground">Interjú</Badge>
+      case "ajanlat": return <Badge variant="default" className="bg-warning text-warning-foreground">Ajánlat</Badge>
+      case "elfogadva": return <Badge variant="default" className="bg-success text-success-foreground">Elfogadva</Badge>
+      case "elutasitva": return <Badge variant="destructive">Elutasítva</Badge>
       default: return <Badge variant="outline">{status}</Badge>
     }
   }
@@ -189,13 +189,13 @@ export function CandidateProfileSheet({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="sm:max-w-md w-full p-0 flex flex-col overflow-hidden border-l-0 shadow-2xl">
+      <SheetContent className="sm:max-w-md w-full p-0 flex flex-col overflow-hidden border-l-0">
         
         {/* Premium Header with subtle gradient */}
         <div className="bg-gradient-to-b from-primary/10 to-background border-b relative">
           <SheetHeader className="p-8 pb-6">
             <div className="flex flex-col items-center text-center space-y-4">
-              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center border-2 border-primary/20 shadow-sm relative">
+              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center border-2 border-primary/20 relative">
                 <span className="text-2xl font-bold text-primary tracking-tight">
                   {candidate.nev.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                 </span>
@@ -206,7 +206,7 @@ export function CandidateProfileSheet({
               
               <div className="space-y-3 w-full max-w-xs mx-auto pt-2">
                 <div>
-                  <SheetTitle className="text-2xl font-bold tracking-tight text-foreground">{candidate.nev}</SheetTitle>
+                  <SheetTitle className="text-2xl font-semibold tracking-tight text-foreground">{candidate.nev}</SheetTitle>
                   <SheetDescription className="flex items-center justify-center gap-1.5 text-sm font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full inline-flex w-fit mx-auto mt-1">
                     <Briefcase className="w-4 h-4 text-primary" /> {munkakorNev}
                   </SheetDescription>
@@ -223,13 +223,13 @@ export function CandidateProfileSheet({
           <div className="space-y-4">
             <div className="flex items-center gap-2 w-full">
               <span className="h-px bg-border flex-1"></span>
-              <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 AI Elemzés
                 <Popover>
                   <PopoverTrigger className="focus:outline-none flex items-center justify-center rounded-full">
                     <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
                   </PopoverTrigger>
-                  <PopoverContent side="bottom" align="center" className="max-w-[280px] p-4 bg-background border-warning/50 shadow-lg z-[100]">
+                  <PopoverContent side="bottom" align="center" className="max-w-[280px] p-4 bg-background border-warning/50 z-[100]">
                     <div className="space-y-1">
                       <h5 className="text-sm font-semibold text-warning">Támogató funkció</h5>
                       <p className="leading-relaxed text-xs text-muted-foreground">
@@ -262,13 +262,13 @@ export function CandidateProfileSheet({
                 </div>
               ) : (
                 <div className="space-y-5">
-                  <div className="flex items-center gap-4 bg-background p-4 rounded-lg border border-border/50 shadow-sm">
+                  <div className="flex items-center gap-4 bg-background p-4 rounded-lg border border-border/50">
                     <div className="flex-1">
                       <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Relevancia</p>
                       <div className="flex items-center gap-3">
                         <div className="h-2 flex-1 bg-muted rounded-full overflow-hidden">
                           <div 
-                            className={`h-full ${candidate.ai_relevance_score! >= 75 ? 'bg-green-500' : candidate.ai_relevance_score! >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                            className={`h-full ${candidate.ai_relevance_score! >= 75 ? 'bg-success' : candidate.ai_relevance_score! >= 50 ? 'bg-warning' : 'bg-destructive'}`}
                             style={{ width: `${candidate.ai_relevance_score || 0}%` }}
                           />
                         </div>
@@ -308,7 +308,7 @@ export function CandidateProfileSheet({
           </div>
           
           <div className="space-y-4">
-            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
               <span className="h-px bg-border flex-1"></span>
               Elérhetőségek
               <span className="h-px bg-border flex-1"></span>
@@ -351,13 +351,13 @@ export function CandidateProfileSheet({
 
           {candidate.uzenet && (
             <div className="space-y-4 pt-2">
-              <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                 <span className="h-px bg-border flex-1"></span>
                 Bemutatkozás / Motiváció
                 <span className="h-px bg-border flex-1"></span>
               </h4>
               <Accordion className="w-full">
-                <AccordionItem value="motivation" className="border rounded-xl px-4 bg-muted/20 shadow-sm overflow-hidden">
+                <AccordionItem value="motivation" className="border rounded-xl px-4 bg-muted/20 overflow-hidden">
                   <AccordionTrigger className="text-sm font-semibold hover:no-underline py-3">
                     Üzenet megtekintése
                   </AccordionTrigger>
@@ -380,7 +380,7 @@ export function CandidateProfileSheet({
               <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
               <div className="relative z-10 flex flex-col gap-5">
                 <div className="flex items-start gap-4">
-                  <div className="bg-red-500/10 text-red-600 rounded-lg p-3 group-hover:scale-105 transition-transform">
+                  <div className="bg-destructive/10 text-destructive rounded-lg p-3 group-hover:scale-105 transition-transform">
                     <FileText className="w-7 h-7" />
                   </div>
                   <div className="flex-1 min-w-0 pt-1">
@@ -409,7 +409,7 @@ export function CandidateProfileSheet({
           </div>
 
           <div className="space-y-4 pt-2">
-            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
               <span className="h-px bg-border flex-1"></span>
               HR Jegyzetek & Értékelés
               <span className="h-px bg-border flex-1"></span>
@@ -454,7 +454,7 @@ export function CandidateProfileSheet({
         <div className="p-4 border-t bg-muted/20 flex gap-2">
           <Button 
             variant="default" 
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+            className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
             onClick={() => handleStatusChange("elfogadva")}
             disabled={candidate.statusz === "elfogadva" || isChangingStatus}
           >

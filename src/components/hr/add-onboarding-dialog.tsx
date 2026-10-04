@@ -100,7 +100,7 @@ export function AddOnboardingDialog({ triggerButton, orgUnits, jobs }: AddOnboar
       {triggerButton ? (
         <span onClick={() => setOpen(true)}>{triggerButton}</span>
       ) : (
-        <Button onClick={() => setOpen(true)} className="gap-2 shadow-xs">
+        <Button onClick={() => setOpen(true)} className="gap-2">
           <UserPlus className="h-4 w-4" />
           Új beléptetés indítása
         </Button>
@@ -115,7 +115,7 @@ export function AddOnboardingDialog({ triggerButton, orgUnits, jobs }: AddOnboar
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-bold tracking-tight">
+                <DialogTitle className="text-lg font-semibold tracking-tight">
                   Új Beléptetési Folyamat Indítása
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground mt-0.5">

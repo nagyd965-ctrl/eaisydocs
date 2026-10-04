@@ -11,10 +11,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 
 const typeColors = {
   munka: "bg-background text-foreground",
-  szabadsag: "bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  betegseg: "bg-rose-50 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300",
-  hetvege: "bg-muted/50 text-muted-foreground",
-  unnep: "bg-purple-50 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+  szabadsag: "bg-info/10 text-info",
+  betegseg: "bg-destructive/10 text-destructive",
+  hetvege: "bg-muted/40 text-muted-foreground",
+  unnep: "bg-primary/10 text-primary"
 }
 
 const typeLabels: Record<string, string> = {
@@ -130,8 +130,8 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
 
           <CollapsibleContent>
             <CardContent className="p-0">
-          <div className="overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="compact-table w-full text-sm">
               <thead className="bg-muted/40 border-y border-border">
                 <tr>
                   <th className="h-9 px-4 text-left font-medium text-muted-foreground w-28">Dátum</th>

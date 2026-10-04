@@ -106,9 +106,9 @@ export function AuditLogTab({ employeeId }: { employeeId: string }) {
                             return (
                               <div key={key} className="flex items-start gap-2">
                                 <span className="font-medium text-foreground min-w-[120px]">{key}:</span>
-                                <span className="text-rose-600 line-through decoration-rose-600/50 break-all">{typeof oldVal === 'object' ? JSON.stringify(oldVal) : String(oldVal || '-')}</span>
+                                <span className="text-destructive line-through decoration-destructive/50 break-all">{typeof oldVal === 'object' ? JSON.stringify(oldVal) : String(oldVal || '-')}</span>
                                 <ArrowRight className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                                <span className="text-emerald-600 font-medium break-all">{typeof newVal === 'object' ? JSON.stringify(newVal) : String(newVal || '-')}</span>
+                                <span className="text-success font-medium break-all">{typeof newVal === 'object' ? JSON.stringify(newVal) : String(newVal || '-')}</span>
                               </div>
                             )
                           }

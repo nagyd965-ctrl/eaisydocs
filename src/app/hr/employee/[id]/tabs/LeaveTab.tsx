@@ -105,20 +105,20 @@ export function LeaveTab({
           <CardContent>
             <div className="mt-4 flex items-end justify-between">
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-bold">{remainingLeave}</span>
+                <span className="text-4xl font-semibold tabular-nums">{remainingLeave}</span>
                 <span className="text-muted-foreground text-sm font-medium">nap maradt</span>
               </div>
-              <div className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">Összesen: {totalLeave} nap</div>
+              <div className="text-sm font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md tabular-nums">Összesen: {totalLeave} nap</div>
             </div>
             <Progress value={totalLeave > 0 ? (usedLeave / totalLeave) * 100 : 0} className="mt-6 h-2.5" />
             <div className="mt-4 flex items-center justify-between text-sm font-medium text-muted-foreground">
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-success" /> Felhasznált: {usedLeave} nap</span>
-              <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-amber-500" /> Tervezett: {plannedLeave} nap</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-success" /> Felhasznált: <span className="tabular-nums">{usedLeave}</span> nap</span>
+              <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-warning" /> Tervezett: <span className="tabular-nums">{plannedLeave}</span> nap</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm bg-muted/30">
+        <Card className="border border-border/50 bg-muted/30">
           <CardHeader>
             <CardTitle className="text-lg font-semibold">HR Műveletek</CardTitle>
             <CardDescription>Távollétek adminisztrációja</CardDescription>
@@ -209,8 +209,8 @@ export function LeaveTab({
         </CardHeader>
         <CardContent>
           {leaves && leaves.length > 0 ? (
-            <div className="rounded-md border overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="rounded-md border overflow-x-auto">
+              <table className="w-full text-sm compact-table">
                 <thead className="bg-muted/50 border-b">
                   <tr>
                     <th className="h-10 px-4 text-left font-medium text-muted-foreground">Típus</th>
@@ -231,9 +231,9 @@ export function LeaveTab({
                     return (
                       <tr key={leave.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
                         <td className="p-4 font-medium">{String(leave.tipus).toUpperCase()}</td>
-                        <td className="p-4">{startDate.toLocaleDateString("hu-HU")}</td>
-                        <td className="p-4">{endDate.toLocaleDateString("hu-HU")}</td>
-                        <td className="p-4">{durationDays} nap</td>
+                        <td className="p-4 tabular-nums">{startDate.toLocaleDateString("hu-HU")}</td>
+                        <td className="p-4 tabular-nums">{endDate.toLocaleDateString("hu-HU")}</td>
+                        <td className="p-4 tabular-nums">{durationDays} nap</td>
                         <td className="p-4">{getStatusBadge(leave.statusz)}</td>
                         <td className="p-4 text-right">
                           {leave.statusz === "jovahagyva" ? (

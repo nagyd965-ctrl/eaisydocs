@@ -255,7 +255,7 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
               {/* Ha már be van iktatva */}
               {monthlyDoc?.iktatoszam ? (
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs font-mono gap-1 h-8 px-2.5">
+                  <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs font-mono gap-1 h-8 px-2.5">
                     <FileCheck className="w-3.5 h-3.5" />
                     Iktatva: {monthlyDoc.iktatoszam}
                   </Badge>
@@ -288,13 +288,13 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
                 </Button>
               )}
               {closingStatus === "jovahagyasra_var" && (
-                <Button size="sm" onClick={handleApproveMonth} className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button size="sm" onClick={handleApproveMonth} className="h-8 text-xs bg-success hover:bg-success/90 text-success-foreground border-transparent">
                   <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
                   Jóváhagyás
                 </Button>
               )}
               {closingStatus === "jovahagyva" && !monthlyDoc?.iktatoszam && (
-                <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 text-xs h-8 px-2.5">Lezárva</Badge>
+                <Badge className="bg-success/10 text-success border border-success/30 text-xs h-8 px-2.5">Lezárva</Badge>
               )}
               
               <div className="flex items-center gap-1 ml-1">
@@ -330,12 +330,12 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
             </div>
             <div className="bg-muted/30 p-3 rounded-md border text-center">
               <div className="text-xs text-muted-foreground uppercase mb-1">Távollét</div>
-              <div className="text-lg font-bold">{totalLeaveDays} nap</div>
+              <div className="text-lg font-semibold tabular-nums">{totalLeaveDays} nap</div>
             </div>
           </div>
 
-          <div className="rounded-md border overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="rounded-md border overflow-x-auto">
+            <table className="w-full text-sm compact-table">
               <thead className="bg-muted/50 border-b">
                 <tr>
                   <th className="h-10 px-4 text-left font-medium text-muted-foreground w-32">Dátum</th>
@@ -351,13 +351,13 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="h-32 text-center">
+                    <td colSpan={8} className="h-32 text-center">
                       <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
                     </td>
                   </tr>
                 ) : timesheet.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="h-20 text-center text-muted-foreground">
+                    <td colSpan={8} className="h-20 text-center text-muted-foreground">
                       Nincs elérhető adat erre a hónapra.
                     </td>
                   </tr>
@@ -387,10 +387,10 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
                         <td className="p-3 text-center">
                           {formatTime(entry.kicsekkolas_ideje)}
                         </td>
-                        <td className="p-3 text-center font-medium">
+                        <td className="p-3 text-center font-medium tabular-nums">
                           {calc?.actualHours ? `${calc.actualHours} h` : "-"}
                         </td>
-                        <td className={`p-3 text-center font-bold ${calc && calc.balance > 0 ? "text-green-600" : calc && calc.balance < 0 ? "text-rose-600" : "text-muted-foreground"}`}>
+                        <td className={`p-3 text-center font-semibold tabular-nums ${calc && calc.balance > 0 ? "text-success" : calc && calc.balance < 0 ? "text-destructive" : "text-muted-foreground"}`}>
                           {calc?.balance ? (calc.balance > 0 ? `+${calc.balance} h` : `${calc.balance} h`) : "-"}
                         </td>
                         <td className="p-3 text-right">

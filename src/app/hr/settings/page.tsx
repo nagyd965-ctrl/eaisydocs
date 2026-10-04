@@ -233,7 +233,7 @@ export default async function HrSettingsPage() {
 
         {/* 1. TAB: PROFIL (eaisyDocs stílus) */}
         <TabsContent value="profil" className="space-y-4 outline-none">
-          <Card className="border-border shadow-sm">
+          <Card className="border-border">
             <CardHeader className="pb-4">
               <div className="flex items-center space-x-2">
                 <User className="h-5 w-5" />
@@ -277,7 +277,7 @@ export default async function HrSettingsPage() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button type="submit" className="bg-[#02b8cc] hover:bg-[#029db0] text-white">
+                <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground">
                   Profil mentése
                 </Button>
               </CardFooter>
@@ -287,7 +287,7 @@ export default async function HrSettingsPage() {
 
         {/* 2. TAB: RENDSZER (eaisyDocs stílus) */}
         <TabsContent value="rendszer" className="space-y-4 outline-none">
-          <Card className="border-border shadow-sm">
+          <Card className="border-border">
             <CardHeader className="pb-4">
               <div className="flex items-center space-x-2">
                 <Monitor className="h-5 w-5" />
@@ -349,7 +349,7 @@ export default async function HrSettingsPage() {
               </div>
             </CardContent>
             <CardFooter className="flex justify-end border-t pt-6 pb-6">
-              <Button className="bg-[#02b8cc] hover:bg-[#029db0] text-white">
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 Rendszer beállítások mentése
               </Button>
             </CardFooter>
@@ -388,7 +388,7 @@ export default async function HrSettingsPage() {
 
               {/* Munkatársak alsó-tab (volt: külön külső tab) */}
               <TabsContent value="munkatarsak" className="space-y-4 outline-none">
-                <Card className="border-border shadow-sm">
+                <Card className="border-border">
                   <CardHeader className="pb-4 flex flex-row items-center justify-between">
                     <div>
                       <CardTitle className="text-xl flex items-center gap-2">
@@ -429,7 +429,7 @@ export default async function HrSettingsPage() {
               </TabsContent>
 
               <TabsContent value="jobs" className="space-y-4 outline-none">
-                <Card className="border-border shadow-sm">
+                <Card className="border-border">
                   <CardHeader className="pb-4 border-b flex flex-row items-center justify-between">
                     <div>
                       <CardTitle className="text-lg font-semibold">Nyilvántartott Munkakörök</CardTitle>
@@ -441,61 +441,63 @@ export default async function HrSettingsPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="pl-6">Munkakör Megnevezése</TableHead>
-                          <TableHead>FEOR</TableHead>
-                          <TableHead>Szervezeti Egység</TableHead>
-                          <TableHead>Besorolás</TableHead>
-                          <TableHead className="text-center">Betöltött</TableHead>
-                          <TableHead className="text-right pr-6">Műveletek</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {dbJobs && dbJobs.length > 0 ? dbJobs.map((job) => {
-                          const employeeCount = job.hr_beosztas?.filter((b: any) => b.ervenyes_ig === null).length || 0;
-                          return (
-                            <TableRow key={job.id} className="hover:bg-muted/50">
-                              <TableCell className="pl-6 font-medium">
-                                <Link href={`/hr/job/${job.id}`} className="hover:underline text-primary">
-                                  {job.megnevezes}
-                                </Link>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground tabular-nums">{job.feor_kod || "-"}</TableCell>
-                              <TableCell className="text-muted-foreground text-sm">
-                                {orgUnits.find((u: any) => u.id === job.szervezeti_egyseg_id)?.nev || <span className="text-muted-foreground/50 italic">Nincs besorolva</span>}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="text-xs font-normal text-muted-foreground bg-background">
-                                  {job.besorolasi_szint || "-"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {employeeCount > 0 ? (
-                                   <Badge variant="default" className="gap-1 bg-green-600 hover:bg-green-700">
-                                     <Users className="w-3 h-3" /> {employeeCount} fő
-                                   </Badge>
-                                ) : (
-                                   <Badge variant="destructive" className="gap-1">
-                                     Betöltetlen
-                                   </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right pr-6">
-                                <JobActionMenu job={job} orgUnits={orgUnits} />
+                    <div className="overflow-x-auto">
+                      <Table className="compact-table">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="pl-6">Munkakör Megnevezése</TableHead>
+                            <TableHead>FEOR</TableHead>
+                            <TableHead>Szervezeti Egység</TableHead>
+                            <TableHead>Besorolás</TableHead>
+                            <TableHead className="text-center">Betöltött</TableHead>
+                            <TableHead className="text-right pr-6">Műveletek</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {dbJobs && dbJobs.length > 0 ? dbJobs.map((job) => {
+                            const employeeCount = job.hr_beosztas?.filter((b: any) => b.ervenyes_ig === null).length || 0;
+                            return (
+                              <TableRow key={job.id} className="hover:bg-muted/50">
+                                <TableCell className="pl-6 font-medium">
+                                  <Link href={`/hr/job/${job.id}`} className="hover:underline text-primary">
+                                    {job.megnevezes}
+                                  </Link>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground tabular-nums">{job.feor_kod || "-"}</TableCell>
+                                <TableCell className="text-muted-foreground text-sm">
+                                  {orgUnits.find((u: any) => u.id === job.szervezeti_egyseg_id)?.nev || <span className="text-muted-foreground/50 italic">Nincs besorolva</span>}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-xs font-normal text-muted-foreground bg-background">
+                                    {job.besorolasi_szint || "-"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {employeeCount > 0 ? (
+                                     <Badge variant="outline" className="gap-1 bg-success-subtle text-success border-success/30">
+                                       <Users className="w-3 h-3" /> <span className="tabular-nums">{employeeCount} fő</span>
+                                     </Badge>
+                                  ) : (
+                                     <Badge variant="destructive" className="gap-1">
+                                       Betöltetlen
+                                     </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right pr-6">
+                                  <JobActionMenu job={job} orgUnits={orgUnits} />
+                                </TableCell>
+                              </TableRow>
+                            )
+                          }) : (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                Még nincsenek munkakörök létrehozva.
                               </TableCell>
                             </TableRow>
-                          )
-                        }) : (
-                          <TableRow>
-                            <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                              Még nincsenek munkakörök létrehozva.
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </CardContent>
                   <div className="px-0 py-2">
                     <JobCreateDialog orgUnits={orgUnits} customTrigger={
@@ -509,7 +511,7 @@ export default async function HrSettingsPage() {
               </TabsContent>
 
               <TabsContent value="orgunits" className="space-y-4 outline-none">
-                <Card className="border-border shadow-sm">
+                <Card className="border-border">
                   <CardHeader className="pb-4 border-b flex flex-row items-center justify-between">
                     <div>
                       <CardTitle className="text-lg font-semibold">Szervezeti Egységek</CardTitle>
@@ -521,58 +523,60 @@ export default async function HrSettingsPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="pl-6">Megnevezés</TableHead>
-                          <TableHead>Szülő egység</TableHead>
-                          <TableHead className="text-center">Hozzárendelt dolgozók</TableHead>
-                          <TableHead className="text-right pr-6">Műveletek</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {orgUnits && orgUnits.length > 0 ? orgUnits.map((unit) => {
-                          const parentUnit = orgUnits.find(u => u.id === unit.szulo_id);
-                          // Count from felhasznalo_profil directly (not hr_dolgozo_adatlap)
-                          // so employees without adatlap record are also counted
-                          const employeeCount = (allUsers as any[])?.filter(
-                            (u: any) => u.hr_szervezeti_egyseg_id === unit.id
-                          ).length || 0;
-                          return (
-                            <TableRow key={unit.id} className="hover:bg-muted/50">
-                              <TableCell className="pl-6 font-medium">
-                                <Link href={`/hr/orgunit/${unit.id}`} className="hover:underline text-primary">
-                                  {unit.nev}
-                                </Link>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {parentUnit ? parentUnit.nev : "-"}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {employeeCount > 0 ? (
-                                   <Badge variant="default" className="gap-1 bg-blue-600 hover:bg-blue-700">
-                                     <Users className="w-3 h-3" /> {employeeCount} fő
-                                   </Badge>
-                                ) : (
-                                   <Badge variant="secondary" className="gap-1 text-muted-foreground">
-                                     Nincs dolgozó
-                                   </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right pr-6">
-                                <OrgUnitActionMenu unit={unit} allUnits={orgUnits || []} />
+                    <div className="overflow-x-auto">
+                      <Table className="compact-table">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="pl-6">Megnevezés</TableHead>
+                            <TableHead>Szülő egység</TableHead>
+                            <TableHead className="text-center">Hozzárendelt dolgozók</TableHead>
+                            <TableHead className="text-right pr-6">Műveletek</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {orgUnits && orgUnits.length > 0 ? orgUnits.map((unit) => {
+                            const parentUnit = orgUnits.find(u => u.id === unit.szulo_id);
+                            // Count from felhasznalo_profil directly (not hr_dolgozo_adatlap)
+                            // so employees without adatlap record are also counted
+                            const employeeCount = (allUsers as any[])?.filter(
+                              (u: any) => u.hr_szervezeti_egyseg_id === unit.id
+                            ).length || 0;
+                            return (
+                              <TableRow key={unit.id} className="hover:bg-muted/50">
+                                <TableCell className="pl-6 font-medium">
+                                  <Link href={`/hr/orgunit/${unit.id}`} className="hover:underline text-primary">
+                                    {unit.nev}
+                                  </Link>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  {parentUnit ? parentUnit.nev : "-"}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {employeeCount > 0 ? (
+                                     <Badge variant="outline" className="gap-1 bg-info-subtle text-info border-info/30">
+                                       <Users className="w-3 h-3" /> <span className="tabular-nums">{employeeCount} fő</span>
+                                     </Badge>
+                                  ) : (
+                                     <Badge variant="secondary" className="gap-1 text-muted-foreground">
+                                       Nincs dolgozó
+                                     </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right pr-6">
+                                  <OrgUnitActionMenu unit={unit} allUnits={orgUnits || []} />
+                                </TableCell>
+                              </TableRow>
+                            )
+                          }) : (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                                Még nincsenek szervezeti egységek létrehozva.
                               </TableCell>
                             </TableRow>
-                          )
-                        }) : (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                              Még nincsenek szervezeti egységek létrehozva.
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </CardContent>
                   <div className="px-0 py-2">
                     <HrOrgUnitCreateDialog customTrigger={
@@ -586,7 +590,7 @@ export default async function HrSettingsPage() {
               </TabsContent>
 
               <TabsContent value="orgchart" className="space-y-4 outline-none">
-                <Card className="border-border shadow-sm">
+                <Card className="border-border">
                   <CardHeader className="border-b">
                     <CardTitle>Szervezeti Felépítés</CardTitle>
                     <CardDescription>Vizuális fa-struktúra a vezetők és beosztottak megjelenítéséhez.</CardDescription>

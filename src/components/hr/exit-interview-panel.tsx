@@ -95,7 +95,7 @@ function InteractiveRating({
               className={cn(
                 "w-5 h-5 transition-colors",
                 current >= star
-                  ? "fill-amber-400 text-amber-400"
+                  ? "fill-warning text-warning"
                   : "fill-transparent text-muted-foreground/25"
               )}
             />
@@ -202,7 +202,7 @@ export function ExitInterviewPanel({
         </div>
 
         {isSavedBefore && (
-          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs gap-1 py-1 font-medium">
+          <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs gap-1 py-1 font-medium">
             <CheckCircle2 className="w-3 h-3" /> Kitöltve és rögzítve
           </Badge>
         )}
@@ -267,7 +267,7 @@ export function ExitInterviewPanel({
       {/* 2. Elégedettségi Értékelések (1–5 Csillag) */}
       <div className="rounded-lg border bg-card p-4 space-y-4">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-          <Star className="w-3.5 h-3.5 text-amber-500" />
+          <Star className="w-3.5 h-3.5 text-warning" />
           2. Munkahelyi Elégedettségi Dimenziók (1–5 skála)
         </h4>
 
@@ -304,7 +304,7 @@ export function ExitInterviewPanel({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="miTetszett" className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            <Label htmlFor="miTetszett" className="text-xs font-medium text-success">
               Mi tetszett a legjobban az itt töltött idő alatt?
             </Label>
             <Textarea
@@ -318,7 +318,7 @@ export function ExitInterviewPanel({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="mitValtoztatna" className="text-xs font-medium text-amber-600 dark:text-amber-400">
+            <Label htmlFor="mitValtoztatna" className="text-xs font-medium text-warning">
               Min változtatna a cég működésében? (Konstruktív kritika)
             </Label>
             <Textarea
@@ -341,7 +341,7 @@ export function ExitInterviewPanel({
                 onClick={() => setAjanlana(ajanlana === true ? null : true)}
                 className={cn(
                   "gap-1.5 text-xs font-medium",
-                  ajanlana === true && "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  ajanlana === true && "bg-success hover:bg-success/90 text-success-foreground"
                 )}
               >
                 <ThumbsUp className="w-3.5 h-3.5" />

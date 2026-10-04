@@ -85,7 +85,7 @@ export function OvertimeRequestsPanel({ managerId }: { managerId: string }) {
   if (loading || requests.length === 0) return null
 
   return (
-    <Card className="border border-amber-500/20 bg-amber-500/5 shadow-xs">
+    <Card className="border border-warning/20 bg-warning/5">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-warning" />
@@ -134,7 +134,7 @@ export function OvertimeRequestsPanel({ managerId }: { managerId: string }) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                    className="h-8 w-8 p-0 text-success hover:text-success hover:bg-success/10"
                     onClick={() => handleAction(req.id, "jovahagyva")}
                     disabled={isPending}
                     title="Jóváhagyás"

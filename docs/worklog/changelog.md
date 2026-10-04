@@ -6,7 +6,41 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-04)
 
-### 🎨 eaisyDocs Rendszerszintű Frontend Szabályossági Tisztítás & Kanonikus UI Egységesítés ([A-029](../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), [P-043](../product/decisions/P-043-global-ui-consistency-and-unified-components.md))
+### 📁 Ügyirat Életciklus, Szakmai Elintézés és Lezárási Architektúra UX ([P-047](../product/decisions/P-047-dossier-lifecycle-and-settlement-architecture-ux.md))
+- **Kétfázisú Életciklus Szétválasztása (Elintézés vs Irattározás):**
+  - **Szakmai Elintézés („Ügyirat elintézése” / `elintezett`):** Bevezetve az ügyintézők és vezetők számára a szakmai munka befejezésének formális aktusa, amely igazolja, hogy a számlaigazolás, feladatok és válaszlevelek mind teljesültek.
+  - **Hivatalos Lezárás és Irattározás (`irattarban`):** A folyamat végleges, archív fázisa, amely a megőrzési idő számítását indítja el, kizárólag a jogosult vezetők és irattárosok számára.
+  - **Visszahelyezés Ügyintézésbe:** Ha egy szakmailag elintézett ügyiratban mégis további érdemi teendő merülne fel, egyetlen kattintással visszaállítható `ugyintezes_alatt` státuszba.
+- **Kritikus Logikai Hiba Javítása a Feladatok Lezárásánál:**
+  - Megszüntetve a hibás formulát (`completedTasks + rejectedTasks === totalTasks`), amely elutasított feladat esetén is késznek minősítette az ügyiratot.
+  - Az új, szigorú feltételrendszer: **Kizárólag akkor engedélyezett az elintézés, ha az összes feladat kész (`completedTasks === totalTasks`) és EGYETLEN elutasított feladat sincs (`rejectedTasks === 0`)**.
+- **Kanonikus Fejléc Életciklus Kezelő (`DossierLifecycleActions`):**
+  - Az ügyirat részletes lapján (`src/app/dossiers/[id]/page.tsx`) a korábbi magányos és ügyintézőknek tiltott gomb helyett intelligens, állapotfüggő műveleti sáv működik:
+    - `ugyintezes_alatt`: „Ügyirat elintézése” modál állapot-diagnosztikával (elutasított vagy nyitott feladatok esetén részletes figyelmeztetés és blokkolás).
+    - `elintezett`: Zöld jelvény, „Lezárás és Irattározás” (irattárosoknak/vezetőknek) és „Visszahelyezés ügyintézésbe” gombok.
+    - `irattarban`: Véglegesített, biztonságos archív állapot.
+- **Feladatok Tab Megtisztítása (`src/components/tasks-tab.tsx`):**
+  - Kivezetve az oda nem illő, félrevezető gombot az ügyirati feladatok kártya fejlécéből.
+  - Elutasított feladat esetén egyértelmű figyelmeztető banner tájékoztat a teendők rendezésének szükségességéről.
+  - Ha minden feladat sikeresen lezárult, elegáns sikerbanner és közvetlen elintézési gomb segíti a munkafolyamatot.
+- **Szerver Oldali Védelem (`src/app/dossiers/[id]/actions.ts`):**
+  - Az `updateDossierStatus` és a `closeDossier` szerver actionök közvetlenül adatbázis szinten ellenőrzik a kapcsolódó feladatok státuszát, kizárva a felület megkerülésének lehetőségét.
+  - Az eseménynaplóban (`esemeny_naplo`) rögzítésre kerül az `elintezve` eseménytípus, amely a timeline-on zöld pipával és pontos indoklással jelenik meg.
+
+### 👥 eaisyHR Modul Teljes Rendszerszintű UI/UX & Design Tisztítás ([A-029](../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), [P-043](../product/decisions/P-043-global-ui-consistency-and-unified-components.md))
+- **Linear Flat Design & Szemantikus HSL Színrendszer 100%-os Kiterjesztése az Egész eaisyHR-re:**
+  - **Zero Árnyék Garancia:** Kigyomlálva az összes dobozárnyék (`shadow-sm`, `shadow-md`, `shadow-lg`, `shadow-xs`, `shadow-2xs`) a kártyákról, modálokról, tabokról és gombokról (`src/app/hr/*`, `src/components/hr/*`).
+  - **Szemantikus Színleképezés (0 Nyers Szín):** Eltávolítva az összes közvetlen színosztály (`emerald-*`, `amber-*`, `blue-*`, `purple-*`, `green-*`, `rose-*`, `indigo-*`, `teal-*`, `sky-*`, `orange-*`, `red-*`), kizárólag a platformszintű szemantikus tokeneket használva: `primary`, `success`, `warning`, `info`, `destructive`, `muted`.
+  - **Hardcoded Hex Színek Eltávolítása:** Megszüntetve az összes `#02b8cc` és `#029db0` egyedi hex szín a gombokról és űrlapokról, átállítva a standard `Button` komponensekre és `primary` tokenekre.
+- **Tipográfiai és Táblázat Egységesítés:**
+  - **Címek és Modál Fejlécek:** Mindenhol `font-semibold` címkézés az elavult vagy túl vastag `font-bold` helyett.
+  - **Numerikus Adatok:** Számok, összegek, dátumok és százalékos értékek egységesen `tabular-nums` formázást kaptak.
+  - **Kompakt Táblázatok (`.compact-table`):** Minden HR táblázat (jelenlét, orvosi alkalmasság, KSH jelentés, értékelési ciklusok, munkakörök, dolgozók) megkapta a `.compact-table` osztályt és a kötelező `<div className="overflow-x-auto">` burkolót.
+- **Kanonikus KPI Kártyák & Komponens Tisztítás:**
+  - A szervezeti egység (`orgunit/[id]`), munkaügyi és munkaköri oldalak ad-hoc ikondobozos kártyái átállítva a kanonikus `<KpiCard>` komponensre (aszimmetrikus vastag keretek és dekoratív ikonok nélkül).
+  - A toborzási jelöltkezelő lista (`talent-pool-list.tsx`) átállítva a kanonikus `TableToolbar` komponensre (`FilterGroup`, `activeFiltersCount`).
+- **Kódminőség & Fordítási Stabilitás:**
+  - A teljes projekt `npx tsc --noEmit` típusellenőrzése **0 hibával** fut le.
 - **Linear Flat Design & Szemantikus HSL Színrendszer Teljes Rendszeresítése:**
   - Kivezetve az összes közvetlen Tailwind színosztály (`amber-500`, `emerald-500`, `blue-500`, `rose-500`, `purple-500`).
   - Helyettük kizárólag a platformszintű HSL tokenek érvényesülnek: `warning`, `success`, `info`, `destructive`, `primary`.

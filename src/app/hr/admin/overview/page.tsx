@@ -187,8 +187,8 @@ export default async function HrOverviewPage() {
 
               {/* Jóváhagyásra váró szabadság */}
               {pendingLeaves?.map((leave) => (
-                <div key={`leave-${leave.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors">
-                  <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <div key={`leave-${leave.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-warning/20 bg-warning/5 hover:bg-warning/10 transition-colors">
+                  <Clock className="w-4 h-4 text-warning shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">Jóváhagyásra váró szabadság</p>
                     <p className="text-xs text-muted-foreground truncate">
@@ -203,8 +203,8 @@ export default async function HrOverviewPage() {
 
               {/* Lejáró próbaidő */}
               {expiringProbations?.map((prob) => (
-                <div key={`prob-${prob.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div key={`prob-${prob.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-success/20 bg-success/5 hover:bg-success/10 transition-colors">
+                  <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">Próbaidő lejár – {(prob.felhasznalo_profil as any)?.nev}</p>
                     <p className="text-xs text-muted-foreground">Értékelés szükséges. Lejár: {prob.probaido_vege}</p>
@@ -217,8 +217,8 @@ export default async function HrOverviewPage() {
 
               {/* Lejáró határozott idejű szerződések */}
               {expiringContracts?.map((emp) => (
-                <div key={`contract-${emp.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors">
-                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <div key={`contract-${emp.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-warning/20 bg-warning/5 hover:bg-warning/10 transition-colors">
+                  <AlertCircle className="w-4 h-4 text-warning shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">Lejáró Munkaszerződés</p>
                     <p className="text-xs text-muted-foreground truncate">

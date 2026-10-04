@@ -43,7 +43,7 @@ export function JobCreateDialog({ customTrigger, orgUnits = [] }: { customTrigge
       {customTrigger ? (
         <DialogTrigger render={customTrigger} />
       ) : (
-        <DialogTrigger render={<Button className="gap-2 bg-[#02b8cc] hover:bg-[#029db0] text-white" />}>
+        <DialogTrigger render={<Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" />}>
           <Plus className="w-4 h-4" />
           Új Munkakör Létrehozása
         </DialogTrigger>
@@ -117,7 +117,7 @@ export function JobCreateDialog({ customTrigger, orgUnits = [] }: { customTrigge
               <textarea 
                 id="feladatok_es_hataskorok" 
                 name="feladatok_es_hataskorok" 
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="pl. Raktárkészlet ellenőrzése&#10;Áruátvétel adminisztrációja" 
               />
             </div>
@@ -126,7 +126,7 @@ export function JobCreateDialog({ customTrigger, orgUnits = [] }: { customTrigge
               <textarea 
                 id="elvart_kompetenciak" 
                 name="elvart_kompetenciak" 
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="pl. Érettségi&#10;Targoncavezetői jogosítvány" 
               />
             </div>

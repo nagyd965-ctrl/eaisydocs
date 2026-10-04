@@ -87,13 +87,11 @@ export function TimeTrackingCard({
           <CardTitle className="text-base font-semibold">Időadat Rögzítés</CardTitle>
           <div className="text-sm text-muted-foreground">Mai státusz</div>
         </div>
-        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-          <Clock className="w-4 h-4 text-primary" />
-        </div>
+        <Clock className="w-5 h-5 text-primary" />
       </CardHeader>
       <CardContent>
         <div className="mt-4 flex flex-col items-center justify-center py-4 space-y-4">
-          <div className={`text-4xl font-bold font-mono tracking-wider ${status === "checked_out" ? "text-muted-foreground" : "text-primary"}`}>
+          <div className={`text-4xl font-semibold font-mono tabular-nums tracking-wider ${status === "checked_out" ? "text-muted-foreground" : "text-primary"}`}>
             {elapsedTime}
           </div>
           <div className="text-xs text-muted-foreground uppercase tracking-widest font-medium mb-2">

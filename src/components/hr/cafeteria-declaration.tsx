@@ -142,11 +142,11 @@ export function CafeteriaDeclaration({
 
   if (isClosed) {
     return (
-      <Card className="border-green-200 bg-green-50/20 dark:bg-green-950/10">
+      <Card className="border-success/30 bg-success/5">
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle className="text-green-800 dark:text-green-400 flex items-center gap-2">
+              <CardTitle className="text-foreground flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-success" /> Cafeteria Nyilatkozat ({year}) – Leadva
               </CardTitle>
               <CardDescription className="mt-1">
@@ -208,7 +208,7 @@ export function CafeteriaDeclaration({
   }
 
   return (
-    <Card className="border shadow-sm">
+    <Card>
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2">
           <Coffee className="w-5 h-5 text-primary" /> Cafeteria Nyilatkozat ({year})

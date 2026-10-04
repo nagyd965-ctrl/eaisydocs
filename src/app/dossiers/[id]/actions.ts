@@ -78,6 +78,23 @@ export async function closeDossier(ugyiratId: string) {
 
   if (!ugyirat) return { error: "Ügyirat nem található." }
 
+  // Feladatok ellenőrzése: ne lehessen lezáratlan vagy elutasított feladattal irattározni
+  const { data: tasks } = await supabase
+    .from("feladat")
+    .select("id, allapot")
+    .eq("ugyirat_id", ugyiratId)
+
+  if (tasks && tasks.length > 0) {
+    const hasRejected = tasks.some((t) => t.allapot === "elutasitott")
+    if (hasRejected) {
+      return { error: "Az ügyirat nem irattározható: elutasított feladat található benne. Kérjük vizsgálja felül a feladatokat." }
+    }
+    const hasUnfinished = tasks.some((t) => t.allapot !== "kesz")
+    if (hasUnfinished) {
+      return { error: "Az ügyirat nem irattározható: még befejezetlen feladatok vannak folyamatban." }
+    }
+  }
+
   const megorzesi_ev = (ugyirat.irattari_terv as any)?.megorzesi_ido_ev || 5 // default 5 ha nincs
   const endDate = new Date()
   endDate.setFullYear(endDate.getFullYear() + megorzesi_ev)
@@ -221,6 +238,29 @@ export async function updateDossierStatus(ugyiratId: string, ugyId: string, newS
     return { error: "Érvénytelen státusz." }
   }
 
+  // Ha elintézettre állítjuk: szigorú feladat-ellenőrzés
+  if (newStatus === "elintezett") {
+    const { data: tasks } = await supabase
+      .from("feladat")
+      .select("id, allapot")
+      .eq("ugyirat_id", ugyiratId)
+
+    if (tasks && tasks.length > 0) {
+      const rejectedCount = tasks.filter((t) => t.allapot === "elutasitott").length
+      if (rejectedCount > 0) {
+        return {
+          error: `Az ügyirat nem intézhető el: ${rejectedCount} db elutasított feladat található benne. Kérjük vizsgálja felül vagy ossza ki újra a feladatot az elintézés előtt.`
+        }
+      }
+      const unfinishedCount = tasks.filter((t) => t.allapot !== "kesz").length
+      if (unfinishedCount > 0) {
+        return {
+          error: `Az ügyirat nem intézhető el: még ${unfinishedCount} db befejezetlen feladat van folyamatban.`
+        }
+      }
+    }
+  }
+
   const { error: ugyiratError } = await supabase
     .from("ugyirat")
     .update({ statusz: newStatus })
@@ -259,9 +299,11 @@ export async function updateDossierStatus(ugyiratId: string, ugyId: string, newS
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
-    esemeny_tipus: "modositva",
+    esemeny_tipus: newStatus === "elintezett" ? "elintezve" : "modositva",
     user_id: user.id,
-    indoklas: `Állapot módosítva erre: ${newStatus}`,
+    indoklas: newStatus === "elintezett"
+      ? "Ügyirat szakmailag elintézve (ügyintézési folyamat lezárult)."
+      : "Ügyirat visszahelyezve ügyintézés alá.",
     ip_cim: ip,
     user_agent: userAgent
   })

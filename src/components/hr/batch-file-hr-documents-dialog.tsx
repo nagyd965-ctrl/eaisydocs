@@ -128,11 +128,11 @@ export function BatchFileHrDocumentsDialog({
                   <span>Keresés...</span>
                 </div>
               ) : dossierInfo?.hasDossier ? (
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[11px] gap-1">
+                <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-[11px] gap-1">
                   <FolderCheck className="w-3 h-3" /> Meglévő dosszié folytatása
                 </Badge>
               ) : (
-                <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-[11px] gap-1">
+                <Badge variant="outline" className="bg-info/10 text-info border-info/20 text-[11px] gap-1">
                   <FolderPlus className="w-3 h-3" /> Új központi dosszié nyitása
                 </Badge>
               )}
@@ -195,8 +195,8 @@ export function BatchFileHrDocumentsDialog({
             <div className="p-2.5 rounded-md border bg-background space-y-1">
               <span className="text-muted-foreground block text-[11px]">Biztonsági minősítés</span>
               <div className="flex items-center gap-1.5 pt-0.5">
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-500/30 text-[11px] gap-1 font-medium">
-                  <ShieldAlert className="w-3 h-3 text-amber-600" /> Bizalmas HR
+                <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-[11px] gap-1 font-medium">
+                  <ShieldAlert className="w-3 h-3 text-warning" /> Bizalmas HR
                 </Badge>
               </div>
               <span className="text-[11px] text-muted-foreground">GDPR & személyiségi jogi védelem</span>

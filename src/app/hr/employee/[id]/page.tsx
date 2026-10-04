@@ -420,14 +420,14 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                 <div className="p-6 space-y-8">
                   {hrDocuments && hrDocuments.length > 0 ? hrDocuments.map((doc: any) => (
                     <div key={doc.id} className="flex gap-6 relative">
-                      <div className={`w-4 h-4 rounded-full ${doc.iktatoszam ? "bg-emerald-600" : "bg-primary"} mt-1 relative z-10 outline outline-4 outline-background`}></div>
-                      <div className="flex-1 border rounded-lg p-4 bg-background hover:bg-muted/50 transition-colors shadow-sm">
+                      <div className={`w-4 h-4 rounded-full ${doc.iktatoszam ? "bg-success" : "bg-primary"} mt-1 relative z-10 outline outline-4 outline-background`}></div>
+                      <div className="flex-1 border rounded-lg p-4 bg-background hover:bg-muted/50 transition-colors">
                         <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                           <div className="space-y-1.5">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h4 className="font-medium text-foreground">{doc.nev}</h4>
                               {doc.iktatoszam ? (
-                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs font-mono gap-1">
+                                <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs font-mono gap-1">
                                   <FileCheck className="w-3 h-3" />
                                   Iktatva: {doc.iktatoszam}
                                 </Badge>
@@ -437,8 +437,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                                 </Badge>
                               )}
                               {doc.alairt_fajl_url || doc.alairas_statusz === "alairva" ? (
-                                <Badge variant="outline" className="bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20 text-xs gap-1 font-medium">
-                                  <CheckCircle2 className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs gap-1 font-medium">
+                                  <CheckCircle2 className="w-3 h-3 text-primary" />
                                   Aláírt példány
                                 </Badge>
                               ) : (
@@ -454,7 +454,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                                 <span>• Iktatás ideje: {new Date(doc.iktatva_ekor).toLocaleString("hu-HU")}</span>
                               )}
                               {doc.alairva_ekor && (
-                                <span className="text-teal-600 dark:text-teal-400 font-medium">
+                                <span className="text-success font-medium tabular-nums">
                                   • Aláírva: {new Date(doc.alairva_ekor).toLocaleString("hu-HU")}
                                 </span>
                               )}

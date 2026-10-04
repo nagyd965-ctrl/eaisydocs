@@ -74,7 +74,7 @@ export function PdfViewerDialog({
       )}
       {!trigger && !isControlled && (
         <DialogTrigger render={
-          <Button variant="ghost" size="sm" className="text-blue-500 hover:text-blue-600 hover:bg-blue-50 px-2 gap-1">
+          <Button variant="ghost" size="sm" className="text-primary hover:text-primary hover:bg-primary/10 px-2 gap-1">
             <Eye className="w-4 h-4" />
             Megtekintés
           </Button>

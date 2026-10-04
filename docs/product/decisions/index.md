@@ -53,8 +53,11 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-043](./P-043-global-ui-consistency-and-unified-components.md) | 2026-10-02 | Globális UI/UX Egységességi Irányelv és Egységesített Képernyőfelépítés | `[Közös]` | `UI/UX Standards` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), `table-toolbar.tsx`, `partner-documents-table.tsx` |
 | [P-044](./P-044-code-level-security-hardening.md) | 2026-10-02 | Rendszerszintű Alkalmazásbiztonság és Adatvédelmi Kapuk | `[Közös]` | `Application Security / Data Protection` | [A-030](../../architecture/decisions/A-030-code-level-security-hardening.md), `send-email/route.ts`, `download-document/route.ts`, `middleware.ts` |
 | [P-045](./P-045-unified-employee-intake-and-docs-integration-ux.md) | 2026-10-02 | Egységesített Munkatársi Beléptetés és eaisyDocs Integrációs Modál UX | `[HR]` | `HR / Admin & Settings` | `add-employee-dialog.tsx`, `hr/admin/page.tsx`, `hr/settings/page.tsx` |
+| [P-046](./P-046-task-rejection-and-eaisyhr-ui-unification-ux.md) | 2026-10-04 | Feladat Elutasítás Vizuális Újratervezése és eaisyHR Teljes UI/UX Tisztítás | `[Közös]` | `UI/UX Standards / Task & HR` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), `kanban-board.tsx`, `tasks-tab.tsx`, `src/app/hr/*` |
+| [P-047](./P-047-dossier-lifecycle-and-settlement-architecture-ux.md) | 2026-10-04 | Ügyirat Életciklus, Szakmai Elintézés és Lezárási Architektúra UX | `[Docs]` | `Dossier Lifecycle / Settlement & Tasks` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), `dossier-lifecycle-actions.tsx`, `tasks-tab.tsx`, `actions.ts` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-046`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-048`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+

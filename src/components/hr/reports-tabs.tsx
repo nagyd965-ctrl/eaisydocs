@@ -302,7 +302,7 @@ export function ReportsTabs() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Bevallás Típusa</label>
-                  <select id="bevallastipus" className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <select id="bevallastipus" className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                     <option value="NAV T1041">NAV T1041</option>
                     <option value="NAV 08">NAV 08-as havi bevallás</option>
                     <option value="KSH">KSH Munkaügyi Jelentés</option>
@@ -351,13 +351,13 @@ export function ReportsTabs() {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-sm">{r.tipus}</span>
-                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{r.idoszak}</span>
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full tabular-nums">{r.idoszak}</span>
                             {r.ugyszam && (
                               <span className="text-xs bg-muted border px-2 py-0.5 rounded-full">Ügyszám: {r.ugyszam}</span>
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                            <span>{new Date(r.bekuldes_datuma).toLocaleDateString('hu-HU')}</span>
+                            <span className="tabular-nums">{new Date(r.bekuldes_datuma).toLocaleDateString('hu-HU')}</span>
                             <span>•</span>
                             <span>{r.fajl_nev}</span>
                           </p>

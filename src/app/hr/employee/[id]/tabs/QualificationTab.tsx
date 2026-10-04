@@ -128,26 +128,27 @@ export function QualificationTab({
             Még nincsenek felrögzítve képzettségek.
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Típus</TableHead>
-                <TableHead>Megnevezés</TableHead>
-                <TableHead>Intézmény</TableHead>
-                <TableHead>Megszerzés Éve</TableHead>
-                {isHrOrAdmin && <TableHead className="text-right">Művelet</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {initialData.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="capitalize font-medium text-muted-foreground">{item.tipus}</TableCell>
-                  <TableCell>
-                    <div className="font-medium text-foreground">{item.megnevezes}</div>
-                    {item.fokozat && <div className="text-xs text-muted-foreground">{item.fokozat}</div>}
-                  </TableCell>
-                  <TableCell>{item.intezmeny || "-"}</TableCell>
-                  <TableCell>{item.megszerzes_datuma ? new Date(item.megszerzes_datuma).getFullYear() : "-"}</TableCell>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="compact-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Típus</TableHead>
+                  <TableHead>Megnevezés</TableHead>
+                  <TableHead>Intézmény</TableHead>
+                  <TableHead>Megszerzés Éve</TableHead>
+                  {isHrOrAdmin && <TableHead className="text-right">Művelet</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {initialData.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="capitalize font-medium text-muted-foreground">{item.tipus}</TableCell>
+                    <TableCell>
+                      <div className="font-medium text-foreground">{item.megnevezes}</div>
+                      {item.fokozat && <div className="text-xs text-muted-foreground">{item.fokozat}</div>}
+                    </TableCell>
+                    <TableCell>{item.intezmeny || "-"}</TableCell>
+                    <TableCell className="tabular-nums">{item.megszerzes_datuma ? new Date(item.megszerzes_datuma).getFullYear() : "-"}</TableCell>
                   {isHrOrAdmin && (
                     <TableCell className="text-right flex items-center justify-end gap-2">
                       {item.dokumentum_url && (
@@ -190,6 +191,7 @@ export function QualificationTab({
               ))}
             </TableBody>
           </Table>
+        </div>
         )}
       </CardContent>
 

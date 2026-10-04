@@ -163,7 +163,7 @@ export function OrgUnitActionMenu({ unit, allUnits }: OrgUnitActionMenuProps) {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Mégse</Button>
-              <Button type="submit" disabled={loading} className="bg-[#02b8cc] hover:bg-[#029db0] text-white">
+              <Button type="submit" disabled={loading}>
                 {loading ? "Mentés..." : "Mentés"}
               </Button>
             </DialogFooter>

@@ -62,13 +62,13 @@ export function SubstituteAlertBanner({ managerId, pendingApprovalsCount }: Prop
   if (loading || !hasUpcomingLeave || hasActiveSubstitute) return null
 
   return (
-    <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3">
-      <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+    <div className="flex items-start gap-3 bg-warning-subtle border border-warning/30 rounded-lg px-4 py-3">
+      <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+        <p className="text-sm font-semibold text-foreground">
           Közelgő szabadság – nincs helyettes beállítva!
         </p>
-        <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+        <p className="text-xs text-muted-foreground mt-0.5">
           {pendingApprovalsCount > 0
             ? `${pendingApprovalsCount} jóváhagyásra váró kérelem áll fenn. `
             : ""}
@@ -77,7 +77,7 @@ export function SubstituteAlertBanner({ managerId, pendingApprovalsCount }: Prop
       </div>
       <a
         href="/hr/settings#helyettesites"
-        className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-md border border-amber-300 dark:border-amber-700 bg-background hover:bg-muted transition-colors shrink-0"
+        className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-md border border-warning/40 bg-background hover:bg-muted transition-colors shrink-0"
       >
         <CalendarCheck className="w-3.5 h-3.5" />
         Helyettes beállítása

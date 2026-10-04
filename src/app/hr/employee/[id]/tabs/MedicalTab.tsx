@@ -140,8 +140,8 @@ export function MedicalTab({
             employeeName={employeeName || "Munkatárs"}
             dolgozoId={employeeId}
             triggerButton={
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs text-teal-700 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/10">
-                <HardHat className="w-3.5 h-3.5 text-teal-600" />
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/10">
+                <HardHat className="w-3.5 h-3.5 text-primary" />
                 Munkavédelmi Oktatás
               </Button>
             }
@@ -294,54 +294,55 @@ export function MedicalTab({
             Még nincsenek felrögzítve orvosi vizsgálatok.
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Típus</TableHead>
-                <TableHead>Vizsgálat Dátuma</TableHead>
-                <TableHead>Érvényes Eddig</TableHead>
-                <TableHead>Eredmény</TableHead>
-                <TableHead>Megjegyzés</TableHead>
-                <TableHead>Iratkezelés</TableHead>
-                <TableHead className="text-right">Műveletek</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => {
-                const diff = new Date(item.ervenyesseg_datuma).getTime() - new Date().getTime()
-                const isExpired = diff < 0
-                const isExpiringSoon = diff >= 0 && diff < 30 * 24 * 60 * 60 * 1000
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="compact-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Típus</TableHead>
+                  <TableHead>Vizsgálat Dátuma</TableHead>
+                  <TableHead>Érvényes Eddig</TableHead>
+                  <TableHead>Eredmény</TableHead>
+                  <TableHead>Megjegyzés</TableHead>
+                  <TableHead>Iratkezelés</TableHead>
+                  <TableHead className="text-right">Műveletek</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((item) => {
+                  const diff = new Date(item.ervenyesseg_datuma).getTime() - new Date().getTime()
+                  const isExpired = diff < 0
+                  const isExpiringSoon = diff >= 0 && diff < 30 * 24 * 60 * 60 * 1000
 
-                return (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{tipusLabels[item.tipus] || item.tipus}</TableCell>
-                    <TableCell>{new Date(item.vizsgalat_datuma).toLocaleDateString("hu-HU")}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <span className={isExpired ? "text-destructive font-semibold" : isExpiringSoon ? "text-warning font-semibold" : ""}>
-                          {new Date(item.ervenyesseg_datuma).toLocaleDateString("hu-HU")}
-                        </span>
-                        {isExpired && (
-                          <span className="text-[11px] font-semibold text-destructive bg-destructive/10 border border-destructive/30 px-1.5 py-0.5 rounded">
-                            Lejárt!
+                  return (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{tipusLabels[item.tipus] || item.tipus}</TableCell>
+                      <TableCell className="tabular-nums">{new Date(item.vizsgalat_datuma).toLocaleDateString("hu-HU")}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`tabular-nums ${isExpired ? "text-destructive font-semibold" : isExpiringSoon ? "text-warning font-semibold" : ""}`}>
+                            {new Date(item.ervenyesseg_datuma).toLocaleDateString("hu-HU")}
                           </span>
+                          {isExpired && (
+                            <span className="text-[11px] font-semibold text-destructive bg-destructive/10 border border-destructive/30 px-1.5 py-0.5 rounded">
+                              Lejárt!
+                            </span>
+                          )}
+                          {isExpiringSoon && (
+                            <span className="text-[11px] font-semibold text-warning bg-warning/10 border border-warning/30 px-1.5 py-0.5 rounded">
+                              Hamarosan lejár
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {showDetails ? (
+                          item.eredmeny === "alkalmas" ? <Badge variant="default" className="bg-success text-success-foreground hover:bg-success/90 border-transparent">Alkalmas</Badge> : 
+                          item.eredmeny === "fetelekkel_alkalmas" ? <Badge variant="secondary">Feltételes</Badge> : 
+                          <Badge variant="destructive">Nem alkalmas</Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs italic">— (Rejtett)</span>
                         )}
-                        {isExpiringSoon && (
-                          <span className="text-[11px] font-semibold text-warning bg-warning-subtle border border-warning/30 px-1.5 py-0.5 rounded">
-                            Hamarosan lejár
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {showDetails ? (
-                        item.eredmeny === "alkalmas" ? <Badge variant="default" className="bg-green-600 hover:bg-green-700">Alkalmas</Badge> : 
-                        item.eredmeny === "fetelekkel_alkalmas" ? <Badge variant="secondary">Feltételes</Badge> : 
-                        <Badge variant="destructive">Nem alkalmas</Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-xs italic">— (Rejtett)</span>
-                      )}
-                    </TableCell>
+                      </TableCell>
                     <TableCell>
                       {showDetails ? (
                         <div className="max-w-[200px] truncate" title={item.megjegyzes || ""}>
@@ -457,8 +458,9 @@ export function MedicalTab({
               })}
             </TableBody>
           </Table>
-        )}
-      </CardContent>
+        </div>
+      )}
+    </CardContent>
     </Card>
   )
 }

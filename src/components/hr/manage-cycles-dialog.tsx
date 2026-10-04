@@ -84,11 +84,11 @@ export function ManageCyclesDialog({ cycles }: { cycles: PerformanceCycle[] }) {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "tervezes": return <Badge variant="outline" className="bg-slate-100 text-slate-700">Tervezés</Badge>
-      case "nyitott": return <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200">Nyitott</Badge>
-      case "ertekeles": return <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-200">Értékelés</Badge>
+      case "tervezes": return <Badge variant="outline" className="bg-muted/50 text-muted-foreground">Tervezés</Badge>
+      case "nyitott": return <Badge variant="outline" className="bg-success/10 text-success border-success/20">Nyitott</Badge>
+      case "ertekeles": return <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">Értékelés</Badge>
       case "lezart": return <Badge variant="outline" className="bg-muted text-muted-foreground">Lezárt</Badge>
-      default: return <Badge>{status}</Badge>
+      default: return <Badge variant="outline">{status}</Badge>
     }
   }
 
@@ -130,8 +130,8 @@ export function ManageCyclesDialog({ cycles }: { cycles: PerformanceCycle[] }) {
             </div>
           </form>
 
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="compact-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Megnevezés</TableHead>
@@ -151,7 +151,7 @@ export function ManageCyclesDialog({ cycles }: { cycles: PerformanceCycle[] }) {
                   cycles?.map((cycle) => (
                     <TableRow key={cycle.id}>
                       <TableCell className="font-medium">{cycle.megnevezes}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
+                      <TableCell className="text-muted-foreground text-sm tabular-nums">
                         {cycle.kezdo_datum} - {cycle.befejezo_datum}
                       </TableCell>
                       <TableCell>{getStatusBadge(cycle.statusz)}</TableCell>
@@ -164,7 +164,7 @@ export function ManageCyclesDialog({ cycles }: { cycles: PerformanceCycle[] }) {
                               title="Megnyitás"
                               onClick={() => handleStatusUpdate(cycle.id, "nyitott")}
                             >
-                              <Play className="w-4 h-4 text-green-600" />
+                              <Play className="w-4 h-4 text-success" />
                             </Button>
                           )}
                           {cycle.statusz === "nyitott" && (
@@ -174,7 +174,7 @@ export function ManageCyclesDialog({ cycles }: { cycles: PerformanceCycle[] }) {
                               title="Értékelés (Zárás közeleg)" 
                               onClick={() => handleStatusUpdate(cycle.id, "ertekeles")}
                             >
-                              <FileEdit className="w-4 h-4 text-orange-600" />
+                              <FileEdit className="w-4 h-4 text-warning" />
                             </Button>
                           )}
                           {(cycle.statusz === "nyitott" || cycle.statusz === "ertekeles") && (

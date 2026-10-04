@@ -27,7 +27,7 @@ export function KshReportGenerator({ employees }: { employees: KshEmployeeItem[]
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <TableIcon className="w-5 h-5 text-emerald-500" />
+          <TableIcon className="w-5 h-5 text-primary" />
           KSH Munkaügyi Jelentés Aggregátor
         </CardTitle>
         <CardDescription>
@@ -54,8 +54,8 @@ export function KshReportGenerator({ employees }: { employees: KshEmployeeItem[]
           </Button>
         </div>
 
-        <div className="rounded-lg border overflow-hidden">
-          <table className="w-full text-sm text-left">
+        <div className="rounded-lg border overflow-x-auto">
+          <table className="compact-table w-full text-sm text-left">
             <thead className="bg-muted text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">KSH Mutató</th>
@@ -65,19 +65,19 @@ export function KshReportGenerator({ employees }: { employees: KshEmployeeItem[]
             <tbody className="divide-y">
               <tr className="bg-card hover:bg-muted/50 transition-colors">
                 <td className="px-4 py-3">Havi Záró Létszám (fő)</td>
-                <td className="px-4 py-3 text-right font-bold">{stats.zaroLetszam}</td>
+                <td className="px-4 py-3 text-right font-semibold tabular-nums">{stats.zaroLetszam}</td>
               </tr>
               <tr className="bg-card hover:bg-muted/50 transition-colors">
                 <td className="px-4 py-3">Átlagos statisztikai állományi létszám (FTE)</td>
-                <td className="px-4 py-3 text-right font-bold text-primary">{stats.atlagosStatLetszam}</td>
+                <td className="px-4 py-3 text-right font-semibold tabular-nums text-primary">{stats.atlagosStatLetszam}</td>
               </tr>
               <tr className="bg-card hover:bg-muted/50 transition-colors">
-                <td className="px-4 py-3 text-emerald-600">Tárgyhónapban belépők száma (fő)</td>
-                <td className="px-4 py-3 text-right font-bold text-emerald-600">{stats.belepett}</td>
+                <td className="px-4 py-3 text-success">Tárgyhónapban belépők száma (fő)</td>
+                <td className="px-4 py-3 text-right font-semibold tabular-nums text-success">{stats.belepett}</td>
               </tr>
               <tr className="bg-card hover:bg-muted/50 transition-colors">
                 <td className="px-4 py-3 text-destructive">Tárgyhónapban kilépők száma (fő)</td>
-                <td className="px-4 py-3 text-right font-bold text-destructive">{stats.kilepett}</td>
+                <td className="px-4 py-3 text-right font-semibold tabular-nums text-destructive">{stats.kilepett}</td>
               </tr>
             </tbody>
           </table>

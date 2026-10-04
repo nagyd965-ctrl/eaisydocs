@@ -264,11 +264,11 @@ export function JobDescriptionPanel({
               Hivatalos Munkaköri Leírás
             </h3>
             {isAssigned ? (
-              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs gap-1 font-medium">
+              <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs gap-1 font-medium">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Hozzárendelve / Előkészítve
               </Badge>
             ) : (
-              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-xs gap-1 font-medium">
+              <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-xs gap-1 font-medium">
                 <Clock className="w-3.5 h-3.5" /> Előkészítésre vár
               </Badge>
             )}
@@ -288,15 +288,15 @@ export function JobDescriptionPanel({
 
       {/* 2. Jelenleg Hozzárendelt Dokumentum Kártya (ha van) */}
       {jobData?.existingDoc && (
-        <div className="border border-emerald-500/30 bg-emerald-500/5 rounded-xl p-5 space-y-3">
+        <div className="border border-success/30 bg-success/5 rounded-xl p-5 space-y-3">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-500/20">
+              <div className="w-9 h-9 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0 border border-success/20">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="text-sm font-bold text-foreground">
+                  <h4 className="text-sm font-semibold text-foreground">
                     Hivatalos Munkaköri Leírás Érvényesítve
                   </h4>
                   <Badge variant="secondary" className="text-[10px] uppercase font-mono">
@@ -307,12 +307,12 @@ export function JobDescriptionPanel({
                   Dokumentum: {jobData.existingDoc.nev}
                 </p>
                 {jobData.existingDoc.iktatoszam ? (
-                  <div className="text-xs font-semibold text-emerald-600 pt-0.5 flex items-center gap-1 font-mono">
+                  <div className="text-xs font-semibold text-success pt-0.5 flex items-center gap-1 font-mono">
                     <ShieldCheck className="w-3.5 h-3.5" />
                     Iktatószám: {jobData.existingDoc.iktatoszam} (1.1 - Munkaköri leírások)
                   </div>
                 ) : (
-                  <div className="text-xs text-amber-600 pt-0.5 flex items-center gap-1">
+                  <div className="text-xs text-warning pt-0.5 flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5" />
                     Fiókaktiváláskor automatikusan iktatásra kerül (1.1 - Munkaköri leírások).
                   </div>
@@ -325,7 +325,7 @@ export function JobDescriptionPanel({
                 url={jobData.existingDoc.displayUrl || jobData.existingDoc.url}
                 title={`Munkaköri Leírás - ${employeeName}`}
                 trigger={
-                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10">
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10">
                     <Eye className="w-3.5 h-3.5" /> Megtekintés
                   </Button>
                 }
@@ -335,7 +335,7 @@ export function JobDescriptionPanel({
                 target="_blank"
                 rel="noopener noreferrer"
                 download
-                className={`${buttonVariants({ variant: "outline", size: "sm" })} h-8 text-xs gap-1 border-emerald-500/30`}
+                className={`${buttonVariants({ variant: "outline", size: "sm" })} h-8 text-xs gap-1 border-border`}
               >
                 <Download className="w-3.5 h-3.5" /> Letöltés
               </a>
@@ -345,7 +345,7 @@ export function JobDescriptionPanel({
                   type="button"
                   variant="default"
                   size="sm"
-                  className="h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="h-8 text-xs gap-1 bg-success hover:bg-success/90 text-success-foreground font-semibold"
                   onClick={() => handleFileExisting(jobData.existingDoc.id)}
                   disabled={isFileLoading}
                 >

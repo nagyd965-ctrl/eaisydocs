@@ -47,7 +47,7 @@ export function AssignEmployeeDialog({ jobId, availableEmployees }: AssignEmploy
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className={buttonVariants({ className: "gap-2 bg-[#02b8cc] hover:bg-[#029db0] text-white" })}>
+      <DialogTrigger className={buttonVariants({ className: "gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" })}>
         <UserPlus className="w-4 h-4" />
         Dolgozó Hozzárendelése
       </DialogTrigger>

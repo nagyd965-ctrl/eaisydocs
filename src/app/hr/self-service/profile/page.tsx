@@ -239,7 +239,7 @@ export default async function SelfServiceProfilePage() {
                       </span>
                     )}
                     {!isOrvosiExpired && !isOrvosiExpiringSoon && (
-                      <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                      <span className="text-[11px] font-semibold text-success bg-success/10 border border-success/20 px-1.5 py-0.5 rounded">
                         Érvényes
                       </span>
                     )}

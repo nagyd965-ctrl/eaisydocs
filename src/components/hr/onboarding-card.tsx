@@ -62,7 +62,7 @@ export function OnboardingCard({ onboarding, orgUnits, jobs }: OnboardingCardPro
       const formatted = entryDate.toLocaleDateString("hu-HU", { month: "short", day: "numeric" })
 
       if (diffDays === 0) {
-        return { text: "Ma kezd!", badgeClass: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold animate-pulse" }
+        return { text: "Ma kezd!", badgeClass: "bg-success/10 text-success border-success/20 font-semibold animate-pulse" }
       } else if (diffDays === 1) {
         return { text: "Holnap kezd", badgeClass: "bg-primary/10 text-primary border-primary/20 font-medium" }
       } else if (diffDays > 1 && diffDays <= 14) {
@@ -92,13 +92,13 @@ export function OnboardingCard({ onboarding, orgUnits, jobs }: OnboardingCardPro
       <DialogTrigger 
         nativeButton={false}
         render={
-          <Card className="flex flex-col relative overflow-hidden h-full cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-all duration-200 group border shadow-sm" />
+          <Card className="flex flex-col relative overflow-hidden h-full cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-all duration-200 group border" />
         }
       >
         {/* Felső vékony csík a haladásnak */}
         <div 
           className={`absolute top-0 left-0 h-1 transition-all duration-500 ${
-            isClosed ? "bg-muted-foreground/40" : isDone ? "bg-emerald-500" : "bg-primary"
+            isClosed ? "bg-muted-foreground/40" : isDone ? "bg-success" : "bg-primary"
           }`}
           style={{ width: `${progress}%` }} 
         />
@@ -132,7 +132,7 @@ export function OnboardingCard({ onboarding, orgUnits, jobs }: OnboardingCardPro
                 Lezárva
               </Badge>
             ) : isDone ? (
-              <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20 shrink-0 font-medium gap-1">
+              <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/20 shrink-0 font-medium gap-1">
                 <CheckCircle2 className="w-3 h-3" /> Kész
               </Badge>
             ) : (
@@ -156,12 +156,12 @@ export function OnboardingCard({ onboarding, orgUnits, jobs }: OnboardingCardPro
 
             {/* Fiókállapot jelző */}
             {isAccountActive ? (
-              <Badge variant="outline" className="text-[11px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 px-2 py-0 h-5 gap-1 font-medium">
+              <Badge variant="outline" className="text-[11px] bg-success/10 text-success border-success/20 px-2 py-0 h-5 gap-1 font-medium">
                 <UserCheck className="w-3 h-3" /> Fiók aktív
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-[11px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 px-2 py-0 h-5 gap-1 font-medium">
-                <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" /> Fiók aktiválásra vár
+              <Badge variant="outline" className="text-[11px] bg-warning/10 text-warning border-warning/20 px-2 py-0 h-5 gap-1 font-medium">
+                <Clock className="w-3 h-3 text-warning" /> Fiók aktiválásra vár
               </Badge>
             )}
           </div>

@@ -11,6 +11,7 @@ import Link from "next/link"
 import { AssignEmployeeOrgDialog } from "@/components/hr/assign-employee-org-dialog"
 import { RemoveEmployeeOrgButton } from "@/components/hr/remove-employee-org-button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { KpiCard } from "@/components/kpi-card"
 
 function roleLabel(role: string | null | undefined): { label: string; className: string } {
   switch (role) {
@@ -18,11 +19,11 @@ function roleLabel(role: string | null | undefined): { label: string; className:
     case "rendszergazda":  return { label: "Rendszergazda (IT)",   className: "bg-destructive/10 text-destructive border-destructive/20 border" }
     case "hr_vezeto":      return { label: "HR Vezető",            className: "bg-primary/10 text-primary border-primary/20 border" }
     case "hr_munkatars":   return { label: "HR Munkatárs",         className: "bg-primary/10 text-primary border-primary/20 border" }
-    case "vezeto":         return { label: "Vezető",               className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 border" }
-    case "berugyi":        return { label: "Bérügyi",              className: "bg-blue-500/10 text-blue-600 border-blue-500/20 border" }
-    case "toborzo":        return { label: "Toborzó (ATS)",        className: "bg-orange-500/10 text-orange-600 border-orange-500/20 border" }
-    case "munkavedelmi":   return { label: "Munkavédelmi",         className: "bg-amber-500/10 text-amber-600 border-amber-500/20 border" }
-    case "auditor":        return { label: "Auditor",              className: "bg-indigo-500/10 text-indigo-600 border-indigo-500/20 border" }
+    case "vezeto":         return { label: "Vezető",               className: "bg-success/10 text-success border-success/20 border" }
+    case "berugyi":        return { label: "Bérügyi",              className: "bg-info/10 text-info border-info/20 border" }
+    case "toborzo":        return { label: "Toborzó (ATS)",        className: "bg-warning/10 text-warning border-warning/20 border" }
+    case "munkavedelmi":   return { label: "Munkavédelmi",         className: "bg-warning/10 text-warning border-warning/20 border" }
+    case "auditor":        return { label: "Auditor",              className: "bg-primary/10 text-primary border-primary/20 border" }
     default:               return { label: "Munkavállaló",         className: "bg-secondary text-secondary-foreground" }
   }
 }
@@ -164,49 +165,20 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
         <AssignEmployeeOrgDialog orgUnitId={orgUnit.id} availableEmployees={availableEmployees} />
       </div>
 
-      {/* ── Stat kártyák ── */}
+      {/* ── Stat kártyák (Linear Flat KPI Grid) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-border">
-          <CardContent className="pt-5 pb-5">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10">
-                <Users className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-semibold tabular-nums">{employees.length}</p>
-                <p className="text-xs text-muted-foreground">Hozzárendelt dolgozó</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border">
-          <CardContent className="pt-5 pb-5">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-blue-500/10">
-                <Briefcase className="w-4 h-4 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-semibold tabular-nums">{jobs.length}</p>
-                <p className="text-xs text-muted-foreground">Hozzárendelt munkakör</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border">
-          <CardContent className="pt-5 pb-5">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-500/10">
-                <Crown className="w-4 h-4 text-emerald-500" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold truncate">{(orgUnit.parent as any)?.nev || "Főszintű"}</p>
-                <p className="text-xs text-muted-foreground">Szülő egység</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <KpiCard
+          label="Hozzárendelt dolgozó"
+          value={employees.length}
+        />
+        <KpiCard
+          label="Hozzárendelt munkakör"
+          value={jobs.length}
+        />
+        <KpiCard
+          label="Szülő egység"
+          value={(orgUnit.parent as any)?.nev || "Főszintű"}
+        />
       </div>
 
       {/* ── Fő tartalom – Tabs ── */}
@@ -358,7 +330,7 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
                           </TableCell>
                           <TableCell className="text-center">
                             {activeCount > 0 ? (
-                              <Badge variant="default" className="gap-1 bg-green-600 hover:bg-green-700 text-xs">
+                              <Badge variant="outline" className="gap-1 bg-success/10 text-success border-success/20 text-xs font-medium tabular-nums">
                                 <Users className="w-3 h-3" />
                                 {activeCount} fő
                               </Badge>
