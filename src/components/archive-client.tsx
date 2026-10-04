@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { TableToolbar, TableColumnOption, FilterGroup } from "@/components/table-toolbar/table-toolbar"
+import { KpiCard } from "@/components/kpi-card"
 
 const DEFAULT_ARCHIVE_COLUMNS: TableColumnOption[] = [
   { id: "iktatoszam", label: "Iktatószám", isVisible: true },
@@ -381,6 +382,32 @@ export function ArchiveClient({
 
   return (
     <div className="space-y-4">
+      {/* ── 0. KANONIKUS KPI STATISZTIKAI SÁV ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard
+          label="Irattárban lévő"
+          value={archivedDossiers.length}
+          sub="Megőrzés alatt álló ügyirat"
+        />
+        <KpiCard
+          label="Selejtezési javaslat"
+          value={scrappingSuggestions.length}
+          sub="Lejárt megőrzési idejű"
+          highlight={scrappingSuggestions.length > 0}
+        />
+        <KpiCard
+          label="Jóváhagyandó tétel"
+          value={pendingApprovals.length}
+          sub="Vezetői jóváhagyásra vár"
+          highlight={pendingApprovals.length > 0}
+        />
+        <KpiCard
+          label="Selejtezett irat"
+          value={scrappedDossiers.length}
+          sub="Jegyzőkönyvezett ügyirat"
+        />
+      </div>
+
       {/* Egységes Táblázat Eszköztár */}
       <TableToolbar
         searchValue={search}
@@ -404,7 +431,7 @@ export function ArchiveClient({
           <TabsTrigger value="suggestions" className="flex items-center gap-1.5 px-3 h-7 text-xs sm:text-sm font-medium">
             <span>Javaslatok</span>
             {filteredSuggestions.length > 0 && (
-              <span className="inline-flex h-4 min-w-4 px-1.5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
+              <span className="inline-flex h-4 min-w-4 px-1.5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground">
                 {filteredSuggestions.length}
               </span>
             )}
@@ -412,7 +439,7 @@ export function ArchiveClient({
           <TabsTrigger value="approvals" className="flex items-center gap-1.5 px-3 h-7 text-xs sm:text-sm font-medium">
             <span>Jóváhagyandó</span>
             {filteredApprovals.length > 0 && (
-              <span className="inline-flex h-4 min-w-4 px-1.5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
+              <span className="inline-flex h-4 min-w-4 px-1.5 items-center justify-center rounded-full bg-warning text-[10px] font-semibold text-warning-foreground">
                 {filteredApprovals.length}
               </span>
             )}
@@ -432,7 +459,7 @@ export function ArchiveClient({
             <div className="p-4 bg-muted/30 border-b border-border/50 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                  <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
                   <div className="text-sm">
                     <p className="font-semibold mb-0.5">Selejtezési & Átadási Javaslatok</p>
                     <p className="text-muted-foreground text-xs">
@@ -502,103 +529,105 @@ export function ArchiveClient({
               </div>
             </div>
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={
-                        filteredSuggestions.length > 0 &&
-                        selectedSuggestions.length === filteredSuggestions.length
-                      }
-                      onCheckedChange={toggleAllSuggestions}
-                      aria-label="Összes kijelölése"
-                    />
-                  </TableHead>
-                  {isColVisible("iktatoszam") && <TableHead>Iktatószám</TableHead>}
-                  {isColVisible("tetel") && <TableHead>Irattári Tétel</TableHead>}
-                  {isColVisible("targy") && <TableHead>Ügy Tárgya</TableHead>}
-                  {isColVisible("iratok") && <TableHead className="text-center">Iratok</TableHead>}
-                  {isColVisible("megorzes") && <TableHead>Megőrzés Vége</TableHead>}
-                  {isColVisible("intezkedes") && <TableHead>Intézkedés Módja</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredSuggestions.length > 0 ? (
-                  filteredSuggestions.map((item) => {
-                    const terv = Array.isArray(item.irattari_terv) ? item.irattari_terv[0] : item.irattari_terv
-                    const isSelejtezheto = terv?.selejtezheto !== false
-                    const isSelected = selectedSuggestions.includes(item.id)
-
-                    return (
-                      <TableRow
-                        key={item.id}
-                        className={`hover:bg-muted/50 transition-colors ${isSelected ? "bg-muted/40" : ""}`}
-                      >
-                        <TableCell>
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleSuggestion(item.id)}
-                          />
-                        </TableCell>
-                        {isColVisible("iktatoszam") && (
-                          <TableCell className="font-medium">
-                            <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline font-mono">
-                              {item.iktatoszam}
-                            </Link>
-                          </TableCell>
-                        )}
-                        {isColVisible("tetel") && (
-                          <TableCell className="text-xs text-muted-foreground">
-                            {terv?.tetelszam ? (
-                              <span className="font-mono text-foreground font-medium mr-1.5">{terv.tetelszam}</span>
-                            ) : null}
-                            {terv?.megnevezes || "Általános"}
-                          </TableCell>
-                        )}
-                        {isColVisible("targy") && (
-                          <TableCell className="text-sm font-normal text-foreground max-w-xs truncate">
-                            {item.ugy?.targy || "Nincs megadva"}
-                          </TableCell>
-                        )}
-                        {isColVisible("iratok") && (
-                          <TableCell className="text-center text-xs font-mono">
-                            {item.irat?.[0]?.count ?? 1} db
-                          </TableCell>
-                        )}
-                        {isColVisible("megorzes") && (
-                          <TableCell className="text-xs font-mono">
-                            {item.megorzesi_ido_vege ? new Date(item.megorzesi_ido_vege).toLocaleDateString("hu-HU") : "Ismeretlen"}
-                          </TableCell>
-                        )}
-                        {isColVisible("intezkedes") && (
-                          <TableCell>
-                            {isSelejtezheto ? (
-                              <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-[11px] gap-1">
-                                <Trash2 className="w-3 h-3" />
-                                Selejtezhető
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 text-[11px] gap-1">
-                                <Building2 className="w-3 h-3" />
-                                Levéltári átadás
-                              </Badge>
-                            )}
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    )
-                  })
-                ) : (
+            <div className="overflow-x-auto">
+              <Table className="compact-table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={visibleColumnsCount + 1} className="text-center py-12 text-muted-foreground">
-                      <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                      Nincs a megadott szűrési feltételeknek megfelelő lejáró ügyirat.
-                    </TableCell>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={
+                          filteredSuggestions.length > 0 &&
+                          selectedSuggestions.length === filteredSuggestions.length
+                        }
+                        onCheckedChange={toggleAllSuggestions}
+                        aria-label="Összes kijelölése"
+                      />
+                    </TableHead>
+                    {isColVisible("iktatoszam") && <TableHead>Iktatószám</TableHead>}
+                    {isColVisible("tetel") && <TableHead>Irattári Tétel</TableHead>}
+                    {isColVisible("targy") && <TableHead>Ügy Tárgya</TableHead>}
+                    {isColVisible("iratok") && <TableHead className="text-center">Iratok</TableHead>}
+                    {isColVisible("megorzes") && <TableHead>Megőrzés Vége</TableHead>}
+                    {isColVisible("intezkedes") && <TableHead>Intézkedés Módja</TableHead>}
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredSuggestions.length > 0 ? (
+                    filteredSuggestions.map((item) => {
+                      const terv = Array.isArray(item.irattari_terv) ? item.irattari_terv[0] : item.irattari_terv
+                      const isSelejtezheto = terv?.selejtezheto !== false
+                      const isSelected = selectedSuggestions.includes(item.id)
+
+                      return (
+                        <TableRow
+                          key={item.id}
+                          className={`hover:bg-muted/50 transition-colors ${isSelected ? "bg-muted/40" : ""}`}
+                        >
+                          <TableCell>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSuggestion(item.id)}
+                            />
+                          </TableCell>
+                          {isColVisible("iktatoszam") && (
+                            <TableCell className="font-medium">
+                              <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline font-mono">
+                                {item.iktatoszam}
+                              </Link>
+                            </TableCell>
+                          )}
+                          {isColVisible("tetel") && (
+                            <TableCell className="text-xs text-muted-foreground">
+                              {terv?.tetelszam ? (
+                                <span className="font-mono text-foreground font-medium mr-1.5">{terv.tetelszam}</span>
+                              ) : null}
+                              {terv?.megnevezes || "Általános"}
+                            </TableCell>
+                          )}
+                          {isColVisible("targy") && (
+                            <TableCell className="text-sm font-normal text-foreground max-w-xs truncate">
+                              {item.ugy?.targy || "Nincs megadva"}
+                            </TableCell>
+                          )}
+                          {isColVisible("iratok") && (
+                            <TableCell className="text-center text-xs font-mono">
+                              {item.irat?.[0]?.count ?? 1} db
+                            </TableCell>
+                          )}
+                          {isColVisible("megorzes") && (
+                            <TableCell className="text-xs font-mono">
+                              {item.megorzesi_ido_vege ? new Date(item.megorzesi_ido_vege).toLocaleDateString("hu-HU") : "Ismeretlen"}
+                            </TableCell>
+                          )}
+                          {isColVisible("intezkedes") && (
+                            <TableCell>
+                              {isSelejtezheto ? (
+                                <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-[11px] gap-1">
+                                  <Trash2 className="w-3 h-3" />
+                                  Selejtezhető
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-info/10 text-info border-info/30 text-[11px] gap-1">
+                                  <Building2 className="w-3 h-3" />
+                                  Levéltári átadás
+                                </Badge>
+                              )}
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      )
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={visibleColumnsCount + 1} className="text-center py-12 text-muted-foreground">
+                        <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        Nincs a megadott szűrési feltételeknek megfelelő lejáró ügyirat.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </TabsContent>
 
@@ -607,18 +636,18 @@ export function ArchiveClient({
           <div className="border border-border/50 rounded-md bg-card mb-4 overflow-hidden">
             <div className="p-4 bg-muted/30 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
-                <AlertTriangle className={`h-5 w-5 shrink-0 mt-0.5 ${fourEyesRequired ? "text-amber-500" : "text-emerald-500"}`} />
+                <AlertTriangle className={`h-5 w-5 shrink-0 mt-0.5 ${fourEyesRequired ? "text-warning" : "text-success"}`} />
                 <div className="text-sm">
                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                     <p className="font-semibold">
                       Jóváhagyandó Selejtezések {fourEyesRequired ? "(Szigorú Négy-szem elve)" : "(Egyfelhasználós / KKV Mód)"}
                     </p>
                     {fourEyesRequired ? (
-                      <Badge variant="outline" className="text-[11px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                      <Badge variant="outline" className="text-[11px] bg-warning/10 text-warning border-warning/30">
                         Szigorú audit mód aktív
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                      <Badge variant="outline" className="text-[11px] bg-success/10 text-success border-success/30">
                         Négyszem-elv feloldva (Egyfelhasználós mód)
                       </Badge>
                     )}
@@ -632,7 +661,7 @@ export function ArchiveClient({
               </div>
               <div className="flex items-center gap-2">
                 {currentUserRole === "ugyintezo" ? (
-                  <Badge variant="outline" className="text-xs bg-rose-500/10 text-rose-500 border-rose-500/30 py-1 px-2.5">
+                  <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/30 py-1 px-2.5">
                     Ügyintézőként nem hagyhatsz jóvá (kizárólag Vezető vagy Admin)
                   </Badge>
                 ) : (
@@ -648,62 +677,141 @@ export function ArchiveClient({
               </div>
             </div>
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={
-                        filteredApprovals.length > 0 &&
-                        selectedApprovals.length ===
-                          (fourEyesRequired
-                            ? filteredApprovals.filter(p => !currentUserId || p.javaslattevo_user_id !== currentUserId).length
-                            : filteredApprovals.length) &&
-                        selectedApprovals.length > 0
-                      }
-                      onCheckedChange={toggleAllApprovals}
-                      aria-label="Összes jóváhagyandó kijelölése"
-                    />
-                  </TableHead>
-                  {isColVisible("iktatoszam") && <TableHead>Iktatószám</TableHead>}
-                  {isColVisible("targy") && <TableHead>Ügy Tárgya</TableHead>}
-                  {isColVisible("felterjeszto") && <TableHead>Felterjesztő</TableHead>}
-                  {isColVisible("iratok") && <TableHead className="text-center">Iratok</TableHead>}
-                  {isColVisible("megorzes") && <TableHead>Megőrzés Vége</TableHead>}
-                  {isColVisible("intezkedes") && <TableHead>Státusz</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredApprovals.length > 0 ? (
-                  filteredApprovals.map((item) => {
-                    const isSelected = selectedApprovals.includes(item.id)
-                    const isSelfProposed = Boolean(currentUserId && item.javaslattevo_user_id === currentUserId)
+            <div className="overflow-x-auto">
+              <Table className="compact-table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={
+                          filteredApprovals.length > 0 &&
+                          selectedApprovals.length ===
+                            (fourEyesRequired
+                              ? filteredApprovals.filter(p => !currentUserId || p.javaslattevo_user_id !== currentUserId).length
+                              : filteredApprovals.length) &&
+                          selectedApprovals.length > 0
+                        }
+                        onCheckedChange={toggleAllApprovals}
+                        aria-label="Összes jóváhagyandó kijelölése"
+                      />
+                    </TableHead>
+                    {isColVisible("iktatoszam") && <TableHead>Iktatószám</TableHead>}
+                    {isColVisible("targy") && <TableHead>Ügy Tárgya</TableHead>}
+                    {isColVisible("felterjeszto") && <TableHead>Felterjesztő</TableHead>}
+                    {isColVisible("iratok") && <TableHead className="text-center">Iratok</TableHead>}
+                    {isColVisible("megorzes") && <TableHead>Megőrzés Vége</TableHead>}
+                    {isColVisible("intezkedes") && <TableHead>Státusz</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredApprovals.length > 0 ? (
+                    filteredApprovals.map((item) => {
+                      const isSelected = selectedApprovals.includes(item.id)
+                      const isSelfProposed = Boolean(currentUserId && item.javaslattevo_user_id === currentUserId)
 
-                    return (
-                      <TableRow
-                        key={item.id}
-                        className={`hover:bg-muted/50 transition-colors ${isSelected ? "bg-muted/40" : ""} ${
-                          isSelfProposed
-                            ? fourEyesRequired
-                              ? "bg-amber-500/5 opacity-80"
-                              : "bg-emerald-500/5"
-                            : ""
-                        }`}
-                      >
-                        <TableCell>
-                          <Checkbox
-                            checked={isSelected}
-                            disabled={fourEyesRequired && isSelfProposed}
-                            title={
-                              isSelfProposed
-                                ? fourEyesRequired
-                                  ? "A szigorú négy szem elve alapján a saját felterjesztésedet nem hagyhatod jóvá!"
-                                  : "Saját felterjesztés - Egyfelhasználós módban kijelölhető és jóváhagyható"
-                                : "Kijelölés jóváhagyásra"
-                            }
-                            onCheckedChange={() => toggleApproval(item.id)}
-                          />
-                        </TableCell>
+                      return (
+                        <TableRow
+                          key={item.id}
+                          className={`hover:bg-muted/50 transition-colors ${isSelected ? "bg-muted/40" : ""} ${
+                            isSelfProposed
+                              ? fourEyesRequired
+                                ? "bg-warning/5 opacity-80"
+                                : "bg-success/5"
+                              : ""
+                          }`}
+                        >
+                          <TableCell>
+                            <Checkbox
+                              checked={isSelected}
+                              disabled={fourEyesRequired && isSelfProposed}
+                              title={
+                                isSelfProposed
+                                  ? fourEyesRequired
+                                    ? "A szigorú négy szem elve alapján a saját felterjesztésedet nem hagyhatod jóvá!"
+                                    : "Saját felterjesztés - Egyfelhasználós módban kijelölhető és jóváhagyható"
+                                  : "Kijelölés jóváhagyásra"
+                              }
+                              onCheckedChange={() => toggleApproval(item.id)}
+                            />
+                          </TableCell>
+                          {isColVisible("iktatoszam") && (
+                            <TableCell className="font-medium">
+                              <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline font-mono">
+                                {item.iktatoszam}
+                              </Link>
+                            </TableCell>
+                          )}
+                          {isColVisible("targy") && <TableCell className="text-sm">{item.ugy?.targy}</TableCell>}
+                          {isColVisible("felterjeszto") && (
+                            <TableCell className="text-xs">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-medium text-foreground">{item.javaslattevo_nev || "Iratkezelő"}</span>
+                                {isSelfProposed && (
+                                  fourEyesRequired ? (
+                                    <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-[10px] py-0 px-1.5 font-normal">
+                                      Saját felterjesztés (Zárolva)
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-[10px] py-0 px-1.5 font-normal">
+                                      Saját felterjesztés (Jóváhagyható)
+                                    </Badge>
+                                  )
+                                )}
+                              </div>
+                            </TableCell>
+                          )}
+                          {isColVisible("iratok") && (
+                            <TableCell className="text-center text-xs font-mono">
+                              {item.irat?.[0]?.count ?? 1} db
+                            </TableCell>
+                          )}
+                          {isColVisible("megorzes") && (
+                            <TableCell className="text-xs font-mono">
+                              {item.megorzesi_ido_vege ? new Date(item.megorzesi_ido_vege).toLocaleDateString("hu-HU") : "-"}
+                            </TableCell>
+                          )}
+                          {isColVisible("intezkedes") && (
+                            <TableCell>
+                              <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-[11px]">
+                                Vezetői jóváhagyásra vár
+                              </Badge>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      )
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={visibleColumnsCount + 1} className="text-center py-12 text-muted-foreground">
+                        <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
+                        Nincsenek a feltételeknek megfelelő jóváhagyásra váró selejtezési javaslatok.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* 3. IRATTÁRBAN FÜL */}
+        <TabsContent value="archived" className="mt-4">
+          <div className="border border-border/50 rounded-md bg-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table className="compact-table">
+                <TableHeader>
+                  <TableRow>
+                    {isColVisible("iktatoszam") && <TableHead>Iktatószám</TableHead>}
+                    {isColVisible("targy") && <TableHead>Ügy Tárgya</TableHead>}
+                    {isColVisible("intezkedes") && <TableHead>Státusz</TableHead>}
+                    {isColVisible("iratok") && <TableHead className="text-center">Iratok</TableHead>}
+                    {isColVisible("megorzes") && <TableHead>Megőrzés Vége</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredArchived.length > 0 ? (
+                    filteredArchived.map((item) => (
+                      <TableRow key={item.id} className="hover:bg-muted/40 transition-colors">
                         {isColVisible("iktatoszam") && (
                           <TableCell className="font-medium">
                             <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline font-mono">
@@ -712,22 +820,11 @@ export function ArchiveClient({
                           </TableCell>
                         )}
                         {isColVisible("targy") && <TableCell className="text-sm">{item.ugy?.targy}</TableCell>}
-                        {isColVisible("felterjeszto") && (
-                          <TableCell className="text-xs">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-medium text-foreground">{item.javaslattevo_nev || "Iratkezelő"}</span>
-                              {isSelfProposed && (
-                                fourEyesRequired ? (
-                                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[10px] py-0 px-1.5 font-normal">
-                                    Saját felterjesztés (Zárolva)
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] py-0 px-1.5 font-normal">
-                                    Saját felterjesztés (Jóváhagyható)
-                                  </Badge>
-                                )
-                              )}
-                            </div>
+                        {isColVisible("intezkedes") && (
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {item.statusz === "irattarban" ? "Irattározva" : "Lezárva"}
+                            </Badge>
                           </TableCell>
                         )}
                         {isColVisible("iratok") && (
@@ -737,85 +834,21 @@ export function ArchiveClient({
                         )}
                         {isColVisible("megorzes") && (
                           <TableCell className="text-xs font-mono">
-                            {item.megorzesi_ido_vege ? new Date(item.megorzesi_ido_vege).toLocaleDateString("hu-HU") : "-"}
-                          </TableCell>
-                        )}
-                        {isColVisible("intezkedes") && (
-                          <TableCell>
-                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[11px]">
-                              Vezetői jóváhagyásra vár
-                            </Badge>
+                            {item.megorzesi_ido_vege ? new Date(item.megorzesi_ido_vege).toLocaleDateString("hu-HU") : "Folyamatos"}
                           </TableCell>
                         )}
                       </TableRow>
-                    )
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={visibleColumnsCount + 1} className="text-center py-12 text-muted-foreground">
-                      <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
-                      Nincsenek a feltételeknek megfelelő jóváhagyásra váró selejtezési javaslatok.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </TabsContent>
-
-        {/* 3. IRATTÁRBAN FÜL */}
-        <TabsContent value="archived" className="mt-4">
-          <div className="border border-border/50 rounded-md bg-card overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {isColVisible("iktatoszam") && <TableHead>Iktatószám</TableHead>}
-                  {isColVisible("targy") && <TableHead>Ügy Tárgya</TableHead>}
-                  {isColVisible("intezkedes") && <TableHead>Státusz</TableHead>}
-                  {isColVisible("iratok") && <TableHead className="text-center">Iratok</TableHead>}
-                  {isColVisible("megorzes") && <TableHead>Megőrzés Vége</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredArchived.length > 0 ? (
-                  filteredArchived.map((item) => (
-                    <TableRow key={item.id} className="hover:bg-muted/40 transition-colors">
-                      {isColVisible("iktatoszam") && (
-                        <TableCell className="font-medium">
-                          <Link href={`/dossiers/${item.id}`} className="text-primary hover:underline font-mono">
-                            {item.iktatoszam}
-                          </Link>
-                        </TableCell>
-                      )}
-                      {isColVisible("targy") && <TableCell className="text-sm">{item.ugy?.targy}</TableCell>}
-                      {isColVisible("intezkedes") && (
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {item.statusz === "irattarban" ? "Irattározva" : "Lezárva"}
-                          </Badge>
-                        </TableCell>
-                      )}
-                      {isColVisible("iratok") && (
-                        <TableCell className="text-center text-xs font-mono">
-                          {item.irat?.[0]?.count ?? 1} db
-                        </TableCell>
-                      )}
-                      {isColVisible("megorzes") && (
-                        <TableCell className="text-xs font-mono">
-                          {item.megorzesi_ido_vege ? new Date(item.megorzesi_ido_vege).toLocaleDateString("hu-HU") : "Folyamatos"}
-                        </TableCell>
-                      )}
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={visibleColumnsCount} className="text-center py-12 text-muted-foreground">
+                        Nincsenek a feltételeknek megfelelő lezárt ügyiratok.
+                      </TableCell>
                     </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={visibleColumnsCount} className="text-center py-12 text-muted-foreground">
-                      Nincsenek a feltételeknek megfelelő lezárt ügyiratok.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </TabsContent>
 
@@ -833,10 +866,11 @@ export function ArchiveClient({
               </p>
             </div>
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-28">Dátum</TableHead>
+            <div className="overflow-x-auto">
+              <Table className="compact-table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-28">Dátum</TableHead>
                   <TableHead className="w-36">Státusz</TableHead>
                   <TableHead className="w-36">Javaslattevő</TableHead>
                   <TableHead className="w-36">Jóváhagyó Vezető</TableHead>
@@ -871,11 +905,11 @@ export function ArchiveClient({
                         </TableCell>
                         <TableCell>
                           {isApproved ? (
-                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs font-normal">
+                            <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-xs font-normal">
                               Jóváhagyva & Archív
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs font-normal">
+                            <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-xs font-normal">
                               Jóváhagyásra vár
                             </Badge>
                           )}
@@ -964,6 +998,7 @@ export function ArchiveClient({
               </TableBody>
             </Table>
           </div>
+        </div>
 
           {/* Megsemmisített ügyiratok táblázata */}
           <div className="border border-border/50 rounded-md bg-card overflow-hidden">
@@ -977,44 +1012,46 @@ export function ArchiveClient({
               </p>
             </div>
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {isColVisible("iktatoszam") && <TableHead className="w-48">Iktatószám</TableHead>}
-                  {isColVisible("targy") && <TableHead>Ügy Tárgya</TableHead>}
-                  {isColVisible("intezkedes") && <TableHead className="w-44">Státusz</TableHead>}
-                  <TableHead className="w-44">Fizikai Állományok</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredScrapped.length > 0 ? (
-                  filteredScrapped.map((item) => (
-                    <TableRow key={item.id} className="opacity-75 hover:opacity-100 transition-opacity">
-                      {isColVisible("iktatoszam") && (
-                        <TableCell className="font-mono font-medium line-through text-muted-foreground text-xs">
-                          {item.iktatoszam}
-                        </TableCell>
-                      )}
-                      {isColVisible("targy") && (
-                        <TableCell className="text-muted-foreground text-xs truncate max-w-sm">{item.ugy?.targy || "Nincs tárgy"}</TableCell>
-                      )}
-                      {isColVisible("intezkedes") && (
-                        <TableCell>
-                          <Badge variant="destructive" className="text-xs font-normal">Véglegesen selejtezve</Badge>
-                        </TableCell>
-                      )}
-                      <TableCell className="text-muted-foreground text-xs font-mono">Fájlok megsemmisítve</TableCell>
-                    </TableRow>
-                  ))
-                ) : (
+            <div className="overflow-x-auto">
+              <Table className="compact-table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={visibleColumnsCount + 1} className="text-center py-8 text-muted-foreground text-xs">
-                      Nem található megsemmisített ügyirat.
-                    </TableCell>
+                    {isColVisible("iktatoszam") && <TableHead className="w-48">Iktatószám</TableHead>}
+                    {isColVisible("targy") && <TableHead>Ügy Tárgya</TableHead>}
+                    {isColVisible("intezkedes") && <TableHead className="w-44">Státusz</TableHead>}
+                    <TableHead className="w-44">Fizikai Állományok</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredScrapped.length > 0 ? (
+                    filteredScrapped.map((item) => (
+                      <TableRow key={item.id} className="opacity-75 hover:opacity-100 transition-opacity">
+                        {isColVisible("iktatoszam") && (
+                          <TableCell className="font-mono font-medium line-through text-muted-foreground text-xs">
+                            {item.iktatoszam}
+                          </TableCell>
+                        )}
+                        {isColVisible("targy") && (
+                          <TableCell className="text-muted-foreground text-xs truncate max-w-sm">{item.ugy?.targy || "Nincs tárgy"}</TableCell>
+                        )}
+                        {isColVisible("intezkedes") && (
+                          <TableCell>
+                            <Badge variant="destructive" className="text-xs font-normal">Véglegesen selejtezve</Badge>
+                          </TableCell>
+                        )}
+                        <TableCell className="text-muted-foreground text-xs font-mono">Fájlok megsemmisítve</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={visibleColumnsCount + 1} className="text-center py-8 text-muted-foreground text-xs">
+                        Nem található megsemmisített ügyirat.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </TabsContent>
       </Tabs>
@@ -1023,7 +1060,7 @@ export function ArchiveClient({
       <Dialog open={protocolOpen} onOpenChange={setProtocolOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="pb-2 border-b">
-            <DialogTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+            <DialogTitle className="flex items-center gap-2 text-success">
               <CheckCircle2 className="w-5 h-5" />
               Sikeres Selejtezés és Hitelesítés
             </DialogTitle>
@@ -1034,7 +1071,7 @@ export function ArchiveClient({
 
           <div className="py-4 space-y-3 text-sm">
             <div className="p-3 bg-muted/40 rounded border border-border/50 space-y-1 font-mono text-xs">
-              <p><span className="text-muted-foreground">Jegyzőkönyv száma:</span> <span className="font-bold text-foreground">{protocolData?.protocolNumber}</span></p>
+              <p><span className="text-muted-foreground">Jegyzőkönyv száma:</span> <span className="font-semibold text-foreground">{protocolData?.protocolNumber}</span></p>
               <p><span className="text-muted-foreground">Dátum:</span> {protocolData?.date}</p>
               <p><span className="text-muted-foreground">Javaslattevő:</span> {protocolData?.proposer}</p>
               <p><span className="text-muted-foreground">Jóváhagyó vezető:</span> {protocolData?.approver}</p>

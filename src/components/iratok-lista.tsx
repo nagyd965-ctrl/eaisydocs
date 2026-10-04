@@ -149,8 +149,8 @@ export function IratokLista({
   }
 
   return (
-    <div className="border rounded-md bg-card overflow-hidden">
-      <Table>
+    <div className="border border-border/50 rounded-md bg-card overflow-hidden overflow-x-auto">
+      <Table className="compact-table">
         <TableHeader>
           <TableRow>
             <TableHead>Iktatószám / Alszám</TableHead>
@@ -174,7 +174,7 @@ export function IratokLista({
                         {dossierIktatoszam ? `${dossierIktatoszam}/${irat.alszam || 1}` : `${irat.alszam || 1}. alszám`}
                       </span>
                       {irat.irany === "kimeno" && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-normal bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal bg-info/10 text-info border-info/30">
                           Válaszlevél
                         </Badge>
                       )}
@@ -205,21 +205,21 @@ export function IratokLista({
                     const min = irat.minosites || 'nyilt'
                     if (min === 'bizalmas') {
                       return (
-                        <Badge className="text-[10px] px-2 py-0.5 bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1 w-fit font-bold shadow-[0_0_8px_rgba(244,63,94,0.15)]">
+                        <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-destructive/10 text-destructive border-destructive/30 flex items-center gap-1 w-fit font-semibold">
                           <Lock className="w-3 h-3" /> Bizalmas
                         </Badge>
                       )
                     }
                     if (min === 'szigoruan_bizalmas') {
                       return (
-                        <Badge className="text-[10px] px-2 py-0.5 bg-red-600/20 text-red-300 border border-red-500/40 flex items-center gap-1 w-fit font-bold shadow-[0_0_8px_rgba(239,68,68,0.2)]">
+                        <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-destructive/15 text-destructive border-destructive/40 flex items-center gap-1 w-fit font-semibold">
                           <Lock className="w-3 h-3" /> Szigorúan bizalmas
                         </Badge>
                       )
                     }
                     if (min === 'belso') {
                       return (
-                        <Badge className="text-[10px] px-2 py-0.5 bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-1 w-fit font-semibold">
+                        <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-info/10 text-info border-info/30 flex items-center gap-1 w-fit font-semibold">
                           Belső
                         </Badge>
                       )
@@ -235,10 +235,10 @@ export function IratokLista({
                   {!hasAccess ? (
                     <div 
                       onClick={() => toast.error(`Hozzáférés megtagadva: Az Ön biztonsági minősítése (${currentUserClearance.toUpperCase()}) nem elegendő a bizalmas tartalom megtekintéséhez!`)}
-                      className="cursor-pointer flex items-center text-xs text-rose-400 font-semibold gap-1.5 p-2 bg-rose-500/10 border border-rose-500/25 rounded hover:bg-rose-500/20 transition-colors w-fit select-none"
+                      className="cursor-pointer flex items-center text-xs text-destructive font-semibold gap-1.5 p-2 bg-destructive/10 border border-destructive/30 rounded hover:bg-destructive/15 transition-colors w-fit select-none"
                       title="Kattintson a részletekért"
                     >
-                      <Lock className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                      <Lock className="h-3.5 w-3.5 shrink-0 text-destructive" />
                       <span>Bizalmas tartalom (Megtekintés zárolva)</span>
                     </div>
                   ) : (
@@ -257,8 +257,8 @@ export function IratokLista({
                             ) : null}
                             {fajl.pdfa_path ? (
                               <Badge 
-                                variant="secondary" 
-                                className="text-[10px] px-1.5 py-0 h-4 shrink-0 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-medium" 
+                                variant="outline" 
+                                className="text-[10px] px-1.5 py-0 h-4 shrink-0 bg-success/10 text-success border-success/30 font-medium" 
                                 title="PDF/A archiválási szabványnak megfelelő hiteles példány elkészült és letölthető"
                               >
                                 PDF/A Kész
@@ -266,7 +266,7 @@ export function IratokLista({
                             ) : (
                               <Badge 
                                 variant="outline" 
-                                className="text-[10px] px-1.5 py-0 h-4 shrink-0 text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/5 font-normal" 
+                                className="text-[10px] px-1.5 py-0 h-4 shrink-0 text-warning border-warning/30 bg-warning/10 font-normal" 
                                 title="A PDF/A archiválási formátumra való konvertálás a háttérmunkás sorban van"
                               >
                                 PDF/A folyamatban...

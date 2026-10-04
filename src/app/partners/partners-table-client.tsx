@@ -19,6 +19,7 @@ import { PartnerDialog } from "@/components/partner-dialog"
 import { DeletePartnerButton } from "@/components/delete-partner-button"
 import { Badge } from "@/components/ui/badge"
 import { TableToolbar, TableColumnOption, FilterGroup } from "@/components/table-toolbar/table-toolbar"
+import { KpiCard } from "@/components/kpi-card"
 import { cn } from "@/lib/utils"
 
 export interface PartnerItem {
@@ -60,18 +61,18 @@ function getPartnerTypeInfo(tipus?: string | null) {
 function getBusinessRoleInfo(szerepkor?: string | null) {
   switch (szerepkor) {
     case "szallito":
-      return { label: "Szállító", color: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" }
+      return { label: "Szállító", color: "bg-info/10 text-info border-info/20" }
     case "mindketto":
-      return { label: "Vevő & Szállító", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" }
+      return { label: "Vevő & Szállító", color: "bg-success/10 text-success border-success/20" }
     case "hatosag":
-      return { label: "Hatóság", color: "bg-purple-500/10 text-purple-600 border-purple-500/20 dark:text-purple-400" }
+      return { label: "Hatóság", color: "bg-warning/10 text-warning border-warning/20" }
     case "bank":
-      return { label: "Bank", color: "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400" }
+      return { label: "Bank", color: "bg-primary/10 text-primary border-primary/20" }
     case "egyeb":
-      return { label: "Egyéb", color: "bg-slate-500/10 text-slate-600 border-slate-500/20 dark:text-slate-400" }
+      return { label: "Egyéb", color: "bg-muted text-muted-foreground border-border" }
     case "vevo":
     default:
-      return { label: "Vevő", color: "bg-teal-500/10 text-teal-600 border-teal-500/20 dark:text-teal-400" }
+      return { label: "Vevő", color: "bg-primary/10 text-primary border-primary/20" }
   }
 }
 
@@ -273,64 +274,26 @@ export function PartnersTableClient({
 
       {/* ── 1. Felső Statisztikai Kártyák (Linear Flat KPI Grid) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        {/* Összes partner */}
-        <div className="rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-border">
-          <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-            <span className="font-medium">Összes partner</span>
-            <Users className="h-4 w-4 text-primary/70" />
-          </div>
-          <div className="text-2xl font-semibold tabular-nums text-foreground">
-            {stats.total}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Rendszerben rögzített partnertörzs
-          </p>
-        </div>
-
-        {/* Aktív partnerek */}
-        <div className="rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-border">
-          <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-            <span className="font-medium">Aktív státuszú</span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-            {stats.active}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            {stats.total > 0 ? `${Math.round((stats.active / stats.total) * 100)}% aktív kapcsolat` : "—"}
-          </p>
-        </div>
-
-        {/* Szerepkör megoszlás */}
-        <div className="rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-border">
-          <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-            <span className="font-medium">Vevők / Szállítók</span>
-            <Building2 className="h-4 w-4 text-blue-500" />
-          </div>
-          <div className="text-2xl font-semibold tabular-nums text-foreground flex items-baseline gap-1.5">
-            <span>{stats.vevok}</span>
-            <span className="text-xs font-normal text-muted-foreground">vevő / {stats.szallitok} szállító</span>
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            {stats.hatosagok} hatósági partner
-          </p>
-        </div>
-
-        {/* Iratforgalommal bíró partnerek */}
-        <div className="rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-border">
-          <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-            <span className="font-medium">Élő iratforgalom</span>
-            <FileText className="h-4 w-4 text-primary" />
-          </div>
-          <div className="text-2xl font-semibold tabular-nums text-foreground">
-            {stats.withDocs}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Partnerhez iktatott dokumentummal
-          </p>
-        </div>
-
+        <KpiCard
+          label="Összes partner"
+          value={stats.total}
+          sub="Rendszerben rögzített partnertörzs"
+        />
+        <KpiCard
+          label="Aktív státuszú"
+          value={stats.active}
+          sub={stats.total > 0 ? `${Math.round((stats.active / stats.total) * 100)}% aktív kapcsolat` : "—"}
+        />
+        <KpiCard
+          label="Vevők / Szállítók"
+          value={stats.vevok}
+          sub={`${stats.szallitok} szállító • ${stats.hatosagok} hatóság`}
+        />
+        <KpiCard
+          label="Élő iratforgalom"
+          value={stats.withDocs}
+          sub="Iktatott dokumentummal"
+        />
       </div>
 
       {/* ── 2. Gyors Szűrő Sáv (Quick Tabs) */}
@@ -372,7 +335,7 @@ export function PartnersTableClient({
 
       {/* ── 4. Partnerek Táblázat */}
       <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
-        <Table>
+        <Table className="compact-table">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               {isColVisible("nev") && <TableHead>Név & Székhely</TableHead>}
@@ -448,7 +411,7 @@ export function PartnersTableClient({
                     {isColVisible("statusz") && (
                       <TableCell>
                         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <span className={cn("h-2 w-2 rounded-full", isAktiv ? "bg-emerald-500" : "bg-muted-foreground/40")} />
+                          <span className={cn("h-2 w-2 rounded-full", isAktiv ? "bg-success" : "bg-muted-foreground/40")} />
                           {isAktiv ? "Aktív" : "Inaktív"}
                         </span>
                       </TableCell>

@@ -11,11 +11,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Lock } from "lucide-react"
+import { Button, buttonVariants } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Lock, Eye, ExternalLink, FolderOpen } from "lucide-react"
 import { StatusBadge } from "@/components/status-badge"
 import { AssignDossierDialog } from "@/components/assign-dossier-dialog"
 import { ExportDossiersDropdown } from "@/components/export-dossiers-dropdown"
 import { TableToolbar, TableColumnOption, FilterGroup } from "@/components/table-toolbar/table-toolbar"
+import { cn } from "@/lib/utils"
 
 export interface DossierItem {
   id: string
@@ -50,6 +60,7 @@ const DEFAULT_COLUMNS: TableColumnOption[] = [
   { id: "statusz", label: "Állapot", isVisible: true },
   { id: "felelos", label: "Felelős", isVisible: true },
   { id: "hatarido", label: "Határidő", isVisible: true },
+  { id: "muveletek", label: "Műveletek", isVisible: true },
 ]
 
 export function DossiersTableClient({
@@ -73,6 +84,10 @@ export function DossiersTableClient({
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
   const [selectedSecurity, setSelectedSecurity] = useState<string[]>([])
   const [selectedAssignments, setSelectedAssignments] = useState<string[]>([])
+
+  // Gyors betekintő állapot
+  const [selectedDossier, setSelectedDossier] = useState<DossierItem | null>(null)
+  const [dossierModalOpen, setDossierModalOpen] = useState(false)
 
   const handleToggleColumn = (id: string) => {
     setColumns((prev) =>
@@ -226,8 +241,8 @@ export function DossiersTableClient({
       />
 
       {/* Táblázat */}
-      <div className="border border-border/50 rounded-md bg-card overflow-hidden">
-        <Table>
+      <div className="border border-border/50 rounded-md bg-card overflow-hidden overflow-x-auto">
+        <Table className="compact-table">
           <TableHeader>
             <TableRow>
               {isColVisible("iktatoszam") && <TableHead>Iktatószám</TableHead>}
@@ -235,6 +250,7 @@ export function DossiersTableClient({
               {isColVisible("statusz") && <TableHead>Állapot</TableHead>}
               {isColVisible("felelos") && <TableHead>Felelős</TableHead>}
               {isColVisible("hatarido") && <TableHead>Határidő</TableHead>}
+              {isColVisible("muveletek") && <TableHead className="w-[80px] text-right">Műveletek</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -261,7 +277,7 @@ export function DossiersTableClient({
                           {isConfidential && (
                             <Badge
                               variant="outline"
-                              className="text-[10px] px-1.5 py-0 border-rose-500/30 text-rose-400 bg-rose-500/10 flex items-center gap-1 font-normal"
+                              className="text-[10px] px-1.5 py-0 border-destructive/30 text-destructive bg-destructive/10 flex items-center gap-1 font-normal"
                             >
                               <Lock className="w-2.5 h-2.5" /> Bizalmas
                             </Badge>
@@ -303,13 +319,38 @@ export function DossiersTableClient({
                           : "-"}
                       </TableCell>
                     )}
+                    {isColVisible("muveletek") && (
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            title="Gyors betekintés"
+                            onClick={() => {
+                              setSelectedDossier(dossier)
+                              setDossierModalOpen(true)
+                            }}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          <Link
+                            href={`/dossiers/${dossier.id}`}
+                            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                            title="Ügyirat megnyitása"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Link>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 )
               })
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={visibleColumnsCount || 5}
+                  colSpan={visibleColumnsCount || 6}
                   className="text-center py-8 text-muted-foreground"
                 >
                   {dossiers.length === 0
@@ -321,6 +362,86 @@ export function DossiersTableClient({
           </TableBody>
         </Table>
       </div>
+
+      {/* ── ÜGYIRAT GYORS BETEKINTŐ MODÁL ── */}
+      <Dialog open={dossierModalOpen} onOpenChange={setDossierModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-2 mb-1">
+              <FolderOpen className="h-4 w-4 text-primary" />
+              <DialogTitle className="text-base font-semibold">
+                {selectedDossier?.iktatoszam || "Ügyirat gyors betekintő"}
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs">
+              Az ügyirat alapadatainak és aktuális állapotának gyors áttekintése.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedDossier && (
+            <div className="space-y-3 text-xs py-2">
+              <div className="p-3 bg-muted/40 border border-border/60 rounded-md">
+                <span className="text-muted-foreground block mb-1">Tárgy / Ügy megnevezése:</span>
+                <span className="font-semibold text-sm text-foreground">
+                  {(selectedDossier.ugy as any)?.targy || "Nincs megadva tárgy"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-2.5 bg-muted/20 border border-border/40 rounded">
+                  <span className="text-muted-foreground block mb-0.5">Állapot:</span>
+                  <div className="pt-0.5">
+                    <StatusBadge status={selectedDossier.statusz} />
+                  </div>
+                </div>
+                <div className="p-2.5 bg-muted/20 border border-border/40 rounded">
+                  <span className="text-muted-foreground block mb-0.5">Felelős ügyintéző:</span>
+                  <span className="font-semibold">
+                    {((selectedDossier.ugy as any)?.felelos_user as any)?.full_name || "Kiosztatlan"}
+                  </span>
+                </div>
+                <div className="p-2.5 bg-muted/20 border border-border/40 rounded">
+                  <span className="text-muted-foreground block mb-0.5">Iktatás dátuma:</span>
+                  <span className="font-semibold tabular-nums">
+                    {selectedDossier.iktatas_datuma
+                      ? new Date(selectedDossier.iktatas_datuma).toLocaleDateString("hu-HU")
+                      : "—"}
+                  </span>
+                </div>
+                <div className="p-2.5 bg-muted/20 border border-border/40 rounded">
+                  <span className="text-muted-foreground block mb-0.5">Határidő:</span>
+                  <span className="font-semibold tabular-nums">
+                    {(selectedDossier.ugy as any)?.hatarido
+                      ? new Date((selectedDossier.ugy as any).hatarido).toLocaleDateString("hu-HU")
+                      : "Nincs határidő"}
+                  </span>
+                </div>
+                <div className="p-2.5 bg-muted/20 border border-border/40 rounded col-span-2">
+                  <span className="text-muted-foreground block mb-0.5">Szervezeti egység:</span>
+                  <span className="font-semibold">
+                    {selectedDossier.szervezeti_egyseg?.nev || "Központi szervezet"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex items-center justify-between sm:justify-between pt-2 border-t border-border/40">
+            <Button variant="ghost" size="sm" onClick={() => setDossierModalOpen(false)}>
+              Bezárás
+            </Button>
+            {selectedDossier?.id && (
+              <Link
+                href={`/dossiers/${selectedDossier.id}`}
+                className={cn(buttonVariants({ size: "sm" }), "gap-1.5")}
+              >
+                <span>Ügyirat teljes megnyitása</span>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Link>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

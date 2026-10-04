@@ -510,7 +510,7 @@ export function DashboardOverview({
               className={cn(
                 "rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-150",
                 period === t.key
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "bg-background text-foreground border border-border/40"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -701,7 +701,7 @@ export function DashboardOverview({
                             </span>
                           </div>
                           <div className="flex items-center gap-2 font-mono text-xs shrink-0 ml-3">
-                            <span className="font-bold tabular-nums text-foreground">
+                            <span className="font-semibold tabular-nums text-foreground">
                               {item.count} db
                             </span>
                             <span className="text-muted-foreground text-[11px] tabular-nums font-normal">
@@ -852,7 +852,7 @@ export function DashboardOverview({
                       </div>
                       <span className={cn(
                         "flex-shrink-0 rounded px-2 py-0.5 text-[11px] font-medium tabular-nums",
-                        overdue ? "bg-rose-500/10 text-rose-500" : "bg-amber-500/10 text-amber-500"
+                        overdue ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"
                       )}>
                         {days === 0 ? "Ma"
                           : days !== null && days < 0 ? `${Math.abs(days)} napja lejárt`
@@ -891,7 +891,8 @@ export function DashboardOverview({
                       <span className={cn(
                         "rounded px-2 py-0.5 text-[11px] font-medium",
                         task.allapot === "folyamatban" ? "bg-primary/10 text-primary"
-                          : task.allapot === "kesz" ? "bg-emerald-500/10 text-emerald-600"
+                          : task.allapot === "kesz" ? "bg-success/10 text-success"
+                          : task.allapot === "elutasitott" ? "bg-destructive/10 text-destructive"
                           : "bg-muted text-muted-foreground"
                       )}>
                         {task.allapot === "folyamatban" ? "Folyamatban"

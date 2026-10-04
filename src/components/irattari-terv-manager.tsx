@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Dialog,
   DialogContent,
@@ -161,47 +162,48 @@ export function IrattariTervManager({ initialTervek }: IrattariTervManagerProps)
           <p className="text-xs text-muted-foreground/70 mt-1">Hozd létre az első tételt a gombbal.</p>
         </div>
       ) : (
-        <div className="border border-border/50 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border/50 bg-muted/30">
-                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Tételszám</th>
-                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Megnevezés</th>
-                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Megőrzés</th>
-                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Selejtezés</th>
-                <th className="px-4 py-2.5 w-20"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {tervek.map((tetel, idx) => (
-                <tr
+        <div className="border border-border/50 rounded-md overflow-hidden overflow-x-auto">
+          <Table className="compact-table">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-28">Tételszám</TableHead>
+                <TableHead>Megnevezés</TableHead>
+                <TableHead className="w-28">Megőrzés</TableHead>
+                <TableHead className="w-28">Selejtezés</TableHead>
+                <TableHead className="w-20 text-right"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tervek.map((tetel) => (
+                <TableRow
                   key={tetel.id}
-                  className={`border-b border-border/30 last:border-0 hover:bg-muted/20 transition-colors ${idx % 2 === 0 ? "" : "bg-muted/10"}`}
+                  className="hover:bg-muted/40 transition-colors"
                 >
-                  <td className="px-4 py-3">
-                    <code className="text-xs bg-muted/50 px-1.5 py-0.5 rounded font-mono">
+                  <TableCell>
+                    <code className="text-xs bg-muted/60 px-1.5 py-0.5 rounded font-mono border border-border/40">
                       {tetel.tetelszam}
                     </code>
-                  </td>
-                  <td className="px-4 py-3 font-medium">{tetel.megnevezes}</td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell className="font-medium text-foreground">{tetel.megnevezes}</TableCell>
+                  <TableCell>
                     <div className="flex items-center gap-1.5 text-muted-foreground">
                       <Clock className="h-3.5 w-3.5" />
-                      <span className="text-xs">{tetel.megorzesi_ido_ev} év</span>
+                      <span className="text-xs tabular-nums">{tetel.megorzesi_ido_ev} év</span>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge className={`text-[10px] px-1.5 py-0 h-4 border-0 ${tetel.selejtezheto ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${tetel.selejtezheto ? "bg-primary/10 text-primary border-primary/30 font-medium" : "bg-muted text-muted-foreground border-border"}`}>
                       {tetel.selejtezheto ? "Igen" : "Nem"}
                     </Badge>
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell className="text-right">
                     <div className="flex items-center gap-1 justify-end">
                       <Button
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7 text-muted-foreground hover:text-foreground"
                         onClick={() => openEdit(tetel)}
+                        title="Szerkesztés"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -210,15 +212,16 @@ export function IrattariTervManager({ initialTervek }: IrattariTervManagerProps)
                         variant="ghost"
                         className="h-7 w-7 text-muted-foreground hover:text-destructive"
                         onClick={() => openDelete(tetel.id)}
+                        title="Törlés"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
 

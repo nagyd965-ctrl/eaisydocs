@@ -28,7 +28,7 @@ export function KpiCard({
       className={cn(
         "h-full border border-border/70 shadow-xs bg-card transition-colors",
         href && "hover:border-primary/40 cursor-pointer",
-        highlight ? "bg-amber-500/5 border-amber-500/20" : "",
+        highlight ? "bg-warning/5 border-warning/30" : "",
         className
       )}
     >

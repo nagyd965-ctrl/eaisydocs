@@ -130,8 +130,8 @@ export function TaskRejectDialog({
             />
           </div>
 
-          <div className="flex items-start gap-2 p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-800 dark:text-amber-300 text-xs">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2 p-2.5 rounded-lg border border-warning/30 bg-warning/5 text-warning-foreground text-xs">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-warning" />
             <span>
               Az elutasított feladatok nem törlődnek, de kikerülnek az aktív teendők közül, és
               visszakövethetőek maradnak.

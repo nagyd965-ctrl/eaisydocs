@@ -403,15 +403,15 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
                   </dt>
                   <dd className="text-sm font-semibold">
                     {highestMinosites === "szigoruan_bizalmas" ? (
-                      <Badge variant="outline" className="text-xs border-purple-500/40 text-purple-400 bg-purple-500/10 flex items-center gap-1 font-semibold uppercase w-fit">
+                      <Badge variant="outline" className="text-xs border-destructive/40 text-destructive bg-destructive/15 flex items-center gap-1 font-semibold uppercase w-fit">
                         <Lock className="w-3 h-3" /> Szigorúan bizalmas
                       </Badge>
                     ) : highestMinosites === "bizalmas" ? (
-                      <Badge variant="outline" className="text-xs border-rose-500/40 text-rose-400 bg-rose-500/10 flex items-center gap-1 font-semibold uppercase w-fit">
+                      <Badge variant="outline" className="text-xs border-destructive/30 text-destructive bg-destructive/10 flex items-center gap-1 font-semibold uppercase w-fit">
                         <Lock className="w-3 h-3" /> Bizalmas
                       </Badge>
                     ) : highestMinosites === "belso" ? (
-                      <Badge variant="outline" className="text-xs border-blue-500/40 text-blue-400 bg-blue-500/10 w-fit">
+                      <Badge variant="outline" className="text-xs border-info/30 text-info bg-info/10 w-fit font-semibold">
                         Belső
                       </Badge>
                     ) : (

@@ -99,7 +99,7 @@ export function NotificationSettings({ rules, logs, isAdmin }: { rules: Rule[], 
 
   return (
     <div className="space-y-6">
-      <Card className="border-border shadow-sm">
+      <Card className="border-border/60">
         <CardHeader className="pb-4">
           <div className="flex items-center space-x-2">
             <Bell className="h-5 w-5" />
@@ -180,7 +180,7 @@ export function NotificationSettings({ rules, logs, isAdmin }: { rules: Rule[], 
         </CardContent>
       </Card>
 
-      <Card className="border-border shadow-sm mt-6">
+      <Card className="border-border/60">
         <CardHeader className="pb-4">
           <div className="flex items-center space-x-2">
             <List className="h-5 w-5" />
@@ -189,8 +189,8 @@ export function NotificationSettings({ rules, logs, isAdmin }: { rules: Rule[], 
           <CardDescription>A rendszer által kiküldött legutóbbi 50 értesítés állapota</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border border-border/50 overflow-hidden overflow-x-auto">
+            <Table className="compact-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Időpont</TableHead>
@@ -208,7 +208,7 @@ export function NotificationSettings({ rules, logs, isAdmin }: { rules: Rule[], 
                     </TableCell>
                     <TableCell>
                       {log.csatorna === "sms" ? (
-                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 gap-1 text-[11px] font-normal">
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 gap-1 text-[11px] font-normal">
                           <MessageSquare className="h-3 w-3" /> SMS
                         </Badge>
                       ) : (
@@ -223,17 +223,17 @@ export function NotificationSettings({ rules, logs, isAdmin }: { rules: Rule[], 
                     </TableCell>
                     <TableCell>
                       {log.statusz === "sikeres" && (
-                        <Badge variant="outline" className="bg-success/10 text-success border-success/20">
+                        <Badge variant="outline" className="bg-success/10 text-success border-success/30">
                           <CheckCircle2 className="h-3 w-3 mr-1" /> Sikeres
                         </Badge>
                       )}
                       {log.statusz === "hibas" && (
-                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20" title={log.hiba_oka || "Ismeretlen hiba"}>
+                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30" title={log.hiba_oka || "Ismeretlen hiba"}>
                           <AlertCircle className="h-3 w-3 mr-1" /> Hibás
                         </Badge>
                       )}
                       {log.statusz === "folyamatban" && (
-                        <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
+                        <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30">
                           <Clock className="h-3 w-3 mr-1" /> Folyamatban
                         </Badge>
                       )}

@@ -44,7 +44,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       statusz,
       kulso_forras,
       leiras,
-      partner ( nev )
+      partner ( nev ),
+      irat_fajl ( id, storage_path, eredeti_fajlnev, mime_type, pdfa_path )
     `)
     .is("ugyirat_id", null)
     .or("statusz.is.null,statusz.eq.erkeztetve")
@@ -62,7 +63,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       statusz,
       kulso_forras,
       leiras,
-      partner ( nev )
+      partner ( nev ),
+      irat_fajl ( id, storage_path, eredeti_fajlnev, mime_type, pdfa_path )
     `)
     .is("ugyirat_id", null)
     .eq("statusz", "nem_iktatando")

@@ -92,13 +92,11 @@ function TaskCardContent({ task, isOverdue }: { task: Task; isOverdue: boolean }
         {task.leiras}
       </p>
       {task.allapot === "elutasitott" && (
-        <div className="mt-2 p-2 rounded-md bg-destructive/10 border border-destructive/25 text-[11px] text-destructive space-y-1">
-          <span className="font-semibold block text-[10px] uppercase tracking-wider flex items-center gap-1">
-            <Ban className="h-3 w-3 shrink-0" /> Elutasítás oka:
+        <div className="flex items-start gap-1.5 pt-1 text-[11px] text-destructive">
+          <Ban className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <span className="italic line-clamp-2 text-foreground/80 leading-tight">
+            „{task.indoklas || "Téves szignálás"}”
           </span>
-          <p className="text-foreground font-medium bg-background/80 dark:bg-background/40 rounded px-2 py-1 border border-destructive/20 text-[11px] leading-tight">
-            {task.indoklas || "Téves szignálás / Nem az én hatásköröm"}
-          </p>
         </div>
       )}
       <div className="flex items-center justify-between pt-2">
@@ -368,13 +366,13 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
                   </p>
                 )}
                 {selectedTask.allapot === "elutasitott" && (
-                  <div className="mt-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-xs text-destructive space-y-1.5">
-                    <div className="font-semibold flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
-                      <Ban className="h-4 w-4 shrink-0" />
-                      Elutasítás oka / Vezetői indoklás:
-                    </div>
-                    <div className="font-medium text-foreground bg-background/80 dark:bg-background/40 rounded px-2.5 py-1.5 border border-destructive/20 text-xs leading-relaxed">
-                      {selectedTask.indoklas || "Téves szignálás / Nem az én hatásköröm"}
+                  <div className="mt-3 p-3 rounded-md bg-destructive/5 border border-destructive/20 text-xs flex items-start gap-2.5">
+                    <Ban className="h-4 w-4 shrink-0 mt-0.5 text-destructive" />
+                    <div className="space-y-0.5">
+                      <span className="font-semibold text-destructive text-[11px] block">Elutasítás indoklása:</span>
+                      <p className="text-foreground italic leading-relaxed">
+                        „{selectedTask.indoklas || "Téves szignálás"}”
+                      </p>
                     </div>
                   </div>
                 )}

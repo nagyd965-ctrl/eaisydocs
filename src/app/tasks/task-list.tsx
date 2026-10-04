@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { format } from "date-fns"
 import { hu } from "date-fns/locale"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ExternalLink, Calendar as CalendarIcon, Ban } from "lucide-react"
+import { ExternalLink, Calendar as CalendarIcon, Ban, CheckSquare } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -24,6 +24,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import { TableToolbar, TableColumnOption, FilterGroup } from "@/components/table-toolbar/table-toolbar"
 
 interface Task {
   id: string
@@ -48,22 +49,93 @@ const STATUS_LABELS: Record<string, string> = {
   elutasitott: "Elutasított",
 }
 
+const DEFAULT_TASK_COLUMNS: TableColumnOption[] = [
+  { id: "ugyirat", label: "Ügyirat / Tárgy", isVisible: true },
+  { id: "leiras", label: "Feladat leírása", isVisible: true },
+  { id: "hatarido", label: "Határidő", isVisible: true },
+  { id: "allapot", label: "Állapot", isVisible: true },
+]
+
 export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const router = useRouter()
 
+  // Szűrési állapotok a szabványos TableToolbar-hoz
+  const [search, setSearch] = useState("")
+  const [columns, setColumns] = useState<TableColumnOption[]>(DEFAULT_TASK_COLUMNS)
+  const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+
   useEffect(() => {
     setTasks(initialTasks)
   }, [initialTasks])
 
-  if (tasks.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 border rounded-xl border-dashed bg-muted/20">
-        <p className="text-muted-foreground text-center">Jelenleg nincs egyetlen feladatod sem!</p>
-      </div>
+  const handleToggleColumn = (id: string) => {
+    setColumns((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, isVisible: !c.isVisible } : c))
     )
   }
+
+  const isColVisible = (id: string) => {
+    return columns.find((c) => c.id === id)?.isVisible ?? true
+  }
+
+  const handleClearFilters = () => {
+    setSearch("")
+    setFromDate("")
+    setToDate("")
+    setSelectedStatuses([])
+  }
+
+  const filterGroups: FilterGroup[] = [
+    {
+      id: "allapot",
+      title: "Feladat állapota",
+      options: [
+        { id: "nyitott", label: "Nyitott", checked: selectedStatuses.includes("nyitott") },
+        { id: "folyamatban", label: "Folyamatban", checked: selectedStatuses.includes("folyamatban") },
+        { id: "kesz", label: "Kész", checked: selectedStatuses.includes("kesz") },
+        { id: "elutasitott", label: "Elutasított", checked: selectedStatuses.includes("elutasitott") },
+      ],
+      onToggle: (optId) => {
+        setSelectedStatuses((prev) =>
+          prev.includes(optId) ? prev.filter((x) => x !== optId) : [...prev, optId]
+        )
+      },
+    },
+  ]
+
+  const activeFiltersCount = selectedStatuses.length
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        const matchDesc = task.leiras?.toLowerCase().includes(q)
+        const matchDetails = task.reszletek?.toLowerCase().includes(q)
+        const matchNumber = task.ugyirat?.iktatoszam?.toLowerCase().includes(q)
+        const matchReason = task.indoklas?.toLowerCase().includes(q)
+        if (!matchDesc && !matchDetails && !matchNumber && !matchReason) return false
+      }
+
+      if (fromDate) {
+        const tDate = task.hatarido ? new Date(task.hatarido).toISOString().split("T")[0] : ""
+        if (tDate && tDate < fromDate) return false
+      }
+      if (toDate) {
+        const tDate = task.hatarido ? new Date(task.hatarido).toISOString().split("T")[0] : ""
+        if (tDate && tDate > toDate) return false
+      }
+
+      if (selectedStatuses.length > 0) {
+        if (!selectedStatuses.includes(task.allapot)) return false
+      }
+
+      return true
+    })
+  }, [tasks, search, fromDate, toDate, selectedStatuses])
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -81,7 +153,7 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
         )
       case "kesz":
         return (
-          <Badge variant="outline" className="text-primary border-primary/30 bg-primary/5">
+          <Badge variant="outline" className="text-success border-success/30 bg-success/5">
             Kész
           </Badge>
         )
@@ -104,66 +176,110 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
     }
   }
 
+  const visibleColumnsCount = columns.filter((c) => c.isVisible).length
+
   return (
-    <div className="rounded-lg border border-border/50 overflow-x-auto">
-      <Table className="compact-table min-w-max">
-        <TableHeader>
-          <TableRow className="bg-muted/30 hover:bg-muted/30">
-            <TableHead className="font-medium">Ügyirat / Tárgy</TableHead>
-            <TableHead className="font-medium">Feladat leírása</TableHead>
-            <TableHead className="font-medium">Határidő</TableHead>
-            <TableHead className="font-medium text-right">Állapot</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {tasks.map((task) => (
-            <TableRow
-              key={task.id}
-              onClick={() => handleRowClick(task)}
-              className="cursor-pointer group"
-            >
-              <TableCell>
-                {task.ugyirat ? (
-                  <Link
-                    href={`/dossiers/${task.ugyirat.id}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="font-semibold text-primary hover:underline text-xs inline-flex items-center gap-1"
-                  >
-                    {task.ugyirat.iktatoszam}
-                    <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
-                  </Link>
-                ) : (
-                  <span className="text-muted-foreground italic text-xs">Nincs csatolva</span>
-                )}
-              </TableCell>
-              <TableCell className="text-foreground/90 max-w-md">
-                <div className="font-medium text-xs text-foreground truncate">{task.leiras}</div>
-                {task.reszletek && (
-                  <div className="text-[11px] text-muted-foreground truncate mt-0.5">{task.reszletek}</div>
-                )}
-                {task.allapot === "elutasitott" && (
-                  <div className="text-[11px] text-destructive flex items-center gap-1 mt-1 font-medium truncate bg-destructive/10 px-2 py-0.5 rounded border border-destructive/20 w-fit">
-                    <Ban className="h-3 w-3 shrink-0" />
-                    <span>Elutasítás oka: {task.indoklas || "Téves szignálás / Nem az én hatásköröm"}</span>
-                  </div>
-                )}
-              </TableCell>
-              <TableCell>
-                <span
-                  className={`font-medium tabular-nums text-xs ${
-                    new Date(task.hatarido) < new Date() && task.allapot !== "kesz"
-                      ? "text-destructive"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  {format(new Date(task.hatarido), "yyyy. MM. dd.", { locale: hu })}
-                </span>
-              </TableCell>
-              <TableCell className="text-right">{getStatusBadge(task.allapot)}</TableCell>
+    <div className="space-y-3">
+      {/* Szabványos TableToolbar */}
+      <TableToolbar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Keresés feladat leírása, ügyiratszám vagy indoklás szerint..."
+        columns={columns}
+        onToggleColumn={handleToggleColumn}
+        dateRange={{
+          from: fromDate,
+          to: toDate,
+          onFromChange: setFromDate,
+          onToChange: setToDate,
+        }}
+        filterGroups={filterGroups}
+        activeFiltersCount={activeFiltersCount}
+        onClearFilters={handleClearFilters}
+      />
+
+      <div className="rounded-lg border border-border/50 bg-card overflow-hidden">
+        <Table className="compact-table">
+          <TableHeader>
+            <TableRow className="bg-muted/30 hover:bg-muted/30">
+              {isColVisible("ugyirat") && <TableHead className="font-medium">Ügyirat / Tárgy</TableHead>}
+              {isColVisible("leiras") && <TableHead className="font-medium">Feladat leírása</TableHead>}
+              {isColVisible("hatarido") && <TableHead className="font-medium">Határidő</TableHead>}
+              {isColVisible("allapot") && <TableHead className="font-medium text-right">Állapot</TableHead>}
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {filteredTasks.length > 0 ? (
+              filteredTasks.map((task) => (
+                <TableRow
+                  key={task.id}
+                  onClick={() => handleRowClick(task)}
+                  className="cursor-pointer group hover:bg-muted/40 transition-colors"
+                >
+                  {isColVisible("ugyirat") && (
+                    <TableCell>
+                      {task.ugyirat ? (
+                        <Link
+                          href={`/dossiers/${task.ugyirat.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-semibold text-primary hover:underline text-xs inline-flex items-center gap-1 font-mono"
+                        >
+                          {task.ugyirat.iktatoszam}
+                          <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground italic text-xs">Nincs csatolva</span>
+                      )}
+                    </TableCell>
+                  )}
+                  {isColVisible("leiras") && (
+                    <TableCell className="text-foreground/90 max-w-md">
+                      <div className="font-medium text-xs text-foreground truncate">{task.leiras}</div>
+                      {task.reszletek && (
+                        <div className="text-[11px] text-muted-foreground truncate mt-0.5">{task.reszletek}</div>
+                      )}
+                      {task.allapot === "elutasitott" && (
+                        <div className="text-[11px] text-destructive flex items-center gap-1.5 mt-1 font-normal truncate bg-destructive/5 px-2 py-0.5 rounded border border-destructive/20 w-fit">
+                          <Ban className="h-3 w-3 shrink-0" />
+                          <span className="italic text-foreground/80">„{task.indoklas || "Téves szignálás"}”</span>
+                        </div>
+                      )}
+                    </TableCell>
+                  )}
+                  {isColVisible("hatarido") && (
+                    <TableCell>
+                      <span
+                        className={`font-medium tabular-nums text-xs ${
+                          new Date(task.hatarido) < new Date() && task.allapot !== "kesz"
+                            ? "text-destructive"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {format(new Date(task.hatarido), "yyyy. MM. dd.", { locale: hu })}
+                      </span>
+                    </TableCell>
+                  )}
+                  {isColVisible("allapot") && (
+                    <TableCell className="text-right">{getStatusBadge(task.allapot)}</TableCell>
+                  )}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={visibleColumnsCount || 4}
+                  className="text-center py-10 text-muted-foreground"
+                >
+                  <CheckSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  {tasks.length === 0
+                    ? "Jelenleg nincs egyetlen rögzített feladat sem."
+                    : "Nincs a megadott szűrési feltételeknek megfelelő feladat."}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {/* Részletező Dialog általános feladathoz */}
       <Dialog open={!!selectedTask} onOpenChange={(open) => !open && setSelectedTask(null)}>
@@ -186,7 +302,7 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
                       Ügyirat:{" "}
                       <Link
                         href={`/dossiers/${selectedTask.ugyirat.id}`}
-                        className="text-primary hover:underline inline-flex items-center gap-1 font-semibold"
+                        className="text-primary hover:underline inline-flex items-center gap-1 font-semibold font-mono"
                       >
                         {selectedTask.ugyirat.iktatoszam}
                         <ExternalLink className="h-3.5 w-3.5" />

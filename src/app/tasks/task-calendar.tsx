@@ -45,9 +45,9 @@ interface TaskCalendarProps {
 }
 
 const ALLAPOT_COLORS: Record<string, string> = {
-  nyitott: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
-  folyamatban: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
-  kesz: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  nyitott: "bg-warning/10 text-warning border-warning/20",
+  folyamatban: "bg-info/10 text-info border-info/20",
+  kesz: "bg-success/10 text-success border-success/20",
   elutasitott: "bg-destructive/10 text-destructive border-destructive/20",
 }
 
@@ -136,7 +136,7 @@ export function TaskCalendar({ tasks }: TaskCalendarProps) {
                   <span
                     className={`text-xs p-1 rounded-full w-6 h-6 flex items-center justify-center ${
                       isTodayDay
-                        ? "bg-primary text-primary-foreground font-bold"
+                        ? "bg-primary text-primary-foreground font-semibold"
                         : ""
                     }`}
                   >

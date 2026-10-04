@@ -4,6 +4,39 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ---
 
+## [Unreleased] – Fejlesztés alatt (2026-10-04)
+
+### 🎨 eaisyDocs Rendszerszintű Frontend Szabályossági Tisztítás & Kanonikus UI Egységesítés ([A-029](../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), [P-043](../product/decisions/P-043-global-ui-consistency-and-unified-components.md))
+- **Linear Flat Design & Szemantikus HSL Színrendszer Teljes Rendszeresítése:**
+  - Kivezetve az összes közvetlen Tailwind színosztály (`amber-500`, `emerald-500`, `blue-500`, `rose-500`, `purple-500`).
+  - Helyettük kizárólag a platformszintű HSL tokenek érvényesülnek: `warning`, `success`, `info`, `destructive`, `primary`.
+  - Eltávolítva a tiltott `shadow-sm` és `shadow-lg` árnyékok a kártyákról és a vezérlőelemekről (`src/components/dashboard-overview.tsx`, `src/app/settings/notification-settings.tsx`).
+- **Kompakt Táblázat Magasság (`.compact-table` - 45px) Minden eaisyDocs Táblázaton:**
+  - `src/components/inbox-table-client.tsx` (Bejövő iratok)
+  - `src/app/dossiers/dossiers-table-client.tsx` (Iktatókönyv)
+  - `src/app/tasks/task-list.tsx` (Saját feladataim lista nézet)
+  - `src/app/partners/partners-table-client.tsx` (Partnerek törzsadat)
+  - `src/components/archive-client.tsx` (Irattár & Selejtezés mind az 5 belső táblázata)
+  - `src/components/iratok-lista.tsx` (Ügyirat részletes adatlap iratlistája)
+  - `src/app/settings/notification-settings.tsx` (Kiküldési audit napló)
+  - `src/components/irattari-terv-manager.tsx` (Nyers HTML `<table>` átalakítva szabványos shadcn `<Table className="compact-table">`-re).
+  - Minden táblázat tárolója elláttatott a kötelező `overflow-x-auto` vízszintes görgetési védelemmel.
+- **Központi Eszköztár (`TableToolbar`) és Gyors Betekintő (Quick View):**
+  - **Iktatókönyv (`/dossiers`):** Beépítve a dedikált *Műveletek* oszlop a szabványos `Eye` gyors betekintő gombbal és egy felugró modállal (`Dialog`), amely azonnal mutatja az iktatószámot, tárgyat, felelőst, határidőt és irattári helyet anélkül, hogy el kellene hagyni a listát.
+  - **Bejövő sor (`/inbox`):** Integrálva a csatolt fájlok in-place `DocumentViewer` előnézete, javított `irat_fajl` lekérdezéssel.
+  - **Feladatok (`/tasks`):** Kiegészítve a hiányzó `TableToolbar`-ral (kereső, oszlopválasztó, határidő szűrő, állapotcsoportos szűrés).
+  - **Partnerek (`/partners`):** Egyedi ad-hoc KPI sáv lecserélve a kanonikus `<KpiCard>` komponensre (dekoratív ikonok és vastag bal szegélyek nélkül).
+  - **Irattár (`/archive`):** Bevezetve a 4 oszlopos kanonikus `KpiCard` összegző sáv (Irattárban lévő, Selejtezési javaslat, Jóváhagyandó, Selejtezett iratok).
+- **Feladat Elutasítás Vizuális Újratervezése (Kamu Input Mezők & Aránytalan Dobozok Megszüntetése):**
+  - **Kanban tábla (`src/app/tasks/kanban-board.tsx`):** Megszüntetve a túlméretezett piros dobozt és a szöveges beviteli mezőre hasonlító kamu keretet. A kártya megtartja az elegáns és kompakt Linear-flat méretét, az indoklás diszkrét, finom kurzív idézetként jelenik meg egy kis piros `Ban` ikonnal (`„teszt”`).
+  - **Ügyirat Feladatok fül (`src/components/tasks-tab.tsx`):** Eltávolítva a kétszeresen beágyazott, input-szerű indoklás mezőt, a felesleges magyarázkodó segédszöveget és a tiltott `shadow-xs` árnyékokat. Helyette egy letisztult, egyrétegű, diszkrét `bg-destructive/5 border-destructive/20` indoklás doboz működik.
+  - **Feladatlista nézet (`src/app/tasks/task-list.tsx`):** Kompakt és finom indoklás chip a táblázatsorban.
+  - **Állapotok és Gombok:** Teljes HSL szemantikus átállás (`text-info`, `text-success`, `text-warning`, `text-destructive`).
+- **Kódminőség & Fordítási Stabilitás:**
+  - A teljes projekt `npx tsc --noEmit` típusellenőrzése 0 hibával fut le, böngészőben validálva.
+
+---
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-02)
 
 ### 👥 Egységesített Munkatársi Beléptetés & eaisyDocs Integrációs Modál ([P-045](../product/decisions/P-045-unified-employee-intake-and-docs-integration-ux.md), [A-005](../architecture/decisions/A-005-hr-modular-independence-architecture.md), [A-029](../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md))

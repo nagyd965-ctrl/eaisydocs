@@ -4,7 +4,7 @@
 **Dátum:** 2026-10-02  
 **Hatókör:** `[Közös]` (eaisyDocs & eaisyHR)  
 **Kapcsolódó PRD:** [P-043](../../product/decisions/P-043-global-ui-consistency-and-unified-components.md)  
-**Kapcsolódó Kód:** `src/components/table-toolbar/table-toolbar.tsx`, `src/components/document-viewer.tsx`, `src/components/status-badge.tsx`, `src/components/partner-documents-table.tsx`
+**Kapcsolódó Kód:** `src/components/table-toolbar/table-toolbar.tsx`, `src/components/kpi-card.tsx`, `src/components/document-viewer.tsx`, `src/components/status-badge.tsx`, `src/app/dossiers/dossiers-table-client.tsx`, `src/components/inbox-table-client.tsx`, `src/app/tasks/task-list.tsx`, `src/components/archive-client.tsx`, `src/app/partners/partners-table-client.tsx`
 
 ---
 

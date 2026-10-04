@@ -13,12 +13,13 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { FolderSymlink, RotateCcw, Loader2, Ban, Inbox } from "lucide-react"
+import { FolderSymlink, RotateCcw, Loader2, Ban, Inbox, Eye } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { TableToolbar, TableColumnOption, FilterGroup } from "@/components/table-toolbar/table-toolbar"
 import { DismissInboxDialog } from "@/components/dismiss-inbox-dialog"
 import { restoreInboxItem } from "@/app/inbox/inbox-dismiss-actions"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DocumentViewer } from "@/components/document-viewer"
 import { toast } from "sonner"
 
 export interface InboxItem {
@@ -33,6 +34,13 @@ export interface InboxItem {
   partner?: {
     nev?: string | null
   } | null
+  irat_fajl?: Array<{
+    id: string
+    storage_path: string
+    eredeti_fajlnev: string
+    mime_type?: string
+    pdfa_path?: string | null
+  }>
 }
 
 const DEFAULT_ACTIVE_COLUMNS: TableColumnOption[] = [
@@ -68,6 +76,22 @@ export function InboxTableClient({
   const [restoringId, setRestoringId] = useState<string | null>(null)
   const [isLive, setIsLive] = useState(false)
   const router = useRouter()
+
+  // Gyors megtekintés (Quick View) modál állapotok
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerFile, setViewerFile] = useState<any | null>(null)
+  const [viewerIratId, setViewerIratId] = useState<string>("")
+
+  const handleQuickView = (item: InboxItem) => {
+    const file = item.irat_fajl?.[0]
+    if (file) {
+      setViewerFile(file)
+      setViewerIratId(item.id)
+      setViewerOpen(true)
+    } else {
+      toast.info("Ehhez az irathoz nem található közvetlen fájlmelléklet.")
+    }
+  }
 
   // Szűrési állapotok
   const [search, setSearch] = useState("")
@@ -315,7 +339,7 @@ export function InboxTableClient({
               {dismissedItems.length > 0 && (
                 <Badge
                   variant="outline"
-                  className="px-1.5 py-0 text-xs font-normal border-amber-500/30 text-amber-600 dark:text-amber-400 tabular-nums"
+                  className="px-1.5 py-0 text-xs font-normal border-warning/30 text-warning bg-warning/5 tabular-nums"
                 >
                   {dismissedItems.length}
                 </Badge>
@@ -332,7 +356,7 @@ export function InboxTableClient({
           <span className="flex items-center gap-1.5 font-medium ml-2">
             <span
               className={`inline-block h-2 w-2 rounded-full ${
-                isLive ? "bg-emerald-500 animate-pulse" : "bg-muted"
+                isLive ? "bg-success animate-pulse" : "bg-muted"
               }`}
             />
             {isLive ? "Élő szinkron" : "Kapcsolódás..."}
@@ -364,7 +388,7 @@ export function InboxTableClient({
 
       {/* Táblázat */}
       <div className="border border-border/50 rounded-md bg-card overflow-hidden">
-        <Table>
+        <Table className="compact-table">
           <TableHeader>
             <TableRow>
               {isColVisible("erkeztetoszam") && <TableHead className="whitespace-nowrap">Érkeztetőszám</TableHead>}
@@ -439,9 +463,21 @@ export function InboxTableClient({
                   {isColVisible("muvelet") && (
                     <TableCell className="text-right whitespace-nowrap">
                       {canEdit && (
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1.5">
                           {activeTab === "active" ? (
                             <>
+                              {/* In-place Quick View (ha van fájl csatolva) */}
+                              {item.irat_fajl && item.irat_fajl.length > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-primary hover:bg-primary/10 hover:text-primary transition-colors"
+                                  onClick={() => handleQuickView(item)}
+                                  title="Csatolt dokumentum gyors megtekintése"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              )}
                               <DismissInboxDialog
                                 iratId={item.id}
                                 erkeztetoszam={item.erkeztetoszam}
@@ -501,6 +537,16 @@ export function InboxTableClient({
           </TableBody>
         </Table>
       </div>
+
+      {/* In-place Document Viewer Modal */}
+      {viewerFile && (
+        <DocumentViewer
+          open={viewerOpen}
+          setOpen={setViewerOpen}
+          fajl={viewerFile}
+          iratId={viewerIratId}
+        />
+      )}
     </div>
   )
 }

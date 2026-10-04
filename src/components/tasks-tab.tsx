@@ -283,19 +283,19 @@ export function TasksTab({
                 <span className="text-muted-foreground">
                   {completedTasks}/{totalTasks} feladat lezárva
                   {inProgressTasks > 0 && (
-                    <span className="text-blue-600 dark:text-blue-400 font-medium">
+                    <span className="text-info font-medium">
                       {" "}• {inProgressTasks} folyamatban
                     </span>
                   )}
                   {rejectedTasks > 0 && (
-                    <span className="text-destructive font-semibold">
-                      {" "}• {rejectedTasks} elutasítva (beavatkozást igényel!)
+                    <span className="text-destructive font-medium">
+                      {" "}• {rejectedTasks} elutasítva
                     </span>
                   )}
                 </span>
                 <span
                   className={`font-semibold tabular-nums text-xs ${
-                    allTasksDone ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                    allTasksDone ? "text-success" : "text-muted-foreground"
                   }`}
                 >
                   {progressPercent}%
@@ -336,14 +336,14 @@ export function TasksTab({
                 return (
                   <div
                     key={task.id}
-                    className={`group relative flex flex-col md:flex-row md:items-start justify-between gap-3 p-3.5 rounded-xl border transition-all ${
+                    className={`group relative flex flex-col md:flex-row md:items-start justify-between gap-3 p-3.5 rounded-lg border transition-all ${
                       isKesz
                         ? "border-border/40 bg-muted/20 opacity-80"
                         : isElutasitott
-                        ? "border-destructive/40 bg-destructive/[0.03]"
+                        ? "border-destructive/30 bg-destructive/[0.02]"
                         : isFolyamatban
-                        ? "border-blue-500/30 bg-blue-500/[0.03]"
-                        : "border-border/70 hover:border-primary/40 bg-card hover:bg-muted/10 shadow-xs"
+                        ? "border-info/30 bg-info/[0.02]"
+                        : "border-border/70 hover:border-primary/40 bg-card hover:bg-muted/10"
                     }`}
                   >
                     {/* Bal oldali rész: Gyors állapot toggle + Strukturált tartalom */}
@@ -370,11 +370,11 @@ export function TasksTab({
                         }
                         className={`mt-0.5 shrink-0 h-5 w-5 rounded-md flex items-center justify-center border transition-all cursor-pointer ${
                           isKesz
-                            ? "bg-emerald-500 border-emerald-500 text-white shadow-xs"
+                            ? "bg-success border-success text-success-foreground"
                             : isElutasitott
                             ? "border-destructive/60 text-destructive bg-destructive/10 hover:bg-destructive/20"
                             : isFolyamatban
-                            ? "border-blue-500 text-blue-500 bg-blue-500/10 hover:bg-emerald-500 hover:border-emerald-500 hover:text-white"
+                            ? "border-info text-info bg-info/10 hover:bg-success hover:border-success hover:text-success-foreground"
                             : "border-muted-foreground/40 hover:border-primary hover:bg-primary/10 text-transparent hover:text-primary"
                         }`}
                       >
@@ -434,21 +434,16 @@ export function TasksTab({
                           </p>
                         )}
 
-                        {/* Kiemelt Elutasítási Doboz a Vezető és Munkatársak számára */}
+                        {/* Elutasítás indoklása (letisztult, diszkrét megjelenítés) */}
                         {isElutasitott && (
-                          <div className="mt-2.5 rounded-lg border border-destructive/30 bg-destructive/[0.08] dark:bg-destructive/[0.15] p-3 text-xs space-y-1.5">
-                            <div className="flex items-center gap-2 text-destructive font-semibold">
-                              <Ban className="h-4 w-4 shrink-0" />
-                              <span className="uppercase tracking-wider text-[11px] font-bold">
-                                Elutasítás oka / Vezetői indoklás
-                              </span>
+                          <div className="mt-2 flex items-start gap-2 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-md px-3 py-2">
+                            <Ban className="h-3.5 w-3.5 shrink-0 mt-0.5 text-destructive" />
+                            <div className="space-y-0.5">
+                              <span className="font-semibold text-[11px] block">Elutasítás indoklása:</span>
+                              <p className="text-foreground italic text-xs leading-relaxed">
+                                „{task.indoklas || meta.indoklas || "Téves szignálás"}”
+                              </p>
                             </div>
-                            <div className="bg-background/90 dark:bg-background/60 border border-destructive/25 rounded-md px-3 py-2 text-foreground font-medium text-xs leading-relaxed shadow-xs">
-                              {task.indoklas || meta.indoklas || "Téves szignálás / Nem az én hatásköröm"}
-                            </div>
-                            <p className="text-[11px] text-muted-foreground italic pt-0.5">
-                              A feladatot az ügyintéző elutasította. A feladat újraszignálható vagy visszanyitható a „Kezelés” menüben.
-                            </p>
                           </div>
                         )}
 
@@ -501,7 +496,7 @@ export function TasksTab({
                           variant="outline"
                           onClick={() => handleTaskStatusChange(task.id, "kesz")}
                           disabled={taskLoading === task.id}
-                          className="h-8 text-xs gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/50 cursor-pointer"
+                          className="h-8 text-xs gap-1 text-success border-success/30 hover:bg-success/10 hover:border-success/50 cursor-pointer"
                         >
                           <Check className="h-3.5 w-3.5" />
                           <span>Kész</span>
@@ -531,7 +526,7 @@ export function TasksTab({
                                 onClick={() => handleTaskStatusChange(task.id, "folyamatban")}
                                 className="text-xs cursor-pointer"
                               >
-                                <ArrowRight className="mr-2 h-3.5 w-3.5 text-blue-500" />
+                                <ArrowRight className="mr-2 h-3.5 w-3.5 text-info" />
                                 Folyamatban
                               </DropdownMenuItem>
                             )}
@@ -541,7 +536,7 @@ export function TasksTab({
                                 onClick={() => handleTaskStatusChange(task.id, "kesz")}
                                 className="text-xs cursor-pointer"
                               >
-                                <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-emerald-500" />
+                                <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-success" />
                                 Készre jelentés
                               </DropdownMenuItem>
                             )}
@@ -561,9 +556,9 @@ export function TasksTab({
                                 onClick={() =>
                                   setRejectingTask({ id: task.id, title: meta.displayTitle })
                                 }
-                                className="text-xs text-amber-700 dark:text-amber-400 cursor-pointer"
+                                className="text-xs text-warning cursor-pointer"
                               >
-                                <Ban className="mr-2 h-3.5 w-3.5 text-amber-600" />
+                                <Ban className="mr-2 h-3.5 w-3.5 text-warning" />
                                 Elutasítás indoklással...
                               </DropdownMenuItem>
                             )}
