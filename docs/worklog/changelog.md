@@ -24,11 +24,21 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
   - Szemantikus státuszjelvények: `Kiküldve e-mailben (dátum)`, `Postázva (dátum)` és `Expediálásra vár`.
   - Beépített `DocumentViewer` előnézet szem ikonnal a csatolt és generált PDF-ekhez.
   - Utólagos expediálás (`ExpediteDialog`) a korábban még ki nem küldött iratokhoz.
-- **Válaszlevél Sablon Katalógus & CRUD Kezelés (`ReplyTemplatePicker`):**
-  - A feladat sablonok mintájára bevezetve az új sablon hozzáadása (`+ Új sablon`), szerkesztése és törlése lehetőség a `rendszer_beallitas` táblában tárolt egyéni sablonokkal és a beépített standard sablonokkal.
+- **Válaszlevél és Feladat Sablon Katalógus & Teljes CRUD Kezelés (`ReplyTemplatePicker`, `TaskTemplatePicker`):**
+  - Mindegyik sablonnál (beépített alapértelmezett és egyéni sablonoknál is) elérhetővé téve a 3 pontos műveleti menü (`Sablon módosítása`, `Sablon törlése`), így a szervezeti igényeknek megfelelően bármelyik sablon átírható vagy törölhető a `rendszer_beallitas` táblából.
   - Dedikált keresés név, tárgy és szöveg alapján, kategória szerinti szűrés és azonnali alkalmazás mind a közvetlen válaszlevélnél, mind a sablonos generálásnál.
+  - **Interaktív Lebegő Előnézet (Hover Card):** Az egér sablonkártyára húzásakor (`HoverCard`) azonnal megjelenik egy elegáns lebegő panel a teljes levélszöveggel, pontos irattárggyal, karakterszámmal és közvetlen „Alkalmazás” gombbal.
 - **Kiküldetlen Kimenő Iratok Törlése (`deleteOutgoingDocument`):**
   - Megvalósítva a még expedícióra váró kimenő irat vázlatok végleges törlése megerősítő modállal, a csatolt storage fájlok biztonságos felszabadításával és append-only audit naplózással (`esemeny_naplo`).
+- **Válaszlevél, Sablon és PDF Melléklet feltöltésének Egységesítése (Unified Reply & Attachment Workflow):**
+  - Megszüntetve a válaszlevél írása, a sablon használata és a PDF feltöltése közötti mesterséges szétválasztást.
+  - A korábbi 3 különálló dialógus helyett **egyetlen egységes kimenő irat modál** jött létre, ahol a felhasználó:
+    1. Kiválaszthatja a sablont a legördülőből (vagy az élő lebegő előnézetes Katalógusból), illetve írhat egyedi szöveget.
+    2. Ugyanabban az ablakban a beépített drag-and-drop és kattintható PDF csatolómezőben **külső PDF mellékletet csatolhat** (pl. számla, szerződéstervezet, igazolás, nyilatkozat).
+    3. Kiválaszthatja a kézbesítési módot (`email`, `posta`, `none`), és egyetlen gombnyomással (`Válaszlevél elküldése és iktatása`) kiküldheti mindkettőt.
+  - A szerver akció (`generateAndExpediteReply`) automatikusan legenerálja a fejlécadatokkal ellátott A4-es hivatalos válaszlevél PDF-et, feltölti a csatolt külső PDF-et, összekapcsolja mindkettőt az irattal (`irat_fajl`), és e-mailben **mindkét PDF dokumentumot csatolmányként azonnal kiküldi a partnernek**.
+  - A kimenő iratok listájában a többcsatolmányos iratoknál minden csatolt fájl külön gombbal (`Eye` és `Paperclip`) megjelenik és a `DocumentViewer`-ben megtekinthető.
+  - A panel tetején az akciógombok 2 kiegyensúlyozott gombra egyszerűsödtek: `[ ✉️ Válaszlevél készítése és küldése ]` és `[ ✨ Sablonok katalógusa ]`.
 - **Modális Elrendezés és Vízszintes Elcsúszás Javítása (Zero Horizontal Scroll):**
   - Megszüntetve a textarea `field-sizing-content` böngésző-szintű konténertágulása és a `DialogFooter` negatív margója miatti vízszintes scrollbar és gomb-levágódási hiba a válaszlevél és sablongeneráló modálokban.
 

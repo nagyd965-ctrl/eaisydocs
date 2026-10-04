@@ -357,34 +357,32 @@ export function TaskTemplatePicker({
                               Alkalmaz
                             </Button>
 
-                            {/* Egyéni sablonoknál: Szerkesztés & Törlés menü */}
-                            {template.isCustom && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                                  title="Sablon műveletek"
+                            {/* Sablon műveletek: Szerkesztés & Törlés menü MINDEN sablonhoz */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                                title="Sablon műveletek"
+                              >
+                                <MoreVertical className="h-3.5 w-3.5" />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="text-xs">
+                                <DropdownMenuItem onClick={(e) => handleOpenEdit(template, e)}>
+                                  <Pencil className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                  <span>Sablon módosítása</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setTemplateToDelete(template)
+                                  }}
+                                  className="text-destructive focus:text-destructive"
                                 >
-                                  <MoreVertical className="h-3.5 w-3.5" />
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="text-xs">
-                                  <DropdownMenuItem onClick={(e) => handleOpenEdit(template, e)}>
-                                    <Pencil className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                                    <span>Sablon módosítása</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setTemplateToDelete(template)
-                                    }}
-                                    className="text-destructive focus:text-destructive"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5 mr-2" />
-                                    <span>Sablon törlése</span>
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
+                                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                  <span>Sablon törlése</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
 

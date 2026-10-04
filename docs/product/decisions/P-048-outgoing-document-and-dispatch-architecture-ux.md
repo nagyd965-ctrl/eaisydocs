@@ -66,13 +66,32 @@ A panel görgethető listájában azonnal látható az adott ügyirathoz tartoz�
   - Szigorúan naplózza az eseményt az `esemeny_naplo` táblában.
 - A már expediált (postázott vagy kiküldött) iratok integritási és jogszabályi okokból nem törölhetők.
 
-### 2.6. Válaszlevél Sablonok Katalógusa és Egyéni Sablonkezelés (`ReplyTemplatePicker`)
+### 2.6. Válaszlevél Sablonok Katalógusa, Élő Lebegő Előnézet és Teljes CRUD Kezelés (`ReplyTemplatePicker`)
 - A feladatsablonoknál megismert mintára a válaszlevelekhez és kimenő iratokhoz is elérhető a teljes körű sablonkatalógus:
   - **Katalógus modál:** Keresőmezővel és tematikus szűrőfülekkel (*Hivatalos válasz, Pénzügy / Számla, Tájékoztatás, Hiánypótlás, Szerződés / Jogi, Egyedi*).
   - **`+ Új sablon` gomb:** Új sablon rögzítése dialógus (megnevezés, kategória, alapértelmezett tárgy, leírás, levélszöveg).
-  - **Egyéni sablonok kezelése:** Hárompontos menü (`MoreVertical`), amellyel az egyéni sablonok bármikor szerkeszthetők vagy törölhetők.
+  - **Teljes körű sablonkezelés (Mindegyik sablon módosítható és törölhető):** Mindegyik sablonkártyán (a korábbi beépített alapértelmezetteken is) elérhető a hárompontos menü (`MoreVertical`), amellyel a sablonok bármikor átnevezhetők, szövegezésük frissíthető vagy véglegesen törölhetők.
+  - **Interaktív Lebegő Előnézet (Hover Card):** Az egér sablonkártyára húzásakor azonnal felugrik egy elegáns, formázott lebegő panel (`HoverCard`), amely a teljes levélszöveget, a pontos irattárgyat, karakterszámlálót és közvetlen „Alkalmazás” gombot biztosít anélkül, hogy a felhasználónak be kellene töltenie a mintát a szerkesztőbe.
   - **Perzisztencia:** A sablonok a `rendszer_beallitas` táblában tárolódnak (`valaszlevel_sablonok` kulcs alatt).
   - **Kettős integráció:** A katalógus megnyitható a főpanel *„Sablon használata”* gombjára kattintva, valamint a közvetlen *„Válaszlevél írása”* ablak fejlécéből is egyetlen kattintással.
+
+### 2.7. Modális Layout Stabilitás és Nulla Vízszintes Görgetés (Zero Horizontal Scroll)
+- A válaszlevél és sablongeneráló modálok elrendezésének stabilizálása:
+  - **Textarea Szélességvédelem:** Eltávolítva a Chromium `field-sizing-content` automatikus mezőtágító szabályát a `src/components/ui/textarea.tsx`-ből, megakadályozva, hogy a hosszú mondatokat tartalmazó sablonok szétnyomják a modál vízszintes konténerét.
+  - **Lábléc Margó Korrekció:** Megszüntetve a `DialogFooter` korábbi negatív margóit (`-mx-4 -mb-4`), így az alsó akciógombok sem kilógnak, sem levágódnak.
+
+### 2.8. Válaszlevél, Sablon és PDF Melléklet Egységesítése (Unified Reply & Attachment Workflow)
+- **Probléma:** Korábban a válaszlevél írása, a sablon használata és a PDF feltöltése három különálló, egymástól elszigetelt folyamat volt. Ha a felhasználó egy válaszlevél mellé (pl. egy hiánypótló vagy tájékoztató sablonhoz) csatolni kívánt egy külső PDF iratot (pl. számlát, igazolást, szerződéstervezetet), akkor ezt csak két külön kiküldéssel tudta megtenni.
+- **Megoldás és Egységesítés:**
+  - A korábbi 3 különálló modál helyett egyetlen, letisztult, minden igényt kielégítő egységes dialógus (`unifiedModalOpen`) jött létre.
+  - **Sablon kiválasztás és testreszabás:** A modál tetején a sablonválasztó legördülőből bármelyik sablon vagy az „Egyedi válasz” kiválasztható, illetve a `Katalógus` gombbal elérhető az élő lebegő előnézetes sablonböngésző.
+  - **Közvetlen PDF csatolási zóna:** A szerkesztő alatt közvetlenül helyet kapott egy drag-and-drop és kattintható PDF csatolómező, amely mutatja a csatolt fájl nevét, méretét és azonnali törlési lehetőséget (`✕`) biztosít.
+  - **Egyidejű generálás, feltöltés és expediálás:**
+    - A szerver akció (`generateAndExpediteReply`) automatikusan legenerálja a fejlécadatokkal ellátott A4-es hivatalos levél PDF-et, valamint feltölti a csatolt külső PDF dokumentumot is a tárolóba.
+    - Mindkét fájl bekerül az `irat_fajl` táblába az adott kimenő irat alá, és bekerül a PDF/A normalizálási sorba.
+    - E-mail kézbesítés esetén a partner egyetlen e-mailt kap, amelynek a törzsében szerepel a levélszöveg, és csatolmányként **mindkét PDF (a generált hivatalos válaszlevél és a csatolt külső PDF)** szerepel.
+  - **Több fájl támogatása az iratlistában:** Az iratlistában a kimenő irat sorában nemcsak egy fájl, hanem az összes kapcsolt melléklet megjelenik külön gombokkal (`Eye` és `Paperclip`), így a `DocumentViewer` bármelyiket azonnal megjeleníti.
+  - **Letisztult panel akciógombok:** A panel tetején a 3 szétaprózott gomb helyett 2 tágas, jól olvasható akciógomb kapott helyet (`Válaszlevél készítése és küldése` és `Sablonok katalógusa`).
 
 ---
 
@@ -80,12 +99,15 @@ A panel görgethető listájában azonnal látható az adott ügyirathoz tartoz�
 
 | Fájl | Szerep |
 |---|---|
-| `src/components/outgoing-documents-panel.tsx` | Megújított kimenő irat panel + 3 modál + PDF viewer + törlés gomb + sablonkatalógus integráció |
-| `src/components/reply-template-picker.tsx` | Válaszlevél sablonok katalógusa, kategória szűrők, új sablon rögzítése és törlése |
+| `src/components/outgoing-documents-panel.tsx` | Egységesített kimenő válaszlevél panel, összevont modál sablonkezeléssel és PDF csatolmánnyal, több fájl előnézet |
+| `src/components/reply-template-picker.tsx` | Válaszlevél sablonok katalógusa, kategória szűrők, lebegő előnézet (HoverCard), minden sablon szerkesztése és törlése |
+| `src/components/task-template-picker.tsx` | Feladatsablonok katalógusa, minden sablon módosítása és törlése |
+| `src/components/ui/hover-card.tsx` | Lebegő előnézeti komponens z-[70] rétegezéssel és ütközésvizsgálattal |
 | `src/types/reply-templates.ts` | Válaszlevél sablon típusok és kategóriák definíciói |
 | `src/utils/reply-templates.ts` | Alapértelmezett beépített iratsablonok és kategória metaadatok |
 | `src/app/dossiers/[id]/template-actions.ts` | Válaszlevél sablonok CRUD szerver akciói (`rendszer_beallitas`) + sablon PDF generálás |
-| `src/app/dossiers/[id]/actions.ts` | Expediálás, közvetlen válaszlevél generálás és `deleteOutgoingDocument` akció |
+| `src/app/tasks/task-actions.ts` | Feladatsablonok CRUD szerver akciói (`rendszer_beallitas`) minden sablonhoz |
+| `src/app/dossiers/[id]/actions.ts` | Egységesített `generateAndExpediteReply` levélgenerálással + PDF melléklet feltöltéssel + többcsatolmányos e-maillel, és `deleteOutgoingDocument` akció |
 | `src/components/tasks-tab.tsx` | Harmonizált 500px-es rácselrendezés, Belső megjegyzések fejléc igazítás |
 | `src/components/expedite-dialog.tsx` | Utólagos expediálási modál (e-mail küldés és ragszám rögzítés) |
 | `supabase/migrations/20261004000002_valaszlevel_sablonok.sql` | Rendszerbeállítás adatbázis magvetés a válaszlevél sablonokhoz |

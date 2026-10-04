@@ -43,9 +43,10 @@ import {
   ExternalLink,
   Eye,
   Trash2,
+  X,
 } from "lucide-react"
 import { toast } from "sonner"
-import { uploadReply, generateAndExpediteReply, deleteOutgoingDocument } from "@/app/dossiers/[id]/actions"
+import { generateAndExpediteReply, deleteOutgoingDocument } from "@/app/dossiers/[id]/actions"
 import { ExpediteDialog } from "./expedite-dialog"
 import { DocumentViewer } from "./document-viewer"
 import { ReplyTemplatePicker } from "./reply-template-picker"
@@ -118,11 +119,8 @@ export function OutgoingDocumentsPanel({
   const router = useRouter()
 
   // Modálok állapota
-  const [directModalOpen, setDirectModalOpen] = useState(false)
-  const [uploadModalOpen, setUploadModalOpen] = useState(false)
-  const [templateModalOpen, setTemplateModalOpen] = useState(false)
+  const [unifiedModalOpen, setUnifiedModalOpen] = useState(false)
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
-  const [templatePickerTarget, setTemplatePickerTarget] = useState<"direct" | "template">("template")
   const [allTemplates, setAllTemplates] = useState<ReplyTemplate[]>(DEFAULT_REPLY_TEMPLATES)
 
   // Dokumentum előnézet (DocumentViewer)
@@ -148,64 +146,54 @@ export function OutgoingDocumentsPanel({
   // Alapértelmezett tárgy bejövő irat alapján
   const defaultSubject = incomingIrat?.targy
     ? `Válasz: ${incomingIrat.targy.replace(/^Számla - /i, "")}`
-    : "Hivatalos válaszlevél"
+    : `Hivatalos válaszlevél${partnerInfo?.nev ? ` - ${partnerInfo.nev}` : ""}`
 
-  // 1. KÖZVETLEN VÁLASZLEVÉL FORM ÁLLAPOT (ZERO DUPLICATION)
-  const [directTo, setDirectTo] = useState(partnerInfo?.email || "")
-  const [directSubject, setDirectSubject] = useState(defaultSubject)
-  const [directBody, setDirectBody] = useState("")
-  const [directSaveToPartner, setDirectSaveToPartner] = useState(!partnerInfo?.email && !!partnerInfo?.id)
-
-  // 2. KÉSZ PDF FELTÖLTÉS FORM ÁLLAPOT
-  const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [uploadSubject, setUploadSubject] = useState(defaultSubject)
-  const [uploadMode, setUploadMode] = useState<"email" | "posta" | "none">("email")
-  const [uploadEmailTo, setUploadEmailTo] = useState(partnerInfo?.email || "")
-  const [uploadSaveToPartner, setUploadSaveToPartner] = useState(!partnerInfo?.email && !!partnerInfo?.id)
-  const [uploadPostalTracking, setUploadPostalTracking] = useState("")
-
-  // 3. SABLON FORM ÁLLAPOT
+  // EGYSÉGES VÁLASZLEVÉL ÉS CSATOLMÁNY FORM ÁLLAPOT
   const [templateSablonId, setTemplateSablonId] = useState(DEFAULT_REPLY_TEMPLATES[0].id)
-  const [templateSubject, setTemplateSubject] = useState(`Hivatalos válaszlevél - ${partnerInfo?.nev || ""}`.trim())
-  const [templateBody, setTemplateBody] = useState(DEFAULT_REPLY_TEMPLATES[0].tartalom)
-  const [templateMode, setTemplateMode] = useState<"email" | "posta" | "none">("email")
-  const [templateEmailTo, setTemplateEmailTo] = useState(partnerInfo?.email || "")
-  const [templateSaveToPartner, setTemplateSaveToPartner] = useState(!partnerInfo?.email && !!partnerInfo?.id)
-  const [templatePostalTracking, setTemplatePostalTracking] = useState("")
+  const [subject, setSubject] = useState(defaultSubject)
+  const [body, setBody] = useState(DEFAULT_REPLY_TEMPLATES[0].tartalom)
+  const [attachedFile, setAttachedFile] = useState<File | null>(null)
+  const [deliveryMode, setDeliveryMode] = useState<"email" | "posta" | "none">("email")
+  const [recipientEmail, setRecipientEmail] = useState(partnerInfo?.email || "")
+  const [saveToPartner, setSaveToPartner] = useState(!partnerInfo?.email && !!partnerInfo?.id)
+  const [postalTracking, setPostalTracking] = useState("")
+
+  // Partner e-mail frissítése ha megérkezik a partnerInfo
+  useEffect(() => {
+    if (partnerInfo?.email && !recipientEmail) {
+      setRecipientEmail(partnerInfo.email)
+    }
+  }, [partnerInfo?.email])
 
   // Sablon választás a Pickerből
   const handleSelectTemplateFromPicker = (tpl: ReplyTemplate) => {
     const partnerName = partnerInfo?.nev || ""
-    const subject = tpl.targy
+    const formattedSubj = tpl.targy
       ? (partnerName ? `${tpl.targy} - ${partnerName}` : tpl.targy)
       : (partnerName ? `${tpl.nev} - ${partnerName}` : tpl.nev)
 
-    if (templatePickerTarget === "direct") {
-      setDirectSubject(subject)
-      setDirectBody(tpl.tartalom)
-      setDirectModalOpen(true)
-    } else {
-      setTemplateSablonId(tpl.id)
-      setTemplateSubject(subject)
-      setTemplateBody(tpl.tartalom)
-      setTemplateModalOpen(true)
-    }
+    setTemplateSablonId(tpl.id)
+    setSubject(formattedSubj)
+    setBody(tpl.tartalom)
+    setTemplatePickerOpen(false)
+    setUnifiedModalOpen(true)
   }
 
   // Sablon választás a legördülőből
   const handleSelectTemplate = (sablonId: string | null) => {
     if (!sablonId) return
     setTemplateSablonId(sablonId)
+    if (sablonId === "egyedi") {
+      return
+    }
     const sab = allTemplates.find((s) => s.id === sablonId)
     if (sab) {
-      setTemplateBody(sab.tartalom)
-      if (sab.id !== "egyedi") {
-        const partnerName = partnerInfo?.nev || ""
-        const subj = sab.targy
-          ? (partnerName ? `${sab.targy} - ${partnerName}` : sab.targy)
-          : (partnerName ? `${sab.nev} - ${partnerName}` : sab.nev)
-        setTemplateSubject(subj)
-      }
+      setBody(sab.tartalom)
+      const partnerName = partnerInfo?.nev || ""
+      const subj = sab.targy
+        ? (partnerName ? `${sab.targy} - ${partnerName}` : sab.targy)
+        : (partnerName ? `${sab.nev} - ${partnerName}` : sab.nev)
+      setSubject(subj)
     }
   }
 
@@ -229,175 +217,57 @@ export function OutgoingDocumentsPanel({
     }
   }
 
-  // 1. KÖZVETLEN VÁLASZLEVÉL KÜLDÉSE (A beírt szövegből készül az email + PDF)
-  const handleDirectSubmit = async (e: React.FormEvent) => {
+  // EGYSÉGES VÁLASZLEVÉL KÜLDÉSE (Szöveg + Sablon + Csatolt PDF)
+  const handleUnifiedSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!directTo.trim()) {
-      toast.error("Kérjük, adja meg a címzett e-mail címét!")
-      return
-    }
-    if (!directSubject.trim()) {
+    if (!subject.trim()) {
       toast.error("A levél tárgyának megadása kötelező!")
       return
     }
-    if (!directBody.trim()) {
-      toast.error("Kérjük, írja be a válaszlevél szövegét!")
+    if (!body.trim() && !attachedFile) {
+      toast.error("Kérjük, írjon levélszöveget vagy csatoljon egy PDF fájlt!")
       return
+    }
+
+    if (deliveryMode === "email") {
+      if (!recipientEmail.trim()) {
+        toast.error("Kérjük, adja meg a címzett e-mail címét!")
+        return
+      }
     }
 
     setLoading(true)
     try {
       const formData = new FormData()
-      formData.set("targy", directSubject.trim())
-      formData.set("tartalom", directBody.trim())
-      formData.set("cimzett", partnerInfo?.nev || "Partnerünk")
-      formData.set("sablon_tipus", "kozvetlen_valasz")
-      formData.set("hivatkozas", iktatoszam || "")
-      formData.set("expediteMode", "email")
-      formData.set("recipientEmail", directTo.trim())
-      formData.set("emailSubject", directSubject.trim())
-      formData.set("emailMessage", directBody.trim())
-
-      if (partnerInfo?.id) {
-        formData.set("partnerId", partnerInfo.id)
-      }
-      if (directSaveToPartner && partnerInfo?.id) {
-        formData.set("saveToPartnerId", partnerInfo.id)
-      }
-
-      const res = await generateAndExpediteReply(ugyiratId, formData)
-      if (res.error) {
-        toast.error(res.error)
-      } else {
-        if (res.dispatched) {
-          toast.success(`Válaszlevél sikeresen kiküldve e-mailben a partnernek (${directTo.trim()})!`)
-        } else if (res.expediteError) {
-          toast.warning(`Válaszlevél iktatva, de a kiküldés hibát jelzett: ${res.expediteError}`)
-        } else {
-          toast.success("Válaszlevél sikeresen iktatva az ügyiratba!")
-        }
-        setDirectModalOpen(false)
-        setDirectBody("")
-        router.refresh()
-      }
-    } catch (err: any) {
-      toast.error(err.message || "Váratlan hiba történt.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // 2. KÉSZ PDF FELTÖLTÉSE
-  const handleUploadSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!uploadFile) {
-      toast.error("Kérjük, válasszon ki egy PDF fájlt!")
-      return
-    }
-    if (!uploadSubject.trim()) {
-      toast.error("Kérjük, adja meg a dokumentum tárgyát!")
-      return
-    }
-
-    setLoading(true)
-    try {
-      const formData = new FormData()
-      formData.set("targy", uploadSubject.trim())
-      formData.set("file", uploadFile)
-      formData.set("expediteMode", uploadMode)
-
-      if (partnerInfo?.id) {
-        formData.set("partnerId", partnerInfo.id)
-      }
-
-      if (uploadMode === "email") {
-        if (!uploadEmailTo.trim()) {
-          toast.error("Kérjük, adja meg a címzett e-mail címét!")
-          setLoading(false)
-          return
-        }
-        formData.set("recipientEmail", uploadEmailTo.trim())
-        formData.set("emailSubject", uploadSubject.trim())
-        formData.set(
-          "emailMessage",
-          `Tisztelt ${partnerInfo?.nev || "Partnerünk"}!\n\nMellékelten továbbítjuk a(z) ${iktatoszam || ""} ügyirathoz tartozó "${uploadSubject.trim()}" kimenő iratunkat.\n\nÜdvözlettel,\neaisyDocs`
-        )
-        if (uploadSaveToPartner && partnerInfo?.id) {
-          formData.set("saveToPartnerId", partnerInfo.id)
-        }
-      } else if (uploadMode === "posta") {
-        formData.set("postalTracking", uploadPostalTracking.trim())
-        formData.set("postalRecipient", partnerInfo?.nev || "Partner")
-        formData.set("postalAddress", partnerInfo?.cim || "")
-      }
-
-      const res = await uploadReply(ugyiratId, formData)
-      if (res.error) {
-        toast.error(res.error)
-      } else {
-        if (res.dispatched) {
-          toast.success(
-            uploadMode === "email"
-              ? `PDF irat iktatva és sikeresen elküldve a partnernek (${uploadEmailTo.trim()})!`
-              : "PDF irat iktatva és postai feladás rögzítve!"
-          )
-        } else if (res.expediteError) {
-          toast.warning(`PDF feltöltve, de a kiküldés figyelmeztetést adott: ${res.expediteError}`)
-        } else {
-          toast.success("Válaszlevél iktatva (expediálásra vár)!")
-        }
-        setUploadModalOpen(false)
-        setUploadFile(null)
-        router.refresh()
-      }
-    } catch (err: any) {
-      toast.error(err.message || "Váratlan hiba történt.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // 3. SABLON ALAPÚ GENERÁLÁS
-  const handleTemplateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!templateSubject.trim() || !templateBody.trim()) {
-      toast.error("A tárgy és a tartalom megadása kötelező!")
-      return
-    }
-
-    setLoading(true)
-    try {
-      const formData = new FormData()
-      formData.set("targy", templateSubject.trim())
-      formData.set("tartalom", templateBody.trim())
+      formData.set("targy", subject.trim())
+      formData.set("tartalom", body.trim())
       formData.set("cimzett", partnerInfo?.nev || "Partnerünk")
       formData.set("sablon_tipus", templateSablonId)
       formData.set("hivatkozas", iktatoszam || "")
-      formData.set("expediteMode", templateMode)
+      formData.set("expediteMode", deliveryMode)
 
       if (partnerInfo?.id) {
         formData.set("partnerId", partnerInfo.id)
       }
 
-      if (templateMode === "email") {
-        if (!templateEmailTo.trim()) {
-          toast.error("Kérjük, adja meg a címzett e-mail címét!")
-          setLoading(false)
-          return
-        }
-        formData.set("recipientEmail", templateEmailTo.trim())
-        formData.set("emailSubject", templateSubject.trim())
+      if (deliveryMode === "email") {
+        formData.set("recipientEmail", recipientEmail.trim())
+        formData.set("emailSubject", subject.trim())
         formData.set(
           "emailMessage",
-          `Tisztelt ${partnerInfo?.nev || "Partnerünk"}!\n\nMellékelten továbbítjuk a(z) ${iktatoszam || ""} ügyirathoz tartozó hivatalos iratunkat.\n\nÜdvözlettel,\neaisyDocs`
+          body.trim() || `Tisztelt ${partnerInfo?.nev || "Partnerünk"}!\n\nMellékelten továbbítjuk a(z) ${iktatoszam || ""} ügyirathoz tartozó "${subject.trim()}" kimenő iratunkat.\n\nÜdvözlettel,\neaisyDocs`
         )
-        if (templateSaveToPartner && partnerInfo?.id) {
+        if (saveToPartner && partnerInfo?.id) {
           formData.set("saveToPartnerId", partnerInfo.id)
         }
-      } else if (templateMode === "posta") {
-        formData.set("postalTracking", templatePostalTracking.trim())
+      } else if (deliveryMode === "posta") {
+        formData.set("postalTracking", postalTracking.trim())
         formData.set("postalRecipient", partnerInfo?.nev || "Partner")
         formData.set("postalAddress", partnerInfo?.cim || "")
+      }
+
+      if (attachedFile) {
+        formData.set("attachment", attachedFile)
       }
 
       const res = await generateAndExpediteReply(ugyiratId, formData)
@@ -406,16 +276,25 @@ export function OutgoingDocumentsPanel({
       } else {
         if (res.dispatched) {
           toast.success(
-            templateMode === "email"
-              ? `Hivatalos levél PDF generálva és elküldve e-mailben (${templateEmailTo.trim()})!`
-              : "Hivatalos levél PDF generálva és postai feladás rögzítve!"
+            deliveryMode === "email"
+              ? (attachedFile
+                  ? `Válaszlevél és csatolt PDF (${attachedFile.name}) sikeresen elküldve (${recipientEmail.trim()})!`
+                  : `Válaszlevél sikeresen elküldve e-mailben (${recipientEmail.trim()})!`)
+              : (attachedFile
+                  ? "Kimenő levél és csatolt PDF iktatva, postai feladás rögzítve!"
+                  : "Kimenő levél iktatva, postai feladás rögzítve!")
           )
         } else if (res.expediteError) {
-          toast.warning(`Levél generálva, de a kiküldés hibát adott: ${res.expediteError}`)
+          toast.warning(`Irat iktatva, de a kiküldés hibát adott: ${res.expediteError}`)
         } else {
-          toast.success("Hivatalos levél PDF sikeresen legenerálva és iktatva!")
+          toast.success(
+            attachedFile
+              ? "Kimenő válaszlevél és csatolt PDF sikeresen iktatva az ügyiratba!"
+              : "Kimenő válaszlevél sikeresen iktatva az ügyiratba!"
+          )
         }
-        setTemplateModalOpen(false)
+        setUnifiedModalOpen(false)
+        setAttachedFile(null)
         router.refresh()
       }
     } catch (err: any) {
@@ -468,19 +347,19 @@ export function OutgoingDocumentsPanel({
 
         {/* Akciógombok — Tiszta, 3 egyértelmű művelet */}
         <div className="px-6 py-2 border-y border-border/40 bg-muted/20">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"
               size="sm"
               onClick={() => {
-                if (partnerInfo?.email) setDirectTo(partnerInfo.email)
-                setDirectModalOpen(true)
+                if (partnerInfo?.email && !recipientEmail) setRecipientEmail(partnerInfo.email)
+                setUnifiedModalOpen(true)
               }}
               disabled={!canEdit}
               className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium h-9 flex items-center justify-center gap-1.5"
             >
               <Send className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">Válaszlevél írása</span>
+              <span className="truncate">Válaszlevél készítése és küldése</span>
             </Button>
 
             <Button
@@ -488,30 +367,14 @@ export function OutgoingDocumentsPanel({
               variant="outline"
               size="sm"
               onClick={() => {
-                if (partnerInfo?.email) setUploadEmailTo(partnerInfo.email)
-                setUploadModalOpen(true)
-              }}
-              disabled={!canEdit}
-              className="text-xs font-medium h-9 flex items-center justify-center gap-1.5 border-border/80 hover:bg-muted"
-            >
-              <Upload className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <span className="truncate">PDF feltöltése</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (partnerInfo?.email) setTemplateEmailTo(partnerInfo.email)
-                setTemplatePickerTarget("template")
+                if (partnerInfo?.email && !recipientEmail) setRecipientEmail(partnerInfo.email)
                 setTemplatePickerOpen(true)
               }}
               disabled={!canEdit}
               className="text-xs font-medium h-9 flex items-center justify-center gap-1.5 border-border/80 hover:bg-muted"
             >
-              <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <span className="truncate">Sablon használata</span>
+              <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span className="truncate">Sablonok katalógusa</span>
             </Button>
           </div>
         </div>
@@ -525,7 +388,7 @@ export function OutgoingDocumentsPanel({
               </div>
               <div className="text-xs font-medium text-foreground">Még nincs válaszlevél</div>
               <p className="text-[11px] text-muted-foreground max-w-[260px]">
-                Kattintson a fenti gombok egyikére közvetlen válasz küldéséhez vagy PDF irat csatolásához.
+                Kattintson a fenti gombok egyikére válaszlevél szerkesztéséhez, sablon kiválasztásához vagy PDF melléklet csatolásához.
               </p>
             </div>
           ) : (
@@ -580,12 +443,12 @@ export function OutgoingDocumentsPanel({
 
                   {/* Műveletek: Megtekintés, Expediálás & Törlés */}
                   <div className="shrink-0 flex items-center gap-1.5">
-                    {doc.irat_fajl && doc.irat_fajl.length > 0 && (
+                    {doc.irat_fajl && doc.irat_fajl.length === 1 && (
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        title="Dokumentum megtekintése"
+                        title={`${doc.irat_fajl[0].eredeti_fajlnev} megtekintése`}
                         className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
                         onClick={() => {
                           setSelectedFajl(doc.irat_fajl![0])
@@ -595,6 +458,28 @@ export function OutgoingDocumentsPanel({
                       >
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
+                    )}
+                    {doc.irat_fajl && doc.irat_fajl.length > 1 && (
+                      <div className="flex items-center gap-1">
+                        {doc.irat_fajl.map((f, fIdx) => (
+                          <Button
+                            key={f.id}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            title={`${f.eredeti_fajlnev} megtekintése`}
+                            className="h-6 px-1.5 text-[10px] gap-1 text-muted-foreground hover:text-foreground hover:bg-muted border-border/60 max-w-[100px]"
+                            onClick={() => {
+                              setSelectedFajl(f)
+                              setSelectedIratId(doc.id)
+                              setViewerOpen(true)
+                            }}
+                          >
+                            {fIdx === 0 ? <Eye className="h-3 w-3 shrink-0" /> : <Paperclip className="h-3 w-3 text-primary shrink-0" />}
+                            <span className="truncate">{f.eredeti_fajlnev}</span>
+                          </Button>
+                        ))}
+                      </div>
                     )}
                     {canEdit && !isDispatched && (
                       <ExpediteDialog
@@ -627,10 +512,10 @@ export function OutgoingDocumentsPanel({
       </Card>
 
       {/* ============================================================ */}
-      {/* 1. KÖZVETLEN VÁLASZLEVÉL MODÁL (LETISZTULT, NULLA DUPLIKÁCIÓ) */}
+      {/* EGYSÉGES VÁLASZLEVÉL ÉS KIMENŐ IRAT MODÁL (SZÖVEG + SABLON + PDF CSATOLMÁNY) */}
       {/* ============================================================ */}
-      <Dialog open={directModalOpen} onOpenChange={setDirectModalOpen}>
-        <DialogContent className="sm:max-w-[620px] w-full p-6 max-h-[90vh] overflow-y-auto">
+      <Dialog open={unifiedModalOpen} onOpenChange={setUnifiedModalOpen}>
+        <DialogContent className="sm:max-w-[640px] w-full p-6 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -638,9 +523,11 @@ export function OutgoingDocumentsPanel({
                   <Send className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
-                  <DialogTitle className="text-base font-semibold truncate">Válaszlevél küldése a partnernek</DialogTitle>
+                  <DialogTitle className="text-base font-semibold truncate">
+                    Válaszlevél küldése és iktatása
+                  </DialogTitle>
                   <DialogDescription className="text-xs truncate">
-                    Írja be az érdemi választ, vagy válasszon sablont a gyors kitöltéshez.
+                    Szerkessze a levelet, válasszon sablont vagy csatoljon PDF-et, és küldje ki egyben.
                   </DialogDescription>
                 </div>
               </div>
@@ -648,285 +535,7 @@ export function OutgoingDocumentsPanel({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setTemplatePickerTarget("direct")
-                  setTemplatePickerOpen(true)
-                }}
-                className="text-xs h-7 gap-1 text-primary border-primary/30 hover:bg-primary/10 shrink-0 mr-8"
-              >
-                <Sparkles className="h-3 w-3" />
-                <span>Sablonok</span>
-              </Button>
-            </div>
-          </DialogHeader>
-
-          <form onSubmit={handleDirectSubmit} className="space-y-4 pt-1 text-xs w-full min-w-0">
-            {/* Címzett e-mail */}
-            <div className="space-y-1.5">
-              <Label htmlFor="dir-to" className="text-xs font-medium">
-                Címzett e-mail címe <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="dir-to"
-                type="email"
-                value={directTo}
-                onChange={(e) => setDirectTo(e.target.value)}
-                placeholder="pl. ugyvezeto@partner.hu"
-                required
-                disabled={loading}
-              />
-              {partnerInfo?.id && !partnerInfo.email && (
-                <div className="flex items-center gap-2 pt-0.5">
-                  <input
-                    type="checkbox"
-                    id="save-direct-email"
-                    checked={directSaveToPartner}
-                    onChange={(e) => setDirectSaveToPartner(e.target.checked)}
-                    className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
-                  />
-                  <label htmlFor="save-direct-email" className="text-[11px] text-muted-foreground cursor-pointer select-none">
-                    E-mail cím mentése a partner adatlapjára ({partnerInfo.nev})
-                  </label>
-                </div>
-              )}
-            </div>
-
-            {/* Egyetlen, egyértelmű Tárgy mező */}
-            <div className="space-y-1.5">
-              <Label htmlFor="dir-subject" className="text-xs font-medium">
-                Tárgy <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="dir-subject"
-                value={directSubject}
-                onChange={(e) => setDirectSubject(e.target.value)}
-                placeholder="Pl. Válasz a beérkezett számlára"
-                required
-                disabled={loading}
-              />
-            </div>
-
-            {/* Egyetlen, egyértelmű Üzenet szövege */}
-            <div className="space-y-1.5">
-              <Label htmlFor="dir-body" className="text-xs font-medium">
-                Válaszlevél üzenete <span className="text-destructive">*</span>
-              </Label>
-              <Textarea
-                id="dir-body"
-                rows={7}
-                value={directBody}
-                onChange={(e) => setDirectBody(e.target.value)}
-                placeholder="Tisztelt Partnerünk!&#10;&#10;Hivatkozással megkeresésükre..."
-                className="font-sans text-xs resize-y"
-                required
-                disabled={loading}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Az üzenet elküldésre kerül e-mailben, és automatikusan készült belőle egy iktatott A4-es PDF irat is az ügyiratba.
-              </p>
-            </div>
-
-            <DialogFooter className="pt-2 border-t border-border/50">
-              <Button type="button" variant="outline" size="sm" onClick={() => setDirectModalOpen(false)} disabled={loading}>
-                Mégse
-              </Button>
-              <Button type="submit" size="sm" className="bg-primary text-primary-foreground flex items-center gap-1.5" disabled={loading}>
-                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                Válaszlevél elküldése és iktatása
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ============================================================ */}
-      {/* 2. KÉSZ PDF FELTÖLTÉSE MODÁL */}
-      {/* ============================================================ */}
-      <Dialog open={uploadModalOpen} onOpenChange={setUploadModalOpen}>
-        <DialogContent className="sm:max-w-[620px] w-full p-6 max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-md bg-info/10 text-info border border-info/20 shrink-0">
-                <Upload className="h-4 w-4" />
-              </div>
-              <div>
-                <DialogTitle className="text-base font-semibold">Kész válaszlevél (PDF) feltöltése</DialogTitle>
-                <DialogDescription className="text-xs">
-                  Csatoljon meglévő PDF dokumentumot, és válassza ki a kiküldés módját.
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <form onSubmit={handleUploadSubmit} className="space-y-4 pt-1 text-xs w-full min-w-0">
-            {/* Tárgy */}
-            <div className="space-y-1.5">
-              <Label htmlFor="upl-subj" className="text-xs font-medium">
-                Irat tárgya <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="upl-subj"
-                value={uploadSubject}
-                onChange={(e) => setUploadSubject(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-
-            {/* Fájl választó */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">
-                PDF fájl <span className="text-destructive">*</span>
-              </Label>
-              <div className="border border-dashed border-border/80 hover:border-primary/50 transition-colors rounded-lg p-3 text-center bg-card">
-                <input
-                  id="upl-file"
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                  className="hidden"
-                  disabled={loading}
-                />
-                <label htmlFor="upl-file" className="cursor-pointer flex flex-col items-center justify-center gap-1 text-xs">
-                  <Paperclip className="h-5 w-5 text-muted-foreground" />
-                  {uploadFile ? (
-                    <span className="text-foreground font-semibold">
-                      {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">Kattintson ide a PDF fájl kiválasztásához</span>
-                  )}
-                </label>
-              </div>
-            </div>
-
-            {/* Kézbesítés módja */}
-            <div className="space-y-2 pt-2 border-t border-border/50">
-              <Label className="text-xs font-medium">Kézbesítés módja</Label>
-              <div className="grid grid-cols-3 gap-2.5 w-full">
-                <button
-                  type="button"
-                  onClick={() => setUploadMode("email")}
-                  className={`h-16 rounded-lg border text-center text-xs transition-all flex flex-col items-center justify-center gap-1 min-w-0 p-2 ${
-                    uploadMode === "email"
-                      ? "border-primary bg-primary/10 text-foreground font-semibold"
-                      : "border-border/60 hover:bg-muted text-muted-foreground"
-                  }`}
-                >
-                  <Mail className="h-4 w-4 text-primary shrink-0" />
-                  <span className="truncate w-full text-center">E-mailben most</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUploadMode("posta")}
-                  className={`h-16 rounded-lg border text-center text-xs transition-all flex flex-col items-center justify-center gap-1 min-w-0 p-2 ${
-                    uploadMode === "posta"
-                      ? "border-warning bg-warning/10 text-foreground font-semibold"
-                      : "border-border/60 hover:bg-muted text-muted-foreground"
-                  }`}
-                >
-                  <Package className="h-4 w-4 text-warning shrink-0" />
-                  <span className="truncate w-full text-center">Postai feladás</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUploadMode("none")}
-                  className={`h-16 rounded-lg border text-center text-xs transition-all flex flex-col items-center justify-center gap-1 min-w-0 p-2 ${
-                    uploadMode === "none"
-                      ? "border-info bg-info/10 text-foreground font-semibold"
-                      : "border-border/60 hover:bg-muted text-muted-foreground"
-                  }`}
-                >
-                  <Clock className="h-4 w-4 text-info shrink-0" />
-                  <span className="truncate w-full text-center">Csak mentés</span>
-                </button>
-              </div>
-
-              {uploadMode === "email" && (
-                <div className="space-y-1.5 pt-1.5">
-                  <Label htmlFor="upl-email-to" className="text-xs font-medium">
-                    Címzett e-mail címe
-                  </Label>
-                  <Input
-                    id="upl-email-to"
-                    type="email"
-                    value={uploadEmailTo}
-                    onChange={(e) => setUploadEmailTo(e.target.value)}
-                    required
-                    disabled={loading}
-                  />
-                  {partnerInfo?.id && !partnerInfo.email && (
-                    <div className="flex items-center gap-2 pt-0.5">
-                      <input
-                        type="checkbox"
-                        id="save-upl-email"
-                        checked={uploadSaveToPartner}
-                        onChange={(e) => setUploadSaveToPartner(e.target.checked)}
-                        className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
-                      />
-                      <label htmlFor="save-upl-email" className="text-[11px] text-muted-foreground cursor-pointer select-none">
-                        E-mail cím mentése a partner adatlapjára ({partnerInfo.nev})
-                      </label>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {uploadMode === "posta" && (
-                <div className="space-y-1.5 pt-1.5">
-                  <Label htmlFor="upl-track" className="text-xs font-medium">
-                    Postai ragszám / azonosító (opcionális)
-                  </Label>
-                  <Input
-                    id="upl-track"
-                    value={uploadPostalTracking}
-                    onChange={(e) => setUploadPostalTracking(e.target.value)}
-                    placeholder="Pl. RL123456789HU"
-                    disabled={loading}
-                  />
-                </div>
-              )}
-            </div>
-
-            <DialogFooter className="pt-2 border-t border-border/50">
-              <Button type="button" variant="outline" size="sm" onClick={() => setUploadModalOpen(false)} disabled={loading}>
-                Mégse
-              </Button>
-              <Button type="submit" size="sm" className="bg-primary text-primary-foreground flex items-center gap-1.5" disabled={loading}>
-                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                Feltöltés és iktatás
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ============================================================ */}
-      {/* 3. SABLON ALAPÚ GENERÁLÁS MODÁL */}
-      {/* ============================================================ */}
-      <Dialog open={templateModalOpen} onOpenChange={setTemplateModalOpen}>
-        <DialogContent className="sm:max-w-[640px] w-full p-6 max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-2 rounded-md bg-warning/10 text-warning border border-warning/20 shrink-0">
-                  <FileText className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <DialogTitle className="text-base font-semibold truncate">Kimenő irat generálása sablonból</DialogTitle>
-                  <DialogDescription className="text-xs truncate">
-                    Válasszon hivatalos iratsablont, szerkessze a szöveget, és a rendszer PDF iratot készít belőle.
-                  </DialogDescription>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setTemplatePickerTarget("template")
-                  setTemplatePickerOpen(true)
-                }}
+                onClick={() => setTemplatePickerOpen(true)}
                 className="text-xs h-7 gap-1 text-primary border-primary/30 hover:bg-primary/10 shrink-0 mr-8"
               >
                 <Sparkles className="h-3 w-3" />
@@ -935,7 +544,7 @@ export function OutgoingDocumentsPanel({
             </div>
           </DialogHeader>
 
-          <form onSubmit={handleTemplateSubmit} className="space-y-4 pt-1 text-xs w-full min-w-0">
+          <form onSubmit={handleUnifiedSubmit} className="space-y-4 pt-1 text-xs w-full min-w-0">
             {/* Sablon kiválasztás */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -944,10 +553,7 @@ export function OutgoingDocumentsPanel({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    setTemplatePickerTarget("template")
-                    setTemplatePickerOpen(true)
-                  }}
+                  onClick={() => setTemplatePickerOpen(true)}
                   className="h-6 px-1.5 text-[11px] text-primary hover:text-primary hover:bg-primary/10 gap-1 font-normal"
                 >
                   <Plus className="h-3 w-3" />
@@ -959,6 +565,9 @@ export function OutgoingDocumentsPanel({
                   <SelectValue placeholder="Válasszon sablont..." className="truncate" />
                 </SelectTrigger>
                 <SelectContent className="max-w-[600px] max-h-[300px]">
+                  <SelectItem value="egyedi" className="text-xs py-2">
+                    <span className="font-medium text-foreground">Egyedi / Saját szöveg írása (üres sablon)</span>
+                  </SelectItem>
                   {allTemplates.map((s) => (
                     <SelectItem key={s.id} value={s.id} label={s.nev} className="text-xs py-2">
                       <div className="flex items-center justify-between gap-2 w-full">
@@ -982,45 +591,112 @@ export function OutgoingDocumentsPanel({
               </Select>
             </div>
 
-            {/* Tárgy */}
+            {/* Irat tárgya */}
             <div className="space-y-1.5">
-              <Label htmlFor="tpl-subj" className="text-xs font-medium">
+              <Label htmlFor="unified-subj" className="text-xs font-medium">
                 Irat tárgya <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="tpl-subj"
-                value={templateSubject}
-                onChange={(e) => setTemplateSubject(e.target.value)}
+                id="unified-subj"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Pl. Válasz a beérkezett számlára"
                 required
                 disabled={loading}
               />
             </div>
 
-            {/* Tartalom */}
+            {/* Levél tartalma */}
             <div className="space-y-1.5">
-              <Label htmlFor="tpl-body" className="text-xs font-medium">
-                Levél tartalma (szerkeszthető) <span className="text-destructive">*</span>
+              <Label htmlFor="unified-body" className="text-xs font-medium">
+                Levél tartalma (szerkeszthető)
               </Label>
               <Textarea
-                id="tpl-body"
-                rows={7}
-                value={templateBody}
-                onChange={(e) => setTemplateBody(e.target.value)}
-                className="font-mono text-xs resize-y w-full leading-relaxed p-3"
-                required
+                id="unified-body"
+                rows={6}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Tisztelt Partnerünk!&#10;&#10;Hivatkozással fenti megkeresésükre..."
+                className="font-sans text-xs resize-y w-full leading-relaxed p-3 max-w-full min-w-0"
                 disabled={loading}
               />
+              <p className="text-[11px] text-muted-foreground">
+                A megadott szövegből a rendszer automatikusan hivatalos A4-es PDF iratot generál a fejlécadatokkal.
+              </p>
             </div>
 
-            {/* Kézbesítési mód */}
+            {/* Csatolt PDF dokumentum / melléklet (opcionális feltöltés) */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium flex items-center gap-1.5">
+                  <Paperclip className="h-3.5 w-3.5 text-primary" />
+                  <span>Csatolt PDF melléklet (opcionális)</span>
+                </Label>
+                {attachedFile && (
+                  <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">
+                    1 fájl csatolva
+                  </Badge>
+                )}
+              </div>
+
+              {!attachedFile ? (
+                <div className="border border-dashed border-border/80 hover:border-primary/50 transition-colors rounded-lg p-3 text-center bg-card">
+                  <input
+                    id="unified-file"
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) => setAttachedFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                    disabled={loading}
+                  />
+                  <label htmlFor="unified-file" className="cursor-pointer flex flex-col items-center justify-center gap-1 text-xs select-none">
+                    <Paperclip className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium text-foreground">Kattintson ide PDF fájl csatolásához</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      (Pl. számla, szerződés, kiegészítő igazolás, nyilatkozat)
+                    </span>
+                  </label>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between p-2.5 rounded-lg border border-primary/30 bg-primary/5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="p-1.5 rounded bg-primary/10 text-primary shrink-0">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-xs text-foreground truncate">{attachedFile.name}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">
+                        {(attachedFile.size / 1024).toFixed(1)} KB • Csatolva az e-mailhez és az irathoz
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setAttachedFile(null)}
+                    disabled={loading}
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                    title="Csatolt fájl eltávolítása"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                A csatolt PDF a generált válaszlevél mellett csatolmányként kerül kiküldésre és archiválásra.
+              </p>
+            </div>
+
+            {/* Kézbesítés módja */}
             <div className="space-y-2 pt-2 border-t border-border/50">
               <Label className="text-xs font-medium">Kézbesítés módja</Label>
               <div className="grid grid-cols-3 gap-2.5 w-full">
                 <button
                   type="button"
-                  onClick={() => setTemplateMode("email")}
+                  onClick={() => setDeliveryMode("email")}
                   className={`h-16 rounded-lg border text-center text-xs transition-all flex flex-col items-center justify-center gap-1 min-w-0 p-2 ${
-                    templateMode === "email"
+                    deliveryMode === "email"
                       ? "border-primary bg-primary/10 text-foreground font-semibold"
                       : "border-border/60 hover:bg-muted text-muted-foreground"
                   }`}
@@ -1030,9 +706,9 @@ export function OutgoingDocumentsPanel({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTemplateMode("posta")}
+                  onClick={() => setDeliveryMode("posta")}
                   className={`h-16 rounded-lg border text-center text-xs transition-all flex flex-col items-center justify-center gap-1 min-w-0 p-2 ${
-                    templateMode === "posta"
+                    deliveryMode === "posta"
                       ? "border-warning bg-warning/10 text-foreground font-semibold"
                       : "border-border/60 hover:bg-muted text-muted-foreground"
                   }`}
@@ -1042,9 +718,9 @@ export function OutgoingDocumentsPanel({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTemplateMode("none")}
+                  onClick={() => setDeliveryMode("none")}
                   className={`h-16 rounded-lg border text-center text-xs transition-all flex flex-col items-center justify-center gap-1 min-w-0 p-2 ${
-                    templateMode === "none"
+                    deliveryMode === "none"
                       ? "border-info bg-info/10 text-foreground font-semibold"
                       : "border-border/60 hover:bg-muted text-muted-foreground"
                   }`}
@@ -1054,16 +730,17 @@ export function OutgoingDocumentsPanel({
                 </button>
               </div>
 
-              {templateMode === "email" && (
+              {deliveryMode === "email" && (
                 <div className="space-y-1.5 pt-1.5">
-                  <Label htmlFor="tpl-email-to" className="text-xs font-medium">
-                    Címzett e-mail címe
+                  <Label htmlFor="unified-email-to" className="text-xs font-medium">
+                    Címzett e-mail címe <span className="text-destructive">*</span>
                   </Label>
                   <Input
-                    id="tpl-email-to"
+                    id="unified-email-to"
                     type="email"
-                    value={templateEmailTo}
-                    onChange={(e) => setTemplateEmailTo(e.target.value)}
+                    value={recipientEmail}
+                    onChange={(e) => setRecipientEmail(e.target.value)}
+                    placeholder="pl. ugyvezeto@partner.hu"
                     required
                     disabled={loading}
                   />
@@ -1071,12 +748,12 @@ export function OutgoingDocumentsPanel({
                     <div className="flex items-center gap-2 pt-0.5">
                       <input
                         type="checkbox"
-                        id="save-tpl-email"
-                        checked={templateSaveToPartner}
-                        onChange={(e) => setTemplateSaveToPartner(e.target.checked)}
+                        id="save-unified-email"
+                        checked={saveToPartner}
+                        onChange={(e) => setSaveToPartner(e.target.checked)}
                         className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
                       />
-                      <label htmlFor="save-tpl-email" className="text-[11px] text-muted-foreground cursor-pointer select-none">
+                      <label htmlFor="save-unified-email" className="text-[11px] text-muted-foreground cursor-pointer select-none">
                         E-mail cím mentése a partner adatlapjára ({partnerInfo.nev})
                       </label>
                     </div>
@@ -1084,15 +761,15 @@ export function OutgoingDocumentsPanel({
                 </div>
               )}
 
-              {templateMode === "posta" && (
+              {deliveryMode === "posta" && (
                 <div className="space-y-1.5 pt-1.5">
-                  <Label htmlFor="tpl-track" className="text-xs font-medium">
+                  <Label htmlFor="unified-track" className="text-xs font-medium">
                     Postai ragszám / azonosító (opcionális)
                   </Label>
                   <Input
-                    id="tpl-track"
-                    value={templatePostalTracking}
-                    onChange={(e) => setTemplatePostalTracking(e.target.value)}
+                    id="unified-track"
+                    value={postalTracking}
+                    onChange={(e) => setPostalTracking(e.target.value)}
                     placeholder="Pl. RL123456789HU"
                     disabled={loading}
                   />
@@ -1101,12 +778,20 @@ export function OutgoingDocumentsPanel({
             </div>
 
             <DialogFooter className="pt-2 border-t border-border/50">
-              <Button type="button" variant="outline" size="sm" onClick={() => setTemplateModalOpen(false)} disabled={loading}>
+              <Button type="button" variant="outline" size="sm" onClick={() => setUnifiedModalOpen(false)} disabled={loading}>
                 Mégse
               </Button>
               <Button type="submit" size="sm" className="bg-primary text-primary-foreground flex items-center gap-1.5" disabled={loading}>
-                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
-                Generálás és iktatás
+                {loading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : deliveryMode === "email" ? (
+                  <Send className="h-3.5 w-3.5" />
+                ) : (
+                  <Check className="h-3.5 w-3.5" />
+                )}
+                {deliveryMode === "email"
+                  ? "Válaszlevél elküldése és iktatása"
+                  : "Kimenő irat iktatása"}
               </Button>
             </DialogFooter>
           </form>

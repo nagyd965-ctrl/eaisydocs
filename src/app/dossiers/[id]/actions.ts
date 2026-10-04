@@ -562,13 +562,21 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
   }
 
   const targy = (formData.get("targy") as string)?.trim()
-  const tartalom = (formData.get("tartalom") as string)?.trim()
+  const tartalom = (formData.get("tartalom") as string)?.trim() || ""
   const cimzett = (formData.get("cimzett") as string)?.trim()
   const sablonTipus = (formData.get("sablon_tipus") as string)?.trim() || "egyedi"
   const hivatkozas = (formData.get("hivatkozas") as string)?.trim() || ugyirat?.iktatoszam || ""
 
-  if (!targy || !tartalom) {
-    return { error: "A tárgy és a levél szövegének megadása kötelező!" }
+  // Opcionális csatolt külső PDF fájl (melléklet)
+  const attachedFile = (formData.get("attachment") as File | null) || (formData.get("file") as File | null)
+  const hasAttachedFile = !!(attachedFile && attachedFile.size > 0)
+
+  if (!targy) {
+    return { error: "A levél tárgyának megadása kötelező!" }
+  }
+
+  if (!tartalom && !hasAttachedFile) {
+    return { error: "Kérjük, adja meg a levél szövegét vagy csatoljon egy PDF dokumentumot!" }
   }
 
   // Felhasználó profil
@@ -591,30 +599,88 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
   const postalRecipient = (formData.get("postalRecipient") as string)?.trim() || cimzett
   const postalNote = (formData.get("postalNote") as string)?.trim()
 
-  // 1. PDF generálás pdf-lib segítségével
-  const { generateLetterPdfBuffer } = await import("@/utils/pdf-letter-generator")
-  const pdfBuffer = await generateLetterPdfBuffer({
-    targy,
-    cimzett,
-    iktatoszam: ugyirat?.iktatoszam || undefined,
-    ugyTargy: (ugyirat?.ugy as any)?.targy || undefined,
-    hivatkozas,
-    tartalom,
-    authorNev: profile?.nev || "eaisyDocs"
-  })
+  const emailAttachments: Array<{
+    filename: string
+    content: Buffer
+    contentType: string
+  }> = []
 
-  // 2. Storage feltöltés
-  const fileName = `${crypto.randomUUID()}.pdf`
-  const { error: uploadError } = await supabase.storage
-    .from("irat_files")
-    .upload(fileName, pdfBuffer, {
-      contentType: "application/pdf",
-      upsert: false
+  // 1. Ha van megadott szöveg (vagy nincs csatolt fájl), készítsünk hivatalos A4 levél PDF-et
+  let generatedPdfBuffer: Buffer | null = null
+  let generatedFileName: string | null = null
+  let generatedStoragePath: string | null = null
+  let generatedHash: string | null = null
+
+  if (tartalom) {
+    const { generateLetterPdfBuffer } = await import("@/utils/pdf-letter-generator")
+    generatedPdfBuffer = await generateLetterPdfBuffer({
+      targy,
+      cimzett,
+      iktatoszam: ugyirat?.iktatoszam || undefined,
+      ugyTargy: (ugyirat?.ugy as any)?.targy || undefined,
+      hivatkozas,
+      tartalom,
+      authorNev: profile?.nev || "eaisyDocs"
     })
 
-  if (uploadError) return { error: "Hiba a generált PDF feltöltésekor: " + uploadError.message }
+    generatedStoragePath = `${crypto.randomUUID()}.pdf`
+    const { error: uploadError } = await supabase.storage
+      .from("irat_files")
+      .upload(generatedStoragePath, generatedPdfBuffer, {
+        contentType: "application/pdf",
+        upsert: false
+      })
 
-  const hash = crypto.createHash("sha256").update(pdfBuffer).digest("hex")
+    if (uploadError) return { error: "Hiba a generált PDF feltöltésekor: " + uploadError.message }
+
+    generatedHash = crypto.createHash("sha256").update(generatedPdfBuffer).digest("hex")
+    const dateStr = new Date().toLocaleDateString("hu-HU").replace(/\./g, "").replace(/ /g, "_")
+    generatedFileName = `kimenő_${targy.toLowerCase().replace(/[^a-z0-9]/gi, "_").substring(0, 30)}_${dateStr}.pdf`
+
+    emailAttachments.push({
+      filename: generatedFileName,
+      content: generatedPdfBuffer,
+      contentType: "application/pdf"
+    })
+  }
+
+  // 2. Ha csatoltak külön PDF fájlt, töltsük fel és készítsük elő az e-mail csatolmányt
+  let attachedBuffer: Buffer | null = null
+  let attachedStoragePath: string | null = null
+  let attachedHash: string | null = null
+  let attachedOcrText: string | null = null
+
+  if (hasAttachedFile && attachedFile) {
+    attachedBuffer = Buffer.from(await attachedFile.arrayBuffer())
+    attachedHash = crypto.createHash("sha256").update(attachedBuffer).digest("hex")
+    attachedStoragePath = `${crypto.randomUUID()}-${attachedFile.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
+
+    const { error: attachedUploadErr } = await supabase.storage
+      .from("irat_files")
+      .upload(attachedStoragePath, attachedBuffer, {
+        contentType: attachedFile.type || "application/pdf",
+        upsert: false
+      })
+
+    if (attachedUploadErr) {
+      return { error: "Hiba a csatolt PDF feltöltésekor: " + attachedUploadErr.message }
+    }
+
+    if (attachedFile.type === "application/pdf" || attachedFile.name.toLowerCase().endsWith(".pdf")) {
+      try {
+        const { extractPdfText } = await import("@/utils/pdf-extractor")
+        attachedOcrText = await extractPdfText(attachedBuffer)
+      } catch (e) {
+        console.warn("Nem sikerült kinyerni a szöveget a csatolt PDF-ből:", e)
+      }
+    }
+
+    emailAttachments.push({
+      filename: attachedFile.name,
+      content: attachedBuffer,
+      contentType: attachedFile.type || "application/pdf"
+    })
+  }
 
   // 3. Alszám számítás
   const { data: iratok } = await supabase
@@ -625,8 +691,8 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
   const maxAlszam = iratok?.reduce((max, i) => Math.max(max, i.alszam || 0), 0) || 0
   const alszam = maxAlszam + 1
 
-  // 4. Irat rekord
-  const initialKezbesitesStatusz = expediteMode === "none" ? "expedialasra_var" : "expedialasra_var"
+  // 4. Irat rekord létrehozása
+  const initialKezbesitesStatusz = "expedialasra_var"
   const { data: iratData, error: iratError } = await supabase
     .from("irat")
     .insert({
@@ -646,34 +712,65 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
 
   if (iratError || !iratData) return { error: "Hiba az irat rekord létrehozásakor." }
 
-  // 5. Irat fájl rekord
-  const dateStr = new Date().toLocaleDateString("hu-HU").replace(/\./g, "").replace(/ /g, "_")
-  const generatedFilename = `kimenő_${targy.toLowerCase().replace(/[^a-z0-9]/gi, "_").substring(0, 30)}_${dateStr}.pdf`
-  const { data: fajlResult } = await supabase
-    .from("irat_fajl")
-    .insert({
-      irat_id: iratData.id,
-      storage_path: fileName,
-      eredeti_fajlnev: generatedFilename,
-      mime_type: "application/pdf",
-      meret_byte: pdfBuffer.length,
-      sha256: hash,
-      verzio: 1,
-      ocr_szoveg: tartalom
-    })
-    .select("id")
-    .single()
+  // 5. Irat fájl rekordok mentése
+  const createdFajlIds: string[] = []
 
-  // 6. Eseménynapló
+  // 5a. Generált levél fájl mentése
+  if (generatedPdfBuffer && generatedStoragePath && generatedFileName && generatedHash) {
+    const { data: genFajl } = await supabase
+      .from("irat_fajl")
+      .insert({
+        irat_id: iratData.id,
+        storage_path: generatedStoragePath,
+        eredeti_fajlnev: generatedFileName,
+        mime_type: "application/pdf",
+        meret_byte: generatedPdfBuffer.length,
+        sha256: generatedHash,
+        verzio: 1,
+        ocr_szoveg: tartalom
+      })
+      .select("id")
+      .single()
+
+    if (genFajl?.id) createdFajlIds.push(genFajl.id)
+  }
+
+  // 5b. Csatolt külső PDF fájl mentése (ha volt feltöltve)
+  if (hasAttachedFile && attachedFile && attachedStoragePath && attachedBuffer && attachedHash) {
+    const { data: attFajl } = await supabase
+      .from("irat_fajl")
+      .insert({
+        irat_id: iratData.id,
+        storage_path: attachedStoragePath,
+        eredeti_fajlnev: attachedFile.name,
+        mime_type: attachedFile.type || "application/pdf",
+        meret_byte: attachedFile.size,
+        sha256: attachedHash,
+        verzio: generatedPdfBuffer ? 2 : 1,
+        ocr_szoveg: attachedOcrText
+      })
+      .select("id")
+      .single()
+
+    if (attFajl?.id) createdFajlIds.push(attFajl.id)
+  }
+
+  // 6. Eseménynapló rögzítése
+  const auditDetails = hasAttachedFile && generatedPdfBuffer
+    ? `Kimenő válaszlevél generálva (${sablonTipus}) és PDF csatolva (${attachedFile!.name}): ${targy}`
+    : hasAttachedFile
+    ? `Kimenő irat PDF feltöltve (${attachedFile!.name}): ${targy}`
+    : `Kimenő irat generálva (${sablonTipus}): ${targy}`
+
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
     esemeny_tipus: "modositva",
     user_id: user.id,
-    indoklas: `Kimenő irat generálva (${sablonTipus}): ${targy}`,
+    indoklas: auditDetails,
   })
 
-  // 7. Expedíció
+  // 7. Expedíció végrehajtása
   let expediteError: string | undefined = undefined
   let dispatched = false
 
@@ -682,17 +779,13 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
       expediteError = "A kért e-mail kiküldéshez hiányzik a címzett e-mail címe!"
     } else {
       const { sendEmailWithAttachment } = await import("@/utils/mailer")
+      const fallbackBody = tartalom || `Tisztelt Partnerünk!\n\nMellékelten továbbítjuk a(z) ${ugyirat?.iktatoszam || ""} ügyirathoz tartozó "${targy}" kimenő iratunkat.\n\nÜdvözlettel,\n${profile?.nev || "eaisyDocs"}`
+
       const mailRes = await sendEmailWithAttachment({
         to: recipientEmail,
         subject: emailSubject || targy,
-        text: emailMessage || `Tisztelt Partnerünk!\n\nMellékelten továbbítjuk a(z) ${ugyirat?.iktatoszam || ""} ügyirathoz tartozó "${targy}" kimenő iratunkat.\n\nÜdvözlettel,\n${profile?.nev || "eaisyDocs"}`,
-        attachments: [
-          {
-            filename: generatedFilename,
-            content: pdfBuffer,
-            contentType: "application/pdf"
-          }
-        ],
+        text: emailMessage || fallbackBody,
+        attachments: emailAttachments,
         iratId: iratData.id,
         ugyiratId,
         userId: user.id,
@@ -725,11 +818,11 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
     }
   }
 
-  // 8. PDF/A sorba állítás
-  if (fajlResult) {
+  // 8. PDF/A normalizálás sorba állítása minden létrehozott fájlra
+  for (const fajlId of createdFajlIds) {
     try {
       const { enqueuePdfaConversion } = await import("@/utils/ai-worker-service")
-      await enqueuePdfaConversion(iratData.id, fajlResult.id, supabase)
+      await enqueuePdfaConversion(iratData.id, fajlId, supabase)
     } catch (err) {
       console.warn("PDF/A sorba állítás figyelmeztetés:", err)
     }
@@ -968,6 +1061,7 @@ export async function deleteOutgoingDocument(ugyiratId: string, iratId: string) 
     }
 
     if (pathsToRemove.length > 0) {
+      await supabase.storage.from("irat_files").remove(pathsToRemove)
       await supabase.storage.from("iratok").remove(pathsToRemove)
     }
 

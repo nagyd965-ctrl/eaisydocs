@@ -45,7 +45,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { FileText, Mail, MoreVertical, Pencil, Plus, Search, Sparkles, Tag, Trash2, X, Loader2 } from "lucide-react"
+import { FileText, Mail, MoreVertical, Pencil, Plus, Search, Sparkles, Tag, Trash2, X, Loader2, Eye } from "lucide-react"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { toast } from "sonner"
 
 interface ReplyTemplatePickerProps {
@@ -315,43 +316,47 @@ export function ReplyTemplatePicker({
                 {filteredTemplates.map((template) => {
                   const catDef = REPLY_CATEGORIES.find((c) => c.id === template.kategoria)
                   return (
-                    <div
-                      key={template.id}
-                      onClick={() => {
-                        onSelectTemplate(template)
-                        onOpenChange(false)
-                      }}
-                      className="group relative flex flex-col justify-between rounded-lg border border-border/70 bg-card p-4 hover:border-primary/50 hover:bg-muted/20 cursor-pointer transition-all text-left shadow-none"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
-                              {template.nev}
-                            </span>
-                            {template.isCustom && (
-                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-dashed shrink-0">
-                                Egyéni
-                              </Badge>
-                            )}
-                          </div>
+                    <HoverCard key={template.id}>
+                      <HoverCardTrigger
+                        delay={180}
+                        render={
+                          <div
+                            onClick={() => {
+                              onSelectTemplate(template)
+                              onOpenChange(false)
+                            }}
+                            className="group relative flex flex-col justify-between rounded-lg border border-border/70 bg-card p-4 hover:border-primary/60 hover:bg-muted/20 cursor-pointer transition-all text-left shadow-none"
+                          />
+                        }
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+                                {template.nev}
+                              </span>
+                              {template.isCustom && (
+                                <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-dashed shrink-0">
+                                  Egyéni
+                                </Badge>
+                              )}
+                            </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onSelectTemplate(template)
-                                onOpenChange(false)
-                              }}
-                              className="text-xs h-7 px-2.5 group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
-                            >
-                              Alkalmaz
-                            </Button>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onSelectTemplate(template)
+                                  onOpenChange(false)
+                                }}
+                                className="text-xs h-7 px-2.5 group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                              >
+                                Alkalmaz
+                              </Button>
 
-                            {/* Egyéni sablonoknál: Szerkesztés & Törlés menü */}
-                            {template.isCustom && (
+                              {/* Sablon műveletek: Szerkesztés & Törlés menü MINDEN sablonhoz */}
                               <DropdownMenu>
                                 <DropdownMenuTrigger
                                   onClick={(e) => e.stopPropagation()}
@@ -360,7 +365,7 @@ export function ReplyTemplatePicker({
                                 >
                                   <MoreVertical className="h-3.5 w-3.5" />
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="text-xs">
+                                <DropdownMenuContent align="end" className="text-xs z-[80]">
                                   <DropdownMenuItem onClick={(e) => handleOpenEdit(template, e)}>
                                     <Pencil className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
                                     <span>Sablon módosítása</span>
@@ -377,36 +382,117 @@ export function ReplyTemplatePicker({
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
-                            )}
+                            </div>
                           </div>
+
+                          {template.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                              {template.description}
+                            </p>
+                          )}
+
+                          {/* Szöveg előnézet a kártyán vizuális hover jelzéssel */}
+                          {template.tartalom && (
+                            <div className="relative rounded-md bg-muted/40 border border-border/50 p-2.5 transition-colors group-hover:border-primary/40 group-hover:bg-muted/60">
+                              <div className="text-[11px] text-muted-foreground font-mono line-clamp-2 leading-snug whitespace-pre-line">
+                                {template.tartalom}
+                              </div>
+                              <div className="flex items-center gap-1 text-[10px] text-primary font-medium mt-1.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                                <Eye className="h-3 w-3" />
+                                <span>Részletes lebegő előnézet ráhúzással</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        {template.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                            {template.description}
-                          </p>
+                        <div className="flex items-center gap-3 mt-3 pt-2.5 border-t border-border/50 text-[11px] text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <Tag className="h-3 w-3 text-muted-foreground/70" />
+                            <span className="font-medium">{catDef?.nev || template.kategoria}</span>
+                          </div>
+                          {template.targy && (
+                            <div className="ml-auto truncate max-w-[200px] text-[10px] text-muted-foreground/80 italic">
+                              Tárgy: {template.targy}
+                            </div>
+                          )}
+                        </div>
+                      </HoverCardTrigger>
+
+                      {/* Lebegő Előnézeti Kártya (Hover Card / Popover) */}
+                      <HoverCardContent
+                        side="right"
+                        align="start"
+                        sideOffset={14}
+                        collisionPadding={16}
+                        className="w-[460px] max-w-[92vw] p-0 rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl overflow-hidden ring-1 ring-border/80"
+                      >
+                        {/* Előnézet fejléc */}
+                        <div className="p-3.5 bg-muted/40 border-b border-border flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="p-1.5 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
+                              <FileText className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold text-foreground truncate flex items-center gap-1.5">
+                                <span className="truncate">{template.nev}</span>
+                                {template.isCustom && (
+                                  <Badge variant="outline" className="text-[9px] py-0 px-1 border-dashed">
+                                    Egyéni
+                                  </Badge>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground">
+                                {catDef?.nev || template.kategoria}
+                              </span>
+                            </div>
+                          </div>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onSelectTemplate(template)
+                              onOpenChange(false)
+                            }}
+                            className="h-7 text-xs px-2.5 bg-primary text-primary-foreground hover:bg-primary/90 gap-1 shrink-0 font-medium"
+                          >
+                            <span>Alkalmazás</span>
+                          </Button>
+                        </div>
+
+                        {/* Tárgy mező */}
+                        {template.targy && (
+                          <div className="px-3.5 py-2 bg-background border-b border-border/60 text-xs">
+                            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
+                              Irat tárgya:
+                            </div>
+                            <div className="font-medium text-foreground text-xs leading-snug">
+                              {template.targy}
+                            </div>
+                          </div>
                         )}
 
-                        {/* Szöveg előnézet */}
-                        {template.tartalom && (
-                          <div className="p-2 rounded bg-muted/40 border border-border/40 text-[11px] text-muted-foreground font-mono line-clamp-2 leading-snug whitespace-pre-line">
+                        {/* Levél tartalma (teljes formázott papírlap nézet) */}
+                        <div className="p-3.5 bg-muted/15 space-y-2">
+                          <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                            <span>Válaszlevél pontos szövegezése:</span>
+                            <span className="font-normal lowercase font-mono">
+                              {template.tartalom.length} karakter
+                            </span>
+                          </div>
+                          <div className="p-3 bg-card border border-border/80 rounded-lg font-sans text-xs text-foreground leading-relaxed whitespace-pre-wrap max-h-[300px] overflow-y-auto select-text shadow-2xs">
                             {template.tartalom}
                           </div>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-3 mt-3 pt-2.5 border-t border-border/50 text-[11px] text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <Tag className="h-3 w-3 text-muted-foreground/70" />
-                          <span className="font-medium">{catDef?.nev || template.kategoria}</span>
                         </div>
-                        {template.targy && (
-                          <div className="ml-auto truncate max-w-[200px] text-[10px] text-muted-foreground/80 italic">
-                            Tárgy: {template.targy}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+
+                        {/* Lábléc tipp */}
+                        <div className="px-3.5 py-2 bg-muted/40 border-t border-border/60 text-[10px] text-muted-foreground flex items-center justify-between">
+                          <span>Kattintson az Alkalmazás gombra a beillesztéshez</span>
+                          <span className="text-primary font-medium">eaisyDocs sablon</span>
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
                   )
                 })}
               </div>

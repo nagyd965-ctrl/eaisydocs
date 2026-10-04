@@ -33,13 +33,24 @@ export async function getReplyTemplates(): Promise<{
       .eq("kulcs", "valaszlevel_sablonok")
       .maybeSingle()
 
-    const customTemplates: ReplyTemplate[] = Array.isArray(settingRow?.ertek)
-      ? settingRow.ertek
-      : []
+    // Ha az adatbázisban még nincs feltöltve (null vagy nem tömb vagy üres), inicializáljuk a DEFAULT_REPLY_TEMPLATES-szel
+    if (!settingRow || !Array.isArray(settingRow.ertek) || settingRow.ertek.length === 0) {
+      const admin = getAdminClient()
+      await admin
+        .from("rendszer_beallitas")
+        .upsert(
+          {
+            kulcs: "valaszlevel_sablonok",
+            ertek: DEFAULT_REPLY_TEMPLATES,
+            leiras: "Válaszlevél- és iratsablonok az expediálási modulhoz.",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "kulcs" }
+        )
+      return { success: true, templates: DEFAULT_REPLY_TEMPLATES }
+    }
 
-    // Összefűzzük: elöl az egyéni sablonok (újabbak elöl), utána a beépítettek
-    const allTemplates = [...customTemplates, ...DEFAULT_REPLY_TEMPLATES]
-    return { success: true, templates: allTemplates }
+    return { success: true, templates: settingRow.ertek }
   } catch (err: any) {
     console.error("Hiba a válaszlevél sablonok lekérésekor:", err)
     return { success: false, error: err.message, templates: DEFAULT_REPLY_TEMPLATES }
@@ -99,9 +110,10 @@ export async function createCustomReplyTemplate(templateData: {
       .eq("kulcs", "valaszlevel_sablonok")
       .maybeSingle()
 
-    const existing: ReplyTemplate[] = Array.isArray(settingRow?.ertek)
-      ? settingRow.ertek
-      : []
+    const existing: ReplyTemplate[] =
+      Array.isArray(settingRow?.ertek) && settingRow.ertek.length > 0
+        ? settingRow.ertek
+        : [...DEFAULT_REPLY_TEMPLATES]
 
     const updated = [newTemplate, ...existing]
 
@@ -111,7 +123,7 @@ export async function createCustomReplyTemplate(templateData: {
         {
           kulcs: "valaszlevel_sablonok",
           ertek: updated,
-          leiras: "Egyéni és vállalati válaszlevél sablonok az expediálási modulhoz.",
+          leiras: "Válaszlevél- és iratsablonok az expediálási modulhoz.",
           updated_at: new Date().toISOString(),
           updated_by: user.id,
         },
@@ -132,7 +144,7 @@ export async function createCustomReplyTemplate(templateData: {
 }
 
 /**
- * Meglévő egyéni válaszlevél sablon módosítása
+ * Meglévő válaszlevél sablon módosítása (bármelyik sablon szerkeszthető)
  */
 export async function updateCustomReplyTemplate(
   templateId: string,
@@ -160,36 +172,50 @@ export async function updateCustomReplyTemplate(
       .eq("kulcs", "valaszlevel_sablonok")
       .maybeSingle()
 
-    const existing: ReplyTemplate[] = Array.isArray(settingRow?.ertek)
-      ? settingRow.ertek
-      : []
+    let existing: ReplyTemplate[] =
+      Array.isArray(settingRow?.ertek) && settingRow.ertek.length > 0
+        ? settingRow.ertek
+        : [...DEFAULT_REPLY_TEMPLATES]
 
-    const index = existing.findIndex((t) => t.id === templateId)
+    let index = existing.findIndex((t) => t.id === templateId)
+
+    let updatedItem: ReplyTemplate
 
     if (index === -1) {
-      return {
-        success: false,
-        error: "A sablon nem található vagy beépített rendszer-sablon.",
+      const defaultTpl = DEFAULT_REPLY_TEMPLATES.find((t) => t.id === templateId)
+      if (!defaultTpl) {
+        return {
+          success: false,
+          error: "A sablon nem található.",
+        }
       }
+      updatedItem = {
+        ...defaultTpl,
+        ...updates,
+        id: defaultTpl.id,
+      }
+      existing.push(updatedItem)
+    } else {
+      updatedItem = {
+        ...existing[index],
+        ...updates,
+        id: existing[index].id,
+      }
+      existing[index] = updatedItem
     }
-
-    const updatedItem: ReplyTemplate = {
-      ...existing[index],
-      ...updates,
-      id: existing[index].id,
-      isCustom: true,
-    }
-
-    existing[index] = updatedItem
 
     const { error } = await admin
       .from("rendszer_beallitas")
-      .update({
-        ertek: existing,
-        updated_at: new Date().toISOString(),
-        updated_by: user.id,
-      })
-      .eq("kulcs", "valaszlevel_sablonok")
+      .upsert(
+        {
+          kulcs: "valaszlevel_sablonok",
+          ertek: existing,
+          leiras: "Válaszlevél- és iratsablonok az expediálási modulhoz.",
+          updated_at: new Date().toISOString(),
+          updated_by: user.id,
+        },
+        { onConflict: "kulcs" }
+      )
 
     if (error) {
       return { success: false, error: error.message }
@@ -203,7 +229,7 @@ export async function updateCustomReplyTemplate(
 }
 
 /**
- * Egyéni válaszlevél sablon törlése
+ * Válaszlevél sablon törlése (bármelyik sablon törölhető)
  */
 export async function deleteCustomReplyTemplate(
   templateId: string
@@ -229,20 +255,25 @@ export async function deleteCustomReplyTemplate(
       .eq("kulcs", "valaszlevel_sablonok")
       .maybeSingle()
 
-    const existing: ReplyTemplate[] = Array.isArray(settingRow?.ertek)
-      ? settingRow.ertek
-      : []
+    let existing: ReplyTemplate[] =
+      Array.isArray(settingRow?.ertek) && settingRow.ertek.length > 0
+        ? settingRow.ertek
+        : [...DEFAULT_REPLY_TEMPLATES]
 
     const filtered = existing.filter((t) => t.id !== templateId)
 
     const { error } = await admin
       .from("rendszer_beallitas")
-      .update({
-        ertek: filtered,
-        updated_at: new Date().toISOString(),
-        updated_by: user.id,
-      })
-      .eq("kulcs", "valaszlevel_sablonok")
+      .upsert(
+        {
+          kulcs: "valaszlevel_sablonok",
+          ertek: filtered,
+          leiras: "Válaszlevél- és iratsablonok az expediálási modulhoz.",
+          updated_at: new Date().toISOString(),
+          updated_by: user.id,
+        },
+        { onConflict: "kulcs" }
+      )
 
     if (error) {
       return { success: false, error: error.message }

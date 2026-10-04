@@ -347,20 +347,27 @@ export async function getTaskTemplates(): Promise<{
 }> {
   const supabase = await createClient()
 
-  // Lekérdezzük az egyéni sablonokat a rendszer_beallitas táblából
+  // Lekérdezzük a sablonokat a rendszer_beallitas táblából
   const { data: settingRow } = await supabase
     .from("rendszer_beallitas")
     .select("ertek")
     .eq("kulcs", "feladat_sablonok")
     .maybeSingle()
 
-  const customTemplates: TaskTemplate[] = Array.isArray(settingRow?.ertek)
-    ? settingRow.ertek
-    : []
+  // Ha még nincs elmentve semmi, inicializáljuk a DEFAULT sablonokkal
+  if (!settingRow || !Array.isArray(settingRow.ertek) || settingRow.ertek.length === 0) {
+    await supabase
+      .from("rendszer_beallitas")
+      .upsert({
+        kulcs: "feladat_sablonok",
+        ertek: DEFAULT_TASK_TEMPLATES,
+        leiras: "Feladatsablonok a feladatkatalógushoz.",
+        updated_at: new Date().toISOString(),
+      })
+    return { success: true, templates: DEFAULT_TASK_TEMPLATES }
+  }
 
-  // Összefűzzük a beépített és egyéni sablonokat
-  const allTemplates = [...DEFAULT_TASK_TEMPLATES, ...customTemplates]
-  return { success: true, templates: allTemplates }
+  return { success: true, templates: settingRow.ertek }
 }
 
 export async function createCustomTaskTemplate(templateData: {
@@ -397,7 +404,11 @@ export async function createCustomTaskTemplate(templateData: {
     .eq("kulcs", "feladat_sablonok")
     .maybeSingle()
 
-  const existing: TaskTemplate[] = Array.isArray(settingRow?.ertek) ? settingRow.ertek : []
+  const existing: TaskTemplate[] =
+    Array.isArray(settingRow?.ertek) && settingRow.ertek.length > 0
+      ? settingRow.ertek
+      : [...DEFAULT_TASK_TEMPLATES]
+
   const updated = [newTemplate, ...existing]
 
   const { error } = await supabase
@@ -405,7 +416,7 @@ export async function createCustomTaskTemplate(templateData: {
     .upsert({
       kulcs: "feladat_sablonok",
       ertek: updated,
-      leiras: "Egyéni és vállalati feladatsablonok a feladatkatalógushoz.",
+      leiras: "Feladatsablonok a feladatkatalógushoz.",
       updated_at: new Date().toISOString(),
       updated_by: user.id,
     })
@@ -435,17 +446,22 @@ export async function deleteCustomTaskTemplate(templateId: string): Promise<{
     .eq("kulcs", "feladat_sablonok")
     .maybeSingle()
 
-  const existing: TaskTemplate[] = Array.isArray(settingRow?.ertek) ? settingRow.ertek : []
+  const existing: TaskTemplate[] =
+    Array.isArray(settingRow?.ertek) && settingRow.ertek.length > 0
+      ? settingRow.ertek
+      : [...DEFAULT_TASK_TEMPLATES]
+
   const filtered = existing.filter((t) => t.id !== templateId)
 
   const { error } = await supabase
     .from("rendszer_beallitas")
-    .update({
+    .upsert({
+      kulcs: "feladat_sablonok",
       ertek: filtered,
+      leiras: "Feladatsablonok a feladatkatalógushoz.",
       updated_at: new Date().toISOString(),
       updated_by: user.id,
     })
-    .eq("kulcs", "feladat_sablonok")
 
   if (error) {
     return { success: false, error: error.message }
@@ -471,30 +487,44 @@ export async function updateCustomTaskTemplate(
     .eq("kulcs", "feladat_sablonok")
     .maybeSingle()
 
-  const existing: TaskTemplate[] = Array.isArray(settingRow?.ertek) ? settingRow.ertek : []
+  const existing: TaskTemplate[] =
+    Array.isArray(settingRow?.ertek) && settingRow.ertek.length > 0
+      ? settingRow.ertek
+      : [...DEFAULT_TASK_TEMPLATES]
+
   const index = existing.findIndex((t) => t.id === templateId)
 
+  let updatedItem: TaskTemplate
+
   if (index === -1) {
-    return { success: false, error: "A sablon nem található vagy beépített rendszer-sablon." }
+    const defaultTpl = DEFAULT_TASK_TEMPLATES.find((t) => t.id === templateId)
+    if (!defaultTpl) {
+      return { success: false, error: "A sablon nem található." }
+    }
+    updatedItem = {
+      ...defaultTpl,
+      ...updates,
+      id: defaultTpl.id,
+    }
+    existing.push(updatedItem)
+  } else {
+    updatedItem = {
+      ...existing[index],
+      ...updates,
+      id: existing[index].id,
+    }
+    existing[index] = updatedItem
   }
-
-  const updatedItem: TaskTemplate = {
-    ...existing[index],
-    ...updates,
-    id: existing[index].id,
-    isCustom: true,
-  }
-
-  existing[index] = updatedItem
 
   const { error } = await supabase
     .from("rendszer_beallitas")
-    .update({
+    .upsert({
+      kulcs: "feladat_sablonok",
       ertek: existing,
+      leiras: "Feladatsablonok a feladatkatalógushoz.",
       updated_at: new Date().toISOString(),
       updated_by: user.id,
     })
-    .eq("kulcs", "feladat_sablonok")
 
   if (error) {
     return { success: false, error: error.message }
