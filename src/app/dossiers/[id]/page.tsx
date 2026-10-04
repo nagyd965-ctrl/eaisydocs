@@ -32,10 +32,22 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       ugy ( id, targy, hatarido, statusz, felelos_user_id ),
       irat (
         id,
+        alszam,
         erkeztetoszam,
         targy,
         irany,
         minosites,
+        erkezes_modja,
+        erkezes_datuma,
+        leiras,
+        kuldo_partner_id,
+        partner:kuldo_partner_id ( id, nev, email, telefonszam, cim ),
+        kezbesites_statusz,
+        kezbesites_modja,
+        kezbesites_datuma,
+        kezbesites_cimzett,
+        kezbesites_azonosito,
+        kezbesites_megjegyzes,
         irat_fajl (
           id,
           eredeti_fajlnev,
@@ -165,6 +177,97 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
     `)
     .eq("ugyirat_id", id)
     .order("created_at", { ascending: false });
+
+  // Partner felderítése az intelligens válaszlevél címzéshez
+  const incomingDocs = (dossier.irat || []).filter((i: any) => i.irany === "bejovo");
+  const primaryIncoming = incomingDocs[0] || null;
+
+  const partnerIds = Array.from(new Set([
+    ...((dossier.irat || []).map((i: any) => i.kuldo_partner_id).filter(Boolean)),
+    ...((polymorphicLinks || []).filter((l: any) => l.entitas_tipus === "partner").map((l: any) => l.entitas_id).filter(Boolean))
+  ])) as string[];
+
+  let partnerContacts: any[] = [];
+  let linkedPartners: any[] = [];
+  if (partnerIds.length > 0) {
+    const { data: contacts } = await supabase
+      .from("partner_kapcsolattarto")
+      .select("id, partner_id, nev, email, telefonszam, elsodleges")
+      .in("partner_id", partnerIds);
+    partnerContacts = contacts || [];
+
+    const { data: pList } = await supabase
+      .from("partner")
+      .select("id, nev, email, telefonszam, cim")
+      .in("id", partnerIds);
+    linkedPartners = pList || [];
+  }
+
+  // Intelligens partner feloldási hierarchia
+  let detectedPartner: {
+    id?: string | null
+    nev?: string | null
+    email?: string | null
+    telefonszam?: string | null
+    cim?: string | null
+    source?: string | null
+    contacts?: Array<{ id: string; nev: string; email?: string | null; elsodleges?: boolean }>
+  } | null = null;
+
+  const partnerRaw: any = (primaryIncoming as any)?.partner;
+  const pFromIncoming: any = Array.isArray(partnerRaw)
+    ? partnerRaw[0]
+    : (partnerRaw || linkedPartners.find((p: any) => p.id === (primaryIncoming as any)?.kuldo_partner_id));
+  if (pFromIncoming) {
+    const pContacts = partnerContacts.filter((c: any) => c.partner_id === pFromIncoming.id);
+    const primaryContact = pContacts.find((c: any) => c.elsodleges && c.email) || pContacts.find((c: any) => c.email);
+
+    let resolvedEmail = pFromIncoming.email || primaryContact?.email || "";
+    let emailSource = pFromIncoming.email 
+      ? "Központi partner e-mail" 
+      : (primaryContact?.email ? `Elsődleges kapcsolattartó (${primaryContact.nev})` : "");
+
+    // Ha az e-mail üres, de az irat e-mailben érkezett, keressük a leírásban
+    if (!resolvedEmail && primaryIncoming?.erkezes_modja === "email" && primaryIncoming?.leiras) {
+      const match = primaryIncoming.leiras.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      if (match) {
+        resolvedEmail = match[0];
+        emailSource = "Eredeti beérkező levél feladója";
+      }
+    }
+
+    detectedPartner = {
+      id: pFromIncoming.id,
+      nev: pFromIncoming.nev,
+      email: resolvedEmail,
+      telefonszam: pFromIncoming.telefonszam,
+      cim: pFromIncoming.cim,
+      source: emailSource,
+      contacts: pContacts.map((c: any) => ({
+        id: c.id,
+        nev: c.nev,
+        email: c.email,
+        elsodleges: c.elsodleges
+      }))
+    };
+  } else if (linkedPartners.length > 0) {
+    const p = linkedPartners[0];
+    const pContacts = partnerContacts.filter((c: any) => c.partner_id === p.id);
+    detectedPartner = {
+      id: p.id,
+      nev: p.nev,
+      email: p.email || "",
+      telefonszam: p.telefonszam,
+      cim: p.cim,
+      source: p.email ? "Kapcsolt partner e-mail" : "",
+      contacts: pContacts.map((c: any) => ({
+        id: c.id,
+        nev: c.nev,
+        email: c.email,
+        elsodleges: c.elsodleges
+      }))
+    };
+  }
 
   // Fetch audit logs for this dossier
   const { data: logs } = await supabase
@@ -497,6 +600,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
                 ugyiratId={dossier.id}
                 currentUserClearance={currentUserProfile?.max_minosites || 'nyilt'}
                 isAdmin={isAdmin}
+                partnerInfo={detectedPartner}
               />
             </CardContent>
           </Card>
@@ -513,6 +617,9 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
             canEdit={canEdit}
             currentUserEmail={authUser?.user?.email || ""}
             iktatoszam={dossier.iktatoszam}
+            partnerInfo={detectedPartner}
+            incomingIrat={primaryIncoming}
+            outgoingDocs={(dossier.irat || []).filter((i: any) => i.irany === "kimeno")}
           />
         </TabsContent>
         

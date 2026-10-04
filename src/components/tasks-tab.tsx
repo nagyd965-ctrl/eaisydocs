@@ -26,14 +26,19 @@ import {
   Info,
 } from "lucide-react"
 import { toast } from "sonner"
-import { addComment, updateDossierStatus, uploadReply } from "@/app/dossiers/[id]/actions"
+import { addComment, updateDossierStatus } from "@/app/dossiers/[id]/actions"
 import { updateTaskStatus, deleteTask } from "@/app/tasks/task-actions"
 import { AddTaskDialog } from "./add-task-dialog"
 import { TaskRejectDialog } from "./task-reject-dialog"
 import { Badge } from "./ui/badge"
-import { TemplateDialog } from "./template-dialog"
 import { Progress } from "./ui/progress"
 import { MentionInput, renderMentionText } from "./mention-input"
+import {
+  OutgoingDocumentsPanel,
+  OutgoingDocItem,
+  PartnerDetectionInfo,
+  IncomingIratInfo,
+} from "./outgoing-documents-panel"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -90,6 +95,9 @@ interface TasksTabProps {
   canEdit: boolean
   currentUserEmail: string
   iktatoszam?: string
+  partnerInfo?: PartnerDetectionInfo | null
+  incomingIrat?: IncomingIratInfo | null
+  outgoingDocs?: OutgoingDocItem[]
 }
 
 export function TasksTab({
@@ -102,13 +110,15 @@ export function TasksTab({
   canEdit,
   currentUserEmail,
   iktatoszam,
+  partnerInfo,
+  incomingIrat,
+  outgoingDocs = [],
 }: TasksTabProps) {
   const router = useRouter()
   const [commentText, setCommentText] = useState("")
   const [commentLoading, setCommentLoading] = useState(false)
   const [statusLoading, setStatusLoading] = useState<string | null>(null)
   const [taskLoading, setTaskLoading] = useState<string | null>(null)
-  const [uploadLoading, setUploadLoading] = useState(false)
 
   // Helyi optimista feladatlista
   const [taskList, setTaskList] = useState<UgyiratTaskItem[]>(tasks)
@@ -208,20 +218,6 @@ export function TasksTab({
       router.refresh()
     } else {
       toast.error(res.error || "Hiba történt a feladat törlésekor.")
-    }
-  }
-
-  const handleUploadReply = async (formData: FormData) => {
-    setUploadLoading(true)
-    const { error } = await uploadReply(ugyiratId, formData)
-    setUploadLoading(false)
-
-    if (error) {
-      toast.error(error)
-    } else {
-      toast.success("Válaszlevél sikeresen feltöltve!")
-      const form = document.getElementById("reply-form") as HTMLFormElement
-      if (form) form.reset()
     }
   }
 
@@ -684,58 +680,34 @@ export function TasksTab({
         }}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Válaszlevél feltöltése */}
-        <Card className="border border-border/50">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Válaszlevél feltöltése</CardTitle>
-            <CardDescription>Kimenő irat csatolása az ügyirathoz</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form id="reply-form" action={handleUploadReply} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="targy">Levél tárgya</Label>
-                <Input
-                  id="targy"
-                  name="targy"
-                  required
-                  placeholder="Pl. Válasz a bérleti szerződésre"
-                  disabled={!canEdit || uploadLoading}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="file">PDF Fájl</Label>
-                <Input
-                  id="file"
-                  name="file"
-                  type="file"
-                  accept="application/pdf"
-                  required
-                  disabled={!canEdit || uploadLoading}
-                />
-              </div>
-              <Button
-                type="submit"
-                disabled={!canEdit || uploadLoading}
-                variant="outline"
-                className="w-full"
-              >
-                {uploadLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Feltöltés és csatolás
-              </Button>
-            </form>
-            {/* Sablonos generálás */}
-            <div className="mt-3 pt-3 border-t border-border/50">
-              <TemplateDialog ugyiratId={ugyiratId} iktatoszam={iktatoszam} />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+        {/* Kimenő iratok és Válaszlevelek (Kanonikus panel, h-[500px]) */}
+        <OutgoingDocumentsPanel
+          ugyiratId={ugyiratId}
+          iktatoszam={iktatoszam}
+          canEdit={canEdit}
+          partnerInfo={partnerInfo}
+          incomingIrat={incomingIrat}
+          outgoingDocs={outgoingDocs}
+        />
 
-        {/* Belső Megjegyzések (Chat) */}
+        {/* Belső Megjegyzések (Chat, szintén h-[500px], tökéletesen illeszkedve) */}
         <Card className="flex flex-col h-[500px] border border-border/50">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Belső Megjegyzések</CardTitle>
-            <CardDescription>Kommunikáció a kollégákkal — használd az @-ot kollégák megemlítéséhez</CardDescription>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-primary" />
+                Belső Megjegyzések
+              </CardTitle>
+              {comments.length > 0 && (
+                <Badge variant="outline" className="text-xs font-normal">
+                  {comments.length} megjegyzés
+                </Badge>
+              )}
+            </div>
+            <CardDescription className="text-xs text-muted-foreground">
+              Belső egyeztetés az ügyiratról — @ megemlítéssel értesíthetők a kollégák.
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto space-y-4 p-4">
             {comments.length === 0 ? (

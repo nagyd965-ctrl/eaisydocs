@@ -1,16 +1,271 @@
 "use server"
 
+import crypto from "crypto"
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
-import crypto from "crypto"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
+import { ReplyTemplate, ReplyTemplateCategory } from "@/types/reply-templates"
+import { DEFAULT_REPLY_TEMPLATES } from "@/utils/reply-templates"
+
+function getAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error("Hiányzó Supabase Service Role környezeti változó.")
+  }
+  return createAdminClient(url, key)
+}
 
 /**
- * Sablon alapú kimenő irat generálása
- * HTML tartalom → PDF konvertálása és irat_fajl-ként mentése
+ * Lekérdezi az összes válaszlevél- és iratsablont (beépített + egyéni/vállalati)
  */
-export async function generateFromTemplate(ugyiratId: string, formData: FormData) {
+export async function getReplyTemplates(): Promise<{
+  success: boolean
+  templates?: ReplyTemplate[]
+  error?: string
+}> {
+  try {
+    const supabase = await createClient()
+
+    const { data: settingRow } = await supabase
+      .from("rendszer_beallitas")
+      .select("ertek")
+      .eq("kulcs", "valaszlevel_sablonok")
+      .maybeSingle()
+
+    const customTemplates: ReplyTemplate[] = Array.isArray(settingRow?.ertek)
+      ? settingRow.ertek
+      : []
+
+    // Összefűzzük: elöl az egyéni sablonok (újabbak elöl), utána a beépítettek
+    const allTemplates = [...customTemplates, ...DEFAULT_REPLY_TEMPLATES]
+    return { success: true, templates: allTemplates }
+  } catch (err: any) {
+    console.error("Hiba a válaszlevél sablonok lekérésekor:", err)
+    return { success: false, error: err.message, templates: DEFAULT_REPLY_TEMPLATES }
+  }
+}
+
+/**
+ * Új egyéni / vállalati válaszlevél sablon rögzítése
+ */
+export async function createCustomReplyTemplate(templateData: {
+  nev: string
+  kategoria: ReplyTemplateCategory
+  targy: string
+  description?: string
+  tartalom: string
+}): Promise<{
+  success: boolean
+  template?: ReplyTemplate
+  error?: string
+}> {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { success: false, error: "Nincs bejelentkezve." }
+    }
+
+    if (!templateData.nev.trim()) {
+      return { success: false, error: "A sablon megnevezése kötelező!" }
+    }
+
+    if (!templateData.tartalom.trim()) {
+      return { success: false, error: "A sablon levélszövegezése kötelező!" }
+    }
+
+    const newTemplate: ReplyTemplate = {
+      id: `custom-reply-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      nev: templateData.nev.trim(),
+      kategoria: templateData.kategoria || "hivatalos",
+      targy: templateData.targy.trim() || templateData.nev.trim(),
+      description: templateData.description?.trim() || undefined,
+      tartalom: templateData.tartalom.trim(),
+      isCustom: true,
+      created_by: user.id,
+      created_at: new Date().toISOString(),
+    }
+
+    const admin = getAdminClient()
+
+    // Lekérjük a meglévőket
+    const { data: settingRow } = await admin
+      .from("rendszer_beallitas")
+      .select("ertek")
+      .eq("kulcs", "valaszlevel_sablonok")
+      .maybeSingle()
+
+    const existing: ReplyTemplate[] = Array.isArray(settingRow?.ertek)
+      ? settingRow.ertek
+      : []
+
+    const updated = [newTemplate, ...existing]
+
+    const { error } = await admin
+      .from("rendszer_beallitas")
+      .upsert(
+        {
+          kulcs: "valaszlevel_sablonok",
+          ertek: updated,
+          leiras: "Egyéni és vállalati válaszlevél sablonok az expediálási modulhoz.",
+          updated_at: new Date().toISOString(),
+          updated_by: user.id,
+        },
+        { onConflict: "kulcs" }
+      )
+
+    if (error) {
+      console.error("Hiba az új válaszlevél sablon mentésekor:", error)
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath("/dossiers")
+    return { success: true, template: newTemplate }
+  } catch (err: any) {
+    console.error("Váratlan hiba válaszlevél sablon mentésekor:", err)
+    return { success: false, error: err.message || "Váratlan hiba történt." }
+  }
+}
+
+/**
+ * Meglévő egyéni válaszlevél sablon módosítása
+ */
+export async function updateCustomReplyTemplate(
+  templateId: string,
+  updates: Partial<ReplyTemplate>
+): Promise<{
+  success: boolean
+  template?: ReplyTemplate
+  error?: string
+}> {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { success: false, error: "Nincs bejelentkezve." }
+    }
+
+    const admin = getAdminClient()
+
+    const { data: settingRow } = await admin
+      .from("rendszer_beallitas")
+      .select("ertek")
+      .eq("kulcs", "valaszlevel_sablonok")
+      .maybeSingle()
+
+    const existing: ReplyTemplate[] = Array.isArray(settingRow?.ertek)
+      ? settingRow.ertek
+      : []
+
+    const index = existing.findIndex((t) => t.id === templateId)
+
+    if (index === -1) {
+      return {
+        success: false,
+        error: "A sablon nem található vagy beépített rendszer-sablon.",
+      }
+    }
+
+    const updatedItem: ReplyTemplate = {
+      ...existing[index],
+      ...updates,
+      id: existing[index].id,
+      isCustom: true,
+    }
+
+    existing[index] = updatedItem
+
+    const { error } = await admin
+      .from("rendszer_beallitas")
+      .update({
+        ertek: existing,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      })
+      .eq("kulcs", "valaszlevel_sablonok")
+
+    if (error) {
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath("/dossiers")
+    return { success: true, template: updatedItem }
+  } catch (err: any) {
+    return { success: false, error: err.message || "Váratlan hiba történt." }
+  }
+}
+
+/**
+ * Egyéni válaszlevél sablon törlése
+ */
+export async function deleteCustomReplyTemplate(
+  templateId: string
+): Promise<{
+  success: boolean
+  error?: string
+}> {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { success: false, error: "Nincs bejelentkezve." }
+    }
+
+    const admin = getAdminClient()
+
+    const { data: settingRow } = await admin
+      .from("rendszer_beallitas")
+      .select("ertek")
+      .eq("kulcs", "valaszlevel_sablonok")
+      .maybeSingle()
+
+    const existing: ReplyTemplate[] = Array.isArray(settingRow?.ertek)
+      ? settingRow.ertek
+      : []
+
+    const filtered = existing.filter((t) => t.id !== templateId)
+
+    const { error } = await admin
+      .from("rendszer_beallitas")
+      .update({
+        ertek: filtered,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      })
+      .eq("kulcs", "valaszlevel_sablonok")
+
+    if (error) {
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath("/dossiers")
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message || "Váratlan hiba történt." }
+  }
+}
+
+/**
+ * Kimenő irat generálása sablonból (PDF előállítása és mentése az ügyiratba)
+ */
+export async function generateFromTemplate(
+  ugyiratId: string,
+  formData: FormData
+): Promise<{ success?: boolean; error?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) return { error: "Nincs bejelentkezve." }
 
@@ -134,7 +389,6 @@ export async function generateFromTemplate(ugyiratId: string, formData: FormData
   y -= lineHeight * 1.5
 
   // --- Törzs szöveg (sortörés kezelésével) ---
-  // Normalizáljuk a sortöréseket (Windows \r\n → \n) és eltávolítjuk a nem nyomtatható karaktereket
   const cleanTartalom = tartalom.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/[^\x20-\x7E\xA0-\xFF\n]/g, "")
   const lines = cleanTartalom.split("\n")
   for (const line of lines) {
@@ -143,14 +397,12 @@ export async function generateFromTemplate(ugyiratId: string, formData: FormData
       continue
     }
 
-    // Sortörés kezelés — szavankénti tördelés
     const words = line.split(" ")
     let currentLine = ""
     for (const word of words) {
       const testLine = currentLine ? `${currentLine} ${word}` : word
       const textWidth = helvetica.widthOfTextAtSize(testLine, fontSize)
       if (textWidth > contentWidth) {
-        // Új oldal szükség esetén
         if (y < margin + lineHeight * 3) {
           page = pdfDoc.addPage([pageWidth, pageHeight])
           y = pageHeight - margin
@@ -164,7 +416,6 @@ export async function generateFromTemplate(ugyiratId: string, formData: FormData
         currentLine = testLine
       }
     }
-    // Maradék sor
     if (currentLine) {
       if (y < margin + lineHeight * 3) {
         page = pdfDoc.addPage([pageWidth, pageHeight])
@@ -193,7 +444,6 @@ export async function generateFromTemplate(ugyiratId: string, formData: FormData
 
   // --- Lábléc ---
   const footerText = `Generálva: eaisyDocs | ${dateStr} | ${iktatoszam || "Iktatószám nélkül"}`
-  const firstPage = pdfDoc.getPages()[0]
   const footerWidth = helvetica.widthOfTextAtSize(footerText, 7)
   for (const p of pdfDoc.getPages()) {
     p.drawText(footerText, {
@@ -215,7 +465,7 @@ export async function generateFromTemplate(ugyiratId: string, formData: FormData
   // Storage feltöltés
   const fileName = `${crypto.randomUUID()}.pdf`
   const { error: uploadError } = await supabase.storage
-    .from("irat_files")
+    .from("iratok")
     .upload(fileName, buffer, {
       contentType: "application/pdf",
       upsert: false,
@@ -243,6 +493,7 @@ export async function generateFromTemplate(ugyiratId: string, formData: FormData
       adathordozo_tipus: "elektronikus_eredeti",
       minosites: "nyilt",
       alszam,
+      kezbesites_statusz: "vazlat",
     })
     .select("id")
     .single()

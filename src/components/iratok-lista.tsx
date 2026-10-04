@@ -4,13 +4,14 @@ import { useState } from "react"
 import { DocumentViewer } from "./document-viewer"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Eye, FileText, Download, Loader2, Lock } from "lucide-react"
+import { Eye, FileText, Download, Loader2, Lock, CheckCircle2, Clock, Send } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { BorrowDialog } from "./borrow-dialog"
 import { PhysicalLocationDialog } from "./physical-location-dialog"
 import { toast } from "sonner"
 import { getDocumentSignedUrl } from "@/app/dossiers/[id]/viewer-actions"
 import { UploadVersionDialog } from "@/components/upload-version-dialog"
+import { ExpediteDialog } from "./expedite-dialog"
 
 export interface IratFajlItem {
   id: string
@@ -34,6 +35,12 @@ export interface IratTableItem {
   erkeztetoszam?: string | null
   irany?: string
   minosites?: string
+  kezbesites_statusz?: string | null
+  kezbesites_modja?: string | null
+  kezbesites_datuma?: string | null
+  kezbesites_cimzett?: string | null
+  kezbesites_azonosito?: string | null
+  kezbesites_megjegyzes?: string | null
   irat_fajl?: IratFajlItem[]
   irat_fizikai_hely?: any
   irat_kolcsonzes_naplo?: {
@@ -53,6 +60,7 @@ interface IratokListaProps {
   ugyiratId?: string;
   currentUserClearance?: string;
   isAdmin?: boolean;
+  partnerInfo?: any;
 }
 
 export function IratokLista({ 
@@ -62,7 +70,8 @@ export function IratokLista({
   dossierIktatoszam,
   ugyiratId,
   currentUserClearance = 'nyilt',
-  isAdmin = false
+  isAdmin = false,
+  partnerInfo
 }: IratokListaProps) {
   const [viewerOpen, setViewerOpen] = useState(false)
   const [selectedFajl, setSelectedFajl] = useState<IratFajlItem | null>(null)
@@ -196,9 +205,32 @@ export function IratokLista({
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline" className="capitalize text-xs">
-                    {{ bejovo: 'Bejövő', kimeno: 'Kimenő', belso: 'Belső' }[irat.irany as string] || irat.irany}
-                  </Badge>
+                  <div className="flex flex-col gap-1 items-start">
+                    <Badge variant="outline" className="capitalize text-xs">
+                      {{ bejovo: 'Bejövő', kimeno: 'Kimenő', belso: 'Belső' }[irat.irany as string] || irat.irany}
+                    </Badge>
+                    {irat.irany === "kimeno" && (
+                      irat.kezbesites_statusz === "expedialva" ? (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 h-4 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 flex items-center gap-1 font-medium"
+                          title={irat.kezbesites_megjegyzes || irat.kezbesites_cimzett || "Kézbesítve"}
+                        >
+                          <CheckCircle2 className="w-2.5 h-2.5" />
+                          {irat.kezbesites_modja === "email" ? "Kiküldve" : "Postázva"}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 h-4 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 flex items-center gap-1 font-medium"
+                          title="Ez a kimenő irat még nem lett kiküldve vagy kézbesítve a partnernek."
+                        >
+                          <Clock className="w-2.5 h-2.5" />
+                          Expediálásra vár
+                        </Badge>
+                      )
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   {(() => {
@@ -372,6 +404,15 @@ export function IratokLista({
                                 ? Math.max(...irat.irat_fajl.map((f) => f.verzio || 1))
                                 : 1
                             }
+                          />
+                        )}
+                        {canEdit && ugyiratId && irat.irany === "kimeno" && (
+                          <ExpediteDialog
+                            ugyiratId={ugyiratId}
+                            iratId={irat.id}
+                            iratTargy={irat.targy}
+                            dossierIktatoszam={dossierIktatoszam}
+                            partnerInfo={partnerInfo}
                           />
                         )}
                       </div>

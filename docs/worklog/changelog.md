@@ -6,6 +6,32 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-04)
 
+### ✉️ Kimenő Irat, Válaszlevél és Expediálási Architektúra UX ([P-048](../product/decisions/P-048-outgoing-document-and-dispatch-architecture-ux.md))
+- **Teljes Mező-Duplikáció Felszámolása (Zero Redundancy):**
+  - Megszüntetve a közvetlen levélírás korábbi hibáját, ahol egymás alatt duplán kellett megadni a tárgyat és az üzenetet („Kimenő levél tárgya” + „Válaszlevél szövege” és „E-mail tárgya” + „Kísérőszöveg a partnernek”).
+  - Az új, letisztult modellben kizárólag **1 címzett e-mail cím, 1 tárgy és 1 válaszlevél szövege** szerepel.
+  - A megadott szövegből a rendszer automatikusan formális fejlécű A4-es PDF dokumentumot generál az irattár és az iktatókönyv számára, és azonos tartalommal azonnal kiküldi e-mailben a partnernek a csatolt PDF-fel együtt.
+- **Tökéletesen Kiegyensúlyozott, Szimmetrikus Grid Elrendezés (`h-[500px]`):**
+  - Megszüntetve a bal oldali kártya korábbi 900+ pixeles monolitikus túlzsúfoltságát.
+  - A bal oldali *„Válaszlevelek és Expediálás”* panel és a jobb oldali *„Belső Megjegyzések”* kártya immár szigorúan **azonos magasságú (`h-[500px]`)**, azonos fejléc vizuális súlyú és tökéletesen illeszkedik a Linear Flat dizájnrendszerbe.
+- **Letisztult Modális Munkafolyamatok (Focused Action Dialogs):**
+  - A 3 iratkészítési művelethez fókuszált modális dialógusok tartoznak:
+    - `[ ✉️ Válaszlevél írása ]` (Kiemelt zöld gomb): közvetlen válasz megfogalmazása és azonnali expediálása.
+    - `[ 📁 PDF feltöltése ]`: meglévő PDF dokumentum csatolása és kézbesítése (e-mailben, postai feladással vagy későbbi iktatással).
+    - `[ 📝 Sablon használata ]`: hivatalos iratsablonok (hiánypótlás, számlabefogadási igazolás, tájékoztató levél) kiválasztása, szerkesztése és PDF generálása.
+- **Kimenő Iratok Listája, Gyors Megtekintő és Utólagos Expediálás:**
+  - A panel görgethető listájában megjelennek az ügyirathoz tartozó kimenő iratok (`outgoingDocs`) alszámmal és címzettel.
+  - Szemantikus státuszjelvények: `Kiküldve e-mailben (dátum)`, `Postázva (dátum)` és `Expediálásra vár`.
+  - Beépített `DocumentViewer` előnézet szem ikonnal a csatolt és generált PDF-ekhez.
+  - Utólagos expediálás (`ExpediteDialog`) a korábban még ki nem küldött iratokhoz.
+- **Válaszlevél Sablon Katalógus & CRUD Kezelés (`ReplyTemplatePicker`):**
+  - A feladat sablonok mintájára bevezetve az új sablon hozzáadása (`+ Új sablon`), szerkesztése és törlése lehetőség a `rendszer_beallitas` táblában tárolt egyéni sablonokkal és a beépített standard sablonokkal.
+  - Dedikált keresés név, tárgy és szöveg alapján, kategória szerinti szűrés és azonnali alkalmazás mind a közvetlen válaszlevélnél, mind a sablonos generálásnál.
+- **Kiküldetlen Kimenő Iratok Törlése (`deleteOutgoingDocument`):**
+  - Megvalósítva a még expedícióra váró kimenő irat vázlatok végleges törlése megerősítő modállal, a csatolt storage fájlok biztonságos felszabadításával és append-only audit naplózással (`esemeny_naplo`).
+- **Modális Elrendezés és Vízszintes Elcsúszás Javítása (Zero Horizontal Scroll):**
+  - Megszüntetve a textarea `field-sizing-content` böngésző-szintű konténertágulása és a `DialogFooter` negatív margója miatti vízszintes scrollbar és gomb-levágódási hiba a válaszlevél és sablongeneráló modálokban.
+
 ### 📁 Ügyirat Életciklus, Szakmai Elintézés és Lezárási Architektúra UX ([P-047](../product/decisions/P-047-dossier-lifecycle-and-settlement-architecture-ux.md))
 - **Kétfázisú Életciklus Szétválasztása (Elintézés vs Irattározás):**
   - **Szakmai Elintézés („Ügyirat elintézése” / `elintezett`):** Bevezetve az ügyintézők és vezetők számára a szakmai munka befejezésének formális aktusa, amely igazolja, hogy a számlaigazolás, feladatok és válaszlevelek mind teljesültek.

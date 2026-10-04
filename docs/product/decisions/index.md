@@ -55,9 +55,10 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-045](./P-045-unified-employee-intake-and-docs-integration-ux.md) | 2026-10-02 | Egységesített Munkatársi Beléptetés és eaisyDocs Integrációs Modál UX | `[HR]` | `HR / Admin & Settings` | `add-employee-dialog.tsx`, `hr/admin/page.tsx`, `hr/settings/page.tsx` |
 | [P-046](./P-046-task-rejection-and-eaisyhr-ui-unification-ux.md) | 2026-10-04 | Feladat Elutasítás Vizuális Újratervezése és eaisyHR Teljes UI/UX Tisztítás | `[Közös]` | `UI/UX Standards / Task & HR` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), `kanban-board.tsx`, `tasks-tab.tsx`, `src/app/hr/*` |
 | [P-047](./P-047-dossier-lifecycle-and-settlement-architecture-ux.md) | 2026-10-04 | Ügyirat Életciklus, Szakmai Elintézés és Lezárási Architektúra UX | `[Docs]` | `Dossier Lifecycle / Settlement & Tasks` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), `dossier-lifecycle-actions.tsx`, `tasks-tab.tsx`, `actions.ts` |
+| [P-048](./P-048-outgoing-document-and-dispatch-architecture-ux.md) | 2026-10-04 | Kimenő Irat, Válaszlevél és Expediálási Architektúra UX | `[Docs]` | `Dossiers / Outgoing & Expedition` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), `outgoing-documents-panel.tsx`, `tasks-tab.tsx`, `expedite-dialog.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-048`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-049`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 

@@ -359,6 +359,19 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
     return { error: fileCheck.error || "A kiválasztott fájl érvénytelen vagy sérült!" }
   }
 
+  // Expedíciós paraméterek beolvasása
+  const expediteMode = (formData.get("expediteMode") as string) || "none"
+  const recipientEmail = (formData.get("recipientEmail") as string)?.trim()
+  const emailSubject = (formData.get("emailSubject") as string)?.trim() || targy
+  const emailMessage = (formData.get("emailMessage") as string)?.trim()
+  const saveToPartnerId = (formData.get("saveToPartnerId") as string)?.trim()
+  const partnerId = (formData.get("partnerId") as string)?.trim() || saveToPartnerId || null
+  const postalTracking = (formData.get("postalTracking") as string)?.trim()
+  const postalDate = (formData.get("postalDate") as string)?.trim()
+  const postalAddress = (formData.get("postalAddress") as string)?.trim()
+  const postalRecipient = (formData.get("postalRecipient") as string)?.trim()
+  const postalNote = (formData.get("postalNote") as string)?.trim()
+
   // 1. Fájl feltöltése Storage-ba
   const fileExt = file.name.split('.').pop()
   const fileName = `${crypto.randomUUID()}.${fileExt}`
@@ -395,6 +408,7 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
   const alszam = maxAlszam + 1
 
   // 3. Irat rekord létrehozása (Kimenő)
+  const initialKezbesitesStatusz = expediteMode === "none" ? "expedialasra_var" : "expedialasra_var"
   const { data: iratData, error: iratError } = await supabase
     .from("irat")
     .insert({
@@ -404,7 +418,10 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
       erkezes_modja: "rendszer",
       adathordozo_tipus: "elektronikus_eredeti",
       minosites: "nyilt",
-      alszam
+      alszam,
+      kuldo_partner_id: partnerId || null,
+      kezbesites_statusz: initialKezbesitesStatusz,
+      kezbesites_modja: expediteMode === "posta" ? "posta" : (expediteMode === "email" ? "email" : null)
     })
     .select("id")
     .single()
@@ -427,7 +444,7 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
     .select("id")
     .single()
 
-  // 5. Eseménynapló
+  // 5. Eseménynapló rögzítése a feltöltésről
   const { ip, userAgent } = await getClientInfo()
 
   await supabase.from("esemeny_naplo").insert({
@@ -440,7 +457,59 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
     user_agent: userAgent
   })
 
-  // 6. Háttérsorba állítás a PDF/A normalizáláshoz (Queue-based Worker védi a szervererőforrásokat)
+  // 6. Expedíció végrehajtása (ha kérték az azonnali kézbesítést)
+  let expediteError: string | undefined = undefined
+  let dispatched = false
+
+  if (expediteMode === "email") {
+    if (!recipientEmail) {
+      expediteError = "A kért e-mail kiküldéshez hiányzik a címzett e-mail címe!"
+    } else {
+      const { sendEmailWithAttachment } = await import("@/utils/mailer")
+      const mailRes = await sendEmailWithAttachment({
+        to: recipientEmail,
+        subject: emailSubject || targy,
+        text: emailMessage || `Tisztelt Partnerünk!\n\nMellékelten továbbítjuk a(z) ${ugyirat?.iktatoszam || ""} ügyirathoz tartozó "${targy}" kimenő iratunkat.\n\nÜdvözlettel,\neaisyDocs`,
+        attachments: [
+          {
+            filename: file.name,
+            content: buffer,
+            contentType: file.type || "application/pdf"
+          }
+        ],
+        iratId: iratData.id,
+        ugyiratId,
+        userId: user.id,
+        saveToPartnerId: saveToPartnerId || undefined
+      })
+
+      if (!mailRes.success) {
+        expediteError = `A válaszlevél rögzítve lett, de az e-mail kiküldés meghiúsult: ${mailRes.error}`
+      } else {
+        dispatched = true
+      }
+    }
+  } else if (expediteMode === "posta") {
+    const { recordPostalDispatch } = await import("@/utils/mailer")
+    const postalRes = await recordPostalDispatch({
+      iratId: iratData.id,
+      ugyiratId,
+      userId: user.id,
+      recipientName: postalRecipient || "Partner",
+      recipientAddress: postalAddress,
+      trackingNumber: postalTracking,
+      dispatchDate: postalDate,
+      note: postalNote
+    })
+
+    if (!postalRes.success) {
+      expediteError = `A válaszlevél rögzítve lett, de a postai feladás mentése hibát adott: ${postalRes.error}`
+    } else {
+      dispatched = true
+    }
+  }
+
+  // 7. Háttérsorba állítás a PDF/A normalizáláshoz
   if (fajlResult) {
     try {
       const { enqueuePdfaConversion } = await import("@/utils/ai-worker-service")
@@ -450,7 +519,7 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
     }
   }
 
-  // 7. Értesítések kiküldése mentett keresésekre
+  // 8. Értesítések kiküldése mentett keresésekre
   (async () => {
     try {
       const { checkSavedSearchesForNewIrat } = await import("@/utils/saved-search-alerts")
@@ -461,6 +530,308 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
   })().catch(console.error)
 
   revalidatePath(`/dossiers/${ugyiratId}`)
+  return {
+    success: true,
+    iratId: iratData.id,
+    dispatched,
+    expediteError
+  }
+}
+
+/**
+ * Kimenő irat generálása közvetlen szöveg-szerkesztőből vagy sablonból,
+ * és opcionális azonnali kiküldése (expediálás e-mailben PDF csatolmánnyal vagy postán).
+ */
+export async function generateAndExpediteReply(ugyiratId: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
+  if (permCheck.error) return { error: permCheck.error }
+
+  const { data: ugyirat } = await supabase
+    .from("ugyirat")
+    .select("statusz, iktatoszam, ugy(targy)")
+    .eq("id", ugyiratId)
+    .single()
+
+  if (ugyirat && ["irattarban", "lezart", "selejtezheto", "selejtezett"].includes(ugyirat.statusz)) {
+    return { error: `A kiválasztott ügyirat (${ugyirat.iktatoszam}) lezárt, ezért nem hozható létre új kimenő irat!` }
+  }
+
+  const targy = (formData.get("targy") as string)?.trim()
+  const tartalom = (formData.get("tartalom") as string)?.trim()
+  const cimzett = (formData.get("cimzett") as string)?.trim()
+  const sablonTipus = (formData.get("sablon_tipus") as string)?.trim() || "egyedi"
+  const hivatkozas = (formData.get("hivatkozas") as string)?.trim() || ugyirat?.iktatoszam || ""
+
+  if (!targy || !tartalom) {
+    return { error: "A tárgy és a levél szövegének megadása kötelező!" }
+  }
+
+  // Felhasználó profil
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("nev")
+    .eq("id", user.id)
+    .single()
+
+  // Expedíciós adatok
+  const expediteMode = (formData.get("expediteMode") as string) || "none"
+  const recipientEmail = (formData.get("recipientEmail") as string)?.trim()
+  const emailSubject = (formData.get("emailSubject") as string)?.trim() || targy
+  const emailMessage = (formData.get("emailMessage") as string)?.trim()
+  const saveToPartnerId = (formData.get("saveToPartnerId") as string)?.trim()
+  const partnerId = (formData.get("partnerId") as string)?.trim() || saveToPartnerId || null
+  const postalTracking = (formData.get("postalTracking") as string)?.trim()
+  const postalDate = (formData.get("postalDate") as string)?.trim()
+  const postalAddress = (formData.get("postalAddress") as string)?.trim()
+  const postalRecipient = (formData.get("postalRecipient") as string)?.trim() || cimzett
+  const postalNote = (formData.get("postalNote") as string)?.trim()
+
+  // 1. PDF generálás pdf-lib segítségével
+  const { generateLetterPdfBuffer } = await import("@/utils/pdf-letter-generator")
+  const pdfBuffer = await generateLetterPdfBuffer({
+    targy,
+    cimzett,
+    iktatoszam: ugyirat?.iktatoszam || undefined,
+    ugyTargy: (ugyirat?.ugy as any)?.targy || undefined,
+    hivatkozas,
+    tartalom,
+    authorNev: profile?.nev || "eaisyDocs"
+  })
+
+  // 2. Storage feltöltés
+  const fileName = `${crypto.randomUUID()}.pdf`
+  const { error: uploadError } = await supabase.storage
+    .from("irat_files")
+    .upload(fileName, pdfBuffer, {
+      contentType: "application/pdf",
+      upsert: false
+    })
+
+  if (uploadError) return { error: "Hiba a generált PDF feltöltésekor: " + uploadError.message }
+
+  const hash = crypto.createHash("sha256").update(pdfBuffer).digest("hex")
+
+  // 3. Alszám számítás
+  const { data: iratok } = await supabase
+    .from("irat")
+    .select("alszam")
+    .eq("ugyirat_id", ugyiratId)
+
+  const maxAlszam = iratok?.reduce((max, i) => Math.max(max, i.alszam || 0), 0) || 0
+  const alszam = maxAlszam + 1
+
+  // 4. Irat rekord
+  const initialKezbesitesStatusz = expediteMode === "none" ? "expedialasra_var" : "expedialasra_var"
+  const { data: iratData, error: iratError } = await supabase
+    .from("irat")
+    .insert({
+      ugyirat_id: ugyiratId,
+      targy,
+      irany: "kimeno",
+      erkezes_modja: "rendszer",
+      adathordozo_tipus: "elektronikus_eredeti",
+      minosites: "nyilt",
+      alszam,
+      kuldo_partner_id: partnerId || null,
+      kezbesites_statusz: initialKezbesitesStatusz,
+      kezbesites_modja: expediteMode === "posta" ? "posta" : (expediteMode === "email" ? "email" : null)
+    })
+    .select("id")
+    .single()
+
+  if (iratError || !iratData) return { error: "Hiba az irat rekord létrehozásakor." }
+
+  // 5. Irat fájl rekord
+  const dateStr = new Date().toLocaleDateString("hu-HU").replace(/\./g, "").replace(/ /g, "_")
+  const generatedFilename = `kimenő_${targy.toLowerCase().replace(/[^a-z0-9]/gi, "_").substring(0, 30)}_${dateStr}.pdf`
+  const { data: fajlResult } = await supabase
+    .from("irat_fajl")
+    .insert({
+      irat_id: iratData.id,
+      storage_path: fileName,
+      eredeti_fajlnev: generatedFilename,
+      mime_type: "application/pdf",
+      meret_byte: pdfBuffer.length,
+      sha256: hash,
+      verzio: 1,
+      ocr_szoveg: tartalom
+    })
+    .select("id")
+    .single()
+
+  // 6. Eseménynapló
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "ugyirat",
+    entitas_id: ugyiratId,
+    esemeny_tipus: "modositva",
+    user_id: user.id,
+    indoklas: `Kimenő irat generálva (${sablonTipus}): ${targy}`,
+  })
+
+  // 7. Expedíció
+  let expediteError: string | undefined = undefined
+  let dispatched = false
+
+  if (expediteMode === "email") {
+    if (!recipientEmail) {
+      expediteError = "A kért e-mail kiküldéshez hiányzik a címzett e-mail címe!"
+    } else {
+      const { sendEmailWithAttachment } = await import("@/utils/mailer")
+      const mailRes = await sendEmailWithAttachment({
+        to: recipientEmail,
+        subject: emailSubject || targy,
+        text: emailMessage || `Tisztelt Partnerünk!\n\nMellékelten továbbítjuk a(z) ${ugyirat?.iktatoszam || ""} ügyirathoz tartozó "${targy}" kimenő iratunkat.\n\nÜdvözlettel,\n${profile?.nev || "eaisyDocs"}`,
+        attachments: [
+          {
+            filename: generatedFilename,
+            content: pdfBuffer,
+            contentType: "application/pdf"
+          }
+        ],
+        iratId: iratData.id,
+        ugyiratId,
+        userId: user.id,
+        saveToPartnerId: saveToPartnerId || undefined
+      })
+
+      if (!mailRes.success) {
+        expediteError = `A kimenő irat létrejött, de az e-mail kiküldés meghiúsult: ${mailRes.error}`
+      } else {
+        dispatched = true
+      }
+    }
+  } else if (expediteMode === "posta") {
+    const { recordPostalDispatch } = await import("@/utils/mailer")
+    const postalRes = await recordPostalDispatch({
+      iratId: iratData.id,
+      ugyiratId,
+      userId: user.id,
+      recipientName: postalRecipient || cimzett || "Partner",
+      recipientAddress: postalAddress,
+      trackingNumber: postalTracking,
+      dispatchDate: postalDate,
+      note: postalNote
+    })
+
+    if (!postalRes.success) {
+      expediteError = `A kimenő irat létrejött, de a postai feladás mentése hibát adott: ${postalRes.error}`
+    } else {
+      dispatched = true
+    }
+  }
+
+  // 8. PDF/A sorba állítás
+  if (fajlResult) {
+    try {
+      const { enqueuePdfaConversion } = await import("@/utils/ai-worker-service")
+      await enqueuePdfaConversion(iratData.id, fajlResult.id, supabase)
+    } catch (err) {
+      console.warn("PDF/A sorba állítás figyelmeztetés:", err)
+    }
+  }
+
+  revalidatePath(`/dossiers/${ugyiratId}`)
+  return {
+    success: true,
+    iratId: iratData.id,
+    dispatched,
+    expediteError
+  }
+}
+
+/**
+ * Már meglévő, expediálásra váró kimenő irat kiküldése (e-mailben csatolt PDF-fel vagy postai rögzítéssel).
+ */
+export async function expediteExistingDocument(ugyiratId: string, iratId: string, formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
+  if (permCheck.error) return { error: permCheck.error }
+
+  const expediteMode = (formData.get("expediteMode") as string) || "email"
+  const recipientEmail = (formData.get("recipientEmail") as string)?.trim()
+  const emailSubject = (formData.get("emailSubject") as string)?.trim()
+  const emailMessage = (formData.get("emailMessage") as string)?.trim()
+  const saveToPartnerId = (formData.get("saveToPartnerId") as string)?.trim()
+  const postalTracking = (formData.get("postalTracking") as string)?.trim()
+  const postalDate = (formData.get("postalDate") as string)?.trim()
+  const postalAddress = (formData.get("postalAddress") as string)?.trim()
+  const postalRecipient = (formData.get("postalRecipient") as string)?.trim()
+  const postalNote = (formData.get("postalNote") as string)?.trim()
+
+  if (expediteMode === "email") {
+    if (!recipientEmail) return { error: "Címzett e-mail cím megadása kötelező!" }
+    const { sendEmailWithAttachment } = await import("@/utils/mailer")
+    const res = await sendEmailWithAttachment({
+      to: recipientEmail,
+      subject: emailSubject || "Hivatalos kimenő irat",
+      text: emailMessage || "Tisztelt Partnerünk!\n\nMellékelten továbbítjuk hivatalos levelünket.\n\nÜdvözlettel,\neaisyDocs",
+      iratId,
+      ugyiratId,
+      userId: user.id,
+      saveToPartnerId: saveToPartnerId || undefined
+    })
+
+    if (!res.success) return { error: res.error || "Hiba az e-mail kiküldésekor." }
+  } else if (expediteMode === "posta") {
+    const { recordPostalDispatch } = await import("@/utils/mailer")
+    const res = await recordPostalDispatch({
+      iratId,
+      ugyiratId,
+      userId: user.id,
+      recipientName: postalRecipient || "Címzett",
+      recipientAddress: postalAddress,
+      trackingNumber: postalTracking,
+      dispatchDate: postalDate,
+      note: postalNote
+    })
+
+    if (!res.success) return { error: res.error || "Hiba a postai feladás rögzítésekor." }
+  }
+
+  revalidatePath(`/dossiers/${ugyiratId}`)
+  return { success: true }
+}
+
+/**
+ * Partner központi e-mail címének frissítése
+ */
+export async function savePartnerCentralEmail(partnerId: string, email: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  const trimmed = email.trim()
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(trimmed)) {
+    return { error: "Érvénytelen e-mail formátum!" }
+  }
+
+  const { error } = await supabase
+    .from("partner")
+    .update({ email: trimmed })
+    .eq("id", partnerId)
+
+  if (error) return { error: error.message }
+
+  // Naplózás
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "partner",
+    entitas_id: partnerId,
+    user_id: user.id,
+    esemeny_tipus: "modositva",
+    indoklas: `Központi partner e-mail cím frissítve az expedíciós felületről: ${trimmed}`
+  })
+
   return { success: true }
 }
 
@@ -549,3 +920,89 @@ export async function deletePolymorphicLink(id: string, ugyirat_id: string) {
   revalidatePath(`/dossiers/${ugyirat_id}`)
   return { success: true }
 }
+
+export async function deleteOutgoingDocument(ugyiratId: string, iratId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "Nincs bejelentkezve." }
+  }
+
+  const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
+  if (permCheck.error) return { error: permCheck.error }
+
+  // Lekérjük az irat adatait ellenőrzéshez
+  const { data: irat } = await supabase
+    .from("irat")
+    .select("id, ugyirat_id, targy, irany, alszam, kezbesites_statusz")
+    .eq("id", iratId)
+    .eq("ugyirat_id", ugyiratId)
+    .single()
+
+  if (!irat) {
+    return { error: "A törölni kívánt irat nem található." }
+  }
+
+  if (irat.irany !== "kimeno") {
+    return { error: "Kizárólag kimenő válaszirat törölhető ebből a panelből." }
+  }
+
+  if (irat.kezbesites_statusz === "expedialva") {
+    return {
+      error: "A már sikeresen kiküldött (expediált) kimenő irat nem törölhető a hatósági naplózási és irattári integritási szabályok miatt.",
+    }
+  }
+
+  // Kapcsolt fájlok lekérése és törlése a tárolóból
+  const { data: fajlok } = await supabase
+    .from("irat_fajl")
+    .select("id, storage_path, pdfa_path")
+    .eq("irat_id", iratId)
+
+  if (fajlok && fajlok.length > 0) {
+    const pathsToRemove: string[] = []
+    for (const f of fajlok) {
+      if (f.storage_path) pathsToRemove.push(f.storage_path)
+      if (f.pdfa_path) pathsToRemove.push(f.pdfa_path)
+    }
+
+    if (pathsToRemove.length > 0) {
+      await supabase.storage.from("iratok").remove(pathsToRemove)
+    }
+
+    // Törlés az irat_fajl táblából
+    await supabase.from("irat_fajl").delete().eq("irat_id", iratId)
+  }
+
+  // Kapcsolódó irat_kapcsolat rekordok törlése
+  await supabase.from("irat_kapcsolat").delete().eq("irat_id", iratId)
+
+  // Maga az irat törlése
+  const { error: iratDeleteError } = await supabase
+    .from("irat")
+    .delete()
+    .eq("id", iratId)
+
+  if (iratDeleteError) {
+    return { error: `Hiba történt az irat törlésekor: ${iratDeleteError.message}` }
+  }
+
+  const { ip, userAgent } = await getClientInfo()
+
+  // Szigorú append-only eseménynapló bejegyzés
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "ugyirat",
+    entitas_id: ugyiratId,
+    esemeny_tipus: "modositva",
+    user_id: user.id,
+    indoklas: `Még ki nem küldött kimenő irat vázlat törölve az ügyiratból: "${irat.targy}" (${irat.alszam ? `${irat.alszam}. alszám` : ""})`,
+    ip_cim: ip,
+    user_agent: userAgent,
+  })
+
+  revalidatePath(`/dossiers/${ugyiratId}`)
+  revalidatePath(`/dossiers`)
+  return { success: true }
+}
+
