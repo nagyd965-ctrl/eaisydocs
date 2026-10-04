@@ -1,15 +1,35 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { MessageSquare, CheckCircle2, Loader2, Circle, ArrowRight, X, MoreHorizontal } from "lucide-react"
+import {
+  MessageSquare,
+  CheckCircle2,
+  Loader2,
+  ArrowRight,
+  X,
+  MoreHorizontal,
+  Trash2,
+  Ban,
+  RotateCcw,
+  Calendar,
+  User,
+  Check,
+  Clock,
+  Sparkles,
+  AlertCircle,
+  MoreVertical,
+  Info,
+} from "lucide-react"
 import { toast } from "sonner"
 import { addComment, updateDossierStatus, uploadReply } from "@/app/dossiers/[id]/actions"
-import { updateTaskStatus } from "@/app/tasks/task-actions"
+import { updateTaskStatus, deleteTask } from "@/app/tasks/task-actions"
 import { AddTaskDialog } from "./add-task-dialog"
+import { TaskRejectDialog } from "./task-reject-dialog"
 import { Badge } from "./ui/badge"
 import { TemplateDialog } from "./template-dialog"
 import { Progress } from "./ui/progress"
@@ -18,8 +38,18 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { parseTaskMetadata, CATEGORY_CONFIG, PRIORITY_CONFIG } from "@/utils/task-templates"
 
 export interface TaskComment {
   id: string
@@ -37,6 +67,11 @@ export interface UgyiratTaskItem {
   allapot: "nyitott" | "folyamatban" | "kesz" | "elutasitott" | string
   felelos_user_id?: string
   hatarido: string
+  kategoria?: string | null
+  prioritas?: string | null
+  indoklas?: string | null
+  reszletek?: string | null
+  created_at?: string
 }
 
 export interface UserSelectItem {
@@ -46,29 +81,52 @@ export interface UserSelectItem {
 }
 
 interface TasksTabProps {
-  ugyiratId: string;
-  ugyId: string;
-  status: string;
-  comments: TaskComment[];
-  tasks: UgyiratTaskItem[];
-  users: UserSelectItem[];
-  canEdit: boolean;
-  currentUserEmail: string;
-  iktatoszam?: string;
+  ugyiratId: string
+  ugyId: string
+  status: string
+  comments: TaskComment[]
+  tasks: UgyiratTaskItem[]
+  users: UserSelectItem[]
+  canEdit: boolean
+  currentUserEmail: string
+  iktatoszam?: string
 }
 
-export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, canEdit, currentUserEmail, iktatoszam }: TasksTabProps) {
+export function TasksTab({
+  ugyiratId,
+  ugyId,
+  status,
+  comments,
+  tasks,
+  users,
+  canEdit,
+  currentUserEmail,
+  iktatoszam,
+}: TasksTabProps) {
+  const router = useRouter()
   const [commentText, setCommentText] = useState("")
   const [commentLoading, setCommentLoading] = useState(false)
   const [statusLoading, setStatusLoading] = useState<string | null>(null)
   const [taskLoading, setTaskLoading] = useState<string | null>(null)
   const [uploadLoading, setUploadLoading] = useState(false)
 
+  // Helyi optimista feladatlista
+  const [taskList, setTaskList] = useState<UgyiratTaskItem[]>(tasks)
+  useEffect(() => {
+    setTaskList(tasks)
+  }, [tasks])
+
+  // Törlés és elutasítás modálok állapota
+  const [deletingTask, setDeletingTask] = useState<{ id: string; title: string } | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [rejectingTask, setRejectingTask] = useState<{ id: string; title: string } | null>(null)
+
   // Feladat statisztikák
-  const totalTasks = tasks.length
-  const completedTasks = tasks.filter(t => t.allapot === "kesz").length
-  const inProgressTasks = tasks.filter(t => t.allapot === "folyamatban").length
-  const allTasksDone = totalTasks > 0 && completedTasks === totalTasks
+  const totalTasks = taskList.length
+  const completedTasks = taskList.filter((t) => t.allapot === "kesz").length
+  const inProgressTasks = taskList.filter((t) => t.allapot === "folyamatban").length
+  const rejectedTasks = taskList.filter((t) => t.allapot === "elutasitott").length
+  const allTasksDone = totalTasks > 0 && completedTasks + rejectedTasks === totalTasks
   const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
 
   const handleAddComment = async () => {
@@ -98,17 +156,26 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
     }
   }
 
-  const handleTaskStatusChange = async (taskId: string, newStatus: "nyitott" | "folyamatban" | "kesz" | "elutasitott") => {
+  const handleTaskStatusChange = async (
+    taskId: string,
+    newStatus: "nyitott" | "folyamatban" | "kesz" | "elutasitott",
+    indoklas?: string
+  ) => {
     setTaskLoading(taskId)
 
-    // Ha az ügyirat még "iktatva" státuszban van és egy feladatot elindítanak,
-    // automatikusan átállítjuk "ügyintézés alatt"-ra
+    // Optimista frissítés
+    setTaskList((prev) =>
+      prev.map((t) =>
+        t.id === taskId ? { ...t, allapot: newStatus, indoklas: indoklas !== undefined ? indoklas : t.indoklas } : t
+      )
+    )
+
     if (status === "iktatva" && (newStatus === "folyamatban" || newStatus === "kesz")) {
       await updateDossierStatus(ugyiratId, ugyId, "ugyintezes_alatt")
     }
 
-    const currentTask = tasks.find(t => t.id === taskId)
-    const result = await updateTaskStatus(taskId, newStatus, currentTask?.allapot as any)
+    const currentTask = taskList.find((t) => t.id === taskId)
+    const result = await updateTaskStatus(taskId, newStatus, currentTask?.allapot as any, indoklas)
     setTaskLoading(null)
 
     if (result.success) {
@@ -116,11 +183,30 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
         nyitott: "Nyitott",
         folyamatban: "Folyamatban",
         kesz: "Kész",
-        elutasitott: "Elutasítva"
+        elutasitott: "Elutasítva",
       }
       toast.success(`Feladat: ${statusLabels[newStatus]}`)
+      router.refresh()
     } else {
       toast.error(result.error || "Hiba történt")
+      setTaskList(tasks)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deletingTask) return
+
+    setDeleteLoading(true)
+    const res = await deleteTask(deletingTask.id)
+    setDeleteLoading(false)
+
+    if (res.success) {
+      toast.success("Feladat sikeresen törölve!")
+      setTaskList((prev) => prev.filter((t) => t.id !== deletingTask.id))
+      setDeletingTask(null)
+      router.refresh()
+    } else {
+      toast.error(res.error || "Hiba történt a feladat törlésekor.")
     }
   }
 
@@ -140,45 +226,78 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
 
   return (
     <div className="space-y-6">
-
       {/* Ügyirati Feladatok + Munkafolyamat */}
-      <Card className="border border-border/50">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <div>
-            <CardTitle className="text-base font-semibold">Ügyirati Feladatok</CardTitle>
+      <Card className="border border-border/60">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base font-semibold">Ügyirati Feladatok</CardTitle>
+              {totalTasks > 0 && (
+                <Badge variant="outline" className="text-xs font-normal">
+                  {completedTasks}/{totalTasks} kész
+                </Badge>
+              )}
+            </div>
+            <CardDescription className="text-xs text-muted-foreground">
+              Határidős feladatok és felelősök kezelése az ügyiratban.
+            </CardDescription>
           </div>
           <div className="flex items-center gap-2">
             {/* Elintézettnek jelölés – csak ha minden feladat kész (vagy nincs feladat) */}
-            <Button 
+            <Button
               onClick={() => handleStatusChange("elintezett")}
               disabled={
-                !canEdit || 
-                status === "elintezett" || 
-                status === "lezart" || 
+                !canEdit ||
+                status === "elintezett" ||
+                status === "lezart" ||
                 statusLoading !== null ||
                 (totalTasks > 0 && !allTasksDone)
               }
               variant="outline"
               size="sm"
-              title={totalTasks > 0 && !allTasksDone ? `Még ${totalTasks - completedTasks} feladat nincs kész` : undefined}
+              className="h-8 text-xs"
+              title={
+                totalTasks > 0 && !allTasksDone
+                  ? `Még ${totalTasks - completedTasks - rejectedTasks} feladat nincs elintézve`
+                  : undefined
+              }
             >
-              {statusLoading === "elintezett" && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              {statusLoading === "elintezett" && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
               Elintézettnek jelölés
             </Button>
 
-            {canEdit && <AddTaskDialog ugyiratId={ugyiratId} users={users} />}
+            {canEdit && (
+              <AddTaskDialog
+                ugyiratId={ugyiratId}
+                users={users}
+                onTaskCreated={() => router.refresh()}
+              />
+            )}
           </div>
         </CardHeader>
         <CardContent>
           {/* Progress bar – ha vannak feladatok */}
           {totalTasks > 0 && (
-            <div className="mb-4 space-y-2">
-              <div className="flex items-center justify-between text-sm">
+            <div className="mb-4 space-y-1.5 pt-1">
+              <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">
-                  {completedTasks}/{totalTasks} feladat kész
-                  {inProgressTasks > 0 && <span className="text-info"> • {inProgressTasks} folyamatban</span>}
+                  {completedTasks}/{totalTasks} feladat lezárva
+                  {inProgressTasks > 0 && (
+                    <span className="text-blue-600 dark:text-blue-400 font-medium">
+                      {" "}• {inProgressTasks} folyamatban
+                    </span>
+                  )}
+                  {rejectedTasks > 0 && (
+                    <span className="text-destructive font-semibold">
+                      {" "}• {rejectedTasks} elutasítva (beavatkozást igényel!)
+                    </span>
+                  )}
                 </span>
-                <span className={`font-medium tabular-nums ${allTasksDone ? 'text-success' : 'text-muted-foreground'}`}>
+                <span
+                  className={`font-semibold tabular-nums text-xs ${
+                    allTasksDone ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                  }`}
+                >
                   {progressPercent}%
                 </span>
               </div>
@@ -186,94 +305,367 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
             </div>
           )}
 
-          {tasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">Még nincsenek feladatok rögzítve.</p>
+          {taskList.length === 0 ? (
+            <div className="py-8 text-center border border-dashed rounded-lg bg-muted/20">
+              <Sparkles className="h-6 w-6 text-muted-foreground/60 mx-auto mb-2" />
+              <p className="text-xs font-medium text-foreground">Még nincsenek feladatok rögzítve.</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Kattints az „Új Feladat” gombra sablonos vagy egyedi teendő kiírásához.
+              </p>
+            </div>
           ) : (
-            <div className="space-y-2">
-              {tasks.map(task => (
-                <div 
-                  key={task.id} 
-                  className={`flex justify-between items-center p-3 border rounded-lg transition-colors ${
-                    task.allapot === "kesz" 
-                      ? "border-success/30 bg-success/5" 
-                      : task.allapot === "elutasitott"
-                      ? "border-destructive/30 bg-destructive/5 opacity-60"
-                      : task.allapot === "folyamatban"
-                      ? "border-info/30 bg-info/5"
-                      : "border-border/50 hover:bg-muted/50"
-                  }`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className={`font-medium text-sm ${task.allapot === "kesz" ? "line-through text-muted-foreground" : ""}`}>
-                      {task.leiras}
-                    </div>
-                    <div className="text-xs text-muted-foreground flex gap-4 mt-1">
-                      <span>Felelős: {users.find(u => u.id === task.felelos_user_id)?.nev || 'Ismeretlen'}</span>
-                      <span>Határidő: {new Date(task.hatarido).toLocaleDateString('hu-HU')}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 ml-3 shrink-0">
-                    <TaskStatusBadge allapot={task.allapot} />
+            <div className="space-y-2.5">
+              {taskList.map((task) => {
+                const meta = parseTaskMetadata(task)
+                const isKesz = task.allapot === "kesz"
+                const isElutasitott = task.allapot === "elutasitott"
+                const isFolyamatban = task.allapot === "folyamatban"
 
-                    {/* Feladat műveletek – dropdown menü */}
-                    {canEdit && task.allapot !== "kesz" && task.allapot !== "elutasitott" && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
-                          disabled={taskLoading === task.id}
-                        >
-                          {taskLoading === task.id 
-                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> 
-                            : <MoreHorizontal className="h-3.5 w-3.5" />
+                const catConfig = CATEGORY_CONFIG[meta.kategoria]
+                const prioConfig = PRIORITY_CONFIG[meta.prioritas]
+
+                const deadlineDate = task.hatarido ? new Date(task.hatarido) : null
+                const now = new Date()
+                now.setHours(0, 0, 0, 0)
+                const isOverdue =
+                  !!deadlineDate && deadlineDate < now && !isKesz && !isElutasitott
+
+                const assignee = users.find((u) => u.id === task.felelos_user_id)
+                const assigneeName = assignee?.nev || assignee?.email || "Nincs megadva"
+
+                return (
+                  <div
+                    key={task.id}
+                    className={`group relative flex flex-col md:flex-row md:items-start justify-between gap-3 p-3.5 rounded-xl border transition-all ${
+                      isKesz
+                        ? "border-border/40 bg-muted/20 opacity-80"
+                        : isElutasitott
+                        ? "border-destructive/40 bg-destructive/[0.03]"
+                        : isFolyamatban
+                        ? "border-blue-500/30 bg-blue-500/[0.03]"
+                        : "border-border/70 hover:border-primary/40 bg-card hover:bg-muted/10 shadow-xs"
+                    }`}
+                  >
+                    {/* Bal oldali rész: Gyors állapot toggle + Strukturált tartalom */}
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      {/* 1. Gyors állapot kapcsoló (Quick Toggle) */}
+                      <button
+                        type="button"
+                        disabled={!canEdit || taskLoading === task.id}
+                        onClick={() => {
+                          if (isKesz) {
+                            handleTaskStatusChange(task.id, "nyitott")
+                          } else if (isElutasitott) {
+                            handleTaskStatusChange(task.id, "nyitott")
+                          } else {
+                            handleTaskStatusChange(task.id, "kesz")
                           }
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {task.allapot === "nyitott" && (
-                            <DropdownMenuItem onClick={() => handleTaskStatusChange(task.id, "folyamatban")}>
-                              <ArrowRight className="mr-2 h-3.5 w-3.5 text-info" />
-                              Elkezdtem
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => handleTaskStatusChange(task.id, "kesz")}>
-                            <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-success" />
-                            Kész
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleTaskStatusChange(task.id, "elutasitott")}>
-                            <X className="mr-2 h-3.5 w-3.5 text-destructive" />
-                            Elutasítva / Nem releváns
-                          </DropdownMenuItem>
-                          {task.allapot === "folyamatban" && (
-                            <DropdownMenuItem onClick={() => handleTaskStatusChange(task.id, "nyitott")}>
-                              <Circle className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-                              Visszaállítás nyitottra
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-
-                    {/* Visszaállítás gomb, ha kész vagy elutasított */}
-                    {canEdit && (task.allapot === "kesz" || task.allapot === "elutasitott") && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs text-muted-foreground"
-                        disabled={taskLoading === task.id}
-                        onClick={() => handleTaskStatusChange(task.id, "nyitott")}
-                      >
-                        {taskLoading === task.id 
-                          ? <Loader2 className="h-3 w-3 animate-spin" /> 
-                          : "Visszanyitás"
+                        }}
+                        title={
+                          isKesz
+                            ? "Kész (kattints az újranyitáshoz)"
+                            : isElutasitott
+                            ? "Elutasított (kattints az újranyitáshoz)"
+                            : "Kattints a készre jelöléshez"
                         }
-                      </Button>
-                    )}
+                        className={`mt-0.5 shrink-0 h-5 w-5 rounded-md flex items-center justify-center border transition-all cursor-pointer ${
+                          isKesz
+                            ? "bg-emerald-500 border-emerald-500 text-white shadow-xs"
+                            : isElutasitott
+                            ? "border-destructive/60 text-destructive bg-destructive/10 hover:bg-destructive/20"
+                            : isFolyamatban
+                            ? "border-blue-500 text-blue-500 bg-blue-500/10 hover:bg-emerald-500 hover:border-emerald-500 hover:text-white"
+                            : "border-muted-foreground/40 hover:border-primary hover:bg-primary/10 text-transparent hover:text-primary"
+                        }`}
+                      >
+                        {taskLoading === task.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin text-current" />
+                        ) : isKesz ? (
+                          <Check className="h-3.5 w-3.5 stroke-[3]" />
+                        ) : isElutasitott ? (
+                          <X className="h-3.5 w-3.5 stroke-[2.5]" />
+                        ) : isFolyamatban ? (
+                          <span className="h-2 w-2 rounded-full bg-blue-500" />
+                        ) : (
+                          <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                        )}
+                      </button>
+
+                      {/* 2. Feladat szöveges törzse */}
+                      <div className="flex-1 min-w-0">
+                        {/* Címsor: Cím + Kategória és Prioritás badge-ek */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`font-semibold text-sm leading-snug ${
+                              isKesz
+                                ? "line-through text-muted-foreground"
+                                : isElutasitott
+                                ? "text-muted-foreground/80 line-through"
+                                : "text-foreground"
+                            }`}
+                          >
+                            {meta.displayTitle}
+                          </span>
+
+                          {/* Kategória jelvény */}
+                          {catConfig && meta.kategoria !== "egyeb" && (
+                            <span
+                              className={`text-[10px] font-medium px-2 py-0.5 rounded border ${catConfig.badgeClass}`}
+                            >
+                              {catConfig.shortLabel}
+                            </span>
+                          )}
+
+                          {/* Prioritás jelvény */}
+                          {prioConfig && (meta.prioritas === "surgos" || meta.prioritas === "magas") && (
+                            <span
+                              className={`text-[10px] font-medium px-2 py-0.5 rounded border flex items-center gap-1.5 ${prioConfig.badgeClass}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${prioConfig.dotClass}`} />
+                              {prioConfig.label}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Részletek / munkautasítás doboz (ha van) */}
+                        {meta.reszletek && (
+                          <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed bg-muted/40 border border-border/50 rounded-md px-2.5 py-1.5 line-clamp-2">
+                            {meta.reszletek}
+                          </p>
+                        )}
+
+                        {/* Kiemelt Elutasítási Doboz a Vezető és Munkatársak számára */}
+                        {isElutasitott && (
+                          <div className="mt-2.5 rounded-lg border border-destructive/30 bg-destructive/[0.08] dark:bg-destructive/[0.15] p-3 text-xs space-y-1.5">
+                            <div className="flex items-center gap-2 text-destructive font-semibold">
+                              <Ban className="h-4 w-4 shrink-0" />
+                              <span className="uppercase tracking-wider text-[11px] font-bold">
+                                Elutasítás oka / Vezetői indoklás
+                              </span>
+                            </div>
+                            <div className="bg-background/90 dark:bg-background/60 border border-destructive/25 rounded-md px-3 py-2 text-foreground font-medium text-xs leading-relaxed shadow-xs">
+                              {task.indoklas || meta.indoklas || "Téves szignálás / Nem az én hatásköröm"}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground italic pt-0.5">
+                              A feladatot az ügyintéző elutasította. A feladat újraszignálható vagy visszanyitható a „Kezelés” menüben.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Egyéb megjegyzés (ha nem elutasított, de van indoklás vagy megjegyzés) */}
+                        {!isElutasitott && (meta.indoklas || task.indoklas) && (
+                          <div className="mt-1.5 text-xs text-muted-foreground flex items-start gap-1.5 bg-muted/60 border border-border/50 rounded px-2.5 py-1 w-fit">
+                            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+                            <span>
+                              <strong className="font-semibold">Megjegyzés:</strong>{" "}
+                              {meta.indoklas || task.indoklas}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Meta adatok: Felelős & Határidő */}
+                        <div className="flex items-center flex-wrap gap-2 mt-2 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-0.5 rounded border border-border/40 text-[11px]">
+                            <User className="h-3 w-3 text-muted-foreground/70" />
+                            <span>
+                              Felelős: <span className="font-medium text-foreground">{assigneeName}</span>
+                            </span>
+                          </div>
+
+                          <div
+                            className={`flex items-center gap-1.5 bg-muted/50 px-2 py-0.5 rounded border border-border/40 text-[11px] ${
+                              isOverdue ? "border-destructive/40 text-destructive font-medium bg-destructive/5" : ""
+                            }`}
+                          >
+                            <Calendar className="h-3 w-3 text-muted-foreground/70" />
+                            <span>
+                              Határidő:{" "}
+                              {deadlineDate
+                                ? deadlineDate.toLocaleDateString("hu-HU")
+                                : "Nincs megadva"}
+                              {isOverdue && " • Lejárt!"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3. Jobb oldali Állapotjelző & Műveletek (Igényes Kezelés gomb a pici három pont helyett) */}
+                    <div className="flex items-center gap-2 shrink-0 self-start md:self-center pt-2 md:pt-0 border-t md:border-t-0 border-border/40">
+                      <TaskStatusBadge allapot={task.allapot} />
+
+                      {/* Gyors "Kész" gomb ha nyitott vagy folyamatban van */}
+                      {!isKesz && !isElutasitott && canEdit && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleTaskStatusChange(task.id, "kesz")}
+                          disabled={taskLoading === task.id}
+                          className="h-8 text-xs gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 hover:border-emerald-500/50 cursor-pointer"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Kész</span>
+                        </Button>
+                      )}
+
+                      {canEdit && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            className="inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-border/70 hover:border-border text-muted-foreground hover:text-foreground hover:bg-muted text-xs transition-colors cursor-pointer disabled:opacity-50"
+                            disabled={taskLoading === task.id}
+                            title="Műveletek"
+                          >
+                            {taskLoading === task.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <>
+                                <span>Kezelés</span>
+                                <MoreVertical className="h-3.5 w-3.5" />
+                              </>
+                            )}
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            {/* Állapotváltások */}
+                            {!isFolyamatban && !isKesz && (
+                              <DropdownMenuItem
+                                onClick={() => handleTaskStatusChange(task.id, "folyamatban")}
+                                className="text-xs cursor-pointer"
+                              >
+                                <ArrowRight className="mr-2 h-3.5 w-3.5 text-blue-500" />
+                                Folyamatban
+                              </DropdownMenuItem>
+                            )}
+
+                            {!isKesz && (
+                              <DropdownMenuItem
+                                onClick={() => handleTaskStatusChange(task.id, "kesz")}
+                                className="text-xs cursor-pointer"
+                              >
+                                <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-emerald-500" />
+                                Készre jelentés
+                              </DropdownMenuItem>
+                            )}
+
+                            {(isKesz || isElutasitott) && (
+                              <DropdownMenuItem
+                                onClick={() => handleTaskStatusChange(task.id, "nyitott")}
+                                className="text-xs cursor-pointer"
+                              >
+                                <RotateCcw className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                                {isElutasitott ? "Újranyitás / Visszaállítás" : "Visszaállítás nyitottra"}
+                              </DropdownMenuItem>
+                            )}
+
+                            {!isElutasitott && (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setRejectingTask({ id: task.id, title: meta.displayTitle })
+                                }
+                                className="text-xs text-amber-700 dark:text-amber-400 cursor-pointer"
+                              >
+                                <Ban className="mr-2 h-3.5 w-3.5 text-amber-600" />
+                                Elutasítás indoklással...
+                              </DropdownMenuItem>
+                            )}
+
+                            {/* Törlés művelet */}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setDeletingTask({ id: task.id, title: meta.displayTitle })
+                              }
+                              className="text-xs text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer font-medium"
+                            >
+                              <Trash2 className="mr-2 h-3.5 w-3.5 text-destructive" />
+                              Feladat törlése
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Törlés megerősítő párbeszédablak */}
+      <Dialog open={!!deletingTask} onOpenChange={(open) => !open && setDeletingTask(null)}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-destructive font-semibold">
+              <Trash2 className="h-5 w-5" />
+              <DialogTitle className="text-base font-semibold">Feladat törlése</DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground mt-2">
+              Biztosan törölni szeretnéd a következő ügyirati feladatot?
+              {deletingTask && (
+                <span className="block font-medium text-foreground mt-1.5 p-2 rounded-md bg-muted/50 border text-xs">
+                  „{deletingTask.title}”
+                </span>
+              )}
+              A feladat véglegesen törlődik az ügyiratból, és a művelet rögzítésre kerül az audit naplóban.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0 mt-3 pt-3 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setDeletingTask(null)}
+              disabled={deleteLoading}
+            >
+              Mégse
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={handleConfirmDelete}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  Törlés...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Törlés megerősítése
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Elutasítás indoklással modál */}
+      <TaskRejectDialog
+        open={!!rejectingTask}
+        taskId={rejectingTask?.id || null}
+        taskTitle={rejectingTask?.title}
+        onOpenChange={(isOpen) => !isOpen && setRejectingTask(null)}
+        onSuccess={(savedReason) => {
+          if (rejectingTask) {
+            setTaskList((prev) =>
+              prev.map((t) =>
+                t.id === rejectingTask.id
+                  ? {
+                      ...t,
+                      allapot: "elutasitott",
+                      indoklas: savedReason || t.indoklas,
+                    }
+                  : t
+              )
+            )
+            setRejectingTask(null)
+            router.refresh()
+          }
+        }}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Válaszlevél feltöltése */}
@@ -286,13 +678,31 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
             <form id="reply-form" action={handleUploadReply} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="targy">Levél tárgya</Label>
-                <Input id="targy" name="targy" required placeholder="Pl. Válasz a bérleti szerződésre" disabled={!canEdit || uploadLoading} />
+                <Input
+                  id="targy"
+                  name="targy"
+                  required
+                  placeholder="Pl. Válasz a bérleti szerződésre"
+                  disabled={!canEdit || uploadLoading}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="file">PDF Fájl</Label>
-                <Input id="file" name="file" type="file" accept="application/pdf" required disabled={!canEdit || uploadLoading} />
+                <Input
+                  id="file"
+                  name="file"
+                  type="file"
+                  accept="application/pdf"
+                  required
+                  disabled={!canEdit || uploadLoading}
+                />
               </div>
-              <Button type="submit" disabled={!canEdit || uploadLoading} variant="outline" className="w-full">
+              <Button
+                type="submit"
+                disabled={!canEdit || uploadLoading}
+                variant="outline"
+                className="w-full"
+              >
                 {uploadLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Feltöltés és csatolás
               </Button>
@@ -315,25 +725,45 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
               <p className="text-center text-sm text-muted-foreground mt-4">Nincsenek megjegyzések.</p>
             ) : (
               comments.map((comment) => {
-                const isMine = comment.user_email === currentUserEmail;
-                const mentionParts = renderMentionText(comment.szoveg, users);
+                const isMine = comment.user_email === currentUserEmail
+                const mentionParts = renderMentionText(comment.szoveg, users)
                 return (
-                  <div key={comment.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} gap-1`}>
-                    <span className="text-xs text-muted-foreground px-1">{comment.user_name || comment.user_email} • {new Date(comment.created_at).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                    <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${isMine ? 'bg-primary text-primary-foreground rounded-tr-sm' : 'bg-muted rounded-tl-sm'}`}>
-                      {Array.isArray(mentionParts) ? (
-                        mentionParts.map((part, i) =>
-                          typeof part === 'string' ? (
-                            <span key={i}>{part}</span>
-                          ) : (
-                            <span key={i} className={`font-semibold ${isMine ? 'text-primary-foreground underline' : 'text-primary'}`}>
-                              @{part.name}
-                            </span>
+                  <div
+                    key={comment.id}
+                    className={`flex flex-col ${isMine ? "items-end" : "items-start"} gap-1`}
+                  >
+                    <span className="text-xs text-muted-foreground px-1">
+                      {comment.user_name || comment.user_email} •{" "}
+                      {new Date(comment.created_at).toLocaleString("hu-HU", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    <div
+                      className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${
+                        isMine
+                          ? "bg-primary text-primary-foreground rounded-tr-sm"
+                          : "bg-muted rounded-tl-sm"
+                      }`}
+                    >
+                      {Array.isArray(mentionParts)
+                        ? mentionParts.map((part, i) =>
+                            typeof part === "string" ? (
+                              <span key={i}>{part}</span>
+                            ) : (
+                              <span
+                                key={i}
+                                className={`font-semibold ${
+                                  isMine ? "text-primary-foreground underline" : "text-primary"
+                                }`}
+                              >
+                                @{part.name}
+                              </span>
+                            )
                           )
-                        )
-                      ) : (
-                        mentionParts
-                      )}
+                        : mentionParts}
                     </div>
                   </div>
                 )
@@ -350,14 +780,18 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
                 placeholder="Írj egy megjegyzést... (@-tal említhetsz)"
                 disabled={!canEdit || commentLoading}
               />
-              <Button 
-                type="button" 
+              <Button
+                type="button"
                 onClick={handleAddComment}
-                disabled={!commentText.trim() || !canEdit || commentLoading} 
-                size="icon" 
+                disabled={!commentText.trim() || !canEdit || commentLoading}
+                size="icon"
                 variant="secondary"
               >
-                {commentLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+                {commentLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MessageSquare className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </div>
@@ -369,10 +803,35 @@ export function TasksTab({ ugyiratId, ugyId, status, comments, tasks, users, can
 
 function TaskStatusBadge({ allapot }: { allapot: string }) {
   switch (allapot) {
-    case 'nyitott': return <Badge variant="outline" className="text-muted-foreground border-muted-foreground">Nyitott</Badge>
-    case 'folyamatban': return <Badge variant="default" className="bg-info text-info-foreground">Folyamatban</Badge>
-    case 'kesz': return <Badge variant="default" className="bg-success text-success-foreground">Kész</Badge>
-    case 'elutasitott': return <Badge variant="destructive">Elutasítva</Badge>
-    default: return <Badge variant="outline">{allapot}</Badge>
+    case "nyitott":
+      return (
+        <Badge variant="outline" className="text-xs border-muted-foreground/30 text-muted-foreground font-normal">
+          Nyitott
+        </Badge>
+      )
+    case "folyamatban":
+      return (
+        <Badge variant="outline" className="text-xs border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300 font-medium">
+          Folyamatban
+        </Badge>
+      )
+    case "kesz":
+      return (
+        <Badge variant="outline" className="text-xs border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium">
+          Kész
+        </Badge>
+      )
+    case "elutasitott":
+      return (
+        <Badge variant="outline" className="text-xs border-destructive/30 bg-destructive/10 text-destructive font-medium">
+          Elutasítva
+        </Badge>
+      )
+    default:
+      return (
+        <Badge variant="outline" className="text-xs">
+          {allapot}
+        </Badge>
+      )
   }
 }

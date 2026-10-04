@@ -7,7 +7,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ExternalLink, Calendar as CalendarIcon } from "lucide-react"
+import { ExternalLink, Calendar as CalendarIcon, Ban } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -31,6 +31,10 @@ interface Task {
   hatarido: string
   allapot: string
   felelos_user_id: string
+  kategoria?: string | null
+  prioritas?: string | null
+  indoklas?: string | null
+  reszletek?: string | null
   ugyirat: {
     id: string
     iktatoszam: string
@@ -132,8 +136,17 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
                   <span className="text-muted-foreground italic text-xs">Nincs csatolva</span>
                 )}
               </TableCell>
-              <TableCell className="text-foreground/90 max-w-md truncate">
-                {task.leiras}
+              <TableCell className="text-foreground/90 max-w-md">
+                <div className="font-medium text-xs text-foreground truncate">{task.leiras}</div>
+                {task.reszletek && (
+                  <div className="text-[11px] text-muted-foreground truncate mt-0.5">{task.reszletek}</div>
+                )}
+                {task.allapot === "elutasitott" && (
+                  <div className="text-[11px] text-destructive flex items-center gap-1 mt-1 font-medium truncate bg-destructive/10 px-2 py-0.5 rounded border border-destructive/20 w-fit">
+                    <Ban className="h-3 w-3 shrink-0" />
+                    <span>Elutasítás oka: {task.indoklas || "Téves szignálás / Nem az én hatásköröm"}</span>
+                  </div>
+                )}
               </TableCell>
               <TableCell>
                 <span
@@ -186,6 +199,22 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
                 <DialogDescription className="text-sm text-foreground pt-3 whitespace-pre-wrap leading-relaxed">
                   {selectedTask.leiras}
                 </DialogDescription>
+                {selectedTask.reszletek && (
+                  <p className="text-xs text-muted-foreground mt-2 bg-muted/40 p-2.5 rounded border border-border/50">
+                    {selectedTask.reszletek}
+                  </p>
+                )}
+                {selectedTask.allapot === "elutasitott" && (
+                  <div className="mt-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-xs text-destructive space-y-1.5">
+                    <div className="font-semibold flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
+                      <Ban className="h-4 w-4 shrink-0" />
+                      Elutasítás oka / Vezetői indoklás:
+                    </div>
+                    <div className="font-medium text-foreground bg-background/80 dark:bg-background/40 rounded px-2.5 py-1.5 border border-destructive/20 text-xs leading-relaxed">
+                      {selectedTask.indoklas || "Téves szignálás / Nem az én hatásköröm"}
+                    </div>
+                  </div>
+                )}
               </DialogHeader>
 
               <DialogFooter className="pt-4 flex items-center sm:justify-between gap-2">

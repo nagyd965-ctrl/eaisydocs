@@ -16,6 +16,16 @@ export default async function TasksPage() {
     redirect("/login")
   }
 
+  // Felhasználói profil és szerepkör lekérése (vezetői jogok ellenőrzése)
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const role = profile?.docs_szerepkor || "ugyintezo"
+  const isLeaderOrAdmin = ["admin", "vezeto", "iktato", "rendszergazda"].includes(role)
+
   // Lekérdezzük a helyettesítéseket, hogy lássuk, kiket helyettesít a jelenlegi felhasználó
   const { data: helyettesitettList } = await supabase
     .from("helyettesites")
@@ -28,8 +38,8 @@ export default async function TasksPage() {
   const helyettesitettIds = helyettesitettList?.map(h => h.kilepo_user_id) || []
   const felelosIds = [user.id, ...helyettesitettIds]
 
-  // Lekérdezzük a feladatokat, szűrve a saját és a helyettesített felhasználók azonosítóira
-  const { data: tasks } = await supabase
+  // Lekérdezzük a feladatokat: vezetőknél a szervezet összes feladata elérhető, egyébként saját + helyettesített
+  let query = supabase
     .from("feladat")
     .select(`
       id, 
@@ -37,20 +47,33 @@ export default async function TasksPage() {
       hatarido, 
       allapot, 
       felelos_user_id,
+      kategoria,
+      prioritas,
+      indoklas,
+      reszletek,
       ugyirat:ugyirat_id (
         id, 
         iktatoszam
       )
     `)
-    .in("felelos_user_id", felelosIds)
     .order("hatarido", { ascending: true })
+
+  if (!isLeaderOrAdmin) {
+    query = query.in("felelos_user_id", felelosIds)
+  }
+
+  const { data: tasks } = await query
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Saját Feladataim</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          {isLeaderOrAdmin ? "Feladatok és Munkafolyamatok" : "Saját Feladataim"}
+        </h1>
         <p className="text-muted-foreground">
-          Itt találod a rád szignált, valamint a helyettesített kollégák feladatait.
+          {isLeaderOrAdmin
+            ? "Vezetői áttekintés: A szervezet feladatai, folyamatban lévő és elutasított ügyintézések indoklásai."
+            : "Itt találod a rád szignált, valamint a helyettesített kollégák feladatait."}
         </p>
       </div>
 
