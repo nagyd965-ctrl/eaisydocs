@@ -26,6 +26,7 @@ import { PartnerStatusToggle } from "@/components/partner-status-toggle"
 import { getPermissions } from "@/utils/permissions"
 import { cn } from "@/lib/utils"
 import { PartnerDocumentsTable } from "@/components/partner-documents-table"
+import { ContractGeneratorDialog } from "@/components/contracts/contract-generator-dialog"
 
 export default async function PartnerDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
@@ -221,6 +222,7 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
         <div className="flex items-center gap-2 flex-wrap">
           {permissions.canEdit && (
             <>
+              <ContractGeneratorDialog partner={partner} />
               <PartnerContactDialog partnerId={partner.id} />
               <PartnerDialog partner={partner} />
             </>

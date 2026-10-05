@@ -4,7 +4,44 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ---
 
-## [Unreleased] – Fejlesztés alatt (2026-10-04)
+## [Unreleased] – Fejlesztés alatt (2026-10-05)
+
+### 📜 AI Alapú Üzleti Szerződés- és Megállapodásgenerátor ([P-049](../product/decisions/P-049-ai-business-contract-and-agreement-generator-ux.md))
+- **Természetes Nyelvű AI Szerződéskészítés (Gemini 2.5 Flash + Determinisztikus Tartalék):**
+  - Bevezetve az általános B2B/B2C szerződésgenerátor motor (`src/utils/contract-templates.ts`, `src/app/partners/contract-actions.ts`), amely a partner törzsadatait (név, székhely, adószám, képviselő) és a felhasználó szabadszöveges instrukcióit (pl. díjazás, óradíj, határidők, kötbér, SLA) hatályos magyar polgári jogi (Ptk.) fejezetekre és számozott bekezdésekre bontott szerződéssé formálja.
+  - Hálózati vagy API korlátok esetén az intelligens determinisztikus jogi mintamotor azonnal és zökkenőmentesen átveszi a munkát, így a felhasználó sosem akad el.
+- **Kiterjedt Üzleti Sablonkatalógus:**
+  - 5 előre definiált, egykattintásos mintapromptokkal és záradékokkal ellátott szerződéstípus:
+    1. *Megbízási Szerződés* (fejlesztési, tanácsadói és alvállalkozói megbízásokhoz)
+    2. *Titoktartási Megállapodás (NDA)* (kétoldalú és egyoldalú üzleti/műszaki védelem kötbérrel)
+    3. *Szolgáltatási Keretszerződés* (egyedi lehívásos megrendelésekhez és SLA feltételekhez)
+    4. *Teljesítésigazolási Jegyzőkönyv* (mérföldkövek átvételéhez és számlázás engedélyezéséhez)
+    5. *Egyedi Üzleti Megállapodás* (szabadon konfigurálható együttműködési konstrukciókhoz)
+- **Hivatalos Kétoldalú A4 PDF Generátor (`src/utils/contract-pdf-generator.ts`):**
+  - Formális fejléc és lapszámozás, WinAnsi kódolásbiztos karakterkezelés (ő/ű -> ö/ü).
+  - Számozott fejezetek és automatikus szövegtördelés több oldalra.
+  - Kétoszlopos cégszerű aláírási blokk (Megbízó vs Megbízott/Partner képviselői aláírási vonalakkal).
+- **Zökkenőmentes Iktatási & Expedíciós Híd:**
+  - Választási lehetőség: új dedikált ügyirat nyitása vagy meglévő folyamatban lévő ügyirathoz csatolás.
+  - Kimenő irat (`irany = 'kimeno'`) rögzítése a partnerhez polimorf `irat_kapcsolat`-tal, SHA-256 hash kalkulációval és append-only `esemeny_naplo` audit bejegyzéssel.
+  - Opcionális azonnali expediálás: a partner e-mail címére közvetlen PDF csatolmánnyal kiküldhető az elkészült szerződés.
+- **Modern Linear Flat UI Modál (`ContractGeneratorDialog`):**
+  - Integrálva a Partner Részletes Lapján (`src/app/partners/[id]/page.tsx`) és a Partnertáblázat soraiban (`src/app/partners/partners-table-client.tsx`).
+- **Pénzügyi Adatok és Promptek Szétválasztása (Single Source of Truth):**
+  - Megszüntetve a díjösszegek és időtartamok duplikációját a felső strukturált beviteli mezők (`feeAmount`, `currency`, `validityMonths`) és a mintapromptok között.
+  - A felső numerikus beviteli mező az elsődleges mérvadó pénzügyi adat (megbízási díj, igazolt összeg vagy kötbér), alapértelmezetten tiszta / üres indítással és dinamikus kétirányú promptszinkronnal.
+- **Dinamikus Sablonváltás Prompt-frissítéssel:**
+  - Sablonváltáskor a prompt azonnal és automatikusan átveszi az újonnan kiválasztott sablon mintapromptját, megszűnt a korábbi sablon promptjának beragadása.
+- **Valós Idejű A4-es PDF Előnézet és Betekintő (`generateContractPdfPreviewAction`):**
+  - A 2. lépés fejlécében diszkrét `[ 👁️ PDF Előnézet ]` gombbal egyetlen kattintással előhívható az aktuálisan szerkesztett szövegből a memóriában generált, valós A4-es PDF előnézeti modál (`DocumentPreviewFrame`), lapozással, nagyítással és közvetlen `[ ⬇ PDF Letöltése ]` opcióval.
+- **Kanonikus `AlertDialog` Sablontörlési Megerősítés:**
+  - A natív böngészős `window.confirm()` popup helyett a rendszerszintű, Linear-flat `AlertDialog` komponens gondoskodik az egyedi sablonok biztonságos és stílusos törléséről.
+- **Base UI `nativeButton` Figyelmeztetés Megszüntetése:**
+  - A sikeres iktatást követő eredménykártyán az ügyirat megnyitása gomb a kanonikus `<Link className={buttonVariants(...)}>` formátumra módosult, megszüntetve a Base UI natív gomb inkompatibilitási figyelmeztetését.
+- **Storage Bucket Hiba Elhárítása (`irat_files`):**
+  - Javítva a szerződés véglegesítésekor fellépő `Bucket not found` hiba: a nem létező `iratok` helyett a rendszerben kanonikus `irat_files` storage bucket és admin fallback került beállításra.
+- **Jövőbeli Továbbfejlesztési Backlog Rögzítése:**
+  - Lejárati feladat-emlékeztetők, kétnyelvű (HU-EN) generálás, digitális aláírási lánc (AVDH/e-Szignó) és Partner 360° aktív szerződés widget rögzítve a P-049 PRD-ben és a központi specifikációban (`EaisyDOCS_funkciok_es_backlog_v2.md`).
 
 ### ✉️ Kimenő Irat, Válaszlevél és Expediálási Architektúra UX ([P-048](../product/decisions/P-048-outgoing-document-and-dispatch-architecture-ux.md))
 - **Teljes Mező-Duplikáció Felszámolása (Zero Redundancy):**

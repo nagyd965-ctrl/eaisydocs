@@ -20,6 +20,7 @@ import { DeletePartnerButton } from "@/components/delete-partner-button"
 import { Badge } from "@/components/ui/badge"
 import { TableToolbar, TableColumnOption, FilterGroup } from "@/components/table-toolbar/table-toolbar"
 import { KpiCard } from "@/components/kpi-card"
+import { ContractGeneratorDialog } from "@/components/contracts/contract-generator-dialog"
 import { cn } from "@/lib/utils"
 
 export interface PartnerItem {
@@ -510,6 +511,7 @@ export function PartnersTableClient({
                           </Link>
                           {canEdit && (
                             <>
+                              <ContractGeneratorDialog partner={partner} iconOnly={true} size="icon" />
                               <PartnerDialog partner={partner} iconOnly={true} />
                               <DeletePartnerButton partnerId={partner.id} partnerNev={partner.nev} />
                             </>

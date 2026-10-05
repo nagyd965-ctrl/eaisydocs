@@ -493,10 +493,10 @@ export async function generateFromTemplate(
   // SHA-256 hash
   const hash = crypto.createHash("sha256").update(buffer).digest("hex")
 
-  // Storage feltöltés
+  // Storage feltöltés (irat_files bucket)
   const fileName = `${crypto.randomUUID()}.pdf`
   const { error: uploadError } = await supabase.storage
-    .from("iratok")
+    .from("irat_files")
     .upload(fileName, buffer, {
       contentType: "application/pdf",
       upsert: false,
