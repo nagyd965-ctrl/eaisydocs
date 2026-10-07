@@ -1,13 +1,13 @@
 export interface DailyTimesheetInput {
   date: string;
-  type: "munka" | "szabadsag" | "betegseg" | "hetvege" | "unnep";
+  type: "munka" | "szabadsag" | "betegseg" | "hetvege" | "unnep" | "csusztatas";
   checkIn: string | null;
   checkOut: string | null;
 }
 
 export interface CalculatedDay {
   date: string;
-  type: "munka" | "szabadsag" | "betegseg" | "hetvege" | "unnep";
+  type: "munka" | "szabadsag" | "betegseg" | "hetvege" | "unnep" | "csusztatas";
   plannedHours: number;
   actualHours: number;
   balance: number;
@@ -30,8 +30,8 @@ export function calculateMonthlyTimesheet(
   const calculatedDays = days.map(day => {
     let plannedHours = 0;
     
-    // Alapértelmezetten a munkanapokra (és fizetett távollétekre) számolunk tervet
-    if (day.type === "munka" || day.type === "szabadsag" || day.type === "betegseg") {
+    // Alapértelmezetten a munkanapokra (és fizetett távollétekre / csúsztatásra) számolunk tervet
+    if (day.type === "munka" || day.type === "szabadsag" || day.type === "betegseg" || day.type === "csusztatas") {
       plannedHours = standardDailyHours * fte;
     }
 
@@ -42,8 +42,8 @@ export function calculateMonthlyTimesheet(
       const outTime = new Date(day.checkOut);
       const diffMs = outTime.getTime() - inTime.getTime();
       actualHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100; // 2 decimal places
-    } else if (day.type === "szabadsag" || day.type === "betegseg") {
-      // Szabadság és betegség esetén a ledolgozott óra megegyezik a tervezettel (nem generál mínuszt)
+    } else if (day.type === "szabadsag" || day.type === "betegseg" || day.type === "csusztatas") {
+      // Szabadság, betegség és csúsztatás esetén a ledolgozott óra megegyezik a tervezettel (nem generál mínuszt)
       actualHours = plannedHours;
     }
 

@@ -9,7 +9,7 @@ export type TimesheetEntry = {
   datum: string
   becsekkolas_ideje: string | null
   kicsekkolas_ideje: string | null
-  type: "munka" | "szabadsag" | "betegseg" | "hetvege" | "unnep"
+  type: "munka" | "szabadsag" | "betegseg" | "hetvege" | "unnep" | "csusztatas"
   note?: string
   tavollet_id?: string
 }
@@ -85,7 +85,11 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           datum: dateStr,
           becsekkolas_ideje: null,
           kicsekkolas_ideje: null,
-          type: tavollet.tipus === "betegszabadsag" || tavollet.tipus === "tappenz" ? "betegseg" : "szabadsag",
+          type: tavollet.tipus === "betegszabadsag" || tavollet.tipus === "tappenz" || tavollet.tipus === "beteg"
+            ? "betegseg"
+            : tavollet.tipus === "csusztatas"
+            ? "csusztatas"
+            : "szabadsag",
           note: tavollet.indoklas,
           tavollet_id: tavollet.id
         })
@@ -478,5 +482,61 @@ export async function fileMonthlyTimesheet(employeeId: string, year: number, mon
     console.error("fileMonthlyTimesheet error:", err)
     return { success: false, error: err.message || "Váratlan hiba történt a jelenléti ív iktatásakor." }
   }
+}
+
+// 7. Túlóra kérelem jóváhagyása vagy elutasítása (Vezető / HR)
+export async function handleOvertimeApproval(requestId: string, action: "jovahagyva" | "elutasitva") {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "Nincs bejelentkezve" }
+  }
+
+  // Lekérjük a kérelmet
+  const { data: req, error: fetchErr } = await supabase
+    .from("hr_tulora_felhasznalás")
+    .select("*, felhasznalo_profil:dolgozo_id(nev)")
+    .eq("id", requestId)
+    .single()
+
+  if (fetchErr || !req) {
+    return { error: "A túlóra kérelem nem található." }
+  }
+
+  const { error } = await supabase
+    .from("hr_tulora_felhasznalás")
+    .update({
+      statusz: action,
+      jovahagyo_id: user.id,
+      jovahagyva_at: new Date().toISOString()
+    })
+    .eq("id", requestId)
+
+  if (error) {
+    console.error("Overtime approval error:", error)
+    return { error: "Hiba történt a kérelem feldolgozásakor: " + error.message }
+  }
+
+  // Értesítés küldése a kérelmező dolgozónak
+  const cim = action === "jovahagyva" ? "Túlóra kérelem jóváhagyva" : "Túlóra kérelem elutasítva"
+  const tipusNev = req.tipus === "kiveszi_szabinak" ? "csúsztatási" : "kifizetési"
+  const h = Math.floor(req.perc / 60)
+  const m = req.perc % 60
+  const durationStr = h > 0 ? `${h} óra${m > 0 ? ` ${m} perc` : ""}` : `${m} perc`
+
+  const szoveg = action === "jovahagyva"
+    ? `A vezetőd jóváhagyta a ${tipusNev} kérelmedet (${durationStr}).`
+    : `A vezetőd elutasította a ${tipusNev} kérelmedet (${durationStr}).`
+
+  await supabase.from("alkalmazas_ertesites").insert({
+    user_id: req.dolgozo_id,
+    cim,
+    szoveg,
+    link_url: "/hr/self-service/time"
+  })
+
+  revalidatePath("/hr", "layout")
+  return { success: true }
 }
 

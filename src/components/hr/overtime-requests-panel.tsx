@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { CheckCircle2, XCircle, Clock, Coins, Calendar } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
+import { handleOvertimeApproval } from "@/app/hr/attendance-actions"
 import { toast } from "sonner"
 
 interface OvertimeRequest {
@@ -14,6 +15,8 @@ interface OvertimeRequest {
   tipus: "kiveszi_szabinak" | "kifizetteti"
   perc: number
   statusz: string
+  datum?: string | null
+  megjegyzes?: string | null
   created_at: string
   felhasznalo_profil?: { nev: string } | null
 }
@@ -64,19 +67,12 @@ export function OvertimeRequestsPanel({ managerId }: { managerId: string }) {
 
   const handleAction = (id: string, action: "jovahagyva" | "elutasitva") => {
     startTransition(async () => {
-      const { error } = await supabase
-        .from("hr_tulora_felhasznalás")
-        .update({
-          statusz: action,
-          jovahagyo_id: managerId,
-          jovahagyva_at: new Date().toISOString()
-        })
-        .eq("id", id)
+      const res = await handleOvertimeApproval(id, action)
 
-      if (error) {
-        toast.error("Hiba a kérelem kezelésekor", { description: error.message })
+      if (res.error) {
+        toast.error("Hiba a kérelem kezelésekor", { description: res.error })
       } else {
-        toast.success(action === "jovahagyva" ? "Kérelem jóváhagyva" : "Kérelem elutasítva")
+        toast.success(action === "jovahagyva" ? "Kérelem jóváhagyva (egyenleg levonva)" : "Kérelem elutasítva")
         setRequests(prev => prev.filter(r => r.id !== id))
       }
     })
@@ -111,14 +107,24 @@ export function OvertimeRequestsPanel({ managerId }: { managerId: string }) {
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold">{nev}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {req.tipus === "kiveszi_szabinak"
-                      ? <Calendar className="w-3 h-3 text-muted-foreground" />
-                      : <Coins className="w-3 h-3 text-muted-foreground" />}
-                    <p className="text-xs text-muted-foreground">
-                      {req.tipus === "kiveszi_szabinak" ? "Szabadnapként" : "Kifizetési igény"} – {formatMinutes(req.perc)}
-                    </p>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      {req.tipus === "kiveszi_szabinak"
+                        ? <Calendar className="w-3.5 h-3.5 text-primary" />
+                        : <Coins className="w-3.5 h-3.5 text-warning" />}
+                      {req.tipus === "kiveszi_szabinak" ? "Szabadnapként (Csúsztatás)" : "Kifizetési igény"} – {formatMinutes(req.perc)}
+                    </span>
+                    {req.datum && (
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        · Dátum: {new Date(req.datum).toLocaleDateString("hu-HU")}
+                      </span>
+                    )}
                   </div>
+                  {req.megjegyzes && (
+                    <p className="text-xs text-muted-foreground/80 italic mt-0.5 truncate">
+                      "{req.megjegyzes}"
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Button

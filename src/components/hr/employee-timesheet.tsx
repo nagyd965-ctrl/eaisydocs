@@ -6,6 +6,8 @@ import { KpiCard } from "@/components/kpi-card"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, CalendarDays, Loader2, Clock, CalendarCheck, Umbrella, ChevronDown, ChevronUp } from "lucide-react"
 import { getMonthlyTimesheet, type TimesheetEntry } from "@/app/hr/attendance-actions"
+import { OvertimeActionDialog } from "@/components/hr/overtime-action-dialog"
+import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
@@ -13,6 +15,7 @@ const typeColors = {
   munka: "bg-background text-foreground",
   szabadsag: "bg-info/10 text-info",
   betegseg: "bg-destructive/10 text-destructive",
+  csusztatas: "bg-warning/10 text-warning",
   hetvege: "bg-muted/40 text-muted-foreground",
   unnep: "bg-primary/10 text-primary"
 }
@@ -21,8 +24,20 @@ const typeLabels: Record<string, string> = {
   munka: "Munkanap",
   szabadsag: "Szabadság",
   betegseg: "Betegség",
+  csusztatas: "Csúsztatás (Túlóra)",
   hetvege: "Hétvége",
   unnep: "Ünnepnap"
+}
+
+function formatOvertime(perc: number | null): string {
+  if (perc === null) return "..."
+  const abs = Math.abs(perc)
+  const h = Math.floor(abs / 60)
+  const m = abs % 60
+  const sign = perc > 0 ? "+" : perc < 0 ? "-" : ""
+  if (h === 0 && m === 0) return "0 perc"
+  if (m === 0) return `${sign}${h} óra`
+  return `${sign}${h} ó ${m} p`
 }
 
 export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
@@ -30,6 +45,8 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
   const [timesheet, setTimesheet] = useState<TimesheetEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [isExpanded, setIsExpanded] = useState(false)
+  const [overtimeBalance, setOvertimeBalance] = useState<number | null>(null)
+  const [overtimeDialogOpen, setOvertimeDialogOpen] = useState(false)
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth() + 1
@@ -45,8 +62,19 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
     setLoading(false)
   }
 
+  const loadOvertime = async () => {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from("hr_tulora_egyenleg")
+      .select("perc")
+      .eq("dolgozo_id", employeeId)
+      .maybeSingle()
+    setOvertimeBalance(data?.perc ?? 0)
+  }
+
   useEffect(() => {
     loadData()
+    loadOvertime()
   }, [year, month, employeeId])
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 2, 1))
@@ -73,14 +101,14 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
   }, 0)
 
   const totalDaysWorked = timesheet.filter(t => t.type === "munka" && t.becsekkolas_ideje).length
-  const totalLeaveDays = timesheet.filter(t => t.type === "szabadsag" || t.type === "betegseg").length
+  const totalLeaveDays = timesheet.filter(t => t.type === "szabadsag" || t.type === "betegseg" || t.type === "csusztatas").length
 
   const monthLabel = `${year}. ${new Date(year, month - 1).toLocaleString("hu-HU", { month: "long" })}`
 
   return (
     <div className="space-y-4">
-      {/* Stat kártyák – frissülnek a hónapváltással */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+      {/* Stat kártyák – 4 oszlopos Linear-flat sáv */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Ledolgozott Órák"
           value={loading ? "..." : `${totalHours.toFixed(1)} h`}
@@ -93,7 +121,26 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
           label="Távollét"
           value={loading ? "..." : `${totalLeaveDays} nap`}
         />
+        <div onClick={() => setOvertimeDialogOpen(true)} className="cursor-pointer">
+          <KpiCard
+            label="Túlóra Egyenleg"
+            value={formatOvertime(overtimeBalance)}
+            sub={overtimeBalance && overtimeBalance > 0 ? "Kattints a csúsztatáshoz" : "Kattints a részletekhez"}
+            className="hover:border-primary/40 transition-colors"
+          />
+        </div>
       </div>
+
+      {/* Túlóra kezelő modál */}
+      <OvertimeActionDialog
+        employeeId={employeeId}
+        open={overtimeDialogOpen}
+        onOpenChange={setOvertimeDialogOpen}
+        onBalanceUpdated={() => {
+          loadOvertime()
+          loadData()
+        }}
+      />
 
       {/* Jelenléti ív kártya – nyitható/csukható */}
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>

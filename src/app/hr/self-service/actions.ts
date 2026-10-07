@@ -88,7 +88,42 @@ export async function submitLeaveRequest(formData: FormData) {
     }
   }
 
-  const { error } = await supabase
+  const note = (formData.get("note") as string) || null
+
+  // Ha a kérelem csúsztatás (túlóra terhére kért szabadnap), ellenőrizzük a túlóra egyenleget
+  let requiredMinutes = 0
+  if (type === "csusztatas") {
+    let workDays = 0
+    const cur = new Date(startDate)
+    const end = new Date(endDate)
+    while (cur <= end) {
+      const day = cur.getDay()
+      if (day !== 0 && day !== 6) {
+        workDays++
+      }
+      cur.setDate(cur.getDate() + 1)
+    }
+    workDays = Math.max(1, workDays)
+    requiredMinutes = workDays * 480 // 8 óra / munkanap
+
+    const { data: balanceData } = await supabase
+      .from("hr_tulora_egyenleg")
+      .select("perc")
+      .eq("dolgozo_id", user.id)
+      .maybeSingle()
+
+    const currentBalance = balanceData?.perc ?? 0
+    if (currentBalance < requiredMinutes) {
+      const hReq = Math.floor(requiredMinutes / 60)
+      const hAvail = Math.floor(Math.max(0, currentBalance) / 60)
+      const mAvail = Math.max(0, currentBalance) % 60
+      return {
+        error: `Nincs elegendő túlóra egyenleged ehhez a csúsztatáshoz (${workDays} munkanap = ${hReq} óra). Jelenlegi egyenleged: ${hAvail} óra ${mAvail} perc.`
+      }
+    }
+  }
+
+  const { data: tavolletRow, error } = await supabase
     .from("hr_tavollet")
     .insert({
       dolgozo_id: user.id,
@@ -98,10 +133,31 @@ export async function submitLeaveRequest(formData: FormData) {
       statusz: "jovahagyasra_var",
       aktualis_jovahagyo_id: aktualisJovahagyoId
     })
+    .select("id")
+    .single()
 
   if (error) {
     console.error("Leave request error:", error)
     return { error: "Hiba történt az igénylés során." }
+  }
+
+  // Ha csúsztatás, létrehozzuk a kapcsolt túlóra felhasználási tételt is
+  if (type === "csusztatas" && tavolletRow) {
+    const { error: tuloraErr } = await supabase
+      .from("hr_tulora_felhasznalás")
+      .insert({
+        dolgozo_id: user.id,
+        tipus: "kiveszi_szabinak",
+        perc: requiredMinutes,
+        statusz: "jovahagyasra_var",
+        datum: startDate,
+        tavollet_id: tavolletRow.id,
+        megjegyzes: note || "Csúsztatás (Túlóra terhére)"
+      })
+
+    if (tuloraErr) {
+      console.error("Tulora usage link error:", tuloraErr)
+    }
   }
 
   // Értesítés küldése az aktuális jóváhagyónak, ha van
@@ -120,8 +176,8 @@ export async function submitLeaveRequest(formData: FormData) {
       if (csatornak.includes('in_app')) {
         await supabase.from('alkalmazas_ertesites').insert({
           user_id: aktualisJovahagyoId,
-          cim: 'Új távollét kérelem',
-          szoveg: `${dolgozoNev} új távollét kérelmet nyújtott be (${startDate} - ${endDate}).`,
+          cim: type === 'csusztatas' ? 'Új csúsztatási kérelem' : 'Új távollét kérelem',
+          szoveg: `${dolgozoNev} új ${type === 'csusztatas' ? 'csúsztatási' : 'távollét'} kérelmet nyújtott be (${startDate} - ${endDate}).`,
           link_url: '/hr/manager'
         });
       }
@@ -142,7 +198,7 @@ export async function submitLeaveRequest(formData: FormData) {
                 `${dolgozoNev} új távollét kérelmet nyújtott be, amely a jóváhagyásodra vár.`,
                 [
                   { label: "Időszak", value: `${startDate} - ${endDate}` },
-                  { label: "Típus", value: type === 'szabadsag' ? 'Szabadság' : 'Betegszabadság' }
+                  { label: "Típus", value: type === 'csusztatas' ? 'Csúsztatás (Túlóra)' : type === 'szabadsag' ? 'Szabadság' : 'Betegszabadság' }
                 ],
                 "Kérelmek megtekintése",
                 `${getBaseUrl()}/hr/manager`
@@ -171,7 +227,160 @@ export async function submitLeaveRequest(formData: FormData) {
     }
   }
 
-  revalidatePath("/hr/self-service")
+  revalidatePath("/hr", "layout")
+  return { success: true }
+}
+
+export async function submitOvertimeRequest(data: {
+  tipus: "kiveszi_szabinak" | "kifizetteti"
+  perc: number
+  datum?: string
+  megjegyzes?: string
+}) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "Nincs bejelentkezve" }
+  }
+
+  if (!data.perc || data.perc <= 0) {
+    return { error: "Kérjük adj meg érvényes, 0-nál nagyobb időtartamot!" }
+  }
+
+  // Ellenőrizzük az egyenleget
+  const { data: balanceData } = await supabase
+    .from("hr_tulora_egyenleg")
+    .select("perc")
+    .eq("dolgozo_id", user.id)
+    .maybeSingle()
+
+  const currentBalance = balanceData?.perc ?? 0
+  if (currentBalance < data.perc) {
+    return {
+      error: `Nincs elegendő túlóra egyenleged. Igényelt: ${Math.floor(data.perc / 60)} óra ${data.perc % 60} perc, Elérhető: ${Math.floor(Math.max(0, currentBalance) / 60)} óra ${Math.max(0, currentBalance) % 60} perc.`
+    }
+  }
+
+  // Megkeressük a jóváhagyót (eszkalációs motor)
+  let aktualisJovahagyoId: string | null = null
+  const today = new Date().toISOString().split("T")[0]
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("kozvetlen_vezeto_id, nev")
+    .eq("id", user.id)
+    .single()
+
+  let currentManagerId = profile?.kozvetlen_vezeto_id
+
+  if (currentManagerId) {
+    const { data: managerLeave } = await supabase
+      .from("hr_tavollet")
+      .select("id")
+      .eq("dolgozo_id", currentManagerId)
+      .eq("statusz", "jovahagyva")
+      .lte("kezdet_datuma", today)
+      .gte("veg_datuma", today)
+      .limit(1)
+      .maybeSingle()
+
+    if (managerLeave) {
+      const { data: substitute } = await supabase
+        .from("hr_helyettesites")
+        .select("helyettes_id")
+        .eq("vezeto_id", currentManagerId)
+        .eq("aktiv", true)
+        .lte("kezdet_datuma", today)
+        .gte("veg_datuma", today)
+        .limit(1)
+        .maybeSingle()
+
+      if (substitute) {
+        aktualisJovahagyoId = substitute.helyettes_id
+      }
+    } else {
+      aktualisJovahagyoId = currentManagerId
+    }
+  }
+
+  if (!aktualisJovahagyoId) {
+    const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const { data: hrAdmin } = await supabaseAdmin
+      .from("felhasznalo_profil")
+      .select("id")
+      .in("hr_szerepkor", ["hr_vezeto", "admin"])
+      .limit(1)
+      .maybeSingle()
+
+    if (hrAdmin) {
+      aktualisJovahagyoId = hrAdmin.id
+    }
+  }
+
+  let tavolletId: string | null = null
+
+  if (data.tipus === "kiveszi_szabinak") {
+    if (!data.datum) {
+      return { error: "Kérjük válassz dátumot a csúsztatáshoz!" }
+    }
+
+    const { data: tavolletRow, error: tavolletErr } = await supabase
+      .from("hr_tavollet")
+      .insert({
+        dolgozo_id: user.id,
+        kezdet_datuma: data.datum,
+        veg_datuma: data.datum,
+        tipus: "csusztatas",
+        statusz: "jovahagyasra_var",
+        aktualis_jovahagyo_id: aktualisJovahagyoId
+      })
+      .select("id")
+      .single()
+
+    if (tavolletErr) {
+      console.error("Tavollet create error for csusztatas:", tavolletErr)
+      return { error: "Nem sikerült létrehozni a távolléti tételt: " + tavolletErr.message }
+    }
+    tavolletId = tavolletRow.id
+  }
+
+  const { error: tuloraErr } = await supabase
+    .from("hr_tulora_felhasznalás")
+    .insert({
+      dolgozo_id: user.id,
+      tipus: data.tipus,
+      perc: data.perc,
+      statusz: "jovahagyasra_var",
+      datum: data.datum || null,
+      tavollet_id: tavolletId,
+      megjegyzes: data.megjegyzes || (data.tipus === "kiveszi_szabinak" ? "Csúsztatás (Túlóra terhére)" : "Túlóra kifizetési igény")
+    })
+
+  if (tuloraErr) {
+    console.error("Tulora felhasznalas error:", tuloraErr)
+    return { error: "Hiba történt a kérelem benyújtásakor: " + tuloraErr.message }
+  }
+
+  // Értesítés küldése a jóváhagyónak
+  if (aktualisJovahagyoId) {
+    const dolgozoNev = profile?.nev || "Egy munkatárs"
+    const tipusNev = data.tipus === "kiveszi_szabinak" ? "csúsztatási" : "túlóra kifizetési"
+    const idotartam = `${Math.floor(data.perc / 60)} óra ${data.perc % 60 > 0 ? `${data.perc % 60} perc` : ""}`.trim()
+
+    await supabase.from("alkalmazas_ertesites").insert({
+      user_id: aktualisJovahagyoId,
+      cim: `Új ${tipusNev} kérelem`,
+      szoveg: `${dolgozoNev} új ${tipusNev} kérelmet nyújtott be (${idotartam}${data.datum ? `, dátum: ${data.datum}` : ""}).`,
+      link_url: "/hr/manager"
+    })
+  }
+
+  revalidatePath("/hr", "layout")
   return { success: true }
 }
 

@@ -6,6 +6,37 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-07)
 
+### ⏱️ Túlóra-egyenleg Felhasználás, Csúsztatás és Kifizetés Rendszer ([P-051](../product/decisions/P-051-overtime-comp-time-and-payout-workflow.md), [A-032](../architecture/decisions/A-032-overtime-balance-and-leave-synchronization.md))
+- **Kétcsatornás Csúsztatási Igénylés:**
+  - **Távollét Űrlap (`LeaveRequestDialog`):** Új `Csúsztatás (Túlóra terhére)` opció, automatikus munkanapszámítással (8h/nap) és valós idejű egyenlegellenőrzéssel. Hiány esetén informatív hibaüzenet és beküldési tiltás.
+  - **Túlóra Egyenleg Kártya (`OvertimeBalanceCard`):** Új interaktív csúsztatási modál naptárral, gyors gombokkal (`Egész nap (8h)`, `Fél nap (4h)`, `Egyedi óra`) és élő egyenlegkalkulációval (aktuális, levonandó, jóváhagyás utáni).
+- **Túlóra Kifizetés Igénylése:**
+  - Új pénzbeli kifizetés igénylő modál óraszám-megadással vagy `Teljes egyenleg kifizetése` gyorsgombbal, maximális egyenlegkorláttal és vezetői megjegyzéssel.
+- **Jelenlét és Szabadság Oldali Integráció (`/hr/self-service/time`):**
+  - A felső statisztikai sáv 4 kártyás Linear-flat rácsra bővült (`grid-cols-2 lg:grid-cols-4`), ahol a 4. kártya közvetlenül a *Túlóra Egyenleg* (`KpiCard`).
+  - A kártyára kattintva azonnal megnyílik az `OvertimeActionDialog` csúsztatási és kifizetési modál, míg lent a `Saját kérelmeim` lista teljes szélességében, tisztán és zavartalanul jelenik meg.
+  - **Felesleges duplikáció megszüntetése:** A fő Dolgozói Áttekintés (`/hr`) irányítópult aljáról eltávolításra került a redundáns `OvertimeBalanceCard`, mivel a túlóra kezelése fókuszáltan és tisztán a *Jelenlét & Szabadság* oldalon érhető el.
+- **Adatbázis-szintű Kétirányú Szinkronizáció és Levonás:**
+  - Bővítve a `hr_tavollet_tipus` enum a `'csusztatas'` értékkel, új `datum` és `tavollet_id` mezők a `hr_tulora_felhasznalás` táblán.
+  - Kétirányú, nem-rekurzív PostgreSQL triggerek: `trg_tulora_felhasznalas_approval` automatikusan levonja a perceket jóváhagyáskor a `hr_tulora_egyenleg` táblából és szinkronizálja a kapcsolt `hr_tavollet` rekordot; `trg_tavollet_csusztatas_sync` garantálja, hogy ha a vezető a rendes távolléti listából hagyja jóvá a csúsztatást, a túlóra felhasználás is automatikusan jóváhagyódik és levonódik.
+- **Vezetői Felület és Értesítések (`OvertimeRequestsPanel`, `attendance-actions.ts`):**
+  - A beosztotti kérelmek megjelenítik a csúsztatás pontos dátumát és indoklását. A jóváhagyás a `handleOvertimeApproval` szerverakción keresztül történik azonnali dolgozói in-app értesítéssel.
+- **Timesheet & Riport Kompatibilitás:**
+  - A `calculateMonthlyTimesheet` kalkulátorban és a havi zárási PDF generátorban a csúsztatás fizetett távollétként jelenik meg, nem generálva munkaidő-hiányt.
+
+### 🧹 Dolgozói Portál Tisztítása: Redundáns „Céges Szabályzatok” Kivezetése
+- **Megszüntetve:** Eltávolítva a dolgozói irányítópult (`/hr`) fejlécéből a zavaró, pulzáló számlálóval ellátott „Céges Szabályzatok” gomb és a mögötte lévő felesleges adatbázis-lekérdezés (`hr_ceges_dokumentum`).
+- **Indoklás:** Az Onboarding folyamat (P-034 – P-039) során a munkavállaló minden jogszabályilag előírt hivatalos dokumentumot (munkaszerződés, munkaköri leírás, Mt. 46. § tájékoztató, tűz- és munkavédelmi oktatási jegyzőkönyv, eszközfelelősségi jegyzőkönyv) kötelezően megkap, cégszerűen aláír és beiktatásra kerül az eaisyDocs személyi dossziéjába. A portálon lévő korábbi „Elfogadom” gombos, üres sablonos funkció redundáns és jogilag nem hiteles volt.
+- **Átirányítás & Kódtisztítás:** A korábbi `/hr/self-service/dokumentumok` útvonal biztonságos szerveroldali átirányítást kapott a dolgozó valódi személyi profiljára (`/hr/self-service/profile`), a felesleges mock sablonkomponensek (`DocumentList`) és műveletek törölve lettek.
+
+### 🐛 Hibajavítás: Windows Chromium PDF Generálás Elhárítása (`src/utils/pdf-browser.ts`)
+- **Hiba:** Helyi Windows környezetben a Cafeteria nyilatkozat (és egyéb HR dokumentumok) in-browser megtekintésekor és generálásakor a böngésző azonnal összeomlott: `Failed to launch the browser process: Code: 2147483651` (STATUS_BREAKPOINT / 0x80000003).
+- **Kiváltó ok:** A `CHROMIUM_ARGS` tömbben szereplő `--single-process` és `--no-zygote` kapcsolók a modern asztali Chrome és Edge architektúrában nem engedélyezettek és azonnali process crash-t idéztek elő.
+- **Megoldás:**
+  - Szétválasztva a helyi asztali (`LOCAL_CHROMIUM_ARGS`) és a Vercel/serverless (`SERVERLESS_CHROMIUM_ARGS`) Chromium argumentumokat.
+  - Továbbfejlesztve a Windows Chrome és Edge útvonalkeresőt (`process.env.ProgramFiles`, `process.env['ProgramFiles(x86)']`, `process.env.LOCALAPPDATA`).
+  - Helyi böngésző indítási hiba esetén intelligens automatikus fallback a beépített `puppeteer` csomagra.
+
 ### 📊 HR Riportok Modul Teljes Megújítása ([P-050](../product/decisions/P-050-hr-reports-t1041-ksh-payroll-overhaul.md), [A-031](../architecture/decisions/A-031-hr-reports-data-aggregation-and-export-architecture.md))
 - **Teljes körű Funkcionális és Vizuális Refaktorálás (Global UI Consistency - P-043 / A-029):**
   - Megszüntetve a korábbi kezdetleges állapotot és a hibás, egyetlen oszlopba tömörülő, sérült ékezetes CSV fájlokat (pl. `BelĂ©pĂ©s`).

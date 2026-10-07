@@ -42,18 +42,20 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
-const typeColors = {
+const typeColors: Record<string, string> = {
   munka: "bg-background text-foreground",
   szabadsag: "bg-info/10 text-info dark:bg-info/10 dark:text-info",
   betegseg: "bg-destructive/10 text-destructive dark:bg-destructive/10 dark:text-destructive",
+  csusztatas: "bg-warning/10 text-warning dark:bg-warning/10 dark:text-warning",
   hetvege: "bg-muted/50 text-muted-foreground",
   unnep: "bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary"
 }
 
-const typeLabels = {
+const typeLabels: Record<string, string> = {
   munka: "Munkanap",
   szabadsag: "Szabadság",
   betegseg: "Betegség",
+  csusztatas: "Csúsztatás (Túlóra)",
   hetvege: "Hétvége",
   unnep: "Ünnepnap"
 }
@@ -222,7 +224,7 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
   const { calculatedDays, totalActual, totalBalance } = calculateMonthlyTimesheet(timesheetInput, 8.0, employeeFte)
 
   const totalDaysWorked = timesheet.filter(t => t.type === "munka" && t.becsekkolas_ideje).length
-  const totalLeaveDays = timesheet.filter(t => t.type === "szabadsag" || t.type === "betegseg").length
+  const totalLeaveDays = timesheet.filter(t => t.type === "szabadsag" || t.type === "betegseg" || t.type === "csusztatas").length
 
   const timesheetPdfUrl = `/api/hr/timesheet-pdf?employeeId=${employeeId}&year=${year}&month=${month}`
 

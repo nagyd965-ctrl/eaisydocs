@@ -20,8 +20,17 @@ import puppeteerCore, { type Browser } from 'puppeteer-core'
 import * as os from 'os'
 import * as fs from 'fs'
 
-/** Standard Chromium argumentumok, amelyek stabillá teszik a futást mindkét környezetben */
-const CHROMIUM_ARGS = [
+/** Standard Chromium argumentumok helyi futtatáshoz (Windows / macOS / Linux) */
+const LOCAL_CHROMIUM_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-gpu',
+  '--no-first-run',
+]
+
+/** Standard Chromium argumentumok Vercel / serverless környezethez */
+const SERVERLESS_CHROMIUM_ARGS = [
   '--no-sandbox',
   '--disable-setuid-sandbox',
   '--disable-dev-shm-usage',
@@ -38,10 +47,19 @@ const CHROMIUM_ARGS = [
 function findLocalChromiumPath(): string | null {
   if (os.platform() !== 'win32') return null
 
+  const programFiles = process.env.ProgramFiles || 'C:\\Program Files'
+  const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)'
+  const localAppData = process.env.LOCALAPPDATA || ''
+
   const candidates = [
+    `${programFiles}\\Google\\Chrome\\Application\\chrome.exe`,
+    `${programFilesX86}\\Google\\Chrome\\Application\\chrome.exe`,
+    localAppData ? `${localAppData}\\Google\\Chrome\\Application\\chrome.exe` : null,
+    `${programFiles}\\Microsoft\\Edge\\Application\\msedge.exe`,
+    `${programFilesX86}\\Microsoft\\Edge\\Application\\msedge.exe`,
+    localAppData ? `${localAppData}\\Microsoft\\Edge\\Application\\msedge.exe` : null,
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    `${process.env.LOCALAPPDATA}\\Google\\Chrome\\Application\\chrome.exe`,
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
   ]
@@ -104,7 +122,7 @@ export async function launchPdfBrowser(): Promise<Browser> {
     const executablePath = await chromium.default.executablePath()
 
     return puppeteerCore.launch({
-      args: [...(chromium.default.args ?? []), ...CHROMIUM_ARGS],
+      args: chromium.default.args ?? SERVERLESS_CHROMIUM_ARGS,
       executablePath,
       headless: true,
     })
@@ -115,27 +133,33 @@ export async function launchPdfBrowser(): Promise<Browser> {
   const localPath = findLocalChromiumPath() || findLocalChromiumPathUnix()
 
   if (localPath) {
-    console.log(`[pdf-browser] Helyi böngésző: ${localPath}`)
-    return puppeteerCore.launch({
-      executablePath: localPath,
-      headless: true,
-      args: CHROMIUM_ARGS,
-    })
+    try {
+      console.log(`[pdf-browser] Helyi böngésző indítása: ${localPath}`)
+      return await puppeteerCore.launch({
+        executablePath: localPath,
+        headless: true,
+        args: LOCAL_CHROMIUM_ARGS,
+      })
+    } catch (localErr) {
+      console.warn(`[pdf-browser] Nem sikerült elindítani a helyi böngészőt (${localPath}):`, localErr)
+      // Folytatjuk a fallback felé
+    }
   }
 
   // ── Fallback: teljes puppeteer (ha telepítve van a gépre) ─────────────────
   // Ez általában a fejlesztői gépeken automatikusan letöltött Chromium-ot jelenti.
   try {
     const puppeteer = await import('puppeteer')
-    console.log('[pdf-browser] Fallback: beépített puppeteer Chromium')
-    return puppeteer.default.launch({
+    console.log('[pdf-browser] Fallback: beépített puppeteer Chromium indítása')
+    return await puppeteer.default.launch({
       headless: true,
-      args: CHROMIUM_ARGS,
+      args: LOCAL_CHROMIUM_ARGS,
     }) as unknown as Browser
-  } catch {
+  } catch (err: any) {
     throw new Error(
       '[pdf-browser] Nem található Chromium böngésző. ' +
-      'Ellenőrizd, hogy telepítve van-e a Chrome, az Edge, vagy a puppeteer csomag!'
+      'Ellenőrizd, hogy telepítve van-e a Chrome, az Edge, vagy a puppeteer csomag! ' +
+      'Hiba: ' + (err?.message || String(err))
     )
   }
 }

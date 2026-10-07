@@ -1,12 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { CalendarDays, ArrowRight, Coffee, FileSignature, Clock, AlertCircle, Wallet } from "lucide-react"
+import { CalendarDays, ArrowRight, Coffee, Clock, AlertCircle, Wallet } from "lucide-react"
 import { createClient } from "@/utils/supabase/server"
 import { TimeTrackingCard } from "@/components/hr/time-tracking-card"
 import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
 import { EmployeeKpiCard } from "@/components/hr/employee-kpi-card"
-import { OvertimeBalanceCard } from "@/components/hr/overtime-balance-card"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { calculateAnnualLeave } from "@/utils/hr/leave-calculator"
@@ -76,15 +75,6 @@ export default async function SelfServicePage() {
     else timeStatus = "checked_in"
   }
 
-  // 3. Céges dokumentumok ellenőrzése
-  const { data: cegesDokumentumok } = await supabase
-    .from("hr_ceges_dokumentum")
-    .select(`id, hr_ceges_dokumentum_nyugtazas(id)`)
-    .eq("aktiv", true)
-    .eq("kotelezo_mindenkinek", true)
-    .eq("hr_ceges_dokumentum_nyugtazas.dolgozo_id", user.id)
-
-  const pendingDocsCount = cegesDokumentumok?.filter(d => !d.hr_ceges_dokumentum_nyugtazas || d.hr_ceges_dokumentum_nyugtazas.length === 0).length || 0
 
   // Cafeteria
 
@@ -136,25 +126,12 @@ export default async function SelfServicePage() {
   return (
     <div className="space-y-6 pb-10">
 
-      {/* Fejléc: cím + akciógombok */}
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Áttekintés</h1>
-          <p className="text-muted-foreground mt-1">
-            Üdvözlünk, {nev}! Ez a személyes irányítópultod.
-          </p>
-        </div>
-        <Link href="/hr/self-service/dokumentumok">
-          <Button variant="outline" className="relative">
-            <FileSignature className="w-4 h-4 mr-2 text-primary" />
-            Céges Szabályzatok
-            {pendingDocsCount > 0 && (
-              <span className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-destructive-foreground text-[10px] font-semibold flex items-center justify-center rounded-full animate-pulse tabular-nums">
-                {pendingDocsCount}
-              </span>
-            )}
-          </Button>
-        </Link>
+      {/* Fejléc: cím */}
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight">Áttekintés</h1>
+        <p className="text-muted-foreground mt-1">
+          Üdvözlünk, {nev}! Ez a személyes irányítópultod.
+        </p>
       </div>
 
       {/* Hero üdvözlő banner */}
@@ -326,9 +303,6 @@ export default async function SelfServicePage() {
         )}
 
         <EmployeeKpiCard kpis={kpis || []} logs={kpiLogs || []} />
-
-        <OvertimeBalanceCard employeeId={user.id} />
-
       </div>
 
     </div>

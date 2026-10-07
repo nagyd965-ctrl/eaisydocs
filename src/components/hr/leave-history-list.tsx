@@ -11,6 +11,10 @@ const tipusLabel: Record<string, string> = {
   home_office: "Home Office",
   rendkivuli: "Rendkívüli",
   fizetett: "Fizetett",
+  fizetetlen: "Fizetés nélküli",
+  apasan: "Apasági szabadság",
+  tanulmanyi: "Tanulmányi szabadság",
+  csusztatas: "Csúsztatás (Túlóra)",
 }
 
 export interface LeaveHistoryItem {

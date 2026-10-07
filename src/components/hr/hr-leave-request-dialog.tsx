@@ -18,6 +18,7 @@ export function HrLeaveRequestDialog({ employeeId }: { employeeId: string }) {
 
   const leaveTypeMap: Record<string, string> = {
     "szabadsag": "Rendes szabadság",
+    "csusztatas": "Csúsztatás (Túlóra terhére)",
     "beteg": "Betegszabadság (Táppénz)",
     "fizetetlen": "Fizetés nélküli szabadság",
     "tanulmanyi": "Tanulmányi szabadság"
@@ -56,15 +57,16 @@ export function HrLeaveRequestDialog({ employeeId }: { employeeId: string }) {
               <Label htmlFor="type" className="text-right">Típus</Label>
               <div className="col-span-3 space-y-2">
                 <input type="hidden" name="type" value={leaveType} />
-                <Select value={leaveType} onValueChange={(val) => val && setLeaveType(val)}>
+                <Select items={leaveTypeMap} value={leaveType} onValueChange={(val) => val && setLeaveType(val)}>
                   <SelectTrigger>
                     <span>{leaveType ? leaveTypeMap[leaveType] : "Válassz típust..."}</span>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="szabadsag">Rendes szabadság</SelectItem>
-                    <SelectItem value="beteg">Betegszabadság (Táppénz)</SelectItem>
-                    <SelectItem value="fizetetlen">Fizetés nélküli szabadság</SelectItem>
-                    <SelectItem value="tanulmanyi">Tanulmányi szabadság</SelectItem>
+                    <SelectItem value="szabadsag" label="Rendes szabadság">Rendes szabadság</SelectItem>
+                    <SelectItem value="csusztatas" label="Csúsztatás (Túlóra terhére)">Csúsztatás (Túlóra terhére)</SelectItem>
+                    <SelectItem value="beteg" label="Betegszabadság (Táppénz)">Betegszabadság (Táppénz)</SelectItem>
+                    <SelectItem value="fizetetlen" label="Fizetés nélküli szabadság">Fizetés nélküli szabadság</SelectItem>
+                    <SelectItem value="tanulmanyi" label="Tanulmányi szabadság">Tanulmányi szabadság</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
