@@ -45,8 +45,9 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-030](./A-030-code-level-security-hardening.md) | 2026-10-02 | Alkalmazásszintű Biztonsági Keményítés és Védelmi Kapuk | `[Közös]` | `Decided` | [P-044](../../product/decisions/P-044-code-level-security-hardening.md), `send-email/route.ts`, `download-document/route.ts`, `middleware.ts`, `next.config.ts` |
 | [A-031](./A-031-hr-reports-data-aggregation-and-export-architecture.md) | 2026-10-07 | HR Riportok Adataggregációja, Formátum-Normalizálása és Multi-Engine Export Architektúrája | `[HR]` | `Decided` | [P-050](../../product/decisions/P-050-hr-reports-t1041-ksh-payroll-overhaul.md), `reports-export.ts`, `hr/reports/actions.ts`, `reports-tabs.tsx` |
 | [A-032](./A-032-overtime-balance-and-leave-synchronization.md) | 2026-10-07 | Túlóra-egyenleg Levonás és Távollét Szinkronizáció Adatbázis Architektúra | `[HR]` | `Decided` | [P-051](../../product/decisions/P-051-overtime-comp-time-and-payout-workflow.md), `overtime_workflow_enhancements.sql`, `attendance-actions.ts` |
+| [A-033](./A-033-unified-approvals-architecture-and-attendance-correction-security.md) | 2026-10-07 | Egységes Jóváhagyási Architektúra és Jelenléti Korrekció Biztonsági Modell | `[HR]` | `Decided` | [P-052](../../product/decisions/P-052-unified-manager-approvals-hub-and-attendance-correction-ux.md), `unified-approvals-panel.tsx`, `attendance-actions.ts`, `fix_hr_jelenlet_rls.sql` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-033`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-034`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!

@@ -27,31 +27,39 @@ export default async function TimeAndAttendancePage() {
     )
   }
 
-  // 1. Összes (Folyamatban/Jóváhagyott/stb) kérelem lekérése a teljes cégre
-  const { data: allLeaves } = await supabase
-    .from("hr_tavollet")
-    .select("*")
-    .neq("statusz", "elutasitva")
-    .order("kezdet_datuma", { ascending: true })
-
-  // 2. Teljes cég dolgozóinak lekérése
-  // Nincs RLS korlátozás (a HR lát mindenkit)
-  const { data: rawEmployees } = await supabase
-    .from("hr_jogviszony")
-    .select(`
-      id,
-      dolgozo_id,
-      kilepes_datuma,
-      created_at,
-      hr_dolgozo_adatlap (
+  // 1. Összes (Folyamatban/Jóváhagyott/stb) kérelem, teljes cég dolgozói és szervezeti egységek lekérése
+  const [{ data: allLeaves }, { data: rawEmployees }, { data: orgUnits }] = await Promise.all([
+    supabase
+      .from("hr_tavollet")
+      .select("*")
+      .neq("statusz", "elutasitva")
+      .order("kezdet_datuma", { ascending: true }),
+    supabase
+      .from("hr_jogviszony")
+      .select(`
         id,
-        felhasznalo_profil ( nev )
-      ),
-      hr_beosztas (
-        hr_munkakor ( megnevezes )
-      )
-    `)
-    .order("created_at", { ascending: false })
+        dolgozo_id,
+        kilepes_datuma,
+        created_at,
+        hr_dolgozo_adatlap (
+          id,
+          felhasznalo_profil (
+            nev,
+            avatar_url,
+            hr_szervezeti_egyseg_id,
+            hr_szervezeti_egyseg:hr_szervezeti_egyseg_id ( id, nev )
+          )
+        ),
+        hr_beosztas (
+          hr_munkakor ( megnevezes )
+        )
+      `)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("hr_szervezeti_egyseg")
+      .select("id, nev")
+      .order("nev", { ascending: true })
+  ])
 
   // Format to match what TeamCalendar expects, deduplicating by dolgozo_id
   const employeeMap = new Map<string, any>()
@@ -60,12 +68,19 @@ export default async function TimeAndAttendancePage() {
     const existing = employeeMap.get(j.dolgozo_id)
     // Ha még nem szerepel, vagy az újabb bejegyzés aktív (nincs kilépés dátuma)
     if (!existing || (!j.kilepes_datuma && existing.kilepes_datuma)) {
+      const prof = j.hr_dolgozo_adatlap?.felhasznalo_profil
+      const orgUnitObj = Array.isArray(prof?.hr_szervezeti_egyseg)
+        ? prof?.hr_szervezeti_egyseg[0]
+        : prof?.hr_szervezeti_egyseg
+
       employeeMap.set(j.dolgozo_id, {
         id: j.dolgozo_id,
-        felhasznalo_profil: j.hr_dolgozo_adatlap?.felhasznalo_profil,
+        felhasznalo_profil: prof,
         hr_munkakor: {
           megnevezes: j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beosztás"
         },
+        szervezeti_egyseg_id: prof?.hr_szervezeti_egyseg_id || orgUnitObj?.id || null,
+        szervezeti_egyseg_nev: orgUnitObj?.nev || null,
         kilepes_datuma: j.kilepes_datuma
       })
     }
@@ -83,7 +98,11 @@ export default async function TimeAndAttendancePage() {
         </div>
       </div>
 
-      <TeamCalendar teamMembers={allEmployees || []} leaves={allLeaves || []} />
+      <TeamCalendar 
+        teamMembers={allEmployees || []} 
+        leaves={allLeaves || []} 
+        orgUnits={orgUnits || []} 
+      />
     </div>
   )
 }

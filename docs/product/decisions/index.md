@@ -59,9 +59,10 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-049](./P-049-ai-business-contract-and-agreement-generator-ux.md) | 2026-10-05 | AI Alapú Üzleti Szerződés- és Megállapodáskészítő Rendszer UX | `[Docs]` | `Contracts / AI Generator` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), `contract-generator-dialog.tsx`, `contract-actions.ts` |
 | [P-050](./P-050-hr-reports-t1041-ksh-payroll-overhaul.md) | 2026-10-07 | HR Riportok Modul Teljes Megújítása (NAV T1041, KSH, Bérszámfejtés és Archívum) | `[HR]` | `HR / Reports & Statutory` | [A-031](../../architecture/decisions/A-031-hr-reports-data-aggregation-and-export-architecture.md), `reports-tabs.tsx`, `reports-export.ts`, `hr/reports/page.tsx` |
 | [P-051](./P-051-overtime-comp-time-and-payout-workflow.md) | 2026-10-07 | Túlóra-egyenleg Felhasználás, Csúsztatás és Kifizetés Munkafolyamat UX | `[HR]` | `HR / Self-Service & Manager` | [A-032](../../architecture/decisions/A-032-overtime-balance-and-leave-synchronization.md), `overtime-balance-card.tsx`, `leave-request-dialog.tsx`, `overtime-requests-panel.tsx` |
+| [P-052](./P-052-unified-manager-approvals-hub-and-attendance-correction-ux.md) | 2026-10-07 | Egységes Vezetői Jóváhagyási Központ és Jelenléti Korrekció UX | `[HR]` | `HR / Manager & Attendance` | [A-033](../../architecture/decisions/A-033-unified-approvals-architecture-and-attendance-correction-security.md), `unified-approvals-panel.tsx`, `AttendanceTab.tsx`, `manager/page.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-052`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-053`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 

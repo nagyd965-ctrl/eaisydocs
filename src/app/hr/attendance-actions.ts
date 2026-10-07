@@ -12,6 +12,11 @@ export type TimesheetEntry = {
   type: "munka" | "szabadsag" | "betegseg" | "hetvege" | "unnep" | "csusztatas"
   note?: string
   tavollet_id?: string
+  pendingCorrection?: {
+    uj_becsekkolas: string
+    uj_kicsekkolas: string
+    indoklas: string
+  }
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -52,6 +57,24 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
 
     if (tavolletError) throw new Error(tavolletError.message)
 
+    // Fetch függőben lévő munkaidő korrekciós kérelmek részletekkel
+    const { data: pendingCorrections } = await supabase
+      .from("hr_jelenlet_korrekcio")
+      .select("datum, uj_becsekkolas, uj_kicsekkolas, indoklas")
+      .eq("dolgozo_id", employeeId)
+      .eq("statusz", "jovahagyasra_var")
+      .gte("datum", startDate)
+      .lte("datum", endDate)
+
+    const pendingMap = new Map<string, { uj_becsekkolas: string; uj_kicsekkolas: string; indoklas: string }>()
+    for (const c of pendingCorrections || []) {
+      pendingMap.set(c.datum as string, {
+        uj_becsekkolas: c.uj_becsekkolas as string,
+        uj_kicsekkolas: c.uj_kicsekkolas as string,
+        indoklas: c.indoklas as string
+      })
+    }
+
     // Munkaszüneti napok lekérése az adott hónapra
     const { data: unnepnapData } = await supabase
       .from("hr_munkaszuneti_nap")
@@ -70,6 +93,7 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
       const dateStr = day.toISOString().split('T')[0]
       const dayOfWeek = day.getUTCDay()
       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+      const pendingCorr = pendingMap.get(dateStr)
 
       // Jelenlét (Munka)
       const munka = jelenletData?.find(j => j.datum === dateStr)
@@ -91,7 +115,8 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
             ? "csusztatas"
             : "szabadsag",
           note: tavollet.indoklas,
-          tavollet_id: tavollet.id
+          tavollet_id: tavollet.id,
+          pendingCorrection: pendingCorr
         })
       } else if (unnepnapok.has(dateStr)) {
         // Magyar munkaszüneti nap
@@ -101,7 +126,8 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           becsekkolas_ideje: null,
           kicsekkolas_ideje: null,
           type: "unnep",
-          note: unnepNevek.get(dateStr)
+          note: unnepNevek.get(dateStr),
+          pendingCorrection: pendingCorr
         })
       } else if (munka) {
         timesheet.push({
@@ -110,7 +136,8 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           datum: dateStr,
           becsekkolas_ideje: munka.becsekkolas_ideje,
           kicsekkolas_ideje: munka.kicsekkolas_ideje,
-          type: "munka"
+          type: "munka",
+          pendingCorrection: pendingCorr
         })
       } else if (isWeekend) {
         timesheet.push({
@@ -118,7 +145,8 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           datum: dateStr,
           becsekkolas_ideje: null,
           kicsekkolas_ideje: null,
-          type: "hetvege"
+          type: "hetvege",
+          pendingCorrection: pendingCorr
         })
       } else {
         // Nincs adat, de munkanap
@@ -127,7 +155,8 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           datum: dateStr,
           becsekkolas_ideje: null,
           kicsekkolas_ideje: null,
-          type: "munka" // üres munkanap
+          type: "munka", // üres munkanap
+          pendingCorrection: pendingCorr
         })
       }
     }
@@ -537,6 +566,145 @@ export async function handleOvertimeApproval(requestId: string, action: "jovahag
   })
 
   revalidatePath("/hr", "layout")
+  return { success: true }
+}
+
+export async function handleAttendanceCorrectionApproval(
+  correctionId: string,
+  action: "jovahagyva" | "elutasitva",
+  elutasitasOka?: string
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "Nincs bejelentkezve" }
+  }
+
+  // Lekérjük a kérelmet
+  const { data: request, error: reqErr } = await supabase
+    .from("hr_jelenlet_korrekcio")
+    .select("*, felhasznalo_profil:dolgozo_id(nev)")
+    .eq("id", correctionId)
+    .single()
+
+  if (reqErr || !request) {
+    return { error: "A kérelem nem található." }
+  }
+
+  if (request.statusz !== "jovahagyasra_var") {
+    return { error: "Ez a kérelem már el lett bírálva!" }
+  }
+
+  const nowIso = new Date().toISOString()
+  const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  if (action === "jovahagyva") {
+    // 1. Érvényesítjük a módosítást a hr_jelenlet táblában ELŐSZÖR
+    const { data: existingJelenlet } = await adminClient
+      .from("hr_jelenlet")
+      .select("id")
+      .eq("dolgozo_id", request.dolgozo_id)
+      .eq("datum", request.datum)
+      .maybeSingle()
+
+    if (existingJelenlet) {
+      const { error: jelenletUpdateErr } = await adminClient
+        .from("hr_jelenlet")
+        .update({
+          becsekkolas_ideje: request.uj_becsekkolas,
+          kicsekkolas_ideje: request.uj_kicsekkolas
+        })
+        .eq("id", existingJelenlet.id)
+
+      if (jelenletUpdateErr) {
+        console.error("Hiba a hr_jelenlet frissítésekor:", jelenletUpdateErr)
+        return { error: "Hiba a jelenlét rekord frissítésekor: " + jelenletUpdateErr.message }
+      }
+    } else {
+      const { error: jelenletInsertErr } = await adminClient
+        .from("hr_jelenlet")
+        .insert({
+          dolgozo_id: request.dolgozo_id,
+          datum: request.datum,
+          becsekkolas_ideje: request.uj_becsekkolas,
+          kicsekkolas_ideje: request.uj_kicsekkolas
+        })
+
+      if (jelenletInsertErr) {
+        console.error("Hiba a hr_jelenlet beszúrásakor:", jelenletInsertErr)
+        return { error: "Hiba a jelenlét rekord beszúrásakor: " + jelenletInsertErr.message }
+      }
+    }
+
+    // 2. Csak a sikeres jelenlét mentés után frissítjük a kérelem státuszát
+    const { error: updateReqErr } = await adminClient
+      .from("hr_jelenlet_korrekcio")
+      .update({
+        statusz: "jovahagyva",
+        jovahagyo_id: user.id,
+        jovahagyva_ekkor: nowIso
+      })
+      .eq("id", correctionId)
+
+    if (updateReqErr) return { error: "Nem sikerült frissíteni a kérelmet: " + updateReqErr.message }
+
+    // 3. Audit log
+    await adminClient.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      entitas_tipus: "hr_jelenlet_korrekcio",
+      entitas_id: correctionId,
+      esemeny_tipus: "jelenlet_korrekcio_jovahagyva",
+      megjegyzes: `Vezető jóváhagyta a(z) ${request.datum} napi jelenlét korrekciót (${(request as any).felhasznalo_profil?.nev || "Dolgozó"}).`,
+    })
+
+    // 4. Dolgozó értesítése
+    await adminClient.from("alkalmazas_ertesites").insert({
+      user_id: request.dolgozo_id,
+      cim: "Jelenléti korrekció jóváhagyva",
+      szoveg: `A(z) ${request.datum} napra benyújtott munkaidő korrekciódat a vezetőd jóváhagyta.`,
+      link_url: "/hr/self-service/time"
+    })
+  } else {
+    // Elutasítás
+    const { error: rejectErr } = await adminClient
+      .from("hr_jelenlet_korrekcio")
+      .update({
+        statusz: "elutasitva",
+        jovahagyo_id: user.id,
+        elutasitas_oka: elutasitasOka || null
+      })
+      .eq("id", correctionId)
+
+    if (rejectErr) return { error: "Nem sikerült elutasítani a kérelmet: " + rejectErr.message }
+
+    // Audit log
+    await adminClient.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      entitas_tipus: "hr_jelenlet_korrekcio",
+      entitas_id: correctionId,
+      esemeny_tipus: "jelenlet_korrekcio_elutasitva",
+      megjegyzes: `Vezető elutasította a(z) ${request.datum} napi korrekciót. Indok: ${elutasitasOka || "Nincs megadva"}`,
+    })
+
+    // Dolgozó értesítése
+    await adminClient.from("alkalmazas_ertesites").insert({
+      user_id: request.dolgozo_id,
+      cim: "Jelenléti korrekció elutasítva",
+      szoveg: `A(z) ${request.datum} napra benyújtott munkaidő korrekciódat elutasították.${elutasitasOka ? ` Indoklás: ${elutasitasOka}` : ""}`,
+      link_url: "/hr/self-service/time"
+    })
+  }
+
+  const { revalidatePath } = await import("next/cache")
+  revalidatePath("/hr", "layout")
+  revalidatePath("/hr/manager")
+  revalidatePath(`/hr/employee/${request.dolgozo_id}`)
+  revalidatePath("/hr/self-service/time")
   return { success: true }
 }
 

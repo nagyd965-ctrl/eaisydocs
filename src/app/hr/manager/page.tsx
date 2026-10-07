@@ -1,23 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Clock, Users, CheckCircle2, CalendarX, CalendarDays } from "lucide-react"
+import { Clock, Users, CalendarX } from "lucide-react"
 import { createClient } from "@/utils/supabase/server"
-import { LeaveActionButtons } from "@/components/hr/leave-action-buttons"
 import { TeamCalendar } from "@/components/hr/team-calendar"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { SubstituteAlertBanner } from "@/components/hr/substitute-alert-banner"
-import { OvertimeRequestsPanel } from "@/components/hr/overtime-requests-panel"
-
-const TIPUS_LABEL: Record<string, string> = {
-  szabadsag: "Szabadság",
-  betegseg: "Betegség",
-  fizetett_szabadsag: "Fizetett szabadság",
-  fizetetlen_szabadsag: "Fizetetlen szabadság",
-  egyeb: "Egyéb",
-}
+import { UnifiedApprovalsPanel, type UnifiedApprovalItem } from "@/components/hr/unified-approvals-panel"
 
 export default async function ManagerPage() {
   const supabase = await createClient()
@@ -37,7 +27,7 @@ export default async function ManagerPage() {
 
   const teamMemberIds = (teamProfiles || []).map((p: any) => p.id)
 
-  // 2. Jóváhagyásra váró kérelmek (direkt szignált VAGY beosztott kérelme)
+  // 2. Jóváhagyásra váró távolléti kérelmek (direkt szignált VAGY beosztott kérelme)
   const pendingLeavesQuery = supabase
     .from("hr_tavollet")
     .select("*, hr_dolgozo_adatlap(felhasznalo_profil(nev))")
@@ -50,7 +40,71 @@ export default async function ManagerPage() {
       )
     : await pendingLeavesQuery.eq("aktualis_jovahagyo_id", user.id)
 
-  // 3. Mai távollétek a valós státuszhoz
+  // 3. Jóváhagyásra váró munkaidő korrekciók (vezető jóváhagyása vagy beosztott kérelme)
+  const pendingCorrectionsQuery = supabase
+    .from("hr_jelenlet_korrekcio")
+    .select("*, felhasznalo_profil:dolgozo_id(nev)")
+    .eq("statusz", "jovahagyasra_var")
+    .order("created_at", { ascending: false })
+
+  const { data: pendingCorrections } = teamMemberIds.length > 0
+    ? await pendingCorrectionsQuery.or(
+        `jovahagyo_id.eq.${user.id},dolgozo_id.in.(${teamMemberIds.join(",")})`
+      )
+    : await pendingCorrectionsQuery.eq("jovahagyo_id", user.id)
+
+  // 4. Jóváhagyásra váró túlóra kérelmek
+  const { data: pendingOvertimes } = teamMemberIds.length > 0
+    ? await supabase
+        .from("hr_tulora_felhasznalás")
+        .select("*, felhasznalo_profil:dolgozo_id(nev)")
+        .in("dolgozo_id", teamMemberIds)
+        .eq("statusz", "jovahagyasra_var")
+        .order("created_at", { ascending: false })
+    : { data: [] }
+
+  // 5. Egységes kérelmi lista összeállítása
+  const unifiedItems: UnifiedApprovalItem[] = [
+    ...(pendingLeaves || []).map((l: any) => ({
+      id: l.id,
+      category: "tavollet" as const,
+      dolgozoId: l.dolgozo_id,
+      dolgozoNev: l.hr_dolgozo_adatlap?.felhasznalo_profil?.nev || "Ismeretlen",
+      createdAt: l.created_at,
+      tavolletTipus: l.tipus,
+      kezdetDatuma: l.kezdet_datuma,
+      vegDatuma: l.veg_datuma,
+      munkanapokSzama: l.munkanapok_szama,
+      indoklas: l.indoklas,
+    })),
+    ...(pendingCorrections || []).map((c: any) => ({
+      id: c.id,
+      category: "korrekcio" as const,
+      dolgozoId: c.dolgozo_id,
+      dolgozoNev: c.felhasznalo_profil?.nev || "Ismeretlen",
+      createdAt: c.created_at,
+      korrekcioDatum: c.datum,
+      eredetiBecsekkolas: c.eredeti_becsekkolas,
+      eredetiKicsekkolas: c.eredeti_kicsekkolas,
+      ujBecsekkolas: c.uj_becsekkolas,
+      ujKicsekkolas: c.uj_kicsekkolas,
+      indoklas: c.indoklas,
+    })),
+    ...(pendingOvertimes || []).map((o: any) => ({
+      id: o.id,
+      category: "tulora" as const,
+      dolgozoId: o.dolgozo_id,
+      dolgozoNev: o.felhasznalo_profil?.nev || "Ismeretlen",
+      createdAt: o.created_at,
+      tuloraTipus: o.tipus,
+      tuloraPerc: o.perc,
+      indoklas: o.megjegyzes,
+    }))
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  const totalPendingCount = unifiedItems.length
+
+  // 6. Mai távollétek a valós státuszhoz
   const { data: todayLeaves } = await supabase
     .from("hr_tavollet")
     .select("dolgozo_id, statusz")
@@ -58,7 +112,6 @@ export default async function ManagerPage() {
     .gte("veg_datuma", todayStr)
     .in("statusz", ["jovahagyva", "jovahagyasra_var"])
 
-  // Beosztottanként: van-e ma jóváhagyott/függő távolléte
   const todayAbsentIds = new Set(
     (todayLeaves || []).filter(l => l.statusz === "jovahagyva").map(l => l.dolgozo_id)
   )
@@ -66,14 +119,14 @@ export default async function ManagerPage() {
     (todayLeaves || []).filter(l => l.statusz === "jovahagyasra_var").map(l => l.dolgozo_id)
   )
 
-  // 4. Összes kérelem a naptárhoz
+  // 7. Összes kérelem a naptárhoz
   const { data: allLeaves } = await supabase
     .from("hr_tavollet")
     .select("*")
     .neq("statusz", "elutasitva")
     .order("kezdet_datuma", { ascending: true })
 
-  // 5. Csapat (Közvetlen beosztottak) lekérése
+  // 8. Csapat (Közvetlen beosztottak) lekérése
   const { data: rawTeamMembers } = await supabase
     .from("hr_jogviszony")
     .select(`
@@ -95,7 +148,6 @@ export default async function ManagerPage() {
   const teamMembers = Array.from(teamMemberMap.values())
 
   const todayAbsentCount = teamMembers.filter(m => todayAbsentIds.has(m.id)).length
-  const pendingCount = pendingLeaves?.length ?? 0
 
   return (
     <div className="space-y-6 pb-10">
@@ -115,13 +167,13 @@ export default async function ManagerPage() {
             <span className="text-muted-foreground">beosztott</span>
           </div>
           <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm ${
-            pendingCount > 0
+            totalPendingCount > 0
               ? "border-warning/40 bg-warning-subtle"
               : "bg-card"
           }`}>
-            <Clock className={`w-3.5 h-3.5 ${pendingCount > 0 ? "text-warning" : "text-muted-foreground"}`} />
-            <span className={`font-medium tabular-nums ${pendingCount > 0 ? "text-warning" : ""}`}>
-              {pendingCount}
+            <Clock className={`w-3.5 h-3.5 ${totalPendingCount > 0 ? "text-warning" : "text-muted-foreground"}`} />
+            <span className={`font-medium tabular-nums ${totalPendingCount > 0 ? "text-warning" : ""}`}>
+              {totalPendingCount}
             </span>
             <span className="text-muted-foreground">függő kérelem</span>
           </div>
@@ -134,85 +186,18 @@ export default async function ManagerPage() {
       </div>
 
       {/* Helyettesítési figyelmeztető banner */}
-      <SubstituteAlertBanner managerId={user.id} pendingApprovalsCount={pendingCount} />
+      <SubstituteAlertBanner managerId={user.id} pendingApprovalsCount={totalPendingCount} />
 
       <div className="grid gap-6 md:grid-cols-3">
 
-        {/* Bal oszlop: Jóváhagyások + Naptár */}
+        {/* Bal oszlop: Egységes Jóváhagyási Hub + Csapatnaptár */}
         <div className="md:col-span-2 space-y-6">
 
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {pendingCount > 0
-                    ? <Clock className="w-4 h-4 text-warning" />
-                    : <CheckCircle2 className="w-4 h-4 text-success" />
-                  }
-                  <CardTitle className="text-base font-semibold">
-                    Jóváhagyásra váró kérelmek
-                  </CardTitle>
-                  {pendingCount > 0 && (
-                    <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-warning text-warning-foreground text-[11px] font-semibold tabular-nums">
-                      {pendingCount}
-                    </span>
-                  )}
-                </div>
-              </div>
-              {pendingCount === 0 && (
-                <CardDescription className="mt-0.5">A csapatod összes kérelmét elintézted.</CardDescription>
-              )}
-            </CardHeader>
-            <CardContent>
-              {pendingCount > 0 ? (
-                <div className="space-y-2">
-                  {pendingLeaves!.map(approval => {
-                    const nev = (approval as any).hr_dolgozo_adatlap?.felhasznalo_profil?.nev || "Ismeretlen"
-                    const initials = nev.split(" ").map((w: string) => w[0]).join("").substring(0, 2).toUpperCase()
-                    const startDate = new Date(approval.kezdet_datuma).toLocaleDateString("hu-HU")
-                    const endDate = new Date(approval.veg_datuma).toLocaleDateString("hu-HU")
-                    const tipusLabel = TIPUS_LABEL[approval.tipus] ?? approval.tipus
+          {/* Egységes Kérelmi Panel (Szabadság + Munkaidő Korrekció + Túlóra) */}
+          <UnifiedApprovalsPanel initialItems={unifiedItems} />
 
-                    return (
-                      <div
-                        key={approval.id}
-                        className="flex items-center gap-4 p-3 rounded-lg border border-warning/30 bg-warning/5 hover:bg-warning/10 transition-colors"
-                      >
-                        <Avatar className="h-9 w-9 shrink-0">
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold leading-none">{nev}</p>
-                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                            <span className="px-2 py-0.5 rounded-full bg-info-subtle text-info text-[11px] font-semibold uppercase tracking-wide">
-                              {tipusLabel}
-                            </span>
-                            <span className="text-xs text-muted-foreground tabular-nums">
-                              {startDate} – {endDate}
-                            </span>
-                          </div>
-                        </div>
-                        <LeaveActionButtons leaveId={approval.id} />
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed rounded-lg bg-muted/10">
-                  <CheckCircle2 className="w-9 h-9 text-success mb-2" />
-                  <p className="text-sm font-medium text-muted-foreground">Nincs függő kérelem</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Csápatnáptár */}
+          {/* Csapatnaptár */}
           <TeamCalendar teamMembers={teamMembers || []} leaves={allLeaves || []} />
-
-          {/* Túlóra jóváhagyási kérelmek */}
-          <OvertimeRequestsPanel managerId={user.id} />
         </div>
 
         {/* Jobb oszlop: Csapatlista */}

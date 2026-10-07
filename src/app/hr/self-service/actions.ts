@@ -518,11 +518,160 @@ export async function toggleCheckIn() {
       .eq("id", todayRecord.id)
     
     if (updateError) return { error: "Sikertelen kicsekkolás." }
+    revalidatePath("/hr")
     return { success: true, status: "checked_out" }
   } else {
-    // Already checked out today
-    return { error: "Ma már becsekkoltál és kicsekkoltál. Napi limit elérve." }
+    // Already checked out today -> Allow resuming work!
+    const { error: resumeError } = await supabase
+      .from("hr_jelenlet")
+      .update({ kicsekkolas_ideje: null })
+      .eq("id", todayRecord.id)
+
+    if (resumeError) return { error: "Nem sikerült folytatni a munkát." }
+    revalidatePath("/hr")
+    return { success: true, status: "checked_in", resumed: true }
   }
+}
+
+export async function submitAttendanceCorrection(params: {
+  datum: string
+  becsekkolas: string
+  kicsekkolas: string
+  indoklas: string
+}) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "Nincs bejelentkezve" }
+  }
+
+  const { datum, becsekkolas, kicsekkolas, indoklas } = params
+
+  if (!datum || !becsekkolas || !kicsekkolas || !indoklas?.trim()) {
+    return { error: "A dátum, az időpontok és az indoklás megadása kötelező!" }
+  }
+
+  // Időpontok összeállítása ISO formátumban
+  const becsekIso = new Date(`${datum}T${becsekkolas}:00`).toISOString()
+  const kicsekIso = new Date(`${datum}T${kicsekkolas}:00`).toISOString()
+
+  if (new Date(kicsekIso).getTime() <= new Date(becsekIso).getTime()) {
+    return { error: "A távozás időpontja nem lehet korábbi vagy egyenlő az érkezésnél!" }
+  }
+
+  // Ellenőrizzük, hogy le van-e zárva a hónap
+  const dateObj = new Date(datum)
+  const ev = dateObj.getFullYear()
+  const honap = dateObj.getMonth() + 1
+  const { data: zaras } = await supabase
+    .from("hr_havi_jelenlet_zaras")
+    .select("statusz")
+    .eq("dolgozo_id", user.id)
+    .eq("ev", ev)
+    .eq("honap", honap)
+    .single()
+
+  if (zaras && zaras.statusz !== "nyitott") {
+    return { error: "Ez a hónap már le van zárva, utólagos módosítás nem lehetséges!" }
+  }
+
+  // Meglévő jelenlét lekérése az eredeti adatok mentéséhez
+  const { data: existing } = await supabase
+    .from("hr_jelenlet")
+    .select("id, becsekkolas_ideje, kicsekkolas_ideje")
+    .eq("dolgozo_id", user.id)
+    .eq("datum", datum)
+    .maybeSingle()
+
+  // Megkeressük a közvetlen vezetőt vagy kijelölt jóváhagyót
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("nev, kozvetlen_vezeto_id")
+    .eq("id", user.id)
+    .single()
+
+  let aktualisJovahagyoId = profile?.kozvetlen_vezeto_id || null
+
+  // Ha a vezető távol van, ellenőrizzük a helyettesítést
+  if (aktualisJovahagyoId) {
+    const today = new Date().toISOString().split("T")[0]
+    const { data: substitute } = await supabase
+      .from("hr_helyettesites")
+      .select("helyettes_id")
+      .eq("vezeto_id", aktualisJovahagyoId)
+      .eq("aktiv", true)
+      .lte("kezdet_datuma", today)
+      .gte("veg_datuma", today)
+      .limit(1)
+      .maybeSingle()
+
+    if (substitute) {
+      aktualisJovahagyoId = substitute.helyettes_id
+    }
+  }
+
+  // Ha nincs közvetlen vezető, HR vezetőt vagy admint keresünk
+  if (!aktualisJovahagyoId) {
+    const { data: hrAdmin } = await supabase
+      .from("felhasznalo_profil")
+      .select("id")
+      .in("hr_szerepkor", ["hr_vezeto", "admin"])
+      .limit(1)
+      .maybeSingle()
+
+    if (hrAdmin) {
+      aktualisJovahagyoId = hrAdmin.id
+    }
+  }
+
+  // Korrekciós kérelem rögzítése a hr_jelenlet_korrekcio táblába
+  const { data: insertedRequest, error: insertError } = await supabase
+    .from("hr_jelenlet_korrekcio")
+    .insert({
+      dolgozo_id: user.id,
+      datum,
+      eredeti_becsekkolas: existing?.becsekkolas_ideje || null,
+      eredeti_kicsekkolas: existing?.kicsekkolas_ideje || null,
+      uj_becsekkolas: becsekIso,
+      uj_kicsekkolas: kicsekIso,
+      indoklas: indoklas.trim(),
+      statusz: "jovahagyasra_var",
+      jovahagyo_id: aktualisJovahagyoId
+    })
+    .select("id")
+    .single()
+
+  if (insertError) {
+    console.error("Korrekciós kérelem beszúrási hiba:", insertError)
+    return { error: "Nem sikerült benyújtani a kérelmet: " + insertError.message }
+  }
+
+  // Értesítés a vezetőnek
+  if (aktualisJovahagyoId) {
+    const dolgozoNev = profile?.nev || "Egy munkatárs"
+    await supabase.from("alkalmazas_ertesites").insert({
+      user_id: aktualisJovahagyoId,
+      cim: "Új munkaidő korrekciós kérelem",
+      szoveg: `${dolgozoNev} munkaidő korrekciós kérelmet nyújtott be (${datum}: ${becsekkolas} - ${kicsekkolas}). Indoklás: ${indoklas}`,
+      link_url: "/hr/manager"
+    })
+  }
+
+  // Audit naplózás a hr_esemeny_naplo táblába
+  await supabase.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    entitas_tipus: "hr_jelenlet_korrekcio",
+    entitas_id: insertedRequest?.id || null,
+    esemeny_tipus: "jelenlet_korrekcio_keres",
+    megjegyzes: `Munkavállalói jelenlét korrekciós kérelem (${datum}): ${becsekkolas} - ${kicsekkolas}. Indoklás: ${indoklas}`,
+  })
+
+  revalidatePath("/hr")
+  revalidatePath("/hr/manager")
+  revalidatePath("/hr/self-service/time")
+
+  return { success: true, isRequest: true }
 }
 
 export async function saveSubstitute(formData: FormData) {

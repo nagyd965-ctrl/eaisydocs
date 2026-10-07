@@ -6,7 +6,40 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-07)
 
-### ⏱️ Túlóra-egyenleg Felhasználás, Csúsztatás és Kifizetés Rendszer ([P-051](../product/decisions/P-051-overtime-comp-time-and-payout-workflow.md), [A-032](../architecture/decisions/A-032-overtime-balance-and-leave-synchronization.md))
+### 👑 Egységes Vezetői Jóváhagyási Központ (Unified Approvals Hub) és Jelenléti Korrekció Vizuális Visszajelzés
+- **Egységes Jóváhagyási Panel a Vezetői Nézetben (`UnifiedApprovalsPanel`, `/hr/manager`):**
+  - **Probléma:** Korábban a jóváhagyásra váró kérelmek darabokra voltak tördelve: a rendes szabadságok a képernyő tetején, míg az újonnan bevezetett munkaidő korrekciók és a túlóra jóváhagyások a hatalmas havi csapatnaptár alá voltak szórva különálló kis dobozokban. Ez szétverte a frontend oldalszerkezetét és a vezetői élményt.
+  - **Megoldás:** Minden függő vezetői feladat (Szabadság & Távollét, Munkaidő korrekció, Túlóra felhasználás & Csúsztatás) egyetlen, központi **Linear-flat jóváhagyási hubba** került a csapatnaptár fölött.
+  - **Kategória Szűrőfülek:** `Összes (N)`, `Távollét (N)`, `Munkaidő (N)`, `Túlóra (N)` azonnali szűrés számláló jelvényekkel.
+  - **Egységes Kártyák & Akciógombok:** Minden kérelemnél egységes avatar, dolgozó neve, beküldési időpont, szemantikus típusjelvény, kért részletek (pl. *2026. 10. 07. • Hiányzó jelenlét ➔ Kért: 08:00 – 15:30*), indoklás és egységes `[ ✕ Elutasít ]` / `[ ✓ Jóváhagy ]` gombok azonnali frissítéssel.
+  - **Elutasítási Indoklás Modál:** Opcionális elutasítási magyarázat megadása, amelyet a dolgozó automatikus in-app értesítésben is megkap.
+  - **Központi Fejléc Statisztika:** A vezetői nézet fejlécében lévő „függő kérelem” számláló mindhárom kérelmi típus összegét (`totalPendingCount`) mutatja.
+- **Jelenléti Ív Dolgozói és Profil Vizuális Jelzése (`AttendanceTab.tsx`):**
+  - **Probléma:** A dolgozói profilon a *Jelenlét* fülön (`/hr/employee/[id]`) nem látszott, ha az adott munkanapra korrekciós kérelem volt folyamatban, így a 08:00 – 15:30-as kért idő hiába szerepelt az adatbázisban, az íven sima üres munkanapként jelent meg.
+  - **Megoldás:**
+    - A nap sorában sárga `Korrekció bírálat alatt` jelvény és alatta a kért idősáv kiemelése: `Kért idő: 08:00 – 15:30 („indoklás”)`.
+    - A *Becsekkolás* és *Kicsekkolás* oszlopokban diszkrét, meleg tónusú jelzés mutatja a kért időpontot: `(08:00)` és `(15:30)` (vagy meglévő adat felülírásakor `09:00 → 08:00`).
+    - A sor enyhe meleg háttérszínt (`bg-amber-500/[0.04]`) kap a könnyű észrevehetőség érdekében.
+
+- **Dolgozói Főoldali Szabadságnap Számítás Pontosítása (`src/app/hr/page.tsx`):**
+  - **Hiba oka:** A dolgozói kezdőlapon a felhasznált szabadságot korábban a jóváhagyott kérelmek darabszáma (`tavolletek.filter(...).length`) alapján jelenítette meg a rendszer a ténylegesen kivett munkanapok összege helyett. Így egy 10 munkanapos szabadság csak 1 napként jelent meg a kártyán és a progress barban.
+  - **Javítás:** Bevezetve a `calculateWorkingDays` kalkulátor a magyar munkaszüneti napok (`hr_munkaszuneti_nap`) figyelembevételével és a `munkanapok_szama` összegzésével.
+  - Hozzáadva a nullával való osztás elleni védelem (`totalLeave > 0 ? ... : 0`).
+- **Globális Csapatnaptár Szűrőrendszer (`TeamCalendar`, `src/app/hr/time/page.tsx`):**
+  - Bővítve a csapatszintű naptárfelületet teljes körű szűrési és keresési eszköztárral:
+    - **Élő keresőmező:** Azonnali szűrés munkatárs neve és munkaköre szerint gyors törlés gombbal.
+    - **Részleg / Szervezeti Egység Szűrő:** Dinamikusan betöltött szervezeti egységek (`hr_szervezeti_egyseg`) szerinti csoportosítás.
+    - **Típus Választó:** Szabadság, Betegszabadság, Csúsztatás (Túlóra), Fizetetlen, Tanulmányi szűrés.
+    - **"Csak távollévők" kapcsoló:** A teljes céges állományból egy kattintással csak az éppen távol lévő kollégák megjelenítése.
+    - Aktív szűrők darabszám-jelvénye és "Szűrők törlése" reset gomb, üres állapotok kulturált kezelése.
+- **Időrögzítés Megújítása, Ebédszünet és Munkaidő Korrekciós Jóváhagyási Rendszer:**
+  - **Szigorú Vezetői Jóváhagyási Workflow:** A dolgozó közvetlenül nem írhatja felül a jelenléti ívet. Az utólagos módosítások (elfelejtett be-/kicsekkolás, eltérő időpont) **korrekciós kérelemként** kerülnek benyújtásra a közvetlen vezető felé.
+  - **Új Adatbázis Tábla (`hr_jelenlet_korrekcio`):** Dedikált migráció (`20261007000002_hr_jelenlet_korrekcio.sql`) tárolja a kérelmeket (eredeti és kért időpontok, indoklás, `jovahagyasra_var`, `jovahagyva`, `elutasitva` státuszok, audit időbélyegek) RLS jogosultságokkal.
+  - **Vezetői Bíráló Felület (`AttendanceCorrectionRequestsPanel`, `/hr/manager`):** A vezetők a Vezetői Nézetben látják a beosztottak korrekciós kérelmeit (dolgozó neve, dátum, eredeti ➔ kért idősáv, indoklás), amelyeket egyetlen kattintással jóváhagyhatnak vagy elutasíthatnak.
+  - **Automatikus Érvényesítés Jóváhagyáskor (`handleAttendanceCorrectionApproval`):** Csak jóváhagyás után frissül a `hr_jelenlet` tábla, a rendszer automatikus in-app értesítést küld a dolgozónak és hitelesített bejegyzést rögzít a `hr_esemeny_naplo` audit táblában.
+  - **Jelenléti Ív Állapotjelző (`EmployeeTimesheet`):** A havi jelenléti ív a bírálat alatt lévő napoknál sárga `Bírálat alatt` jelvénnyel tájékoztatja a munkavállalót a folyamatban lévő korrekcióról.
+  - **Ebédszünet / Szünetkezelés:** A `TimeTrackingCard` egykattintásos ebédszünet indítást és lezárást kapott, amely szünetelteti a számlálót és levonja a szünetet a nettó munkaidőből.
+  - **Munka Folytatása (Resumption):** Kicsekkolás után nem tiltja le a gombot, hanem engedélyezi a munka folytatását (`toggleCheckIn` újranyitással).
 - **Kétcsatornás Csúsztatási Igénylés:**
   - **Távollét Űrlap (`LeaveRequestDialog`):** Új `Csúsztatás (Túlóra terhére)` opció, automatikus munkanapszámítással (8h/nap) és valós idejű egyenlegellenőrzéssel. Hiány esetén informatív hibaüzenet és beküldési tiltás.
   - **Túlóra Egyenleg Kártya (`OvertimeBalanceCard`):** Új interaktív csúsztatási modál naptárral, gyors gombokkal (`Egész nap (8h)`, `Fél nap (4h)`, `Egyedi óra`) és élő egyenlegkalkulációval (aktuális, levonandó, jóváhagyás utáni).

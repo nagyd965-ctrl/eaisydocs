@@ -8,7 +8,7 @@ import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
 import { EmployeeKpiCard } from "@/components/hr/employee-kpi-card"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { calculateAnnualLeave } from "@/utils/hr/leave-calculator"
+import { calculateAnnualLeave, calculateWorkingDays } from "@/utils/hr/leave-calculator"
 import { KpiCard } from "@/components/kpi-card"
 export default async function SelfServicePage() {
   const supabase = await createClient()
@@ -40,23 +40,49 @@ export default async function SelfServicePage() {
   const belepesDatuma = jogviszony?.belepes_datuma || null
 
   // 1. Szabadság egyenleg számítása
-  const { data: tavolletek } = await supabase
-    .from("hr_tavollet")
-    .select("*")
-    .eq("dolgozo_id", user.id)
-    .order("created_at", { ascending: false })
-
   const currentYear = new Date().getFullYear()
+
+  const [{ data: tavolletek }, { data: holidaysData }] = await Promise.all([
+    supabase
+      .from("hr_tavollet")
+      .select("*")
+      .eq("dolgozo_id", user.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("hr_munkaszuneti_nap")
+      .select("datum")
+      .gte("datum", `${currentYear}-01-01`)
+      .lte("datum", `${currentYear}-12-31`)
+      .eq("athelye_munkanap", false),
+  ])
+
+  const holidayDates = (holidaysData || []).map((h: any) => h.datum as string)
+
+  const getLeaveWorkingDays = (t: any) => {
+    if (typeof t.munkanapok_szama === "number" && t.munkanapok_szama > 0) {
+      return t.munkanapok_szama
+    }
+    if (!t.kezdet_datuma || !t.veg_datuma) return 0
+    return calculateWorkingDays(t.kezdet_datuma, t.veg_datuma, holidayDates)
+  }
+
   const totalLeave = calculateAnnualLeave(
     adatlap?.szuletesi_datum, 
     adatlap?.gyermekek_szama, 
     adatlap?.megvaltozott_munkakepessegu, 
     currentYear
   )
-  const usedLeave = tavolletek?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyva").length || 0
-  const plannedLeave = tavolletek?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyasra_var").length || 0
+
+  const usedLeave = (tavolletek || [])
+    .filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyva")
+    .reduce((sum, t) => sum + getLeaveWorkingDays(t), 0)
+
+  const plannedLeave = (tavolletek || [])
+    .filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyasra_var")
+    .reduce((sum, t) => sum + getLeaveWorkingDays(t), 0)
+
   const pendingLeavesCount = tavolletek?.filter(t => t.statusz === "jovahagyasra_var").length || 0
-  const remainingLeave = totalLeave - usedLeave
+  const remainingLeave = Math.max(0, totalLeave - usedLeave)
 
   // Legutóbbi 3 távollét kérelem
   const recentLeaves = tavolletek?.slice(0, 3) || []
@@ -220,7 +246,7 @@ export default async function SelfServicePage() {
               </div>
               <span className="text-sm text-muted-foreground tabular-nums">Összesen: {totalLeave} nap</span>
             </div>
-            <Progress value={(usedLeave / totalLeave) * 100} className="mt-4 h-2" />
+            <Progress value={totalLeave > 0 ? (usedLeave / totalLeave) * 100 : 0} className="mt-4 h-2" />
             <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground tabular-nums">
               <span>Felhasznált: {usedLeave} nap</span>
               <span>Tervezett: {plannedLeave} nap</span>

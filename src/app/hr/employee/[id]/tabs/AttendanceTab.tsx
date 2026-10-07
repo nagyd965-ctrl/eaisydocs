@@ -108,9 +108,23 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
   const prevMonth = () => setCurrentDate(new Date(year, month - 2, 1))
   const nextMonth = () => setCurrentDate(new Date(year, month, 1))
 
+  const formatIsoTime = (iso?: string | null): string => {
+    if (!iso) return "-"
+    if (iso.includes("T")) {
+      try {
+        const d = new Date(iso)
+        if (!isNaN(d.getTime())) {
+          const h = String(d.getHours()).padStart(2, "0")
+          const m = String(d.getMinutes()).padStart(2, "0")
+          return `${h}:${m}`
+        }
+      } catch {}
+    }
+    return iso.substring(0, 5)
+  }
+
   const formatTime = (isoString: string | null) => {
-    if (!isoString) return "-"
-    return new Date(isoString).toLocaleTimeString("hu-HU", { hour: "2-digit", minute: "2-digit" })
+    return formatIsoTime(isoString)
   }
 
   const parseToIso = (timeStr: string, dateIso: string) => {
@@ -371,23 +385,78 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
                     return (
                       <tr 
                         key={entry.id} 
-                        className={`border-b last:border-0 ${typeColors[entry.type]}`}
+                        className={`border-b last:border-0 ${entry.pendingCorrection ? "bg-amber-500/[0.04] dark:bg-amber-500/[0.08]" : typeColors[entry.type]}`}
                       >
                         <td className="p-3 font-medium whitespace-nowrap">
                           {entry.datum.substring(8, 10)}. {["V", "H", "K", "Sze", "Cs", "P", "Szo"][new Date(entry.datum).getDay()]}
                         </td>
                         <td className="p-3">
-                          {typeLabels[entry.type]}
-                          {entry.note && <span className="text-xs block opacity-70">{entry.note}</span>}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium">{typeLabels[entry.type]}</span>
+                            {entry.pendingCorrection && (
+                              <Badge variant="outline" className="text-[10px] bg-warning/15 text-warning font-semibold border-warning/30 px-1.5 py-0.5">
+                                Korrekció bírálat alatt
+                              </Badge>
+                            )}
+                          </div>
+                          {entry.pendingCorrection ? (
+                            <div className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 flex items-center gap-1.5 font-normal">
+                              <span className="font-medium">Kért idő:</span>
+                              <span className="tabular-nums font-semibold">
+                                {formatIsoTime(entry.pendingCorrection.uj_becsekkolas)} – {formatIsoTime(entry.pendingCorrection.uj_kicsekkolas)}
+                              </span>
+                              {entry.pendingCorrection.indoklas && (
+                                <span className="italic text-muted-foreground truncate max-w-[220px]" title={entry.pendingCorrection.indoklas}>
+                                  („{entry.pendingCorrection.indoklas}”)
+                                </span>
+                              )}
+                            </div>
+                          ) : entry.note ? (
+                            <span className="text-xs block opacity-70 mt-0.5">{entry.note}</span>
+                          ) : null}
                         </td>
                         <td className="p-3 text-center opacity-70">
                           {calc?.plannedHours ? `${calc.plannedHours} h` : "-"}
                         </td>
                         <td className="p-3 text-center">
-                          {formatTime(entry.becsekkolas_ideje)}
+                          {entry.pendingCorrection ? (
+                            <div className="flex flex-col items-center leading-tight">
+                              {entry.becsekkolas_ideje ? (
+                                <span className="text-[11px] line-through text-muted-foreground tabular-nums">
+                                  {formatTime(entry.becsekkolas_ideje)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">-</span>
+                              )}
+                              <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 tabular-nums">
+                                {entry.becsekkolas_ideje ? "→ " : ""}{formatIsoTime(entry.pendingCorrection.uj_becsekkolas)}
+                              </span>
+                            </div>
+                          ) : entry.becsekkolas_ideje ? (
+                            <span className="tabular-nums">{formatTime(entry.becsekkolas_ideje)}</span>
+                          ) : (
+                            <span className="opacity-70">-</span>
+                          )}
                         </td>
                         <td className="p-3 text-center">
-                          {formatTime(entry.kicsekkolas_ideje)}
+                          {entry.pendingCorrection ? (
+                            <div className="flex flex-col items-center leading-tight">
+                              {entry.kicsekkolas_ideje ? (
+                                <span className="text-[11px] line-through text-muted-foreground tabular-nums">
+                                  {formatTime(entry.kicsekkolas_ideje)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">-</span>
+                              )}
+                              <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 tabular-nums">
+                                {entry.kicsekkolas_ideje ? "→ " : ""}{formatIsoTime(entry.pendingCorrection.uj_kicsekkolas)}
+                              </span>
+                            </div>
+                          ) : entry.kicsekkolas_ideje ? (
+                            <span className="tabular-nums">{formatTime(entry.kicsekkolas_ideje)}</span>
+                          ) : (
+                            <span className="opacity-70">-</span>
+                          )}
                         </td>
                         <td className="p-3 text-center font-medium tabular-nums">
                           {calc?.actualHours ? `${calc.actualHours} h` : "-"}

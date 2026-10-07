@@ -4,9 +4,10 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { KpiCard } from "@/components/kpi-card"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, CalendarDays, Loader2, Clock, CalendarCheck, Umbrella, ChevronDown, ChevronUp } from "lucide-react"
+import { ChevronLeft, ChevronRight, CalendarDays, Loader2, Clock, CalendarCheck, Umbrella, ChevronDown, ChevronUp, Pencil } from "lucide-react"
 import { getMonthlyTimesheet, type TimesheetEntry } from "@/app/hr/attendance-actions"
 import { OvertimeActionDialog } from "@/components/hr/overtime-action-dialog"
+import { AttendanceCorrectionDialog } from "@/components/hr/attendance-correction-dialog"
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -164,13 +165,16 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
                 </button>
               </CollapsibleTrigger>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={prevMonth} className="h-7 w-7">
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <span className="text-sm font-semibold w-36 text-center">{monthLabel}</span>
-                <Button variant="ghost" size="icon" onClick={nextMonth} className="h-7 w-7">
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
+                <AttendanceCorrectionDialog onSuccess={loadData} />
+                <div className="flex items-center border rounded-md">
+                  <Button variant="ghost" size="icon" onClick={prevMonth} className="h-7 w-7 rounded-none">
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-xs font-semibold px-2 text-center min-w-[110px]">{monthLabel}</span>
+                  <Button variant="ghost" size="icon" onClick={nextMonth} className="h-7 w-7 rounded-none">
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -186,18 +190,19 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
                   <th className="h-9 px-4 text-center font-medium text-muted-foreground">Becsekkolás</th>
                   <th className="h-9 px-4 text-center font-medium text-muted-foreground">Kicsekkolás</th>
                   <th className="h-9 px-4 text-right font-medium text-muted-foreground">Ledolgozott</th>
+                  <th className="h-9 px-3 text-center font-medium text-muted-foreground w-12">Művelet</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="h-32 text-center">
+                    <td colSpan={6} className="h-32 text-center">
                       <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />
                     </td>
                   </tr>
                 ) : timesheet.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="h-20 text-center text-muted-foreground text-sm">
+                    <td colSpan={6} className="h-20 text-center text-muted-foreground text-sm">
                       Nincs elérhető adat erre a hónapra.
                     </td>
                   </tr>
@@ -216,7 +221,14 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
                           {entry.datum.substring(8, 10)}. {["V", "H", "K", "Sze", "Cs", "P", "Szo"][new Date(entry.datum).getDay()]}
                         </td>
                         <td className="px-4 py-2.5">
-                          {typeLabels[entry.type] ?? entry.type}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{typeLabels[entry.type] ?? entry.type}</span>
+                            {entry.pendingCorrection && (
+                              <span className="text-[10px] bg-warning/15 text-warning border border-warning/30 font-medium px-1.5 py-0.5 rounded">
+                                Bírálat alatt
+                              </span>
+                            )}
+                          </div>
                           {entry.note && <span className="text-xs block opacity-70">{entry.note}</span>}
                         </td>
                         <td className="px-4 py-2.5 text-center tabular-nums">
@@ -227,6 +239,26 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
                         </td>
                         <td className="px-4 py-2.5 text-right font-medium tabular-nums">
                           {entry.type === "munka" ? formatHours(hours) : "-"}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          {entry.type === "munka" && (
+                            <AttendanceCorrectionDialog
+                              initialDate={entry.datum}
+                              initialCheckIn={entry.becsekkolas_ideje || undefined}
+                              initialCheckOut={entry.kicsekkolas_ideje || undefined}
+                              onSuccess={loadData}
+                              trigger={
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={`h-6 w-6 ${entry.pendingCorrection ? "text-warning hover:text-warning" : "text-muted-foreground hover:text-foreground"}`}
+                                  title={entry.pendingCorrection ? "Folyamatban lévő korrekciós kérelem" : "Időkorrekció kérése"}
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </Button>
+                              }
+                            />
+                          )}
                         </td>
                       </tr>
                     )
