@@ -43,8 +43,9 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-028](./A-028-configurable-four-eyes-disposal.md) | 2026-10-02 | Konfigurálható Négyszem-Elv és Rendszerbeállítás Tábla | `[Docs]` | `Decided` | `system-settings.ts`, `admin-actions.ts`, `disposal-actions.ts`, `disposal-protocol-pdf.ts` |
 | [A-029](./A-029-global-ui-consistency-and-unified-components.md) | 2026-10-02 | Rendszerszintű UI/UX Egységesség és Kanonikus Komponens Használati Szabályzat | `[Közös]` | `Decided` | [P-043](../../product/decisions/P-043-global-ui-consistency-and-unified-components.md), `table-toolbar.tsx`, `partner-documents-table.tsx` |
 | [A-030](./A-030-code-level-security-hardening.md) | 2026-10-02 | Alkalmazásszintű Biztonsági Keményítés és Védelmi Kapuk | `[Közös]` | `Decided` | [P-044](../../product/decisions/P-044-code-level-security-hardening.md), `send-email/route.ts`, `download-document/route.ts`, `middleware.ts`, `next.config.ts` |
+| [A-031](./A-031-hr-reports-data-aggregation-and-export-architecture.md) | 2026-10-07 | HR Riportok Adataggregációja, Formátum-Normalizálása és Multi-Engine Export Architektúrája | `[HR]` | `Decided` | [P-050](../../product/decisions/P-050-hr-reports-t1041-ksh-payroll-overhaul.md), `reports-export.ts`, `hr/reports/actions.ts`, `reports-tabs.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-031`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-032`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!

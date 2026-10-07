@@ -50,6 +50,9 @@ export interface TableToolbarProps {
   columns?: TableColumnOption[]
   onToggleColumn?: (columnId: string) => void
 
+  // Időszak választó (opcionális, pl. havi riportokhoz a szűrés mellé)
+  periodPicker?: React.ReactNode
+
   // Szűrők
   dateRange?: DateRangeFilter
   filterGroups?: FilterGroup[]
@@ -67,6 +70,7 @@ export function TableToolbar({
   searchPlaceholder = "Keresés...",
   columns,
   onToggleColumn,
+  periodPicker,
   dateRange,
   filterGroups = [],
   activeFiltersCount = 0,
@@ -108,8 +112,10 @@ export function TableToolbar({
         )}
       </div>
 
-      {/* Jobb oldal: Oszlopválasztó + Szűrés + Opcionális Extra Műveletek */}
+      {/* Jobb oldal: Időszakválasztó + Oszlopválasztó + Szűrés + Opcionális Extra Műveletek */}
       <div className="flex items-center gap-2">
+        {periodPicker && <div className="flex items-center">{periodPicker}</div>}
+
         {/* OSZLOPOK VÁLASZTÓ POPOVER */}
         {columns && onToggleColumn && (
           <Popover open={columnsOpen} onOpenChange={setColumnsOpen}>

@@ -55,8 +55,18 @@ export function DocumentPreviewFrame({
     setError(null)
 
     try {
+      let isCrossOrigin = false
+      if (typeof window !== "undefined") {
+        try {
+          const parsed = new URL(src, window.location.origin)
+          isCrossOrigin = parsed.origin !== window.location.origin
+        } catch {
+          isCrossOrigin = src.startsWith("http://") || src.startsWith("https://")
+        }
+      }
+
       const response = await fetch(src, {
-        credentials: "include",
+        credentials: isCrossOrigin ? "omit" : "same-origin",
       })
 
       if (!response.ok) {

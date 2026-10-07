@@ -15,9 +15,8 @@ function getGitStatus(): string[] {
     const status = execSync("git status -s", { encoding: "utf8" });
     return status
       .split("\n")
-      .map(line => line.trim())
-      .filter(Boolean)
-      .map(line => line.substring(3).trim());
+      .filter(line => Boolean(line.trim()))
+      .map(line => line.slice(3).trim());
   } catch (_e) {
     return [];
   }

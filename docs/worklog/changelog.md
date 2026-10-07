@@ -4,7 +4,42 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ---
 
-## [Unreleased] – Fejlesztés alatt (2026-10-05)
+## [Unreleased] – Fejlesztés alatt (2026-10-07)
+
+### 📊 HR Riportok Modul Teljes Megújítása ([P-050](../product/decisions/P-050-hr-reports-t1041-ksh-payroll-overhaul.md), [A-031](../architecture/decisions/A-031-hr-reports-data-aggregation-and-export-architecture.md))
+- **Teljes körű Funkcionális és Vizuális Refaktorálás (Global UI Consistency - P-043 / A-029):**
+  - Megszüntetve a korábbi kezdetleges állapotot és a hibás, egyetlen oszlopba tömörülő, sérült ékezetes CSV fájlokat (pl. `BelĂ©pĂ©s`).
+  - Új, 4 füles interaktív adatközpont: *NAV T1041*, *KSH Riport*, *Bérszámfejtés* és *Bevallás Archívum*.
+- **Multi-Engine Export Pipeline (`src/utils/hr/reports-export.ts`):**
+  - **Formázott SheetJS `.xlsx` Munkafüzetek:** Automatikus oszlopszélességek, formázott fejlécek és numerikus típuskezelés (munkaórák, munkanapok, Ft összegek).
+  - **Magyar Excel Kompatibilis CSV Engine:** UTF-8 BOM (`\uFEFF`) és pontosvessző (`;`) határoló, garantálva a hibátlan megjelenést a hazai Microsoft Excel táblázatkezelőkben.
+  - **ÁNYK / ONYA Vágólap Szinkronizáció:** Egykattintásos tabulátoros másolás a hatósági ÁNYK és ONYA nyomtatványkitöltőkhöz.
+  - **Két Munkalapos KSH Riport:** Különálló *KSH_Fomutatok* és *Reszleg_Bontas* munkalapok egyetlen Excel munkafüzetben.
+  - **19 Oszlopos Bérszámfejtési Csomag:** Részletes bérprogram-előkészítő állomány (jelenlétek, túlórák, szabadság, betegszabadság, táppénz, cafeteria és havi zárási státusz).
+  - **Cafeteria Részletező Export:** Munkavállalónkénti juttatási kategória bontás (.xlsx).
+- **Intelligens Server Action Adatgyűjtés (`src/app/hr/reports/actions.ts`):**
+  - `getT1041ReportData`: meglévő bejelentések feldolgozása, automatikus gap-detektálás a havi belépő/kilépő munkavállalóknál (`Bejelentésre vár`), titkosított érzékeny adatok (TAJ, adójel) feloldása, aláírt URL generálás az A4 adatlaphoz és NAV nyugtához.
+  - `getKshReportData`: szétválasztott Terv (törvényes havi norma munkaidő-alap: naptári munkanapok × 8 óra × FTE) és Tény (valós becsekkolások a `hr_jelenlet` táblából), teljesülési arány (%), fluktuáció és részlegenkénti norma/tény bontás.
+  - `getPayrollReportData`: dolgozónkénti Terv munkanap és munkaóra vs. Tény jelenléti adatok, túlóra, távolléti jogcímek, cafeteria és vezetői jóváhagyási státuszok (`hr_havi_jelenlet_zaras`).
+  - `uploadT1041ReceiptFromReport`: közvetlen NAV befogadási nyugta feltöltése a táblázat soraiból, Supabase tárolás, iratkezelői iktatás (`executeHrDocumentFiling`), és azonnali `Igazolva` státuszfrissítés audit naplózással.
+- **Elavult Compliance Modul Kivezetése és Konszolidációja a Riportokba:**
+  - Eltávolítva a redundáns és elavult `Compliance` menüpont az oldalsávból (`src/components/hr-sidebar.tsx`).
+  - A `/hr/compliance` útvonal tiszta Next.js szerver átirányítást (`redirect("/hr/reports")`) kapott a könyvjelzők és külső linkek védelmére.
+  - Törölve a korábbi kezdetleges segédkomponensek (`nav-t1041-generator.tsx`, `ksh-report-generator.tsx`).
+- **Egyéni Dolgozói Riport és Hatósági Adatlap Készítés:**
+  - **Bérszámfejtés:** Beépítve a munkavállaló szerinti szűrő a `TableToolbar`-ba, valamint minden sorban közvetlen **„Egyéni export (.xlsx)”** letöltés (`exportSingleEmployeePayrollToXlsx`), amely két munkalapon (dolgozói adatlap és bérprogram sor) bontja ki az adott személy havi adatait. Emellett beépítve a közvetlen munkavállalói jelenlét/dosszié hivatkozás is.
+  - **NAV T1041:** Új, közvetlen **„+ Egyéni T1041 Készítése”** modál, ahol a vállalat bármely aktív dolgozójára azonnal generálható ÁNYK vágólapos szöveg, illetve hivatalos A4-es T1041 PDF adatlap előnézet, amely automatikusan beiktatásra kerül a személyi dossziéba.
+- **Kanonikus UI / UX Elemek és Globális Elrendezés-Finomítás (`src/components/hr/reports-tabs.tsx`, `src/components/table-toolbar/table-toolbar.tsx`):**
+  - **Felső Statisztikai Sáv:** Megszüntetve a korábbi különálló, helypazarló felső időszakválasztó kártyát; a Linear Flat `KpiCard` sáv mostantól – a szoftver többi oldalához hasonlóan – közvetlenül a `Riportok` cím és alcím alatt helyezkedik el mint elsődleges összefoglaló, és fülváltáskor dinamikusan frissül az aktív riport adataira.
+  - **Beépített Időszakválasztó a `TableToolbar`-ban:** A központi [TableToolbar](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/table-toolbar/table-toolbar.tsx) kapott egy beépített `periodPicker` propot, így a havi naptárválasztó és az azonnali adatfrissítő gomb közvetlenül a zöld **Szűrés** gomb mellé épült be a hatósági riportok és a bérszámfejtés eszköztárába.
+  - Linear Flat `KpiCard` sáv mind a 4 fülön díszítő ikonok és vastag bal oldali szegélyek nélkül.
+  - Szabványos `TableToolbar` valós idejű gépelési kereséssel és tematikus szűrőcsoportokkal.
+  - In-place dokumentum és hatósági nyugta betekintés (`DocumentPreviewFrame`) közvetlen felugró modálban; külső Supabase Storage Signed URL-eknél a cross-origin CORS és hitelesítő adatok (`credentials: "omit"`) optimalizálásával garantálva a hibátlan böngészős PDF betöltést.
+  - Kereshető Bevallás Archívum új feltöltési felülettel és törlési megerősítő párbeszédablakkal.
+
+---
+
+## [Release v1.6.0] – (2026-10-05)
 
 ### 📜 AI Alapú Üzleti Szerződés- és Megállapodásgenerátor ([P-049](../product/decisions/P-049-ai-business-contract-and-agreement-generator-ux.md))
 - **Természetes Nyelvű AI Szerződéskészítés (Gemini 2.5 Flash + Determinisztikus Tartalék):**

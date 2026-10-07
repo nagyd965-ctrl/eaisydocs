@@ -83,11 +83,16 @@ export default async function ManagerPage() {
     `)
     .eq("hr_dolgozo_adatlap.felhasznalo_profil.kozvetlen_vezeto_id", user.id)
 
-  const teamMembers = (rawTeamMembers || []).map((j: any) => ({
-    id: j.dolgozo_id,
-    felhasznalo_profil: j.hr_dolgozo_adatlap?.felhasznalo_profil,
-    munkakor: j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beosztás"
-  }))
+  const teamMemberMap = new Map<string, any>()
+  for (const j of (rawTeamMembers as any[]) || []) {
+    if (!j.dolgozo_id || teamMemberMap.has(j.dolgozo_id)) continue
+    teamMemberMap.set(j.dolgozo_id, {
+      id: j.dolgozo_id,
+      felhasznalo_profil: j.hr_dolgozo_adatlap?.felhasznalo_profil,
+      munkakor: j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beosztás",
+    })
+  }
+  const teamMembers = Array.from(teamMemberMap.values())
 
   const todayAbsentCount = teamMembers.filter(m => todayAbsentIds.has(m.id)).length
   const pendingCount = pendingLeaves?.length ?? 0

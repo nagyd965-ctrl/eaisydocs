@@ -57,9 +57,10 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-047](./P-047-dossier-lifecycle-and-settlement-architecture-ux.md) | 2026-10-04 | Ügyirat Életciklus, Szakmai Elintézés és Lezárási Architektúra UX | `[Docs]` | `Dossier Lifecycle / Settlement & Tasks` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), `dossier-lifecycle-actions.tsx`, `tasks-tab.tsx`, `actions.ts` |
 | [P-048](./P-048-outgoing-document-and-dispatch-architecture-ux.md) | 2026-10-04 | Kimenő Irat, Válaszlevél és Expediálási Architektúra UX | `[Docs]` | `Dossiers / Outgoing & Expedition` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), `outgoing-documents-panel.tsx`, `tasks-tab.tsx`, `expedite-dialog.tsx` |
 | [P-049](./P-049-ai-business-contract-and-agreement-generator-ux.md) | 2026-10-05 | AI Alapú Üzleti Szerződés- és Megállapodáskészítő Rendszer UX | `[Docs]` | `Contracts / AI Generator` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), `contract-generator-dialog.tsx`, `contract-actions.ts` |
+| [P-050](./P-050-hr-reports-t1041-ksh-payroll-overhaul.md) | 2026-10-07 | HR Riportok Modul Teljes Megújítása (NAV T1041, KSH, Bérszámfejtés és Archívum) | `[HR]` | `HR / Reports & Statutory` | [A-031](../../architecture/decisions/A-031-hr-reports-data-aggregation-and-export-architecture.md), `reports-tabs.tsx`, `reports-export.ts`, `hr/reports/page.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-050`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-051`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 

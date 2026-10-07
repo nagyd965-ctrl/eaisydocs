@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isSameMonth, addWeeks, subWeeks, addMonths, subMonths, addYears, subYears, startOfMonth, endOfMonth, eachMonthOfInterval, startOfYear, endOfYear, isWithinInterval, parseISO } from "date-fns"
 import { hu } from "date-fns/locale"
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, User2 } from "lucide-react"
@@ -28,6 +28,17 @@ function isLeaveActive(l: LeaveRecord, day: Date): boolean {
 export function TeamCalendar({ teamMembers, leaves }: { teamMembers: TeamMember[], leaves: LeaveRecord[] }) {
   const [viewMode, setViewMode] = useState<ViewMode>("havi")
   const [currentDate, setCurrentDate] = useState(new Date())
+
+  // Deduplikáljuk a munkavállalókat dolgozo_id / id alapján a React key collision megelőzésére
+  const uniqueTeamMembers = useMemo(() => {
+    const seen = new Set<string>()
+    return (teamMembers || []).filter((m) => {
+      const id = m.id || (m as any).dolgozo_id || (m as any).user_id
+      if (!id || seen.has(id)) return false
+      seen.add(id)
+      return true
+    })
+  }, [teamMembers])
 
   // Színek definiálása típusok alapján
   const typeColors: Record<string, string> = {
@@ -72,7 +83,7 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: TeamMember[
 
           {/* Sorok */}
           <div className="space-y-2">
-            {teamMembers.map(member => {
+            {uniqueTeamMembers.map(member => {
               const nev = member.felhasznalo_profil?.nev || member.nev || "Ismeretlen"
               const initials = nev.substring(0, 2).toUpperCase()
               const memberLeaves = leaves.filter(l => (l.dolgozo_id || l.user_id) === member.id)
@@ -130,7 +141,7 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: TeamMember[
           const isToday = isSameDay(day, new Date())
           
           // Ezen a napon távollévők keresése
-          const absentMembers = teamMembers.filter(member => {
+          const absentMembers = uniqueTeamMembers.filter(member => {
              return leaves.some(l => (l.dolgozo_id || l.user_id) === member.id && isLeaveActive(l, day))
           })
 
@@ -212,7 +223,7 @@ export function TeamCalendar({ teamMembers, leaves }: { teamMembers: TeamMember[
             </tr>
           </thead>
           <tbody className="divide-y">
-            {teamMembers.map(member => {
+            {uniqueTeamMembers.map(member => {
                const nev = member.felhasznalo_profil?.nev || member.nev || "Ismeretlen"
                const memberLeaves = leaves.filter(l => (l.dolgozo_id || l.user_id) === member.id)
 

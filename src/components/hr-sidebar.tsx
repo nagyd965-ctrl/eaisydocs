@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Home, Users, Calendar, Briefcase, FileText, UserPlus, Presentation, Target, FileBarChart2, ShieldAlert, FileSignature, ChevronDown, UserMinus } from "lucide-react"
+import { Home, Users, Calendar, Briefcase, FileText, UserPlus, Presentation, Target, FileBarChart2, ShieldAlert, ChevronDown, UserMinus } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 
@@ -109,11 +109,6 @@ const items = [
         url: "/hr/offboarding",
       }
     ]
-  },
-  {
-    title: "Compliance",
-    url: "/hr/compliance",
-    icon: FileSignature,
   },
   {
     title: "Eseménynapló",

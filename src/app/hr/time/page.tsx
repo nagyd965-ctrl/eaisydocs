@@ -41,6 +41,8 @@ export default async function TimeAndAttendancePage() {
     .select(`
       id,
       dolgozo_id,
+      kilepes_datuma,
+      created_at,
       hr_dolgozo_adatlap (
         id,
         felhasznalo_profil ( nev )
@@ -49,16 +51,26 @@ export default async function TimeAndAttendancePage() {
         hr_munkakor ( megnevezes )
       )
     `)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
 
-  // Format to match what TeamCalendar expects
-  const allEmployees = (rawEmployees || []).map((j: any) => ({
-    id: j.dolgozo_id,
-    felhasznalo_profil: j.hr_dolgozo_adatlap?.felhasznalo_profil,
-    hr_munkakor: {
-      megnevezes: j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beosztás"
+  // Format to match what TeamCalendar expects, deduplicating by dolgozo_id
+  const employeeMap = new Map<string, any>()
+  for (const j of (rawEmployees as any[]) || []) {
+    if (!j.dolgozo_id) continue
+    const existing = employeeMap.get(j.dolgozo_id)
+    // Ha még nem szerepel, vagy az újabb bejegyzés aktív (nincs kilépés dátuma)
+    if (!existing || (!j.kilepes_datuma && existing.kilepes_datuma)) {
+      employeeMap.set(j.dolgozo_id, {
+        id: j.dolgozo_id,
+        felhasznalo_profil: j.hr_dolgozo_adatlap?.felhasznalo_profil,
+        hr_munkakor: {
+          megnevezes: j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beosztás"
+        },
+        kilepes_datuma: j.kilepes_datuma
+      })
     }
-  }))
+  }
+  const allEmployees = Array.from(employeeMap.values())
 
   return (
     <div className="space-y-6">
