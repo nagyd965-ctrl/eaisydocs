@@ -693,7 +693,7 @@ Ez különösen hasznos lehet olyan szabályozott területeken, ahol egy korább
 
 A bemutató alapján az alábbi témák üzleti döntést és folyamatszabályozást igényelnek. Kiemelendő, hogy a kérdések jelentős része (7 kulcsfontosságú tétel, pl. négyszem-elvű selejtezés, QR-kódos elválasztólapos szkennelés, titkosított HR adatvédelem, 4 minősítési szint, interaktív dashboard) **MÁR MEGVALÓSÍTÁSRA KERÜLT** a jelenlegi kódbázisban.
 
-### **8.1. Feladatkatalógus**
+### **8.1. Feladatkatalógus** - ahogy beszéltük úgy megoldva ne straight pop-up az egész kivezetni főoldalra
 * **Kérdés:** Milyen általános feladatok rendelhetők egy számlához, szerződéshez, HR-irathoz vagy szállítmányozási dokumentumhoz?
 * **Fejlesztési státusz:** 🟡 Részben kész (A `/tasks` felületen szabad szöveges feladatok már rögzíthetők).
 * **Döntési javaslat:** 4 standard, előre definiált sablon-feladattípus bevezetése a gyors munkavégzéshez:
@@ -703,7 +703,7 @@ A bemutató alapján az alábbi témák üzleti döntést és folyamatszabályoz
   * **HR dokumentum:** „Munkaszerződés aláíratása”, „Orvosi alkalmasság ellenőrzése”, „Kilépő papírok átadása”.
   * **Egyedi feladat:** Tetszőleges szabad szöveges teendő megadásának lehetősége felelőssel és határidővel.
 
-### **8.2. Feladatállapotok**
+### **8.2. Feladatállapotok** - 
 * **Kérdés:** Milyen státuszok legyenek, például új, folyamatban, várakozik, teljesítve, elutasítva, lezárva?
 * **Fejlesztési státusz:** 🟡 Részben kész (A Kanban tábla státuszoszlopai működnek).
 * **Döntési javaslat:** 4 tiszta állapot és egy indoklásos lezárási logika bevezetése:
@@ -713,7 +713,7 @@ A bemutató alapján az alábbi témák üzleti döntést és folyamatszabályoz
   * **Befejezve (Completed):** A feladat sikeresen elvégezve / jóváhagyva.
   * *Elutasítás kezelése:* Az „Elutasítva” állapot nem önálló státusz, hanem a feladat Befejezett lezárása kötelező szöveges indoklással (pl. vitatott számla).
 
-### **8.3. Automatikus szignálás**
+### **8.3. Automatikus szignálás** 
 * **Kérdés:** Milyen irattípus melyik szervezeti egységhez és melyik felelőshöz kerüljön?
 * **Fejlesztési státusz:** ✅ Részben kész (AI szervezeti egység ajánlás aktív).
 * **Döntési javaslat:** Kétlépcsős szignálási modell az automatizáció és az emberi kontroll egyensúlyára:
@@ -730,9 +730,9 @@ A bemutató alapján az alábbi témák üzleti döntést és folyamatszabályoz
   * **Szigorúan bizalmas:** Kizárólag az irat felelőse és a legfelsőbb cégvezető tekintheti meg.
   * *Módosítási jog:* A szintet kizárólag a dokumentum Felelőse és az Adminisztrátor módosíthatja; minden változás automatikusan és törölhetetlenül naplózódik az audit naplóban.
 
-### **8.5. Explicit megosztás**
+### **8.5. Explicit megosztás** - kész
 * **Kérdés:** Ki engedélyezheti, milyen időtartamra és milyen műveleti körrel?
-* **Fejlesztési státusz:** 🟡 Részben kész (Adatbázis szinten az explicit hozzárendelés táblája létezik).
+* **Fejlesztési státusz:** 🟡  kész (Adatbázis szinten az explicit hozzárendelés táblája létezik).
 * **Döntési javaslat:** Szabályozott megosztási jogosultságok:
   * **Engedélyező:** Az ügyirat Felelőse vagy a Szervezeti Egység Vezetője oszthatja meg más osztályon dolgozó munkatárssal.
   * **Műveleti körök:** Két különválasztott szint: 1. „Csak betekintés” (olvasási jog, vízjelezett megtekintéssel), 2. „Ügyintézés” (szerkesztési, feladat-hozzáadási és megjegyzés-írási jog).
@@ -791,7 +791,7 @@ A bemutató alapján az alábbi témák üzleti döntést és folyamatszabályoz
     * *Javasolt döntés a megbeszélésre:* Készüljön el az ellenirányú API integráció is: ha az eaisyDocs-ban az ügyintéző vagy az AI egy új bejövő szállítói számlát/szerződést rögzít, egyetlen gombnyomással („Átadás eaisyBillbe mint új szállító/partner”) lehessen átküldeni az eaisyBill API-ján keresztül.
     * *Eredmény:* Megszűnik a kettős manuális adatrögzítés, miközben a rendszerek adatbázisai szeparáltak és stabilak maradnak.
 
-### **8.11. Tenantmodell (Multi-tenancy és többcég-kezelés)**
+### **8.11. Tenantmodell (Multi-tenancy és többcég-kezelés)** - eaisybill mintára kell, mint eaisyhr mint eaisydocs-ban
 * **Kérdés:** Milyen szervezeti hierarchiában működjön a szolgáltató, a könyvelőiroda és az ügyfélcég?
 * **Valós fejlesztési státusz:** 📋 **Üzleti döntésre váró architektúrális tervezés (A kódban még NINCS tenant_id mező; a rendszer jelenleg egycéges / single-tenant belső szervezeti egységekkel).**
 * **Jelenlegi működés a kódban:**
@@ -819,7 +819,7 @@ A bemutató alapján az alábbi témák üzleti döntést és folyamatszabályoz
   * **Ügyintézők és Betekintők:** SOHA nem férhetnek hozzá az érzékeny adatokhoz, még akkor sem, ha a munkavállaló általános iratához (pl. munkaköri leírás) hozzáférésük van.
   * **Munkavállalói önkiszolgáló:** A dolgozó kizárólag a saját dokumentumait és bérlapját tekintheti meg.
 
-### **8.14. Szerződésgenerálás és sablonkezelés**
+### **8.14. Szerződésgenerálás és sablonkezelés** - kész 
 * **Kérdés:** Milyen sablonformátumokat, változómezőket és jóváhagyási lépéseket kell támogatni?
 * **Fejlesztési státusz:** 📋 Szakmai döntési javaslat.
 * **Döntési javaslat:** Strukturált sablon- és AI munkafolyamat:
@@ -827,7 +827,7 @@ A bemutató alapján az alábbi témák üzleti döntést és folyamatszabályoz
   * **AI generálás:** A felhasználó rövid promptban megadja az egyedi paramétereket, az AI pedig beilleszti a változókat és megfogalmazza az egyedi záradékokat.
   * **Jóváhagyási lánc:** Piszkozat (Draft) -> Jogi ellenőrzés -> Jóváhagyva -> PDF generálás és automatikus iktatás az eaisyDocs-ban.
 
-### **8.15. Elektronikus aláírás**
+### **8.15. Elektronikus aláírás** - utána nézni 2 órában max, hogy valóban-e meg lehetne-e oldani , Nem white label megoldás , api-n keresztül
 * **Kérdés:** Szükséges-e elektronikus aláírási szolgáltatás, vagy csak az aláírt fájl archiválása a cél?
 * **Fejlesztési státusz:** 📋 Szakmai döntési javaslat (Kétlépcsős stratégia).
 * **Döntési javaslat:** Költséghatékony, fázisolt bevezetés:

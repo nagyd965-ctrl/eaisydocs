@@ -258,9 +258,9 @@ export function CafeteriaTab({
                       <AlertDialogHeader>
                         <AlertDialogTitle>Nyilatkozat újranyitása (Év közbeni módosítás)</AlertDialogTitle>
                         <AlertDialogDescription className="space-y-2">
-                          <p>
+                          <div>
                             Biztosan újranyitod a dolgozó nyilatkozatát? Ezzel a dolgozó újra módosíthatja és beküldheti a cafeteria választásait.
-                          </p>
+                          </div>
                           {iktatoszam && (
                             <div className="p-3 bg-muted/60 border rounded-md text-xs text-foreground font-medium">
                               ⚠️ <strong>Levéltári figyelem:</strong> Ez a nyilatkozat már hivatalosan be lett iktatva a személyi dossziéba (<strong>{iktatoszam}</strong>). A korábbi iktatott irat megőrzött archívumként megmarad, és az új nyilatkozat leadásakor új iratként iktatható.
