@@ -7,6 +7,7 @@ import { getBaseUrl } from "@/utils/url"
 import { getClientInfo } from "@/utils/client-info"
 import { generateDisposalProtocolPdf, DisposalProtocolItem } from "@/utils/disposal-protocol-pdf"
 import { isFourEyesDisposalRequired } from "@/utils/system-settings"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 // 1. Felterjesztés Selejtezésre (Iratkezelő csinálja)
 export async function proposeDisposal(ugyiratIds: string[], note?: string) {
@@ -35,13 +36,20 @@ export async function proposeDisposal(ugyiratIds: string[], note?: string) {
     }
   }
 
-  // Létrehozunk egy új Selejtezési Csomagot
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  // Létrehozunk egy új Selejtezési Csomagot az aktív céghez
+  const csomagPayload: Record<string, any> = {
+    javaslattevo_user_id: user.id,
+    statusz: "jovahagyasra_var",
+  }
+  if (activeCompanyId) {
+    csomagPayload.company_id = activeCompanyId
+  }
+
   const { data: csomag, error: csomagError } = await supabase
     .from("selejtezes_csomag")
-    .insert({
-      javaslattevo_user_id: user.id,
-      statusz: "jovahagyasra_var",
-    })
+    .insert(csomagPayload)
     .select("id")
     .single()
 
@@ -67,7 +75,7 @@ export async function proposeDisposal(ugyiratIds: string[], note?: string) {
       .eq("id", id)
 
     if (!updateError) {
-      await supabase.from("esemeny_naplo").insert({
+      const naploPayload: Record<string, any> = {
         entitas_tipus: "ugyirat",
         entitas_id: id,
         esemeny_tipus: "modositva",
@@ -75,7 +83,11 @@ export async function proposeDisposal(ugyiratIds: string[], note?: string) {
         indoklas: note ? `Selejtezésre felterjesztve: ${note}` : "Selejtezésre felterjesztve a hatályos megőrzési idő lejárta alapján.",
         ip_cim: ip,
         user_agent: userAgent,
-      })
+      }
+      if (activeCompanyId) {
+        naploPayload.company_id = activeCompanyId
+      }
+      await supabase.from("esemeny_naplo").insert(naploPayload)
     }
   }
 
@@ -146,6 +158,8 @@ export async function approveDisposal(
   if (!approverName || approverName.trim() === "") {
     return { error: "A jóváhagyó nevének megadása kötelező!" }
   }
+
+  const activeCompanyId = await getActiveCompanyIdServer()
 
   // Admin kliens az RLS akadályok és megbízható csomagfrissítés kezelésére
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -334,7 +348,7 @@ export async function approveDisposal(
         : `A megőrzési idő lejárt. Az ügyiratot leselejteztük, a fizikai és digitális fájlokat véglegesen megsemmisítettük a rendszerből. Jóváhagyta: ${approverName}`
 
       // Eseménynapló bejegyzés
-      await supabase.from("esemeny_naplo").insert({
+      const logPayload: Record<string, any> = {
         entitas_tipus: "ugyirat",
         entitas_id: item.id,
         esemeny_tipus: "selejtezve",
@@ -342,7 +356,11 @@ export async function approveDisposal(
         indoklas: disposalLogIndoklas,
         ip_cim: ip,
         user_agent: userAgent,
-      })
+      }
+      if (activeCompanyId) {
+        logPayload.company_id = activeCompanyId
+      }
+      await supabase.from("esemeny_naplo").insert(logPayload)
     } else {
       // Maradandó értékű irat: Levéltári átadás (fájlok megőrződnek!)
       if (item.ugy_id) {
@@ -356,7 +374,7 @@ export async function approveDisposal(
         ? `A megőrzési idő lejárt. Maradandó értékű irattári tétel miatt levéltári átadásra átadva és rögzítve (Egyfelhasználós jóváhagyás - a négyszem-elv feloldva a rendszerbeállítások alapján). Jóváhagyta: ${approverName}`
         : `A megőrzési idő lejárt. Maradandó értékű irattári tétel miatt levéltári átadásra átadva és rögzítve. Jóváhagyta: ${approverName}`
 
-      await supabase.from("esemeny_naplo").insert({
+      const archiveLogPayload: Record<string, any> = {
         entitas_tipus: "ugyirat",
         entitas_id: item.id,
         esemeny_tipus: "irattarozva",
@@ -364,7 +382,11 @@ export async function approveDisposal(
         indoklas: archiveLogIndoklas,
         ip_cim: ip,
         user_agent: userAgent,
-      })
+      }
+      if (activeCompanyId) {
+        archiveLogPayload.company_id = activeCompanyId
+      }
+      await supabase.from("esemeny_naplo").insert(archiveLogPayload)
     }
   }
 

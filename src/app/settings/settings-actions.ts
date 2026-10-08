@@ -350,6 +350,35 @@ export async function deleteDepartment(id: string) {
 }
 
 export async function deleteUser(userId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "Nincs bejelentkezett felhasználó." }
+  }
+
+  // Ellenőrizzük, hogy a hívó valóban adminisztrátor vagy rendszergazda-e
+  const { data: callerProfile } = await supabase
+    .from("felhasznalo_profil")
+    .select("szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isAdmin =
+    callerProfile?.szerepkor === "admin" ||
+    callerProfile?.docs_szerepkor === "admin" ||
+    callerProfile?.szerepkor === "rendszergazda" ||
+    callerProfile?.docs_szerepkor === "rendszergazda"
+
+  if (!isAdmin) {
+    return { error: "Kizárólag rendszergazda vagy adminisztrátor törölhet felhasználót." }
+  }
+
+  // Saját magát nem törölheti
+  if (user.id === userId) {
+    return { error: "Saját fiókodat nem törölheted ezen a felületen." }
+  }
+
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceRoleKey) {
     return { error: "Hiányzik a SUPABASE_SERVICE_ROLE_KEY a .env.local fájlból!" }

@@ -27,6 +27,7 @@ import { HrNotificationSettings } from "./notification-settings"
 import { Bell } from "lucide-react"
 import { updateProfile } from "@/app/settings/settings-actions"
 import { AvatarUploadSection } from "./avatar-upload"
+import { CompanySettingsTab } from "@/components/settings/company-settings-tab"
 
 export default async function HrSettingsPage() {
   const supabase = await createClient()
@@ -202,6 +203,12 @@ export default async function HrSettingsPage() {
             Profil
           </TabsTrigger>
           <TabsTrigger 
+            value="ceg" 
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
+          >
+            Cég
+          </TabsTrigger>
+          <TabsTrigger 
             value="rendszer" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
           >
@@ -283,6 +290,11 @@ export default async function HrSettingsPage() {
               </CardFooter>
             </form>
           </Card>
+        </TabsContent>
+
+        {/* CÉG BEÁLLÍTÁSOK TAB (VISIBILL MINTÁRA - EAISYHR SZEREPKÖRÖKKEL) */}
+        <TabsContent value="ceg" className="space-y-4 outline-none">
+          <CompanySettingsTab module="hr" />
         </TabsContent>
 
         {/* 2. TAB: RENDSZER (eaisyDocs stílus) */}

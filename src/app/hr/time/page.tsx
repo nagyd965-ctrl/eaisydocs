@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { redirect } from "next/navigation"
 import { CalendarIcon } from "lucide-react"
 import { TeamCalendar } from "@/components/hr/team-calendar"
@@ -8,6 +9,9 @@ export default async function TimeAndAttendancePage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect("/auth/login")
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   // Biztonsági ellenőrzés
   const { data: profile } = await supabase
@@ -32,6 +36,7 @@ export default async function TimeAndAttendancePage() {
     supabase
       .from("hr_tavollet")
       .select("*")
+      .eq("company_id", companyScope)
       .neq("statusz", "elutasitva")
       .order("kezdet_datuma", { ascending: true }),
     supabase
@@ -54,10 +59,12 @@ export default async function TimeAndAttendancePage() {
           hr_munkakor ( megnevezes )
         )
       `)
+      .eq("company_id", companyScope)
       .order("created_at", { ascending: false }),
     supabase
       .from("hr_szervezeti_egyseg")
       .select("id, nev")
+      .eq("company_id", companyScope)
       .order("nev", { ascending: true })
   ])
 

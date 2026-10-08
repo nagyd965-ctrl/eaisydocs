@@ -6,15 +6,17 @@ import { EmployeeTable } from "@/components/hr/employee-table"
 import { KpiCard } from "@/components/kpi-card"
 import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
-
-
 
 export default async function HrAdminPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
@@ -32,7 +34,14 @@ export default async function HrAdminPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // 1. Dolgozók lekérése
+  // Aktív cég tagjainak azonosítói
+  const { data: companyMembers } = await supabase
+    .from("company_members")
+    .select("user_id")
+    .eq("company_id", companyScope)
+  const memberUserIds = (companyMembers || []).map(m => m.user_id)
+
+  // 1. Dolgozók lekérése az aktív céghez
   const { data: employees } = await supabase
     .from("felhasznalo_profil")
     .select(`
@@ -53,10 +62,11 @@ export default async function HrAdminPage() {
         )
       )
     `)
+    .in("id", memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"])
     .order("created_at", { ascending: true })
 
   // 2. Felvételi adatok
-  const { data: jobs } = await supabase.from("hr_munkakor").select("id, megnevezes")
+  const { data: jobs } = await supabase.from("hr_munkakor").select("id, megnevezes").eq("company_id", companyScope)
   const assignedIds = employees?.filter(e => e.hr_dolgozo_adatlap !== null).map(e => e.id) || []
 
   // Kizárólag az eaisyDocs (iratkezelő) fiókokat kérjük le a meglévő fiók választóhoz
@@ -80,16 +90,18 @@ export default async function HrAdminPage() {
   const { data: elfogadottJelentkezok } = await supabaseAdmin
     .from("hr_toborzas")
     .select("id, nev, email, megpalyazott_munkakor_id")
+    .eq("company_id", companyScope)
     .eq("statusz", "elfogadva")
 
   const userEmails = authUsers?.users?.map(u => u.email) || []
   const availableCandidates = elfogadottJelentkezok?.filter(j => !userEmails.includes(j.email)) || []
 
   // 3. Toborzási statisztikák
-  const { data: toborzas } = await supabaseAdmin.from("hr_toborzas").select("*")
+  const { data: toborzas } = await supabaseAdmin.from("hr_toborzas").select("*").eq("company_id", companyScope)
   const { data: allashirdetesek } = await supabase
     .from("hr_allashirdetes")
     .select("*")
+    .eq("company_id", companyScope)
     .eq("aktiv", true)
     .eq("publikus", true)
   const activeAdsCount = allashirdetesek?.length || 0
@@ -102,6 +114,7 @@ export default async function HrAdminPage() {
   const { data: onboardings } = await supabase
     .from("hr_onboarding")
     .select("*, hr_onboarding_feladat(*)")
+    .eq("company_id", companyScope)
   if (onboardings) {
     onboardings.forEach(o => {
       const hasPending = o.hr_onboarding_feladat?.some((f: any) => f.statusz === "pending")

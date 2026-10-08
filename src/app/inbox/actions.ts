@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import crypto from "crypto"
 // pdf-parse requires DOMMatrix globally in some Node environments
 if (typeof global !== "undefined" && typeof (global as any).DOMMatrix === "undefined") {
@@ -10,6 +11,7 @@ if (typeof global !== "undefined" && typeof (global as any).DOMMatrix === "undef
 
 export async function uploadIncomingDocument(formData: FormData) {
   const supabase = await createClient()
+  const activeCompanyId = await getActiveCompanyIdServer()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve." }
@@ -99,6 +101,7 @@ export async function uploadIncomingDocument(formData: FormData) {
   const { data: iratData, error: iratError } = await supabase
     .from("irat")
     .insert({
+      company_id: activeCompanyId || undefined,
       targy,
       erkezes_modja,
       adathordozo_tipus,

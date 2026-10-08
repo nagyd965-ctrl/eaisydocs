@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server"
 import { createEaisyBillClient } from "@/utils/supabase/eaisybill"
+import { getActiveCompanyIdServer, getActiveCompanyServer } from "@/utils/company-server"
 import { revalidatePath } from "next/cache"
 import crypto from "crypto"
 
@@ -66,7 +67,7 @@ async function getCompanyIdForEmail(email: string): Promise<string | null> {
 /**
  * Lekéri az eaisyBill-ből az importálható számlákat.
  * Csak a bejelentkezett user cégéhez tartozó számlákat adja vissza.
- * Kiszűri azokat, amelyek már be lettek hozva eaisyDocs-ba.
+ * Kiszűri azokat, amelyek az adott cégnél már be lettek hozva eaisyDocs-ba.
  */
 export async function getImportableEaisyBillInvoices(): Promise<{
   invoices: EaisyBillInvoice[]
@@ -76,17 +77,56 @@ export async function getImportableEaisyBillInvoices(): Promise<{
     const billClient = createEaisyBillClient()
     const docsClient = await createClient()
 
-    // 0. Bejelentkezett user emailje
+    // 0. Bejelentkezett user és aktív cég azonosítása
     const { data: { user } } = await docsClient.auth.getUser()
     if (!user?.email) return { invoices: [], error: "Nincs bejelentkezve." }
 
-    // 1. Company_id keresés az eaisyBill-ben email alapján
-    const companyId = await getCompanyIdForEmail(user.email)
+    const activeCompany = await getActiveCompanyServer()
+    const activeCompanyId = activeCompany?.id || (await getActiveCompanyIdServer())
+
+    // 1. Company_id keresés az eaisyBill-ben
+    // Először megpróbáljuk az aktív cég adószáma vagy neve alapján párosítani
+    let companyId: string | null = null
+
+    if (activeCompany) {
+      try {
+        const cleanTax = activeCompany.tax_number?.replace(/[-\s]/g, "")
+        if (cleanTax && cleanTax.length >= 8) {
+          const { data: matchedComp } = await billClient
+            .from("companies")
+            .select("id")
+            .ilike("tax_number", `%${cleanTax.slice(0, 8)}%`)
+            .maybeSingle()
+          if (matchedComp?.id) {
+            companyId = matchedComp.id
+          }
+        }
+
+        if (!companyId && activeCompany.name) {
+          const { data: matchedComp } = await billClient
+            .from("companies")
+            .select("id")
+            .ilike("name", `%${activeCompany.name.trim()}%`)
+            .maybeSingle()
+          if (matchedComp?.id) {
+            companyId = matchedComp.id
+          }
+        }
+      } catch (matchErr) {
+        console.warn("[eaisyBill] Cég párosítási hiba eaisyBill-ben:", matchErr)
+      }
+    }
+
+    // Ha nincs közvetlen egyezés (pl. teszt cég esetén), visszalépünk a userhez rendelt / alapértelmezett cégre
+    if (!companyId) {
+      companyId = await getCompanyIdForEmail(user.email)
+    }
+
     if (!companyId) {
       return { invoices: [], error: `Nincs eaisyBill cég-hozzárendelés ehhez a fiókhoz (${user.email}). Ellenőrizd az eaisyBill company_members táblát.` }
     }
 
-    // 2. Számlák lekérése – CSAK a saját cég számláit
+    // 2. Számlák lekérése – CSAK a megcélzott cég számláit
     const { data: billInvoices, error: billError } = await billClient
       .from("invoices")
       .select(`
@@ -104,12 +144,18 @@ export async function getImportableEaisyBillInvoices(): Promise<{
       return { invoices: [], error: "Hiba az eaisyBill lekérésekor: " + billError.message }
     }
 
-    // 3. Lekérjük a már importált eaisyBill számla ID-kat eaisyDocs-ból
-    const { data: alreadyImported } = await docsClient
+    // 3. Lekérjük a már importált eaisyBill számla ID-kat eaisyDocs-ból az AKTUÁLIS céghez
+    let alreadyImportedQuery = docsClient
       .from("irat")
       .select("kulso_hivatkozas_id")
       .eq("kulso_forras", "eaisybill")
       .not("kulso_hivatkozas_id", "is", null)
+
+    if (activeCompanyId) {
+      alreadyImportedQuery = alreadyImportedQuery.eq("company_id", activeCompanyId)
+    }
+
+    const { data: alreadyImported } = await alreadyImportedQuery
 
     const importedIds = new Set((alreadyImported || []).map(r => r.kulso_hivatkozas_id))
 
@@ -136,6 +182,8 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
   const { data: { user } } = await docsClient.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve." }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   // Jogosultság ellenőrzés
   const { data: profile } = await docsClient
     .from("felhasznalo_profil")
@@ -146,24 +194,30 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
   const isAllowed = ["admin", "rendszergazda", "iktato"].includes(profile?.docs_szerepkor || "")
   if (!isAllowed) return { success: false, error: "Nincs jogosultságod az érkeztetéshez." }
 
-  // Duplikáció ellenőrzés
-  const { data: existing } = await docsClient
+  // Duplikáció ellenőrzés az aktív céghez
+  let existingQuery = docsClient
     .from("irat")
     .select("id, erkeztetoszam")
     .eq("kulso_forras", "eaisybill")
     .eq("kulso_hivatkozas_id", invoice.id)
-    .maybeSingle()
+
+  if (activeCompanyId) {
+    existingQuery = existingQuery.eq("company_id", activeCompanyId)
+  }
+
+  const { data: existing } = await existingQuery.maybeSingle()
 
   if (existing) {
     return { success: false, error: `Már importálva (${existing.erkeztetoszam})` }
   }
 
-  // Partner keresés / létrehozás
+  // Partner keresés / létrehozás az aktív céghez
   let partner_id: string | null = null
   if (invoice.elado_nev) {
     const { findOrCreatePartner } = await import("@/utils/partner-matcher")
     try {
       const partnerResult = await findOrCreatePartner(docsClient, {
+        company_id: activeCompanyId,
         nev: invoice.elado_nev,
         tipus: "ceg",
         adoszam: invoice.elado_vat_id
@@ -182,20 +236,25 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
   // Tárgy összeállítás
   const targy = `${invoice.elado_nev} – ${invoice.bizonylatsorszam} sz. számla (${invoice.brutto_vegosszeg} ${invoice.penznem})`
 
-  // Irat rekord létrehozása
+  // Irat rekord létrehozása az aktív céghez
+  const insertPayload: Record<string, any> = {
+    targy,
+    erkezes_modja:      "eaisybill",
+    adathordozo_tipus:  "elektronikus_eredeti",
+    minosites:          "nyilt",
+    irany:              "bejovo",
+    kuldo_partner_id:   partner_id,
+    erkeztetoszam,
+    kulso_forras:       "eaisybill",
+    kulso_hivatkozas_id: invoice.id,
+  }
+  if (activeCompanyId) {
+    insertPayload.company_id = activeCompanyId
+  }
+
   const { data: iratData, error: iratError } = await docsClient
     .from("irat")
-    .insert({
-      targy,
-      erkezes_modja:      "eaisybill",
-      adathordozo_tipus:  "elektronikus_eredeti",
-      minosites:          "nyilt",
-      irany:              "bejovo",
-      kuldo_partner_id:   partner_id,
-      erkeztetoszam,
-      kulso_forras:       "eaisybill",
-      kulso_hivatkozas_id: invoice.id,
-    })
+    .insert(insertPayload)
     .select("id")
     .single()
 

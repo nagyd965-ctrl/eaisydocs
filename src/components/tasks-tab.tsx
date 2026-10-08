@@ -24,6 +24,7 @@ import {
   AlertCircle,
   MoreVertical,
   Info,
+  Send,
 } from "lucide-react"
 import { toast } from "sonner"
 import { addComment, updateDossierStatus } from "@/app/dossiers/[id]/actions"
@@ -695,8 +696,7 @@ export function TasksTab({
         <Card className="flex flex-col h-[500px] border border-border/50">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base font-semibold">
                 Belső Megjegyzések
               </CardTitle>
               {comments.length > 0 && (
@@ -705,9 +705,6 @@ export function TasksTab({
                 </Badge>
               )}
             </div>
-            <CardDescription className="text-xs text-muted-foreground">
-              Belső egyeztetés az ügyiratról — @ megemlítéssel értesíthetők a kollégák.
-            </CardDescription>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto space-y-4 p-4">
             {comments.length === 0 ? (
@@ -773,14 +770,14 @@ export function TasksTab({
                 type="button"
                 onClick={handleAddComment}
                 disabled={!commentText.trim() || !canEdit || commentLoading}
-                size="icon"
-                variant="secondary"
+                className="gap-1.5 cursor-pointer shrink-0"
               >
                 {commentLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <MessageSquare className="h-4 w-4" />
+                  <Send className="h-4 w-4" />
                 )}
+                <span>Küldés</span>
               </Button>
             </div>
           </div>

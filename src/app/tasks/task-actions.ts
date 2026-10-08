@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { getClientInfo } from "@/utils/client-info"
 import { TaskStatus, TaskPriority, TaskCategory, TaskTemplate } from "@/types/tasks"
 import { DEFAULT_TASK_TEMPLATES } from "@/utils/task-templates"
@@ -249,6 +250,8 @@ export async function createTask(
 
   if (!cleanTitle) return { success: false, error: "A feladat megnevezése kötelező!" }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   // 1. Első kísérlet natív metaadat oszlopokkal
   const primaryPayload: Record<string, any> = {
     ugyirat_id: ugyiratId || null,
@@ -259,6 +262,9 @@ export async function createTask(
     kategoria: kategoria,
     prioritas: prioritas,
     reszletek: reszletek?.trim() || null,
+  }
+  if (activeCompanyId) {
+    primaryPayload.company_id = activeCompanyId
   }
 
   let insertError = null
@@ -274,12 +280,15 @@ export async function createTask(
       const fallbackTitle = `[${kategoria} | ${prioritas}] ${cleanTitle}${
         reszletek ? `\n${reszletek.trim()}` : ""
       }`
-      const fallbackPayload = {
+      const fallbackPayload: Record<string, any> = {
         ugyirat_id: ugyiratId || null,
         leiras: fallbackTitle,
         hatarido: hatarido,
         felelos_user_id: felelosUserId,
         allapot: "nyitott",
+      }
+      if (activeCompanyId) {
+        fallbackPayload.company_id = activeCompanyId
       }
       const { error: fallbackErr } = await supabase.from("feladat").insert(fallbackPayload)
       if (fallbackErr) insertError = fallbackErr

@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { ArchiveClient } from "@/components/archive-client"
 import { isFourEyesDisposalRequired } from "@/utils/system-settings"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export default async function ArchivePage(props: {
   searchParams?: Promise<{ cutoffDate?: string }>
@@ -10,10 +11,14 @@ export default async function ArchivePage(props: {
   const todayStr = new Date().toISOString().split("T")[0] // 'YYYY-MM-DD'
   const cutoffDate = searchParams?.cutoffDate || todayStr
 
+  // Lekérjük az aktív cég azonosítóját
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+
   // Lekérjük a négyszem-elv beállítást
   const fourEyesRequired = await isFourEyesDisposalRequired()
 
-  // Lekérjük az ügyiratokat az irattári tervvel és iratok számával együtt
+  // Lekérjük az ügyiratokat az irattári tervvel és iratok számával együtt az aktív céghez
   const { data: dossiers } = await supabase
     .from("ugyirat")
     .select(`
@@ -25,11 +30,12 @@ export default async function ArchivePage(props: {
       irattari_terv:irattari_tetel_id ( id, tetelszam, megnevezes, megorzesi_ido_ev, selejtezheto ),
       irat ( count )
     `)
+    .eq("company_id", companyScope)
     .in("statusz", ["lezart", "irattarban", "selejtezheto", "selejtezett"])
     .order("megorzesi_ido_vege", { ascending: true })
 
-  // Lekérjük a korábbi és folyamatban lévő selejtezési csomagokat
-  const { data: batches } = await supabase
+  // Lekérjük a korábbi és folyamatban lévő selejtezési csomagokat az aktív céghez
+  let batchQuery = supabase
     .from("selejtezes_csomag")
     .select(`
       id,
@@ -51,6 +57,12 @@ export default async function ArchivePage(props: {
       )
     `)
     .order("created_at", { ascending: false })
+
+  if (activeCompanyId) {
+    batchQuery = batchQuery.eq("company_id", activeCompanyId)
+  }
+
+  const { data: batches } = await batchQuery
 
   // Felhasználónevek a csomagokhoz
   const { data: profiles } = await supabase
@@ -155,6 +167,7 @@ export default async function ArchivePage(props: {
       </div>
 
       <ArchiveClient
+        key={companyScope}
         archivedDossiers={archivedDossiers}
         scrappingSuggestions={scrappingSuggestions}
         pendingApprovals={enrichedPendingApprovals}

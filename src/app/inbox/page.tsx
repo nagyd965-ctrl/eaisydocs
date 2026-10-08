@@ -1,6 +1,7 @@
 import { NewIncomingDialog } from "@/components/new-incoming-dialog"
 import { BatchScannerDialog } from "@/components/batch-scanner-dialog"
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { redirect } from "next/navigation"
 import { getPermissions } from "@/utils/permissions"
 import { getImportableEaisyBillInvoices } from "@/app/inbox/eaisybill-actions"
@@ -26,6 +27,9 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 
   const permissions = getPermissions(docs_szerepkor)
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+
   // eaisyBill importálható számlák lekérése (csak iktató/admin látja)
   let billInvoices: Awaited<ReturnType<typeof getImportableEaisyBillInvoices>> = { invoices: [] }
   if (permissions.canAddIncoming) {
@@ -47,6 +51,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       partner ( nev ),
       irat_fajl ( id, storage_path, eredeti_fajlnev, mime_type, pdfa_path )
     `)
+    .eq("company_id", companyScope)
     .is("ugyirat_id", null)
     .or("statusz.is.null,statusz.eq.erkeztetve")
     .order("erkezes_datuma", { ascending: false })
@@ -66,6 +71,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       partner ( nev ),
       irat_fajl ( id, storage_path, eredeti_fajlnev, mime_type, pdfa_path )
     `)
+    .eq("company_id", companyScope)
     .is("ugyirat_id", null)
     .eq("statusz", "nem_iktatando")
     .order("erkezes_datuma", { ascending: false })
@@ -106,6 +112,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       )}
 
       <InboxTableClient 
+        key={companyScope}
         initialItems={(activeItems as any) || []} 
         initialDismissedItems={(dismissedItems as any) || []} 
         canEdit={permissions.canEdit} 

@@ -88,23 +88,33 @@ export default async function SettingsPage() {
             Profil
           </TabsTrigger>
           <TabsTrigger 
-            value="csapat" 
+            value="ceg" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
           >
-            Csapat
+            Cég
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger 
+              value="csapat" 
+              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
+            >
+              Csapat
+            </TabsTrigger>
+          )}
           <TabsTrigger 
             value="helyettesites" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
           >
             Helyettesítés
           </TabsTrigger>
-          <TabsTrigger 
-            value="osztalyok" 
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-          >
-            Szervezeti Egységek
-          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger 
+              value="osztalyok" 
+              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
+            >
+              Szervezeti Egységek
+            </TabsTrigger>
+          )}
           <TabsTrigger 
             value="ertesitesek" 
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"

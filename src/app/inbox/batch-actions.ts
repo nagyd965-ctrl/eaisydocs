@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { splitBatchPdf, ingestSplitDocuments } from "@/utils/batch-scanner"
 import { processHotfolderFiles } from "@/utils/scanner-hotfolder"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export async function uploadAndSplitBatch(formData: FormData) {
   const supabase = await createClient()
@@ -12,6 +13,8 @@ export async function uploadAndSplitBatch(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve." }
+
+  const activeCompanyId = await getActiveCompanyIdServer()
 
   // Jogosultság ellenőrzése
   const { data: profile } = await supabase
@@ -50,6 +53,7 @@ export async function uploadAndSplitBatch(formData: FormData) {
       const { findOrCreatePartner } = await import("@/utils/partner-matcher")
       try {
         const partnerResult = await findOrCreatePartner(supabase, {
+          company_id: activeCompanyId,
           nev: kuldoNev,
           tipus: kuldoTipus,
         })
@@ -73,6 +77,7 @@ export async function uploadAndSplitBatch(formData: FormData) {
     const ingested = await ingestSplitDocuments(
       splitResult.documents,
       {
+        companyId: activeCompanyId,
         targyPrefix: targyPrefix || `Szkennelt köteg: ${file.name.replace(/\.pdf$/i, "")}`,
         kuldoNev,
         kuldoTipus,

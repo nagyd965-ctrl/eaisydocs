@@ -17,6 +17,9 @@ export const metadata: Metadata = {
 };
 
 import { createClient } from "@/utils/supabase/server";
+import { CompanyProvider } from "@/contexts/company-context";
+import { getUserCompaniesServer, getActiveCompanyIdServer } from "@/utils/company-server";
+import type { Company } from "@/types/company";
 
 export default async function RootLayout({
   children,
@@ -27,6 +30,8 @@ export default async function RootLayout({
   let docsRole = "ugyintezo";
   let hrRole = "munkavallalo";
   let elerhetoModulok: string[] = [];
+  let companies: Company[] = [];
+  let activeCompanyId: string | null = null;
 
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -45,9 +50,12 @@ export default async function RootLayout({
       if (profile?.elerheto_modulok) {
         elerhetoModulok = profile.elerheto_modulok;
       }
+
+      companies = await getUserCompaniesServer();
+      activeCompanyId = await getActiveCompanyIdServer();
     }
   } catch (e) {
-    console.error("Error fetching user role in layout:", e);
+    console.error("Error fetching user data in layout:", e);
   }
 
   return (
@@ -64,9 +72,11 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider>
-            <LayoutWrapper docsRole={docsRole} hrRole={hrRole} elerhetoModulok={elerhetoModulok}>
-              {children}
-            </LayoutWrapper>
+            <CompanyProvider initialCompanies={companies} initialCompanyId={activeCompanyId}>
+              <LayoutWrapper docsRole={docsRole} hrRole={hrRole} elerhetoModulok={elerhetoModulok}>
+                {children}
+              </LayoutWrapper>
+            </CompanyProvider>
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>

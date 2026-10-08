@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { redirect } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { KanbanBoard } from "./kanban-board"
@@ -16,6 +17,9 @@ export default async function TasksPage() {
     redirect("/login")
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+
   // Felhasználói profil és szerepkör lekérése (vezetői jogok ellenőrzése)
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
@@ -26,10 +30,11 @@ export default async function TasksPage() {
   const role = profile?.docs_szerepkor || "ugyintezo"
   const isLeaderOrAdmin = ["admin", "vezeto", "iktato", "rendszergazda"].includes(role)
 
-  // Lekérdezzük a helyettesítéseket, hogy lássuk, kiket helyettesít a jelenlegi felhasználó
+  // Lekérdezzük a helyettesítéseket, hogy lássuk, kiket helyettesít a jelenlegi felhasználó az adott cégnél
   const { data: helyettesitettList } = await supabase
     .from("helyettesites")
     .select("kilepo_user_id")
+    .eq("company_id", companyScope)
     .eq("helyettesito_user_id", user.id)
     .eq("aktiv", true)
     .lte("mettol", new Date().toISOString())
@@ -38,7 +43,7 @@ export default async function TasksPage() {
   const helyettesitettIds = helyettesitettList?.map(h => h.kilepo_user_id) || []
   const felelosIds = [user.id, ...helyettesitettIds]
 
-  // Lekérdezzük a feladatokat: vezetőknél a szervezet összes feladata elérhető, egyébként saját + helyettesített
+  // Lekérdezzük a feladatokat az aktív cégnél
   let query = supabase
     .from("feladat")
     .select(`
@@ -56,6 +61,7 @@ export default async function TasksPage() {
         iktatoszam
       )
     `)
+    .eq("company_id", companyScope)
     .order("hatarido", { ascending: true })
 
   if (!isLeaderOrAdmin) {
@@ -77,7 +83,7 @@ export default async function TasksPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="kanban" className="w-full">
+      <Tabs key={companyScope} defaultValue="kanban" className="w-full">
         <TabsList className="mb-6">
           <TabsTrigger value="kanban">Kanban Tábla</TabsTrigger>
           <TabsTrigger value="lista">Lista Nézet</TabsTrigger>

@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { revalidatePath } from "next/cache"
 
 export type TimesheetEntry = {
@@ -247,9 +248,11 @@ export async function saveAttendanceRecord(
 
       if (error) throw new Error(error.message)
     } else {
+      const activeCompanyId = await getActiveCompanyIdServer()
       const { error } = await supabase
         .from("hr_jelenlet")
         .insert({
+          company_id: activeCompanyId || undefined,
           dolgozo_id: employeeId,
           datum,
           becsekkolas_ideje,
@@ -328,9 +331,11 @@ export async function submitMonthlyTimesheet(employeeId: string, year: number, m
         .eq("id", existing.id)
       if (error) throw new Error(error.message)
     } else {
+      const activeCompanyId = await getActiveCompanyIdServer()
       const { error } = await supabase
         .from("hr_havi_jelenlet_zaras")
         .insert({
+          company_id: activeCompanyId || undefined,
           dolgozo_id: employeeId,
           ev: year,
           honap: month,

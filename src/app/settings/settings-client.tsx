@@ -26,6 +26,7 @@ import { MfaSettingsCard } from "@/components/mfa-settings-card"
 import { IrattariTervManager } from "@/components/irattari-terv-manager"
 import { Archive, ScrollText, Download, Filter, Scale } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
+import { CompanySettingsTab } from "@/components/settings/company-settings-tab"
 
 export function SettingsClient({ 
   initialProfile, 
@@ -271,8 +272,14 @@ export function SettingsClient({
         </Card>
       </TabsContent>
 
+      {/* CÉG BEÁLLÍTÁSOK TAB (VISIBILL MINTÁRA) */}
+      <TabsContent value="ceg" className="space-y-4 outline-none">
+        <CompanySettingsTab />
+      </TabsContent>
+
       {/* 2. TAB: CSAPAT */}
-      <TabsContent value="csapat" className="space-y-4 outline-none">
+      {isAdmin && (
+        <TabsContent value="csapat" className="space-y-4 outline-none">
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-4">
             <div className="flex items-center space-x-2">
@@ -528,7 +535,9 @@ export function SettingsClient({
           </div>
         </Card>
       </TabsContent>
+      )}
 
+      {isAdmin && (
         <TabsContent value="osztalyok" className="space-y-4 outline-none">
           <Card className="border-border shadow-sm">
             <CardHeader className="pb-4">
@@ -808,8 +817,7 @@ export function SettingsClient({
             </CardContent>
           </Card>
         </TabsContent>
-
-
+      )}
 
       {/* 5. TAB: BIZTONSÁG */}
       <TabsContent value="biztonsag" className="space-y-4 outline-none">

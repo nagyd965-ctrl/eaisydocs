@@ -23,6 +23,7 @@ import {
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible"
 import { SidebarFooterContent } from "@/components/sidebar-footer-content"
 import { ModuleSwitcher } from "@/components/module-switcher"
+import { CompanySelector } from "@/components/company-selector"
 
 const items = [
 
@@ -148,8 +149,9 @@ export function HrSidebar({ hrRole = "munkavallalo" }: { hrRole?: string }) {
 
   return (
     <Sidebar>
-      <SidebarHeader className="h-16 flex justify-center flex-col px-4 border-b">
+      <SidebarHeader className="flex justify-center flex-col px-2 py-2.5 border-b gap-1.5">
         <ModuleSwitcher />
+        <CompanySelector />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

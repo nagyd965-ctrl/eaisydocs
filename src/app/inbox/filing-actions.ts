@@ -2,9 +2,12 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer, getActiveCompanyServer } from "@/utils/company-server"
 
 export async function fileIncomingDocument(formData: FormData) {
   const supabase = await createClient()
+  const activeCompany = await getActiveCompanyServer()
+  const activeCompanyId = activeCompany?.id || await getActiveCompanyIdServer()
 
   const mode = (formData.get("mode") as "new" | "existing") || "new"
   const irat_id = formData.get("irat_id") as string
@@ -67,7 +70,9 @@ export async function fileIncomingDocument(formData: FormData) {
 
   if (mode === "new") {
     const ugytipus_id = (formData.get("ugytipus_id") || formData.get("irattari_terv_id")) as string
-    const prefix = (formData.get("prefix") as string) || "NYILV"
+    const companyPrefix = activeCompany?.filing_prefix?.trim()
+    const formPrefix = (formData.get("prefix") as string)?.trim()
+    const prefix = formPrefix || companyPrefix || "DOCS"
     const department_id = formData.get("department_id") as string
 
     if (!targy || !ugytipus_id || !department_id) {
@@ -82,6 +87,9 @@ export async function fileIncomingDocument(formData: FormData) {
       targy,
       ugytipus_id,
       statusz: "folyamatban"
+    }
+    if (activeCompanyId) {
+      ugyInsertData.company_id = activeCompanyId
     }
     if (hatarido) {
       ugyInsertData.hatarido = hatarido
@@ -104,15 +112,20 @@ export async function fileIncomingDocument(formData: FormData) {
     if (iktatoszamError) return { error: "Hiba az iktatószám generálásakor." }
     iktatoszam = iktatoszamData
 
+    const ugyiratInsertData: Record<string, any> = {
+      ugy_id: ugyData.id,
+      iktatoszam,
+      irattari_tetel_id: ugytipus_id,
+      statusz: "iktatva",
+      szervezeti_egyseg_id: department_id
+    }
+    if (activeCompanyId) {
+      ugyiratInsertData.company_id = activeCompanyId
+    }
+
     const { data: ugyiratData, error: ugyiratError } = await supabase
       .from("ugyirat")
-      .insert({
-        ugy_id: ugyData.id,
-        iktatoszam,
-        irattari_tetel_id: ugytipus_id,
-        statusz: "iktatva",
-        szervezeti_egyseg_id: department_id
-      })
+      .insert(ugyiratInsertData)
       .select("id")
       .single()
     if (ugyiratError || !ugyiratData) {

@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { getPermissions } from "@/utils/permissions"
 import { DossiersTableClient } from "./dossiers-table-client"
 
@@ -7,6 +8,9 @@ export const revalidate = 0
 
 export default async function DossiersPage() {
   const supabase = await createClient()
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   const query = supabase
     .from("ugyirat")
@@ -20,6 +24,7 @@ export default async function DossiersPage() {
       ugy!inner ( id, targy, hatarido, statusz, felelos_user_id ),
       irat ( id, minosites )
     `)
+    .eq("company_id", companyScope)
     .order("iktatas_datuma", { ascending: false })
     .limit(200)
 
@@ -45,6 +50,7 @@ export default async function DossiersPage() {
   const { data: depts } = await supabase
     .from("szervezeti_egyseg")
     .select("id, nev")
+    .eq("company_id", companyScope)
 
   const userMap = (users || []).reduce((acc: any, user: any) => {
     acc[user.id] = user.nev
@@ -81,6 +87,7 @@ export default async function DossiersPage() {
       </div>
 
       <DossiersTableClient
+        key={companyScope}
         initialDossiers={mappedDossiers}
         users={users || []}
         currentUserProfile={currentUserProfile}

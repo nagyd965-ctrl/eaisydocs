@@ -3,6 +3,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { sendNotificationEmail } from "@/utils/mailer"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export async function onboardEmployee(data: {
   mode: string
@@ -20,6 +21,8 @@ export async function onboardEmployee(data: {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  const activeCompanyId = await getActiveCompanyIdServer()
 
   let finalUserId = data.userId
   let isNewAccountCreated = false
@@ -188,10 +191,27 @@ export async function onboardEmployee(data: {
     .update(updateData)
     .eq("id", finalUserId)
 
+  // 1.5. Hozzáadjuk a felhasználót a kiválasztott céghez (company_members)
+  if (activeCompanyId) {
+    await supabaseAdmin
+      .from("company_members")
+      .upsert({
+        company_id: activeCompanyId,
+        user_id: finalUserId,
+        role: "member",
+        hr_szerepkor: data.role
+      }, { onConflict: "user_id, company_id" })
+  }
+
   // 2. Létrehozzuk a hr_dolgozo_adatlapot
+  const adatlapPayload: Record<string, any> = { id: finalUserId }
+  if (activeCompanyId) {
+    adatlapPayload.company_id = activeCompanyId
+  }
+
   const { error: adatlapError } = await supabaseAdmin
     .from("hr_dolgozo_adatlap")
-    .insert([{ id: finalUserId }])
+    .insert([adatlapPayload])
 
   if (adatlapError) {
     // Ha az adatlap már létezik (mert duplán kattintottak), azt elnyeljük
@@ -201,13 +221,18 @@ export async function onboardEmployee(data: {
   }
 
   // 3. Létrehozzuk a jogviszonyt
+  const jogviszonyPayload: Record<string, any> = {
+    dolgozo_id: finalUserId,
+    belepes_datuma: data.belepes_datuma,
+    tipus: "teljes_munkaido"
+  }
+  if (activeCompanyId) {
+    jogviszonyPayload.company_id = activeCompanyId
+  }
+
   const { data: jogvData, error: jogvError } = await supabaseAdmin
     .from("hr_jogviszony")
-    .insert([{
-      dolgozo_id: finalUserId,
-      belepes_datuma: data.belepes_datuma,
-      tipus: "teljes_munkaido"
-    }])
+    .insert([jogviszonyPayload])
     .select()
     .single()
 
@@ -217,13 +242,18 @@ export async function onboardEmployee(data: {
 
   // 4. Létrehozzuk a beosztást, ha van munkakör kiválasztva
   if (data.munkakorId && data.munkakorId !== "none") {
+    const beosztasPayload: Record<string, any> = {
+      jogviszony_id: jogvData.id,
+      munkakor_id: data.munkakorId,
+      ervenyes_tol: data.belepes_datuma
+    }
+    if (activeCompanyId) {
+      beosztasPayload.company_id = activeCompanyId
+    }
+
     const { error: beosztasError } = await supabaseAdmin
       .from("hr_beosztas")
-      .insert([{
-        jogviszony_id: jogvData.id,
-        munkakor_id: data.munkakorId,
-        ervenyes_tol: data.belepes_datuma
-      }])
+      .insert([beosztasPayload])
     
     if (beosztasError) {
       return { error: "Hiba a beosztás létrehozásakor: " + beosztasError.message }

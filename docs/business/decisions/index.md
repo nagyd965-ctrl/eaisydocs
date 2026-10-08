@@ -14,8 +14,10 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [BRD-006](./006-hr-timesheet-overtime-and-labor-code-rules.md) | 2026-09-30 | Jelenlét- és túlóra-elszámolási üzleti logika | `[HR]` | `Attendance / Overtime` | [A-013](../../architecture/decisions/A-013-hr-timesheet-overtime-holiday-calculation-engine.md), [P-011](../../product/decisions/P-011-hr-timesheet-attendance-and-leave-calendar-ux.md) |
 | [BRD-007](./007-recruitment-data-privacy-and-candidate-lifecycle.md) | 2026-09-30 | Toborzási adatkezelés, GDPR retenció és jelölt életciklus | `[HR]` | `GDPR / ATS` | [A-014](../../architecture/decisions/A-014-hr-gdpr-data-retention-and-anonymization-cron.md), [P-013](../../product/decisions/P-013-hr-recruitment-ats-and-public-careers-portal-ux.md) |
 | [BRD-008](./008-configurable-four-eyes-disposal-and-sme-mode.md) | 2026-10-02 | Konfigurálható négyszem-elv és egyfelhasználós KKV mód selejtezésnél | `[Docs]` | `Governance & Compliance` | [A-028](../../architecture/decisions/A-028-configurable-four-eyes-disposal.md), [P-042](../../product/decisions/P-042-configurable-four-eyes-disposal-ux.md) |
+| [BRD-009](./009-multi-tenancy-isolation-and-membership-governance.md) | 2026-10-08 | Többcég-kezelés és Tagsági Jogosultsági Szabályok | `[Közös]` | `Multi-Tenancy & Governance` | [A-034](../../architecture/decisions/A-034-multi-tenancy-architecture.md), [P-053](../../product/decisions/P-053-multi-tenancy-company-selector-ux.md) |
+| [BRD-010](./010-company-branding-filing-prefix-and-member-roles.md) | 2026-10-08 | Céglogó, Testreszabható Iktató Prefix és Tag Szerepkör Menedzsment | `[Közös]` | `Branding & Governance` | [A-035](../../architecture/decisions/A-035-company-branding-filing-prefix-and-member-roles.md), [P-054](../../product/decisions/P-054-company-branding-filing-prefix-and-member-roles.md) |
 
 ---
 
 > **Új BRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `BRD-009`), készítsd el a fájlt `00X-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `BRD-011`), készítsd el a fájlt `00X-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!

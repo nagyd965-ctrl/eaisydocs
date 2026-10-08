@@ -61,6 +61,7 @@ function main() {
   console.log("\n💡 Tipp a dokumentáláshoz:");
   console.log("   Mondd az AI asszisztensnek: 'dokumentáld le a mai fejlesztést' vagy 'docs sync'!");
   console.log("═══════════════════════════════════════════════════════════════\n");
+  process.exit(0);
 }
 
 main();

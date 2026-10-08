@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { getPermissions } from "@/utils/permissions"
 import { PartnersTableClient } from "./partners-table-client"
 import { redirect } from "next/navigation"
@@ -14,6 +15,9 @@ export default async function PartnersPage() {
     redirect("/login")
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+
   let docs_szerepkor = ""
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
@@ -23,19 +27,21 @@ export default async function PartnersPage() {
   docs_szerepkor = profile?.docs_szerepkor || ""
   const permissions = getPermissions(docs_szerepkor)
 
-  // 1. Partnerek lekérése a kapcsolattartókkal együtt
+  // 1. Partnerek lekérése a kapcsolattartókkal együtt az aktív céghez
   const { data: realPartners } = await supabase
     .from("partner")
     .select(`
       *,
       kapcsolattartok:partner_kapcsolattarto(id, nev, email, telefonszam, elsodleges)
     `)
+    .eq("company_id", companyScope)
     .order("nev")
 
-  // 2. Iratforgalom darabszámok partnerek szerint (egyetlen gyors lekérdezéssel)
+  // 2. Iratforgalom darabszámok partnerek szerint az aktív cégben
   const { data: iratok } = await supabase
     .from("irat")
     .select("kuldo_partner_id")
+    .eq("company_id", companyScope)
     .not("kuldo_partner_id", "is", null)
 
   const docCountMap: Record<string, number> = {}
@@ -69,6 +75,7 @@ export default async function PartnersPage() {
       </div>
 
       <PartnersTableClient
+        key={companyScope}
         initialPartners={enrichedPartners}
         canEdit={permissions.canEdit}
       />

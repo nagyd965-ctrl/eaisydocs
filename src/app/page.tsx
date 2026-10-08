@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { DashboardOverview } from "@/components/dashboard-overview"
 import { redirect } from "next/navigation"
 
@@ -12,6 +13,9 @@ export default async function DashboardPage() {
   if (!authUser?.user) {
     redirect("/login")
   }
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
@@ -31,7 +35,7 @@ export default async function DashboardPage() {
 
   const todayStr = new Date().toISOString().split("T")[0]
 
-  // Párhuzamos adatlekérések a teljes körű dashboardhoz
+  // Párhuzamos adatlekérések a teljes körű dashboardhoz a kiválasztott cégre szűrve
   const [
     { data: rawIratok },
     { data: rawUgyiratok },
@@ -49,6 +53,7 @@ export default async function DashboardPage() {
         kuldo_partner:kuldo_partner_id(id, nev),
         ugyirat:ugyirat_id(id, iktatoszam, irattari_terv:irattari_tetel_id(megnevezes))
       `)
+      .eq("company_id", companyScope)
       .order("created_at", { ascending: false }),
     supabase
       .from("ugyirat")
@@ -63,30 +68,37 @@ export default async function DashboardPage() {
         ugy:ugy_id(id, targy, hatarido, felelos_user_id, statusz),
         irattari_terv:irattari_tetel_id(megnevezes)
       `)
+      .eq("company_id", companyScope)
       .order("iktatas_datuma", { ascending: false }),
     supabase
       .from("szervezeti_egyseg")
-      .select("id, nev"),
+      .select("id, nev")
+      .eq("company_id", companyScope),
     supabase
       .from("feladat")
       .select("id, leiras, hatarido, allapot, felelos_user_id, ugyirat_id, ugyirat:ugyirat_id(iktatoszam)")
+      .eq("company_id", companyScope)
       .order("hatarido", { ascending: true }),
     supabase
       .from("selejtezes_csomag")
-      .select("id", { count: "exact", head: true }),
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyScope),
     // Irattári tételek a bizonylattípus statisztikához
     supabase
       .from("irattari_terv")
-      .select("id, megnevezes"),
+      .select("id, megnevezes")
+      .eq("company_id", companyScope),
     // Selejtezésre váró (jóváhagyásra vár) csomagok száma
     supabase
       .from("ugyirat")
       .select("id", { count: "exact", head: true })
+      .eq("company_id", companyScope)
       .eq("statusz", "selejtezheto"),
     // Lejárt megőrzési idejű, még nem selejtezett iratok
     supabase
       .from("ugyirat")
       .select("id", { count: "exact", head: true })
+      .eq("company_id", companyScope)
       .in("statusz", ["irattarban", "lezart"])
       .lte("megorzesi_ido_vege", todayStr)
       .not("megorzesi_ido_vege", "is", null),
@@ -183,6 +195,7 @@ export default async function DashboardPage() {
 
       {/* Részletes Dashboard Kimutatások és Operatív Műszerfal */}
       <DashboardOverview
+        key={companyScope}
         currentUserId={userId}
         currentUserRole={userRole}
         allIratok={allIratok}

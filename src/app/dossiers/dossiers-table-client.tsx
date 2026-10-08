@@ -74,7 +74,7 @@ export function DossiersTableClient({
   currentUserProfile: any
   canAssign: boolean
 }) {
-  const [dossiers] = useState<DossierItem[]>(initialDossiers)
+  const dossiers = initialDossiers
 
   // Szűrési állapotok
   const [search, setSearch] = useState("")

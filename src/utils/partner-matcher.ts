@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js"
 
 export interface PartnerLookupParams {
+  company_id?: string | null
   nev: string
   tipus?: string | null
   szerepkor?: string | null
@@ -68,13 +69,29 @@ export async function findOrCreatePartner(
     throw new Error("Partner név megadása kötelező!")
   }
 
+  let targetCompanyId = params.company_id
+  if (!targetCompanyId) {
+    try {
+      const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+      targetCompanyId = await getActiveCompanyIdServer()
+    } catch {
+      // not in next request context
+    }
+  }
+
   const tipus = params.tipus || "ceg"
   const normalizedSearch = normalizePartnerName(trimmedName)
 
-  // 1. Lekérjük az összes partnert az intelligens összehasonlításhoz
-  const { data: allPartners, error } = await supabase
+  // 1. Lekérjük az összes partnert az intelligens összehasonlításhoz az adott cégben
+  let partnerQuery = supabase
     .from("partner")
     .select("id, nev, tipus, adoszam, kulfoldi_adoszam, email, telefonszam, cim")
+  
+  if (targetCompanyId) {
+    partnerQuery = partnerQuery.eq("company_id", targetCompanyId)
+  }
+
+  const { data: allPartners, error } = await partnerQuery
 
   if (error) {
     console.error("Partner lekérdezési hiba:", error)
@@ -140,26 +157,31 @@ export async function findOrCreatePartner(
     return { id: matchedPartner.id, isNew: false }
   }
 
-  // Ha nem találtunk egyezést -> Új partner beszúrása
+  // Ha nem találtunk egyezést -> Új partner beszúrása az aktív céghez
+  const insertPayload: Record<string, any> = {
+    nev: trimmedName,
+    tipus: tipus,
+    szerepkor: params.szerepkor || "vevo",
+    statusz: params.statusz || "aktiv",
+    adoszam: params.adoszam || null,
+    kulfoldi_adoszam: params.kulfoldi_adoszam || null,
+    cegjegyzekszam: params.cegjegyzekszam || null,
+    email: params.email || null,
+    telefonszam: params.telefonszam || null,
+    cim: params.cim || null,
+    bankszamlaszam: params.bankszamlaszam || null,
+    fizetesi_hatarido_nap: params.fizetesi_hatarido_nap ?? 8,
+    fizetesi_mod: params.fizetesi_mod || "atutalas",
+    weboldal: params.weboldal || null,
+    megjegyzes: params.megjegyzes || null,
+  }
+  if (targetCompanyId) {
+    insertPayload.company_id = targetCompanyId
+  }
+
   const { data: newPartner, error: insertError } = await supabase
     .from("partner")
-    .insert({
-      nev: trimmedName,
-      tipus: tipus,
-      szerepkor: params.szerepkor || "vevo",
-      statusz: params.statusz || "aktiv",
-      adoszam: params.adoszam || null,
-      kulfoldi_adoszam: params.kulfoldi_adoszam || null,
-      cegjegyzekszam: params.cegjegyzekszam || null,
-      email: params.email || null,
-      telefonszam: params.telefonszam || null,
-      cim: params.cim || null,
-      bankszamlaszam: params.bankszamlaszam || null,
-      fizetesi_hatarido_nap: params.fizetesi_hatarido_nap ?? 8,
-      fizetesi_mod: params.fizetesi_mod || "atutalas",
-      weboldal: params.weboldal || null,
-      megjegyzes: params.megjegyzes || null,
-    })
+    .insert(insertPayload)
     .select("id")
     .single()
 

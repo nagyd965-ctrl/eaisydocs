@@ -33,6 +33,7 @@ export interface BatchSplitResult {
 }
 
 export interface IngestBatchMetadata {
+  companyId?: string | null
   targyPrefix?: string
   kuldoNev?: string
   kuldoTipus?: string
@@ -446,18 +447,33 @@ export async function ingestSplitDocuments(
     }
 
     // 4. Insert into `irat` table
+    let targetCompanyId = metadata.companyId
+    if (!targetCompanyId) {
+      try {
+        const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+        targetCompanyId = await getActiveCompanyIdServer()
+      } catch {
+        // Not in server request context
+      }
+    }
+
+    const iratPayload: Record<string, any> = {
+      targy,
+      erkezes_modja: metadata.erkezesModja || "rendszer",
+      adathordozo_tipus: "papir_digitalizalt",
+      minosites: metadata.minosites || "nyilt",
+      irany: "bejovo",
+      kuldo_partner_id: metadata.partnerId || null,
+      erkeztetoszam,
+      kulso_forras: "szkenner",
+    }
+    if (targetCompanyId) {
+      iratPayload.company_id = targetCompanyId
+    }
+
     const { data: iratData, error: iratErr } = await supabase
       .from("irat")
-      .insert({
-        targy,
-        erkezes_modja: metadata.erkezesModja || "rendszer",
-        adathordozo_tipus: "papir_digitalizalt",
-        minosites: metadata.minosites || "nyilt",
-        irany: "bejovo",
-        kuldo_partner_id: metadata.partnerId || null,
-        erkeztetoszam,
-        kulso_forras: "szkenner",
-      })
+      .insert(iratPayload)
       .select("id")
       .single()
 

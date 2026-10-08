@@ -4,7 +4,104 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ---
 
-## [Unreleased] – Fejlesztés alatt (2026-10-07)
+## [Unreleased] – Fejlesztés alatt (2026-10-08)
+
+### 🔄 Dinamikus Cégváltási Frissítés (Partnerek és Iktatókönyv Táblázatok)
+- **Probléma:** Amikor a felhasználó a felső cégválasztóban céget váltott (pl. `Teszt Kft.` és `Think AI Kft.` között) a Partnerek (`/partners`) vagy az Iktatókönyv (`/dossiers`) oldalon, a felület nem frissült azonnal az új cég adataival, hanem kézi F5 böngészőfrissítésre volt szükség, bár F5 után az adatok helyesen jelentek meg.
+- **Kiváltó ok:** A `PartnersTableClient` és a `DossiersTableClient` a szerverről kapott `initialPartners` és `initialDossiers` propokat a komponens inicializálásakor egyetlen egyszer mentette el belső `useState`-be (`useState(initialPartners)`, `useState(initialDossiers)`). Amikor a cégválasztó meghívta a `router.refresh()`-t, a Next.js szerveroldalon sikeresen újra lekérte az új cég adatait, de a kliens oldali táblázatkomponensek figyelmen kívül hagyták a friss propokat a belső merev állapot miatt, ráadásul nem rendelkeztek cégváltási kulccsal (`key`).
+- **Megoldás és Módosítások:**
+  - **`src/app/partners/partners-table-client.tsx`:** A felesleges `useState(initialPartners)` állapot megszűnt, a komponens közvetlenül az `initialPartners` propot használja fel a statisztikák és a szűrések számításához (`const partners = initialPartners`).
+  - **`src/app/partners/page.tsx`:** A `<PartnersTableClient key={companyScope} ... />` megkapta a `companyScope` egyedi kulcsot, így cégváltáskor a kliens komponens és a szűrősáv automatikusan tiszta lappal, azonnal újrarenderelődik az új cég adataival.
+  - **`src/app/dossiers/dossiers-table-client.tsx`:** Hasonlóan javítva: `const dossiers = initialDossiers`.
+  - **`src/app/dossiers/page.tsx`:** Hozzáadva a `key={companyScope}` a `<DossiersTableClient key={companyScope} ... />`-hez.
+  - **További érintett oldalak prevenciója:** `src/app/archive/page.tsx`, `src/app/inbox/page.tsx`, `src/app/tasks/page.tsx`, `src/app/page.tsx` mind megkapták a `key={companyScope}` cégizolációs kulcsot az azonnali, zökkenőmentes dinamikus átváltáshoz.
+
+### 🗄️ Irattár és Selejtezés (`/archive`) Többcég Szűrés és Akció Izoláció
+- **Probléma:** Az Irattár és Selejtezés felületen (`/archive`) a felhasználó a felső sávban kiválasztott másodlagos cég (pl. `Teszt Kft.`) esetén is az alapértelmezett cég (`Think AI Kft.`) irattári ügyiratait, selejtezési javaslatait és jóváhagyandó tételeit látta, mivel a szerverkomponens és a selejtezési akciók nem szűrték a lekérdezéseket az aktív cégre (`company_id`).
+- **Megoldás és Módosítások:**
+  - **`src/app/archive/page.tsx`:**
+    - Beépítve a szerveroldali aktív cég azonosítása (`getActiveCompanyIdServer()`).
+    - Az `ugyirat` lekérdezés explicit `.eq("company_id", companyScope)` szűrést kapott, így kizárólag a kiválasztott vállalkozás lezárt és megőrzés alatt álló dossziéi jelennek meg a KPI kártyákon és a táblázatokban.
+    - A `selejtezes_csomag` lekérdezés szűrve lett az aktív vállalatra (`.eq("company_id", activeCompanyId)`).
+  - **`src/app/archive/actions.ts` (`forceExpireAllDossiers`):**
+    - A tesztelési célú lejárat-generálás ezentúl kizárólag az aktív cég ügyiratait állítja lejártra.
+  - **`src/app/archive/disposal-actions.ts` (`proposeDisposal`, `approveDisposal`):**
+    - Új selejtezési csomag (`selejtezes_csomag`) létrehozásakor és a selejtezési / levéltári eseménynapló bejegyzések beszúrásakor a `company_id` értéke kötelezően rögzítésre kerül az aktív cég azonosítójával.
+
+### 📥 eaisyBill Számlaimport és Kötegelt Szkenner Többcég Cég-hozzárendelés Javítás
+- **Probléma:** Amikor a felhasználó a fejlécben aktív cégként egy újonnan felvett vagy másodlagos céget választott (pl. `Teszt Kft.`), az eaisyBill bejövő számlák importálásakor a beérkeztetett irat (`irat`) nem a kiválasztott céghez, hanem a rendszer alapértelmezett cégéhez (`Think AI Kft.`) került, mert a beszúráskor nem adódott át a dinamikus `company_id`, így a PostgreSQL tábladefault lépett érvénybe.
+- **Megoldás és Módosítások:**
+  - **`eaisybill-actions.ts`:**
+    - `getImportableEaisyBillInvoices`: Dinamikusan lekéri a munkamenethez tartozó aktív cég azonosítóját (`getActiveCompanyIdServer()`). Az eaisyBill számlák lekérésekor intelligensen párosítja az aktív cég adószámát vagy nevét az eaisyBill cégtárral (nem létező külső cég esetén stabil fallbackkel a felhasználó fiókjára).
+    - A már importált számlák szűrése (`alreadyImported`) ezentúl vállalatonként (`company_id = activeCompanyId`) izoláltan vizsgálja a duplikációkat, így ugyanaz a partner számla több független céghez is beérkeztethető.
+    - `importInvoiceFromEaisyBill`: A létrehozott `irat` rekordba, a partnert létrehozó/feloldó `findOrCreatePartner` hívásba és a duplikáció-ellenőrzésbe expliciten bekerült a `company_id: activeCompanyId`.
+  - **`batch-scanner.ts` és `batch-actions.ts`:**
+    - Az `IngestBatchMetadata` interfész és az `ingestSplitDocuments` függvény fel lett készítve a `companyId` mező fogadására és bejegyzésére az `irat` táblába.
+    - Az `uploadAndSplitBatch` szerverakció automatikusan átadja az aktív cégazonosítót mind a feltöltött kötegelt iratok, mind az elválasztólapos automata felbontás során felismert partnerek részére.
+  - **Adatkorrekció:** A korábban tévesen `Think AI Kft.` alá érkeztetett `Mistral AI SAS – MSTRL-API-930968-001` (E/2026/00103) számla és annak partnere sikeresen átmozgatásra került a `Teszt Kft.` céghez.
+
+### 🎨 Céglogó Kezelés, Testreszabható Iktató Prefix és Tag Szerepkör Módosítás
+- **Céglogó Feltöltése és Megjelenítése (`logo_url`):**
+  - **Adatbázis séma:** `ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS logo_url TEXT;` (Supabase migráció `20261008000004_company_logo_and_filing_prefix.sql`).
+  - **Tárolás:** Supabase Storage `avatars` bucket alá mentve egyedi időbélyeges elérési úttal (`companies/${companyId}/logo_${Date.now()}.${ext}`).
+  - **Jogosultság:** Kizárólag a cég tulajdonosa tölthet fel (PNG, JPG, WebP, SVG, max. 2 MB) vagy távolíthat el céglogót (`uploadCompanyLogoAction`, `removeCompanyLogoAction`).
+  - **Megjelenítés:** A `CompanySelector` oldalsáv fejlécében és lenyíló listájában a generikus épületikon helyett automatikusan a vállalat arculati logója jelenik meg miniatűrként.
+  - **Cégbeállítások:** A `CompanySettingsTab` dedikált arculati blokkot kapott előnézettel, feltöltő gombbal és logótörlési lehetőséggel.
+- **Cég-specifikus Iktatókönyv Előtag (`filing_prefix`):**
+  - **Adatbázis séma:** `ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS filing_prefix TEXT DEFAULT 'DOCS';`.
+  - **Konfiguráció:** A cég adatai között a tulajdonos szabadon megadhatja a cég iktató előtagját (pl. `THINK`, `TESZT`, `HOLDING`, `DOCS`, max. 10 karakter, nagybetűsítve).
+  - **Dinamikus iktatás:** A `fileIncomingDocument` szerverakció automatikusan lekéri az aktív cég `filing_prefix` értékét, és azzal hívja a gapless `generate_iktatoszam` és `generate_ugyszam` PostgreSQL funkciókat, így az iktatószámok vállalatonként teljesen szeparáltan és az egyedi előtaggal képződnek (`${prefix}/${ev}/${sorszam}`).
+  - **Gyors szerkesztés:** A `CompanySelector` ceruza ikonjával elérhető gyors szerkesztő modálban is közvetlenül módosítható az előtag.
+- **Tagok Szerepkörének Helyben Történő Módosítása (`EditMemberRoleDialog`):**
+  - **Probléma:** Korábban ha egy cégtag szerepkörét (pl. munkavállalóból céges adminná vagy iktatóvá) szerették volna módosítani, törölni kellett a tagot és új meghívót kellett küldeni.
+  - **Megoldás:** A `CompanySettingsTab` taglistájában a tulajdonos számára minden tag mellett megjelent egy ceruza (Szerkesztés) gomb.
+  - **Modál és akció (`updateCompanyMemberRoleAction`):**
+    - `EditMemberRoleDialog` komponens: kiválasztható a cég szintű szerepkör (`admin` / `member`), az eaisyDocs szerepkör (`ugyintezo`, `iktato`, `vezeto`, `betekinto`, `auditor`, `admin`, `rendszergazda`) és az eaisyHR szerepkör (`munkavallalo`, `hr_munkatars`, `hr_vezeto`, stb.).
+    - Védelmi logika: A tulajdonos szerepköre nem módosítható; kizárólag a tulajdonos módosíthatja mások jogait; a mentés mind a `company_members` rekordot, mind a `felhasznalo_profil` táblát szinkronizálja.
+
+
+### 🏢 Többcég-kezelés (Multi-Tenancy) és Adatelkülönítés (Visibill Minta Alapján)
+- **Központi Többcég Architektúra és Cégkezelés:**
+  - **Probléma:** Az eaisyDocs és eaisyHR rendszerek korábban single-tenant módon működtek, így könyvelőirodák, holdingok és cégcsoportok nem tudtak több önálló vállalkozást egyetlen fiókból biztonságosan kezelni.
+  - **Megoldás:** A `visibill-ea0dbcac` bevált multi-tenancy architektúráját teljes körűen adaptáltuk az eaisyDocs és eaisyHR rendszerekbe.
+- **Adatbázis Séma és Triggerek (`20261008000001_...`, `20261008000002_...`, `20261008000003_...`):**
+  - **`companies` törzstábla:** Cégnév, adószám, székhely cím, képviselő neve, telefonszám, tulajdonos (`owner_id`), megosztási meghívókód (`share_token`).
+  - **`company_members` kapcsolótábla:** Felhasználók és cégek összerendelése egyedi `(user_id, company_id)` párral és vállalatonkénti szerepkörökkel (`role`: owner/admin/member, `docs_szerepkor`, `hr_szerepkor`).
+  - **`user_company_access_cache` gyorsítótár:** Denormalizált tábla az RLS rekurziók megelőzésére, automatikus triggeres szinkronizációval (`sync_company_member_cache`).
+  - **`company_id` oszlop és indexek:** Hozzáadva mind a 37 eaisyDocs és eaisyHR üzleti táblához (`irat`, `ugyirat`, `ugy`, `partner`, `szervezeti_egyseg`, `feladat`, `irattari_terv`, `selejtezes_csomag`, `hr_dolgozo_adatlap`, `hr_jogviszony`, `hr_jelenlet`, stb.).
+  - **100% Adatbiztonság és Null-vesztés:** Minden meglévő rekord és mind a 22 meglévő felhasználó automatikusan a `Think AI Kft.` alapértelmezett céghez lett rendelve.
+  - **Visszaállíthatósági garancia:** Teljes JSON adatbázis snapshot (`backup_pre_multitenancy_latest.json`) és párhuzamosan megírt, tesztelt rollback scriptek.
+- **PostgreSQL RESTRICTIVE RLS Házirendek:**
+  - Bevezetve a `public.user_has_company_access(company_id)` STABLE biztonsági függvény.
+  - Minden többcég-hatókörű táblán érvénybe lépett a `tenant_isolation_restrictive` házirend `AS RESTRICTIVE` kulcsszóval. Adatbázis motor szinten lehetetlen más cég adataihoz hozzáférni vagy abba beszúrni.
+- **Oldalsáv Cégválasztó (`CompanySelector`):**
+  - Linear flat dizájnú dropdown közvetlenül a modulválasztó alatt az `AppSidebar`-ban és `HrSidebar`-ban.
+  - Élő gépelési szűrés a cégek között, ABC-rendezés, aktív cég zöld pipa jelölése.
+  - `+ Új cég hozzáadása` modál magyar adószám formátum-ellenőrzéssel és automatikus tulajdonosi beállítással.
+  - `Csatlakozás kóddal` modál tokenes meghívók beváltásához (`join_company_by_token` RPC).
+- **Szerveroldali Cookie Perzisztencia és Reaktív Kliens Környezet:**
+  - `eaisydocs_selected_company_id` cookie alapú aktív cég azonosítás (`getActiveCompanyIdServer()`).
+  - `CompanyProvider` és `useCompany()` kontextus gondoskodik a kliensoldali azonnali állapotfrissülésről.
+  - Minden fő oldal (`page.tsx`, `inbox`, `dossiers`, `partners`, `tasks`, `hr/admin`, `hr/time`) és szerverakció (érkeztetés, iktatás, partnermentés, feladatfelvétel, jelenlét rögzítés, dolgozói onboarding) automatikusan az aktív céghez kapcsolja az új és lekérdezett rekordokat.
+- **E2E Teszteléssel és Böngésző Verifikációval Igazolva:**
+  - `scripts/test-multitenancy-e2e.ts` automatizált teszt sikeresen igazolta a cégalapítást, a tagsági triggereket, az adatelkülönítést és a takarítást.
+  - Böngészőben rögzítve a popover és az új cég dialógus vizuális megjelenése.
+
+### 🛡️ Cégbeállítások Tulajdonosi Jogosultságkezelés és Tagvédelem (`CompanySettingsTab` & `company-actions.ts`)
+- **Probléma:**
+  - Sima munkavállalóként vagy tagként bejelentkezve korábban a Cég beállítások fülön elérhető és szerkeszthető volt a cég adatlapja (mentés gombbal), látható volt a vállalat teljes taglistája a törlés (kuka) ikonnal, és a megosztási meghívókód generálása is hozzáférhető volt. Így egy munkavállaló véletlenül módosíthatta a cég adatait vagy eltávolíthatta a saját fiókját a cégből.
+- **Megoldás és Jogosultsági Szigorítás:**
+  - **Tagok kártya elrejtése:** A *Tagok* kártya kizárólag a cég tulajdonosa (`isOwner === true`) számára renderelődik. Sima munkatársak számára a kártya teljesen rejtve van, a `getCompanyMembersAction` pedig szerveroldalon is blokkolja az illetéktelen lekérést.
+  - **Cégadatok zárolása (Csak megtekintés):** Nem-tulajdonos esetén az űrlapmezők (cégnév, adószám, székhely, ország, képviselő, telefon) inaktívak (`disabled`), a mentés gomb helyén diszkrét infóbadge jelenik meg: *„Csak megtekintés • A cég adatait kizárólag a tulajdonos szerkesztheti.”*. A fejlécben külön szerepkörjelző badge (*Tulajdonos* / *Munkavállaló / Tag*) látható.
+  - **Cég hozzáférési kód (Meghívó generálás) védelme:** A 6 karakteres, 10 perces csatlakozási kód generálása és másolása kizárólag a cég tulajdonosa számára érhető el.
+  - **Kanonikus megerősítő törlő modál (`AlertDialog`):** A tagtörlés natív böngészős `confirm()` helyett a rendszer egységes `<AlertDialog>` komponensét használja a tag nevének, emailjének és cégének feltüntetésével, figyelmeztető leírással és töltésjelzővel. A tulajdonos nem távolítható el.
+  - **Szerveroldali Védelmi Kapuk:** `updateCompanyAction`, `generateCompanyShareTokenAction`, `getCompanyMembersAction`, `removeCompanyMemberAction`, és `inviteCompanyMemberAction` mind szigorú szerveroldali tulajdonosi ellenőrzést kaptak.
+  - **Globális Admin felületek védelme:** A `/settings` oldalon a *Csapat* és *Szervezeti Egységek* fülek, valamint a `deleteUser` akció kizárólag rendszeradminisztrátorok (`isAdmin`) számára érhető el.
+
+
+---
+
+## Korábbi Verziók (2026-10-07)
 
 ### 👑 Egységes Vezetői Jóváhagyási Központ (Unified Approvals Hub) és Jelenléti Korrekció Vizuális Visszajelzés
 - **Egységes Jóváhagyási Panel a Vezetői Nézetben (`UnifiedApprovalsPanel`, `/hr/manager`):**

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/sidebar"
 import { SidebarFooterContent } from "@/components/sidebar-footer-content"
 import { ModuleSwitcher } from "@/components/module-switcher"
+import { CompanySelector } from "@/components/company-selector"
 
 const items = [
   {
@@ -64,8 +65,9 @@ export function AppSidebar({ docsRole = "ugyintezo" }: { docsRole?: string }) {
 
   return (
     <Sidebar>
-      <SidebarHeader className="h-16 flex justify-center flex-col px-4 border-b">
+      <SidebarHeader className="flex justify-center flex-col px-2 py-2.5 border-b gap-1.5">
         <ModuleSwitcher />
+        <CompanySelector />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

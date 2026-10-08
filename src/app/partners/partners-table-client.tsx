@@ -97,7 +97,7 @@ export function PartnersTableClient({
   initialPartners: PartnerItem[]
   canEdit?: boolean
 }) {
-  const [partners] = useState<PartnerItem[]>(initialPartners)
+  const partners = initialPartners
 
   const [search, setSearch] = useState("")
   const [columns, setColumns] = useState<TableColumnOption[]>(DEFAULT_COLUMNS)
