@@ -21,29 +21,36 @@ Mielőtt a fejlesztést megkezdjük, tisztáznunk kell:
 
 ---
 
-## 2. A Két Alapvető Üzleti Forgatókönyv
+## 2. Miért sokkal érzékenyebb a HR modul a többcégnél?
 
-A vállalati gyakorlatban és a modern HR rendszerekben (pl. Workday, BambooHR, Visibill) két tipikus modell létezik:
+### 🔒 GDPR és béradat-védelem
+- Míg egy céges szerződést vagy számlát akár több cég ügyintézője is megnézhet egy holdingban, a **személyi adatok, bérek, orvosi alkalmasságiak és kilépési dokumentumok törvényileg szigorúan védettek**.
+- Ha egy HR-es csak az "A" cég alkalmazottja, büntetőjogi és GDPR felelőssége van annak, hogy semmilyen körülmények között **nem láthat rá a "B" cég dolgozóinak béradataira vagy jelenlétére**, még akkor sem, ha a két cég tulajdonosa ugyanaz a személy.
 
-| Szempont | 1. Dedikált Belső HR-es (In-house HR) | 2. Csoportszintű / Kiszervezett HR (Holding / Shared Service) |
-| :--- | :--- | :--- |
-| **Kik ők?** | Egy adott cég (pl. KKV vagy leányvállalat) saját alkalmazottja. | Cégcsoport központi HR csapata vagy külsős bérszámfejtő/HR iroda. |
-| **Hatáskör** | Kizárólag a **saját vállalata** dolgozóit és adatait láthatja és kezelheti. | Párhuzamosan 2, 3 vagy több cég teljes személyügyi adminisztrációjáért felel. |
-| **Cégválasztó viselkedése** | A cégválasztóban a többi cég vagy meg sem jelenik, vagy csak sima alkalmazotti joggal. | A cégválasztóban szerepel az összes cég, ahová HR megbízása van. |
-| **Kockázat** | Törvényt sért (GDPR, üzleti titok), ha más cég dolgozóinak béréhez hozzáfér. | Könnyen összekeverheti a cégeket, ha a felület nem egyértelmű. |
+### 👥 Kettős szerepek (A leggyakoribb anomália)
+- Mi van akkor, ha **Kiss Péter** az "A" cégben **HR vezető**, de a "B" cégben csak egy **részmunkaidős fejlesztő / alkalmazott**?
+- Ha a szerepkör globális a felhasználói profilon (`felhasznalo_profil.hr_szerepkor = 'hr_vezeto'`), akkor Péter a "B" cégbe átlépve is HR vezető lenne, és **látná a saját főnökei vagy kollégái béradatait és személyügyi iratait**! Ez súlyos jogosultsági és adatvédelmi incidens.
 
 ---
 
-## 3. A Leggyakoribb Hiba és Anomália: A „Kettős Szerepkör”
+## 3. A 2 Valós Üzleti Működési Modell
 
-> [!WARNING]
-> **A valós életből vett probléma:**  
-> Mi történik, ha **Kovács Péter** a *Think AI Kft.*-ben **HR vezető**, de a *Teszt Kft.*-ben csupán **részmunkaidős szoftverfejlesztő (egyszerű alkalmazott)**?
+A gyakorlatban (és a modern HR rendszerekben, pl. *Workday, BambooHR, Visibill*) két fő forgatókönyv létezik:
 
-- **Ha a HR szerepkör globális** (a `felhasznalo_profil.hr_szerepkor` táblában):  
-  Amikor Péter átvált a *Teszt Kft.*-re, ott is HR vezetőként lépne fel. Ezzel látná a *Teszt Kft.* összes dolgozójának a fizetését, orvosi adatait és a tulajdonosok bérét, ami súlyos **jogosultsági és adatvédelmi incidens**.
-- **A helyes működés:**  
-  Péternek a *Think AI Kft.*-ben `hr_vezeto` jogosultsága van, míg a *Teszt Kft.*-ben csak `alkalmazott` (így ott csak a saját jelenlétét és szabadságait láthatja).
+### 1. Dedikált, belső HR-es (In-house HR)
+* **Kik ők?** Egy adott KKV vagy leányvállalat saját HR munkatársa / bérszámfejtője.
+* **Működés:** Ő kizárólag a **saját cége adatait láthatja**. A fejlécben lévő cégválasztóban a másik cég számára **meg sem jelenik**, vagy ha meg is jelenik (mert ott is van hozzáférése), ott csak **sima munkavállalóként** viselkedik a felület (csak a saját szabadságát és jelenléti ívét éri el).
+
+### 2. Csoportszintű / Kiszervezett HR (Holding / Shared Service / Bérszámfejtő Iroda)
+* **Kik ők?** Olyan HR-es vagy külsős könyvelőiroda, aki 3-4 cég teljes személyügyi adminisztrációját látja el egyszerre.
+* **Működés:** Neki a cégválasztóban szerepelnie kell az összes általa kezelt cégnek. Amikor átvált **Teszt Kft.-re**, akkor a **Teszt Kft. adatait látja**, amikor **Think AI Kft.-re**, akkor a **Think AI-ét**.
+
+| Szempont | 1. Dedikált Belső HR-es (In-house HR) | 2. Csoportszintű / Kiszervezett HR (Holding / Shared Service) |
+| :--- | :--- | :--- |
+| **Kik ők?** | Egy adott cég (KKV vagy leányvállalat) saját alkalmazottja. | Cégcsoport központi HR csapata vagy külsős bérszámfejtő/HR iroda. |
+| **Hatáskör** | Kizárólag a **saját vállalata** dolgozóit és adatait láthatja és kezelheti. | Párhuzamosan 2, 3 vagy több cég teljes személyügyi adminisztrációjáért felel. |
+| **Cégválasztó viselkedése** | A cégválasztóban a többi cég vagy meg sem jelenik, vagy csak sima alkalmazotti joggal. | A cégválasztóban szerepel az összes cég, ahová HR megbízása van. |
+| **Kockázat** | Törvényt sért (GDPR, üzleti titok), ha más cég dolgozóinak béréhez hozzáfér. | Könnyen összekeverheti a cégeket, ha a felület nem izolált. |
 
 ---
 
