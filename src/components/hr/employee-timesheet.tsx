@@ -215,14 +215,27 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
                     return (
                       <tr
                         key={entry.id}
-                        className={`${typeColors[entry.type as keyof typeof typeColors] ?? ""}`}
+                        className={`${entry.isWeekendShift ? "bg-amber-500/[0.04] dark:bg-amber-500/[0.08]" : (typeColors[entry.type as keyof typeof typeColors] ?? "")}`}
                       >
                         <td className="px-4 py-2.5 font-medium whitespace-nowrap tabular-nums">
                           {entry.datum.substring(8, 10)}. {["V", "H", "K", "Sze", "Cs", "P", "Szo"][new Date(entry.datum).getDay()]}
                         </td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span>{typeLabels[entry.type] ?? entry.type}</span>
+                            {entry.isWeekendShift ? (
+                              <span className="text-xs bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold border border-amber-500/30 px-2 py-0.5 rounded">
+                                Hétvégi műszak ({entry.shiftCode || "Túlóra"})
+                              </span>
+                            ) : (
+                              <>
+                                <span>{typeLabels[entry.type] ?? entry.type}</span>
+                                {entry.shiftCode && (
+                                  <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 font-medium px-1.5 py-0.5 rounded">
+                                    {entry.shiftCode}
+                                  </span>
+                                )}
+                              </>
+                            )}
                             {entry.pendingCorrection && (
                               <span className="text-[10px] bg-warning/15 text-warning border border-warning/30 font-medium px-1.5 py-0.5 rounded">
                                 Bírálat alatt

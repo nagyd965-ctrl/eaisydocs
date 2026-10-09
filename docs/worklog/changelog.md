@@ -4,6 +4,34 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-09)
 
+### 📅 eaisyHR: Előzetes Műszaktervező és Heti Rács (HR-TASK-01)
+- **Felhasználói igény és megvalósítás:** A meglévő `/hr/time` (Munkaidő & Távollét) oldalon létrehoztunk egy 3 füles egyesített felületet (`TimeTabsView`):
+  1. **Műszakbeosztás Tervező (Heti rács):** Interaktív táblázat dolgozónkénti és részlegenkénti bontásban, 1-kattintásos sablonhozzárendeléssel (`D`, `DU`, `É`, `N`), heti óraszám-összesítővel, valamint napi létszám- és műszaklefedettségi lábléccel.
+  2. **Távollétek & Csapatnaptár:** A meglévő havi és éves szabadság/táppénz naptár (`TeamCalendar`) teljes megtartása.
+  3. **Műszaksablonok:** Céges munkarendek és műszakok kezelése (kezdés, befejezés, munkaóra, szünet, színkód választó élő előnézettel).
+- **Adatbázis és Multi-Tenancy:**
+  - Migráció: `supabase/migrations/20261009000004_create_hr_shift_planning.sql`.
+  - Új táblák: `public.hr_muszak_sablon` és `public.hr_muszak_beosztas`.
+  - Szigorú multi-tenant elszigetelés (`company_id` és RESTRICTIVE RLS a `user_has_company_access(company_id)` szabállyal).
+  - 4 alapsablon automatikus generálása minden céghez: `D` (06:00-14:00), `DU` (14:00-22:00), `É` (22:00-06:00), `N` (08:00-16:30).
+- **Intelligens Másolás és Távollét Védelem:**
+  - "Előző hét másolása" funkció (`copyPreviousWeekRosterAction` és `filterShiftsForCopy`), amely automatikusan kihagyja azokat a napokat, ahol a munkatársnak már jóváhagyott szabadsága vagy táppénze van a cél héten (`hr_tavollet` integráció).
+- **Havi Jelenléti Ív és Műszak Összekötés (Timesheet Integration):**
+  - Alapértelmezett munkanapokon (hétfőtől péntekig), ha nincs beosztva egyedi műszak, a jelenléti ív automatikusan az alapértelmezett 8 órával (FTE arányosan) számol.
+  - Hétvégi napokon alapértelmezetten a tervezett munkaidő 0 óra (pihenőnap).
+  - Ha a Műszaktervezőben hétvégi napra (pl. szombatra vagy vasárnapra) műszak kerül beosztásra (pl. `D: Délelőttös` 8h):
+    - A jelenléti ív automatikusan érzékeli és `Terv: 8h`-val, valamint borostyánsárga `Hétvégi műszak (D)` jelvénnyel jelöli a napot.
+    - A havi tervezett munkaórák és a túlóra egyenleg automatikusan hozzáadja ezt a 8 órát.
+    - Ha a dolgozó becsekkol a hétvégén, a tényleges ledolgozott órák és a túlóramegállapítás automatikusan összevetődik a tervezett műszakórával.
+    - A havi PDF generátor (`timesheet-pdf-generator.ts`) és a Dolgozói Önkiszolgáló (`employee-timesheet.tsx`) felület is azonnal megjeleníti a hétvégi műszakokat.
+- **Megfelelőség és Ellenőrzések:**
+  - Heti 48 órás Mt. korlát túllépés figyelmeztetés (`checkWeeklyHoursLimit` - `HR-TASK-02`).
+  - Orvosi alkalmasság lejárati jelzés és figyelmeztetés mentéskor (`determineMedicalStatus` - `HR-TASK-05`).
+- **Tesztek és Minőség:**
+  - `src/utils/__tests__/shift-planner.test.ts` (5/5 sikeres unit teszt: heti óraszámítás, 48h Mt. korlát, orvosi lejárati státusz, távollét-védett hétmásolás, havi jelenléti ív és műszak összekötés).
+  - `npx tsc --noEmit` hibátlan (0 error).
+- **Kapcsolódó dokumentáció:** [ADR A-037](../architecture/decisions/A-037-hr-shift-planning-roster-architecture.md), [PRD P-056](../product/decisions/P-056-hr-shift-planning-and-roster-management-ux.md).
+
 ### ⚙️ Céges Iktatási és AI Szabálymotor (Multi-Tenancy 2-Tier Rules Engine)
 - **Felhasználói igény és koncepció:** A Visibill kétfüles mintájára kialakított, az eaisyDocs iktatási adatlapjához igazított céges szabályrendszer. Megszüntettük a felesleges könyvelési kategóriákat (pl. kontírozási szám, pénzügyi megjegyzés), és két tiszta, valódi célú fülre bontottuk a rendszert:
   1. **Iktatási Szabályok (Determinisztikus fül):** Pontos szövegminta, partnernév vagy adószám alapján 100%-os biztonsággal, tokenfogyasztás nélkül automatikusan kitölti a Cél Szervezeti Egységet (Osztály), Irattári tételszámot (megőrzési idő), Dokumentumtípust és Tárgy előtagot.

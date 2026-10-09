@@ -63,9 +63,10 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-053](./P-053-multi-tenancy-company-selector-ux.md) | 2026-10-08 | Többcég-kezelő Választó és Cégkezelési UX | `[Közös]` | `Global Shell / Multi-Tenancy` | [A-034](../../architecture/decisions/A-034-multi-tenancy-architecture.md), `company-selector.tsx`, `app-sidebar.tsx`, `hr-sidebar.tsx` |
 | [P-054](./P-054-company-branding-filing-prefix-and-member-roles.md) | 2026-10-08 | Céglogó Megjelenítés, Iktató Előtag és Tag Szerepkör Módosítás UX | `[Közös]` | `Global Shell & Settings` | [A-035](../../architecture/decisions/A-035-company-branding-filing-prefix-and-member-roles.md), `company-settings-tab.tsx`, `company-selector.tsx`, `edit-member-role-dialog.tsx` |
 | [P-055](./P-055-company-prompt-rules-accounting-engine-ux.md) | 2026-10-09 | Céges Könyvelési és Iktatási Szabályok Kezelőfelület (Rules UX) | `[Docs]` | `Rules / AI Accounting` | [A-036](../../architecture/decisions/A-036-company-prompt-rules-accounting-engine.md), `src/app/rules/*`, `rules-client.tsx`, `company-settings-tab.tsx` |
+| [P-056](./P-056-hr-shift-planning-and-roster-management-ux.md) | 2026-10-09 | Műszakbeosztás Tervező és Műszaksablon Kezelés Felhasználói Élmény (UX) | `[HR]` | `HR / Time & Shifts` | [A-037](../../architecture/decisions/A-037-hr-shift-planning-roster-architecture.md), `shift-planner-weekly-grid.tsx`, `shift-templates-manager.tsx`, `time-tabs-view.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-055`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-056`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 

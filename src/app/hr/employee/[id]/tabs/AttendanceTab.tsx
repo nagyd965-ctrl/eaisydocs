@@ -232,7 +232,11 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
     date: t.datum,
     type: t.type,
     checkIn: t.becsekkolas_ideje,
-    checkOut: t.kicsekkolas_ideje
+    checkOut: t.kicsekkolas_ideje,
+    shiftPlannedHours: t.shiftPlannedHours,
+    shiftCode: t.shiftCode,
+    shiftName: t.shiftName,
+    isWeekendShift: t.isWeekendShift,
   }))
 
   const { calculatedDays, totalActual, totalBalance } = calculateMonthlyTimesheet(timesheetInput, 8.0, employeeFte)
@@ -379,20 +383,33 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
                   </tr>
                 ) : (
                   timesheet.map((entry) => {
-                    const isEditable = entry.type === "munka" && closingStatus === "nyitott"
+                    const isEditable = (entry.type === "munka" || entry.isWeekendShift) && closingStatus === "nyitott"
                     const calc = calculatedDays.find(c => c.date === entry.datum)
                     
                     return (
                       <tr 
                         key={entry.id} 
-                        className={`border-b last:border-0 ${entry.pendingCorrection ? "bg-amber-500/[0.04] dark:bg-amber-500/[0.08]" : typeColors[entry.type]}`}
+                        className={`border-b last:border-0 ${entry.pendingCorrection ? "bg-amber-500/[0.04] dark:bg-amber-500/[0.08]" : entry.isWeekendShift ? "bg-amber-500/[0.03] dark:bg-amber-500/[0.06]" : typeColors[entry.type]}`}
                       >
                         <td className="p-3 font-medium whitespace-nowrap">
                           {entry.datum.substring(8, 10)}. {["V", "H", "K", "Sze", "Cs", "P", "Szo"][new Date(entry.datum).getDay()]}
                         </td>
                         <td className="p-3">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium">{typeLabels[entry.type]}</span>
+                            {entry.isWeekendShift ? (
+                              <Badge variant="outline" className="text-xs bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold border-amber-500/30 px-2 py-0.5">
+                                Hétvégi műszak ({entry.shiftCode || "Túlóra"})
+                              </Badge>
+                            ) : (
+                              <>
+                                <span className="font-medium">{typeLabels[entry.type]}</span>
+                                {entry.shiftCode && (
+                                  <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 px-1.5 py-0.5">
+                                    {entry.shiftCode}
+                                  </Badge>
+                                )}
+                              </>
+                            )}
                             {entry.pendingCorrection && (
                               <Badge variant="outline" className="text-[10px] bg-warning/15 text-warning font-semibold border-warning/30 px-1.5 py-0.5">
                                 Korrekció bírálat alatt

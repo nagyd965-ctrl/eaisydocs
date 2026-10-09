@@ -60,7 +60,11 @@ export async function generateTimesheetHtml(
     date: t.datum,
     type: t.type,
     checkIn: t.becsekkolas_ideje,
-    checkOut: t.kicsekkolas_ideje
+    checkOut: t.kicsekkolas_ideje,
+    shiftPlannedHours: t.shiftPlannedHours,
+    shiftCode: t.shiftCode,
+    shiftName: t.shiftName,
+    isWeekendShift: t.isWeekendShift,
   }))
 
   const { calculatedDays, totalActual, totalBalance } = calculateMonthlyTimesheet(timesheetInput, 8.0, fte)
@@ -117,7 +121,11 @@ export async function generateTimesheetHtml(
     let rowBg = "#ffffff"
     let textColor = "#1e293b"
 
-    if (entry.type === "szabadsag") {
+    if (entry.isWeekendShift) {
+      typeBadge = `Hétvégi műszak (${entry.shiftCode || "Túlóra"})`
+      rowBg = "#fffbeb"
+      textColor = "#b45309"
+    } else if (entry.type === "szabadsag") {
       typeBadge = "Fizetett Szabadság"
       rowBg = "#f0fdf4"
       textColor = "#166534"

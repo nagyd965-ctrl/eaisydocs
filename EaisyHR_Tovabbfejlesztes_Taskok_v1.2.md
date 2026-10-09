@@ -12,7 +12,7 @@
 
 | Azonosító | Terület / Modul | Feladat megnevezése | Eredeti Hivatkozás | Prioritás | Becsült Ráfordítás | Státusz |
 |---|---|---|---|---|---|---|
-| **HR-TASK-01** | `Munkaidő & Jelenlét` | Előzetes Műszaktervező modul és heti/havi naptár (`/hr/time/shifts`) | HR-01 | 🔴 Magas | Nagy (4-6 óra) | ⏳ Tervezett |
+| **HR-TASK-01** | `Munkaidő & Jelenlét` | Előzetes Műszaktervező modul és heti/havi naptár (`/hr/time`) | HR-01 | 🔴 Magas | Nagy (4-6 óra) | ✅ Kész (A-037, P-056) |
 | **HR-TASK-02** | `Megfelelőség & Szabályok` | Munkaidőkorlátok (48h) és éves túlórakeret számláló | HR-02 | 🟡 Közepes | Közepes (2-3 óra) | ⏳ Tervezett |
 | **HR-TASK-03** | `Szabadságkezelés` | Szabadságkiadási megfelelőség (14 nap egybefüggő + novemberi riasztás) | HR-03 | 🟡 Közepes | Közepes (2-3 óra) | ⏳ Tervezett |
 | **HR-TASK-04** | `Megfelelőség & Munkavédelem` | Munkavédelmi és tűzvédelmi oktatások központi lejárati mátrixa (`/hr/compliance`) | HR-04 | 🔴 Magas | Kisebb (1-2 óra) | ⏳ Tervezett |
@@ -46,6 +46,7 @@
   - `src/app/hr/time/shift-actions.ts`
   - Adatbázis: `hr_muszak_sablon`, `hr_muszak_beosztas` táblák.
 - **Elfogadási feltétel (DoD):** A részlegvezető beoszthatja a munkatársait a következő hétre, a naptár összesíti a tervezett heti órákat dolgozónként, és a munkavállaló a saját felületén (Self-Service) látja a beosztását.
+- **Megvalósítás:** ✅ **Kész (2026-10-09)**. Létrehozva a `TimeTabsView` fülrendszer a `/hr/time` oldalon (`Műszakbeosztás Tervező`, `Távollétek & Csapatnaptár`, `Műszaksablonok`). Adatbázis migráció lefutva (`hr_muszak_sablon`, `hr_muszak_beosztas`), 4 alapsablon beszúrva (`D`, `DU`, `É`, `N`), heti rács, 1-kattintásos gyorsbeosztás, távollét-védelem, előző hét másolása és 48h limit indikátor implementálva. Havi jelenléti ív (`getMonthlyTimesheet`, `AttendanceTab`, `employee-timesheet`, `timesheet-pdf-generator`) összekötve: munkanapokon alapértelmezett 8h, beosztott hétvégi műszaknál `Terv: 8h` + borostyán badge és túlóra egyenleg kalkuláció. ADR: [A-037](docs/architecture/decisions/A-037-hr-shift-planning-roster-architecture.md), PRD: [P-056](docs/product/decisions/P-056-hr-shift-planning-and-roster-management-ux.md). Unit tesztek: `src/utils/__tests__/shift-planner.test.ts` (5/5 sikeres).
 
 ---
 

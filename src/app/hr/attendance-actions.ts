@@ -18,6 +18,10 @@ export type TimesheetEntry = {
     uj_kicsekkolas: string
     indoklas: string
   }
+  shiftPlannedHours?: number | null
+  shiftCode?: string | null
+  shiftName?: string | null
+  isWeekendShift?: boolean
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -87,6 +91,37 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
     const unnepnapok = new Set((unnepnapData || []).map(n => n.datum as string))
     const unnepNevek = new Map((unnepnapData || []).map(n => [n.datum as string, n.megnevezes as string]))
 
+    // Műszakbeosztások lekérése (HR-TASK-01 / Előzetes műszakok szinkronja)
+    const { data: shiftAssignments } = await supabase
+      .from("hr_muszak_beosztas")
+      .select(`
+        datum,
+        sablon_id,
+        egyedi_kezdes,
+        egyedi_befejezes,
+        tervezett_ora,
+        megjegyzes,
+        hr_muszak_sablon (
+          kod,
+          megnevezes,
+          kezdes_ido,
+          befejezes_ido,
+          szin_kod
+        )
+      `)
+      .eq("dolgozo_id", employeeId)
+      .gte("datum", startDate)
+      .lte("datum", endDate)
+
+    const shiftMap = new Map<string, any>()
+    for (const s of (shiftAssignments as any[]) || []) {
+      const rawSablon = Array.isArray(s.hr_muszak_sablon) ? s.hr_muszak_sablon[0] : s.hr_muszak_sablon
+      shiftMap.set(s.datum, {
+        ...s,
+        sablon: rawSablon
+      })
+    }
+
     const days = getDaysInMonth(year, month)
     const timesheet: TimesheetEntry[] = []
 
@@ -95,6 +130,13 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
       const dayOfWeek = day.getUTCDay()
       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
       const pendingCorr = pendingMap.get(dateStr)
+
+      // Beosztott műszak ellenőrzése
+      const assignedShift = shiftMap.get(dateStr)
+      const shiftHours = assignedShift ? Number(assignedShift.tervezett_ora || 8.0) : null
+      const shiftCode = assignedShift?.sablon?.kod || (assignedShift ? "Egyedi" : null)
+      const shiftName = assignedShift?.sablon?.megnevezes || (assignedShift ? "Egyedi műszak" : null)
+      const isWeekendShift = isWeekend && !!assignedShift
 
       // Jelenlét (Munka)
       const munka = jelenletData?.find(j => j.datum === dateStr)
@@ -117,7 +159,11 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
             : "szabadsag",
           note: tavollet.indoklas,
           tavollet_id: tavollet.id,
-          pendingCorrection: pendingCorr
+          pendingCorrection: pendingCorr,
+          shiftPlannedHours: shiftHours,
+          shiftCode,
+          shiftName,
+          isWeekendShift: false
         })
       } else if (unnepnapok.has(dateStr)) {
         // Magyar munkaszüneti nap
@@ -128,7 +174,11 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           kicsekkolas_ideje: null,
           type: "unnep",
           note: unnepNevek.get(dateStr),
-          pendingCorrection: pendingCorr
+          pendingCorrection: pendingCorr,
+          shiftPlannedHours: shiftHours,
+          shiftCode,
+          shiftName,
+          isWeekendShift: false
         })
       } else if (munka) {
         timesheet.push({
@@ -138,7 +188,12 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           becsekkolas_ideje: munka.becsekkolas_ideje,
           kicsekkolas_ideje: munka.kicsekkolas_ideje,
           type: "munka",
-          pendingCorrection: pendingCorr
+          note: assignedShift ? `Beosztott műszak (${shiftCode})` : undefined,
+          pendingCorrection: pendingCorr,
+          shiftPlannedHours: shiftHours,
+          shiftCode,
+          shiftName,
+          isWeekendShift
         })
       } else if (isWeekend) {
         timesheet.push({
@@ -146,8 +201,13 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           datum: dateStr,
           becsekkolas_ideje: null,
           kicsekkolas_ideje: null,
-          type: "hetvege",
-          pendingCorrection: pendingCorr
+          type: isWeekendShift ? "munka" : "hetvege",
+          note: isWeekendShift ? `Hétvégi műszak (${shiftCode}: ${shiftName || "Túlóra"})` : undefined,
+          pendingCorrection: pendingCorr,
+          shiftPlannedHours: shiftHours,
+          shiftCode,
+          shiftName,
+          isWeekendShift
         })
       } else {
         // Nincs adat, de munkanap
@@ -157,7 +217,12 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           becsekkolas_ideje: null,
           kicsekkolas_ideje: null,
           type: "munka", // üres munkanap
-          pendingCorrection: pendingCorr
+          note: assignedShift ? `Beosztott műszak (${shiftCode})` : undefined,
+          pendingCorrection: pendingCorr,
+          shiftPlannedHours: shiftHours,
+          shiftCode,
+          shiftName,
+          isWeekendShift: false
         })
       }
     }

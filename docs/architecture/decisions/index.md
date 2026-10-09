@@ -49,8 +49,9 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-034](./A-034-multi-tenancy-architecture.md) | 2026-10-08 | Többcég-kezelés (Multi-Tenancy) és Adatelkülönítési Architektúra | `[Közös]` | `Decided` | [P-053](../../product/decisions/P-053-multi-tenancy-company-selector-ux.md), `companies`, `company_members`, `user_company_access_cache`, `company-selector.tsx` |
 | [A-035](./A-035-company-branding-filing-prefix-and-member-roles.md) | 2026-10-08 | Céglogó Tárolás, Dinamikus Iktató Prefix és Tag Szerepkör Szinkronizáció | `[Közös]` | `Decided` | [P-054](../../product/decisions/P-054-company-branding-filing-prefix-and-member-roles.md), `companies.logo_url`, `companies.filing_prefix`, `edit-member-role-dialog.tsx` |
 | [A-036](./A-036-company-prompt-rules-accounting-engine.md) | 2026-10-09 | Céges Könyvelési és Iktatási Szabálymotor (Prompt Rules Engine) | `[Docs]` | `Decided` | [P-055](../../product/decisions/P-055-company-prompt-rules-accounting-engine-ux.md), `company_prompt_rules`, `rules-actions.ts`, `prompt-rules-helper.ts` |
+| [A-037](./A-037-hr-shift-planning-roster-architecture.md) | 2026-10-09 | Műszaktervezési Rendszer és Beosztás Architektúra | `[HR]` | `Decided` | [P-056](../../product/decisions/P-056-hr-shift-planning-and-roster-management-ux.md), `hr_muszak_sablon`, `hr_muszak_beosztas`, `shift-actions.ts` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-036`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-037`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!

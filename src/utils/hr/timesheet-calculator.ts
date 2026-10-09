@@ -3,6 +3,10 @@ export interface DailyTimesheetInput {
   type: "munka" | "szabadsag" | "betegseg" | "hetvege" | "unnep" | "csusztatas";
   checkIn: string | null;
   checkOut: string | null;
+  shiftPlannedHours?: number | null;
+  shiftCode?: string | null;
+  shiftName?: string | null;
+  isWeekendShift?: boolean;
 }
 
 export interface CalculatedDay {
@@ -11,6 +15,10 @@ export interface CalculatedDay {
   plannedHours: number;
   actualHours: number;
   balance: number;
+  shiftPlannedHours?: number | null;
+  shiftCode?: string | null;
+  shiftName?: string | null;
+  isWeekendShift?: boolean;
 }
 
 export function calculateMonthlyTimesheet(
@@ -30,20 +38,26 @@ export function calculateMonthlyTimesheet(
   const calculatedDays = days.map(day => {
     let plannedHours = 0;
     
-    // Alapértelmezetten a munkanapokra (és fizetett távollétekre / csúsztatásra) számolunk tervet
-    if (day.type === "munka" || day.type === "szabadsag" || day.type === "betegseg" || day.type === "csusztatas") {
+    // Ha a Műszaktervezőben van hozzárendelt műszak:
+    if (day.shiftPlannedHours !== undefined && day.shiftPlannedHours !== null) {
+      plannedHours = day.shiftPlannedHours;
+    } else if (day.type === "munka" || day.type === "szabadsag" || day.type === "betegseg" || day.type === "csusztatas") {
+      // Alapértelmezett munkanapokon standard munkaidő (pl. 8h * FTE)
       plannedHours = standardDailyHours * fte;
+    } else {
+      // Hétvége vagy ünnepnap beosztott műszak nélkül
+      plannedHours = 0;
     }
 
     let actualHours = 0;
 
-    if (day.type === "munka" && day.checkIn && day.checkOut) {
+    if ((day.type === "munka" || day.isWeekendShift) && day.checkIn && day.checkOut) {
       const inTime = new Date(day.checkIn);
       const outTime = new Date(day.checkOut);
       const diffMs = outTime.getTime() - inTime.getTime();
       actualHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100; // 2 decimal places
     } else if (day.type === "szabadsag" || day.type === "betegseg" || day.type === "csusztatas") {
-      // Szabadság, betegség és csúsztatás esetén a ledolgozott óra megegyezik a tervezettel (nem generál mínuszt)
+      // Szabadság, betegség és csúsztatás esetén a ledolgozott óra megegyezik a tervezettel
       actualHours = plannedHours;
     }
 
@@ -58,7 +72,11 @@ export function calculateMonthlyTimesheet(
       type: day.type,
       plannedHours,
       actualHours,
-      balance
+      balance,
+      shiftPlannedHours: day.shiftPlannedHours,
+      shiftCode: day.shiftCode,
+      shiftName: day.shiftName,
+      isWeekendShift: day.isWeekendShift,
     };
   });
 
