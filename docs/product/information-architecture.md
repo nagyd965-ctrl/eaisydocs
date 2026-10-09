@@ -32,6 +32,7 @@ Ez a dokumentum rögzíti az **eaisyDocs** és **eaisyHR** alkalmazás éles, el
 | `/archive/print` | **Selejtezési és Átadási Jegyzőkönyv Nyomtatás** (Hivatalos szabványos nyomtatási nézet) | `[Docs]` | Irattáros, Vezető, Admin | **Éles / Kész** |
 | `/partners` | **Központi Partnertörzs** (Partnerek listája, vevő/szállító típusok, adószám, duplikációvédelem) | `[Docs]` | Iktató, Ügyintéző, Vezető, Admin | **Éles / Kész** |
 | `/partners/[id]` | **Partner 360° Adatlap** (Alapadatok, kapcsolódó ügyiratok és szerződések listája) | `[Docs]` | Iktató, Ügyintéző, Vezető, Admin | **Éles / Kész** |
+| `/rules` | **Könyvelési és Iktatási Szabályok** (`RulesClient`, cég-izolált természetes nyelvű AI prompt szabályok, kategóriák, gyors KKV sablonok) | `[Docs]` | Iktató, Admin, Vezető | **Éles / Kész** |
 | `/embed/partner-dossiers` | **Beágyazható Partner Dosszié Widget** (Fejléc nélküli iframe nézet külső CRM/ERP/eaisyBill rendszerek számára) | `[Docs]` | Beágyazó partner token alapján | **Éles / Kész** |
 
 ---

@@ -2,9 +2,33 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
+## [Unreleased] – Fejlesztés alatt (2026-10-09)
+
+### ⚙️ Céges Iktatási és AI Szabálymotor (Multi-Tenancy 2-Tier Rules Engine)
+- **Felhasználói igény és koncepció:** A Visibill kétfüles mintájára kialakított, az eaisyDocs iktatási adatlapjához igazított céges szabályrendszer. Megszüntettük a felesleges könyvelési kategóriákat (pl. kontírozási szám, pénzügyi megjegyzés), és két tiszta, valódi célú fülre bontottuk a rendszert:
+  1. **Iktatási Szabályok (Determinisztikus fül):** Pontos szövegminta, partnernév vagy adószám alapján 100%-os biztonsággal, tokenfogyasztás nélkül automatikusan kitölti a Cél Szervezeti Egységet (Osztály), Irattári tételszámot (megőrzési idő), Dokumentumtípust és Tárgy előtagot.
+  2. **AI Prompt Könyvtár (Természetes nyelvű fül):** Gemini 2.5 Flash-nek átadott magas prioritású direktívák (pl. felelősök, összetett irattípusok, határozatok kezelése).
+- **Adatbázis és RLS:**
+  - Létrejött a `public.company_filing_rules` tábla a determinisztikus szabályokhoz (`id`, `company_id`, `rule_name`, `search_pattern`, `partner_name`, `partner_tax_number`, `match_type`, `target_department_id`, `target_irattari_tetel_id`, `target_document_type`, `target_subject_prefix`, `scope`, `is_active`).
+  - Létrejött a `public.company_prompt_rules` tábla az AI utasításokhoz (`id`, `company_id`, `rule_name`, `rule_prompt`, `category`, `is_active`).
+  - Mindkét táblán Restrictive RLS házirend védi az adatokat a `public.user_has_company_access(company_id)` ellenőrzéssel és támogatja a globális (`scope = 'all'`) szabályokat.
+- **Iktatási és AI Integráció (Kétlépcsős Feldolgozás):**
+  - Az `executeAiMetadataExtraction` (`src/app/inbox/filing-actions.ts`) folyamatában:
+    1. **1. szint:** A `matchFilingRules` (`src/utils/filing-rules-engine.ts`) azonnal lefut az irat szövegére és felismert partnerére. Ha talál egyezést, felülbírálja és kőbe vési a szervezeti egységet, irattári tételt, típust és tárgyat.
+    2. **2. szint:** A Gemini 2.5 Flash a céges `company_prompt_rules` direktívák figyelembevételével kitölti az esetlegesen még üresen maradt mezőket (pl. hivatkozott szám, határidő, pontosabb megnevezés).
+- **Kezelőfelület és Navigáció (`/rules`):**
+  - **Kétfüles navigáció:** „Iktatási szabályok (Automatikus)” és „AI Prompt könyvtár (Természetes nyelvű)” fülek.
+  - Linear Flat design, azonnali aktív/inaktív kapcsolók, törlés és szerkesztés modálok, beépített KKV sablonkártyák.
+  - Navigációs sáv (`Sliders` ikon) és Cégbeállítások (`/settings`) gyorslink integráció.
+  - Dinamikus cégváltás (`key={companyScope}`).
+- **Tesztek és Minőség:**
+  - `src/utils/__tests__/filing-rules-engine.test.ts` (4/4 sikeres unit teszt)
+  - `src/utils/__tests__/company-prompt-rules.test.ts` (5/5 sikeres unit teszt)
+- **Kapcsolódó dokumentáció:** [ADR A-036](../architecture/decisions/A-036-company-prompt-rules-accounting-engine.md), [PRD P-055](../product/decisions/P-055-company-prompt-rules-accounting-engine-ux.md).
+
 ---
 
-## [Unreleased] – Fejlesztés alatt (2026-10-08)
+## [2026-10-08]
 
 ### 🔄 Dinamikus Cégváltási Frissítés (Partnerek és Iktatókönyv Táblázatok)
 - **Probléma:** Amikor a felhasználó a felső cégválasztóban céget váltott (pl. `Teszt Kft.` és `Think AI Kft.` között) a Partnerek (`/partners`) vagy az Iktatókönyv (`/dossiers`) oldalon, a felület nem frissült azonnal az új cég adataival, hanem kézi F5 böngészőfrissítésre volt szükség, bár F5 után az adatok helyesen jelentek meg.

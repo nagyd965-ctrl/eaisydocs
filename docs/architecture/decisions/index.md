@@ -48,6 +48,7 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-033](./A-033-unified-approvals-architecture-and-attendance-correction-security.md) | 2026-10-07 | Egységes Jóváhagyási Architektúra és Jelenléti Korrekció Biztonsági Modell | `[HR]` | `Decided` | [P-052](../../product/decisions/P-052-unified-manager-approvals-hub-and-attendance-correction-ux.md), `unified-approvals-panel.tsx`, `attendance-actions.ts`, `fix_hr_jelenlet_rls.sql` |
 | [A-034](./A-034-multi-tenancy-architecture.md) | 2026-10-08 | Többcég-kezelés (Multi-Tenancy) és Adatelkülönítési Architektúra | `[Közös]` | `Decided` | [P-053](../../product/decisions/P-053-multi-tenancy-company-selector-ux.md), `companies`, `company_members`, `user_company_access_cache`, `company-selector.tsx` |
 | [A-035](./A-035-company-branding-filing-prefix-and-member-roles.md) | 2026-10-08 | Céglogó Tárolás, Dinamikus Iktató Prefix és Tag Szerepkör Szinkronizáció | `[Közös]` | `Decided` | [P-054](../../product/decisions/P-054-company-branding-filing-prefix-and-member-roles.md), `companies.logo_url`, `companies.filing_prefix`, `edit-member-role-dialog.tsx` |
+| [A-036](./A-036-company-prompt-rules-accounting-engine.md) | 2026-10-09 | Céges Könyvelési és Iktatási Szabálymotor (Prompt Rules Engine) | `[Docs]` | `Decided` | [P-055](../../product/decisions/P-055-company-prompt-rules-accounting-engine-ux.md), `company_prompt_rules`, `rules-actions.ts`, `prompt-rules-helper.ts` |
 
 ---
 

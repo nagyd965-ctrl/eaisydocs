@@ -332,6 +332,7 @@ export async function executeAiMetadataExtraction(iratId: string, customSupabase
     .from("irat")
     .select(`
       id,
+      company_id,
       targy,
       kulso_forras,
       kulso_hivatkozas_id,
@@ -445,10 +446,27 @@ export async function executeAiMetadataExtraction(iratId: string, customSupabase
 
       const emailSenderNev = (irat.partner as any)?.nev || null
 
+      // Lekérjük a cég egyedi könyvelési és iktatási szabályait (company_prompt_rules)
+      const targetCompanyId = irat.company_id || (await getActiveCompanyIdServer())
+      let promptRulesBlock = ""
+      if (targetCompanyId) {
+        const { data: companyRules } = await supabase
+          .from("company_prompt_rules")
+          .select("rule_name, rule_prompt, is_active")
+          .eq("company_id", targetCompanyId)
+          .eq("is_active", true)
+
+        if (companyRules && companyRules.length > 0) {
+          const { formatRulesForAiPrompt } = await import("@/utils/prompt-rules-helper")
+          promptRulesBlock = formatRulesForAiPrompt(companyRules)
+        }
+      }
+
       const prompt = `Te egy magyar elektronikus iratási rendszer (eaisyDocs) automatikus dokumentum-osztályozó és metaadat-kinyerő mesterséges intelligenciája vagy.
 Feladatod: elemezd a beérkezett dokumentum tartalmát (és a csatolt PDF-képet) és olvasd ki pontosan az alábbi mezőket.
 
-FIGYELEM - KRITIKUS SZABÁLY A PARTNER ÉS ADÓSZÁM MEZŐKHÖZ:
+${promptRulesBlock ? `${promptRulesBlock}\n\n` : ""}` +
+`FIGYELEM - KRITIKUS SZABÁLY A PARTNER ÉS ADÓSZÁM MEZŐKHÖZ:
 - A dokumentumot ${emailSenderNev ? `"${emailSenderNev}" nevű személy/entitás küldte email-ben` : 'valaki email-ben küldte'}. Ez az EMAIL FELADÓ, nem feltétlenül a dokumentum kibocsátója!
 - A "partner_nev" mezőbe a DOKUMENTUMON SZEREPLŐ tényleges kibocsátó szervezet/cég nevét írd be (fejlécből, aláírásból, pecsétből).
 - Ha a dokumentum fejlécében egy cég neve szerepel (pl. "Infopark Irodaház Üzemeltető Kft." vagy "Celonis Inc."), azt add meg partnerként, nem az email feladót!
@@ -707,6 +725,10 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
     }
   }
 
+  // 7.b Determinisztikus Iktatási Szabályok illesztése (Kiemelt prioritás az AI felett)
+  const fullSearchText = [docText, irat?.targy, firstFile?.eredeti_fajlnev].filter(Boolean).join(" ")
+  await applyFilingRulesToSuggestions(irat.id, aiResult, supabase, fullSearchText, partnerNevToUse)
+
   // 8. Osztály és Irattári tétel validáció
   const validDept = deptsList.find((d: any) => d.id === aiResult.department_id) || deptsList[0]
   const validPlan = plansList.find((p: any) => p.id === aiResult.irattari_tetel_id) || plansList[0]
@@ -732,6 +754,91 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
   }
 }
 
+/**
+ * Dinamikusan ráülteti a determinisztikus iktatási szabályokat a javaslatokra.
+ * Garantálja, hogy a szabályok felülírják az AI és a gyorsítótárazott értékeket.
+ */
+export async function applyFilingRulesToSuggestions(
+  iratId: string,
+  targetObj: any,
+  supabaseClient: any,
+  preloadedText?: string,
+  preloadedPartnerNev?: string
+): Promise<void> {
+  try {
+    const { data: iratRecord } = await supabaseClient
+      .from("irat")
+      .select("id, company_id, targy, irat_fajl(id, eredeti_fajlnev, ocr_szoveg)")
+      .eq("id", iratId)
+      .maybeSingle()
+
+    if (!iratRecord) return
+
+    const targetCompId = iratRecord.company_id || (await getActiveCompanyIdServer())
+    if (!targetCompId) return
+
+    const { data: dbFilingRules } = await supabaseClient
+      .from("company_filing_rules")
+      .select(`
+        id,
+        company_id,
+        rule_name,
+        search_pattern,
+        partner_name,
+        partner_tax_number,
+        match_type,
+        target_department_id,
+        target_irattari_tetel_id,
+        target_document_type,
+        target_subject_prefix,
+        scope,
+        is_active
+      `)
+      .or(`company_id.eq.${targetCompId},scope.eq.all`)
+      .eq("is_active", true)
+
+    if (!dbFilingRules || dbFilingRules.length === 0) return
+
+    let searchText = preloadedText
+    if (!searchText) {
+      const files = iratRecord.irat_fajl || []
+      const ocrTexts = files.map((f: any) => f.ocr_szoveg || "").filter(Boolean).join(" ")
+      const fileNames = files.map((f: any) => f.eredeti_fajlnev || "").filter(Boolean).join(" ")
+      searchText = [ocrTexts, iratRecord.targy, fileNames].filter(Boolean).join(" ")
+    }
+
+    const { matchFilingRules } = await import("@/utils/filing-rules-engine")
+    const matched = matchFilingRules(dbFilingRules as any, {
+      text: searchText,
+      partnerName: preloadedPartnerNev || targetObj.partner_nev,
+      partnerTax: targetObj.partner_adoszam || targetObj.partner_kulfoldi_adoszam,
+    })
+
+    if (matched) {
+      if (matched.department_id) {
+        targetObj.department_id = matched.department_id
+      }
+      if (matched.irattari_tetel_id) {
+        targetObj.irattari_tetel_id = matched.irattari_tetel_id
+      }
+      if (matched.target_document_type) {
+        targetObj.dokumentum_tipus = matched.target_document_type
+      }
+      if (matched.target_subject_prefix) {
+        const currentTargy = targetObj.targy || iratRecord.targy || ""
+        if (!currentTargy.startsWith(matched.target_subject_prefix)) {
+          targetObj.targy = `${matched.target_subject_prefix} ${currentTargy}`.trim()
+        }
+      }
+      if (!targetObj.indoklas?.includes(`[Szabály: "${matched.matchedRule.rule_name}"]`)) {
+        targetObj.indoklas = `[Szabály: "${matched.matchedRule.rule_name}"] érvényesítve. ${targetObj.indoklas || ""}`.trim()
+      }
+    }
+  } catch (err) {
+    console.error("[applyFilingRulesToSuggestions] Hiba a szabályok érvényesítésekor:", err)
+  }
+}
+
 export async function generateAISuggestions(iratId: string): Promise<AISuggestionsResult> {
   const supabase = await createClient()
 
@@ -751,6 +858,10 @@ export async function generateAISuggestions(iratId: string): Promise<AISuggestio
       const separated = separateTaxNumbers(suggestions.partner_adoszam, suggestions.partner_kulfoldi_adoszam)
       suggestions.partner_adoszam = separated.magyarAdoszam || ""
       suggestions.partner_kulfoldi_adoszam = separated.kulfoldiAdoszam || suggestions.partner_kulfoldi_adoszam || ""
+
+      // Mindig érvényesítjük a cég aktuális iktatási szabályait a gyorsítótárazott adatokon is!
+      await applyFilingRulesToSuggestions(iratId, suggestions, supabase)
+
       return {
         success: true,
         suggestions

@@ -62,6 +62,7 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-052](./P-052-unified-manager-approvals-hub-and-attendance-correction-ux.md) | 2026-10-07 | Egységes Vezetői Jóváhagyási Központ és Jelenléti Korrekció UX | `[HR]` | `HR / Manager & Attendance` | [A-033](../../architecture/decisions/A-033-unified-approvals-architecture-and-attendance-correction-security.md), `unified-approvals-panel.tsx`, `AttendanceTab.tsx`, `manager/page.tsx` |
 | [P-053](./P-053-multi-tenancy-company-selector-ux.md) | 2026-10-08 | Többcég-kezelő Választó és Cégkezelési UX | `[Közös]` | `Global Shell / Multi-Tenancy` | [A-034](../../architecture/decisions/A-034-multi-tenancy-architecture.md), `company-selector.tsx`, `app-sidebar.tsx`, `hr-sidebar.tsx` |
 | [P-054](./P-054-company-branding-filing-prefix-and-member-roles.md) | 2026-10-08 | Céglogó Megjelenítés, Iktató Előtag és Tag Szerepkör Módosítás UX | `[Közös]` | `Global Shell & Settings` | [A-035](../../architecture/decisions/A-035-company-branding-filing-prefix-and-member-roles.md), `company-settings-tab.tsx`, `company-selector.tsx`, `edit-member-role-dialog.tsx` |
+| [P-055](./P-055-company-prompt-rules-accounting-engine-ux.md) | 2026-10-09 | Céges Könyvelési és Iktatási Szabályok Kezelőfelület (Rules UX) | `[Docs]` | `Rules / AI Accounting` | [A-036](../../architecture/decisions/A-036-company-prompt-rules-accounting-engine.md), `src/app/rules/*`, `rules-client.tsx`, `company-settings-tab.tsx` |
 
 ---
 

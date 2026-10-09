@@ -19,7 +19,9 @@ import {
   AlertTriangle,
   Pencil,
   Upload,
+  Sliders,
 } from "lucide-react"
+import Link from "next/link"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -662,6 +664,35 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
               </span>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* KÁRTYA: CÉGES KÖNYVELÉSI ÉS IKTATÁSI SZABÁLYOK (AI) */}
+      <Card className="border border-border/80">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sliders className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base font-semibold">Céges Könyvelési és Iktatási Szabályok</CardTitle>
+            </div>
+            <Badge variant="outline" className="text-[10px] h-4 uppercase tracking-wider font-semibold border-primary/30 text-primary">
+              AI Rendszer
+            </Badge>
+          </div>
+          <CardDescription className="text-xs">
+            Minden vállalkozáshoz külön könyvelési, kontírozási és iktatási prompt-szabályokat definiálhatsz. Az AI dokumentum-feldolgozó (Gemini 2.5) ezeket automatikusan prioritásként érvényesíti az iratok érkeztetésekor és iktatásakor.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4 pt-1 flex-wrap sm:flex-nowrap">
+          <div className="text-xs text-muted-foreground">
+            A(z) <strong className="text-foreground">{selectedCompany.name}</strong> cégre érvényes szabályok megtekintése, szerkesztése vagy új szabályok felvétele:
+          </div>
+          <Link href="/rules" className="shrink-0">
+            <Button size="sm" className="h-8 text-xs gap-1.5 bg-[#02b8cc] hover:bg-[#029db0] text-white">
+              <Sliders className="h-3.5 w-3.5" />
+              Szabályok kezelése
+            </Button>
+          </Link>
         </CardContent>
       </Card>
 
