@@ -1,5 +1,27 @@
 import { ComponentType } from "react"
-import { Clock, Eye, Mail, FileText, CheckCircle, FolderPlus, Users, Lock, Pencil, Trash2 } from "lucide-react"
+import {
+  Clock,
+  Eye,
+  Mail,
+  FileText,
+  CheckCircle,
+  FolderPlus,
+  Users,
+  Lock,
+  Pencil,
+  Trash2,
+  Send,
+  MessageSquare,
+  Sparkles,
+  ListTodo,
+  Link2,
+  Upload,
+  Archive,
+  Shield,
+  Download,
+  AlertCircle,
+  RefreshCw,
+} from "lucide-react"
 import { TimelineItemDetails } from "./timeline-item-details"
 
 export type TimelineIconName =
@@ -12,6 +34,18 @@ export type TimelineIconName =
   | "lock"
   | "edit"
   | "trash-2"
+  | "send"
+  | "message-square"
+  | "sparkles"
+  | "list-todo"
+  | "link"
+  | "upload"
+  | "archive"
+  | "shield"
+  | "download"
+  | "alert-circle"
+  | "refresh-cw"
+  | "clock"
 
 export type TimelineEvent = {
   id: string
@@ -34,6 +68,18 @@ const ICON_MAP: Record<TimelineIconName, ComponentType<{ className?: string }>> 
   "lock": Lock,
   "edit": Pencil,
   "trash-2": Trash2,
+  "send": Send,
+  "message-square": MessageSquare,
+  "sparkles": Sparkles,
+  "list-todo": ListTodo,
+  "link": Link2,
+  "upload": Upload,
+  "archive": Archive,
+  "shield": Shield,
+  "download": Download,
+  "alert-circle": AlertCircle,
+  "refresh-cw": RefreshCw,
+  "clock": Clock,
 }
 
 export function Timeline({ events }: { events: TimelineEvent[] }) {

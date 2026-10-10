@@ -12,7 +12,7 @@
 
 | Azonosító | Terület / Funkció | Feladat megnevezése | Eredeti Kód | Prioritás | Becsült Ráfordítás | Státusz |
 |---|---|---|---|---|---|---|
-| **DOC-TASK-01** | `Iratmunkafolyamat & Feladatok` | Feladatkatalógus és a feladatfelvétel beágyazott sablonos átalakítása | DOC-01 | 🔴 Magas | Közepes (2-3 óra) | ⏳ **Tervezett (Részben kész)** |
+| **DOC-TASK-01** | `Iratmunkafolyamat & Feladatok` | Feladatkatalógus és a feladatfelvétel beágyazott sablonos átalakítása | DOC-01 | 🔴 Magas | Közepes (2-3 óra) | ✅ **Kész (A-045, P-064)** |
 | **DOC-TASK-02** | `Szignálás & AI Munkafolyamat` | Automatikus szignálás határainak rögzítése (AI szervezeti szinten, személy manuális) | DOC-02 | 🟡 Közepes | Kisebb (1 óra) | ✅ **Kész (Elfogadva)** |
 | **DOC-TASK-03** | `Adminisztráció & UI Struktúra` | Személyes profil (`/profile`) és rendszerszintű beállítások (`/settings`) szétválasztása | DOC-03 | 🟡 Közepes | Közepes (2 óra) | ✅ **Kész (Elkészült)** |
 | **DOC-TASK-04** | `Integráció & Felhasználókezelés` | Egységes felhasználókezelés és külső EaisyBILL felhasználói adatforrás | DOC-04 | 🟡 Közepes | Közepes (2-3 óra) | ⏳ **Tervezett** |
@@ -25,19 +25,21 @@
 
 ## 📋 Részletes Feladatleírások (Specifikáció)
 
-### DOC-TASK-01: Feladatkatalógus és a feladatfelvétel beágyazott sablonos átalakítása ⏳
+### DOC-TASK-01: Feladatkatalógus és a feladatfelvétel beágyazott sablonos átalakítása ✅
 - **Eredeti hivatkozás:** DOC-01
 - **Üzleti cél:** Az iratkezelési folyamatban a feladatkiosztás korábban többszörösen egymásba nyíló felugró ablakokban (modál a modálban) történt, ami zavaró volt és megszakította a munkát. Ehelyett a fő felületen beágyazott sablonkatalógusból induló feladatfelvételre van szükség, a meglévő állapotgép megőrzésével.
-- **Megvalósítási terv:**
-  1. **Beágyazott feladatfelvétel:** A többszörösen egymásba nyíló felugró ablakok teljes körű felszámolása. A feladatok fő felületén / tabján közvetlen vezérlőkkel, beágyazott űrlappal lehessen feladatot indítani.
-  2. **Feladatsablonok katalógusa:** Előre definiált feladattípusokból (pl. *Irat feldolgozása*, *Véleményezés*, *Jóváhagyás*, *Válaszlevél készítése*) történő gyors feladatképzés automatikus határidővel és sablonos leírással.
-  3. **Állapotgép megőrzése:** A szabványos életciklus megmarad: **nyitott → folyamatban → teljesítve → lezárva**.
+- **Megvalósított működés:**
+  1. **Beágyazott feladatfelvétel (0 Popup):** A feladatkészítő kártya (`TasksTab`) közvetlenül a feladatlista tetején kapott helyet, gyors sablonválasztó szalaggal (`Jóváhagyás`, `Könyvelés`, `Jogi felülvizsgálat`, `Válaszlevél készítése`, stb.) és lenyitható sablonkatalógussal.
+  2. **Kétoszlopos tágas munkatér:** Bal oldalon (65%) a feladatok és a beágyazott készítő, jobb oldalon (35%) a dedikált belső megjegyzések és üzenőfal.
+  3. **Dedikált Válaszlevelek & Expediálás fül:** A válaszlevelek kezelése új dedikált lapra (`OutgoingDocumentsTab`) került háromlépcsős interaktív varázslóval (Címzett és csatorna, Szövegezés: Saját / Gemini AI / Sablonok, Véglegesítés és kiküldés).
+  4. **Állapotgép megőrzése:** A szabványos életciklus megmarad: **nyitott → folyamatban → teljesítve → lezárva**.
 - **Érintett komponensek:**
-  - `src/app/tasks/page.tsx`
-  - `src/components/dossier-tasks-panel.tsx`
-  - `src/app/tasks/task-actions.ts`
-- **Elfogadási feltétel (DoD):** Sablonból indítható feladatfelvétel a feladatok felületén beágyazva, egymásba ágyazott felugró ablakok nélkül.
-- **Státusz:** ⏳ **Tervezett (A sablonos működés részben kész, felületi beágyazás és modálmentesítés folyamatban)**.
+  - `src/components/tasks-tab.tsx`
+  - `src/components/outgoing-documents-tab.tsx`
+  - `src/app/dossiers/[id]/ai-reply-actions.ts`
+  - `src/app/dossiers/[id]/page.tsx`
+- **Elfogadási feltétel (DoD):** ✅ **Teljesítve (A-045, P-064)**. Sablonból indítható feladatfelvétel a feladatok felületén beágyazva, egymásba ágyazott felugró ablakok nélkül, dedikált kimenő válaszlevél varázslóval.
+- **Státusz:** ✅ **Kész (A-045, P-064)**.
 
 ---
 
@@ -92,13 +94,14 @@
      - A közös identitás (e-mail, név) átvétele után a modulspecifikus jogosultságokat (`docs_szerepkor`, `biztonsagi_szint`, `szervezeti_egyseg`) a helyi adminisztrátor határozza meg.
   4. **Helyi felhasználókezelés megőrzése:**
      - Azon dolgozók számára, akik még nincsenek benne a számlázóban (pl. fizikai dolgozók, raktárosok), továbbra is elérhető a közvetlen helyi rögzítés.
-- **Érintett fájlok (tervezett):**
+- **Érintett fájlok & kutatás:**
+  - Architektúra & Integrációs Terv: `docs/integrations/eaisybill-user-sync-research-and-architecture.md`
   - `src/app/settings/users/page.tsx`
   - `src/app/settings/integrations/page.tsx`
   - `src/utils/integrations/eaisybill-sync.ts`
   - Adatbázis: `felhasznalo_profil.external_id`, `felhasznalo_profil.sync_source`
 - **Elfogadási feltétel (DoD):** Az adminisztrátor egy gombnyomással importálhatja és frissítheti a kiválasztott felhasználókat az EaisyBILL-ből anélkül, hogy elvesznének a már beállított helyi jogosultságok.
-- **Státusz:** ⏳ **Tervezett (Végrehajtásra vár)**.
+- **Státusz:** 📝 **Kutatás és Architektúra Terv Kész** (Implementáció a visibill / eaisybill csapattal egyeztetve indítható).
 
 ---
 

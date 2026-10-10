@@ -3,11 +3,14 @@
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export async function reassignPendingLeaves() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
+
+  const activeCompanyId = await getActiveCompanyIdServer()
 
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,11 +28,17 @@ export async function reassignPendingLeaves() {
     return { error: "Nincs jogosultságod ehhez a művelethez!" }
   }
 
-  // 1. Lekérjük az összes függő kérelmet
-  const { data: pendingLeaves } = await supabaseAdmin
+  // 1. Lekérjük az összes függő kérelmet (adott céghez szűrve)
+  let pendingLeavesQuery = supabaseAdmin
     .from("hr_tavollet")
     .select("id, dolgozo_id, aktualis_jovahagyo_id")
     .eq("statusz", "jovahagyasra_var")
+
+  if (activeCompanyId) {
+    pendingLeavesQuery = pendingLeavesQuery.eq("company_id", activeCompanyId)
+  }
+
+  const { data: pendingLeaves } = await pendingLeavesQuery
 
   if (!pendingLeaves || pendingLeaves.length === 0) {
     return { success: true, message: "Nincs függő kérelem." }

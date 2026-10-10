@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Home, Inbox, Archive, FolderOpen, Search, Users, CheckSquare, Sliders } from "lucide-react"
+import { Home, Inbox, Archive, FolderOpen, Search, Users, CheckSquare, Sliders, ShieldAlert } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 
@@ -58,6 +58,12 @@ const items = [
     url: "/rules",
     icon: Sliders,
     allowedRoles: ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"],
+  },
+  {
+    title: "Eseménynapló",
+    url: "/audit",
+    icon: ShieldAlert,
+    allowedRoles: ["admin", "rendszergazda", "auditor", "vezeto"],
   },
 ]
 

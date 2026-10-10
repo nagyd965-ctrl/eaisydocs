@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FileText, Clock, Users, ArrowLeft, FolderPlus, Eye, Lock, Edit, Trash2, Mail, Building2, Shield, CalendarDays, Files } from "lucide-react"
 import Link from "next/link"
 import { Timeline, TimelineEvent, TimelineIconName } from "@/components/timeline"
+import { formatAuditLogEvent } from "@/utils/audit-log-formatter"
 import { IratokLista } from "@/components/iratok-lista"
 import { createClient } from "@/utils/supabase/server"
 import { DossierLifecycleActions } from "@/components/dossier-lifecycle-actions"
@@ -12,6 +13,7 @@ import { AssignDossierDialog } from "@/components/assign-dossier-dialog"
 import { StatusBadge } from "@/components/status-badge"
 import { getPermissions } from "@/utils/permissions"
 import { TasksTab } from "@/components/tasks-tab"
+import { OutgoingDocumentsTab } from "@/components/outgoing-documents-tab"
 import { LifecycleExportButton } from "@/components/lifecycle-export-button"
 import { DossierAccessDialog } from "@/components/dossier-access-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -269,12 +271,15 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
     };
   }
 
-  // Fetch audit logs for this dossier
-  const { data: logs } = await supabase
-    .from("esemeny_naplo")
-    .select("*")
-    .eq("entitas_id", id)
-    .order("tortent", { ascending: true });
+  // Fetch audit logs for this dossier and its associated documents
+  const iratIds = Array.isArray(dossier.irat) ? dossier.irat.map((i: any) => i.id) : []
+  let logsQuery = supabase.from("esemeny_naplo").select("*")
+  if (iratIds.length > 0) {
+    logsQuery = logsQuery.or(`entitas_id.eq.${id},entitas_id.in.(${iratIds.join(",")})`)
+  } else {
+    logsQuery = logsQuery.eq("entitas_id", id)
+  }
+  const { data: logs } = await logsQuery.order("tortent", { ascending: true })
 
   // Fetch comments
   const { data: comments } = await supabase
@@ -317,80 +322,10 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
   });
 
   const timelineEvents: TimelineEvent[] = dedupedLogs.map((log: any) => {
-    let title = log.esemeny_tipus;
-    let description = "";
-    let icon: TimelineIconName = "eye";
-    let color = "text-muted-foreground";
-    let details: string | undefined = undefined;
-
-    if (log.esemeny_tipus === "iktatva") {
-      title = "Ügyirat iktatva";
-      description = `Iktatószám kiosztva: ${log.uj_ertek?.iktatoszam || "-"}`;
-      icon = "folder-plus";
-      color = "text-primary";
-    } else if (log.esemeny_tipus === "szignalva" || log.esemeny_tipus === "hozzaferes_modositas") {
-      title = log.esemeny_tipus === "szignalva" ? "Ügyirat szignálva / Felelős kijelölve" : "Hozzáférés módosítva";
-      description = log.indoklas || log.reszletek || log.uj_ertek?.megjegyzes || "";
-      icon = "users";
-      color = "text-warning";
-    } else if (log.esemeny_tipus === "lezarva") {
-      title = "Ügyirat lezárva";
-      description = log.reszletek || "Az ügyirat véglegesen lezárásra került.";
-      icon = "lock";
-      color = "text-success";
-    } else if (log.esemeny_tipus === "elintezve") {
-      title = "Ügyirat elintézve";
-      description = log.indoklas || "Az ügyintézés befejeződött, az ügyirat elintézett státuszba került.";
-      icon = "check-circle";
-      color = "text-success";
-    } else if (log.esemeny_tipus === "modositva") {
-      if (log.indoklas && log.indoklas.includes("Válasz e-mail elküldve")) {
-        title = "Levélküldés";
-        icon = "mail";
-        color = "text-primary";
-        const lines = log.indoklas.split('\n');
-        description = lines[0];
-        if (lines.length > 1) {
-          details = lines.slice(1).join('\n').trim();
-        }
-      } else if (log.indoklas && log.indoklas.includes("Válaszlevél feltöltve")) {
-        title = "Válaszlevél feltöltve";
-        description = log.indoklas;
-        icon = "file-text";
-        color = "text-primary";
-      } else if (log.indoklas && log.indoklas.includes("Állapot módosítva")) {
-        title = "Állapot változás";
-        description = log.indoklas;
-        icon = "edit";
-        color = "text-warning";
-      } else if (log.indoklas && log.indoklas.includes("Megjegyzés")) {
-        title = "Megjegyzés hozzáadva";
-        description = log.indoklas;
-        icon = "edit";
-        color = "text-info";
-      } else {
-        title = "Ügyirat módosítva";
-        description = log.indoklas || log.reszletek || log.uj_ertek?.megjegyzes || "";
-        icon = "edit";
-        color = "text-info";
-      }
-    } else if (log.esemeny_tipus === "selejtezve") {
-      title = "Irat selejtezve";
-      description = log.reszletek || "Az irat megsemmisítésre került.";
-      icon = "trash-2";
-      color = "text-destructive";
-    }
-
-    return {
-      id: log.id,
-      title,
-      description,
-      time: new Date(log.tortent).toLocaleString("hu-HU"),
-      user: userMap[log.user_id] || log.uj_ertek?.user_email || "Ismeretlen",
-      icon,
-      color,
-      details,
-    }
+    return formatAuditLogEvent(log, {
+      userMap,
+      comments: comments || [],
+    })
   });
 
   const ugy = dossier.ugy as any;
@@ -464,7 +399,8 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="overview">Áttekintés</TabsTrigger>
-          <TabsTrigger value="tasks">Feladatok</TabsTrigger>
+          <TabsTrigger value="tasks">Feladatok & Megjegyzések</TabsTrigger>
+          <TabsTrigger value="outgoing">Válaszlevelek & Expediálás</TabsTrigger>
           <TabsTrigger value="history">Napló</TabsTrigger>
           <TabsTrigger value="links">Külső Kapcsolatok</TabsTrigger>
         </TabsList>
@@ -617,6 +553,14 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
             canEdit={canEdit}
             currentUserEmail={authUser?.user?.email || ""}
             iktatoszam={dossier.iktatoszam}
+          />
+        </TabsContent>
+
+        <TabsContent value="outgoing">
+          <OutgoingDocumentsTab
+            ugyiratId={dossier.id}
+            iktatoszam={dossier.iktatoszam}
+            canEdit={canEdit}
             partnerInfo={detectedPartner}
             incomingIrat={primaryIncoming}
             outgoingDocs={(dossier.irat || []).filter((i: any) => i.irany === "kimeno")}

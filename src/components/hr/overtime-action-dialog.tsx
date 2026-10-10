@@ -162,10 +162,7 @@ export function OvertimeActionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[460px]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-primary" />
-            Túlóra Egyenleg és Igénylés
-          </DialogTitle>
+          <DialogTitle>Túlóra Egyenleg és Igénylés</DialogTitle>
           <DialogDescription>
             Kezeld a felhalmozott pluszóráidat csúsztatás (szabadnap) vagy kifizetés formájában.
           </DialogDescription>

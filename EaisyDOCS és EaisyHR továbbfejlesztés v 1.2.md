@@ -23,7 +23,7 @@ A **pontosítandó** pontok nem utólag hozzáadott, kötelező követelmények,
 
 | Modul | Kód | Eredeti téma / feladat | Típus | Státusz | Megvalósítás / Referencia |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **EaisyDOCS** | **DOC-01** | Feladatkatalógus és a feladatfelvétel felületének átalakítása | Fejlesztési igény | ⏳ **Tervezett** | Sablonos működés részben kész, felugró ablakok megszüntetése folyamatban |
+| **EaisyDOCS** | **DOC-01** | ~~Feladatkatalógus és a feladatfelvétel felületének átalakítása~~ | Fejlesztési igény | ✅ **ELKÉSZÜLT** | ADR A-045, PRD P-064 (0 felugró ablak, beágyazott sablonszalag, AI válaszlevél varázsló) |
 | **EaisyDOCS** | **DOC-02** | ~~Automatikus szignálás határainak rögzítése~~ | Elfogadott döntés | ✅ **ELKÉSZÜLT** | AI szervezeti egységhez szignál, személy manuális |
 | **EaisyDOCS** | **DOC-03** | ~~Személyes és rendszerszintű beállítások szétválasztása~~ | Fejlesztési igény | ✅ **ELKÉSZÜLT** | `/profile` vs. `/settings` szétválasztva |
 | **EaisyDOCS** | **DOC-04** | Egységes felhasználókezelés és EaisyBILL-adatforrás | Fejlesztési igény | ⏳ Tervezett | Külső ERP felhasználói forrás |
@@ -88,23 +88,23 @@ Az EaisyDOCS böngészőből elérhető webes ügyviteli modul. A továbbfejlesz
 
 A szerepek felsorolása funkcionális felelősségeket különít el; nem ír elő minden sorhoz önálló új rendszerjogosultságot.
 
-### **1.2. Feladatkatalógus és a feladatfelvétel felületének átalakítása**
+### ~~**1.2. Feladatkatalógus és a feladatfelvétel felületének átalakítása**~~ ✅ **(ELKÉSZÜLT)**
 
-**DOC-01 · FEJLESZTÉSI IGÉNY (A SABLONOS MŰKÖDÉS RÉSZBEN ELKÉSZÜLT)**  
-**ÁLLAPOT:** ⏳ **TERVEZETT / FOLYAMATBAN** – A sablonos működés részben elkészült, de a többszörösen egymásba nyíló felugró ablakok teljes körű felszámolása és a feladatfelvétel beágyazása a fő felületbe még megvalósításra vár.
+~~**DOC-01 · FEJLESZTÉSI IGÉNY**~~  
+**ÁLLAPOT:** ✅ **ELKÉSZÜLT** – A többszörösen egymásba nyíló felugró ablakok teljes körűen fel lettek számolva. A feladatkészítő közvetlenül az ügyirat feladatok fülén (`TasksTab`) helyezkedik el beágyazott sablonszalaggal és lenyitható katalógussal, a válaszlevelek pedig egy dedikált lapra (`OutgoingDocumentsTab`) kerültek háromlépcsős lineáris AI varázslóval (ADR A-045, PRD P-064).
 
 **Kezdeményezés:** Dani bemutatja a sablonokkal kibővített feladatfelvételt; Zoli megerősíti, hogy a többszörösen egymásba nyíló felugró ablakokat meg kell szüntetni.
 
 #### **Működési elv**
 
-* Az iratkezelési folyamat feladatfelvételi pontján az egyszerű „Új feladat” művelet mellett feladatsablonokból, illetve feladatkatalógusból lehessen kiindulni.  
-* A sablonok és a feladatfelvétel érdemi vezérlői a kapcsolódó fő felületen jelenjenek meg, ne egy felugró ablakon belüli újabb felugró ablakban.  
-* A felhasználó a kiválasztott sablonból indítsa a feladat létrehozását. A sablonok pontos adattartalmát és karbantartási jogosultságát a leirat nem részletezi.  
-* A meglévő feladatállapotok maradjanak: **nyitott → folyamatban → teljesítve → lezárva**. A felsorolás a megtartandó állapotokat rögzíti; az engedélyezett átmenetek és visszanyitási szabályok nem hangzottak el.
+* Az iratkezelési folyamat feladatfelvételi pontján a feladatkészítés beágyazottan történik, 1-kattintásos gyorsgombokkal (`Jóváhagyás`, `Könyvelés`, `Jogi felülvizsgálat`, `Válaszlevél készítése`, stb.).  
+* A sablonok és a feladatfelvétel érdemi vezérlői a fő felületen jelennek meg, nulla modállal.  
+* A válaszlevelek kezelése külön dedikált fülre került beágyazott, 3-lépcsős AI és sablonalapú levélszerkesztővel.  
+* A meglévő feladatállapotok megmaradtak: **nyitott → folyamatban → teljesítve → lezárva**.
 
 ---
 
-**Elvárt eredmény:** sablonból indítható feladatfelvétel, egymásba ágyazott felugró ablakok nélkül. Új állapotmodell kialakítása most nem feladat.
+**Elvárt eredmény:** ✅ **Teljesítve (ADR A-045, PRD P-064)**. Sablonból indítható feladatfelvétel, egymásba ágyazott felugró ablakok nélkül.
 
 ### ~~**1.3. Automatikus szignálás határainak rögzítése**~~ ✅ **(KÉSZ / DÖNTÉS ELFOGADVA)**
 

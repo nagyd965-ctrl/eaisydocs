@@ -174,12 +174,14 @@ export async function addComment(ugyiratId: string, text: string) {
 
   const { ip, userAgent } = await getClientInfo()
 
+  const previewText = text.trim().length > 100 ? `${text.trim().substring(0, 100)}...` : text.trim()
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
     esemeny_tipus: "modositva",
     user_id: user.id,
-    indoklas: "Megjegyzés hozzáadva",
+    indoklas: `Belső megjegyzés rögzítve: „${previewText}”`,
+    uj_ertek: { megjegyzes: text.trim() },
     ip_cim: ip,
     user_agent: userAgent
   })
@@ -1041,9 +1043,9 @@ export async function deleteOutgoingDocument(ugyiratId: string, iratId: string) 
     return { error: "Kizárólag kimenő válaszirat törölhető ebből a panelből." }
   }
 
-  if (irat.kezbesites_statusz === "expedialva") {
+  if (irat.alszam || irat.kezbesites_statusz === "expedialva") {
     return {
-      error: "A már sikeresen kiküldött (expediált) kimenő irat nem törölhető a hatósági naplózási és irattári integritási szabályok miatt.",
+      error: "A már hivatalosan beiktatott vagy kiküldött (expediált) kimenő irat nem törölhető az iktatási sorszámfolytonosság és az irattári integritási szabályok miatt.",
     }
   }
 

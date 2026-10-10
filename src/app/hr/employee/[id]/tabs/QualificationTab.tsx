@@ -59,7 +59,7 @@ export function QualificationTab({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg flex items-center gap-2"><GraduationCap className="w-5 h-5 text-primary"/> Képzettségek és Nyelvvizsgák</CardTitle>
+        <CardTitle className="text-lg">Képzettségek és Nyelvvizsgák</CardTitle>
         {isHrOrAdmin && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger className={`${buttonVariants({ variant: "outline", size: "sm" })} gap-2`}>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Save, Trash2, CalendarClock } from "lucide-react"
+import { Save, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { saveSubstitute, deleteSubstitute } from "@/app/hr/self-service/actions"
 import { Badge } from "@/components/ui/badge"
@@ -71,8 +71,8 @@ export function SubstituteSettingsCard({ availableUsers, currentSubstitute }: Su
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <CalendarClock className="w-4 h-4 text-primary" /> Helyettesítés
+        <CardTitle className="text-base font-semibold">
+          Helyettesítés
         </CardTitle>
         <CardDescription>
           Állítsd be, ki hagyja jóvá a kérelmeket helyetted, amíg távol vagy.

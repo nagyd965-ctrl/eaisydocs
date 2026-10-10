@@ -11,7 +11,7 @@
 
 | Azonosító | Modul | Cím és Funkcionális Terület | Eredeti Hivatkozás | Prioritás | Becsült Komplexitás | Státusz |
 |---|---|---|---|---|---|---|
-| **TASK-01** | `[Docs]` | Feladatkatalógus és egymásba nyíló modálok megszüntetése | DOC-01 | 🔴 Magas | Közepes | ⏳ Tervezett |
+| **TASK-01** | `[Docs]` | Feladatkatalógus és egymásba nyíló modálok megszüntetése | DOC-01 | 🔴 Magas | Közepes | ✅ **Kész (A-045, P-064)** |
 | **TASK-02** | `[Közös]` | Személyes profil (`/profile`) és Rendszerbeállítások (`/settings`) szétválasztása | DOC-03 | 🔴 Magas | Kisebb | ⏳ Tervezett |
 | **TASK-03** | `[HR]` | Munkavédelmi és tűzvédelmi oktatások központi lejárati mátrixa | HR-04 | 🟡 Közepes | Kisebb | ⏳ Tervezett |
 | **TASK-04** | `[Közös]` | EaisyBILL felhasználói adatforrás és import szinkronizáció | DOC-04 | 🟡 Közepes | Közepes | ⏳ Tervezett |
@@ -30,19 +30,21 @@
 
 ## 📌 1. FÁZIS: Gyors UI/UX Tisztítás és Strukturális Rendszerezés
 
-### TASK-01: Feladatkatalógus és egymásba nyíló modálok megszüntetése
+### TASK-01: Feladatkatalógus és egymásba nyíló modálok megszüntetése ✅
 - **Eredeti hivatkozás:** DOC-01
 - **Hatókör:** `[Docs]`
 - **Cél:** A többszörösen egymásba nyíló felugró ablakok (modálok) megszüntetése a feladatok felvételekor, közvetlen sablonkatalógus integrációval.
-- **Jelenlegi állapot:** Az iratkezelési vagy ügyirat oldalon az „Új feladat” gombra kattintva egy párbeszédpanel nyílik meg, amiből a sablonok kiválasztásakor egy újabb modál ugrott fel a meglévő tetejére, rontva a használhatóságot.
-- **Megvalósítási lépések:**
-  1. Az egymásba ágyazott modálok feloldása: a feladatfelvétel paneljében a sablonok közvetlenül elérhetővé válnak (pl. fülváltóként: *„Egyedi feladat”* vs. *„Sablonból választás”*, vagy egyetlen legördülő/kártyás katalógusként).
-  2. A feladatsablonok közvetlenül kitöltik a cím, leírás, határidő és felelős mezőket.
-  3. A meglévő feladat állapotgép megőrzése: `nyitott` → `folyamatban` → `teljesítve` → `lezárva`.
+- **Megvalósított állapot:**
+  1. Az egymásba ágyazott modálok teljes feloldása: a feladatfelvétel közvetlenül az ügyirat feladatok fülén (`TasksTab`) beágyazott komponensként működik (0 modál / felugró ablak).
+  2. Gyors sablonszalag 1-kattintásos gyorsgombokkal és lenyitható teljes sablonkatalógussal.
+  3. A válaszlevelek kezelése külön dedikált fülre (`OutgoingDocumentsTab`) került háromlépcsős lineáris AI varázslóval és sablonkezelővel.
+  4. Megőrzött szabványos életciklus: `nyitott` → `folyamatban` → `teljesítve` → `lezárva`.
 - **Érintett fájlok:**
-  - `src/components/task-dialog.tsx`
-  - `src/components/template-dialog.tsx`
-  - `src/app/tasks/page.tsx`
+  - `src/components/tasks-tab.tsx`
+  - `src/components/outgoing-documents-tab.tsx`
+  - `src/app/dossiers/[id]/ai-reply-actions.ts`
+  - `src/app/dossiers/[id]/page.tsx`
+- **Státusz:** ✅ **Kész (A-045, P-064)**
   - `src/app/dossiers/[id]/tasks-tab.tsx`
 - **Elfogadási feltétel (DoD):** Feladat létrehozása sablonból legfeljebb 1 modálon belül vagy közvetlen in-place felületen megtörténik, soha nem nyílik modálra újabb modál.
 

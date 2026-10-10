@@ -445,8 +445,7 @@ export function RulesClient({
       {/* Fejléc */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-border/60">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2.5">
-            <Sliders className="h-7 w-7 text-primary" />
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
             Iktatási és Könyvelési Szabályok
           </h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-[850px]">
@@ -473,7 +472,7 @@ export function RulesClient({
         )}
       </div>
 
-      {/* Felső Fülválasztó (Visibill minta) */}
+      {/* Felső Fülválasztó */}
       <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-xl border border-border/60 w-fit">
         <button
           type="button"
@@ -485,7 +484,6 @@ export function RulesClient({
               : "text-muted-foreground hover:text-foreground"
           )}
         >
-          <Sliders className="h-4 w-4 text-primary" />
           <span>Iktatási Szabályok</span>
           <span className="font-mono text-[11px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
             {filingRules.length}
@@ -502,7 +500,6 @@ export function RulesClient({
               : "text-muted-foreground hover:text-foreground"
           )}
         >
-          <Brain className="h-4 w-4 text-primary" />
           <span>AI Prompt Könyvtár</span>
           <span className="font-mono text-[11px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
             {promptRules.length}
@@ -519,8 +516,7 @@ export function RulesClient({
             <CardHeader className="pb-3 border-b border-border/40">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-base font-semibold">
                     Számla- és Iratiktatási Szabályok
                   </CardTitle>
                   <CardDescription className="text-xs">
@@ -546,9 +542,6 @@ export function RulesClient({
             <CardContent className="p-0">
               {filteredFilingRules.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-center p-14 border-border/40">
-                  <div className="w-14 h-14 rounded-full bg-muted/40 border border-border flex items-center justify-center text-muted-foreground/60 mb-4">
-                    <Sparkles className="h-7 w-7" />
-                  </div>
                   <h3 className="font-semibold text-foreground text-base">Nincs rögzített iktatási szabály</h3>
                   <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 max-w-sm">
                     Hozz létre determinisztikus szabályt, hogy az AI vagy az iktatás azonnal kitöltse a célszervezetet, irattári tételt és előtagot!
@@ -750,8 +743,7 @@ export function RulesClient({
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-base sm:text-lg font-semibold flex items-center gap-2">
-                      <Activity className="h-4 w-4 text-primary" />
+                    <CardTitle className="text-base sm:text-lg font-semibold">
                       Aktív AI Prompt Szabályok
                     </CardTitle>
                     <CardDescription className="text-xs sm:text-sm">
@@ -767,9 +759,6 @@ export function RulesClient({
               <CardContent className="p-0">
                 {filteredPromptRules.length === 0 ? (
                   <div className="flex flex-col items-center justify-center text-center p-12 border-t border-border/40">
-                    <div className="w-14 h-14 rounded-full bg-muted/40 border border-border flex items-center justify-center text-muted-foreground/60 mb-4">
-                      <ToggleLeft className="h-7 w-7" />
-                    </div>
                     <h3 className="font-semibold text-foreground text-base">Nincsenek prompt szabályok</h3>
                     <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 max-w-sm">
                       Még nem adtál hozzá AI prompt szabályt. Használj egy sablont a jobb oldalról!
@@ -881,8 +870,7 @@ export function RulesClient({
           <div className="space-y-6">
             <Card className="border-border/60 shadow-none">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
+                <CardTitle className="text-base font-semibold">
                   Gyakori Sablonok
                 </CardTitle>
                 <CardDescription className="text-xs">
@@ -898,23 +886,18 @@ export function RulesClient({
                       onClick={() => handleApplyTemplatePrompt(template)}
                       className="p-3 rounded-lg border border-border/60 bg-card hover:border-primary/40 hover:bg-muted/20 transition-all cursor-pointer group"
                     >
-                      <div className="flex items-start gap-2.5">
-                        <div className="p-1.5 rounded-md bg-muted/60 shrink-0 mt-0.5">
-                          <BookOpen className="h-4 w-4 text-primary" />
+                      <div className="min-w-0">
+                        <div className="flex items-center justify-between gap-1.5 mb-1">
+                          <h5 className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+                            {template.name}
+                          </h5>
+                          <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0 border shrink-0", catInfo.badgeClass)}>
+                            {template.badge}
+                          </Badge>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-1.5 mb-1">
-                            <h5 className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors truncate">
-                              {template.name}
-                            </h5>
-                            <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0 border shrink-0", catInfo.badgeClass)}>
-                              {template.badge}
-                            </Badge>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                            {template.prompt}
-                          </p>
-                        </div>
+                        <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                          {template.prompt}
+                        </p>
                       </div>
                     </div>
                   )
@@ -924,8 +907,7 @@ export function RulesClient({
 
             <Card className="border-border/60 bg-muted/20 shadow-none">
               <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Info className="h-3.5 w-3.5 text-primary" />
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   AI Prompt Tanácsok
                 </CardTitle>
               </CardHeader>
@@ -949,8 +931,7 @@ export function RulesClient({
         <DialogContent className="max-w-xl">
           <form onSubmit={handleSubmitFiling}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Sliders className="h-5 w-5 text-primary" />
+              <DialogTitle>
                 {editingFilingRule ? "Iktatási szabály szerkesztése" : "Új iktatási szabály létrehozása"}
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
@@ -1161,8 +1142,7 @@ export function RulesClient({
         <DialogContent className="max-w-lg">
           <form onSubmit={handleSubmitPrompt}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5 text-primary" />
+              <DialogTitle>
                 {editingPromptRule ? "AI Prompt szabály szerkesztése" : "Új AI prompt szabály"}
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">

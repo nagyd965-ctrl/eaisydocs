@@ -52,10 +52,17 @@ export function PersonalDataCard() {
     } else {
       toast.success("Adatok biztonságosan frissítve!")
       setIsEditOpen(false)
-      // Re-fetch to update view if it was open
+      // Közvetlen állapotfrissítés, felesleges újrafelfedés és duplikált naplóbejegyzés nélkül
       if (isRevealed) {
-        handleReveal() // close it
-        setTimeout(handleReveal, 100) // open it again
+        const taj_szam = (formData.get("taj_szam") as string) || ""
+        const adoazonosito = (formData.get("adoazonosito") as string) || ""
+        const bankszamla = (formData.get("bankszamla") as string) || ""
+        setSecretData(prev => ({
+          ...prev,
+          taj_szam: taj_szam || prev?.taj_szam,
+          adoazonosito: adoazonosito || prev?.adoazonosito,
+          bankszamla: bankszamla || prev?.bankszamla,
+        }))
       }
     }
   }

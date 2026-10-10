@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { KpiCard } from "@/components/kpi-card"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, CalendarDays, Loader2, Clock, CalendarCheck, Umbrella, ChevronDown, ChevronUp, Pencil } from "lucide-react"
+import { ChevronLeft, ChevronRight, Loader2, Clock, CalendarCheck, Umbrella, ChevronDown, ChevronUp, Pencil } from "lucide-react"
 import { getMonthlyTimesheet, type TimesheetEntry } from "@/app/hr/attendance-actions"
 import { OvertimeActionDialog } from "@/components/hr/overtime-action-dialog"
 import { AttendanceCorrectionDialog } from "@/components/hr/attendance-correction-dialog"
@@ -149,8 +149,7 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CollapsibleTrigger asChild>
-                <button className="flex items-center gap-3 hover:opacity-70 transition-opacity text-left">
-                  <CalendarDays className="w-5 h-5 text-primary shrink-0" />
+                <button className="flex items-center hover:opacity-70 transition-opacity text-left">
                   <div>
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
                       Jelenléti Ív

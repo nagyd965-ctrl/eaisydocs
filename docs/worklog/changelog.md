@@ -4,7 +4,154 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-10)
 
-### 🏢 eaisyHR: Többcég-kezelés és Szigorú GDPR/Béradat Izoláció (HR-TASK-08)
+### 🔗 eaisyDocs & EaisyBILL: Felhasználókezelés és Adatforrás Integrációs Kutatás (DOC-04)
+- **Átfogó Kódbázis és Adatmodell Felmérés:**
+  - Teljes mélységű kutatás a VisiBILL / EaisyBILL kódbázis felépítéséről, profilkezeléséről (`profiles` tábla), szervezeti egységeiről (`departments`) és szerepköreiről (`app_role`).
+  - Létrejött az átfogó integrációs és architektúra dokumentum: [`docs/integrations/eaisybill-user-sync-research-and-architecture.md`](../integrations/eaisybill-user-sync-research-and-architecture.md).
+- **Négyfázisú Megvalósítási Terv:**
+  - *Fázis 1:* Adatbázis sémakiterjesztés (`external_id`, `sync_source`, `last_synced_at`, `eaisybill_config` tábla).
+  - *Fázis 2:* Biztonságos EaisyBILL API és szinkronizációs kliens (`src/utils/integrations/eaisybill-client.ts`).
+  - *Fázis 3:* Szinkronizációs varázsló UI a Beállítások oldalon (`/settings?tab=integrations`).
+  - *Fázis 4:* Automatizált inkrementális háttérszinkronizáció (CRON és Webhook támogatás).
+
+### 🎨 Rendszerszintű UI/UX Tisztítás és Ikon-Minimalizálás (Linear Flat Design Standard – A-029 / P-043)
+- **Címekből és Kártyafejlécekből a Dekoratív Ikonok Eltávolítása:**
+  - A projekt szabályzat (`.agents/AGENTS.md`) és az [A-029](../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md) szellemében felszámolásra kerültek az ad-hoc, redundáns dekoratív ikonok és kerekített ikondobozok.
+  - **Iktatási Szabályok (`/rules`):** Eltávolítva a címsor (`Sliders`), fülek (`Sliders`, `Brain`), kártyafejlécek (`CardTitle`), modál címek és üres állapotok dekoratív ikonjai.
+  - **Rendszerbeállítások (`/settings`):** Eltávolítva az összes kártyacím-ikon a profil, cég, szervezeti egység, irattári terv és adminisztrációs blokkokból.
+  - **Jelenlét és Szabadság (`/hr/self-service/time`):** Eltávolítva a `CalendarDays` ikon a „Jelenléti Ív” kártya kibontható fejlécéből, és a `CalendarClock` ikon a „Helyettesítés” kártyacímből. Tisztítva a kapcsolódó munkaidő-korrekciós és túlóra modálok címei is.
+  - **HR Főoldalak:** Megtisztítva a Bérszámfejtés (`/hr/payroll`, `/hr/self-service/payroll`) és Teljesítményértékelés (`/hr/performance/dashboard`) fejléc-ikonjai.
+
+### 🛡️ eaisyDocs: Központi Eseménynapló Teljes Újragondolása és Dedikált Modul (A-050 / P-069)
+- **Dedikált Főútvonal és Oldalsáv Navigáció (`/audit`):**
+  - A korábbi, nehezen hozzáférhető és kezdetleges „Globális Audit Napló” átkerült a Beállítások felület legaljáról egy dedikált, kiemelt felületre (`/audit`).
+  - Az oldalsáv navigációba (`app-sidebar.tsx`) bekerült az **„Eseménynapló”** menüpont (`ShieldAlert` ikonnal), amely a jogosult szerepkörök (`admin`, `rendszergazda`, `auditor`, `vezeto`) számára azonnal elérhető.
+  - A beállítások oldalról (`/settings`) a felesleges redundáns kód és a szerveroldali naplólekérés maradéktalanul kivezetésre került.
+- **Központi Képernyő Teljes Megújítása az eaisyHR Mintájára:**
+  - Modern, kifejező felület a legfrissebb Linear flat design irányelvek szerint.
+  - Új szemantikus műveleti motor (`DOCS_EVENT_CONFIG`): 6 logikai kategóriára bontott műveletek (Betekintés/Megnyitás, Iktatás/Létrehozás, Módosítás, Szignálás, Selejtezés, Lezárás/Archiválás), színkódolt szemantikus HSL jelvényekkel és ikonokkal.
+  - Központi `formatAuditLogEvent` motor integráció ([A-046](../architecture/decisions/A-046-canonical-audit-log-formatting-engine.md)): Emberileg azonnal érthető magyar leírások, iktatószámok és részletek.
+- **Kanonikus KPI Statisztikai Kártyák (Linear Flat Grid - A-029):**
+  - Négy dedikált `KpiCard` kártya a fejléc alatt: *Összes Audit Esemény*, *Irat Betekintés & Letöltés*, *Iktatások & Módosítások*, valamint *Közreműködő Felhasználók*.
+- **Kanonikus TableToolbar és Többdimenziós Szűrés:**
+  - Integrálásra került a központi `TableToolbar` komponens:
+    - **Felhasználói szűrés:** Dinamikusan generált választólista az eseményekben szereplő kollégákból és adminokból.
+    - **Műveletkategória szűrés:** Megtekintés, Létrehozás/Iktatás, Módosítás, Szignálás, Selejtezés, Lezárás.
+    - **Entitástípus szűrés:** Irat, Ügyirat, Irattári tétel, Helyettesítés, Rendszer.
+    - **Dátumtartomány:** Kezdő és záró dátum mezők, valamint instant gyorsgombok (*Mind*, *Ma*, *Elmúlt 7 nap*, *Elmúlt 30 nap*).
+    - **Azonnali Keresőmező:** `Search` ikonnal, valós idejű gépelési szűréssel és törlőgombbal.
+    - **Oszlopválasztó (`Columns3`):** Testreszabható látható oszlopok.
+    - **CSV Export:** Microsoft Excel-kompatibilis UTF-8 BOM (`\uFEFF`) kódolású export, a kiválasztott cég nevével a fájlnévben.
+- **Részletes Audit Esemény Betekintő Modal (`Dialog`):**
+  - Bármely bejegyzésre kattintva megnyitható a részletes adatlap:
+    - Közreműködő adatai: név, szerepkör, IP cím és böngésző User-Agent.
+    - Esemény adatai: pontos időbélyeg, cégazonosító, entitás típus és ID.
+    - Értékváltozás (Diff) összehasonlító táblázat: korábbi érték piros áthúzással, új érték zöld kiemeléssel a JSON módosításokhoz.
+- **Többcég-kezelés (Multi-Tenancy) és GDPR Védelem:**
+  - A felület szorosan együttműködik a `useCompany()` hookkal: a felső sávban cégváltáskor az audit napló azonnal az aktív vállalathoz tartozó eseményekre frissül.
+  - A fejléc a kanonikus `Building2` cégjelvénnyel egyértelműen mutatja az aktív szervezetet.
+- **Dokumentáció:** [ADR A-050](../architecture/decisions/A-050-eaisydocs-central-audit-log-overhaul.md), [PRD P-069](../product/decisions/P-069-eaisydocs-central-audit-log-overhaul-ux.md).
+
+
+### 🏢 eaisyHR: Központi Áttekintés Többcég-kezelés és Pontos KPI Metrikák (A-049 / P-068)
+- **Cég szerinti szigorú adatizoláció (`/hr/admin/overview`):**
+  - Megszűnt a cégcsoportos áttekintőben tapasztalt adatszivárgás: a statisztikák korábban globálisan, cégfüggetlenül mutatták az aktív dolgozókat, a nyitott pozíciókat, a távolléteket és az onboarding folyamatokat.
+  - A szerveroldali lekérdezések mostantól a sütiből feloldott `activeCompanyId` / `companyScope` hatókörben futnak:
+    - **Aktív Dolgozók:** Csak a `company_members` alapján az aktív céghez rendelt dolgozók száma jelenik meg (pl. Teszt Kft.-nél pontosan 2 fő, Think AI Kft.-nél 6 fő).
+    - **Nyitott Pozíciók & Toborzás:** Csak az adott céghez tartozó álláshirdetések és pályázati fázisok (`hr_toborzas.company_id`).
+    - **Aktív Onboarding:** Szigorúan az aktív céghez tartozó folyamatban lévő beillesztések (`hr_onboarding.company_id`).
+    - **Mai Hiányzók & Szabadságkérelmek:** Céghez kötött távolléti adatok (`hr_tavollet.company_id`).
+    - **Lejárati Figyelmeztetések:** Orvosi alkalmasságiak, próbaidők és határozott idejű szerződések szűrése az aktív cég tagjaira (`safeMemberIds`).
+- **Céghez kötött adminisztratív akciók:**
+  - A `reassignPendingLeaves` szerver akció mostantól a `getActiveCompanyIdServer()` segítségével kizárólag a kiválasztott cég függő szabadságkérelmeit szignálja át.
+- **Vizuális Visszajelzés:**
+  - A fejléc a kanonikus Linear flat stílusú `Building2` cégjelvénnyel (`Badge`) azonnal és egyértelműen mutatja a munkakörnyezetül szolgáló aktív vállalat nevét.
+- **Dokumentáció:** [ADR A-049](../architecture/decisions/A-049-hr-central-overview-multi-tenant-scoping-and-kpi-accuracy.md), [PRD P-068](../product/decisions/P-068-hr-central-overview-multi-tenant-scoping-and-kpi-accuracy-ux.md).
+
+### 📊 eaisyHR: Központi Eseménynapló Teljes Újragondolása, Kanonikus TableToolbar és Többdimenziós Szűrés (A-048 / P-067)
+- **Központi Képernyő Teljes Megújítása (`/hr/audit`):**
+  - Felszámolásra került az eddigi nyers prototípus felület, ahol a bejegyzések 95%-a semmitmondó „Ismeretlen” jelvénnyel és belső SQL táblanevekkel (`hr_dolgozo_titkos_adat`, `hr_munkavedelmi_oktatas`, `hr_offboarding`, `hr_onboarding_feladat`) jelent meg.
+  - Új szemantikus leképező motor: `HR_ENTITY_CONFIG` és `HR_EVENT_CONFIG` magyar modulnevekkel, kategóriákkal és színkódolt HSL badge-ekkel (kék `info` olvasáshoz, zöld `success` létrehozáshoz, sárga `warning` módosításhoz, piros `destructive` törléshez).
+  - A megjegyzésekből automatikusan kitisztításra kerültek a belső UUID azonosítók.
+- **Kanonikus KPI Statisztikai Kártyák (Linear Flat Grid - A-029):**
+  - Négy dedikált `KpiCard` kártya a lap tetején: *Összes Audit Esemény*, *Érzékeny Adat Betekintés* (kiemelt kerettel), *Módosítások & Törlések*, valamint *Közreműködő Felhasználók*.
+- **Kanonikus TableToolbar és Többdimenziós Szűrés:**
+  - Integrálásra került a központi `TableToolbar` komponens:
+    - **Felhasználói szűrés:** Dinamikusan generált választólista a naplóban szereplő összes HR munkatársból és adminisztrátorból.
+    - **Művelettípus szűrés:** Megtekintés / Olvasás, Létrehozás / Iktatás, Módosítás, Jóváhagyás / Nyugtázás, Törlés, Rendszeresemény.
+    - **Modul / Szakterület szűrés:** Bizalmas adatok, Személyes adatok, Iratok & Szerződések, Munkavédelem & Egészségügy, Munkaidő & Jelenlét, Beléptetés & Kiléptetés, Cafeteria, Bérszámfejtés stb.
+    - **Dátumtartomány:** `Kezdő dátum` és `Záró dátum` mezők, valamint instant gyorsgombok: *Mind*, *Ma*, *Elmúlt 7 nap*, *Elmúlt 30 nap*.
+    - **Azonnali Keresőmező:** `Search` ikonnal, valós idejű gépelési szűréssel és `X` törlőgombbal.
+    - **Oszlopválasztó (`Columns3`):** Testreszabható oszlopnézet.
+    - **CSV Export:** Teljes szűrt napló exportálása Microsoft Excel-kompatibilis UTF-8 BOM karakterkódolással.
+- **Részletes Esemény Betekintő Modal (`Dialog`):**
+  - Részletes adatlap felugró modálban a kiválasztott bejegyzéshez:
+    - Végrehajtó neve, munkaköri pozíciója és HR szerepköre.
+    - Érintett modul, entitástípus és rekordazonosító.
+    - Teljes tisztított indoklás / megjegyzés.
+    - Mezőszintű változáskövetés (korábbi áthúzott és új érték összehasonlító diff tábla magyar mezőnevekkel).
+    - Technikai metaadatok: IP cím és böngésző User Agent.
+- **Reszponzív Lapozás:**
+  - Választható lapméret (15, 25, 50, 100 elem / oldal) tiszta oldalnavigációval.
+- **Többcég-kezelés (Multi-Tenancy) és GDPR Hatókör Izoláció:**
+  - Az Eseménynapló összekapcsolásra került a `useCompany()` kontextussal: a fejléc menüjében kiválasztott cég váltásakor (`selectedCompany.id`) a napló azonnal újratöltődik az adott vállalkozás eseményeire szűrve.
+  - A fejlécben és az esemény részletező modálban kiemelt jelvény mutatja az aktív céget.
+  - A CSV exportálás fájlneve és minden adatsora tartalmazza az adott vállalat nevét.
+  - Új adatbázis trigger (`trg_hr_esemeny_naplo_company_id`): gondoskodik róla, hogy minden bejövő audit esemény automatikusan megkapja a végrehajtóhoz tartozó vállalat azonosítóját, ha az nem került explicit átadásra.
+- **Dokumentáció:** [ADR A-048](../architecture/decisions/A-048-eaisyhr-central-audit-log-overhaul-and-query-hardening.md), [PRD P-067](../product/decisions/P-067-eaisyhr-central-audit-log-overhaul-and-unified-filtering-ux.md).
+- **Félrevezető eseményelnevezés megszüntetése:**
+  - Megszűnt az `Érzékeny Adatok (TAJ, Adó) - irat_megtekintes` nyers, megtévesztő kiírás. A felhasználók azt hihették, hogy nem létező iratot tekintettek meg, holott a háttérben az `esemeny_tipus: "irat_megtekintes"` volt hibásan hardkódolva a titkosított személyes adatok feloldására (`revealEmployeeSecretData`).
+  - Új, tiszta magyar megnevezések: `Érzékeny adatok (TAJ, Adó, Bér) feloldása` és `Érzékeny adatok (TAJ, Adó, Bér) módosítása`.
+  - A megjegyzésekből automatikusan kitisztításra kerültek a belső technikai UUID azonosítók.
+- **Duplikáció- és Ghost-Trigger védelem:**
+  - Kijavításra került a `PersonalDataTab` és `PersonalDataCard` mentési logikája: korábban a mentés sikere után egy `handleReveal()` + `setTimeout(handleReveal, 100)` duplikált hívás feleslegesen újabb megtekintési naplóbejegyzést szült az adatbázisban. A komponensek most közvetlenül a helyi React állapotot frissítik.
+  - Új szerveroldali védelem: 15 másodperces időablakos throttling a `revealEmployeeSecretData` és `revealSecretData` függvényekben (ugyanazon felhasználó gyors ki-be kapcsolása vagy dupla kattintása nem többszörözi meg a naplót).
+  - Kliensoldali intelligens tömörítés az `AuditLogTab`-ban: az 1 percen belüli egymást követő azonos feloldások egyetlen bejegyzésként jelennek meg (`(2×) feloldva 1 percen belül`).
+- **Dolgozói Életút és Iratkezelési Események Integrációja:**
+  - A `getEmployeeAuditLogs` mostantól lekéri a dolgozóhoz tartozó `hr_dokumentum` rekordok azonosítóit is, így a munkaszerződések, orvosi alkalmassági igazolások, tanulmányi szerződések és fegyelmi határozatok iktatási/törlési előzményei is azonnal láthatóvá válnak a dolgozó „Előzmények” lapján.
+- **UI és UX Fejlesztések:**
+  - Keresőmező és kategória szűrő gombok (`Összes`, `Érzékeny adatok`, `Módosítások`, `Iratok & Szerződések`).
+  - Szemantikus eseményjelvények (`Megtekintés`, `Módosítás`, `Létrehozás`, `Törlés`), ikonok és tiszta magyar mezőcímkék a módosult értékek összehasonlító nézetében.
+  - Dokumentáció: [ADR A-047](../architecture/decisions/A-047-eaisyhr-audit-log-deduplication-and-semantic-event-resolution.md), [PRD P-066](../product/decisions/P-066-eaisyhr-audit-log-deduplication-and-semantic-event-resolution.md).
+
+### 📋 eaisyDocs: Kanonikus Eseménynapló Formázó Motor és Szemantikus Naplófeloldás (A-046 / P-065)
+- **Tervezési és UX háttér:**
+  - Megszüntetésre került a semmitmondó „Ügyirat módosítva” generikus címdömping az eseménynaplóban és az irattörténetben.
+  - Új központi eseményfeldolgozó motor: `src/utils/audit-log-formatter.ts`, amely minden művelethez (iktatás, feladatkiírás, feladat lezárás, kimenő válaszlevél előállítás, kiküldés, piszkozat törlés, belső megjegyzések, státuszváltozások, explicit jogosultságok, kölcsönzés) pontos, magyar nyelvű címet, leírást és szemantikus ikont rendel.
+  - Megszűnt a megjegyzéseknél korábban látott „Megjegyzés hozzáadva / Megjegyzés hozzáadva” redundáns címduplikáció: a rendszer a konkrét megjegyzésszöveget jeleníti meg.
+  - A szerveroldali megjegyzésmentés (`src/app/dossiers/[id]/actions.ts`) kiegészült a beírt szöveg előnézetével és structured JSON mezővel.
+  - Kibővült a `TimelineIconName` ikonkészlet: `send`, `message-square`, `list-todo`, `sparkles`, `link`, `upload`, `archive`, `shield`, `download`, `refresh-cw`, `clock`.
+  - Az ügyiratlapon (`src/app/dossiers/[id]/page.tsx`), a bejövő irat nézetben (`src/app/inbox/view/[id]/page.tsx`) és a hivatalos PDF életciklus exportban (`src/app/dossiers/[id]/lifecycle-export.ts`) is a kanonikus formázó motor működik.
+  - Új egységteszt csomag: `src/utils/__tests__/audit-log-formatter.test.ts` (9/9 sikeres teszteset).
+  - Dokumentáció: [ADR A-046](../architecture/decisions/A-046-canonical-audit-log-formatting-engine.md), [PRD P-065](../product/decisions/P-065-canonical-audit-log-formatting-ux.md).
+
+### 🔒 eaisyDocs: Iktatott és Expediált Kimenő Iratok Törlésvédelme (A-006 / A-008)
+- A jogszabályi előírásoknak (335/2005. Korm. rend., Levéltári tv.) megfelelően a már hivatalosan beiktatott (alszámmal ellátott) vagy expediált (kiküldött) kimenő iratok mellett nem jelenik meg kuka gomb a felületen, megvédve az iktatási sorszámfolytonosságot (gap-mentesség).
+- Kijavításra került a paramétersorrend a kimenő iratok törlési függvényhívásában.
+
+### 📁 eaisyDocs: Beágyazott Feladatkészítő, Modálmentesítés és Háromlépcsős AI Válaszlevél Varázsló (DOC-TASK-01 / DOC-01)
+- **Tervezési és UX háttér (Linear Flat & Zero-Nested-Modal elv):**
+  - Felszámolásra került a többszörösen egymásba nyíló felugró ablakok (modál a modálban) zavaró működése: korábban az „Új feladat” egy modált nyitott, a sablonok egy 2. modált, az új sablon pedig egy 3. modált.
+  - A feladatok és belső megjegyzések felülete tágas, kétoszlopos munkatérré alakult: bal oldalon (65%) a feladatlista és a közvetlen feladatkészítő, jobb oldalon (35%) a teljes magasságú belső megjegyzések és üzenőfal (@ említés támogatással).
+  - A feladatkészítő kártya (`TasksTab`) tetején **Gyors Sablonszalag** kapott helyet 1-kattintásos gyorsgombokkal (`Jóváhagyás`, `Könyvelés`, `Jogi felülvizsgálat`, `Válaszlevél készítése`, `Árajánlat kérése`, `Irat feldolgozása`) és lenyitható teljes sablonkatalógussal.
+- **Dedikált Válaszlevelek & Expediálás Lap (`OutgoingDocumentsTab`):**
+  - A kimenő válaszlevelek és expediálás új dedikált lapra (`TabsTrigger value="outgoing"`) került az ügyirat adatlapon (`/dossiers/[id]`).
+  - Háromlépcsős lineáris varázsló:
+    - **1. lépés: Címzett & Kézbesítési csatorna:** Partner adatok betöltése, csatorna választó kártyák (`E-MAIL`, `POSTA`, `CSAK IKTATÁS`).
+    - **2. lépés: Levél megfogalmazása (0 Modál!):** Beágyazott fülváltó három szerkesztési móddal:
+      - `[ ✏️ Saját szöveg ]`: Tárgy és levéltörzs közvetlen megadása.
+      - `[ ✨ AI varázsló ]`: Gemini AI integráció 4 hivatalos hangvétellel (`hivatalos`, `baratsagos`, `tajekoztato`, `felszolito`), kérések és instrukciók megadásával, azonnali vázlatgenerálással és finomhangolással.
+      - `[ 📄 Sablonok ]`: Hivatalos ügyviteli sablonok beillesztése 1 kattintással (hiánypótlási felhívás, elfogadó nyilatkozat, megkeresés megválaszolása, számlareklamáció).
+    - **3. lépés: Véglegesítés & Kiküldés:** PDF melléklet csatolása, partner e-mail címének mentése partnertörzsbe, kimenő iratként való azonnali iktatás és expediálás.
+  - Generált/elküldött kimenő iratok listája kézbesítési státusz jelvénnyel, in-place PDF megtekintéssel (`DocumentViewer`) és törléssel.
+- **Szerveroldali Műveletek és AI Integráció (`src/app/dossiers/[id]/ai-reply-actions.ts`):**
+  - `generateAiReplyAction`: Google Gemini 2.5 Flash API integráció determinisztikus, hivatali stílusú magyar válaszlevelek generálására, fallback tartalék motorral hálózati kimaradás esetére.
+  - Safe cookies/request-store védelem unit tesztek és CI környezetek számára.
+- **Tesztek és Minőségbiztosítás:**
+  - Új tesztcsomag: `src/utils/__tests__/ai-reply-wizard.test.ts` (6/6 sikeres egységteszt: 4 hangvétel generálás, hibakezelés hiányzó instrukcióra, fallback működés offline módban, sablonok beillesztése).
+  - Teljes projekt tesztfutás: 122/122 egységteszt sikeres (16 tesztcsomag, 0 hiba).
+  - TypeScript fordítás: 0 hiba (`npx tsc --noEmit`).
+- **Dokumentáció:** [ADR A-045](../architecture/decisions/A-045-embedded-task-composer-and-ai-reply-wizard-architecture.md), [PRD P-064](../product/decisions/P-064-embedded-task-composer-and-ai-reply-wizard-ux.md).
 - **Törvényi és adatvédelmi háttér (GDPR 5. cikk, 32. cikk):**
   - Többvállalatos holding struktúrában kritikus követelmény az adatelkülönítés (multi-tenancy isolation). Egy munkavállaló személyes, bér- és távolléti adatai szigorúan csak ahhoz a jogi személyhez tartozhatnak, amellyel munkaviszonyban áll.
   - Feloldásra került a cégcsoportos HR dilemma: a modern architektúra natívan támogatja mind a központi/holding HR-es modellt, mind az önálló leányvállalati dedikált HR-es modellt a `company_members` táblához kötött `hr_szerepkor` és `docs_szerepkor` feloldással.

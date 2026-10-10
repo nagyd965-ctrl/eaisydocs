@@ -58,9 +58,21 @@ export function PersonalDataTab({
     } else {
       toast.success("Adatok biztonságosan frissítve!")
       setIsEditOpen(false)
+      // Közvetlen állapotfrissítés, felesleges dupla feloldási hívások és duplikált audit bejegyzések nélkül
       if (isRevealed) {
-        handleReveal()
-        setTimeout(handleReveal, 100)
+        const taj_szam = (formData.get("taj_szam") as string) || ""
+        const adoazonosito = (formData.get("adoazonosito") as string) || ""
+        const bankszamla = (formData.get("bankszamla") as string) || ""
+        const brutto_ber = (formData.get("brutto_ber") as string) || ""
+        const netto_ber = (formData.get("netto_ber") as string) || ""
+        setSecretData(prev => ({
+          ...prev,
+          taj_szam: taj_szam || prev?.taj_szam,
+          adoazonosito: adoazonosito || prev?.adoazonosito,
+          bankszamla: bankszamla || prev?.bankszamla,
+          brutto_ber: brutto_ber || prev?.brutto_ber,
+          netto_ber: netto_ber || prev?.netto_ber,
+        }))
       }
     }
   }

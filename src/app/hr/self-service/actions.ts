@@ -418,7 +418,7 @@ export async function revealSecretData() {
     return { error: "Nincs bejelentkezve" }
   }
 
-  // Hívjuk meg az RPC-t, ami automatikusan naplózza a megtekintést!
+  // Hívjuk meg az RPC-t, ami automatikusan visszafejti az adatokat
   const { data, error } = await supabase.rpc("get_decrypted_hr_data", {
     p_dolgozo_id: user.id
   })
@@ -428,14 +428,28 @@ export async function revealSecretData() {
     return { error: "Hozzáférés megtagadva vagy nincs rögzített adat." }
   }
 
-  // Explicit logolás az új hr_esemeny_naplo táblába is
-  await supabase.from("hr_esemeny_naplo").insert({
-    felhasznalo_id: user.id,
-    esemeny_tipus: "adat_megtekintes",
-    entitas_tipus: "hr_dolgozo_titkos_adat",
-    entitas_id: user.id,
-    megjegyzes: "Szigorúan bizalmas dolgozói adatok feloldása és megtekintése"
-  })
+  // 15 másodperces időablak a duplikált naplózás megelőzésére
+  const fifteenSecondsAgo = new Date(Date.now() - 15000).toISOString()
+  const { data: recentLog } = await supabase
+    .from("hr_esemeny_naplo")
+    .select("id")
+    .eq("felhasznalo_id", user.id)
+    .eq("entitas_tipus", "hr_dolgozo_titkos_adat")
+    .eq("entitas_id", user.id)
+    .in("esemeny_tipus", ["megtekintes", "adat_megtekintes", "irat_megtekintes"])
+    .gte("created_at", fifteenSecondsAgo)
+    .limit(1)
+    .maybeSingle()
+
+  if (!recentLog) {
+    await supabase.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      esemeny_tipus: "adat_megtekintes",
+      entitas_tipus: "hr_dolgozo_titkos_adat",
+      entitas_id: user.id,
+      megjegyzes: "Saját bizalmas adatok (TAJ, Adó, Bankszámla) feloldása és megtekintése"
+    })
+  }
 
   return { data: data as { taj_szam?: string; adoazonosito?: string; bankszamla?: string; brutto_ber?: string; netto_ber?: string } }
 }
@@ -451,7 +465,7 @@ export async function updateSecretData(formData: FormData) {
   const taj_szam     = formData.get("taj_szam")     as string
   const adoazonosito = formData.get("adoazonosito") as string
   const bankszamla   = formData.get("bankszamla")   as string
-  // Bzéradatékat a dolgozó NEM módosíthatja – null-ként küldjük, 
+  // Béradatokat a dolgozó NEM módosíthatja – null-ként küldjük, 
   // az RPC CASE logika megőrzi az adatbázisban lévő értéket.
 
   const { error } = await supabase.rpc("update_decrypted_hr_data", {
@@ -467,13 +481,13 @@ export async function updateSecretData(formData: FormData) {
     return { error: `Hiba: ${error.message}` }
   }
 
-  // Explicit logolás az új hr_esemeny_naplo táblába
+  // Explicit logolás a hr_esemeny_naplo táblába
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
-    esemeny_tipus: "munkatars_felvetel",
+    esemeny_tipus: "modositas",
     entitas_tipus: "hr_dolgozo_titkos_adat",
     entitas_id: user.id,
-    megjegyzes: "Szigorúan bizalmas dolgozói adatok módosítása"
+    megjegyzes: "Saját bizalmas adatok módosítása"
   })
 
   return { success: true }

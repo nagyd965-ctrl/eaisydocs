@@ -123,9 +123,7 @@ export function AttendanceCorrectionDialog({
         <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-primary" /> Munkaidő Korrekciós Kérelem
-            </DialogTitle>
+            <DialogTitle>Munkaidő Korrekciós Kérelem</DialogTitle>
             <DialogDescription>
               Ha a rögzített munkaidőd eltért a valóstól (pl. elfelejtett be- vagy kicsekkolás), itt nyújthatsz be jóváhagyási kérelmet a közvetlen vezetődnek.
             </DialogDescription>

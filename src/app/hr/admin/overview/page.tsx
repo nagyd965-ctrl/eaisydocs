@@ -1,9 +1,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { Users, UserPlus, CalendarX, Briefcase, AlertCircle, Clock, ChevronRight, PlusCircle, CheckCircle2 } from "lucide-react"
+import { Users, UserPlus, CalendarX, Briefcase, AlertCircle, Clock, ChevronRight, PlusCircle, CheckCircle2, Building2 } from "lucide-react"
 import { KpiCard } from "@/components/kpi-card"
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer, getActiveCompanyServer } from "@/utils/company-server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { ReassignLeavesButton } from "@/components/hr/reassign-leaves-button"
 import { redirect } from "next/navigation"
@@ -12,6 +14,10 @@ export default async function HrOverviewPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompany = await getActiveCompanyServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
@@ -36,8 +42,35 @@ export default async function HrOverviewPage() {
   thirtyDaysFromNow.setDate(today.getDate() + 30)
   const thirtyDaysStr = thirtyDaysFromNow.toISOString().split("T")[0]
 
+  // 1. Aktív céghez tartozó dolgozók tagjainak lekérése (company_members)
+  const { data: companyMembers } = await supabase
+    .from("company_members")
+    .select("user_id")
+    .eq("company_id", companyScope)
+  const memberUserIds = (companyMembers || []).map(m => m.user_id)
+  const safeMemberIds = memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"]
+
+  // Dolgozói állomány lekérése a státusz és munkaviszony szűréshez
+  const { data: companyEmployees } = await supabase
+    .from("felhasznalo_profil")
+    .select(`
+      id,
+      hr_szerepkor,
+      hr_dolgozo_adatlap (
+        id,
+        munkaviszony_vege
+      )
+    `)
+    .in("id", safeMemberIds)
+
+  const activeEmployeesCount = companyEmployees?.filter((emp: any) => {
+    if (!emp.hr_dolgozo_adatlap) return false
+    const isExited = emp.hr_szerepkor === "inaktiv" || (emp.hr_dolgozo_adatlap.munkaviszony_vege && new Date(emp.hr_dolgozo_adatlap.munkaviszony_vege) <= new Date())
+    return !isExited
+  }).length || 0
+
+  // 2. Modul-szintű cég-szűrt lekérdezések párhuzamosan
   const [
-    { count: activeEmployees },
     { count: openPositions },
     { count: activeOnboardings },
     { count: todayAbsences },
@@ -47,32 +80,36 @@ export default async function HrOverviewPage() {
     { data: expiringProbations },
     { data: expiringContracts }
   ] = await Promise.all([
-    supabase.from("hr_dolgozo_adatlap").select("*", { count: "exact", head: true }),
-    supabaseAdmin.from("hr_toborzas").select("*", { count: "exact", head: true }).eq("statusz", "uj"),
-    supabase.from("hr_onboarding").select("*", { count: "exact", head: true }).in("statusz", ["elokeszites", "folyamatban"]),
+    supabaseAdmin.from("hr_toborzas").select("*", { count: "exact", head: true }).eq("company_id", companyScope).eq("statusz", "uj"),
+    supabase.from("hr_onboarding").select("*", { count: "exact", head: true }).eq("company_id", companyScope).in("statusz", ["elokeszites", "folyamatban"]),
     supabase.from("hr_tavollet").select("*", { count: "exact", head: true })
+      .eq("company_id", companyScope)
       .lte("kezdet_datuma", todayStr)
       .gte("veg_datuma", todayStr),
-    supabaseAdmin.from("hr_toborzas").select("statusz"),
+    supabaseAdmin.from("hr_toborzas").select("statusz").eq("company_id", companyScope),
 
     supabase.from("hr_tavollet")
       .select(`id, kezdet_datuma, veg_datuma, hr_dolgozo_adatlap(id, felhasznalo_profil(nev))`)
+      .eq("company_id", companyScope)
       .eq("statusz", "jovahagyasra_var"),
 
     supabase.from("hr_dolgozo_adatlap")
       .select(`id, orvosi_alkalmassag_ervenyesseg, felhasznalo_profil(nev)`)
+      .in("id", safeMemberIds)
       .not("orvosi_alkalmassag_ervenyesseg", "is", null)
       .lte("orvosi_alkalmassag_ervenyesseg", thirtyDaysStr)
       .gte("orvosi_alkalmassag_ervenyesseg", todayStr),
 
     supabase.from("hr_dolgozo_adatlap")
       .select(`id, probaido_vege, felhasznalo_profil(nev)`)
+      .in("id", safeMemberIds)
       .not("probaido_vege", "is", null)
       .lte("probaido_vege", thirtyDaysStr)
       .gte("probaido_vege", todayStr),
 
     supabase.from("hr_dolgozo_adatlap")
       .select(`id, munkaviszony_vege, szerzodes_tipusa, felhasznalo_profil(nev)`)
+      .in("id", safeMemberIds)
       .eq("szerzodes_tipusa", "határozott")
       .not("munkaviszony_vege", "is", null)
       .lte("munkaviszony_vege", thirtyDaysStr)
@@ -106,7 +143,18 @@ export default async function HrOverviewPage() {
       {/* Fejléc */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Központi Áttekintés</h1>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-3xl font-semibold tracking-tight">Központi Áttekintés</h1>
+            {activeCompany && (
+              <Badge 
+                variant="outline" 
+                className="text-xs gap-1.5 py-0.5 px-2.5 bg-muted/40 border-border text-foreground font-medium"
+              >
+                <Building2 className="w-3.5 h-3.5 text-primary" />
+                {activeCompany.name}
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground mt-1">
             Üdvözlünk az eaisyHR irányítópultján. Itt áttekintheted a szervezet aktuális HR folyamatait.
           </p>
@@ -129,7 +177,7 @@ export default async function HrOverviewPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Aktív Dolgozók"
-          value={`${activeEmployees ?? 0} fő`}
+          value={`${activeEmployeesCount} fő`}
           href="/hr/employee"
         />
         <KpiCard

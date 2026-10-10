@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/utils/supabase/server"
+import { formatAuditLogEvent } from "@/utils/audit-log-formatter"
 
 /**
  * Életciklus riport PDF generálása egy ügyirathoz
@@ -202,14 +203,14 @@ export async function generateLifecycleReport(ugyiratId: string) {
       year: "numeric", month: "2-digit", day: "2-digit",
       hour: "2-digit", minute: "2-digit",
     })
-    const typeLabel = eventTypeLabels[event.esemeny_tipus] || event.esemeny_tipus
-    const userName = userMap[event.user_id] || "Rendszer"
-    let description = event.indoklas || ""
+    const formatted = formatAuditLogEvent(event, { userMap })
+    const typeLabel = formatted.title
+    const userName = formatted.user || "Rendszer"
+    let description = formatted.description || ""
     
     // Truncálás a leíráshoz, hogy elférjen
-    const maxDescWidth = pageWidth - margin - colLeiras
-    if (description.length > 40) {
-      description = description.substring(0, 40) + "..."
+    if (description.length > 55) {
+      description = description.substring(0, 55) + "..."
     }
 
     page.drawText(clean(dateStr), {

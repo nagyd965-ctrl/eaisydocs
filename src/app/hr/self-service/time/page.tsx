@@ -3,9 +3,7 @@ import { LeaveHistoryList } from "@/components/hr/leave-history-list"
 import { EmployeeTimesheet } from "@/components/hr/employee-timesheet"
 import { SubstituteSettingsCard } from "@/components/hr/substitute-settings-card"
 import { LeaveRequestDialog } from "@/components/hr/leave-request-dialog"
-import { Card, CardContent } from "@/components/ui/card"
 import { redirect } from "next/navigation"
-import { Clock, CalendarDays, Umbrella } from "lucide-react"
 
 export default async function SelfServiceTimePage() {
   const supabase = await createClient()

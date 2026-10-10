@@ -1342,13 +1342,28 @@ export async function revealEmployeeSecretData(employeeId: string) {
     return { error: "Hozzáférés megtagadva vagy nincs rögzített adat." }
   }
 
-  await supabase.from("hr_esemeny_naplo").insert({
-    felhasznalo_id: user.id,
-    esemeny_tipus: "irat_megtekintes",
-    entitas_tipus: "hr_dolgozo_titkos_adat",
-    entitas_id: employeeId,
-    megjegyzes: `HR/Admin betekintett a dolgozó (${employeeId}) bizalmas adataiba.`
-  })
+  // 15 másodperces időablak a duplikált naplózás megelőzésére (pl. dupla kattintás vagy gyors ki-be kapcsolás)
+  const fifteenSecondsAgo = new Date(Date.now() - 15000).toISOString()
+  const { data: recentLog } = await supabase
+    .from("hr_esemeny_naplo")
+    .select("id")
+    .eq("felhasznalo_id", user.id)
+    .eq("entitas_tipus", "hr_dolgozo_titkos_adat")
+    .eq("entitas_id", employeeId)
+    .in("esemeny_tipus", ["megtekintes", "adat_megtekintes", "irat_megtekintes"])
+    .gte("created_at", fifteenSecondsAgo)
+    .limit(1)
+    .maybeSingle()
+
+  if (!recentLog) {
+    await supabase.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      esemeny_tipus: "adat_megtekintes",
+      entitas_tipus: "hr_dolgozo_titkos_adat",
+      entitas_id: employeeId,
+      megjegyzes: "Szigorúan bizalmas dolgozói adatok (TAJ, Adó, Bér) feloldása és megtekintése"
+    })
+  }
 
   return { data: data as { taj_szam?: string; adoazonosito?: string; bankszamla?: string; brutto_ber?: string; netto_ber?: string } }
 }
@@ -1380,10 +1395,10 @@ export async function updateEmployeeSecretData(employeeId: string, formData: For
 
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
-    esemeny_tipus: "munkatars_modositas",
+    esemeny_tipus: "modositas",
     entitas_tipus: "hr_dolgozo_titkos_adat",
     entitas_id: employeeId,
-    megjegyzes: `HR/Admin módosította a dolgozó (${employeeId}) bizalmas adatait.`
+    megjegyzes: "Szigorúan bizalmas dolgozói adatok (TAJ, Adó, Bér) módosítása"
   })
 
   revalidatePath(`/hr/employee/${employeeId}`)
@@ -1629,7 +1644,16 @@ export async function hrSubmitLeaveRequest(employeeId: string, formData: FormDat
 export async function getEmployeeAuditLogs(employeeId: string) {
   const supabase = await createClient()
 
-  const { data: logs, error } = await supabase
+  // 1. Dolgozóhoz kapcsolódó dokumentumok azonosítóinak lekérése
+  const { data: employeeDocs } = await supabase
+    .from("hr_dokumentum")
+    .select("id")
+    .eq("dolgozo_id", employeeId)
+
+  const docIds = (employeeDocs || []).map(d => d.id).filter(Boolean)
+
+  // 2. Audit napló lekérdezése (a dolgozó közvetlen rekordjai + hozzá tartozó iratok)
+  let query = supabase
     .from("hr_esemeny_naplo")
     .select(`
       id,
@@ -1637,13 +1661,21 @@ export async function getEmployeeAuditLogs(employeeId: string) {
       entitas_tipus,
       esemeny_tipus,
       felhasznalo_id,
+      entitas_id,
       regi_adat,
       uj_adat,
       megjegyzes,
       felhasznalo_profil(nev)
     `)
-    .eq("entitas_id", employeeId)
     .order("created_at", { ascending: false })
+
+  if (docIds.length > 0) {
+    query = query.or(`entitas_id.eq.${employeeId},entitas_id.in.(${docIds.join(",")})`)
+  } else {
+    query = query.eq("entitas_id", employeeId)
+  }
+
+  const { data: logs, error } = await query
 
   if (error) {
     console.error("Error fetching audit logs:", error)
@@ -1651,7 +1683,7 @@ export async function getEmployeeAuditLogs(employeeId: string) {
   }
 
   // Format the returned data to include user name directly
-  const formattedLogs = logs.map(log => ({
+  const formattedLogs = (logs || []).map(log => ({
     ...log,
     user_nev: (log.felhasznalo_profil as any)?.nev || "Rendszer"
   }))

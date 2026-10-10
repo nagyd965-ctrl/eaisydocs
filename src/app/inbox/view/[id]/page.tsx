@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { AttachmentViewerClient } from "@/components/attachment-viewer-client"
 import { ReplyDialogClient } from "@/components/reply-dialog-client"
 import { TimelineEvent, TimelineIconName } from "@/components/timeline"
+import { formatAuditLogEvent } from "@/utils/audit-log-formatter"
 import { AntecedentSuggestionCard } from "@/components/antecedent-suggestion-card"
 import { CollapsibleEventLog } from "@/components/collapsible-event-log"
 import { findAntecedentSuggestion } from "@/utils/antecedent-matcher"
@@ -74,52 +75,7 @@ export default async function DocumentDetailedView({ params }: { params: Promise
   });
 
   const timelineEvents: TimelineEvent[] = filteredLogs.map((log: any) => {
-    let title = "Tevékenység";
-    let description = log.indoklas || log.uj_ertek?.megjegyzes || "";
-    let icon: TimelineIconName = "eye";
-    let color = "text-muted-foreground";
-    let details: string | undefined = undefined;
-
-    if (log.esemeny_tipus === "modositva") {
-      if (log.indoklas && log.indoklas.includes("Válasz e-mail elküldve")) {
-        title = "Levélküldés";
-        icon = "mail";
-        color = "text-primary";
-        
-        const lines = log.indoklas.split('\n');
-        description = lines[0];
-        if (lines.length > 1) {
-          details = lines.slice(1).join('\n').trim();
-        }
-      } else {
-        title = "Módosítás történt";
-        if (!description) {
-           if (log.uj_ertek && log.uj_ertek.megjegyzes) {
-             description = log.uj_ertek.megjegyzes;
-           } else {
-             description = "Automatikus háttéradat-frissítés (pl. OCR vagy keresőmotor indexelés).";
-           }
-        }
-        icon = "file-text";
-        color = "text-info";
-      }
-    } else if (log.esemeny_tipus === "erkeztetve") {
-      title = "Irat érkeztetve";
-      description = description || "Új bejövő irat regisztrálva a rendszerben.";
-      icon = "check-circle";
-      color = "text-success";
-    }
-
-    return {
-      id: log.id,
-      title,
-      description,
-      time: new Date(log.tortent).toLocaleString("hu-HU"),
-      user: log.user_id ? (userMap[log.user_id] || "Ismeretlen") : "Rendszer",
-      icon,
-      color,
-      details,
-    }
+    return formatAuditLogEvent(log, { userMap })
   });
 
   const partner = irat.partner as any

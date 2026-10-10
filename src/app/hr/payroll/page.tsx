@@ -26,8 +26,7 @@ export default async function HrPayrollPage() {
     <div key={companyScope} className="space-y-6 pb-12">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <Receipt className="w-6 h-6 text-teal-600" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Bérszámfejtés & Bérpapírok (Mt. 155. §)
           </h1>
           <p className="text-xs text-muted-foreground mt-1">

@@ -77,8 +77,8 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2.5">
-          <BarChart3 className="w-6 h-6 text-primary" /> Vezetői Dashboard
+        <h1 className="text-3xl font-semibold tracking-tight">
+          Vezetői Dashboard
         </h1>
         <p className="text-muted-foreground mt-1">
           Vállalati szintű teljesítménymutatók és statisztikák
