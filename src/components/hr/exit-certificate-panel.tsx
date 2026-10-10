@@ -21,7 +21,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
-import { generateExitCertificateAction } from "@/app/hr/offboarding/actions"
+import { generateExitCertificateAction, fileSingleOffboardingDocument } from "@/app/hr/offboarding/actions"
 import { 
   type ExitCertificatePdfData, 
   DEFAULT_EXIT_DOCUMENTS, 
@@ -38,6 +38,7 @@ export interface ExitCertificatePanelProps {
   kilepesDatuma?: string | null
   initialData?: any
   adatlap?: any
+  targyeviBetegszabadsagNapok?: number
   onSuccess?: () => void
 }
 
@@ -58,8 +59,10 @@ export function ExitCertificatePanel({
   // Mentett / létező dokumentum állapot
   const existingDoc = initialData?.kilepoIgazolasDoc
   const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(existingDoc?.url || initialData?.kilepo_igazolas_pdf_url || null)
+  const [currentDocId, setCurrentDocId] = useState<string | null>(existingDoc?.documentId || null)
   const [iktatoszam, setIktatoszam] = useState<string | null>(existingDoc?.iktatoszam || null)
   const [iktatvaEkor, setIktatvaEkor] = useState<string | null>(existingDoc?.iktatvaEkor || null)
+  const [isFiling, setIsFiling] = useState(false)
 
   // Űrlap adatok
   const savedAdatok = initialData?.kilepo_igazolas_adatok || {}
@@ -78,9 +81,11 @@ export function ExitCertificatePanel({
   )
   const [levonasReszletek, setLevonasReszletek] = useState<string>(savedAdatok.levonasReszletek || "")
 
-  // Betegszabadság és végkielégítés
+  // Betegszabadság és végkielégítés (automatikusan betöltve a jóváhagyott távollétekből)
   const [betegszabadsagNapok, setBetegszabadsagNapok] = useState<number>(
-    savedAdatok.betegszabadsagNapok !== undefined ? savedAdatok.betegszabadsagNapok : 0
+    savedAdatok.betegszabadsagNapok !== undefined 
+      ? savedAdatok.betegszabadsagNapok 
+      : (initialData?.targyeviBetegszabadsagNapok ?? 0)
   )
   const [vegkielegitesOsszeg, setVegkielegitesOsszeg] = useState<number>(
     initialData?.vegkielegites_osszeg ? Number(initialData.vegkielegites_osszeg) : 0
@@ -138,12 +143,52 @@ export function ExitCertificatePanel({
         if (res.pdfUrl || res.storagePath) {
           setCurrentPdfUrl(res.pdfUrl || res.storagePath)
         }
+        if (res.documentId) {
+          setCurrentDocId(res.documentId)
+        }
         if (onSuccess) onSuccess()
       }
     } catch (err: any) {
       toast.error("Váratlan hiba történt", { description: err.message })
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  const handleFileSingleDocument = async () => {
+    const docId = currentDocId || existingDoc?.documentId
+    if (!docId) {
+      toast.error("A dokumentum azonosítója nem található. Kérlek, generáld újra a dokumentumot!")
+      return
+    }
+    const targetDolgozoId = dolgozoId || initialData?.dolgozo_id
+    if (!targetDolgozoId) {
+      toast.error("A munkavállaló azonosítója hiányzik.")
+      return
+    }
+
+    setIsFiling(true)
+    try {
+      const res = await fileSingleOffboardingDocument({
+        documentId: docId,
+        dolgozoId: targetDolgozoId,
+        customTargy: `Törvényes Kilépő Igazolások (Mt. 80. §) - ${employeeName}`
+      })
+
+      if (res.error) {
+        toast.error("Hiba az iktatás során", { description: res.error })
+      } else {
+        setIktatoszam(res.iktatoszam || null)
+        setIktatvaEkor(new Date().toISOString())
+        toast.success("Dokumentum sikeresen beiktatva a személyi dossziéba!", {
+          description: `Hivatalos iktatószám: ${res.iktatoszam}`
+        })
+        if (onSuccess) onSuccess()
+      }
+    } catch (err: any) {
+      toast.error("Váratlan hiba történt az iktatáskor", { description: err.message })
+    } finally {
+      setIsFiling(false)
     }
   }
 
@@ -214,7 +259,29 @@ export function ExitCertificatePanel({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {!iktatoszam && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isFiling}
+                onClick={handleFileSingleDocument}
+                className="h-8 gap-1.5 text-xs text-success border-success/30 hover:bg-success/10 font-medium"
+              >
+                {isFiling ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Iktatás...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Beiktatás a személyi dossziéba most
+                  </>
+                )}
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"

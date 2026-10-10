@@ -9,9 +9,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Clock, TrendingUp, TrendingDown, Minus, Coins, Calendar, AlertCircle } from "lucide-react"
+import { Clock, TrendingUp, TrendingDown, Minus, Coins, Calendar, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { submitOvertimeRequest } from "@/app/hr/self-service/actions"
+import {
+  determineAnnualOvertimeLimit,
+  calculateOvertimeQuotaStatus,
+  calculateDailyOvertimeFromAttendance,
+  OvertimeQuotaStatus,
+} from "@/utils/hr/overtime-engine"
+import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
 interface OvertimeRequest {
@@ -36,6 +43,8 @@ function formatMinutes(perc: number): string {
 export function OvertimeBalanceCard({ employeeId }: { employeeId: string }) {
   const [balance, setBalance] = useState<number | null>(null)
   const [requests, setRequests] = useState<OvertimeRequest[]>([])
+  const [annualQuota, setAnnualQuota] = useState<OvertimeQuotaStatus | null>(null)
+  const [hasVoluntaryAgreement, setHasVoluntaryAgreement] = useState(false)
   const [loading, setLoading] = useState(true)
   const [isPending, startTransition] = useTransition()
   const supabase = createClient()
@@ -55,21 +64,54 @@ export function OvertimeBalanceCard({ employeeId }: { employeeId: string }) {
   const [payoutNote, setPayoutNote] = useState("")
 
   const loadData = async () => {
-    const [{ data: balanceData }, { data: reqData }] = await Promise.all([
+    const currentYear = new Date().getFullYear()
+    const [{ data: balanceData }, { data: reqData }, { data: adatlapData }, { data: attendanceData }] = await Promise.all([
       supabase
         .from("hr_tulora_egyenleg")
         .select("perc")
         .eq("dolgozo_id", employeeId)
-        .single(),
+        .maybeSingle(),
       supabase
         .from("hr_tulora_felhasznalás")
         .select("*")
         .eq("dolgozo_id", employeeId)
         .order("created_at", { ascending: false })
-        .limit(5)
+        .limit(5),
+      supabase
+        .from("hr_dolgozo_adatlap")
+        .select("onkent_vallalt_tulora_400h")
+        .eq("id", employeeId)
+        .maybeSingle(),
+      supabase
+        .from("hr_jelenlet")
+        .select("datum, becsekkolas_ideje, kicsekkolas_ideje")
+        .eq("dolgozo_id", employeeId)
+        .gte("datum", `${currentYear}-01-01`)
+        .lte("datum", `${currentYear}-12-31`)
     ])
+
     setBalance(balanceData?.perc ?? 0)
     setRequests(reqData ?? [])
+
+    // Éves túlóra kalkuláció (Mt. 135. §)
+    let totalOt = 0
+    for (const a of attendanceData || []) {
+      if (a.becsekkolas_ideje && a.kicsekkolas_ideje) {
+        const ot = calculateDailyOvertimeFromAttendance({
+          checkIn: a.becsekkolas_ideje,
+          checkOut: a.kicsekkolas_ideje,
+          scheduledHours: 8.0,
+        })
+        totalOt += ot.overtimeHours
+      }
+    }
+
+    const isVoluntary = !!adatlapData?.onkent_vallalt_tulora_400h
+    const limit = determineAnnualOvertimeLimit(isVoluntary)
+    const quota = calculateOvertimeQuotaStatus(totalOt, limit)
+
+    setAnnualQuota(quota)
+    setHasVoluntaryAgreement(isVoluntary)
     setLoading(false)
   }
 
@@ -204,6 +246,96 @@ export function OvertimeBalanceCard({ employeeId }: { employeeId: string }) {
               </div>
             )}
           </div>
+
+          {/* Éves Mt. 135. § Túlórakeret számláló (Linear Flat Progress Bar) */}
+          {annualQuota && (
+            <div className="p-3.5 rounded-lg border border-border bg-card space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-xs font-semibold text-foreground">
+                    Éves Rendkívüli Munkaidő Keret (Mt. 135. §)
+                  </span>
+                </div>
+                <Badge
+                  variant={
+                    annualQuota.status === "exceeded"
+                      ? "destructive"
+                      : annualQuota.status === "warning"
+                      ? "outline"
+                      : "secondary"
+                  }
+                  className={cn(
+                    "text-[10px] h-5",
+                    annualQuota.status === "warning" && "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+                    annualQuota.status === "normal" && "text-muted-foreground"
+                  )}
+                >
+                  {hasVoluntaryAgreement ? "400h megállapodás" : "250h alapkeret"}
+                </Badge>
+              </div>
+
+              <div className="flex items-baseline justify-between text-xs">
+                <div>
+                  <span className="text-lg font-bold tabular-nums text-foreground">
+                    {annualQuota.workedHours} óra
+                  </span>
+                  <span className="text-xs text-muted-foreground ml-1">
+                    / {annualQuota.annualLimit} óra
+                  </span>
+                </div>
+                <span
+                  className={cn(
+                    "text-xs font-semibold tabular-nums",
+                    annualQuota.status === "exceeded"
+                      ? "text-destructive font-bold"
+                      : annualQuota.status === "warning"
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {annualQuota.percentage}%
+                </span>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="h-2 w-full bg-muted/60 rounded-full overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-300",
+                    annualQuota.status === "exceeded"
+                      ? "bg-destructive"
+                      : annualQuota.status === "warning"
+                      ? "bg-amber-500"
+                      : "bg-success"
+                  )}
+                  style={{ width: `${Math.min(100, annualQuota.percentage)}%` }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>
+                  Hátralévő keret:{" "}
+                  <strong className={cn(annualQuota.remainingHours === 0 && "text-destructive font-bold")}>
+                    {annualQuota.remainingHours} óra
+                  </strong>
+                </span>
+                {annualQuota.status === "exceeded" ? (
+                  <span className="text-destructive font-semibold flex items-center gap-1 text-[11px]">
+                    <AlertCircle className="w-3 h-3" /> Keret kimerült!
+                  </span>
+                ) : annualQuota.status === "warning" ? (
+                  <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1 text-[11px]">
+                    <AlertCircle className="w-3 h-3" /> 80% felett
+                  </span>
+                ) : (
+                  <span className="text-success font-medium flex items-center gap-1 text-[11px]">
+                    <CheckCircle2 className="w-3 h-3" /> Kereten belül
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Korábbi kérelmek */}
           {requests.length > 0 && (

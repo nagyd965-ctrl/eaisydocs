@@ -1,37 +1,33 @@
-import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { OnboardingList } from "@/components/hr/onboarding-list"
 import { AddOnboardingDialog } from "@/components/hr/add-onboarding-dialog"
-import { redirect } from "next/navigation"
+import { Shield } from "lucide-react"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function OnboardingPage() {
-  const supabase = await createClient()
-  
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"])
+  if (!auth.authorized || !auth.activeCompanyId) {
+    return (
+      <div className="flex items-center justify-center h-[50vh] text-center">
+        <div>
+          <Shield className="w-12 h-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-2xl font-semibold text-destructive mb-2">Hozzáférés Megtagadva</h2>
+          <p className="text-muted-foreground">Nincs jogosultságod az Onboarding modul megtekintéséhez a kiválasztott cégnél.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const { activeCompanyId } = auth
+
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select('hr_szerepkor')
-    .eq("id", user.id)
-    .single()
-
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
-    return (
-      <div className="p-8 text-center text-muted-foreground">
-        Nincs jogosultságod az Onboarding modul megtekintéséhez.
-      </div>
-    )
-  }
-
-  // Lekérjük az összes folyamatban lévő és lezárt onboardingot a hozzájuk tartozó feladatokkal
+  // Lekérjük az összes folyamatban lévő és lezárt onboardingot a hozzájuk tartozó feladatokkal az aktív céghez
   const { data: onboardings, error } = await supabaseAdmin
     .from("hr_onboarding")
     .select(`
@@ -41,16 +37,17 @@ export default async function OnboardingPage() {
       dolgozo:felhasznalo_profil!dolgozo_id (id, nev),
       lezarta:felhasznalo_profil!lezarta_id (id, nev)
     `)
+    .eq("company_id", activeCompanyId)
     .order("created_at", { ascending: false })
 
   if (error) {
     console.error("Hiba onboarding adatok lekérésekor:", error)
   }
 
-  // Lekérjük a hivatalos szervezeti egységeket és munkaköröket a katalógusból
+  // Lekérjük a hivatalos szervezeti egységeket és munkaköröket a katalógusból az aktív céghez
   const [orgUnitsRes, jobsRes] = await Promise.all([
-    supabaseAdmin.from("hr_szervezeti_egyseg").select("id, nev, szulo_id").order("nev"),
-    supabaseAdmin.from("hr_munkakor").select("id, megnevezes, feor_kod, szervezeti_egyseg_id").order("megnevezes")
+    supabaseAdmin.from("hr_szervezeti_egyseg").select("id, nev, szulo_id").eq("company_id", activeCompanyId).order("nev"),
+    supabaseAdmin.from("hr_munkakor").select("id, megnevezes, feor_kod, szervezeti_egyseg_id").eq("company_id", activeCompanyId).order("megnevezes")
   ])
 
   const orgUnits = orgUnitsRes.data || []
@@ -61,7 +58,7 @@ export default async function OnboardingPage() {
   }))
 
   return (
-    <div className="space-y-6 pb-10">
+    <div key={activeCompanyId} className="space-y-6 pb-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Onboarding</h1>

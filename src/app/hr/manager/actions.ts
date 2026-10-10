@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export async function approveLeaveRequest(id: string) {
   const supabase = await createClient()
@@ -9,6 +10,19 @@ export async function approveLeaveRequest(id: string) {
 
   if (!user) {
     return { error: "Nincs bejelentkezve" }
+  }
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (activeCompanyId) {
+    const { data: req } = await supabase
+      .from("hr_tavollet")
+      .select("company_id")
+      .eq("id", id)
+      .maybeSingle()
+
+    if (req?.company_id && req.company_id !== activeCompanyId) {
+      return { error: "A kérelem egy másik vállalathoz tartozik." }
+    }
   }
 
   const { error } = await supabase
@@ -32,6 +46,19 @@ export async function rejectLeaveRequest(id: string) {
 
   if (!user) {
     return { error: "Nincs bejelentkezve" }
+  }
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (activeCompanyId) {
+    const { data: req } = await supabase
+      .from("hr_tavollet")
+      .select("company_id")
+      .eq("id", id)
+      .maybeSingle()
+
+    if (req?.company_id && req.company_id !== activeCompanyId) {
+      return { error: "A kérelem egy másik vállalathoz tartozik." }
+    }
   }
 
   const { error } = await supabase

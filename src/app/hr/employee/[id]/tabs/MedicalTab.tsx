@@ -15,8 +15,7 @@ import { toast } from "sonner"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
-import { SafetyTrainingDialog } from "@/components/hr/safety-training-dialog"
-import { HardHat } from "lucide-react"
+
 
 export interface OrvosiVizsgalatRecord {
   id: string
@@ -136,16 +135,6 @@ export function MedicalTab({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <SafetyTrainingDialog
-            employeeName={employeeName || "Munkatárs"}
-            dolgozoId={employeeId}
-            triggerButton={
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/10">
-                <HardHat className="w-3.5 h-3.5 text-primary" />
-                Munkavédelmi Oktatás
-              </Button>
-            }
-          />
 
           {isHrOrAdmin && (
             <Dialog open={open} onOpenChange={setOpen}>

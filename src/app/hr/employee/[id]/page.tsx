@@ -29,6 +29,8 @@ import { UploadSignedDocumentDialog } from "@/components/hr/upload-signed-docume
 import { JobDescriptionBadgeAction } from "@/components/hr/job-description-badge-action"
 import { ExternalLink, FileCheck, Lock, CheckCircle2, Download } from "lucide-react"
 import { IDPTab } from "./tabs/IDPTab"
+import { SafetyTrainingEmployeeCard } from "@/components/hr/safety-training-employee-card"
+import { PayslipsTab } from "./tabs/PayslipsTab"
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params
@@ -54,6 +56,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       nev,
       hr_szerepkor,
       kozvetlen_vezeto_id,
+      szervezeti_egyseg_id,
+      hr_szervezeti_egyseg ( nev ),
       hr_dolgozo_adatlap ( 
         *,
         hr_tavollet ( * ),
@@ -116,6 +120,31 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     .select("*")
     .eq("dolgozo_id", resolvedParams.id)
     .order("created_at", { ascending: false })
+
+  // Munkavédelmi és tűzvédelmi oktatások lekérése
+  const { data: safetyTrainingsData } = await supabase
+    .from("hr_munkavedelmi_oktatas")
+    .select(`
+      id,
+      dolgozo_id,
+      oktatas_tipusa,
+      oktatas_datuma,
+      ervenyesseg_vege,
+      oktato_neve,
+      oktato_beosztasa,
+      tematika,
+      megjegyzes,
+      dokumentum_id,
+      hr_dokumentum:dokumentum_id (
+        id,
+        nev,
+        url,
+        iktatoszam,
+        ugyirat_id
+      )
+    `)
+    .eq("dolgozo_id", resolvedParams.id)
+    .order("oktatas_datuma", { ascending: false })
 
   // Aláírt URL-ek generálása a privát fájlokhoz (eredeti és aláírt példány)
   const hrDocuments = await Promise.all(
@@ -224,6 +253,20 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     .eq("dolgozo_id", resolvedParams.id)
     .eq("ev", currentYear)
 
+  // Bérpapírok lekérése (biztonság: csak HR/Admin vagy a dolgozó saját maga férhet hozzá)
+  const canViewSalary = isHrOrAdmin || isSelf
+  let employeePayslips: any[] = []
+  if (canViewSalary) {
+    const { data: pData } = await supabase
+      .from("hr_berpapir")
+      .select("*")
+      .eq("dolgozo_id", resolvedParams.id)
+      .order("ev", { ascending: false })
+      .order("honap", { ascending: false })
+
+    employeePayslips = (pData || []).filter((p: any) => isHrOrAdmin || p.statusz === "kikuldve" || p.statusz === "atveve")
+  }
+
   const roleMap: Record<string, string> = {
     admin: "Rendszergazda",
     hr_vezeto: "HR Vezető",
@@ -283,6 +326,11 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           <TabsTrigger value="jelenlet" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Jelenlét</TabsTrigger>
           <TabsTrigger value="cafeteria" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Cafeteria</TabsTrigger>
           <TabsTrigger value="idp" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Fejlődés (IDP)</TabsTrigger>
+          {canViewSalary && (
+            <TabsTrigger value="berpapirok" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">
+              Bérpapírok {employeePayslips.length > 0 && `(${employeePayslips.length})`}
+            </TabsTrigger>
+          )}
           {isHrOrAdmin && (
             <TabsTrigger value="bizalmas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">
               Bizalmas HR adatok <ShieldAlert className="ml-2 w-3 h-3 text-destructive" />
@@ -370,6 +418,18 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                 jogviszonyok={adatlap?.hr_jogviszony || []}
                 munkakorok={munkakorok || []}
                 vezetoNev={vezetoNev}
+              />
+            </div>
+
+            {/* Munkavédelmi és Tűzvédelmi Oktatások */}
+            <div className="space-y-4">
+              <SafetyTrainingEmployeeCard
+                employeeId={profile.id}
+                employeeName={profile.nev}
+                munkakor={activeMunkakor?.megnevezes || null}
+                reszleg={(profile as any)?.hr_szervezeti_egyseg?.nev || null}
+                isHrOrAdmin={isHrOrAdmin}
+                trainings={(safetyTrainingsData as any) || []}
               />
             </div>
 
@@ -533,6 +593,18 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               <StudyContractTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_tanulmanyi_szerzodes || []} />
             </div>
           </TabsContent>
+
+          {/* Havi Bérpapírok & Elszámolások (Mt. 155. §) */}
+          {canViewSalary && (
+            <TabsContent value="berpapirok" className="mt-0 outline-none">
+              <PayslipsTab
+                employeeId={profile.id}
+                employeeName={profile.nev}
+                isHrOrAdmin={isHrOrAdmin}
+                initialPayslips={employeePayslips}
+              />
+            </TabsContent>
+          )}
 
           {/* 4. Bizalmas HR Adatok (Összevont) */}
           {(isHrOrAdmin || ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "")) && (

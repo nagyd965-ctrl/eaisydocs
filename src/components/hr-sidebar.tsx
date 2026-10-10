@@ -49,6 +49,10 @@ const items = [
         url: "/hr/self-service/idp",
       },
       {
+        title: "Bérpapírjaim",
+        url: "/hr/self-service/payroll",
+      },
+      {
         title: "Belső Állások",
         url: "/hr/self-service/career",
       },
@@ -85,6 +89,14 @@ const items = [
       {
         title: "Naptár & Távollét",
         url: "/hr/time",
+      },
+      {
+        title: "Bérszámfejtés & Bérpapírok",
+        url: "/hr/payroll",
+      },
+      {
+        title: "Munkaügyi Megfelelőség",
+        url: "/hr/compliance",
       },
       {
         title: "Riportok",

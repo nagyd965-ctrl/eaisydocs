@@ -1,37 +1,33 @@
-import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { OffboardingList } from "@/components/hr/offboarding-list"
 import { AddOffboardingDialog } from "@/components/hr/add-offboarding-dialog"
-import { redirect } from "next/navigation"
+import { Shield } from "lucide-react"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function OffboardingPage() {
-  const supabase = await createClient()
-  
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"])
+  if (!auth.authorized || !auth.activeCompanyId) {
+    return (
+      <div className="flex items-center justify-center h-[50vh] text-center">
+        <div>
+          <Shield className="w-12 h-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-2xl font-semibold text-destructive mb-2">Hozzáférés Megtagadva</h2>
+          <p className="text-muted-foreground">Nincs jogosultságod a Kiléptetés (Offboarding) modul megtekintéséhez a kiválasztott cégnél.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const { activeCompanyId } = auth
+
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select('hr_szerepkor')
-    .eq("id", user.id)
-    .single()
-
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
-    return (
-      <div className="p-8 text-center text-muted-foreground">
-        Nincs jogosultságod a Kiléptetés (Offboarding) modul megtekintéséhez.
-      </div>
-    )
-  }
-
-  // Offboarding folyamatok (feladatokkal és profilokkal)
+  // Offboarding folyamatok az aktív céghez (feladatokkal és profilokkal)
   const { data: rawOffboardings, error: offError } = await supabaseAdmin
     .from("hr_offboarding")
     .select(`
@@ -44,6 +40,7 @@ export default async function OffboardingPage() {
       ),
       hr_kilepes_interju (*)
     `)
+    .eq("company_id", activeCompanyId)
     .order("created_at", { ascending: false })
 
   if (offError) {
@@ -116,6 +113,7 @@ export default async function OffboardingPage() {
         nev
       )
     `)
+    .eq("company_id", activeCompanyId)
 
   if (empError) {
     console.error("Hiba dolgozók lekérésekor:", empError)
@@ -147,17 +145,21 @@ export default async function OffboardingPage() {
     .filter((emp: any) => emp.nev && !emp.isClosedOffboarding)
     .sort((a: any, b: any) => a.nev.localeCompare(b.nev, "hu"))
 
-  // Kilépési interjúk az összesítő tabhoz
-  const { data: exitInterviews, error: interviewError } = await supabaseAdmin
-    .from("hr_kilepes_interju")
-    .select(`
-      *,
-      hr_offboarding (
-        kilepes_datuma,
-        felhasznalo_profil (nev)
-      )
-    `)
-    .order("created_at", { ascending: false })
+  // Kilépési interjúk az összesítő tabhoz (csak a cég offboardingjaihoz)
+  const offboardingIds = (rawOffboardings || []).map((o: any) => o.id)
+  const { data: exitInterviews, error: interviewError } = offboardingIds.length > 0
+    ? await supabaseAdmin
+        .from("hr_kilepes_interju")
+        .select(`
+          *,
+          hr_offboarding (
+            kilepes_datuma,
+            felhasznalo_profil (nev)
+          )
+        `)
+        .in("offboarding_id", offboardingIds)
+        .order("created_at", { ascending: false })
+    : { data: [], error: null }
 
   if (interviewError) {
     console.error("Hiba exit interjúk lekérésekor:", interviewError)
@@ -171,7 +173,7 @@ export default async function OffboardingPage() {
   }))
 
   return (
-    <div className="space-y-6 pb-10">
+    <div key={activeCompanyId} className="space-y-6 pb-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Kiléptetés (Offboarding)</h1>

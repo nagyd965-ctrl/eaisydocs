@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
+import { checkMedicalValidityForDate } from "@/utils/hr/medical-compliance-checker"
 
 export async function submitLeaveRequest(formData: FormData) {
   const supabase = await createClient()
@@ -497,6 +498,28 @@ export async function toggleCheckIn() {
   if (fetchError && fetchError.code !== "PGRST116") {
     console.error("Jelenlét lekérdezési hiba:", fetchError)
     return { error: "Nem sikerült lekérdezni a jelenlétet." }
+  }
+
+  // Orvosi alkalmasság ellenőrzése becsekkolás előtt (HR-TASK-05, Mvt. 49. §)
+  // Csak becsekkoláskor (új munkakezdés vagy folytatás) ellenőrizzük, a kicsekkolást soha nem blokkoljuk!
+  if (!todayRecord || todayRecord.kicsekkolas_ideje) {
+    const todayStr = new Date().toISOString().split("T")[0]
+    const { data: adatlap } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select("orvosi_alkalmassag_ervenyesseg")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    const medicalCheck = checkMedicalValidityForDate(
+      adatlap?.orvosi_alkalmassag_ervenyesseg,
+      todayStr
+    )
+
+    if (!medicalCheck.isValid) {
+      return {
+        error: medicalCheck.errorMessage || "A becsekkolás sikertelen: Az orvosi alkalmasságod lejárt vagy hiányzik! Kérjük, fordulj a HR-hez!"
+      }
+    }
   }
 
   if (!todayRecord) {

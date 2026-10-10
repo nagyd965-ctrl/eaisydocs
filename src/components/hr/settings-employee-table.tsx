@@ -37,11 +37,11 @@ export function SettingsEmployeeTable({
     return (employees || []).map((emp) => {
       const nev = emp.felhasznalo_profil?.nev || "Ismeretlen"
       const initials = nev.substring(0, 2).toUpperCase()
-      const activeJogviszony = emp.hr_jogviszony?.[0]
-      const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
+      const activeJogviszony = emp.hr_jogviszony?.find((j: any) => !j.kilepes_datuma) || emp.hr_jogviszony?.[0]
+      const activeBeosztas = activeJogviszony?.hr_beosztas?.find((b: any) => !b.ervenyes_ig) || activeJogviszony?.hr_beosztas?.[0]
       const munkakor = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
       const egysegId = (emp.felhasznalo_profil as any)?.hr_szervezeti_egyseg_id
-      const egyseg = (egysegId && orgUnits.find((u: any) => u.id === egysegId)?.nev) || "Nincs besorolva"
+      const egyseg = (egysegId && orgUnits.find((u: any) => u.id === egysegId)?.nev) || (emp.felhasznalo_profil as any)?.hr_szervezeti_egyseg?.nev || "Nincs besorolva"
       const hr_szerepkor = emp.felhasznalo_profil?.hr_szerepkor || "Ismeretlen"
       const belepes = activeJogviszony?.belepes_datuma ? new Date(activeJogviszony.belepes_datuma).toLocaleDateString("hu-HU") : "-"
       const managerId = (emp.felhasznalo_profil as any)?.kozvetlen_vezeto_id

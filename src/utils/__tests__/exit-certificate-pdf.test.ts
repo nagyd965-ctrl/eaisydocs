@@ -54,6 +54,30 @@ test('Törvényes Kilépő Igazolás & Átadás-Átvételi Nyugta (Mt. 80. §)',
     assert.ok(html.includes('HR/2026/00039/1.4'), 'Tartalmaznia kell az iktatószámot')
   })
 
+  await t.test('generateExitCertificateHtml kezeli a levonásokat és végkielégítést', () => {
+    const withLevonasData: ExitCertificatePdfData = {
+      ...sampleData,
+      vanLevonas: true,
+      levonasReszletek: '1402.Vh.894/2024/12 végrehajtói letiltás alapján 33% munkabér letiltás',
+      vegkielegitesOsszeg: 450000,
+      betegszabadsagNapok: 15
+    }
+    const html = generateExitCertificateHtml(withLevonasData)
+    assert.ok(html.includes('1402.Vh.894/2024/12'), 'Tartalmaznia kell a levonás határozatszámát')
+    assert.ok(html.includes('450\u00A0000 Ft') || html.includes('450 000 Ft'), 'Tartalmaznia kell a formázott végkielégítés összeget')
+    assert.ok(html.includes('15 munkanap'), 'Tartalmaznia kell a 15 munkanap betegszabadságot')
+    assert.ok(html.includes('Igen, levonási kötelezettség áll fenn'), 'Tartalmaznia kell az igenlő levonás státuszt')
+  })
+
+  await t.test('generateExitCertificateHtml tartalmazza mind az 5 kötelező hatósági igazolást', () => {
+    const html = generateExitCertificateHtml(sampleData)
+    assert.ok(html.includes('Munkáltatói Igazolás a munkaviszony megszűnésekor'), 'Tartalmazza az 1. igazolást')
+    assert.ok(html.includes('Igazolólap az álláskeresési járadék és segély megállapításához'), 'Tartalmazza a 2. igazolást')
+    assert.ok(html.includes('Jövedelemigazolás egészségbiztosítási ellátás megállapításához'), 'Tartalmazza a 3. igazolást (TB kiskönyv)')
+    assert.ok(html.includes('Adatlap a személyi jövedelemadó és járulékok levonásáról'), 'Tartalmazza a 4. igazolást (NAV adóadatlap)')
+    assert.ok(html.includes('Nyilatkozat a munkabérből történő tartozásokról és bírósági végrehajtói letiltásokról'), 'Tartalmazza az 5. igazolást')
+  })
+
   await t.test('generateExitCertificatePdfBuffer valós PDF buffert hoz létre Puppeteerrel', async () => {
     const buffer = await generateExitCertificatePdfBuffer(sampleData)
     assert.ok(Buffer.isBuffer(buffer), 'Buffernek kell lennie')

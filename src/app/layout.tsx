@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 
 import { createClient } from "@/utils/supabase/server";
 import { CompanyProvider } from "@/contexts/company-context";
-import { getUserCompaniesServer, getActiveCompanyIdServer } from "@/utils/company-server";
+import { getUserCompaniesServer, getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server";
 import type { Company } from "@/types/company";
 
 export default async function RootLayout({
@@ -36,23 +36,22 @@ export default async function RootLayout({
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
+      companies = await getUserCompaniesServer();
+      activeCompanyId = await getActiveCompanyIdServer();
+
+      // Scoped (aktív cégre vonatkozó) szerepkörök feloldása (GDPR / béradat védelem)
+      const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId);
+      docsRole = scopedRoles.docsRole;
+      hrRole = scopedRoles.hrRole;
+
       const { data: profile } = await supabase
         .from("felhasznalo_profil")
-        .select("docs_szerepkor, hr_szerepkor, elerheto_modulok")
+        .select("elerheto_modulok")
         .eq("id", user.id)
         .single();
-      if (profile?.docs_szerepkor) {
-        docsRole = profile.docs_szerepkor;
-      }
-      if (profile?.hr_szerepkor) {
-        hrRole = profile.hr_szerepkor;
-      }
       if (profile?.elerheto_modulok) {
         elerhetoModulok = profile.elerheto_modulok;
       }
-
-      companies = await getUserCompaniesServer();
-      activeCompanyId = await getActiveCompanyIdServer();
     }
   } catch (e) {
     console.error("Error fetching user data in layout:", e);

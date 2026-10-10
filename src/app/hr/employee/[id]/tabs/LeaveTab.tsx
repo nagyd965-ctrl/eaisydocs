@@ -13,13 +13,19 @@ import {
   Archive, 
   FileText, 
   FileCheck, 
-  Loader2 
+  Loader2,
+  ShieldCheck,
+  AlertTriangle,
+  AlertCircle
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
+import { Switch } from "@/components/ui/switch"
 import { HrLeaveRequestDialog } from "@/components/hr/hr-leave-request-dialog"
 import { calculateAnnualLeave } from "@/utils/hr/leave-calculator"
+import { calculate14DayConsecutiveLeave, calculateYearEndLeaveRisk } from "@/utils/hr/leave-compliance-calculator"
+import { toggle14DayWaiverAction } from "@/app/hr/compliance/compliance-actions"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 import { getAnnualLeaveDocument, fileAnnualLeaveSheet } from "../actions"
 
@@ -72,6 +78,56 @@ export function LeaveTab({
   const usedLeave = leaves?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyva").length || 0
   const plannedLeave = leaves?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyasra_var").length || 0
   const remainingLeave = totalLeave - usedLeave
+
+  const [hasWaiver, setHasWaiver] = useState<boolean>(Boolean(adatlap?.eltero_megallapodas_14_nap))
+  const [waiverLoading, setWaiverLoading] = useState<boolean>(false)
+
+  useEffect(() => {
+    setHasWaiver(Boolean(adatlap?.eltero_megallapodas_14_nap))
+  }, [adatlap?.eltero_megallapodas_14_nap])
+
+  const consecutiveLeaveData = useMemo(() => {
+    return calculate14DayConsecutiveLeave(
+      leaves || [],
+      [],
+      [],
+      currentYear,
+      hasWaiver
+    )
+  }, [leaves, currentYear, hasWaiver])
+
+  const yearEndRisk = useMemo(() => {
+    return calculateYearEndLeaveRisk(
+      totalLeave,
+      usedLeave,
+      plannedLeave,
+      [],
+      currentYear,
+      new Date()
+    )
+  }, [totalLeave, usedLeave, plannedLeave, currentYear])
+
+  const handleToggleWaiver = async (checked: boolean) => {
+    if (!isHrOrAdmin) return
+    setWaiverLoading(true)
+    try {
+      const res = await toggle14DayWaiverAction(employeeId, checked)
+      if (res.success) {
+        setHasWaiver(checked)
+        toast.success(
+          checked
+            ? "Eltérő megállapodás rögzítve (14 napos egybefüggő szabadság alóli felmentés)."
+            : "Eltérő megállapodás visszavonva (14 napos kötelezettség érvényben)."
+        )
+      } else {
+        toast.error(res.error || "Hiba történt a beállítás mentésekor.")
+      }
+    } catch (err: any) {
+      toast.error("Váratlan hiba: " + (err?.message || "Ismeretlen hiba"))
+    } finally {
+      setWaiverLoading(false)
+    }
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -131,6 +187,145 @@ export function LeaveTab({
           </CardContent>
         </Card>
       </div>
+
+      {/* Mt. Szabadságkiadási Megfelelőség és Riasztások */}
+      <Card className="border border-border/50">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-primary" />
+                Mt. Szabadságkiadási Megfelelőség ({currentYear})
+              </CardTitle>
+              <CardDescription>
+                Munka Törvénykönyve szerinti 14 napos egybefüggő pihenőidő és év végi szabadságkeret ellenőrzése
+              </CardDescription>
+            </div>
+            <Link
+              href="/hr/compliance"
+              className="text-xs text-primary hover:underline font-medium inline-flex items-center gap-1 self-start sm:self-center"
+            >
+              Vállalati Megfelelőségi Hub &rarr;
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* 14 napos egybefüggő szabadság (Mt. 122. § (3)) */}
+            <div className="rounded-lg border border-border/40 p-3.5 bg-muted/20 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Mt. 122. § (3) – 14 nap egybefüggő
+                </span>
+                {consecutiveLeaveData.isFulfilled ? (
+                  <Badge variant="secondary" className="bg-success/10 text-success border border-success/30 font-medium">
+                    <CheckCircle2 className="w-3 h-3 mr-1" /> Teljesült ({consecutiveLeaveData.maxConsecutiveDays} nap)
+                  </Badge>
+                ) : hasWaiver ? (
+                  <Badge variant="secondary" className="bg-primary/10 text-primary border border-primary/30 font-medium">
+                    <ShieldCheck className="w-3 h-3 mr-1" /> Eltérő megállapodás
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive" className="font-medium">
+                    <AlertTriangle className="w-3 h-3 mr-1" /> Hiányzik ({consecutiveLeaveData.maxConsecutiveDays}/14 nap)
+                  </Badge>
+                )}
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                {consecutiveLeaveData.isFulfilled ? (
+                  <>
+                    Leghosszabb egybefüggő pihenőtartam: <strong className="text-foreground tabular-nums">{consecutiveLeaveData.maxConsecutiveDays} naptári nap</strong>
+                    {consecutiveLeaveData.longestBlock && (
+                      <span className="block mt-0.5 tabular-nums">
+                        ({consecutiveLeaveData.longestBlock.startDate} – {consecutiveLeaveData.longestBlock.endDate})
+                      </span>
+                    )}
+                  </>
+                ) : hasWaiver ? (
+                  <>
+                    A munkáltató és a munkavállaló írásban megállapodott a 14 naptári napos egybefüggő pihenőtartam mellőzéséről. 
+                    Eddigi leghosszabb: <span className="tabular-nums font-medium text-foreground">{consecutiveLeaveData.maxConsecutiveDays} nap</span>.
+                  </>
+                ) : (
+                  <>
+                    A munkavállaló részére a naptári évben legalább 14 egybefüggő naptári nap munkavégzés alóli mentesülés még nincs kiadva vagy jóváhagyva.
+                    Eddigi leghosszabb: <span className="tabular-nums font-medium text-foreground">{consecutiveLeaveData.maxConsecutiveDays} nap</span>.
+                  </>
+                )}
+              </p>
+
+              {isHrOrAdmin && (
+                <div className="pt-2 border-t border-border/40 flex items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <label htmlFor="waiver-switch" className="text-xs font-medium cursor-pointer">
+                      Eltérő megállapodás (Mt. 122. § (3))
+                    </label>
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      Felmentés a 14 nap egybefüggő kiadás alól
+                    </p>
+                  </div>
+                  <Switch
+                    id="waiver-switch"
+                    checked={hasWaiver}
+                    disabled={waiverLoading}
+                    onCheckedChange={handleToggleWaiver}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Év végi maradványszabadság kockázat (Mt. 123. §) */}
+            <div className="rounded-lg border border-border/40 p-3.5 bg-muted/20 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Mt. 123. § – Év végi maradvány
+                </span>
+                {yearEndRisk.riskLevel === "kritikus" ? (
+                  <Badge variant="destructive" className="font-medium">
+                    <AlertCircle className="w-3 h-3 mr-1" /> Kritikus kockázat
+                  </Badge>
+                ) : yearEndRisk.riskLevel === "figyelmeztetes" ? (
+                  <Badge variant="secondary" className="bg-warning/10 text-warning border border-warning/30 font-medium">
+                    <AlertTriangle className="w-3 h-3 mr-1" /> Q4 Riasztás
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="bg-success/10 text-success border border-success/30 font-medium">
+                    <CheckCircle2 className="w-3 h-3 mr-1" /> Ütemezés rendben
+                  </Badge>
+                )}
+              </div>
+
+              <div className="text-xs space-y-1">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Fennmaradó szabadság:</span>
+                  <span className="font-semibold text-foreground tabular-nums">{yearEndRisk.remainingDays} nap</span>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Évből hátralévő munkanapok:</span>
+                  <span className="font-semibold text-foreground tabular-nums">{yearEndRisk.remainingWorkingDays} nap</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground pt-1 border-t border-border/40">
+                {yearEndRisk.riskLevel === "kritikus" ? (
+                  <span className="text-destructive font-medium">
+                    Kritikus: A fennmaradó szabadságnapok száma ({yearEndRisk.remainingDays}) meghaladja a még hátralévő munkanapokat ({yearEndRisk.remainingWorkingDays})! A szabadságok teljes kiadása a tárgyévben nem lehetséges.
+                  </span>
+                ) : yearEndRisk.riskLevel === "figyelmeztetes" ? (
+                  <span className="text-warning-foreground dark:text-warning font-medium">
+                    Figyelem (Novemberi riasztás): {yearEndRisk.remainingDays} nap szabadság vár kiadásra az év végéig. Javasolt a kiadási terv azonnali elkészítése.
+                  </span>
+                ) : (
+                  <span>
+                    A szabadságkiadási ütemterv a naptári év végéig biztosított. A fennmaradó napok aránya nem haladja meg a hátralévő munkanapokat.
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Távollét Történet */}
       <Card className="border border-border/50">

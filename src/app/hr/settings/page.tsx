@@ -28,6 +28,8 @@ import { Bell } from "lucide-react"
 import { updateProfile } from "@/app/settings/settings-actions"
 import { AvatarUploadSection } from "./avatar-upload"
 import { CompanySettingsTab } from "@/components/settings/company-settings-tab"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { resolveUserCompanyRoles } from "@/utils/hr/company-role-resolver"
 
 export default async function HrSettingsPage() {
   const supabase = await createClient()
@@ -35,17 +37,19 @@ export default async function HrSettingsPage() {
 
   if (!user) redirect("/auth/login")
 
-  const { data: mfaData } = await supabase.auth.mfa.listFactors()
-  const totpFactor = mfaData?.totp?.find((f: any) => f.status === "verified") ?? null
-
-  // Biztonsági ellenőrzés
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
     .select('*')
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin"].includes(profile?.hr_szerepkor || "")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const { hrRole, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
+  const { data: mfaData } = await supabase.auth.mfa.listFactors()
+  const totpFactor = mfaData?.totp?.find((f: any) => f.status === "verified") ?? null
+
+  const isHrOrAdmin = isCompanyAdmin || ["hr_munkatars", "hr_vezeto", "admin"].includes(hrRole)
 
   let employees: any[] = []
   let orgUnits: any[] = []
@@ -59,14 +63,28 @@ export default async function HrSettingsPage() {
   let rootOrgUnits: OrgUnitNode[] = []
 
   if (isHrOrAdmin) {
-    // 1. Összes dolgozó lekérése
-    const { data: fetchedEmployees, error: employeesError } = await supabase
+    let companyUserIds: string[] = []
+    const companyMembersMap = new Map<string, { role: string; hr_szerepkor: string | null }>()
+    if (activeCompanyId) {
+      const { data: members } = await supabase
+        .from("company_members")
+        .select("user_id, role, hr_szerepkor")
+        .eq("company_id", activeCompanyId)
+      companyUserIds = (members || []).map((m: any) => m.user_id)
+      members?.forEach((m: any) => {
+        companyMembersMap.set(m.user_id, { role: m.role, hr_szerepkor: m.hr_szerepkor })
+      })
+    }
+
+    // 1. Összes dolgozó lekérése (az aktív cég tagjai alapján)
+    let empQuery = supabase
       .from("hr_dolgozo_adatlap")
       .select(`
         *,
         felhasznalo_profil (
           nev,
           hr_szerepkor,
+          docs_szerepkor,
           hr_szervezeti_egyseg_id,
           kozvetlen_vezeto_id,
           hr_szervezeti_egyseg (nev)
@@ -74,6 +92,7 @@ export default async function HrSettingsPage() {
         hr_jogviszony (
           id,
           belepes_datuma,
+          kilepes_datuma,
           hr_beosztas (
             id,
             berkategoria,
@@ -85,17 +104,57 @@ export default async function HrSettingsPage() {
       `)
       .order("created_at", { ascending: false })
 
+    if (activeCompanyId) {
+      if (companyUserIds.length > 0) {
+        empQuery = empQuery.in("id", companyUserIds)
+      } else {
+        empQuery = empQuery.in("id", ["00000000-0000-0000-0000-000000000000"])
+      }
+    }
+
+    const { data: fetchedEmployees, error: employeesError } = await empQuery
+
     if (employeesError) {
       console.error("EMPLOYEES QUERY ERROR:", employeesError)
     } else if (fetchedEmployees) {
-      employees = fetchedEmployees
+      employees = fetchedEmployees.map((emp: any) => {
+        const memberInfo = companyMembersMap.get(emp.id)
+        if (memberInfo) {
+          const resolved = resolveUserCompanyRoles(
+            {
+              companyId: activeCompanyId || "",
+              role: memberInfo.role,
+              hr_szerepkor: memberInfo.hr_szerepkor,
+            },
+            {
+              id: emp.id,
+              hr_szerepkor: emp.felhasznalo_profil?.hr_szerepkor,
+              docs_szerepkor: emp.felhasznalo_profil?.docs_szerepkor,
+            }
+          )
+          return {
+            ...emp,
+            felhasznalo_profil: {
+              ...emp.felhasznalo_profil,
+              hr_szerepkor: resolved.hrRole,
+            }
+          }
+        }
+        return emp
+      })
     }
 
-    // --- SZERVEZETI ÁBRA LOGIKA (szervezeti egység-alapú fa) ---
-    const { data: fetchedOrgUnits } = await supabase
+    // --- SZERVEZETI ÁBRA LOGIKA (szervezeti egység-alapú fa, cégre szűrve) ---
+    let orgQuery = supabase
       .from("hr_szervezeti_egyseg")
       .select("id, nev, szulo_id")
       .order("nev")
+
+    if (activeCompanyId) {
+      orgQuery = orgQuery.eq("company_id", activeCompanyId)
+    }
+
+    const { data: fetchedOrgUnits } = await orgQuery
     if (fetchedOrgUnits) orgUnits = fetchedOrgUnits
 
     // Szabályok lekérése az értesítésekhez
@@ -111,7 +170,7 @@ export default async function HrSettingsPage() {
       employees.forEach(emp => {
         const p = emp.felhasznalo_profil as any
         const unitId = p?.hr_szervezeti_egyseg_id
-        if (!unitId) return // Ha nincs egységhez rendelve, nem jelenik meg az ábrán
+        if (!unitId) return
 
         const activeJogviszony = Array.isArray(emp.hr_jogviszony) ? emp.hr_jogviszony[0] : emp.hr_jogviszony
         const activeBeosztas = Array.isArray(activeJogviszony?.hr_beosztas) ? activeJogviszony.hr_beosztas[0] : activeJogviszony?.hr_beosztas
@@ -129,26 +188,41 @@ export default async function HrSettingsPage() {
     // Fa összeállítása a buildOrgTree segédfüggvénnyel
     rootOrgUnits = buildOrgTree(orgUnits || [], dolgozokByUnit)
 
-    // Munkakörök lekérése a katalógushoz
-    const { data: fetchedDbJobs } = await supabase
+    // Munkakörök lekérése a katalógushoz (cégre szűrve)
+    let dbJobsQuery = supabase
       .from("hr_munkakor")
       .select(`
         *,
         hr_beosztas ( id, ervenyes_ig )
       `)
       .order("created_at", { ascending: false })
+
+    if (activeCompanyId) {
+      dbJobsQuery = dbJobsQuery.eq("company_id", activeCompanyId)
+    }
+
+    const { data: fetchedDbJobs } = await dbJobsQuery
     if (fetchedDbJobs) dbJobs = fetchedDbJobs
 
-    // 2. Összes elérhető munkakör lekérése (A szerkesztő ablakhoz)
-    const { data: fetchedJobs } = await supabase
+    // 2. Összes elérhető munkakör lekérése (cégre szűrve)
+    let jobsQuery = supabase
       .from("hr_munkakor")
       .select("id, megnevezes")
       .order("megnevezes")
+
+    if (activeCompanyId) {
+      jobsQuery = jobsQuery.eq("company_id", activeCompanyId)
+    }
+
+    const { data: fetchedJobs } = await jobsQuery
     if (fetchedJobs) jobs = fetchedJobs
 
-    // 3. Olyan felhasználók lekérése, akik nincsenek benne a hr_dolgozo_adatlap-ban
-    // hr_szervezeti_egyseg_id is kell a helyes count-hoz a táblában
-    const { data: fetchedAllUsers } = await supabase.from("felhasznalo_profil").select("id, nev, hr_szervezeti_egyseg_id")
+    // 3. Olyan felhasználók lekérése, akik nincsenek benne a hr_dolgozo_adatlap-ban (csak az aktív cég tagjai)
+    let allUsersQuery = supabase.from("felhasznalo_profil").select("id, nev, hr_szervezeti_egyseg_id")
+    if (activeCompanyId && companyUserIds.length > 0) {
+      allUsersQuery = allUsersQuery.in("id", companyUserIds)
+    }
+    const { data: fetchedAllUsers } = await allUsersQuery
     if (fetchedAllUsers) allUsers = fetchedAllUsers
     const assignedIds = employees?.map(e => e.id) || []
     unassignedUsers = allUsers?.filter(u => !assignedIds.includes(u.id)) || []
@@ -158,12 +232,18 @@ export default async function HrSettingsPage() {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Kizárólag az eaisyDocs (iratkezelő) fiókokat kérjük le a meglévő fiók választóhoz
-    const { data: docsProfiles } = await supabaseAdmin
+    // Kizárólag az eaisyDocs fiókokat kérjük le
+    let docsQuery = supabaseAdmin
       .from("felhasznalo_profil")
       .select("id, nev, docs_szerepkor, szerepkor, elerheto_modulok")
       .contains("elerheto_modulok", ["docs"])
       .order("nev", { ascending: true })
+
+    if (activeCompanyId && companyUserIds.length > 0) {
+      docsQuery = docsQuery.in("id", companyUserIds)
+    }
+
+    const { data: docsProfiles } = await docsQuery
 
     const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
     const emailMap = new Map(authUsers?.users?.map(u => [u.id, u.email]) || [])
@@ -176,18 +256,24 @@ export default async function HrSettingsPage() {
       isAlreadyAssigned: assignedIds.includes(u.id)
     }))
 
-    // 4. Toborzásból (ATS) elfogadott jelentkezők lekérése
-    const { data: elfogadottJelentkezok } = await supabaseAdmin
+    // 4. Toborzásból (ATS) elfogadott jelentkezők lekérése (cégre szűrve)
+    let toborzasQuery = supabaseAdmin
       .from("hr_toborzas")
       .select("id, nev, email, megpalyazott_munkakor_id")
       .eq("statusz", "elfogadva")
+
+    if (activeCompanyId) {
+      toborzasQuery = toborzasQuery.eq("company_id", activeCompanyId)
+    }
+
+    const { data: elfogadottJelentkezok } = await toborzasQuery
       
     const userEmails = authUsers?.users?.map(u => u.email) || []
     availableCandidates = elfogadottJelentkezok?.filter(j => !userEmails.includes(j.email)) || []
   }
 
   return (
-    <div className="space-y-6">
+    <div key={activeCompanyId || "default"} className="space-y-6">
       <div className="flex items-center space-x-2 mb-2">
         <h2 className="text-3xl font-semibold tracking-tight">Beállítások</h2>
         <Info className="h-5 w-5 text-muted-foreground" />

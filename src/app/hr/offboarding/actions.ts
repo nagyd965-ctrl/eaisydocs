@@ -320,6 +320,19 @@ export async function closeOffboarding(offboardingId: string) {
 
   const employeeName = offboarding.felhasznalo_profil?.nev || "Munkatárs"
 
+  // 0. Fail-Safe: Ha a törvényes kilépő igazolás még nem készült el, automatikusan előállítjuk a meglévő adatokkal (Mt. 80. §)
+  let kilepoPdfUrl = offboarding.kilepo_igazolas_pdf_url
+  if (!kilepoPdfUrl) {
+    try {
+      const autoCertRes = await generateExitCertificateAction(offboardingId, {})
+      if (autoCertRes.success && autoCertRes.storagePath) {
+        kilepoPdfUrl = autoCertRes.storagePath
+      }
+    } catch (certErr) {
+      console.error("Hiba az automatikus kilépő igazolás generálásakor lezáráskor:", certErr)
+    }
+  }
+
   // 1. Összegyűjtjük az offboarding során keletkezett, még be nem iktatott dokumentumokat
   const docMap = new Map<string, { id: string; nev: string; kategoria: string; url: string }>()
 
@@ -328,7 +341,7 @@ export async function closeOffboarding(offboardingId: string) {
     offboarding.szerzodes_pdf_url,
     offboarding.eszkoz_elszamolas_pdf_url,
     offboarding.t1041_nyugta_url,
-    offboarding.kilepo_igazolas_pdf_url
+    kilepoPdfUrl
   ].filter(Boolean)
 
   if (urlsToCheck.length > 0) {
@@ -675,6 +688,18 @@ export async function getOffboardingDetailData(offboardingId: string) {
       .or(`offboarding_id.eq.${offboardingId},dolgozo_id.eq.${offboarding.dolgozo_id}`)
       .order("created_at", { ascending: false })
 
+    // Tárgyévi jóváhagyott betegszabadság napok lekérése (Mt. 126. §)
+    const currentYear = new Date().getFullYear()
+    const { data: sickLeaves } = await adminClient
+      .from("hr_tavollet")
+      .select("napok_szama")
+      .eq("dolgozo_id", offboarding.dolgozo_id)
+      .eq("tipus", "betegszabadsag")
+      .eq("statusz", "jovahagyva")
+      .gte("kezdet", `${currentYear}-01-01`)
+
+    const targyeviBetegszabadsagNapok = (sickLeaves || []).reduce((acc: number, curr: any) => acc + (Number(curr.napok_szama) || 0), 0)
+
     // Kapcsolódó dokumentumok lekérése a hr_dokumentum táblából (iktatási metaadatokkal)
     const { data: hrDocs } = await adminClient
       .from("hr_dokumentum")
@@ -810,7 +835,8 @@ export async function getOffboardingDetailData(offboardingId: string) {
       t1041: t1041Records?.[0] || null,
       terminationDoc,
       assetReturnDoc,
-      kilepoIgazolasDoc
+      kilepoIgazolasDoc,
+      targyeviBetegszabadsagNapok
     }
 
     return {
@@ -1265,28 +1291,50 @@ export async function generateExitCertificateAction(
 
   const employeeName = payload.employeeName || offboarding.felhasznalo_profil?.nev || "Munkavállaló"
 
+  // Dolgozó adatlap lekérése ha hiányoznak a személyes adatok
+  const { data: adatlap } = await adminClient
+    .from("hr_dolgozo_adatlap")
+    .select("*")
+    .eq("felhasznalo_id", offboarding.dolgozo_id)
+    .maybeSingle()
+
+  // Tárgyévi betegszabadság automatikus feloldása ha nem lett manuálisan megadva
+  let resolvedBetegszabi = payload.betegszabadsagNapok
+  if (resolvedBetegszabi === undefined || resolvedBetegszabi === null) {
+    const currentYear = new Date().getFullYear()
+    const { data: sickLeaves } = await adminClient
+      .from("hr_tavollet")
+      .select("napok_szama")
+      .eq("dolgozo_id", offboarding.dolgozo_id)
+      .eq("tipus", "betegszabadsag")
+      .eq("statusz", "jovahagyva")
+      .gte("kezdet", `${currentYear}-01-01`)
+
+    resolvedBetegszabi = (sickLeaves || []).reduce((acc: number, curr: any) => acc + (Number(curr.napok_szama) || 0), 0)
+  }
+
   // 1. PDF Adatok összeállítása
   const pdfData: ExitCertificatePdfData = {
     employeeName,
     employeeId: offboarding.dolgozo_id,
     offboardingId,
-    munkakor: payload.munkakor || offboarding.munkakor || "Munkavállaló",
-    feorKod: payload.feorKod || null,
+    munkakor: payload.munkakor || offboarding.munkakor || adatlap?.munkakor || "Munkavállaló",
+    feorKod: payload.feorKod || adatlap?.feor_kod || adatlap?.feor || null,
     reszleg: payload.reszleg || offboarding.reszleg || null,
-    szuletesiHely: payload.szuletesiHely || null,
-    szuletesiDatum: payload.szuletesiDatum || null,
-    anyjaNeve: payload.anyjaNeve || null,
-    lakcim: payload.lakcim || null,
-    adoazonosito: payload.adoazonosito || null,
-    tajSzam: payload.tajSzam || null,
-    jogviszonyKezdete: payload.jogviszonyKezdete || null,
+    szuletesiHely: payload.szuletesiHely || adatlap?.szuletesi_hely || null,
+    szuletesiDatum: payload.szuletesiDatum || adatlap?.szuletesi_datum || null,
+    anyjaNeve: payload.anyjaNeve || adatlap?.anyja_szuletesi_neve || adatlap?.anyja_neve || null,
+    lakcim: payload.lakcim || adatlap?.allando_lakcim || adatlap?.lakcim || null,
+    adoazonosito: payload.adoazonosito || adatlap?.adoazonosito_jel || adatlap?.adoazonosito || null,
+    tajSzam: payload.tajSzam || adatlap?.taj_szam || null,
+    jogviszonyKezdete: payload.jogviszonyKezdete || adatlap?.belepes_datuma || adatlap?.jogviszony_kezdete || null,
     jogviszonyVege: payload.jogviszonyVege || offboarding.kilepes_datuma || new Date().toISOString().split("T")[0],
     megszunesModja: offboarding.megszunes_modja || "kozos_megegyezes",
     megszunesModjaLabel: payload.megszunesModjaLabel || (TERMINATION_TYPE_LABELS[offboarding.megszunes_modja as TerminationType] || "Közös megegyezés (Mt. 64. § (1) bek. a) pont)"),
     levonasok: payload.levonasok || "A munkavállaló munkabérét végrehajtói vagy egyéb bírósági letiltás, gyermektartásdíj nem terheli.",
     vanLevonas: Boolean(payload.vanLevonas),
     levonasReszletek: payload.levonasReszletek || null,
-    betegszabadsagNapok: Number(payload.betegszabadsagNapok || 0),
+    betegszabadsagNapok: Number(resolvedBetegszabi || 0),
     vegkielegitesOsszeg: Number(payload.vegkielegitesOsszeg ?? offboarding.vegkielegites_osszeg ?? 0),
     atvetelModja: payload.atvetelModja || "szemelyes",
     postaiAzonosito: payload.postaiAzonosito || null,

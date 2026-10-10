@@ -9,6 +9,8 @@ import Link from "next/link"
 import { SubstituteAlertBanner } from "@/components/hr/substitute-alert-banner"
 import { UnifiedApprovalsPanel, type UnifiedApprovalItem } from "@/components/hr/unified-approvals-panel"
 
+import { getActiveCompanyIdServer } from "@/utils/company-server"
+
 export default async function ManagerPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -17,22 +19,39 @@ export default async function ManagerPage() {
     redirect("/auth/login")
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+  let companyUserIds: string[] = []
+  if (activeCompanyId) {
+    const { data: members } = await supabase
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", activeCompanyId)
+    companyUserIds = (members || []).map((m: any) => m.user_id)
+  }
+  const companyUserSet = new Set(companyUserIds)
+
   const todayStr = new Date().toISOString().split("T")[0]
 
-  // 1. Közvetlen beosztottak ID-jainak lekérése
+  // 1. Közvetlen beosztottak ID-jainak lekérése (csak az aktív cég tagjai)
   const { data: teamProfiles } = await supabase
     .from("felhasznalo_profil")
     .select("id")
     .eq("kozvetlen_vezeto_id", user.id)
 
-  const teamMemberIds = (teamProfiles || []).map((p: any) => p.id)
+  const teamMemberIds = (teamProfiles || [])
+    .map((p: any) => p.id)
+    .filter((id: string) => !activeCompanyId || companyUserSet.has(id))
 
-  // 2. Jóváhagyásra váró távolléti kérelmek (direkt szignált VAGY beosztott kérelme)
-  const pendingLeavesQuery = supabase
+  // 2. Jóváhagyásra váró távolléti kérelmek (direkt szignált VAGY beosztott kérelme, az aktív cégnél)
+  let pendingLeavesQuery = supabase
     .from("hr_tavollet")
     .select("*, hr_dolgozo_adatlap(felhasznalo_profil(nev))")
     .eq("statusz", "jovahagyasra_var")
     .order("created_at", { ascending: false })
+
+  if (activeCompanyId) {
+    pendingLeavesQuery = pendingLeavesQuery.eq("company_id", activeCompanyId)
+  }
 
   const { data: pendingLeaves } = teamMemberIds.length > 0
     ? await pendingLeavesQuery.or(
@@ -40,12 +59,16 @@ export default async function ManagerPage() {
       )
     : await pendingLeavesQuery.eq("aktualis_jovahagyo_id", user.id)
 
-  // 3. Jóváhagyásra váró munkaidő korrekciók (vezető jóváhagyása vagy beosztott kérelme)
-  const pendingCorrectionsQuery = supabase
+  // 3. Jóváhagyásra váró munkaidő korrekciók (vezető jóváhagyása vagy beosztott kérelme, az aktív cégnél)
+  let pendingCorrectionsQuery = supabase
     .from("hr_jelenlet_korrekcio")
     .select("*, felhasznalo_profil:dolgozo_id(nev)")
     .eq("statusz", "jovahagyasra_var")
     .order("created_at", { ascending: false })
+
+  if (activeCompanyId) {
+    pendingCorrectionsQuery = pendingCorrectionsQuery.eq("company_id", activeCompanyId)
+  }
 
   const { data: pendingCorrections } = teamMemberIds.length > 0
     ? await pendingCorrectionsQuery.or(
@@ -54,13 +77,18 @@ export default async function ManagerPage() {
     : await pendingCorrectionsQuery.eq("jovahagyo_id", user.id)
 
   // 4. Jóváhagyásra váró túlóra kérelmek
+  let pendingOvertimesQuery = supabase
+    .from("hr_tulora_felhasznalás")
+    .select("*, felhasznalo_profil:dolgozo_id(nev)")
+    .eq("statusz", "jovahagyasra_var")
+    .order("created_at", { ascending: false })
+
+  if (activeCompanyId) {
+    pendingOvertimesQuery = pendingOvertimesQuery.eq("company_id", activeCompanyId)
+  }
+
   const { data: pendingOvertimes } = teamMemberIds.length > 0
-    ? await supabase
-        .from("hr_tulora_felhasznalás")
-        .select("*, felhasznalo_profil:dolgozo_id(nev)")
-        .in("dolgozo_id", teamMemberIds)
-        .eq("statusz", "jovahagyasra_var")
-        .order("created_at", { ascending: false })
+    ? await pendingOvertimesQuery.in("dolgozo_id", teamMemberIds)
     : { data: [] }
 
   // 5. Egységes kérelmi lista összeállítása
@@ -104,13 +132,19 @@ export default async function ManagerPage() {
 
   const totalPendingCount = unifiedItems.length
 
-  // 6. Mai távollétek a valós státuszhoz
-  const { data: todayLeaves } = await supabase
+  // 6. Mai távollétek a valós státuszhoz (aktív cégre szűrve)
+  let todayLeavesQuery = supabase
     .from("hr_tavollet")
     .select("dolgozo_id, statusz")
     .lte("kezdet_datuma", todayStr)
     .gte("veg_datuma", todayStr)
     .in("statusz", ["jovahagyva", "jovahagyasra_var"])
+
+  if (activeCompanyId) {
+    todayLeavesQuery = todayLeavesQuery.eq("company_id", activeCompanyId)
+  }
+
+  const { data: todayLeaves } = await todayLeavesQuery
 
   const todayAbsentIds = new Set(
     (todayLeaves || []).filter(l => l.statusz === "jovahagyva").map(l => l.dolgozo_id)
@@ -119,15 +153,21 @@ export default async function ManagerPage() {
     (todayLeaves || []).filter(l => l.statusz === "jovahagyasra_var").map(l => l.dolgozo_id)
   )
 
-  // 7. Összes kérelem a naptárhoz
-  const { data: allLeaves } = await supabase
+  // 7. Összes kérelem a naptárhoz (aktív cégre szűrve)
+  let allLeavesQuery = supabase
     .from("hr_tavollet")
     .select("*")
     .neq("statusz", "elutasitva")
     .order("kezdet_datuma", { ascending: true })
 
-  // 8. Csapat (Közvetlen beosztottak) lekérése
-  const { data: rawTeamMembers } = await supabase
+  if (activeCompanyId) {
+    allLeavesQuery = allLeavesQuery.eq("company_id", activeCompanyId)
+  }
+
+  const { data: allLeaves } = await allLeavesQuery
+
+  // 8. Csapat (Közvetlen beosztottak) lekérése (aktív cégre szűrve)
+  let rawTeamQuery = supabase
     .from("hr_jogviszony")
     .select(`
       dolgozo_id,
@@ -135,6 +175,12 @@ export default async function ManagerPage() {
       hr_beosztas(hr_munkakor(megnevezes))
     `)
     .eq("hr_dolgozo_adatlap.felhasznalo_profil.kozvetlen_vezeto_id", user.id)
+
+  if (activeCompanyId) {
+    rawTeamQuery = rawTeamQuery.eq("company_id", activeCompanyId)
+  }
+
+  const { data: rawTeamMembers } = await rawTeamQuery
 
   const teamMemberMap = new Map<string, any>()
   for (const j of (rawTeamMembers as any[]) || []) {
@@ -150,7 +196,7 @@ export default async function ManagerPage() {
   const todayAbsentCount = teamMembers.filter(m => todayAbsentIds.has(m.id)).length
 
   return (
-    <div className="space-y-6 pb-10">
+    <div key={activeCompanyId || "default"} className="space-y-6 pb-10">
 
       {/* Fejléc */}
       <div className="flex items-end justify-between">

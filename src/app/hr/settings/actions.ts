@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export async function createMunkakor(formData: FormData) {
   const supabase = await createClient()
@@ -11,6 +12,8 @@ export async function createMunkakor(formData: FormData) {
   if (!user) {
     return { error: "Nincs bejelentkezve" }
   }
+
+  const activeCompanyId = await getActiveCompanyIdServer()
 
   const megnevezes = formData.get("megnevezes") as string
   const feor_kod = formData.get("feor_kod") as string
@@ -46,7 +49,8 @@ export async function createMunkakor(formData: FormData) {
         feladatok_es_hataskorok: feladatokArray,
         elvart_kompetenciak: kompetenciakArray,
         orvosi_vizsgalat_tipus: orvosi_tipus || null,
-        orvosi_vizsgalat_gyakorisag_ho: orvosi_ho ? parseInt(orvosi_ho, 10) : null
+        orvosi_vizsgalat_gyakorisag_ho: orvosi_ho ? parseInt(orvosi_ho, 10) : null,
+        company_id: activeCompanyId || null
       }
     ])
     .select()
@@ -121,6 +125,16 @@ export async function updateEmployeeInfo(formData: FormData) {
       .eq("id", employeeId)
 
     if (profileError) return { error: "Hiba a profil frissítésekor: " + profileError.message }
+
+    // Ha szerepkört módosítottak és van aktív cég, a cégtagsági szerepkört is szinkronizáljuk
+    const activeCompanyId = await getActiveCompanyIdServer()
+    if (activeCompanyId && role) {
+      await supabaseAdmin
+        .from("company_members")
+        .update({ hr_szerepkor: role })
+        .eq("company_id", activeCompanyId)
+        .eq("user_id", employeeId)
+    }
   }
 
   if (jogviszonyId) {
@@ -285,14 +299,21 @@ export async function createHrDepartment(formData: FormData) {
   const nev = formData.get("nev") as string
   if (!nev) return { error: "Név megadása kötelező!" }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   const supabaseAdmin = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  const insertData: any = { nev }
+  if (activeCompanyId) {
+    insertData.company_id = activeCompanyId
+  }
+
   const { error } = await supabaseAdmin
     .from("hr_szervezeti_egyseg")
-    .insert({ nev })
+    .insert(insertData)
 
   if (error) {
     return { error: error.message }

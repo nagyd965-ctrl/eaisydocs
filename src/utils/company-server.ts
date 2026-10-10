@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 import { createClient } from "@/utils/supabase/server"
 import type { Company } from "@/types/company"
+import { resolveUserCompanyRoles, type ResolvedCompanyRoles } from "@/utils/hr/company-role-resolver"
 
 export const SELECTED_COMPANY_COOKIE = "eaisydocs_selected_company_id"
 
@@ -70,3 +71,49 @@ export async function getActiveCompanyServer(): Promise<Company | null> {
   const companies = await getUserCompaniesServer()
   return companies.find(c => c.id === activeId) || null
 }
+
+/**
+ * Lekéri a bejelentkezett felhasználó aktív cégre vonatkozó cég-specifikus (scoped) szerepköreit.
+ * A company_members és felhasznalo_profil alapján feloldja a valós docsRole és hrRole értékeket.
+ */
+export async function getActiveCompanyMemberRolesServer(targetCompanyId?: string | null): Promise<ResolvedCompanyRoles> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return resolveUserCompanyRoles(null, null)
+  }
+
+  const activeId = targetCompanyId || (await getActiveCompanyIdServer())
+  if (!activeId) {
+    return resolveUserCompanyRoles(null, null)
+  }
+
+  // 1. Lekérjük a cégtagsági rekordot
+  const { data: membership } = await supabase
+    .from("company_members")
+    .select("company_id, role, docs_szerepkor, hr_szerepkor")
+    .eq("user_id", user.id)
+    .eq("company_id", activeId)
+    .maybeSingle()
+
+  // 2. Lekérjük a globális profilt a fallbackhez
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("id, docs_szerepkor, hr_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  return resolveUserCompanyRoles(
+    membership
+      ? {
+          companyId: membership.company_id,
+          role: membership.role,
+          docs_szerepkor: membership.docs_szerepkor,
+          hr_szerepkor: membership.hr_szerepkor,
+        }
+      : null,
+    profile
+  )
+}
+

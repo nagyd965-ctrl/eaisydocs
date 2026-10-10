@@ -214,6 +214,10 @@ export async function generateAndFileSafetyTrainingAction(params: {
     }
 
     // 6. Bejegyzés a hr_munkavedelmi_oktatas táblába
+    const expDate = new Date(oktatasDatuma)
+    expDate.setFullYear(expDate.getFullYear() + 1)
+    const ervenyessegVege = expDate.toISOString().split("T")[0]
+
     const { data: trainingRecord, error: trainingErr } = await adminClient
       .from("hr_munkavedelmi_oktatas")
       .insert({
@@ -221,6 +225,7 @@ export async function generateAndFileSafetyTrainingAction(params: {
         onboarding_id: params.onboardingId || null,
         oktatas_tipusa: params.oktatasTipusa || "elozetes_munkaba_allasi",
         oktatas_datuma: oktatasDatuma,
+        ervenyesseg_vege: ervenyessegVege,
         oktato_neve: params.oktatoNeve,
         oktato_beosztasa: params.oktatoBeosztasa || "Munkavédelmi és Tűzvédelmi Megbízott",
         tematika: trainingTopics,

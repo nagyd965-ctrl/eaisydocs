@@ -2,7 +2,180 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
-## [Unreleased] – Fejlesztés alatt (2026-10-09)
+## [Unreleased] – Fejlesztés alatt (2026-10-10)
+
+### 🏢 eaisyHR: Többcég-kezelés és Szigorú GDPR/Béradat Izoláció (HR-TASK-08)
+- **Törvényi és adatvédelmi háttér (GDPR 5. cikk, 32. cikk):**
+  - Többvállalatos holding struktúrában kritikus követelmény az adatelkülönítés (multi-tenancy isolation). Egy munkavállaló személyes, bér- és távolléti adatai szigorúan csak ahhoz a jogi személyhez tartozhatnak, amellyel munkaviszonyban áll.
+  - Feloldásra került a cégcsoportos HR dilemma: a modern architektúra natívan támogatja mind a központi/holding HR-es modellt, mind az önálló leányvállalati dedikált HR-es modellt a `company_members` táblához kötött `hr_szerepkor` és `docs_szerepkor` feloldással.
+  - Megszűnt a Kettős Szerepkör (Dual-Role) biztonsági rése: ha egy felhasználó az "A" cégben HR vezető, de a "B" cégben egyszerű munkavállaló, a rendszer cégváltáskor azonnal a célcégbeli jogosultságaira állítja a felhasználót, megelőzve az illetéktelen béradat-betekintést.
+- **Dinamikus Szerepkör-feloldó és Védelmi Motor (`src/utils/hr/`):**
+  - `company-role-resolver.ts`: Tiszta függvénykönyvtár (`resolveUserCompanyRoles`, `validateEmployeeCompanyAccess`, `isUserAuthorizedForHrView`). Elsőbbséget ad a `company_members` tagsági szerepkörnek a globális profillal szemben, automatikusan érvényesíti az admin/owner jogosultságokat, és nem tagság esetén azonnali elutasítást ad (`none`).
+  - `company-server.ts`: Kiegészítve az `getActiveCompanyMemberRolesServer` szerveroldali segédfüggvénnyel, amely Next.js Server Components és Server Actions környezetben feloldja az aktív céghez tartozó scoped szerepköröket.
+  - `hr-auth-guard.ts`: `requireHrAuthServer(allowedRoles, fallbackRedirect)` egységes védelmi kapu átirányítási és inline hiba-kezelési támogatással.
+- **Alkalmazásszintű Scoping és Átfogó Képernyővédelem:**
+  - `src/app/layout.tsx`: A globális profil helyett a cég-specifikus feloldott szerepköröket adja át az oldalsávoknak (`HrSidebar`, `AppSidebar`), garantálva a dinamikus menümegjelenést.
+  - **Bérszámfejtés (`/hr/payroll`):** Cégre szűrt dolgozók, céghez kapcsolt új bérpapír előállítás, `companies` táblából dinamikusan feloldott hivatalos munkáltatói név, cím és adószám a generált bérpapír PDF-eken (`downloadPayslipPdfAction`).
+  - **Toborzás (`/hr/recruitment`):** `verifyRecruitmentAccess` védelem, csak az aktív cég álláshirdetéseinek és pályázóinak listázása és mentése.
+  - **Vezetői Műszerfal (`/hr/manager`):** Cégre szűrt csapattagok, távollétek, jelenléti korrekciók és túlóra-felhasználások.
+  - **Riportok (`/hr/reports`):** `loadHrMasterData` cégre szűrt dolgozói, jogviszony, szervezeti egység és munkakör adatokkal (NAV T1041, KSH, Bérriport).
+  - **Beléptetés & Kiléptetés (`/hr/onboarding`, `/hr/offboarding`):** Cégre szűrt folyamatok és sablonok.
+  - **HR Beállítások (`/hr/settings`):** Cégre szűrt szervezeti struktúra, munkakörök és munkatársak kezelése.
+  - **Re-render és Állapot-szivárgás védelem:** Minden érintett oldalon gyökér szintű `key={companyScope}` / `key={activeCompanyId}` biztosítja a React komponensek tiszta unmount/remount folyamatát cégváltáskor.
+- **Tesztek és Minőségbiztosítás:**
+  - Új dedikált tesztcsomag: `src/utils/__tests__/company-role-resolver.test.ts` (7/7 sikeres teszt: tagsági felülbírálás, fallback, owner/admin feloldás, kettős szerepkör izoláció, nem-tag elutasítás, dolgozói kereszt-cég hozzáférés-ellenőrzés).
+  - Teljes projekt tesztfutás: 116/116 egységteszt sikeres (16 tesztcsomag, 0 hiba).
+  - TypeScript típusellenőrzés: 0 hiba (`npx tsc --noEmit`).
+- **Dokumentáció:** [ADR A-044](../architecture/decisions/A-044-hr-multi-tenancy-and-strict-gdpr-isolation.md), [PRD P-063](../product/decisions/P-063-hr-multi-tenancy-and-strict-gdpr-isolation-ux.md).
+
+### ⏱️ eaisyHR: Munkaidőkorlátok (Mt. 99. § 48h) és Éves Túlórakeret (Mt. 135. §) Számláló (HR-TASK-02)
+- **Törvényi háttér és üzleti cél:**
+  - A Munka Törvénykönyve (Mt. 99. § (2) bek.) előírja, hogy a heti munkaidő a rendes és rendkívüli munkaidővel együtt sem haladhatja meg a **48 órát**.
+  - Az Mt. 135. § (1)-(2) bek. alapján naptári évenként legfeljebb **250 óra** rendkívüli munkaidő (túlóra) rendelhető el egyoldalúan, míg írásbeli megállapodással („önként vállalt túlmunka”) a keret legfeljebb **400 óra**.
+  - A munkaügyi bírságok megelőzése érdekében mind a tervezési, mind az elszámolási fázisban valós idejű felügyelet épült ki.
+- **Új Adatbázis Mezők (`hr_dolgozo_adatlap`):**
+  - Migráció: `supabase/migrations/20261010000004_add_overtime_compliance_fields.sql`.
+  - `onkent_vallalt_tulora_400h BOOLEAN DEFAULT false`: Az Mt. 135. § szerinti írásbeli megállapodás jelölője.
+  - `onkent_vallalt_tulora_datum DATE`: A megállapodás keltének / hatálybalépésének dátuma.
+- **Tiszta Számító Motor (`src/utils/hr/overtime-engine.ts`):**
+  - `determineAnnualOvertimeLimit`: 250 vagy 400 órás keret megállapítása.
+  - `calculateOvertimeQuotaStatus`: 0-79% zöld (normál), 80-99% sárga küszöb (figyelmeztetés), 100%+ piros riasztás (keret kimerült).
+  - `checkWeeklyHoursCompliance`: heti 40h rendes, 40-48h túlóra, >48h törvénysértés szintek.
+  - `calculateDailyOvertimeFromAttendance`: jelenléti ívek tény túlóráinak és pihenőnapi munkavégzésének pontos számítása.
+  - `validateShiftAssignmentOvertimeRisk`: műszaktervező előzetes kockázatelemzés.
+- **Központi Megfelelőségi Hub (`/hr/compliance` – 3. Fül):**
+  - Új fül: `Munkaidő & Túlórakeret (Mt. 99. §, 135. §)`.
+  - 4 kanonikus `KpiCard`: Heti 48h limit túllépés (kiemelt piros), Éves keret 80% felett (küszöb), Éves keret kimerült (100%+), Önként vállalt megállapodás (400h).
+  - Interaktív `OvertimeComplianceTable`: instant gépelési kereső, oszlopválasztó, tematikus szűrők (heti megfelelőség, éves szint, megállapodás, részleg), Linear Flat progress bar, in-place 400h megállapodás kapcsoló.
+- **Dolgozói Profil & Túlóra Egyenleg Kártya (`OvertimeBalanceCard`):**
+  - Kiegészült az éves Mt. 135. § progress barral, 250h/400h jelvénnyel és a hátralévő órák számával.
+- **Műszaktervező Integráció (`ShiftPlannerWeeklyGrid` & `shift-actions.ts`):**
+  - A `saveShiftAssignmentAction` műszak mentése előtt ellenőrzi a heti összóraszámot, és >48h esetén figyelmeztetést ad.
+  - A műszak-hozzárendelő és módosító popoverekben automatikus figyelmeztető banner jelenik meg a 48h-t elérő vagy meghaladó dolgozóknál.
+- **Tesztek és Minőség:**
+  - `src/utils/__tests__/overtime-engine.test.ts` (5/5 sikeres egységteszt).
+  - TypeScript típusellenőrzés: 0 hiba (`npx tsc --noEmit`).
+- **Dokumentáció:** [ADR A-043](../architecture/decisions/A-043-hr-working-hours-and-annual-overtime-compliance-architecture.md), [PRD P-062](../product/decisions/P-062-hr-working-hours-and-annual-overtime-compliance-ux.md).
+
+### 💰 eaisyHR: Ütemezett Bérpapír Előállítás és Dolgozói Digitális Átvételi Nyugtázás (HR-TASK-07)
+- **Törvényi háttér és megfelelőség:**
+  - A Munka Törvénykönyve (Mt. 155. §) alapján a munkáltató köteles a tárgyhónapot követő hónap 10-ig írásbeli tájékoztatást (bérjegyzéket) átadni a munkavállalónak a munkabér elszámolásáról és a levonásokról. Az elektronikus közlés joghatásos (Mt. 22. §), amennyiben a munkavállaló megismerheti és az átvétel auditálhatóan bizonyított.
+- **Új Adatbázis Tábla (`public.hr_berpapir`):**
+  - Migráció: `supabase/migrations/20261010000003_add_hr_berpapir.sql`.
+  - 43 mezőből álló, szigorú RLS védelemmel ellátott reláció: a munkavállaló kizárólag a saját bérpapírjait láthatja és nyugtázhatja (`dolgozo_id = auth.uid()`), a HR pedig a teljes céges állományt kezeli.
+  - Tételes mezők: alapbér, ledolgozott napok/órák, fizetett szabadság, betegszabadság (Mt. 146. § 70%), túlóra pótlék (150%), bónusz, cafeteria bruttó, bruttó összesen.
+  - Opcionális adókedvezmények: 25 év alattiak SZJA mentessége (576.601 Ft keretig), családi adó- és járulékkedvezmény, személyi kedvezmény.
+  - Törvényes levonások: SZJA 15%, TB járulék 18,5%, bírósági letiltások.
+  - Nettó kifizetés, munkáltatói SZOCHO (13%), bankszámlaszám, digitális átvételi időbélyeg (`atvetel_datuma`, `atvetel_ip`).
+- **Kalkulációs és PDF Generáló Motor (`src/utils/hr/`):**
+  - `payslip-calculator.ts`: Determinisztikus bér- és járulékkalkulátor levonásfelosztással és digitális átvételi nyugtázó segéddel.
+  - `payslip-pdf-generator.ts`: Hivatalos, formázott A4-es magyar Bérjegyzék PDF sablon (Puppeteer / `launchPdfBrowser`), digitális átvételi záradékkal és 50 éves irattári hivatkozással.
+- **HR Munkaasztal Kezelőfelület (`/hr/payroll`):**
+  - Önálló menüpont az oldalsávban (`Bérszámfejtés & Bérpapírok`).
+  - Havi időszakválasztó léptetővel.
+  - 5 Linear Flat `KpiCard`: Összes dolgozó, Előállított bérpapír, Átvéve és nyugtázva (zöld), Átvételre vár (sárga), Havi nettó kifizetés.
+  - Központi `TableToolbar`: azonnali keresés név, adójel, TAJ, beosztás, részleg szerint; státusz és részleg szűrők.
+  - Egy kattintásos kötegelt előállítás és közzététel: *„Havi Bérpapírok Előállítása & Közzététele (Mt. 155. §)”*.
+  - Soronkénti in-place PDF megtekintés (`PdfViewerDialog`), letöltés és egyedi korrekciós modál (bónusz, 25 év alatti, családi kedvezmény, letiltás).
+- **Dolgozói Önkiszolgáló Portál (`/hr/self-service/payroll`):**
+  - Új menüpont az Önkiszolgáló pultban: **`Bérpapírjaim`**.
+  - Havi lista időrendben, kiemelt nettó kifizetési doboz bankszámlaszámmal, tételes jövedelem- és levonásbontás.
+  - **„Átvételt igazolom (Mt. 155. §)”** gomb: megerősítő modállal rögzíti az átvétel időbélyegét és IP címét, naplózza az `esemeny_naplo`-ba, és zöld hitelesített bélyegzőt kap.
+- **Tesztek és Minőség:**
+  - `src/utils/__tests__/payslip-calculator.test.ts` (7/7 sikeres teszteset).
+  - `src/utils/__tests__/payslip-pdf.test.ts` (4/4 sikeres teszteset).
+  - TypeScript típusellenőrzés: 0 hiba (`npx tsc --noEmit`).
+- **Dokumentáció:** [ADR A-042](../architecture/decisions/A-042-hr-scheduled-payroll-generation-and-digital-receipt-architecture.md), [PRD P-061](../product/decisions/P-061-hr-scheduled-payroll-generation-and-digital-receipt-ux.md).
+
+### 📋 eaisyHR: Offboarding Kötelező Hatósági Kilépőigazolások és eaisyDocs Iktatás (HR-TASK-06)
+- **Törvényi háttér és audit megállapítás:**
+  - A Munka Törvénykönyve (Mt. 80. § (2) bek.), a foglalkoztatási törvény (Flt. 36/A. §) és a hatósági szabályok alapján a munkaviszony megszűnésekor a munkáltató köteles kiadni az igazolásokat (munkaviszony igazolás, álláskeresési járadék adatlap, letiltási nyilatkozat, betegszabadság elszámolás, NAV adóadatlap és TB kiskönyv bejegyzés).
+  - Az audit megerősítette, hogy az offboardingban a P-041 döntés során elkészült a hatósági PDF generátor (`exit-certificate-pdf-generator.ts`) és az `ExitCertificatePanel`.
+  - A mostani fejlesztés felszámolta a feltárt kockázatokat és automatizálta a folyamatot.
+- **Lezáráskori automatikus védőháló (Fail-Safe Filing):**
+  - A `closeOffboarding` folyamatzáró akcióba beépült egy automatikus ellenőrzés: amennyiben a folyamathoz még nem készült el a kilépő igazolás, a motor automatikusan előállítja azt a dolgozó személyi kartonja, a kiléptetés paraméterei és a valós távolléti adatok alapján.
+  - A generált igazolást a rendszer kötegelten beiktatja a munkavállaló eaisyDocs személyi dossziéjába (`3.1` tétel, 50 év megőrzési idővel, gap-mentes alszámmal és PDF/A-2b archiválási példánnyal).
+- **Tárgyévi betegszabadság automatikus összesítése (Mt. 126. §):**
+  - A `getOffboardingDetailData` és a `generateExitCertificateAction` automatikusan összesíti a dolgozó tárgyévi, jóváhagyott betegszabadság napjait a `hr_tavollet` táblából, és előtölti az űrlapon.
+- **Azonnali egyedi beiktatási lehetőség (`ExitCertificatePanel`):**
+  - Új „Beiktatás a személyi dossziéba most” akciógomb jelent meg a panelen a még le nem zárt offboardingokhoz (pl. ha a munkavállaló az utolsó munkanapon bent írja alá a dokumentumot, de az IT vagy bérszámfejtési folyamat még 1-2 napig nyitott marad).
+- **Tesztek és Minőség:**
+  - `src/utils/__tests__/exit-certificate-pdf.test.ts` (6/6 sikeres teszt: PDF struktúra, Puppeteer buffer, letiltások, végkielégítés, 5 kötelező igazolás).
+  - `src/utils/__tests__/offboarding-compliance.test.ts` (5/5 sikeres teszt: 5 hatósági okirat, betegszabadság aggregáció, fail-safe lista, adatlap fallback).
+  - TypeScript fordítás: 0 hiba (`npx tsc --noEmit`).
+- **Kapcsolódó dokumentáció:** [ADR A-041](../architecture/decisions/A-041-hr-offboarding-statutory-exit-certificates-and-filing-safety-net.md), [PRD P-060](../product/decisions/P-060-hr-offboarding-statutory-exit-certificates-and-filing-ux.md).
+
+### 🩺 eaisyHR: Orvosi Alkalmassági és Beosztási Blokkolás Összehangolása (HR-TASK-05)
+- **Törvényi háttér és audit megállapítás:**
+  - Az 1993. évi XCIII. tv. (Mvt.) 49. § (1) bek. és a 33/1998. (VI. 24.) NM rendelet alapján a munkavállaló csak olyan munkára és akkor alkalmazható, amelyre orvosilag alkalmasnak bizonyult.
+  - Az alapos kód- és folyamataudit feltárta, hogy a rendszerben korábban **nem létezett aktív orvosi blokkolás**: a dolgozói jelenlét rögzítésekor (`toggleCheckIn`) semmilyen orvosi vizsgálat nem történt, az előzetes műszaktervezőben pedig a lejárat csupán egy nem gátló sárga felkiáltójelet mutatott, de a mentést teljes mértékben engedélyezte.
+- **Központi érvényesség-ellenőrző motor (`medical-compliance-checker.ts`):**
+  - Elkészült a `checkMedicalValidityForDate(supabase, dolgozoId, targetDateStr)` típusbiztos segédfüggvény.
+  - Lekérdezi a dolgozó legfrissebb orvosi vizsgálatát (`hr_orvosi_vizsgalat`), és szigorúan ellenőrzi az érvényességi intervallumot (`vizsgalat_idopontja` – `ervenyesseg_vege`), valamint a minősítést (`nem_alkalmas`).
+  - Standard hibakódokat és magyarázatokat ad vissza: `missing`, `not_yet_valid`, `expired`, `nem_alkalmas`.
+- **Valós idejű jelenléti kemény blokkolás (`self-service/actions.ts`):**
+  - Munkakezdés (`check_in`) és szünetről visszatérés (`work`) esetén a rendszer ellenőrzi a mai napra vonatkozó orvosi érvényességet.
+  - Ha az orvosi lejárt vagy hiányzik, a művelet azonnal sikertelen (`success: false`), és törvényi hivatkozású hibaüzenetet kap a dolgozó.
+  - **Munkavállalói védelem:** A műszakzárás / távozás (`checkout`) sosem blokkolt, így az érvénytelen alkalmasságú dolgozó szabályosan be tudja fejezni a jelenlétét.
+- **Műszakbeosztás és csoportos másolás védelem (`shift-actions.ts`):**
+  - `saveShiftAssignmentAction`: Új műszak rögzítésekor vagy módosításakor szigorúan a műszak konkrét céldátumára vizsgálja a vizsgálat érvényességét. Érvénytelenség esetén azonnali elutasítás (`error` objektum). A műszak törlése engedélyezett marad a hibás beosztások javításához.
+  - `copyPreviousWeekRosterAction`: Csoportos heti másoláskor a motor kiszűri és automatikusan átugorja azon napokat, amikor a célhéten a dolgozó orvosija már nem érvényes, és `skippedMedicalCount` számlálóval értesíti a vezetőt.
+- **Műszaktervező vizuális kapu (`ShiftPlannerWeeklyGrid`):**
+  - Piros orvosi ikon (`Stethoscope`) és finom színezés jelzi a cellában az érvénytelen napokat.
+  - A cella Popoverjében kiemelt figyelmeztető banner jelenik meg a lejárati dátummal, közvetlen navigációs linkkel a dolgozói profilra új vizsgálat rögzítéséhez.
+  - A sablonválasztó gombok inaktívvá válnak (`disabled`), megakadályozva a hibás beosztás kísérletét.
+- **Tesztek és Minőség:**
+  - `src/utils/__tests__/medical-compliance.test.ts` (5/5 sikeres teszteset).
+  - TypeScript fordítás: 0 hiba (`npx tsc --noEmit`).
+- **Kapcsolódó dokumentáció:** [ADR A-040](../architecture/decisions/A-040-hr-medical-compliance-and-roster-blocking-architecture.md), [PRD P-059](../product/decisions/P-059-hr-medical-compliance-and-roster-blocking-ux.md).
+
+### 🦺 eaisyHR: Munkavédelmi és Tűzvédelmi Oktatások Központi Lejárati Mátrixa (HR-TASK-04)
+- **Törvényi háttér és megvalósítás:**
+  - Az 1993. évi XCIII. tv. (Mvt. 55. §) és az 1996. évi XXXI. tv. (Ttv. 22. §) alapján minden aktív munkavállaló köteles érvényes munkavédelmi és tűzvédelmi oktatással rendelkezni (évente kötelező ismétlő oktatással).
+  - Létrejött az automatikus lejáratszámító motor (`safety-compliance-calculator.ts`), amely 4 állapotot különböztet meg:
+    - 🟢 `Érvényes`: > 30 nap van hátra a lejárati határidőig.
+    - 🟡 `Hamarosan lejár`: 30 napon belül lejár (teendő: éves ismétlő oktatás szervezése).
+    - 🔴 `Lejárt`: Múltbeli lejárati dátum (bírságveszély!).
+    - 🔴 `Hiányzik`: A munkavállalóhoz még nincs egyetlen rögzített oktatási jegyzőkönyv sem.
+- **Adatbázis módosítás:**
+  - Migráció: `supabase/migrations/20261010000002_add_safety_training_validity.sql`.
+  - Hozzáadva `public.hr_munkavedelmi_oktatas.ervenyesseg_vege DATE` oszlop és index, automatikus 1 éves kitöltéssel.
+  - A jegyzőkönyv generálás (`generateAndFileSafetyTrainingAction`) automatikusan beállítja a lejárati dátumot (`oktatasDatuma + 1 év`).
+- **Központi Megfelelőség Hub Bővítés (`/hr/compliance`):**
+  - Kétfüles `Tabs` navigáció: *Szabadságkiadás (Mt. 122. §)* és *Munkavédelem & Tűzvédelem (Mvt. / Ttv.)*.
+  - 4 db új kanonikus `KpiCard`: Munkavédelmi érvényesség arány, Érvényes oktatások száma, 30 napon belül lejárók száma, Lejárt vagy hiányzó dolgozók száma.
+  - Új táblázatkomponens: `SafetyTrainingTable` kanonikus `TableToolbar`-ral (azonnali keresés, oszlopválasztó, státusz-, típus- és részlegszűrő popover, CSV export).
+  - In-place gyors elérés: a csatolt eaisyDocs jegyzőkönyvek azonnali megnyitása (`PdfViewerDialog`), illetve új/pótlólagos oktatás rögzítése 1 kattintással (`SafetyTrainingDialog`) a dolgozó adataival előtöltve.
+- **Tesztek és Minőség:**
+  - `src/utils/__tests__/safety-compliance.test.ts` (6/6 sikeres unit teszt: érvényes, 30 napon belüli, ma lejáró, lejárt, hiányzó oktatás detektálás, és cégszintű statisztikai aggregáció).
+  - `npx tsc --noEmit` hibátlan (0 error).
+- **Kapcsolódó dokumentáció:** [ADR A-039](../architecture/decisions/A-039-hr-occupational-safety-compliance-matrix-architecture.md), [PRD P-058](../product/decisions/P-058-hr-occupational-safety-compliance-matrix-ux.md).
+
+### 🏖️ eaisyHR: Szabadságkiadási Megfelelőség és Év Végi Riasztás (HR-TASK-03)
+- **Törvényi háttér és megvalósítás:**
+  1. **Mt. 122. § (3) – 14 nap összefüggő mentesülés:**
+     - Determinisztikus kalkulátor (`leave-compliance-calculator.ts`), amely a tárgyév összes napját ellenőrzi: jóváhagyott fizetett szabadság (`hr_tavollet`), szombat/vasárnap pihenőnapok és hivatalos magyar munkaszüneti napok láncolatában.
+     - **Műszakfelülbírálat:** Ha a vezető egy hétvégi napra aktív műszakot osztott be (`tervezett_ora > 0`), az szabályosan megszakítja a pihenőláncot.
+     - **Törvényes eltérő megállapodás:** Az Mt. kifejezett felhatalmazása alapján ("eltérő megállapodás hiányában") a munkavállalóval kötött írásos megállapodás esetén a rendszer nem jelzi mulasztásként a 14 nap elmaradását, hanem jogszerűen mentesítettként kezeli.
+  2. **Mt. 123. § – Év végi maradványszabadság riasztás (November / Q4):**
+     - Kiszámítja a hátralévő szabadságnapok és a hátralévő munkanapok arányát az év végéig.
+     - Sárga figyelmeztetés lép életbe Q4-ben (különösen november 1-től), és piros kritikus riasztás, ha a hátralévő szabadságok száma meghaladja az évből még hátralévő összes munkanapot.
+- **Adatbázis módosítás:**
+  - Migráció: `supabase/migrations/20261010000001_add_leave_compliance_fields.sql`.
+  - Hozzáadva `public.hr_dolgozo_adatlap.eltero_megallapodas_14_nap BOOLEAN NOT NULL DEFAULT false`.
+- **Központi Megfelelőségi Hub (`/hr/compliance`):**
+  - Korábbi átirányítás helyett teljes értékű felügyeleti központ jött létre.
+  - Multi-tenant cégszintű aggregáció (`getActiveCompanyIdServer()`).
+  - 4 kanonikus `KpiCard`: Megfelelőségi ráta (%), 14 napos hiány, Év végi kockázat, Eltérő megállapodások.
+  - Kanonikus `TableToolbar`: azonnali keresés, oszlopválasztó, szűrő popover (14 napos státusz, év végi kockázat, szervezeti egység), CSV export.
+  - Gyors műveletek: Eltérő megállapodás jóváhagyási kapcsoló (`Checkbox`), adatlap gyorslink.
+- **Dolgozói Profil Integráció (`src/app/hr/employee/[id]?tab=leaves`):**
+  - A Szabadság fülön megjelent az Mt. Megfelelőségi kártya: pontos dátumintervallummal és leghosszabb összefüggő nappal.
+  - HR/admin jogosultsággal közvetlen kapcsoló (`Switch`) az Eltérő megállapodás rögzítéséhez/visszavonásához toast értesítéssel.
+- **Tesztek és Minőség:**
+  - `src/utils/__tests__/leave-compliance.test.ts` (8/8 sikeres unit teszt: 10 munkanap + hétvégék 16 napos pihenő, 5 munkanap 9 nap nem elég, hétvégi műszak megszakítás, betervezett státusz, eltérő megállapodás, novemberi riasztás, kritikus munkanaphiány, naptárgenerálás).
+  - `npx tsc --noEmit` hibátlan (0 error).
+- **Kapcsolódó dokumentáció:** [ADR A-038](../architecture/decisions/A-038-hr-leave-compliance-and-year-end-alert-engine.md), [PRD P-057](../product/decisions/P-057-hr-leave-compliance-and-year-end-alert-ux.md).
 
 ### 📅 eaisyHR: Előzetes Műszaktervező és Heti Rács (HR-TASK-01)
 - **Felhasználói igény és megvalósítás:** A meglévő `/hr/time` (Munkaidő & Távollét) oldalon létrehoztunk egy 3 füles egyesített felületet (`TimeTabsView`):

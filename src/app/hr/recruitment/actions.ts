@@ -4,33 +4,56 @@ import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { sendNotificationEmail, buildHtmlEmail } from "@/utils/mailer"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 
-export async function updateCandidateStatus(candidateId: string, newStatus: string) {
-  const supabase = await createClient()
-
-  // Biztonsági ellenőrzés
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select('hr_szerepkor')
-    .eq("id", user.id)
-    .single()
-
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(profile.hr_szerepkor)) {
-    return { error: "Nincs jogosultságod a toborzás kezeléséhez." }
-  }
-
-  // Admin kliens az RLS hiánya miatt (a fenti kód már leellenőrizte a jogosultságot)
-  const adminClient = createAdminClient(
+function getAdminClient() {
+  return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+}
+
+async function verifyRecruitmentAccess() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { allowed: false, error: "Nincs bejelentkezve", activeCompanyId: null, user: null }
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (!activeCompanyId) return { allowed: false, error: "Nincs kiválasztott cég", activeCompanyId: null, user }
+
+  const { hrRole, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  if (!isCompanyAdmin && !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(hrRole)) {
+    return { allowed: false, error: "Nincs jogosultságod a toborzás kezeléséhez ebben a cégben.", activeCompanyId, user }
+  }
+
+  return { allowed: true, activeCompanyId, hrRole, isCompanyAdmin, user }
+}
+
+export async function updateCandidateStatus(candidateId: string, newStatus: string) {
+  const auth = await verifyRecruitmentAccess()
+  if (!auth.allowed || !auth.activeCompanyId || !auth.user) {
+    return { error: auth.error || "Hozzáférés megtagadva" }
+  }
+
+  const adminClient = getAdminClient()
+
+  // Ellenőrizzük, hogy a jelölt az aktív céghez tartozik-e
+  const { data: currentCandidate } = await adminClient
+    .from("hr_toborzas")
+    .select("id, company_id")
+    .eq("id", candidateId)
+    .single()
+
+  if (currentCandidate?.company_id && currentCandidate.company_id !== auth.activeCompanyId) {
+    return { error: "Nincs jogosultságod más cég jelöltjét módosítani." }
+  }
 
   const { error } = await adminClient
     .from("hr_toborzas")
-    .update({ statusz: newStatus })
+    .update({ 
+      statusz: newStatus,
+      company_id: currentCandidate?.company_id || auth.activeCompanyId 
+    })
     .eq("id", candidateId)
 
   if (error) {
@@ -40,7 +63,6 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
 
   // Automatikus Onboarding profil létrehozása, ha "elfogadva" státuszba kerül (pre-onboarding)
   if (newStatus === "elfogadva") {
-    // 1. Lekérjük a jelölt nevét, pozícióját és a munkakörhöz tartozó szervezeti egységet
     const { data: candidate, error: fetchErr } = await adminClient
       .from("hr_toborzas")
       .select(`
@@ -62,7 +84,6 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
     }
 
     if (candidate) {
-      // Duplikációvédelem: ellenőrizzük, hogy létezik-e már onboarding folyamat ehhez a jelölthöz
       const { data: existingOnboarding } = await adminClient
         .from("hr_onboarding")
         .select("id")
@@ -73,11 +94,10 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
         const munkakor = (candidate as any).hr_munkakor?.megnevezes || "Új munkatárs"
         const reszleg = (candidate as any).hr_munkakor?.hr_szervezeti_egyseg?.nev || null
         
-        // Létrehozzuk az Onboarding rekordot előkészületi ("varakozik") állapotban.
-        // Fiók és e-mail még NEM készül, azt a HR indítja el az Onboarding felületen a belépés közeledtével.
         const { data: newOnboarding, error: onbError } = await adminClient
           .from("hr_onboarding")
           .insert({
+            company_id: auth.activeCompanyId,
             toborzas_id: candidateId,
             nev: candidate.nev,
             munkakor: munkakor,
@@ -90,7 +110,6 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
           .single()
 
         if (newOnboarding && !onbError) {
-          // Standard belépési feladatok hozzáadása
           await adminClient.from("hr_onboarding_feladat").insert([
             { onboarding_id: newOnboarding.id, cim: "Munkaszerződés előkészítése & aláírása", felelos_reszleg: "HR", statusz: "pending" },
             { onboarding_id: newOnboarding.id, cim: "T1041 NAV bejelentés", felelos_reszleg: "Bérszámfejtés", statusz: "pending" },
@@ -99,9 +118,8 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
             { onboarding_id: newOnboarding.id, cim: "Munkavállalói fiók aktiválása & e-mail", felelos_reszleg: "HR", statusz: "pending" }
           ])
           
-          // Logolás
           await adminClient.from("hr_esemeny_naplo").insert({
-            felhasznalo_id: user.id,
+            felhasznalo_id: auth.user.id,
             esemeny_tipus: "rendszer_inditas", 
             entitas_tipus: "hr_onboarding",
             entitas_id: newOnboarding.id,
@@ -111,7 +129,6 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
       }
     }
   } else if (newStatus === "interju") {
-    // Ha interjúra húzták a jelöltet, azonnal küldünk egy értesítő e-mailt
     const { data: candidate, error: fetchErr } = await adminClient
       .from("hr_toborzas")
       .select(`nev, email, hr_munkakor(megnevezes)`)
@@ -124,12 +141,12 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
         
         await sendNotificationEmail({
           to: candidate.email,
-          subject: "Meghívás személyes interjúra - Think AI Kft.",
+          subject: "Meghívás személyes interjúra - eaisyHR",
           html: buildHtmlEmail(
             "Meghívás személyes interjúra",
-            `Kedves ${candidate.nev}!\n\nÖrömmel értesítjük, hogy jelentkezését a(z) ${munkakor} pozícióra sikeresnek értékeltük. Szeretnénk behívni egy személyes interjúra!\n\nHamarosan jelentkezni fogunk a pontos időpont egyeztetése céljából.\n\nÜdvözlettel,\nThink AI Kft. HR csapata`,
+            `Kedves ${candidate.nev}!\n\nÖrömmel értesítjük, hogy jelentkezését a(z) ${munkakor} pozícióra sikeresnek értékeltük. Szeretnénk behívni egy személyes interjúra!\n\nHamarosan jelentkezni fogunk a pontos időpont egyeztetése céljából.\n\nÜdvözlettel,\neaisyHR Csapat`,
             [],
-            "Jelentkezés megtekintése", // Button fallback
+            "Jelentkezés megtekintése",
             `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/hr/recruitment`
           )
         })
@@ -139,8 +156,9 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
     }
   }
 
+  const supabase = await createClient()
   await supabase.from("hr_esemeny_naplo").insert({
-    felhasznalo_id: user.id,
+    felhasznalo_id: auth.user.id,
     esemeny_tipus: "munkatars_felvetel", 
     entitas_tipus: "hr_toborzas",
     entitas_id: candidateId,
@@ -153,11 +171,12 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
 }
 
 export async function scheduleInterview(candidateId: string, idopont: string, helyszin: string, uzenet: string, smsKerve: boolean) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
+  const auth = await verifyRecruitmentAccess()
+  if (!auth.allowed || !auth.activeCompanyId || !auth.user) {
+    return { error: auth.error || "Hozzáférés megtagadva" }
+  }
 
-  const adminClient = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const adminClient = getAdminClient()
 
   const { error } = await adminClient
     .from("hr_toborzas")
@@ -165,20 +184,20 @@ export async function scheduleInterview(candidateId: string, idopont: string, he
       statusz: "interju",
       interju_idopont: idopont,
       interju_helyszin: helyszin,
-      sms_emlekezteto_kerve: smsKerve
+      sms_emlekezteto_kerve: smsKerve,
+      company_id: auth.activeCompanyId
     })
     .eq("id", candidateId)
 
   if (error) return { error: error.message }
 
-  // E-mail küldés
   const { data: candidate } = await adminClient.from("hr_toborzas").select(`nev, email`).eq("id", candidateId).single()
   
   if (candidate && candidate.email) {
     try {
       await sendNotificationEmail({
         to: candidate.email,
-        subject: "Meghívás személyes interjúra - Think AI Kft.",
+        subject: "Meghívás személyes interjúra - eaisyHR",
         html: buildHtmlEmail(
           "Meghívás személyes interjúra",
           uzenet,
@@ -195,8 +214,9 @@ export async function scheduleInterview(candidateId: string, idopont: string, he
     }
   }
 
+  const supabase = await createClient()
   await supabase.from("hr_esemeny_naplo").insert({
-    felhasznalo_id: user.id, esemeny_tipus: "munkatars_felvetel", entitas_tipus: "hr_toborzas", entitas_id: candidateId,
+    felhasznalo_id: auth.user.id, esemeny_tipus: "munkatars_felvetel", entitas_tipus: "hr_toborzas", entitas_id: candidateId,
     megjegyzes: `Interjú egyeztetve: ${new Date(idopont).toLocaleString('hu-HU')}`
   })
 
@@ -205,20 +225,9 @@ export async function scheduleInterview(candidateId: string, idopont: string, he
 }
 
 export async function addCandidate(formData: FormData) {
-  const supabase = await createClient()
-
-  // Biztonsági ellenőrzés
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select('hr_szerepkor')
-    .eq("id", user.id)
-    .single()
-
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(profile.hr_szerepkor)) {
-    return { error: "Nincs jogosultságod a toborzás kezeléséhez." }
+  const auth = await verifyRecruitmentAccess()
+  if (!auth.allowed || !auth.activeCompanyId || !auth.user) {
+    return { error: auth.error || "Hozzáférés megtagadva" }
   }
 
   const nev = formData.get("nev") as string
@@ -227,10 +236,7 @@ export async function addCandidate(formData: FormData) {
 
   if (!nev || !email) return { error: "Név és email kötelező!" }
 
-  const adminClient = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const adminClient = getAdminClient()
 
   const { error } = await adminClient
     .from("hr_toborzas")
@@ -238,7 +244,8 @@ export async function addCandidate(formData: FormData) {
       nev,
       email,
       megpalyazott_munkakor_id: jobId || null,
-      statusz: 'uj'
+      statusz: 'uj',
+      company_id: auth.activeCompanyId
     }])
 
   if (error) {
@@ -246,8 +253,9 @@ export async function addCandidate(formData: FormData) {
     return { error: error.message }
   }
 
+  const supabase = await createClient()
   await supabase.from("hr_esemeny_naplo").insert({
-    felhasznalo_id: user.id,
+    felhasznalo_id: auth.user.id,
     esemeny_tipus: "munkatars_felvetel", 
     entitas_tipus: "hr_toborzas",
     megjegyzes: `Új jelölt rögzítve a toborzásba: ${nev}`
@@ -258,26 +266,12 @@ export async function addCandidate(formData: FormData) {
 }
 
 export async function deleteCandidate(candidateId: string) {
-  const supabase = await createClient()
-
-  // Biztonsági ellenőrzés
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select('hr_szerepkor')
-    .eq("id", user.id)
-    .single()
-
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(profile.hr_szerepkor)) {
-    return { error: "Nincs jogosultságod a toborzás kezeléséhez." }
+  const auth = await verifyRecruitmentAccess()
+  if (!auth.allowed || !auth.activeCompanyId) {
+    return { error: auth.error || "Hozzáférés megtagadva" }
   }
 
-  const adminClient = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const adminClient = getAdminClient()
 
   const { error } = await adminClient
     .from("hr_toborzas")
@@ -294,28 +288,13 @@ export async function deleteCandidate(candidateId: string) {
 }
 
 export async function generateCvSignedUrl(candidateId: string, storagePath: string) {
-  const supabase = await createClient()
-
-  // Biztonsági ellenőrzés
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select('hr_szerepkor')
-    .eq("id", user.id)
-    .single()
-
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(profile.hr_szerepkor)) {
-    return { error: "Nincs jogosultságod a CV megtekintéséhez." }
+  const auth = await verifyRecruitmentAccess()
+  if (!auth.allowed || !auth.user) {
+    return { error: auth.error || "Hozzáférés megtagadva" }
   }
 
-  const adminClient = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const adminClient = getAdminClient()
   
-  // 60 másodperces aláírt URL generálása
   const { data, error } = await adminClient.storage
     .from('hr_dokumentumok')
     .createSignedUrl(storagePath, 60)
@@ -325,12 +304,11 @@ export async function generateCvSignedUrl(candidateId: string, storagePath: stri
     return { error: "Nem sikerült legenerálni a CV megtekintő linket." }
   }
 
-  // Szigorú audit naplózás AGENTS.md alapján
   await adminClient.from("esemeny_naplo").insert({
     entitas_tipus: "hr_toborzas",
     entitas_id: candidateId,
     esemeny_tipus: "letoltes",
-    user_id: user.id,
+    user_id: auth.user.id,
     uj_ertek: { fajl: storagePath, esemeny: "CV megtekintése" }
   })
 
@@ -338,27 +316,19 @@ export async function generateCvSignedUrl(candidateId: string, storagePath: stri
 }
 
 export async function updateCandidateNote(candidateId: string, note: string) {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select('hr_szerepkor, nev')
-    .eq("id", user.id)
-    .single()
-
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(profile.hr_szerepkor)) {
-    return { error: "Nincs jogosultságod a jegyzet módosításához." }
+  const auth = await verifyRecruitmentAccess()
+  if (!auth.allowed || !auth.activeCompanyId || !auth.user) {
+    return { error: auth.error || "Hozzáférés megtagadva" }
   }
 
-  const adminClient = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const adminClient = getAdminClient()
   
-  // 1. Fetch current notes
+  const { data: profile } = await adminClient
+    .from("felhasznalo_profil")
+    .select('nev')
+    .eq("id", auth.user.id)
+    .single()
+
   const { data: candidate } = await adminClient
     .from("hr_toborzas")
     .select("naptar_jegyzet")
@@ -370,8 +340,7 @@ export async function updateCandidateNote(candidateId: string, note: string) {
     try {
       notes = JSON.parse(candidate.naptar_jegyzet)
       if (!Array.isArray(notes)) notes = []
-    } catch (e) {
-      // Ha nem JSON volt eddig, akkor az első jegyzetként elmentjük
+    } catch {
       notes = [{
         date: new Date().toISOString(),
         text: candidate.naptar_jegyzet,
@@ -380,16 +349,14 @@ export async function updateCandidateNote(candidateId: string, note: string) {
     }
   }
 
-  // 2. Append new note
   const newNote = {
     date: new Date().toISOString(),
     text: note,
-    author: profile.nev || "HR Munkatárs"
+    author: profile?.nev || "HR Munkatárs"
   }
   notes.push(newNote)
   const newNotesString = JSON.stringify(notes)
 
-  // 3. Update database
   const { error } = await adminClient
     .from("hr_toborzas")
     .update({ naptar_jegyzet: newNotesString })
@@ -401,7 +368,7 @@ export async function updateCandidateNote(candidateId: string, note: string) {
   }
 
   await adminClient.from("hr_esemeny_naplo").insert({
-    felhasznalo_id: user.id,
+    felhasznalo_id: auth.user.id,
     esemeny_tipus: "munkatars_felvetel", 
     entitas_tipus: "hr_toborzas",
     entitas_id: candidateId,

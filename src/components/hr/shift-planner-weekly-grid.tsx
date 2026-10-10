@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useTransition, useMemo } from "react"
+import Link from "next/link"
+import { checkMedicalValidityForDate } from "@/utils/hr/medical-compliance-checker"
 import {
   format,
   parseISO,
@@ -138,7 +140,11 @@ export function ShiftPlannerWeeklyGrid({ initialData }: ShiftPlannerWeeklyGridPr
     startTransition(async () => {
       const res = await copyPreviousWeekRosterAction(currentWeekStart)
       if (res.success) {
-        toast.success(`Sikeresen átmásolva ${res.copiedCount ?? 0} db műszakbeosztás!`)
+        if (res.message) {
+          toast.warning(res.message)
+        } else {
+          toast.success(`Sikeresen átmásolva ${res.copiedCount ?? 0} db műszakbeosztás!`)
+        }
         const freshData = await getWeeklyShiftRoster(currentWeekStart)
         setData(freshData)
       } else {
@@ -446,6 +452,10 @@ export function ShiftPlannerWeeklyGrid({ initialData }: ShiftPlannerWeeklyGridPr
                         const isWeekend = day.getDay() === 0 || day.getDay() === 6
                         const isCurrent = isToday(day)
 
+                        // Orvosi alkalmasság ellenőrzése az adott napra (HR-TASK-05, Mvt. 49. §)
+                        const medCheck = checkMedicalValidityForDate(emp.orvosi_ervenyesseg, dayStr)
+                        const isMedBlocked = !medCheck.isValid
+
                         return (
                           <td
                             key={dayStr}
@@ -454,6 +464,8 @@ export function ShiftPlannerWeeklyGrid({ initialData }: ShiftPlannerWeeklyGridPr
                                 ? "bg-primary/5"
                                 : isWeekend
                                 ? "bg-muted/20"
+                                : isMedBlocked && !assignment
+                                ? "bg-destructive/[0.02]"
                                 : ""
                             }`}
                           >
@@ -478,8 +490,17 @@ export function ShiftPlannerWeeklyGrid({ initialData }: ShiftPlannerWeeklyGridPr
                                       ? `${assignment.sablon.szin_kod}15`
                                       : undefined,
                                   }}
-                                  className="w-full px-2 py-1.5 rounded-md border text-[11px] text-left transition-all hover:scale-[1.02] cursor-pointer"
+                                  className="w-full px-2 py-1.5 rounded-md border text-[11px] text-left transition-all hover:scale-[1.02] cursor-pointer relative"
                                 >
+                                  {isMedBlocked && (
+                                    <span
+                                      className="absolute -top-1 -right-1 flex h-2.5 w-2.5"
+                                      title="Lejárt orvosi alkalmasság!"
+                                    >
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-destructive"></span>
+                                    </span>
+                                  )}
                                   <div className="flex items-center justify-between">
                                     <span
                                       className="font-bold text-xs"
@@ -508,13 +529,36 @@ export function ShiftPlannerWeeklyGrid({ initialData }: ShiftPlannerWeeklyGridPr
                                   <div className="font-semibold text-foreground border-b border-border pb-1">
                                     Műszak módosítása
                                   </div>
+
+                                  {isMedBlocked && (
+                                    <div className="p-2 rounded bg-destructive/10 border border-destructive/20 text-destructive text-[11px] leading-tight space-y-1">
+                                      <div className="font-semibold flex items-center gap-1">
+                                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                                        Lejárt orvosi alkalmasság!
+                                      </div>
+                                      <p className="text-[10px]">
+                                        {emp.orvosi_ervenyesseg
+                                          ? `Lejárt ekkor: ${emp.orvosi_ervenyesseg}.`
+                                          : "Nincs orvosi vizsgálat felvéve."}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {weeklyHours >= 48 && (
+                                    <div className="p-1.5 rounded bg-destructive/10 border border-destructive/20 text-destructive text-[10px] leading-tight flex items-center gap-1 font-medium">
+                                      <AlertTriangle className="h-3 w-3 shrink-0" />
+                                      <span>Mt. 99. §: Heti munkaidő már {weeklyHours}h (&ge;48h korlát)!</span>
+                                    </div>
+                                  )}
+
                                   <div className="grid grid-cols-2 gap-1">
                                     {data.templates.map((tmpl) => (
                                       <Button
                                         key={tmpl.id}
                                         variant="outline"
                                         size="sm"
-                                        className="h-8 text-xs justify-start gap-1.5 px-2"
+                                        disabled={isMedBlocked}
+                                        className="h-8 text-xs justify-start gap-1.5 px-2 disabled:opacity-40 disabled:cursor-not-allowed"
                                         onClick={() =>
                                           handleAssignShift(emp.id, dayStr, tmpl.id)
                                         }
@@ -549,10 +593,22 @@ export function ShiftPlannerWeeklyGrid({ initialData }: ShiftPlannerWeeklyGridPr
                               /* Ha üres a nap: Kattintással választható sablon */
                               <Popover>
                                 <PopoverTrigger
-                                  className="w-full h-10 rounded-md border border-dashed border-border/40 hover:border-primary/50 hover:bg-primary/5 flex items-center justify-center text-muted-foreground/40 hover:text-primary transition-all cursor-pointer group-hover:border-border/80"
-                                  title="Műszak hozzárendelése"
+                                  className={`w-full h-10 rounded-md border flex items-center justify-center transition-all cursor-pointer ${
+                                    isMedBlocked
+                                      ? "border-destructive/30 bg-destructive/5 text-destructive/60 hover:bg-destructive/10 hover:border-destructive/50"
+                                      : "border-dashed border-border/40 hover:border-primary/50 hover:bg-primary/5 text-muted-foreground/40 hover:text-primary group-hover:border-border/80"
+                                  }`}
+                                  title={
+                                    isMedBlocked
+                                      ? `Lejárt/hiányzó orvosi alkalmasság (${emp.orvosi_ervenyesseg || "Nincs adat"}) – Munkára nem osztható be!`
+                                      : "Műszak hozzárendelése"
+                                  }
                                 >
-                                  <Plus className="h-3.5 w-3.5 opacity-50 hover:opacity-100" />
+                                  {isMedBlocked ? (
+                                    <Stethoscope className="h-3.5 w-3.5 text-destructive/70" />
+                                  ) : (
+                                    <Plus className="h-3.5 w-3.5 opacity-50 hover:opacity-100" />
+                                  )}
                                 </PopoverTrigger>
                                 <PopoverContent
                                   className="w-56 p-2 text-xs space-y-2 bg-popover border-border shadow-md"
@@ -561,28 +617,58 @@ export function ShiftPlannerWeeklyGrid({ initialData }: ShiftPlannerWeeklyGridPr
                                   <div className="font-semibold text-foreground border-b border-border pb-1">
                                     Műszak hozzárendelése
                                   </div>
-                                  <div className="grid grid-cols-2 gap-1">
-                                    {data.templates.map((tmpl) => (
-                                      <Button
-                                        key={tmpl.id}
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 text-xs justify-start gap-1.5 px-2"
-                                        onClick={() =>
-                                          handleAssignShift(emp.id, dayStr, tmpl.id)
-                                        }
+
+                                  {isMedBlocked ? (
+                                    <div className="p-2 rounded bg-destructive/10 border border-destructive/20 text-destructive text-[11px] leading-tight space-y-1.5">
+                                      <div className="font-semibold flex items-center gap-1">
+                                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                                        Beosztás letiltva!
+                                      </div>
+                                      <p className="text-[10px]">
+                                        {emp.orvosi_ervenyesseg
+                                          ? `A dolgozó orvosi vizsgálata lejárt: ${emp.orvosi_ervenyesseg}.`
+                                          : "Nincs érvényes orvosi vizsgálat rögzítve."}
+                                        {" "}Az Mvt. 49. § alapján érvényes alkalmassági vizsgálat nélkül nem osztható be.
+                                      </p>
+                                      <Link
+                                        href={`/hr/employee/${emp.id}`}
+                                        className="inline-block text-[11px] underline font-medium text-destructive hover:text-destructive/80 pt-0.5"
                                       >
-                                        <span
-                                          className="h-2 w-2 rounded-full"
-                                          style={{ backgroundColor: tmpl.szin_kod }}
-                                        />
-                                        <span className="font-semibold">{tmpl.kod}</span>
-                                        <span className="text-[10px] text-muted-foreground">
-                                          ({tmpl.munkaora}h)
-                                        </span>
-                                      </Button>
-                                    ))}
-                                  </div>
+                                        Dolgozói profil megnyitása &rarr;
+                                      </Link>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {weeklyHours >= 48 && (
+                                        <div className="p-1.5 rounded bg-destructive/10 border border-destructive/20 text-destructive text-[10px] leading-tight flex items-center gap-1 font-medium">
+                                          <AlertTriangle className="h-3 w-3 shrink-0" />
+                                          <span>Mt. 99. §: Heti munkaidő már {weeklyHours}h (&ge;48h korlát)!</span>
+                                        </div>
+                                      )}
+                                      <div className="grid grid-cols-2 gap-1">
+                                      {data.templates.map((tmpl) => (
+                                        <Button
+                                          key={tmpl.id}
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-8 text-xs justify-start gap-1.5 px-2"
+                                          onClick={() =>
+                                            handleAssignShift(emp.id, dayStr, tmpl.id)
+                                          }
+                                        >
+                                          <span
+                                            className="h-2 w-2 rounded-full"
+                                            style={{ backgroundColor: tmpl.szin_kod }}
+                                          />
+                                          <span className="font-semibold">{tmpl.kod}</span>
+                                          <span className="text-[10px] text-muted-foreground">
+                                            ({tmpl.munkaora}h)
+                                          </span>
+                                        </Button>
+                                      ))}
+                                    </div>
+                                    </div>
+                                  )}
                                 </PopoverContent>
                               </Popover>
                             )}

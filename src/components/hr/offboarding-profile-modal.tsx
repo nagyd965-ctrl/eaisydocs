@@ -299,7 +299,7 @@ export function OffboardingProfileModal({
                     <AlertDialogTitle>Kiléptetési folyamat lezárása</AlertDialogTitle>
                     <AlertDialogDescription>
                       Biztosan lezárod {employeeName} kiléptetési folyamatát?
-                      A folyamat során előkészített kilépő iratok (megszüntetési megállapodás, eszközleszámolás, NAV igazolások) automatikusan beiktatásra kerülnek az eaisyDocs személyi dossziéba, és a folyamat archivált státuszba lép.
+                      A folyamat során keletkezett hivatalos kilépő iratok (törvényes kilépő igazolások Mt. 80. §, megszüntetési megállapodás, eszközleszámolás, NAV igazolások) automatikusan beiktatásra kerülnek az eaisyDocs személyi dossziéba (50 év törvényes megőrzési idővel), és a folyamat archivált státuszba lép.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -402,66 +402,14 @@ export function OffboardingProfileModal({
             kilepesDatuma={offboarding.kilepes_datuma || offboarding.utolso_munkanap}
             initialData={detailData}
             adatlap={detailData?.adatlap}
+            targyeviBetegszabadsagNapok={detailData?.targyeviBetegszabadsagNapok}
             onSuccess={() => {
               loadFullDetails()
             }}
           />
         ) : (
           <>
-            {/* A) Felső Kiemelt Műveleti Kártya (Matches Onboarding) */}
-            {!hasTerminationAgreement ? (
-              <div className="border border-warning/30 bg-warning/5 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-warning/10 text-warning flex items-center justify-center shrink-0 mt-0.5 border border-warning/20">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-foreground">
-                      Munkaviszony Megszüntetési Megállapodás (Mt. 64–85. §)
-                    </h4>
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                      A munkaviszony hivatalos megszüntetéséhez állítsd össze a felmondási vagy közös megegyezési okiratot. 
-                      A rendszer generálja a hiteles PDF-et és automatikusan beiktatja az eaisyDocs személyi dossziéba (1.2 tétel, 50 év megőrzés).
-                    </p>
-                  </div>
-                </div>
-
-                <Button
-                  onClick={() => setActiveModalTab("megszuntetes")}
-                  className="bg-warning hover:bg-warning/90 text-warning-foreground font-medium gap-1.5 shrink-0"
-                  size="sm"
-                >
-                  <FileText className="w-4 h-4" /> Megszüntetés előkészítése
-                </Button>
-              </div>
-            ) : (
-              <div className="border border-success/30 bg-success/5 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0 border border-success/20">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                      Munkaviszony Megszüntetés Beiktatva
-                    </h4>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      A hivatalos megszüntetési okirat elkészült és beiktatásra került az eaisyDocs személyi dossziéba (1.2 tétel, 50 év megőrzés).
-                    </p>
-                  </div>
-                </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveModalTab("megszuntetes")}
-                  className="border-success/30 text-success hover:bg-success/10 gap-1.5 shrink-0"
-                >
-                  <FileText className="w-3.5 h-3.5" /> Megállapodás megtekintése
-                </Button>
-              </div>
-            )}
-
-            {/* B) Alapadatok és Utolsó Munkanap (Matches Onboarding Image 4) */}
+            {/* Alapadatok és Utolsó Munkanap */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border rounded-xl p-4 bg-card">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">

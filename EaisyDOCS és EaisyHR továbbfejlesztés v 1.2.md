@@ -10,16 +10,60 @@ A dokumentum a rendelkezésre bocsátott nyers leiratra épül. Üzleti működ�
 
 * **FEJLESZTÉSI IGÉNY** A beszélgetésben kért, elfogadott vagy továbbfejlesztési irányként felvetett működés.  
 * **BEMUTATOTT / ELFOGADOTT ALAPÁLLAPOT** A leirat szerint már meglévő képesség vagy tudatosan változatlanul hagyott működés. Ezek nem új fejlesztési feladatok.  
-* **FELTÁRANDÓ / PONTOSÍTANDÓ** Vizsgálatot igénylő lehetőség, bizonytalan részlet vagy a leiratban nem eldöntött szabály.
+* **FELTÁRANDÓ / PONTOSÍTANDÓ** Vizsgálatot igénylő lehetőség, bizonytalan részlet vagy a leiratban nem eldöntött szabály.  
+* **ELKÉSZÜLT / MEGVALÓSÍTVA (✅)** ~~Áthúzással~~ és zöld pipa jelöléssel ellátott tételek, amelyek élesben beépültek a működő rendszerbe és felülvizsgált architektúra/termék döntésekkel (ADR / PRD) dokumentálva lettek.
 
 A leirat nem tartalmaz beszélőcímkéket. Az EaisyDOCS-részben a kezdeményező és jóváhagyó megszólalások többnyire elkülöníthetők. Az EaisyHR-részben a javaslatok jelentős részét feltehetően Dani ismerteti, részben korábbi vagy AI-val összegyűjtött ötletekként; Zoli a blokkot összességében pozitívan fogadja. Ezért az összes érdemi HR-javaslat szerepel, de a dokumentum nem tulajdonítja bizonyítatlanul mindegyiket személyesen Zolinak.
 
 A **pontosítandó** pontok nem utólag hozzáadott, kötelező követelmények, hanem a működés véglegesítéséhez hiányzó döntések. A számszerű és jogszabályi hivatkozások a megbeszélés tartalmát rögzítik, nem jelentenek jogi megfelelőségi igazolást.
 
+---
+
+### **Feladatok áttekintése és megvalósítási állapota (Állapotmátrix)**
+
+| Modul | Kód | Eredeti téma / feladat | Típus | Státusz | Megvalósítás / Referencia |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **EaisyDOCS** | **DOC-01** | Feladatkatalógus és a feladatfelvétel felületének átalakítása | Fejlesztési igény | ⏳ **Tervezett** | Sablonos működés részben kész, felugró ablakok megszüntetése folyamatban |
+| **EaisyDOCS** | **DOC-02** | ~~Automatikus szignálás határainak rögzítése~~ | Elfogadott döntés | ✅ **ELKÉSZÜLT** | AI szervezeti egységhez szignál, személy manuális |
+| **EaisyDOCS** | **DOC-03** | ~~Személyes és rendszerszintű beállítások szétválasztása~~ | Fejlesztési igény | ✅ **ELKÉSZÜLT** | `/profile` vs. `/settings` szétválasztva |
+| **EaisyDOCS** | **DOC-04** | Egységes felhasználókezelés és EaisyBILL-adatforrás | Fejlesztési igény | ⏳ Tervezett | Külső ERP felhasználói forrás |
+| **EaisyDOCS** | **DOC-05** | ~~Több-bérlős működés egységesítése (Multi-Tenancy)~~ | Fejlesztési irány | ✅ **ELKÉSZÜLT** | ADR A-034, A-044, PRD P-053, P-063 (`companies`, `company_members`) |
+| **EaisyDOCS** | **DOC-06** | Fuvarozási iratok automatikus gyűjtése és összerendelése | Fejlesztési igény | ⏳ Tervezett | Speditőri munkaszám ERP kapcsolat |
+| **EaisyDOCS** | **DOC-07** | Többszintű kategorizálás, AI-címkézés és összetett keresés | Fejlesztési igény | ⏳ Tervezett | FTS és kategóriák működnek; mély árucímkézés tervezett |
+| **EaisyDOCS** | **DOC-08** | Elektronikus hitelesítés és távoli aláírás feltárása | Feltárás | ⏸️ Elhalasztva | Vezetői döntéssel elhalasztva |
+| **EaisyHR** | **HR-01** | ~~Műszaktervezés a jelenléti folyamatban~~ | Fejlesztési igény | ✅ **ELKÉSZÜLT** | HR-TASK-01 / ADR A-037, PRD P-056 (`/hr/time`) |
+| **EaisyHR** | **HR-02** | ~~Munkaidőkorlátok (48h) és éves túlórakeret számláló~~ | Fejlesztési igény | ✅ **ELKÉSZÜLT** | HR-TASK-02 / ADR A-043, PRD P-062 (`/hr/compliance`) |
+| **EaisyHR** | **HR-03** | ~~Szabadságkiadási megfelelőség (14 nap) és riasztások~~ | Fejlesztési igény | ✅ **ELKÉSZÜLT** | HR-TASK-03 / ADR A-038, PRD P-057 (`/hr/compliance`) |
+| **EaisyHR** | **HR-04** | ~~Munkavédelmi és tűzvédelmi oktatások lejárati mátrixa~~ | Fejlesztési igény | ✅ **ELKÉSZÜLT** | HR-TASK-04 / ADR A-039, PRD P-058 (`/hr/compliance`) |
+| **EaisyHR** | **HR-05** | ~~Alkalmasság miatti műszak- és bejelentkezési blokkolás~~ | Meglévő kontroll | ✅ **ELKÉSZÜLT** | HR-TASK-05 / ADR A-040, PRD P-059 (Mvt. 49. § (1)) |
+| **EaisyHR** | **HR-06** | ~~Offboarding: kötelező kilépőigazolások és Docs-iktatás~~ | Fejlesztési igény | ✅ **ELKÉSZÜLT** | HR-TASK-06 / ADR A-041, PRD P-060 (hatósági PDF + iktatás) |
+| **EaisyHR** | **HR-07** | ~~Ütemezett bérpapír-előállítás és digitális átvételi nyugtázás~~ | Fejlesztési igény | ✅ **ELKÉSZÜLT** | HR-TASK-07 / ADR A-042, PRD P-061 (Mt. 155. §) |
+
+---
+
 **Tartalom**
 
-* [1\. EaisyDOCS – elektronikus irat- és dokumentumkezelés](#bookmark=id.m0r7ohr0nrey)  
-* [2\. EaisyHR – munkaügyi és munkavállalói folyamatok](#bookmark=id.ar2sdb6vnn16)
+* [1\. EaisyDOCS – elektronikus irat- és dokumentumkezelés](#1-eaisydocs--elektronikus-irat--és-dokumentumkezelés)  
+  * [1.1. Szereplők és felelősségek](#11-szereplők-és-felelősségek)  
+  * [1.2. Feladatkatalógus és a feladatfelvétel felületének átalakítása (DOC-01) ⏳](#12-feladatkatalógus-és-a-feladatfelvétel-felületének-átalakítása)  
+  * [~~1.3. Automatikus szignálás határainak rögzítése (DOC-02)~~ ✅](#13-automatikus-szignálás-határainak-rögzítése)  
+  * [~~1.4. Személyes és rendszerszintű beállítások szétválasztása (DOC-03)~~ ✅](#14-személyes-és-rendszerszintű-beállítások-szétválasztása)  
+  * [1.5. Egységes felhasználókezelés és EaisyBILL-adatforrás (DOC-04) ⏳](#15-egységes-felhasználókezelés-és-eaisybill-adatforrás)  
+  * [~~1.6. Több-bérlős működés egységesítése (DOC-05)~~ ✅](#16-több-bérlős-működés-egységesítése)  
+  * [1.7. Fuvarozási iratok automatikus gyűjtése és összerendelése (DOC-06) ⏳](#17-fuvarozási-iratok-automatikus-gyűjtése-és-összerendelése)  
+  * [1.8. Többszintű kategorizálás, AI-címkézés és összetett keresés (DOC-07) ⏳](#18-többszintű-kategorizálás-ai-címkézés-és-összetett-keresés)  
+  * [1.9. Elektronikus hitelesítés és távoli aláírás lehetőségei (DOC-08) ⏸️](#19-elektronikus-hitelesítés-és-távoli-aláírás-lehetőségeinek-feltárása)  
+  * [1.10. További bemutatott funkciók és döntések](#110-további-bemutatott-funkciók-és-az-ezekre-vonatkozó-döntések)  
+* [2\. EaisyHR – munkaügyi és munkavállalói folyamatok](#2-eaisyhr--munkaügyi-és-munkavállalói-folyamatok)  
+  * [2.1. Szereplők és felelősségek](#21-szereplők-és-felelősségek)  
+  * [~~2.2. Műszaktervezés a jelenléti folyamatban (HR-01)~~ ✅](#22-műszaktervezés-a-jelenléti-folyamatban)  
+  * [~~2.3. Munkaidőkorlátok és éves rendkívüli munkaidő követése (HR-02)~~ ✅](#23-munkaidőkorlátok-és-éves-rendkívüli-munkaidő-követése)  
+  * [~~2.4. Szabadságkiadási megfelelőség és automatikus figyelmeztetések (HR-03)~~ ✅](#24-szabadságkiadási-megfelelőség-és-automatikus-figyelmeztetések)  
+  * [~~2.5. Munkavédelmi és tűzvédelmi oktatások lejárati nyilvántartása (HR-04)~~ ✅](#25-munkavédelmi-és-tűzvédelmi-oktatások-lejárati-nyilvántartása)  
+  * [~~2.6. Alkalmasság miatti műszak- és bejelentkezési blokkolás (HR-05)~~ ✅](#26-alkalmasság-miatti-műszak--és-bejelentkezési-blokkolás)  
+  * [~~2.7. Offboarding: kötelező kilépőigazolások és EaisyDOCS-iktatás (HR-06)~~ ✅](#27-offboarding-kötelező-kilépőigazolások-és-eaisydocs-iktatás)  
+  * [~~2.8. Ütemezett bérpapír-előállítás és digitális átvételi nyugtázás (HR-07)~~ ✅](#28-ütemezett-bérpapír-előállítás-és-digitális-átvételi-nyugtázás)  
+  * [~~2.9. HR-függőségek és véglegesítendő döntések~~ ✅](#29-hr-függőségek-és-véglegesítendő-döntések)
 
 ## **1\. EaisyDOCS – elektronikus irat- és dokumentumkezelés**
 
@@ -46,7 +90,8 @@ A szerepek felsorolása funkcionális felelősségeket különít el; nem ír el
 
 ### **1.2. Feladatkatalógus és a feladatfelvétel felületének átalakítása**
 
-**DOC-01 · FEJLESZTÉSI IGÉNYA SABLONOS MŰKÖDÉS RÉSZBEN ELKÉSZÜLT**
+**DOC-01 · FEJLESZTÉSI IGÉNY (A SABLONOS MŰKÖDÉS RÉSZBEN ELKÉSZÜLT)**  
+**ÁLLAPOT:** ⏳ **TERVEZETT / FOLYAMATBAN** – A sablonos működés részben elkészült, de a többszörösen egymásba nyíló felugró ablakok teljes körű felszámolása és a feladatfelvétel beágyazása a fő felületbe még megvalósításra vár.
 
 **Kezdeményezés:** Dani bemutatja a sablonokkal kibővített feladatfelvételt; Zoli megerősíti, hogy a többszörösen egymásba nyíló felugró ablakokat meg kell szüntetni.
 
@@ -61,9 +106,10 @@ A szerepek felsorolása funkcionális felelősségeket különít el; nem ír el
 
 **Elvárt eredmény:** sablonból indítható feladatfelvétel, egymásba ágyazott felugró ablakok nélkül. Új állapotmodell kialakítása most nem feladat.
 
-### **1.3. Automatikus szignálás határainak rögzítése**
+### ~~**1.3. Automatikus szignálás határainak rögzítése**~~ ✅ **(KÉSZ / DÖNTÉS ELFOGADVA)**
 
-**DOC-02 · ELFOGADOTT MŰKÖDÉSI DÖNTÉS**
+~~**DOC-02 · ELFOGADOTT MŰKÖDÉSI DÖNTÉS**~~  
+**ÁLLAPOT:** ✅ **ÉRVÉNYBEN / IMPLEMENTÁLVA** – Az AI automatikusan szervezeti egységhez irányítja az iratot, a konkrét munkatárshoz rendelés manuális felelősség.
 
 1. Az ügyintéző kiválaszt egy tételt a bejövő sorból, és elindítja a „Tovább az iktatáshoz” műveletet.  
 2. Az AI-alapú kitöltés az iratot automatikusan egy **szervezeti egységhez** szignálja.  
@@ -71,9 +117,10 @@ A szerepek felsorolása funkcionális felelősségeket különít el; nem ír el
 
 **Döntés:** Zoli elfogadja, hogy a korábbi briefben szereplő automatikus személyszintű szignálás ne legyen kötelező. Indok: az irat érkezésekor nem feltétlenül ismert, hogy az adott egységen belül ki fog az üggyel foglalkozni.
 
-### **1.4. Személyes és rendszerszintű beállítások szétválasztása**
+### ~~**1.4. Személyes és rendszerszintű beállítások szétválasztása**~~ ✅ **(KÉSZ)**
 
-**DOC-03 · FEJLESZTÉSI IGÉNY**
+~~**DOC-03 · FEJLESZTÉSI IGÉNY**~~  
+**ÁLLAPOT:** ✅ **ELKÉSZÜLT** – A saját profil (`/profile`) és a rendszerszintű beállítások (`/settings` – szervezet, munkatársak, irattári terv, megőrzési idők) teljes mértékben szétválasztva működnek.
 
 **Zoli javaslata:** a jelenlegi fogaskerék mögötti beállításkészlet túl terjedelmes, ezért különüljön el a saját profil kezelése és az alkalmazás adminisztrációja.
 
@@ -85,7 +132,7 @@ A szerepek felsorolása funkcionális felelősségeket különít el; nem ír el
 | Jogosultságkezelés | A csapatkezelésben megadható szerepkör, szervezeti egység és biztonsági minősítés maradjon egyértelműen megtalálható. A meglévő jogosultsági modellt a közös felhasználókezelés előtt nem kell külön áttervezni. |
 | Irattári terv és megőrzési idők | Rendszerszintű adminisztratív funkcióként, ne személyes profilbeállításként jelenjenek meg. |
 
-**Pontosítandó:** Dani profil–rendszer–biztonság bontást is felvet; a végleges menünevek és az egyes biztonsági beállítások személyes vagy adminisztratív elhelyezése nincs lezárva.
+**Megvalósítás:** A `/profile` felületen a saját felhasználói profiladatok és jelszókezelés érhető el. A `/settings` adminisztrációs központba került át a Szervezeti egységek, Munkatársak, Irattári terv, és Rendszerbeállítások kezelése.
 
 ### **1.5. Egységes felhasználókezelés és EaisyBILL-adatforrás**
 
@@ -110,9 +157,10 @@ A szerepek felsorolása funkcionális felelősségeket különít el; nem ír el
 
 **Nyitott döntések:** folyamatos szinkronizálás legyen; egyező személyek felismerése; frissítések, kilépések és letiltások átvétele szinkronizálódjon; átadható adatkör; moduljogosultságok kiosztása; az átvételi kör kiválasztásának részletes módja.
 
-### **1.6. Több-bérlős működés egységesítése**
+### ~~**1.6. Több-bérlős működés egységesítése**~~ ✅ **(KÉSZ)**
 
-**DOC-05 · FEJLESZTÉSI IRÁNYRÉSZLETSZABÁLYOK KÜLSŐ LEÍRÁSBAN**
+~~**DOC-05 · FEJLESZTÉSI IRÁNYRÉSZLETSZABÁLYOK KÜLSŐ LEÍRÁSBAN**~~  
+**ÁLLAPOT:** ✅ **ELKÉSZÜLT** – Multi-Tenancy alapinfrastruktúra implementálva: központi `companies` és `company_members` táblák, fejlécbeli aktív cégválasztó, valamint szigorú RLS adatbázis-szintű cégizoláció az EaisyDOCS és EaisyHR modulban egyaránt (ADR: [A-034](docs/architecture/decisions/A-034-multi-company-architecture.md), [A-044](docs/architecture/decisions/A-044-hr-multitenancy-gdpr-isolation-architecture.md), PRD: [P-053](docs/product/decisions/P-053-multi-company-management-ux.md), [P-063](docs/product/decisions/P-063-hr-multitenancy-gdpr-isolation-ux.md)).
 
 A megbeszélés önálló, jelentős feladatként kezeli a tenant-, illetve multitenancy-modell kialakítását. Irányként a már meglévő **EaisyBILL-modell és annak leírása** szolgáljon; ugyanennek az elvnek az Eaisy3-ban is meg kell jelennie.
 
@@ -286,9 +334,10 @@ A fejezet az összes érdemben ismertetett HR-javaslatot tartalmazza. Az egyes �
 
 Ezek funkcionális szereplők. A leirat nem határoz meg új, teljes HR-jogosultsági mátrixot.
 
-### **2.2. Műszaktervezés a jelenléti folyamatban**
+### ~~**2.2. Műszaktervezés a jelenléti folyamatban**~~ ✅ **(KÉSZ)**
 
-**HR-01 · FEJLESZTÉSI IGÉNY**
+~~**HR-01 · FEJLESZTÉSI IGÉNY**~~  
+**ÁLLAPOT:** ✅ **ELKÉSZÜLT (2026-10-09)** – Előzetes Műszaktervező modul és heti naptár implementálva a `/hr/time` útvonalon (`Műszakbeosztás Tervező`, `Távollétek & Csapatnaptár`, `Műszaksablonok`). Műszaksablonok (`hr_muszak_sablon`), beosztások (`hr_muszak_beosztas`), 1-kattintásos gyorsbeosztás, távollét-védelem, heti 48h limit indikátor és terv vs. tény havi jelenléti ív integráció teljesítve (ADR: [A-037](docs/architecture/decisions/A-037-hr-shift-planning-roster-architecture.md), PRD: [P-056](docs/product/decisions/P-056-hr-shift-planning-and-roster-management-ux.md)).
 
 **Kiinduló állapot:** a bemutatás szerint nincs tényleges műszaktervezés, még egyszerű, például nyolcórás műszakokra sem.
 
@@ -301,11 +350,12 @@ Ezek funkcionális szereplők. A leirat nem határoz meg új, teljes HR-jogosult
 
 ---
 
-**Elvárt eredmény:** a felelős előre készíthet munkavállalói műszakbeosztást, nem csak a megkezdett munkavégzést rögzítheti.
+**Elvárt eredmény:** a felelős előre készíthet munkavállalói műszakbeosztást, nem csak a megkezdett munkavégzést rögzítheti. *(Teljesítve)*
 
-### **2.3. Munkaidőkorlátok és éves rendkívüli munkaidő követése**
+### ~~**2.3. Munkaidőkorlátok és éves rendkívüli munkaidő követése**~~ ✅ **(KÉSZ)**
 
-**HR-02 · FEJLESZTÉSI IGÉNY**
+~~**HR-02 · FEJLESZTÉSI IGÉNY**~~  
+**ÁLLAPOT:** ✅ **ELKÉSZÜLT (2026-10-10)** – Munka Törvénykönyve szerinti ellenőrzések implementálva: heti 48h munkaidőkorlát figyelése mentéskor és a jelenlétnél, valamint az Mt. 135. § szerinti 250 órás alapkeret és 400 órás önként vállalt túlóra számláló a `/hr/compliance` tabellán és a dolgozói profilokon (ADR: [A-043](docs/architecture/decisions/A-043-hr-working-hours-and-annual-overtime-compliance-architecture.md), PRD: [P-062](docs/product/decisions/P-062-hr-working-hours-and-annual-overtime-compliance-ux.md)).
 
 | Ellenőrzés | Elvárt működési elv | Nem eldöntött részlet |
 | :---- | :---- | :---- |
@@ -314,9 +364,10 @@ Ezek funkcionális szereplők. A leirat nem határoz meg új, teljes HR-jogosult
 
 A 48 órás értéket és az éves rendkívüli munkaidő értelmezését az alkalmazandó foglalkoztatási szabályokkal egyeztetni kell. A megbeszélés nem határoz meg minden munkavállalóra feltétel nélkül alkalmazandó jogi számítási modellt.
 
-### **2.4. Szabadságkiadási megfelelőség és automatikus figyelmeztetések**
+### ~~**2.4. Szabadságkiadási megfelelőség és automatikus figyelmeztetések**~~ ✅ **(KÉSZ)**
 
-**HR-03 · FEJLESZTÉSI IGÉNY**
+~~**HR-03 · FEJLESZTÉSI IGÉNY**~~  
+**ÁLLAPOT:** ✅ **ELKÉSZÜLT (2026-10-10)** – Az Mt. 122. § (3) szerinti legalább 14 egybefüggő napos mentesülés naptári analízise elkészült (szabadság + heti pihenőnapok lánca, eltérő megállapodás kezelése), továbbá a novemberi maradványszabadság-riasztó sáv és a központi `/hr/compliance` megfelelőségi tábla működik (ADR: [A-038](docs/architecture/decisions/A-038-hr-leave-compliance-architecture.md), PRD: [P-057](docs/product/decisions/P-057-hr-leave-compliance-and-year-end-alerts-ux.md)).
 
 #### **A. Egybefüggő távollét / szabadság ellenőrzése**
 
@@ -340,11 +391,12 @@ A 48 órás értéket és az éves rendkívüli munkaidő értelmezését az alk
 
 ---
 
-**Elvárt eredmény:** a szabadságkiadási hiányok ne kizárólag kézi év végi ellenőrzéssel derüljenek ki. Automatikus szabadságkiosztást vagy a dolgozó helyetti foglalást a leirat nem kér.
+**Elvárt eredmény:** a szabadságkiadási hiányok ne kizárólag kézi év végi ellenőrzéssel derüljenek ki. Automatikus szabadságkiosztást vagy a dolgozó helyetti foglalást a leirat nem kér. *(Teljesítve)*
 
-### **2.5. Munkavédelmi és tűzvédelmi oktatások lejárati nyilvántartása**
+### ~~**2.5. Munkavédelmi és tűzvédelmi oktatások lejárati nyilvántartása**~~ ✅ **(KÉSZ)**
 
-**HR-04 · FEJLESZTÉSI IGÉNYAZ ÉRVÉNYESSÉGI ADATOK MÁR LÉTEZNEK**
+~~**HR-04 · FEJLESZTÉSI IGÉNYAZ ÉRVÉNYESSÉGI ADATOK MÁR LÉTEZNEK**~~  
+**ÁLLAPOT:** ✅ **ELKÉSZÜLT (2026-10-10)** – A `/hr/compliance` felületen létrejött a munkavédelmi és tűzvédelmi központi oktatási mátrix (30 napos lejárati figyelmeztetés, lejárt állapotok, azonnali iktatott jegyzőkönyv megtekintés és CSV export), a dolgozói profilon pedig a dedikált lejárati kártya (ADR: [A-039](docs/architecture/decisions/A-039-hr-safety-training-compliance-architecture.md), PRD: [P-058](docs/product/decisions/P-058-hr-safety-training-compliance-matrix-ux.md)).
 
 **Kiinduló állapot:** a rendszer már nyilvántartja, meddig érvényes egy adott oktatás, de az adat csak az érintett személy részletes nézetében érhető el.
 
@@ -355,20 +407,22 @@ A 48 órás értéket és az éves rendkívüli munkaidő értelmezését az alk
 
 **Pontosítandó:** lejárat előtti automatikus értesítések, címzettek, előjelzési idő és a jegyzőkönyvek dokumentumkapcsolatai. A leirat ezekre nem ad részletes követelményt; a konkrétan kért bővítés az áttekintő lejárati nyilvántartás.
 
-### **2.6. Alkalmasság miatti műszak- és bejelentkezési blokkolás**
+### ~~**2.6. Alkalmasság miatti műszak- és bejelentkezési blokkolás**~~ ✅ **(KÉSZ)**
 
-**HR-05 · MÁR MEGLÉVŐ KONTROLL**
+~~**HR-05 · MÁR MEGLÉVŐ KONTROLL**~~  
+**ÁLLAPOT:** ✅ **ELKÉSZÜLT / ÖSSZEHANGOLVA (2026-10-10)** – Az Mvt. 49. § (1) szerinti orvosi alkalmasság kemény blokkolása kiterjesztve: lejárt vizsgálat esetén sem a bejelentkezés (check-in), sem az előzetes műszaktervezőben történő beosztás nem engedélyezett; orvosi felülbírálat esetén szigorú audit naplózás készül (ADR: [A-040](docs/architecture/decisions/A-040-hr-medical-fitness-shift-blocking-architecture.md), PRD: [P-059](docs/product/decisions/P-059-hr-medical-fitness-shift-blocking-ux.md)).
 
 A „műszakbeosztás blokkoló figyelmeztetés” ötletre Dani azt jelzi, hogy a kapcsolódó védelem már működik:
 
 * Lejárt alkalmasság esetén a munkavállaló **nem nyithat műszakot**.  
 * Ugyanebben az esetben **nem csekkolhat be**.
 
-**Határ:** a leirat sérült szava alapján itt alkalmassági érvényességről van szó. Nem bizonyított, hogy a blokkolás minden oktatási lejáratra is vonatkozik. A műszaknyitási és bejelentkezési tilalomból nem következik automatikusan, hogy a még bevezetendő előzetes műszaktervezés is blokkolt; ezt a HR-01 megvalósításakor külön tisztázni kell.
+**Határ:** a leirat sérült szava alapján itt alkalmassági érvényességről van szó. Nem bizonyított, hogy a blokkolás minden oktatási lejáratra is vonatkozik. A műszaknyitási és bejelentkezési tilalomból nem következik automatikusan, hogy a még bevezetendő előzetes műszaktervezés is blokkolt; ezt a HR-01 megvalósításakor külön tisztázni kell. *(Összehangolva és megoldva)*
 
-### **2.7. Offboarding: kötelező kilépőigazolások és EaisyDOCS-iktatás**
+### ~~**2.7. Offboarding: kötelező kilépőigazolások és EaisyDOCS-iktatás**~~ ✅ **(KÉSZ)**
 
-**HR-06 · FEJLESZTÉSI IGÉNY**
+~~**HR-06 · FEJLESZTÉSI IGÉNY**~~  
+**ÁLLAPOT:** ✅ **ELKÉSZÜLT (2026-10-10)** – Az offboarding folyamat keretében a kötelező hatósági kilépőigazolások (Adatlap bírósági végrehajtói letiltáshoz, Igazolólap álláskeresési járadékhoz, Munkáltatói igazolás, TB igazolvány kivonat) automatikusan legenerálhatók és egy kattintással az EaisyDOCS iratkezelőbe iktathatók a dolgozó személyi dossziéjába (ADR: [A-041](docs/architecture/decisions/A-041-hr-offboarding-certificate-issuance-architecture.md), PRD: [P-060](docs/product/decisions/P-060-hr-offboarding-certificates-and-docs-filing-ux.md)).
 
 **Cél:** a munkavállaló kiléptetésének részeként a kötelező kilépőigazolások kezelése is jelenjen meg a folyamatban, és az elkészült dokumentumok az EaisyDOCS-ban legyenek iktatva.
 
@@ -389,11 +443,12 @@ A „műszakbeosztás blokkoló figyelmeztetés” ötletre Dani azt jelzi, hogy
 
 ---
 
-**Elvárt eredmény:** a kilépőigazolások az offboarding részeként kezelhetők, és dokumentált kapcsolatuk van az EaisyDOCS-ba iktatott iratokkal.
+**Elvárt eredmény:** a kilépőigazolások az offboarding részeként kezelhetők, és dokumentált kapcsolatuk van az EaisyDOCS-ba iktatott iratokkal. *(Megvalósítva)*
 
-### **2.8. Ütemezett bérpapír-előállítás és digitális átvételi nyugtázás**
+### ~~**2.8. Ütemezett bérpapír-előállítás és digitális átvételi nyugtázás**~~ ✅ **(KÉSZ)**
 
-**HR-07 · FEJLESZTÉSI IGÉNY**
+~~**HR-07 · FEJLESZTÉSI IGÉNY**~~  
+**ÁLLAPOT:** ✅ **ELKÉSZÜLT (2026-10-10)** – Havi bérpapír-előállítás és ütemezett generálás megvalósítva előzetes bérszerkesztéssel (`/hr/payroll`), a dolgozói profilon (`/hr/employee/[id]?tab=payslips`) pedig az Mt. 155. § szerinti digitális átvételi nyugtázás (átvétel időbélyeggel és IP-címmel, PDF megtekintéssel és letöltéssel) működik (ADR: [A-042](docs/architecture/decisions/A-042-hr-scheduled-payslip-generation-and-acknowledgement-architecture.md), PRD: [P-061](docs/product/decisions/P-061-hr-scheduled-payslip-generation-and-acknowledgement-ux.md)).
 
 **Kiinduló állapot:** a bemutatás szerint a rendszer jelenleg még nem állít elő bérpapírt. Az átvételi nyugtázás ezért az előállítási folyamat kialakításától is függ.
 
@@ -423,17 +478,17 @@ A nyugtázás célja az **átvétel visszaigazolása**. Nem azonos a dokumentum 
 
 ---
 
-**Elvárt eredmény:** az előállított bérpapírhoz a munkavállaló digitális átvételi visszajelzést adhat, a készítés időpontja pedig a kialakítandó beállítások szerint vezérelhető.
+**Elvárt eredmény:** az előállított bérpapírhoz a munkavállaló digitális átvételi visszajelzést adhat, a készítés időpontja pedig a kialakítandó beállítások szerint vezérelhető. *(Megvalósítva)*
 
-### **2.9. HR-függőségek és véglegesítendő döntések**
+### ~~**2.9. HR-függőségek és véglegesítendő döntések**~~ ✅ **(KÉSZ / DÖNTVE)**
 
-| Kapcsolat | Funkcionális jelentőség |
-| :---- | :---- |
-| Műszaktervezés ↔ munkaidőfigyelés | Meg kell határozni, hogy a korlátvizsgálat tervezéskor, tényleges teljesítéskor vagy mindkét ponton történik. |
-| Műszaktervezés ↔ alkalmasság | A már működő műszaknyitási és bejelentkezési tilalom mellett külön döntést igényel az előzetes beosztásra gyakorolt hatás. |
-| Szabadságadatok ↔ automatikus figyelmeztetések | A 14 napos ellenőrzés és a novemberi maradványszabadság-riasztás csak a számítási és címzetti szabályok pontosítása után véglegesíthető. |
-| Oktatási részadatok ↔ lejárati áttekintő | A meglévő érvényességi adatok összesített megjelenítését kell kialakítani; külön új adatgyűjtési kötelezettség nem hangzott el. |
-| Offboarding ↔ EaisyDOCS | A kilépőigazolások iktatása a kifejezetten megnevezett HR–dokumentumkezelési integráció. |
-| Béradatok ↔ generálás ↔ átvétel | A digitális nyugtázás előfeltétele a munkavállalóhoz rendelt bérpapír rendelkezésre állása; a béradatok forrása még tisztázandó. |
+| Kapcsolat | Funkcionális jelentőség | Státusz / Meghozott döntés |
+| :---- | :---- | :---- |
+| Műszaktervezés ↔ munkaidőfigyelés | Meg kell határozni, hogy a korlátvizsgálat tervezéskor, tényleges teljesítéskor vagy mindkét ponton történik. | ✅ **Megoldva:** Mindkét ponton ellenőrzött (tervezéskor 48h limit indikátor, jelenlétnél heti/éves Mt. túlóra számítás). |
+| Műszaktervezés ↔ alkalmasság | A már működő műszaknyitási és bejelentkezési tilalom mellett külön döntést igényel az előzetes beosztásra gyakorolt hatás. | ✅ **Megoldva:** Kemény blokkolás műszak hozzárendeléskor és bejelentkezéskor egyaránt (Mvt. 49. § (1)). |
+| Szabadságadatok ↔ automatikus figyelmeztetések | A 14 napos ellenőrzés és a novemberi maradványszabadság-riasztás csak a számítási és címzetti szabályok pontosítása után véglegesíthető. | ✅ **Megoldva:** Naptári pihenőlánc kalkuláció és automatikus novemberi vezetői/HR figyelmeztető banner implementálva. |
+| Oktatási részadatok ↔ lejárati áttekintő | A meglévő érvényességi adatok összesített megjelenítését kell kialakítani; külön új adatgyűjtési kötelezettség nem hangzott el. | ✅ **Megoldva:** `/hr/compliance` központi oktatási lejárati mátrix és dolgozói profilon lejárati kártya beépítve. |
+| Offboarding ↔ EaisyDOCS | A kilépőigazolások iktatása a kifejezetten megnevezett HR–dokumentumkezelési integráció. | ✅ **Megoldva:** Kötelező hatósági igazolások generálása és 1-kattintásos EaisyDOCS személyi dossziéba iktatás megvalósítva. |
+| Béradatok ↔ generálás ↔ átvétel | A digitális nyugtázás előfeltétele a munkavállalóhoz rendelt bérpapír rendelkezésre állása; a béradatok forrása még tisztázandó. | ✅ **Megoldva:** Béradat-szerkesztés és ütemezett bérpapír-generálás a `/hr/payroll`-on, Mt. 155. § digitális átvételi nyugtázás a dolgozói profilon. |
 
-A megbeszélés végén a felek a felvetésekből külön fejlesztési feladatok létrehozását helyezik kilátásba. Konkrét ütemezés, felelősönkénti feladatkiosztás vagy teljes prioritási sorrend nem hangzik el.
+A megbeszélés végén a felek a felvetésekből külön fejlesztési feladatok létrehozását helyezik kilátásba. A javasolt EaisyHR feladatok mindegyike (HR-01 – HR-07, valamint a többcég-kezelés és szigorú GDPR izoláció) kifejlesztésre került és dokumentálva van.

@@ -11,6 +11,8 @@ import {
   ShiftDayLeave,
 } from "@/types/shifts"
 import { addDays, format, parseISO, startOfWeek, endOfWeek, subDays } from "date-fns"
+import { checkMedicalValidityForDate } from "@/utils/hr/medical-compliance-checker"
+import { checkWeeklyHoursCompliance } from "@/utils/hr/overtime-engine"
 
 export async function getCompanyShiftTemplates(): Promise<ShiftTemplate[]> {
   const supabase = await createClient()
@@ -274,19 +276,51 @@ export async function saveShiftAssignmentAction(params: {
       }
     }
 
-    // Orvosi érvényesség ellenőrzése figyelmeztetéshez
-    let warningMsg: string | undefined
+    // Orvosi érvényesség szigorú ellenőrzése és blokkolás (HR-TASK-05, Mvt. 49. §)
     const { data: adatlap } = await supabase
       .from("hr_dolgozo_adatlap")
       .select("orvosi_alkalmassag_ervenyesseg")
       .eq("id", dolgozo_id)
-      .single()
+      .maybeSingle()
 
-    if (adatlap?.orvosi_alkalmassag_ervenyesseg) {
-      const expiry = format(parseISO(adatlap.orvosi_alkalmassag_ervenyesseg), "yyyy-MM-dd")
-      if (expiry < datum) {
-        warningMsg = `Figyelem: A dolgozó orvosi alkalmassága ezen a napon (${datum}) már lejárt (${expiry})!`
+    const medicalCheck = checkMedicalValidityForDate(
+      adatlap?.orvosi_alkalmassag_ervenyesseg,
+      datum
+    )
+
+    if (!medicalCheck.isValid) {
+      return {
+        success: false,
+        error: medicalCheck.errorMessage || `A dolgozó nem osztható be erre a napra (${datum}), mert az orvosi alkalmassága lejárt vagy hiányzik!`,
       }
+    }
+
+    let warningMsg: string | undefined
+    if (medicalCheck.status === "lejar_hamarosan") {
+      warningMsg = `Figyelem: A dolgozó orvosi alkalmassága hamarosan lejár (${adatlap?.orvosi_alkalmassag_ervenyesseg})!`
+    }
+
+    // Mt. 99. § heti 48 órás maximális munkaidő figyelése (HR-TASK-02)
+    const shiftDate = parseISO(datum)
+    const weekMon = format(startOfWeek(shiftDate, { weekStartsOn: 1 }), "yyyy-MM-dd")
+    const weekSun = format(endOfWeek(shiftDate, { weekStartsOn: 1 }), "yyyy-MM-dd")
+
+    const { data: otherWeekShifts } = await supabase
+      .from("hr_muszak_beosztas")
+      .select("tervezett_ora, datum")
+      .eq("company_id", activeCompanyId)
+      .eq("dolgozo_id", dolgozo_id)
+      .gte("datum", weekMon)
+      .lte("datum", weekSun)
+      .neq("datum", datum)
+
+    const otherHours = (otherWeekShifts || []).reduce((sum, s) => sum + (Number(s.tervezett_ora) || 0), 0)
+    const totalWeeklyHoursAfter = otherHours + oraszam
+    const weeklyCheck = checkWeeklyHoursCompliance(totalWeeklyHoursAfter)
+
+    if (weeklyCheck.isOver48) {
+      const otMsg = `Figyelem: Ezzel a műszakkal a tervezett heti munkaidő (${totalWeeklyHoursAfter} óra) meghaladja a törvényes heti 48 órás Mt. 99. § felső határt!`
+      warningMsg = warningMsg ? `${warningMsg} | ${otMsg}` : otMsg
     }
 
     // Upsert a hr_muszak_beosztas táblába
@@ -322,7 +356,7 @@ export async function saveShiftAssignmentAction(params: {
 
 export async function copyPreviousWeekRosterAction(
   targetWeekStartStr: string
-): Promise<{ success: boolean; copiedCount?: number; error?: string }> {
+): Promise<{ success: boolean; copiedCount?: number; skippedMedicalCount?: number; error?: string; message?: string }> {
   try {
     const supabase = await createClient()
     const {
@@ -375,7 +409,20 @@ export async function copyPreviousWeekRosterAction(
       )
     }
 
-    // 3. Új beosztások előkészítése (+7 nappal eltolva)
+    // 3. Dolgozók orvosi érvényességének lekérése (HR-TASK-05 másolási védelem)
+    const distinctEmployeeIds = Array.from(new Set(sourceShifts.map((s) => s.dolgozo_id)))
+    const { data: employeeAdatlaps } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select("id, orvosi_alkalmassag_ervenyesseg")
+      .in("id", distinctEmployeeIds)
+
+    const medicalExpiryMap = new Map<string, string | null>()
+    for (const a of employeeAdatlaps || []) {
+      medicalExpiryMap.set(a.id, a.orvosi_alkalmassag_ervenyesseg)
+    }
+
+    // 4. Új beosztások előkészítése (+7 nappal eltolva)
+    let skippedMedicalCount = 0
     const newAssignments = []
     for (const shift of sourceShifts) {
       const shiftDate = parseISO(shift.datum)
@@ -384,6 +431,14 @@ export async function copyPreviousWeekRosterAction(
 
       // Ha az alkalmazott a cél napon szabadságon vagy táppénzen van, kihagyjuk!
       if (isEmployeeAbsentOnDay(shift.dolgozo_id, targetDateStr)) {
+        continue
+      }
+
+      // Ha az alkalmazott orvosi alkalmassága a cél napon nem érvényes, kihagyjuk! (HR-TASK-05, Mvt. 49. §)
+      const empMedicalExpiry = medicalExpiryMap.get(shift.dolgozo_id)
+      const medicalCheck = checkMedicalValidityForDate(empMedicalExpiry, targetDateStr)
+      if (!medicalCheck.isValid) {
+        skippedMedicalCount++
         continue
       }
 
@@ -413,7 +468,10 @@ export async function copyPreviousWeekRosterAction(
     }
 
     revalidatePath("/hr/time")
-    return { success: true, copiedCount: newAssignments.length }
+    const msg = skippedMedicalCount > 0
+      ? `${newAssignments.length} műszak sikeresen átmásolva. (${skippedMedicalCount} műszak kihagyva lejárt/hiányzó orvosi alkalmasság miatt!)`
+      : undefined
+    return { success: true, copiedCount: newAssignments.length, skippedMedicalCount, message: msg }
   } catch (err: any) {
     console.error("copyPreviousWeekRosterAction error:", err)
     return { success: false, error: err.message || "Ismeretlen hiba másoláskor" }

@@ -52,6 +52,7 @@ export interface OffboardingListItem {
   szerzodes_pdf_url?: string | null
   eszkoz_elszamolas_pdf_url?: string | null
   t1041_nyugta_url?: string | null
+  kilepo_igazolas_pdf_url?: string | null
   hr_offboarding_feladat?: OffboardingTask[]
   hr_kilepes_interju?: any[]
   [key: string]: any
