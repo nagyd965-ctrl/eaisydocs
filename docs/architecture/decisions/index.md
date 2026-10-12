@@ -63,8 +63,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-048](./A-048-eaisyhr-central-audit-log-overhaul-and-query-hardening.md) | 2026-10-10 | eaisyHR Központi Eseménynapló Architektúra és Lekérdezés Keményítés | `[HR]` | `Decided` | [P-067](../../product/decisions/P-067-eaisyhr-central-audit-log-overhaul-and-unified-filtering-ux.md), `src/app/hr/audit/page.tsx` |
 | [A-049](./A-049-hr-central-overview-multi-tenant-scoping-and-kpi-accuracy.md) | 2026-10-10 | eaisyHR Központi Áttekintés Többcég-kezelés és Pontos KPI Metrikák | `[HR]` | `Decided` | [P-068](../../product/decisions/P-068-hr-central-overview-multi-tenant-scoping-and-kpi-accuracy-ux.md), `src/app/hr/admin/overview/page.tsx`, `dashboard-actions.ts` |
 | [A-050](./A-050-eaisydocs-central-audit-log-overhaul.md) | 2026-10-10 | eaisyDocs Központi Eseménynapló Architektúra és Dedikált Modul | `[Docs]` | `Decided` | [P-069](../../product/decisions/P-069-eaisydocs-central-audit-log-overhaul-ux.md), `src/app/audit/page.tsx`, `src/app/audit/actions.ts` |
+| [A-051](./A-051-hr-organization-structural-separation-from-settings.md) | 2026-10-12 | eaisyHR Szervezeti Felépítés és Beállítások Építészeti Szétválasztása | `[HR]` | `Decided` | [P-070](../../product/decisions/P-070-hr-organization-structural-separation-from-settings.md), `src/app/hr/organization/page.tsx`, `organization-tabs-view.tsx`, `settings/page.tsx` |
+| [A-052](./A-052-hr-job-catalog-specification-and-omnipresent-integration.md) | 2026-10-12 | Nyilvántartott Munkakörök Törzsadatai, Korszerű Szerkesztő és Rendszerszintű Integráció | `[HR]` | `Decided` | [P-071](../../product/decisions/P-071-hr-job-catalog-specification-and-omnipresent-integration.md), `job-edit-dialog.tsx`, `job/[id]/page.tsx`, `job-action-menu.tsx`, `EmploymentTab.tsx`, `self-service/profile/page.tsx` |
+| [A-053](./A-053-hr-job-profile-and-catalog-action-deduplication.md) | 2026-10-12 | Munkaköri Profil és Törzslap Szerkesztési Architektúra, Akció-Deduplikáció és Ikon-Minimalizálás | `[HR]` | `Decided` | [P-072](../../product/decisions/P-072-hr-job-profile-and-catalog-ux-declutter-and-deduplication.md), `job-edit-dialog.tsx`, `job/[id]/page.tsx`, `job-description-upload.tsx`, `EmploymentTab.tsx`, `self-service/profile/page.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-050`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-054`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+

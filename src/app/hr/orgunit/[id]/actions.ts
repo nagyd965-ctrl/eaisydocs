@@ -37,7 +37,8 @@ export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: str
   console.log("[assignEmployeeToOrgUnit] Updated:", updated)
 
   revalidatePath(`/hr/orgunit/${orgUnitId}`)
-  revalidatePath("/hr/settings")
+  revalidatePath("/hr/organization")
+  revalidatePath("/hr/admin")
   return { success: true }
 }
 
@@ -65,6 +66,7 @@ export async function removeEmployeeFromOrgUnit(orgUnitId: string, employeeId: s
   }
 
   revalidatePath(`/hr/orgunit/${orgUnitId}`)
-  revalidatePath("/hr/settings")
+  revalidatePath("/hr/organization")
+  revalidatePath("/hr/admin")
   return { success: true }
 }

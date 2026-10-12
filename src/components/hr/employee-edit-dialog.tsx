@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -19,8 +20,13 @@ import { toast } from "sonner"
 
 export interface EmployeeEditData {
   id: string
+  nev?: string
+  hr_szerepkor?: string | null
+  hr_szervezeti_egyseg_id?: string | null
+  kozvetlen_vezeto_id?: string | null
   felhasznalo_profil?: any
   hr_jogviszony?: any
+  hr_dolgozo_adatlap?: any
   [key: string]: any
 }
 
@@ -38,7 +44,9 @@ export interface EmployeeOrgUnitOption {
 
 export interface EmployeeManagerOption {
   id: string
-  nev: string
+  nev?: string
+  felhasznalo_profil?: any
+  hr_szerepkor?: string | null
   [key: string]: any
 }
 
@@ -53,10 +61,11 @@ export function EmployeeEditDialog({
   orgUnits?: EmployeeOrgUnitOption[]
   managers?: EmployeeManagerOption[] 
 }) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   
-  const nev = employee.felhasznalo_profil?.nev || "Ismeretlen"
+  const nev = employee.felhasznalo_profil?.nev || employee.nev || "Ismeretlen"
   
   const roleMap: Record<string, string> = {
     "munkavallalo": "Munkavállaló (Alap)",
@@ -71,13 +80,22 @@ export function EmployeeEditDialog({
     "auditor": "Auditor (Könyvvizsgáló)"
   }
 
-  const activeJogviszony = employee.hr_jogviszony?.[0]
+  const activeJogviszony = employee.hr_jogviszony?.[0] || employee.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
   const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
 
-  const [role, setRole] = useState<string>(employee.felhasznalo_profil?.hr_szerepkor || "munkavallalo")
+  const [role, setRole] = useState<string>(employee.felhasznalo_profil?.hr_szerepkor || employee.hr_szerepkor || "munkavallalo")
   const [munkakorId, setMunkakorId] = useState<string>(activeBeosztas?.hr_munkakor?.id || "none")
-  const [orgUnitId, setOrgUnitId] = useState<string>(employee.felhasznalo_profil?.hr_szervezeti_egyseg_id || "none")
-  const [managerId, setManagerId] = useState<string>(employee.felhasznalo_profil?.kozvetlen_vezeto_id || "none")
+  const [orgUnitId, setOrgUnitId] = useState<string>(employee.felhasznalo_profil?.hr_szervezeti_egyseg_id || employee.hr_szervezeti_egyseg_id || "none")
+  const [managerId, setManagerId] = useState<string>(employee.felhasznalo_profil?.kozvetlen_vezeto_id || employee.kozvetlen_vezeto_id || "none")
+
+  useEffect(() => {
+    if (open) {
+      setRole(employee.felhasznalo_profil?.hr_szerepkor || employee.hr_szerepkor || "munkavallalo")
+      setMunkakorId(activeBeosztas?.hr_munkakor?.id || "none")
+      setOrgUnitId(employee.felhasznalo_profil?.hr_szervezeti_egyseg_id || employee.hr_szervezeti_egyseg_id || "none")
+      setManagerId(employee.felhasznalo_profil?.kozvetlen_vezeto_id || employee.kozvetlen_vezeto_id || "none")
+    }
+  }, [open, employee, activeBeosztas])
 
   const getMunkakorLabel = (id: string) => {
     if (id === "none") return "Nincs munkakör beállítva"
@@ -104,6 +122,7 @@ export function EmployeeEditDialog({
     } else {
       toast.success("Dolgozó adatai sikeresen frissítve!")
       setOpen(false)
+      router.refresh()
     }
   }
 
@@ -185,15 +204,19 @@ export function EmployeeEditDialog({
             <input type="hidden" name="managerId" value={managerId} />
             <Select value={managerId} onValueChange={setManagerId as any}>
               <SelectTrigger>
-                <span>{managerId === "none" ? "Nincs beállítva" : managers?.find(m => m.id === managerId)?.felhasznalo_profil?.nev || "Ismeretlen"}</span>
+                <span>{managerId === "none" ? "Nincs beállítva" : managers?.find(m => m.id === managerId)?.felhasznalo_profil?.nev || managers?.find(m => m.id === managerId)?.nev || "Ismeretlen"}</span>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Nincs beállítva</SelectItem>
-                {managers?.filter(m => m.id !== employee.id).map(manager => (
-                  <SelectItem key={manager.id} value={manager.id}>
-                    {manager.felhasznalo_profil?.nev || "Névtelen"} ({roleMap[manager.felhasznalo_profil?.hr_szerepkor] || "Ismeretlen"})
-                  </SelectItem>
-                ))}
+                {managers?.filter(m => m.id !== employee.id).map(manager => {
+                  const mName = manager.felhasznalo_profil?.nev || manager.nev || "Névtelen"
+                  const mRole = manager.felhasznalo_profil?.hr_szerepkor || manager.hr_szerepkor || ""
+                  return (
+                    <SelectItem key={manager.id} value={manager.id}>
+                      {mName} {mRole ? `(${roleMap[mRole] || mRole})` : ""}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
           </div>

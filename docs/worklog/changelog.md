@@ -2,6 +2,68 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
+## [Unreleased] – Fejlesztés alatt (2026-10-12)
+
+### 🧹 eaisyHR: Munkaköri Profil és Adatlap UX Tisztítás, Redundanciamentesítés és Linear-Flat Design (A-053 / P-072)
+- **Munkaköri Profil Kártya (`EmploymentTab` & `self-service/profile`):**
+  - Eltávolítva a fejlécből a redundáns "Munkaköri Leírás Megtekintése" és letöltés gomb; helyét a dolgozói nézetben a tiszta "Munkakör törzslap" közvetlen link vette át.
+  - Az alsó "Hivatalos Munkaköri Leírás" dokumentumsávban a `Betekintés` (`PdfViewerDialog`) gomb mellé közvetlenül elhelyezésre került a `Letöltés` akciógomb.
+- **Munkakör-katalógus Táblázat (`/hr/organization?tab=jobs`):**
+  - A `JobEditDialog` refaktorálásra került: kizárólag akkor renderel triggert, ha azt explicite átadják (`trigger ? ... : null`), megszűntetve a vezérelt `JobActionMenu` alatti duplikált második "Munkakör szerkesztése" gombot.
+  - A műveleti oszlopban a kompakt `Adatlap` gomb, szerkesztés ceruza ikon és törlés kuka ikon jelenik meg egységesen.
+- **Munkaköri Részletes Adatlap (`/hr/job/[id]`):**
+  - Megszűntek a kártyafejlécekbe zsúfolt ismétlődő szerkesztőgombok ("Adatok módosítása", 2x "Szerkesztés"); az entitás módosítása kizárólag a lap tetején lévő központi "Munkakör szerkesztése" gombról érhető el.
+  - Linear-flat design szabályozás betartása: eltávolításra került az összes nem funkcionális Lucide piktogram (épület, táska, sztetoszkóp, vágólap, sapka, pajzs, sisak, dokumentum) a fejlécekből, fülekből, kártyacímekből, adatmezőkből és az üres állapot dobozból.
+- **Dokumentáció:** [ADR A-053](../architecture/decisions/A-053-hr-job-profile-and-catalog-action-deduplication.md), [PRD P-072](../product/decisions/P-072-hr-job-profile-and-catalog-ux-declutter-and-deduplication.md).
+
+### 📋 eaisyHR: Nyilvántartott Munkakörök Törzsadatai, Korszerű Szerkesztő és Rendszerszintű Integráció (A-052 / P-071)
+- **Központi, Tágas Munkakör Szerkesztő Komponens (`JobEditDialog`):**
+  - Elkészült az új kanonikus `JobEditDialog` (`src/components/hr/job-edit-dialog.tsx`), amely 720px széles, kényelmes felületen 3 külön fülön teszi elérhetővé a teljes munkaköri specifikációt:
+    1. *Alapadatok & Besorolás:* Megnevezés, KSH FEOR-08 kód segédlettel, besorolási szintek és szervezeti egység választó.
+    2. *Feladatok & Kompetenciák Dinamikus Kezelő:* A korábbi szűk, nyers `textarea` mezőket kiváltotta az interaktív elemlistás feladatkezelő (sorszámozott tételek, Enterrel rögzítés, több soros másolás felismerése, tétel törlés) és a dinamikus kompetencia chip/badge kezelő.
+    3. *Munkavédelem & Orvosi:* Kockázati kategória, kötelező egyéni védőeszköz (EVE) igény, valamint kötelező foglalkozás-egészségügyi vizsgálat típusa és esedékességi gyakorisága (hónapban).
+- **Munkaköri Részletes Adatlap (`/hr/job/[id]`) Korszerűsítése:**
+  - A fejléc jobb szélére bekerült a kiemelt "Munkakör szerkesztése" gomb, valamint a feloldott szervezeti egység outline badge és a FEOR kód.
+  - Az "Alapadatok & Leírás" fül elején megjelent egy új "Munkaköri Törzs- és Minősítési Adatok" összegző sáv közvetlen "Adatok módosítása" gyorsgombbal, valamint a feladatok és kompetenciák kártyák fejléceiben is közvetlen szerkesztési trigger érhető el.
+  - A szerkesztés mentése (`updateMunkakor`) automatikusan revalidálja a munkaköri adatlapot és a szervezeti nézeteket.
+- **Katalógus Listanézet Egységesítése (`JobActionMenu`):**
+  - A `/hr/organization?tab=jobs` munkaköri táblázatában a szerkesztés gomb mostantól szintén a modern `JobEditDialog`-ot nyitja meg, megszüntetve a korábbi apró, kényelmetlen dialógust.
+- **Munkaköri Adatok Rendszerszintű Integrációja a Dolgozói Adatlapon (`EmploymentTab`):**
+  - A "Munkaviszony és Munkarend" nézetben a "Jelenlegi Beosztás" kártya legfelső tételeként mostantól azonnal látható a betöltött munkakör és FEOR kódja.
+  - Új reprezentatív **"Munkaköri Profil és Követelmények"** kártya jött létre:
+    - Részletesen listázza a dolgozó munkaköréhez rendelt összes hivatalos feladatot és felelősségi kört.
+    - Feltünteti az elvárt kompetenciákat és a kötelezően előírt egyéni védőeszközöket (EVE).
+    - Megjeleníti az üzemorvosi alkalmassági vizsgálat típusát és gyakoriságát.
+    - Ha van feltöltve hivatalos verzionált Munkaköri Leírás PDF, közvetlen betekintési (`PdfViewerDialog`) és letöltési gombot biztosít.
+    - Közvetlen ugróhivatkozást nyújt a munkakör központi adatlapjára (`/hr/job/[id]`).
+- **Önkiszolgáló Portál Integráció (`SelfServiceProfilePage`):**
+  - A dolgozók a saját profiljukon (`/hr/self-service/profile`) új, informatív kártyán tekinthetik át a rájuk vonatkozó hivatalos feladatkört és a munkavégzésükhöz kötelező védőeszközöket.
+  - A `JobDescriptionAcknowledgment` figyelmeztető doboz kibővült egy "Átolvasás (PDF)" gombbal, amellyel a munkavállaló egyetlen kattintással ellenőrizheti a verzionált munkaköri leírást még a digitális nyugtázás előtt.
+- **Dokumentáció:** [ADR A-052](../architecture/decisions/A-052-hr-job-catalog-specification-and-omnipresent-integration.md), [PRD P-071](../product/decisions/P-071-hr-job-catalog-specification-and-omnipresent-integration.md).
+
+### 🏢 eaisyHR: Szervezeti Felépítés és Beállítások Teljes Építészeti Szétválasztása (A-051 / P-070)
+- **A "Munkatársak" Fül Eltávolítása a Beállításokból (`/hr/settings`):**
+  - A dolgozók adminisztrációja, felvétele (`+ Új Dolgozó`) és szerkesztése mostantól 100%-ban az Állomány Áttekintés (`/hr/admin`) és a Dolgozói Adatlap (`/hr/employee/[id]`) feladata.
+  - A `/hr/settings` oldalról eltávolításra került a teljes nehéz, 7-8 táblás szerveroldali dolgozói lekérdezéscsomag és a redundáns `SettingsEmployeeTable`.
+- **Gyorsmódosító és Törlési Műveletek az Állomány Áttekintésben (`/hr/admin`):**
+  - Az adminisztrátorok és HR vezetők számára az állománytáblázat "Műveletek" oszlopában közvetlenül megjelent a Módosítás (`EmployeeEditDialog`) és a Törlés (`EmployeeDeleteDialog`) funkció, miközben a munkavállalók továbbra is csak a megtekintést (`Adatlap →`) érik el.
+  - A szervezeti egység oszlopban mostantól a dolgozó valós, dinamikusan feloldott szervezeti egysége jelenik meg outline badge formátumban, instant szűrési lehetőséggel a táblázat fejlécében.
+- **Önálló "Szervezeti Felépítés" Képernyő (`/hr/organization`):**
+  - Új dedikált modul és útvonal jött létre `src/app/hr/organization/page.tsx` és `src/components/hr/organization-tabs-view.tsx` formájában.
+  - A bal oldali főmenüben a `HR Munkaasztal` alatt kapott közvetlen menüpontot ("Szervezeti Felépítés").
+  - Három áttekinthető fül:
+    1. **Szervezeti Ábra (`OrgChartTree`):** Vállalati fanézet a hierarchiáról és a beosztottakról.
+    2. **Szervezeti Egységek:** Kereshető részleg- és osztálylista dolgozói létszámmal és szerkesztési műveletekkel.
+    3. **Munkakör-katalógus:** Munkaköri leírások, FEOR kódok és betöltöttségi státuszok kezelése.
+  - Kanonikus `KpiCard` összegző sáv a legfontosabb szervezeti egység és munkakör mutatókkal.
+- **A Beállítások Megtisztítása:**
+  - A `/hr/settings` felület kizárólag a valódi konfigurációkat tartalmazza: Profil, Cég, Rendszer (téma, nyelv, formátumok), Biztonság és Értesítések.
+  - Frissítve a részletes szervezeti egység (`/hr/orgunit/[id]`) és munkakör (`/hr/job/[id]`) oldalak breadcrumbjai és visszanavigációs gombjai, hogy a `/hr/organization`-re mutassanak.
+- **A Redundáns "Központi Áttekintés" (`/hr/admin/overview`) Kivezetése:**
+  - Mivel a feladatok, teendők (`hr-tasks-and-alerts-table.tsx`), a dolgozói létszámok és az operatív funkciók már mind az **Állomány áttekintés** (`/hr/admin`) alá kerültek, a korábbi "Központi Áttekintés" menüpont törlésre került a bal oldali menüből.
+  - A `/hr/admin/overview` útvonal automatikus átirányítást kapott a `/hr/admin`-ra az esetleges elavult könyvjelzők vagy megnyitott tabok zökkenőmentes kezeléséhez.
+- **Dokumentáció:** [ADR A-051](../architecture/decisions/A-051-hr-organization-structural-separation-from-settings.md), [PRD P-070](../product/decisions/P-070-hr-organization-structural-separation-from-settings.md).
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-10)
 
 ### 🔗 eaisyDocs & EaisyBILL: Felhasználókezelés és Adatforrás Integrációs Kutatás (DOC-04)

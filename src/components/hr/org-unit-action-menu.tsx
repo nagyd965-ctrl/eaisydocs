@@ -5,14 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { MoreHorizontal, Edit, Trash2, FileText } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Edit, Trash2, FileText } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -22,7 +15,6 @@ import {
 } from "@/components/ui/select"
 import { updateHrDepartment, deleteHrDepartment } from "@/app/hr/settings/actions"
 import { toast } from "sonner"
-import { buttonVariants } from "@/components/ui/button"
 import Link from "next/link"
 
 export interface OrgUnitItem {
@@ -91,30 +83,33 @@ export function OrgUnitActionMenu({ unit, allUnits }: OrgUnitActionMenuProps) {
 
   return (
     <>
-      <div className="flex justify-end gap-2 items-center">
+      <div className="flex items-center justify-end gap-1">
         <Link href={`/hr/orgunit/${unit.id}`}>
-          <Button variant="ghost" size="sm" className="text-xs">
-            <FileText className="w-3 h-3 mr-1" />
+          <Button variant="ghost" size="sm" className="h-8 text-xs text-primary hover:text-primary gap-1 px-2.5">
+            <FileText className="w-3.5 h-3.5" />
             Adatlap
           </Button>
         </Link>
-        <DropdownMenu>
-          <DropdownMenuTrigger className={buttonVariants({ variant: "ghost", size: "sm", className: "h-8 w-8 p-0" })}>
-            <span className="sr-only">Műveletek</span>
-            <MoreHorizontal className="h-4 w-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setEditOpen(true)} className="cursor-pointer text-primary font-medium">
-              <Edit className="mr-2 h-4 w-4" />
-              <span>Szerkesztés</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="cursor-pointer text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" />
-              <span>Törlés</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
+          title="Szerkesztés"
+          onClick={() => setEditOpen(true)}
+        >
+          <Edit className="h-4 w-4" />
+          <span className="sr-only">Szerkesztés</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          title="Törlés"
+          onClick={() => setDeleteOpen(true)}
+        >
+          <Trash2 className="h-4 w-4" />
+          <span className="sr-only">Törlés</span>
+        </Button>
       </div>
 
       {/* Edit Dialog */}

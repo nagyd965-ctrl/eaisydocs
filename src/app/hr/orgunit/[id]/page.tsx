@@ -59,8 +59,8 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
       <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
         <Building2 className="w-12 h-12 text-muted-foreground/30" />
         <h2 className="text-xl font-semibold text-muted-foreground">Szervezeti egység nem található</h2>
-        <Link href="/hr/settings">
-          <Button variant="outline" size="sm">Vissza a beállításokhoz</Button>
+        <Link href="/hr/organization?tab=orgunits">
+          <Button variant="outline" size="sm">Vissza a szervezeti felépítéshez</Button>
         </Link>
       </div>
     )
@@ -133,9 +133,9 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
 
       {/* ── Breadcrumb ── */}
       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link href="/hr/settings" className="hover:text-foreground transition-colors">Beállítások</Link>
+        <Link href="/hr/organization" className="hover:text-foreground transition-colors">Szervezeti felépítés</Link>
         <ChevronRight className="w-3.5 h-3.5" />
-        <Link href="/hr/settings?tab=organization" className="hover:text-foreground transition-colors">Szervezeti egységek</Link>
+        <Link href="/hr/organization?tab=orgunits" className="hover:text-foreground transition-colors">Szervezeti egységek</Link>
         <ChevronRight className="w-3.5 h-3.5" />
         <span className="text-foreground font-medium">{orgUnit.nev}</span>
       </div>
@@ -143,7 +143,7 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
       {/* ── Fejléc ── */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link href="/hr/settings">
+          <Link href="/hr/organization?tab=orgunits">
             <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 shrink-0">
               <ChevronLeft className="w-4 h-4" />
             </Button>
@@ -287,7 +287,7 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
                 <CardTitle className="text-base font-semibold">Hozzárendelt Munkakörök</CardTitle>
                 <CardDescription>Az egységbe sorolt pozíciók és betöltöttségük.</CardDescription>
               </div>
-              <Link href="/hr/settings?tab=organization&sub=jobs">
+              <Link href="/hr/organization?tab=jobs">
                 <Button variant="outline" size="sm" className="gap-1.5">
                   <Briefcase className="w-3.5 h-3.5" />
                   Katalógus kezelése

@@ -53,7 +53,8 @@ export async function assignEmployeeToJob(jobId: string, employeeId: string) {
   }
 
   revalidatePath(`/hr/job/${jobId}`)
-  revalidatePath("/hr/settings")
+  revalidatePath("/hr/organization")
+  revalidatePath("/hr/admin")
   return { success: true }
 }
 
@@ -89,6 +90,7 @@ export async function removeEmployeeFromJob(jobId: string, employeeId: string) {
   }
 
   revalidatePath(`/hr/job/${jobId}`)
-  revalidatePath("/hr/settings")
+  revalidatePath("/hr/organization")
+  revalidatePath("/hr/admin")
   return { success: true }
 }

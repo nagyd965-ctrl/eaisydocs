@@ -4,12 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Briefcase, Users, FileText, ChevronLeft, ShieldAlert, ClipboardList, GraduationCap, Stethoscope, HardHat } from "lucide-react"
+import { ChevronLeft } from "lucide-react"
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { AssignEmployeeDialog } from "@/components/hr/assign-employee-dialog"
 import { RemoveEmployeeButton } from "./remove-employee-button"
 import { JobDescriptionUpload } from "@/components/hr/job-description-upload"
+import { JobEditDialog } from "@/components/hr/job-edit-dialog"
 
 export default async function JobProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -31,19 +32,25 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
 
   const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)
 
-  // Munkakör adatainak lekérése
-  const { data: job, error: jobError } = await supabase
-    .from("hr_munkakor")
-    .select("*")
-    .eq("id", id)
-    .single()
+  // Munkakör és szervezeti egységek párhuzamos lekérése
+  const [{ data: job, error: jobError }, { data: orgUnits }] = await Promise.all([
+    supabase
+      .from("hr_munkakor")
+      .select("*, hr_szervezeti_egyseg(id, nev)")
+      .eq("id", id)
+      .single(),
+    supabase
+      .from("hr_szervezeti_egyseg")
+      .select("id, nev")
+      .order("nev")
+  ])
 
   if (jobError || !job) {
     return (
       <div className="flex flex-col items-center justify-center h-[50vh]">
         <h2 className="text-2xl font-semibold text-destructive mb-2">Munkakör nem található</h2>
-        <Link href="/hr/settings">
-          <Button variant="outline">Vissza a beállításokhoz</Button>
+        <Link href="/hr/organization?tab=jobs">
+          <Button variant="outline">Vissza a munkakörökhöz</Button>
         </Link>
       </div>
     )
@@ -102,40 +109,63 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
   const feladatok: string[] = Array.isArray(job.feladatok_es_hataskorok) ? job.feladatok_es_hataskorok : []
   const kompetenciak: string[] = Array.isArray(job.elvart_kompetenciak) ? job.elvart_kompetenciak : []
 
+  const orgUnitNev = job.hr_szervezeti_egyseg?.nev || null
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-10">
       
       {/* Vissza gomb és Fejléc */}
-      <div className="flex items-center gap-4 mb-2">
-        <Link href="/hr/settings">
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
-        </Link>
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight">{job.megnevezes}</h1>
-            {job.besorolasi_szint && (
-              <Badge variant="outline" className="text-sm">
-                {job.besorolasi_szint}
-              </Badge>
-            )}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+        <div className="flex items-center gap-4">
+          <Link href="/hr/organization?tab=jobs">
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+          </Link>
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{job.megnevezes}</h1>
+              {job.besorolasi_szint && (
+                <Badge variant="outline" className="text-xs">
+                  {job.besorolasi_szint}
+                </Badge>
+              )}
+              {orgUnitNev && (
+                <Badge variant="secondary" className="text-xs font-normal bg-muted">
+                  {orgUnitNev}
+                </Badge>
+              )}
+            </div>
+            <p className="text-muted-foreground mt-1 flex items-center gap-2 text-xs sm:text-sm">
+              <span>Munkakör Adatlap</span>
+              {job.feor_kod && <span>• FEOR: <strong>{job.feor_kod}</strong></span>}
+              <span>• {employees.length} aktív munkatárs</span>
+            </p>
           </div>
-          <p className="text-muted-foreground mt-1 flex items-center gap-2">
-            <Briefcase className="w-4 h-4" /> Munkakör Adatlap
-            {job.feor_kod && <span>• FEOR: {job.feor_kod}</span>}
-          </p>
         </div>
+
+        {/* Fejléc Művelet: Munkakör szerkesztése */}
+        {isHrOrAdmin && (
+          <div className="flex items-center gap-2">
+            <JobEditDialog
+              job={job}
+              orgUnits={orgUnits || []}
+              trigger={
+                <Button variant="outline" size="sm">
+                  Munkakör szerkesztése
+                </Button>
+              }
+            />
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="employees" className="w-full">
         <TabsList className="bg-transparent border-b rounded-none w-full justify-start h-auto p-0 mb-6">
           <TabsTrigger value="employees" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3">
-            <Users className="w-4 h-4 mr-2" />
             Munkatársak ({employees?.length || 0})
           </TabsTrigger>
           <TabsTrigger value="details" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3">
-            <FileText className="w-4 h-4 mr-2" />
             Alapadatok & Leírás
           </TabsTrigger>
         </TabsList>
@@ -191,12 +221,57 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
         </TabsContent>
 
         <TabsContent value="details" className="space-y-6 outline-none">
+          {/* Munkaköri Főtörzs Összegzés */}
+          <Card className="border-border">
+            <CardHeader className="pb-3 border-b">
+              <CardTitle className="text-base font-semibold">Munkaköri Törzs- és Minősítési Adatok</CardTitle>
+              <CardDescription className="text-xs">
+                Szervezeti hovatartozás, KSH FEOR besorolás és foglalkozás-egészségügyi paraméterek.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                <div className="space-y-1">
+                  <span className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">Szervezeti Egység</span>
+                  <p className="font-medium text-sm text-foreground">
+                    {orgUnitNev || "— Nincs hozzárendelve —"}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">FEOR-08 Foglalkozás</span>
+                  <p className="font-medium text-sm text-foreground">
+                    {job.feor_kod ? (
+                      <span className="tabular-nums font-semibold">{job.feor_kod}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">Besorolási Szint</span>
+                  <p className="font-medium text-sm text-foreground">
+                    {job.besorolasi_szint || "—"}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">Orvosi Gyakoriság</span>
+                  <p className="font-medium text-sm text-foreground">
+                    {job.orvosi_vizsgalat_gyakorisag_ho ? (
+                      <span>{job.orvosi_vizsgalat_gyakorisag_ho} havonta</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           
           {/* Feladatok és Hatáskörök */}
           <Card className="border-border">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <ClipboardList className="w-5 h-5 text-primary" /> Feladatok és Hatáskörök
+            <CardHeader className="pb-3 border-b">
+              <CardTitle className="text-base font-semibold">
+                Feladatok és Hatáskörök ({feladatok.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -217,9 +292,9 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
 
           {/* Elvárt Kompetenciák */}
           <Card className="border-border">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <GraduationCap className="w-5 h-5 text-primary" /> Elvárt Kompetenciák és Végzettség
+            <CardHeader className="pb-3 border-b">
+              <CardTitle className="text-base font-semibold">
+                Elvárt Kompetenciák és Végzettség ({kompetenciak.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -238,30 +313,24 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
           <div className="grid md:grid-cols-2 gap-6">
             {/* Kockázatértékelés + Védőeszköz */}
             <Card className="border-border">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <ShieldAlert className="w-5 h-5 text-warning" /> Kockázatértékelés (Munkavédelem)
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-base font-semibold">
+                  Kockázatértékelés (Munkavédelem)
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pt-4 space-y-4">
                 {job.kockazat_tipusa ? (
-                  <div className="flex items-start gap-3 bg-warning/5 p-4 rounded-md border border-warning/20">
-                    <ShieldAlert className="w-5 h-5 text-warning mt-0.5" />
-                    <div>
-                      <p className="font-medium text-sm">Bejelentett Kockázat</p>
-                      <p className="text-sm text-muted-foreground mt-1">{job.kockazat_tipusa}</p>
-                    </div>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">Bejelentett Kockázat</span>
+                    <p className="text-sm font-medium text-foreground">{job.kockazat_tipusa}</p>
                   </div>
                 ) : (
                   <p className="text-muted-foreground text-sm">Nincs különleges munkavédelmi kockázat rögzítve.</p>
                 )}
                 {job.vedoeszkoz_igeny && (
-                  <div className="flex items-start gap-3 bg-info/5 p-4 rounded-md border border-info/20">
-                    <HardHat className="w-5 h-5 text-info mt-0.5" />
-                    <div>
-                      <p className="font-medium text-sm">Védőeszköz Igény</p>
-                      <p className="text-sm text-muted-foreground mt-1">{job.vedoeszkoz_igeny}</p>
-                    </div>
+                  <div className="space-y-1 pt-2 border-t">
+                    <span className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">Védőeszköz Igény</span>
+                    <p className="text-sm font-medium text-foreground">{job.vedoeszkoz_igeny}</p>
                   </div>
                 )}
               </CardContent>
@@ -269,12 +338,12 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
 
             {/* Orvosi Vizsgálat */}
             <Card className="border-border">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Stethoscope className="w-5 h-5 text-primary" /> Kötelező Orvosi Vizsgálat
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-base font-semibold">
+                  Kötelező Orvosi Vizsgálat
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-4 space-y-2">
                 {job.orvosi_vizsgalat_tipus ? (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -297,11 +366,11 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
 
           {/* Munkaköri Leírás Dokumentum (verziókövetéssel) */}
           <Card className="border-border">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" /> Hivatalos Munkaköri Leírás
+            <CardHeader className="pb-3 border-b">
+              <CardTitle className="text-base font-semibold">
+                Hivatalos Munkaköri Leírás
               </CardTitle>
-              <CardDescription>Verzionált dokumentum — a dolgozók ezt kapják meg és nyugtázzák elektronikusan.</CardDescription>
+              <CardDescription className="text-xs">Verzionált dokumentum — a dolgozók ezt kapják meg és nyugtázzák elektronikusan.</CardDescription>
             </CardHeader>
             <CardContent>
               <JobDescriptionUpload 

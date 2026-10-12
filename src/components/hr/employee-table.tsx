@@ -3,9 +3,14 @@
 import { useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { TableToolbar, type TableColumnOption, type FilterGroup } from "@/components/table-toolbar/table-toolbar"
+import { cn } from "@/lib/utils"
+
+import { EmployeeEditDialog, type EmployeeJobOption, type EmployeeOrgUnitOption } from "@/components/hr/employee-edit-dialog"
+import { EmployeeDeleteDialog } from "@/components/hr/employee-delete-dialog"
 
 /* ─── Szerepkör dictionary ─── */
 const szerepkorLabel: Record<string, string> = {
@@ -37,15 +42,27 @@ interface Employee {
   nev: string
   hr_szerepkor: string | null
   avatar_url: string | null
+  hr_szervezeti_egyseg_id?: string | null
+  hr_szervezeti_egyseg?: { id?: string; nev?: string } | { id?: string; nev?: string }[] | null
   hr_dolgozo_adatlap?: any
   [key: string]: any
 }
 
-/* ─── Main component ─── */
-export function EmployeeTable({ employees }: { employees: Employee[] }) {
+export function EmployeeTable({
+  employees,
+  jobs = [],
+  orgUnits = [],
+  canEdit = false,
+}: {
+  employees: Employee[]
+  jobs?: EmployeeJobOption[]
+  orgUnits?: EmployeeOrgUnitOption[]
+  canEdit?: boolean
+}) {
   const [search, setSearch]         = useState("")
   const [selectedRoles, setRoles]   = useState<string[]>([])
   const [selectedJobs, setJobs]     = useState<string[]>([])
+  const [selectedOrgs, setOrgs]     = useState<string[]>([])
 
   const [columns, setColumns] = useState<TableColumnOption[]>([
     { id: "azonosito", label: "Azonosító", isVisible: true },
@@ -77,13 +94,31 @@ export function EmployeeTable({ employees }: { employees: Employee[] }) {
     return opts.sort((a, b) => a.label.localeCompare(b.label, "hu"))
   }, [employees])
 
+  const orgOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const opts: { value: string; label: string }[] = []
+    for (const emp of employees) {
+      const egyseg = Array.isArray(emp.hr_szervezeti_egyseg)
+        ? emp.hr_szervezeti_egyseg[0]?.nev
+        : emp.hr_szervezeti_egyseg?.nev
+      const name = egyseg || "Nincs besorolva"
+      if (!seen.has(name)) {
+        seen.add(name)
+        opts.push({ value: name, label: name })
+      }
+    }
+    return opts.sort((a, b) => a.label.localeCompare(b.label, "hu"))
+  }, [employees])
+
   const toggleRole = (v: string) =>
     setRoles(p => p.includes(v) ? p.filter(r => r !== v) : [...p, v])
   const toggleJob  = (v: string) =>
     setJobs(p => p.includes(v) ? p.filter(j => j !== v) : [...p, v])
-  const clearAll   = () => { setRoles([]); setJobs([]) }
+  const toggleOrg  = (v: string) =>
+    setOrgs(p => p.includes(v) ? p.filter(o => o !== v) : [...p, v])
+  const clearAll   = () => { setRoles([]); setJobs([]); setOrgs([]) }
 
-  const totalFilters = selectedRoles.length + selectedJobs.length
+  const totalFilters = selectedRoles.length + selectedJobs.length + selectedOrgs.length
   const hasFilter    = totalFilters > 0
 
   const filterGroups: FilterGroup[] = useMemo(() => [
@@ -107,15 +142,32 @@ export function EmployeeTable({ employees }: { employees: Employee[] }) {
       })),
       onToggle: toggleJob,
     }] : []),
-  ], [selectedRoles, selectedJobs, munkakorOptions])
+    ...(orgOptions.length > 0 ? [{
+      id: "szervezeti_egyseg",
+      title: "Szervezeti Egység",
+      options: orgOptions.map(opt => ({
+        id: opt.value,
+        label: opt.label,
+        checked: selectedOrgs.includes(opt.value),
+      })),
+      onToggle: toggleOrg,
+    }] : []),
+  ], [selectedRoles, selectedJobs, selectedOrgs, munkakorOptions, orgOptions])
 
   const filtered = employees.filter(emp => {
     const munkakor = emp.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
       ?.hr_beosztas?.[0]?.hr_munkakor?.megnevezes ?? ""
-    const nameMatch = !search || emp.nev?.toLowerCase().includes(search.toLowerCase())
+    const egyseg = (Array.isArray(emp.hr_szervezeti_egyseg)
+      ? emp.hr_szervezeti_egyseg[0]?.nev
+      : emp.hr_szervezeti_egyseg?.nev) || "Nincs besorolva"
+    const nameMatch = !search ||
+      emp.nev?.toLowerCase().includes(search.toLowerCase()) ||
+      munkakor.toLowerCase().includes(search.toLowerCase()) ||
+      egyseg.toLowerCase().includes(search.toLowerCase())
     const roleMatch = selectedRoles.length === 0 || selectedRoles.includes(emp.hr_szerepkor ?? "")
     const jobMatch  = selectedJobs.length  === 0 || selectedJobs.includes(munkakor)
-    return nameMatch && roleMatch && jobMatch
+    const orgMatch  = selectedOrgs.length  === 0 || selectedOrgs.includes(egyseg)
+    return nameMatch && roleMatch && jobMatch && orgMatch
   })
 
   return (
@@ -167,6 +219,9 @@ export function EmployeeTable({ employees }: { employees: Employee[] }) {
               const activeJogviszony = emp.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
               const activeBeosztas   = activeJogviszony?.hr_beosztas?.[0]
               const munkakor         = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
+              const egyseg           = (Array.isArray(emp.hr_szervezeti_egyseg)
+                ? emp.hr_szervezeti_egyseg[0]?.nev
+                : emp.hr_szervezeti_egyseg?.nev) || "Nincs besorolva"
               const initials         = getInitials(emp.nev || "?")
               const empId            = `EMP-${String(index + 1).padStart(3, "0")}`
 
@@ -194,7 +249,17 @@ export function EmployeeTable({ employees }: { employees: Employee[] }) {
                     <TableCell className="text-sm text-muted-foreground">{munkakor}</TableCell>
                   )}
                   {isColVisible("szervezeti_egyseg") && (
-                    <TableCell className="text-sm text-muted-foreground">Központ</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "font-normal text-xs",
+                          egyseg === "Nincs besorolva" && "text-muted-foreground"
+                        )}
+                      >
+                        {egyseg}
+                      </Badge>
+                    </TableCell>
                   )}
                   {isColVisible("szerepkor") && (
                     <TableCell>
@@ -214,11 +279,27 @@ export function EmployeeTable({ employees }: { employees: Employee[] }) {
                   )}
                   {isColVisible("muveletek") && (
                     <TableCell className="text-right pr-6">
-                      <Link href={`/hr/employee/${emp.id}`}>
-                        <Button variant="ghost" size="sm" className="h-7 text-xs text-primary hover:text-primary gap-1">
-                          Adatlap <ChevronRight className="w-3.5 h-3.5" />
-                        </Button>
-                      </Link>
+                      <div className="flex items-center justify-end gap-1">
+                        <Link href={`/hr/employee/${emp.id}`}>
+                          <Button variant="ghost" size="sm" className="h-7 text-xs text-primary hover:text-primary gap-1">
+                            Adatlap <ChevronRight className="w-3.5 h-3.5" />
+                          </Button>
+                        </Link>
+                        {canEdit && (
+                          <>
+                            <EmployeeEditDialog 
+                              employee={emp} 
+                              jobs={jobs} 
+                              orgUnits={orgUnits} 
+                              managers={employees} 
+                            />
+                            <EmployeeDeleteDialog 
+                              employeeId={emp.id} 
+                              employeeName={emp.nev} 
+                            />
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>

@@ -1,5 +1,4 @@
 import { createClient } from "@/utils/supabase/server"
-import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -7,29 +6,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { User, Monitor, Shield, Info, Briefcase, Building2, Search, Users, Network, UserPlus, Plus } from "lucide-react"
-import { EmployeeEditDialog } from "@/components/hr/employee-edit-dialog"
-import { OrgChartTree } from "@/components/hr/org-chart-tree"
-import { buildOrgTree, type OrgUnitNode } from "@/lib/org-chart-utils"
-import { JobCreateDialog } from "@/components/hr/job-create-dialog"
-import { JobActionMenu } from "@/components/hr/job-action-menu"
-import { OrgUnitActionMenu } from "@/components/hr/org-unit-action-menu"
-import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
-import { EmployeeDeleteDialog } from "@/components/hr/employee-delete-dialog"
-import { HrOrgUnitCreateDialog } from "@/components/hr/org-unit-create-dialog"
-import { SettingsEmployeeTable } from "@/components/hr/settings-employee-table"
-import Link from "next/link"
+import { User, Monitor, Info } from "lucide-react"
 import { SecuritySettingsTab } from "./security-tab"
 import { HrNotificationSettings } from "./notification-settings"
-import { Bell } from "lucide-react"
 import { updateProfile } from "@/app/settings/settings-actions"
 import { AvatarUploadSection } from "./avatar-upload"
 import { CompanySettingsTab } from "@/components/settings/company-settings-tab"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
-import { resolveUserCompanyRoles } from "@/utils/hr/company-role-resolver"
 
 export default async function HrSettingsPage() {
   const supabase = await createClient()
@@ -51,225 +34,13 @@ export default async function HrSettingsPage() {
 
   const isHrOrAdmin = isCompanyAdmin || ["hr_munkatars", "hr_vezeto", "admin"].includes(hrRole)
 
-  let employees: any[] = []
-  let orgUnits: any[] = []
   let szabalyok: any[] = []
-  let dbJobs: any[] = []
-  let jobs: any[] = []
-  let allUsers: any[] = []
-  let unassignedUsers: any[] = []
-  let availableDocsUsers: any[] = []
-  let availableCandidates: any[] = []
-  let rootOrgUnits: OrgUnitNode[] = []
-
   if (isHrOrAdmin) {
-    let companyUserIds: string[] = []
-    const companyMembersMap = new Map<string, { role: string; hr_szerepkor: string | null }>()
-    if (activeCompanyId) {
-      const { data: members } = await supabase
-        .from("company_members")
-        .select("user_id, role, hr_szerepkor")
-        .eq("company_id", activeCompanyId)
-      companyUserIds = (members || []).map((m: any) => m.user_id)
-      members?.forEach((m: any) => {
-        companyMembersMap.set(m.user_id, { role: m.role, hr_szerepkor: m.hr_szerepkor })
-      })
-    }
-
-    // 1. Összes dolgozó lekérése (az aktív cég tagjai alapján)
-    let empQuery = supabase
-      .from("hr_dolgozo_adatlap")
-      .select(`
-        *,
-        felhasznalo_profil (
-          nev,
-          hr_szerepkor,
-          docs_szerepkor,
-          hr_szervezeti_egyseg_id,
-          kozvetlen_vezeto_id,
-          hr_szervezeti_egyseg (nev)
-        ),
-        hr_jogviszony (
-          id,
-          belepes_datuma,
-          kilepes_datuma,
-          hr_beosztas (
-            id,
-            berkategoria,
-            kozvetlen_vezeto,
-            ervenyes_ig,
-            hr_munkakor (id, megnevezes)
-          )
-        )
-      `)
-      .order("created_at", { ascending: false })
-
-    if (activeCompanyId) {
-      if (companyUserIds.length > 0) {
-        empQuery = empQuery.in("id", companyUserIds)
-      } else {
-        empQuery = empQuery.in("id", ["00000000-0000-0000-0000-000000000000"])
-      }
-    }
-
-    const { data: fetchedEmployees, error: employeesError } = await empQuery
-
-    if (employeesError) {
-      console.error("EMPLOYEES QUERY ERROR:", employeesError)
-    } else if (fetchedEmployees) {
-      employees = fetchedEmployees.map((emp: any) => {
-        const memberInfo = companyMembersMap.get(emp.id)
-        if (memberInfo) {
-          const resolved = resolveUserCompanyRoles(
-            {
-              companyId: activeCompanyId || "",
-              role: memberInfo.role,
-              hr_szerepkor: memberInfo.hr_szerepkor,
-            },
-            {
-              id: emp.id,
-              hr_szerepkor: emp.felhasznalo_profil?.hr_szerepkor,
-              docs_szerepkor: emp.felhasznalo_profil?.docs_szerepkor,
-            }
-          )
-          return {
-            ...emp,
-            felhasznalo_profil: {
-              ...emp.felhasznalo_profil,
-              hr_szerepkor: resolved.hrRole,
-            }
-          }
-        }
-        return emp
-      })
-    }
-
-    // --- SZERVEZETI ÁBRA LOGIKA (szervezeti egység-alapú fa, cégre szűrve) ---
-    let orgQuery = supabase
-      .from("hr_szervezeti_egyseg")
-      .select("id, nev, szulo_id")
-      .order("nev")
-
-    if (activeCompanyId) {
-      orgQuery = orgQuery.eq("company_id", activeCompanyId)
-    }
-
-    const { data: fetchedOrgUnits } = await orgQuery
-    if (fetchedOrgUnits) orgUnits = fetchedOrgUnits
-
-    // Szabályok lekérése az értesítésekhez
     const { data: fetchedSzabalyok } = await supabase
       .from("ertesitesi_szabaly")
       .select("*")
       .order("esemeny_tipus")
     if (fetchedSzabalyok) szabalyok = fetchedSzabalyok
-
-    // OrgChart: dolgozókat csoportosítjuk szervezeti egység szerint
-    const dolgozokByUnit: Record<string, { id: string; nev: string; pozicio: string }[]> = {}
-    if (employees) {
-      employees.forEach(emp => {
-        const p = emp.felhasznalo_profil as any
-        const unitId = p?.hr_szervezeti_egyseg_id
-        if (!unitId) return
-
-        const activeJogviszony = Array.isArray(emp.hr_jogviszony) ? emp.hr_jogviszony[0] : emp.hr_jogviszony
-        const activeBeosztas = Array.isArray(activeJogviszony?.hr_beosztas) ? activeJogviszony.hr_beosztas[0] : activeJogviszony?.hr_beosztas
-        const pozicio = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
-
-        if (!dolgozokByUnit[unitId]) dolgozokByUnit[unitId] = []
-        dolgozokByUnit[unitId].push({
-          id: emp.id,
-          nev: p?.nev || "Névtelen",
-          pozicio,
-        })
-      })
-    }
-
-    // Fa összeállítása a buildOrgTree segédfüggvénnyel
-    rootOrgUnits = buildOrgTree(orgUnits || [], dolgozokByUnit)
-
-    // Munkakörök lekérése a katalógushoz (cégre szűrve)
-    let dbJobsQuery = supabase
-      .from("hr_munkakor")
-      .select(`
-        *,
-        hr_beosztas ( id, ervenyes_ig )
-      `)
-      .order("created_at", { ascending: false })
-
-    if (activeCompanyId) {
-      dbJobsQuery = dbJobsQuery.eq("company_id", activeCompanyId)
-    }
-
-    const { data: fetchedDbJobs } = await dbJobsQuery
-    if (fetchedDbJobs) dbJobs = fetchedDbJobs
-
-    // 2. Összes elérhető munkakör lekérése (cégre szűrve)
-    let jobsQuery = supabase
-      .from("hr_munkakor")
-      .select("id, megnevezes")
-      .order("megnevezes")
-
-    if (activeCompanyId) {
-      jobsQuery = jobsQuery.eq("company_id", activeCompanyId)
-    }
-
-    const { data: fetchedJobs } = await jobsQuery
-    if (fetchedJobs) jobs = fetchedJobs
-
-    // 3. Olyan felhasználók lekérése, akik nincsenek benne a hr_dolgozo_adatlap-ban (csak az aktív cég tagjai)
-    let allUsersQuery = supabase.from("felhasznalo_profil").select("id, nev, hr_szervezeti_egyseg_id")
-    if (activeCompanyId && companyUserIds.length > 0) {
-      allUsersQuery = allUsersQuery.in("id", companyUserIds)
-    }
-    const { data: fetchedAllUsers } = await allUsersQuery
-    if (fetchedAllUsers) allUsers = fetchedAllUsers
-    const assignedIds = employees?.map(e => e.id) || []
-    unassignedUsers = allUsers?.filter(u => !assignedIds.includes(u.id)) || []
-
-    const supabaseAdmin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-
-    // Kizárólag az eaisyDocs fiókokat kérjük le
-    let docsQuery = supabaseAdmin
-      .from("felhasznalo_profil")
-      .select("id, nev, docs_szerepkor, szerepkor, elerheto_modulok")
-      .contains("elerheto_modulok", ["docs"])
-      .order("nev", { ascending: true })
-
-    if (activeCompanyId && companyUserIds.length > 0) {
-      docsQuery = docsQuery.in("id", companyUserIds)
-    }
-
-    const { data: docsProfiles } = await docsQuery
-
-    const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
-    const emailMap = new Map(authUsers?.users?.map(u => [u.id, u.email]) || [])
-
-    availableDocsUsers = (docsProfiles || []).map(u => ({
-      id: u.id,
-      nev: u.nev,
-      email: emailMap.get(u.id) || "",
-      docs_szerepkor: u.docs_szerepkor || u.szerepkor || "ugyintezo",
-      isAlreadyAssigned: assignedIds.includes(u.id)
-    }))
-
-    // 4. Toborzásból (ATS) elfogadott jelentkezők lekérése (cégre szűrve)
-    let toborzasQuery = supabaseAdmin
-      .from("hr_toborzas")
-      .select("id, nev, email, megpalyazott_munkakor_id")
-      .eq("statusz", "elfogadva")
-
-    if (activeCompanyId) {
-      toborzasQuery = toborzasQuery.eq("company_id", activeCompanyId)
-    }
-
-    const { data: elfogadottJelentkezok } = await toborzasQuery
-      
-    const userEmails = authUsers?.users?.map(u => u.email) || []
-    availableCandidates = elfogadottJelentkezok?.filter(j => !userEmails.includes(j.email)) || []
   }
 
   return (
@@ -307,24 +78,16 @@ export default async function HrSettingsPage() {
             Biztonság
           </TabsTrigger>
           {isHrOrAdmin && (
-            <>
-              <TabsTrigger 
-                value="organization" 
-                className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-              >
-                Szervezet és munkatársak
-              </TabsTrigger>
-              <TabsTrigger 
-                value="ertesitesek" 
-                className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-              >
-                Értesítések
-              </TabsTrigger>
-            </>
+            <TabsTrigger 
+              value="ertesitesek" 
+              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
+            >
+              Értesítések
+            </TabsTrigger>
           )}
         </TabsList>
 
-        {/* 1. TAB: PROFIL (eaisyDocs stílus) */}
+        {/* 1. TAB: PROFIL */}
         <TabsContent value="profil" className="space-y-4 outline-none">
           <Card className="border-border">
             <CardHeader className="pb-4">
@@ -336,7 +99,6 @@ export default async function HrSettingsPage() {
             </CardHeader>
             <form action={async (formData) => { "use server"; await updateProfile(formData); }} key={profile?.telefon || 'profile-form'}>
               <CardContent className="space-y-6">
-
                 <AvatarUploadSection
                   name={profile?.nev || ""}
                   avatarUrl={profile?.avatar_url}
@@ -378,12 +140,12 @@ export default async function HrSettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* CÉG BEÁLLÍTÁSOK TAB (VISIBILL MINTÁRA - EAISYHR SZEREPKÖRÖKKEL) */}
+        {/* CÉG BEÁLLÍTÁSOK TAB */}
         <TabsContent value="ceg" className="space-y-4 outline-none">
           <CompanySettingsTab module="hr" />
         </TabsContent>
 
-        {/* 2. TAB: RENDSZER (eaisyDocs stílus) */}
+        {/* 2. TAB: RENDSZER */}
         <TabsContent value="rendszer" className="space-y-4 outline-none">
           <Card className="border-border">
             <CardHeader className="pb-4">
@@ -454,261 +216,13 @@ export default async function HrSettingsPage() {
           </Card>
         </TabsContent>
 
-
-        {isHrOrAdmin && (
-          <TabsContent value="organization" className="space-y-6 outline-none">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-2xl font-semibold tracking-tight">Szervezet és munkatársak</h3>
-                <p className="text-muted-foreground mt-1">Munkatársak, szervezeti felépítés és munkakorök kezelése.</p>
-              </div>
-            </div>
-
-            <Tabs defaultValue="munkatarsak" className="space-y-6">
-              <TabsList className="bg-transparent border-b rounded-none w-full justify-start h-auto p-0 mb-6">
-                <TabsTrigger value="munkatarsak" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3">
-                  <Users className="w-4 h-4 mr-2" />
-                  Munkatársak
-                </TabsTrigger>
-                <TabsTrigger value="jobs" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3">
-                  <Briefcase className="w-4 h-4 mr-2" />
-                  Munkakör-katalógus
-                </TabsTrigger>
-                <TabsTrigger value="orgunits" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3">
-                  <Building2 className="w-4 h-4 mr-2" />
-                  Szervezeti egységek
-                </TabsTrigger>
-                <TabsTrigger value="orgchart" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3">
-                  <Network className="w-4 h-4 mr-2" />
-                  Szervezeti Ábra
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Munkatársak alsó-tab (volt: külön külső tab) */}
-              <TabsContent value="munkatarsak" className="space-y-4 outline-none">
-                <Card className="border-border">
-                  <CardHeader className="pb-4 flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle className="text-xl flex items-center gap-2">
-                        <Briefcase className="w-5 h-5 text-primary" />
-                        Munkatársak ({employees?.filter((e: any) => {
-                          const role = e.felhasznalo_profil?.hr_szerepkor
-                          const isInactive = role === 'inaktiv' || role === 'kilepett'
-                          const isPastEnd = e.munkaviszony_vege && new Date(e.munkaviszony_vege).getTime() < new Date().setHours(0, 0, 0, 0) && role !== 'admin' && role !== 'hr_vezeto'
-                          return !isInactive && !isPastEnd
-                        }).length || 0} aktív fő)
-                      </CardTitle>
-                      <CardDescription>
-                        A dolgozói nyilvántartás és a szerepkörök szerkesztése.
-                      </CardDescription>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <SettingsEmployeeTable
-                      employees={employees || []}
-                      jobs={jobs || []}
-                      orgUnits={orgUnits || []}
-                    />
-                  </CardContent>
-                  <div className="px-0 py-2">
-                    <AddEmployeeDialog
-                      availableUsers={availableDocsUsers}
-                      jobs={jobs || []}
-                      candidates={availableCandidates}
-                      customTrigger={
-                        <Button variant="outline" className="w-full border-dashed border-2 py-6 text-muted-foreground hover:text-foreground">
-                          <UserPlus className="h-4 w-4 mr-2" />
-                          Új dolgozó felvétele
-                        </Button>
-                      }
-                    />
-                  </div>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="jobs" className="space-y-4 outline-none">
-                <Card className="border-border">
-                  <CardHeader className="pb-4 border-b flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg font-semibold">Nyilvántartott Munkakörök</CardTitle>
-                      <CardDescription>A 1. követelmény szerinti feladatok, hatáskörök és kompetenciák.</CardDescription>
-                    </div>
-                    <div className="relative w-72">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input type="search" placeholder="Keresés munkakörre vagy FEOR-ra..." className="pl-9 bg-background" />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                      <Table className="compact-table">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="pl-6">Munkakör Megnevezése</TableHead>
-                            <TableHead>FEOR</TableHead>
-                            <TableHead>Szervezeti Egység</TableHead>
-                            <TableHead>Besorolás</TableHead>
-                            <TableHead className="text-center">Betöltött</TableHead>
-                            <TableHead className="text-right pr-6">Műveletek</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {dbJobs && dbJobs.length > 0 ? dbJobs.map((job) => {
-                            const employeeCount = job.hr_beosztas?.filter((b: any) => b.ervenyes_ig === null).length || 0;
-                            return (
-                              <TableRow key={job.id} className="hover:bg-muted/50">
-                                <TableCell className="pl-6 font-medium">
-                                  <Link href={`/hr/job/${job.id}`} className="hover:underline text-primary">
-                                    {job.megnevezes}
-                                  </Link>
-                                </TableCell>
-                                <TableCell className="text-muted-foreground tabular-nums">{job.feor_kod || "-"}</TableCell>
-                                <TableCell className="text-muted-foreground text-sm">
-                                  {orgUnits.find((u: any) => u.id === job.szervezeti_egyseg_id)?.nev || <span className="text-muted-foreground/50 italic">Nincs besorolva</span>}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className="text-xs font-normal text-muted-foreground bg-background">
-                                    {job.besorolasi_szint || "-"}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  {employeeCount > 0 ? (
-                                     <Badge variant="outline" className="gap-1 bg-success-subtle text-success border-success/30">
-                                       <Users className="w-3 h-3" /> <span className="tabular-nums">{employeeCount} fő</span>
-                                     </Badge>
-                                  ) : (
-                                     <Badge variant="destructive" className="gap-1">
-                                       Betöltetlen
-                                     </Badge>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-right pr-6">
-                                  <JobActionMenu job={job} orgUnits={orgUnits} />
-                                </TableCell>
-                              </TableRow>
-                            )
-                          }) : (
-                            <TableRow>
-                              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                                Még nincsenek munkakörök létrehozva.
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                  <div className="px-0 py-2">
-                    <JobCreateDialog orgUnits={orgUnits} customTrigger={
-                      <Button variant="outline" className="w-full border-dashed border-2 py-6 text-muted-foreground hover:text-foreground">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Új munkakör létrehozása
-                      </Button>
-                    } />
-                  </div>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="orgunits" className="space-y-4 outline-none">
-                <Card className="border-border">
-                  <CardHeader className="pb-4 border-b flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg font-semibold">Szervezeti Egységek</CardTitle>
-                      <CardDescription>A vállalat szervezeti felépítését alkotó részlegek és osztályok.</CardDescription>
-                    </div>
-                    <div className="relative w-72">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input type="search" placeholder="Keresés..." className="pl-9 bg-background" />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                      <Table className="compact-table">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="pl-6">Megnevezés</TableHead>
-                            <TableHead>Szülő egység</TableHead>
-                            <TableHead className="text-center">Hozzárendelt dolgozók</TableHead>
-                            <TableHead className="text-right pr-6">Műveletek</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {orgUnits && orgUnits.length > 0 ? orgUnits.map((unit) => {
-                            const parentUnit = orgUnits.find(u => u.id === unit.szulo_id);
-                            // Count from felhasznalo_profil directly (not hr_dolgozo_adatlap)
-                            // so employees without adatlap record are also counted
-                            const employeeCount = (allUsers as any[])?.filter(
-                              (u: any) => u.hr_szervezeti_egyseg_id === unit.id
-                            ).length || 0;
-                            return (
-                              <TableRow key={unit.id} className="hover:bg-muted/50">
-                                <TableCell className="pl-6 font-medium">
-                                  <Link href={`/hr/orgunit/${unit.id}`} className="hover:underline text-primary">
-                                    {unit.nev}
-                                  </Link>
-                                </TableCell>
-                                <TableCell className="text-muted-foreground">
-                                  {parentUnit ? parentUnit.nev : "-"}
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  {employeeCount > 0 ? (
-                                     <Badge variant="outline" className="gap-1 bg-info-subtle text-info border-info/30">
-                                       <Users className="w-3 h-3" /> <span className="tabular-nums">{employeeCount} fő</span>
-                                     </Badge>
-                                  ) : (
-                                     <Badge variant="secondary" className="gap-1 text-muted-foreground">
-                                       Nincs dolgozó
-                                     </Badge>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-right pr-6">
-                                  <OrgUnitActionMenu unit={unit} allUnits={orgUnits || []} />
-                                </TableCell>
-                              </TableRow>
-                            )
-                          }) : (
-                            <TableRow>
-                              <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                                Még nincsenek szervezeti egységek létrehozva.
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                  <div className="px-0 py-2">
-                    <HrOrgUnitCreateDialog customTrigger={
-                      <Button variant="outline" className="w-full border-dashed border-2 py-6 text-muted-foreground hover:text-foreground">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Új szervezeti egység létrehozása
-                      </Button>
-                    } />
-                  </div>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="orgchart" className="space-y-4 outline-none">
-                <Card className="border-border">
-                  <CardHeader className="border-b">
-                    <CardTitle>Szervezeti Felépítés</CardTitle>
-                    <CardDescription>Vizuális fa-struktúra a vezetők és beosztottak megjelenítéséhez.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <OrgChartTree rootUnits={rootOrgUnits} />
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </TabsContent>
-        )}
-
         <SecuritySettingsTab initialTimeout={profile?.munkamenet_idotullepes || 15} totpFactor={totpFactor} />
+
         {isHrOrAdmin && (
           <TabsContent value="ertesitesek" className="space-y-4 outline-none">
             <HrNotificationSettings rules={(szabalyok || []).filter(s => !['hatarido_kozeledik', 'hatarido_lejart', 'uj_szignalas', 'allapotvaltozas', 'megorzesi_ido_lejart'].includes(s.esemeny_tipus))} />
           </TabsContent>
         )}
-
       </Tabs>
     </div>
   )

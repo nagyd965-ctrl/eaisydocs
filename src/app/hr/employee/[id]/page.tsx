@@ -418,6 +418,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                 jogviszonyok={adatlap?.hr_jogviszony || []}
                 munkakorok={munkakorok || []}
                 vezetoNev={vezetoNev}
+                activeMunkakor={activeMunkakor}
+                latestJobVersion={latestJobVersion}
               />
             </div>
 

@@ -79,12 +79,12 @@ const items = [
     icon: FileText,
     items: [
       {
-        title: "Központi Áttekintés",
-        url: "/hr/admin/overview",
-      },
-      {
         title: "Állomány áttekintés",
         url: "/hr/admin",
+      },
+      {
+        title: "Szervezeti Felépítés",
+        url: "/hr/organization",
       },
       {
         title: "Naptár & Távollét",

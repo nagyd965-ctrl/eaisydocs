@@ -3,9 +3,9 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Upload, FileText, Download, Eye, Trash2, Loader2, Calendar } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { Download, Eye, Trash2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { uploadJobDescription, deleteJobDescriptionVersion } from "@/app/hr/settings/actions"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
@@ -73,20 +73,14 @@ export function JobDescriptionUpload({ munkakorId, versions = [], isHrOrAdmin = 
         <div className="space-y-3">
           {versions.map((v) => (
             <div key={v.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/10 p-2 rounded-lg">
-                  <FileText className="w-4 h-4 text-primary" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{v.fajl_nev}</span>
+                  <Badge variant="secondary" className="text-[10px]">v{v.verzio_szam}</Badge>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{v.fajl_nev}</span>
-                    <Badge variant="secondary" className="text-[10px]">v{v.verzio_szam}</Badge>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                    <Calendar className="w-3 h-3" />
-                    {new Date(v.kiadas_datum).toLocaleDateString("hu-HU")}
-                    {v.megjegyzes && <span>• {v.megjegyzes}</span>}
-                  </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  <span>Kiadva: {new Date(v.kiadas_datum).toLocaleDateString("hu-HU")}</span>
+                  {v.megjegyzes && <span> • {v.megjegyzes}</span>}
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -129,7 +123,6 @@ export function JobDescriptionUpload({ munkakorId, versions = [], isHrOrAdmin = 
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-6 text-center">
-          <FileText className="w-8 h-8 text-muted-foreground/50 mb-3" />
           <p className="text-sm text-muted-foreground">Még nincs feltöltött munkaköri leírás.</p>
         </div>
       )}
@@ -139,10 +132,9 @@ export function JobDescriptionUpload({ munkakorId, versions = [], isHrOrAdmin = 
         <Button
           variant="outline"
           size="sm"
-          className="w-full gap-2"
+          className="w-full"
           onClick={() => setShowUpload(true)}
         >
-          <Upload className="w-4 h-4" />
           Új verzió feltöltése
         </Button>
       )}

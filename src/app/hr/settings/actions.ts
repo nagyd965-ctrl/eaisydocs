@@ -61,6 +61,7 @@ export async function createMunkakor(formData: FormData) {
   }
 
   revalidatePath("/hr/settings")
+  revalidatePath("/hr/organization")
   return { success: true }
 }
 
@@ -184,6 +185,8 @@ export async function updateEmployeeInfo(formData: FormData) {
   }
 
   revalidatePath("/hr/settings")
+  revalidatePath("/hr/admin")
+  revalidatePath("/hr/organization")
   return { success: true }
 }
 
@@ -208,8 +211,33 @@ export async function updateMunkakor(id: string, formData: FormData) {
 
   if (!megnevezes) return { error: "A megnevezés megadása kötelező" }
 
-  const feladatokArray = feladatok ? feladatok.split('\n').map(s => s.trim()).filter(s => s) : []
-  const kompetenciakArray = kompetenciak ? kompetenciak.split('\n').map(s => s.trim()).filter(s => s) : []
+  let feladatokArray: string[] = []
+  if (feladatok) {
+    try {
+      const parsed = JSON.parse(feladatok)
+      if (Array.isArray(parsed)) {
+        feladatokArray = parsed.map((s: any) => String(s).trim()).filter(Boolean)
+      } else {
+        feladatokArray = feladatok.split('\n').map(s => s.trim()).filter(Boolean)
+      }
+    } catch {
+      feladatokArray = feladatok.split('\n').map(s => s.trim()).filter(Boolean)
+    }
+  }
+
+  let kompetenciakArray: string[] = []
+  if (kompetenciak) {
+    try {
+      const parsed = JSON.parse(kompetenciak)
+      if (Array.isArray(parsed)) {
+        kompetenciakArray = parsed.map((s: any) => String(s).trim()).filter(Boolean)
+      } else {
+        kompetenciakArray = kompetenciak.split('\n').map(s => s.trim()).filter(Boolean)
+      }
+    } catch {
+      kompetenciakArray = kompetenciak.split('\n').map(s => s.trim()).filter(Boolean)
+    }
+  }
 
   const { error } = await supabase
     .from("hr_munkakor")
@@ -230,6 +258,8 @@ export async function updateMunkakor(id: string, formData: FormData) {
   if (error) return { error: error.message }
 
   revalidatePath("/hr/settings")
+  revalidatePath("/hr/organization")
+  revalidatePath(`/hr/job/${id}`)
   return { success: true }
 }
 
@@ -259,6 +289,7 @@ export async function deleteMunkakor(id: string) {
   }
 
   revalidatePath("/hr/settings")
+  revalidatePath("/hr/organization")
   return { success: true }
 }
 
@@ -288,6 +319,7 @@ export async function removeEmployeeFromHR(employeeId: string) {
 
   revalidatePath("/hr/settings")
   revalidatePath("/hr/admin")
+  revalidatePath("/hr/organization")
   return { success: true }
 }
 
@@ -320,6 +352,7 @@ export async function createHrDepartment(formData: FormData) {
   }
 
   revalidatePath("/hr/settings")
+  revalidatePath("/hr/organization")
   return { success: true }
 }
 
@@ -350,6 +383,7 @@ export async function updateHrDepartment(id: string, formData: FormData) {
   }
 
   revalidatePath("/hr/settings")
+  revalidatePath("/hr/organization")
   revalidatePath(`/hr/orgunit/${id}`)
   return { success: true }
 }
@@ -395,6 +429,7 @@ export async function deleteHrDepartment(id: string) {
   }
 
   revalidatePath("/hr/settings")
+  revalidatePath("/hr/organization")
   return { success: true }
 }
 

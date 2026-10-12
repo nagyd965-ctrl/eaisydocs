@@ -40,7 +40,9 @@ Ez a dokumentum rögzíti az **eaisyDocs** és **eaisyHR** alkalmazás éles, el
 ### 3. eaisyHR – Munkaügyi, Bér és Humánerőforrás Modul
 | Útvonal | Képernyő / Komponens | Hatókör | Jogosultság | Állapot |
 |---|---|---|---|---|
-| `/hr` | **HR Kezdőlap & Dolgozói Műszerfal** (Létszám, státuszok, gyorsstatisztikák, dolgozók táblázata) | `[HR]` | HR Munkatárs, HR Vezető, Admin | **Éles / Kész** |
+| `/hr` | **HR Kezdőlap & Dolgozói Műszerfal** (Személyes portál és egyenlegek) | `[HR]` | Minden bejelentkezett dolgozó | **Éles / Kész** |
+| `/hr/admin` | **Állomány Áttekintés & Dolgozói Törzsadatbázis** (`EmployeeTable`, `HrTasksAndAlertsTable`, cégfüggő létszám KPI-k, munkatársi gyorsmódosítás és törlés, szűrések) | `[HR]` | HR Munkatárs, HR Vezető, Admin | **Éles / Kész** |
+| `/hr/organization` | **Szervezeti Felépítés** (`OrganizationTabsView`, interaktív szervezeti fanézet, részlegek/osztályok kezelése, munkakör-katalógus és FEOR nyilvántartás) | `[HR]` | HR Munkatárs, HR Vezető, Admin | **Éles / Kész** |
 | `/hr/employee/[id]` | **Munkavállalói 360° Adatlap** (13 füles felület: Alapadatok, Titkosított személyi adatok, Beosztás-történet, Jelenlét, Szabadság, Orvosi alkalmassági, Képzés/IDP, Cafeteria, Fegyelmi, Munkahelyi eszközök, Tanulmányi szerződés, Audit napló) | `[HR]` | HR Munkatárs, HR Vezető, Bérszámfejtő | **Éles / Kész** |
 | `/hr/time` | **Munkaidő & Jelenléti Mátrix** (`EmployeeTimesheet`, havi összesítés, túlórák, szabadságok, munkaszüneti napok, havi zárás) | `[HR]` | HR, Bérszámfejtő, Vezetők | **Éles / Kész** |
 | `/hr/manager` | **Vezetői Jóváhagyási Műszerfal** (Beosztottak lezáratlan jelenléti ívei, szabadságkérelmek, túlóra-felhasználás jóváhagyása) | `[HR]` | Részlegvezető, HR Vezető, Admin | **Éles / Kész** |
@@ -52,7 +54,7 @@ Ez a dokumentum rögzíti az **eaisyDocs** és **eaisyHR** alkalmazás éles, el
 | `/hr/compliance` | **Munkaügyi Megfelelőség Hub** (Kötelező szabályzatok, munkaköri leírás elfogadások, oktatások nyomon követése) | `[HR]` | HR Compliance, Vezetők | **Éles / Kész** |
 | `/hr/reports` | **Hatósági Riportok & Exportok** (NAV T1041 bejelentő generátor, KSH havi munkaügyi jelentés készítő) | `[HR]` | Bérszámfejtő, HR Vezető | **Éles / Kész** |
 | `/hr/audit` | **HR Eseménynapló** (Különálló `hr_esemeny_naplo` audit trail, érzékeny adatmegtekintések) | `[HR]` | HR Vezető, Auditor, Admin | **Éles / Kész** |
-| `/hr/settings` | **HR Rendszerbeállítások** (Értesítési szabályok, avatar feltöltés, munkaszüneti naptár) | `[HR]` | HR Vezető, Admin | **Éles / Kész** |
+| `/hr/settings` | **HR Beállítások** (Felhasználói profil, vállalati alapadatok, rendszerbeállítások, 2FA és biztonság, értesítési szabályok) | `[HR]` | HR Vezető, Admin | **Éles / Kész** |
 | `/hr/orgunit/[id]` | **Szervezeti Egység Adatlap** (Részleg dolgozói, felelős vezető, beosztások) | `[HR]` | HR Vezető, Részlegvezető | **Éles / Kész** |
 | `/hr/job/[id]` | **Munkakör Adatlap** (Munkaköri leírás verziók, szükséges képesítések, védőeszközök) | `[HR]` | HR Vezető, Admin | **Éles / Kész** |
 

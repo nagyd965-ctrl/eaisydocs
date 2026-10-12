@@ -6,7 +6,22 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Edit, Clock, Info } from "lucide-react"
+import { 
+  Edit, 
+  Clock, 
+  Info, 
+  Briefcase, 
+  ClipboardList, 
+  GraduationCap, 
+  HardHat, 
+  Stethoscope, 
+  ExternalLink, 
+  Download, 
+  Eye, 
+  FileText 
+} from "lucide-react"
+import Link from "next/link"
+import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 import { toast } from "sonner"
 import { updateJogviszonyData } from "../actions"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -21,7 +36,9 @@ export function EmploymentTab({
   adatlap,
   jogviszonyok,
   munkakorok,
-  vezetoNev
+  vezetoNev,
+  activeMunkakor: propActiveMunkakor,
+  latestJobVersion,
 }: { 
   employeeId: string,
   isHrOrAdmin: boolean,
@@ -30,7 +47,9 @@ export function EmploymentTab({
   adatlap: any,
   jogviszonyok: any[],
   munkakorok: any[],
-  vezetoNev?: string
+  vezetoNev?: string,
+  activeMunkakor?: any,
+  latestJobVersion?: any,
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -46,6 +65,35 @@ export function EmploymentTab({
   
   // A jelenlegi beosztás az, ami érvényes (nincs lezárva vagy a lezárás a jövőben van)
   const currentBeosztas = sortedBeosztasok.find(b => !b.ervenyes_ig || new Date(b.ervenyes_ig) >= new Date()) || sortedBeosztasok[0]
+
+  // Aktív munkakör feloldása
+  const activeMunkakor = propActiveMunkakor || currentBeosztas?.munkakor || null
+
+  const feladatok: string[] = Array.isArray(activeMunkakor?.feladatok_es_hataskorok)
+    ? activeMunkakor.feladatok_es_hataskorok
+    : (typeof activeMunkakor?.feladatok_es_hataskorok === "string"
+        ? (() => {
+            try {
+              const p = JSON.parse(activeMunkakor.feladatok_es_hataskorok)
+              return Array.isArray(p) ? p : []
+            } catch {
+              return activeMunkakor.feladatok_es_hataskorok.split("\n").map((s: string) => s.trim()).filter(Boolean)
+            }
+          })()
+        : [])
+
+  const kompetenciak: string[] = Array.isArray(activeMunkakor?.elvart_kompetenciak)
+    ? activeMunkakor.elvart_kompetenciak
+    : (typeof activeMunkakor?.elvart_kompetenciak === "string"
+        ? (() => {
+            try {
+              const p = JSON.parse(activeMunkakor.elvart_kompetenciak)
+              return Array.isArray(p) ? p : []
+            } catch {
+              return activeMunkakor.elvart_kompetenciak.split("\n").map((s: string) => s.trim()).filter(Boolean)
+            }
+          })()
+        : [])
 
   // Kontrollált állapotok a selectekhez (alapértelmezett érték a jelenlegi beosztásból, 
   // vagy fallback a régi adatlaphoz amíg nincs minden migrálva)
@@ -285,6 +333,18 @@ export function EmploymentTab({
         <CardContent className="grid gap-6 md:grid-cols-2 pt-6">
           <div className="space-y-4">
             <div>
+              <p className="text-sm text-muted-foreground">Betöltött Munkakör</p>
+              <p className="font-semibold text-base text-foreground flex items-center gap-2 flex-wrap">
+                <Briefcase className="w-4 h-4 text-primary shrink-0" />
+                <span>{activeMunkakor?.megnevezes || currentBeosztas?.munkakor?.megnevezes || "Nincs munkakör beállítva"}</span>
+                {activeMunkakor?.feor_kod && (
+                  <Badge variant="outline" className="text-xs font-normal">
+                    FEOR: {activeMunkakor.feor_kod}
+                  </Badge>
+                )}
+              </p>
+            </div>
+            <div>
               <p className="text-sm text-muted-foreground">Belépés Dátuma</p>
               <p className="font-medium">{formatDate(currentJogviszony?.belepes_datuma || adatlap?.belepes_datuma)}</p>
             </div>
@@ -351,6 +411,202 @@ export function EmploymentTab({
           </div>
         </CardContent>
       </Card>
+
+      {/* 2. Munkaköri Profil és Felelősségek Kártya */}
+      {activeMunkakor ? (
+        <Card className="border-border">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+                <Briefcase className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CardTitle className="text-lg font-semibold">
+                    {activeMunkakor.megnevezes}
+                  </CardTitle>
+                  {activeMunkakor.besorolasi_szint && (
+                    <Badge variant="outline" className="text-xs">
+                      {activeMunkakor.besorolasi_szint}
+                    </Badge>
+                  )}
+                  {activeMunkakor.feor_kod && (
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      (FEOR: {activeMunkakor.feor_kod})
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Hivatalos munkaköri profil, felelősségi körök, kompetenciák és munkaegészségügyi előírások.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Link href={`/hr/job/${activeMunkakor.id}`}>
+                <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:text-primary gap-1">
+                  <ExternalLink className="w-3.5 h-3.5" /> Munkakör törzslap
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+
+          <CardContent className="pt-6 space-y-6">
+            {/* Feladatok és Hatáskörök */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                <ClipboardList className="w-4 h-4 text-primary" />
+                Feladatok és Hatáskörök ({feladatok.length})
+              </h4>
+              {feladatok.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {feladatok.map((task, i) => (
+                    <div
+                      key={i}
+                      className="flex items-start gap-2.5 p-2.5 rounded-md border bg-muted/20 text-xs text-foreground"
+                    >
+                      <span className="font-semibold text-primary mt-0.5 tabular-nums shrink-0">
+                        {i + 1}.
+                      </span>
+                      <span className="leading-snug">{task}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic bg-muted/10 p-3 rounded border border-dashed">
+                  Nincsenek rögzített specifikus feladatok ehhez a munkakörhöz.
+                </p>
+              )}
+            </div>
+
+            {/* Elvárt Kompetenciák */}
+            <div className="space-y-3 pt-3 border-t">
+              <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                <GraduationCap className="w-4 h-4 text-primary" />
+                Elvárt Kompetenciák és Képzettség
+              </h4>
+              {kompetenciak.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {kompetenciak.map((comp, i) => (
+                    <Badge key={i} variant="secondary" className="text-xs font-normal py-1 px-2.5 bg-muted">
+                      {comp}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">
+                  Nincs rögzített kompetencia elvárás.
+                </p>
+              )}
+            </div>
+
+            {/* Munkavédelem & Orvosi Előírások */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t">
+              {/* Munkavédelem & EVE */}
+              <div className="p-3.5 rounded-lg border bg-muted/20 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                  <HardHat className="w-4 h-4 text-warning" />
+                  Munkavédelem & Egyéni Védőeszközök
+                </div>
+                <div className="space-y-1.5 text-xs">
+                  <div>
+                    <span className="text-muted-foreground text-[10px] uppercase tracking-wider block font-medium">Kockázati besorolás</span>
+                    <p className="font-medium text-foreground">
+                      {activeMunkakor.kockazat_tipusa || "Nem igényel különleges kockázatértékelést"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-[10px] uppercase tracking-wider block font-medium">Előírt védőeszköz (EVE)</span>
+                    <p className="font-medium text-foreground">
+                      {activeMunkakor.vedoeszkoz_igeny || "Nem kötelező védőeszköz viselete"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Foglalkozás-egészségügy */}
+              <div className="p-3.5 rounded-lg border bg-muted/20 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                  <Stethoscope className="w-4 h-4 text-primary" />
+                  Foglalkozás-egészségügyi Alkalmasság
+                </div>
+                <div className="space-y-1.5 text-xs">
+                  <div>
+                    <span className="text-muted-foreground text-[10px] uppercase tracking-wider block font-medium">Kötelező vizsgálat</span>
+                    <p className="font-medium text-foreground">
+                      {activeMunkakor.orvosi_vizsgalat_tipus || "Standard munkaköri alkalmassági"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-[10px] uppercase tracking-wider block font-medium">Előírt gyakoriság</span>
+                    <p className="font-medium text-foreground">
+                      {activeMunkakor.orvosi_vizsgalat_gyakorisag_ho 
+                        ? `Minden ${activeMunkakor.orvosi_vizsgalat_gyakorisag_ho} hónapban (időszakos)` 
+                        : "Időszakos vizsgálat nem kötelező"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Hivatalos Munkaköri Leírás Verzió Állapot */}
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/10 text-xs">
+              <div className="flex items-center gap-2.5">
+                <FileText className="w-4 h-4 text-primary shrink-0" />
+                <div>
+                  <span className="font-medium text-foreground">
+                    {latestJobVersion ? `Hivatalos Munkaköri Leírás (v${latestJobVersion.verzio_szam})` : "Munkaköri leírás dokumentum"}
+                  </span>
+                  <p className="text-[11px] text-muted-foreground">
+                    {latestJobVersion?.fajl_nev 
+                      ? `${latestJobVersion.fajl_nev} • Kiadva: ${new Date(latestJobVersion.kiadas_datum || latestJobVersion.created_at).toLocaleDateString("hu-HU")}`
+                      : "Még nincs digitális munkaköri leírás verzió feltöltve ehhez a munkakörhöz."}
+                  </p>
+                </div>
+              </div>
+              {latestJobVersion?.signedUrl ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <PdfViewerDialog
+                    url={latestJobVersion.signedUrl}
+                    title={`${latestJobVersion.fajl_nev || activeMunkakor.megnevezes} (v${latestJobVersion.verzio_szam})`}
+                    trigger={
+                      <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary hover:text-primary">
+                        <Eye className="w-3.5 h-3.5" /> Betekintés
+                      </Button>
+                    }
+                  />
+                  <a
+                    href={latestJobVersion.signedUrl}
+                    download={latestJobVersion.fajl_nev || "munkakori_leiras.pdf"}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary px-2" title="Letöltés">
+                      <Download className="w-3.5 h-3.5" /> Letöltés
+                    </Button>
+                  </a>
+                </div>
+              ) : isHrOrAdmin ? (
+                <Link href={`/hr/job/${activeMunkakor.id}`}>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-primary">
+                    Feltöltés az adatlapon
+                  </Button>
+                </Link>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-dashed border-border bg-muted/10">
+          <CardContent className="p-6 text-center text-muted-foreground text-sm">
+            <Briefcase className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="font-medium text-foreground">Nincs munkakör hozzárendelve a dolgozóhoz</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              A &quot;Szerződés módosítása&quot; gombbal rendelhetsz hozzá munkakört.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* History Timeline */}
       <Card>
