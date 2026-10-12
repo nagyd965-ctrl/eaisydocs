@@ -321,6 +321,9 @@ export interface AISuggestionsResult {
     elozmeny_ugyirat_id?: string
     elozmeny_iktatoszam?: string
     confidence_score?: number
+    elozmeny_indoklas?: string
+    elozmeny_reszletek?: string[]
+    elozmeny_targy?: string
   }
 }
 
@@ -715,6 +718,10 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
     }
   }
 
+  let elozmenyIndoklas: string | undefined = undefined
+  let elozmenyReszletek: string[] | undefined = undefined
+  let elozmenyTargy: string | undefined = undefined
+
   if (!elozmenyUgyiratId) {
     const { findAntecedentSuggestion } = await import("@/utils/antecedent-matcher")
     const match = await findAntecedentSuggestion(iratId, supabase)
@@ -722,6 +729,9 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
       elozmenyUgyiratId = match.ugyirat_id
       elozmenyIktatoszam = match.iktatoszam || undefined
       antecedentConfidence = match.confidence_score
+      elozmenyIndoklas = match.indoklas
+      elozmenyReszletek = match.reszletek
+      elozmenyTargy = match.targy || undefined
     }
   }
 
@@ -749,7 +759,10 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
       indoklas: aiResult.indoklas || "AI besorolás és metaadat-kinyerés elkészült.",
       elozmeny_ugyirat_id: elozmenyUgyiratId,
       elozmeny_iktatoszam: elozmenyIktatoszam,
-      confidence_score: antecedentConfidence
+      confidence_score: antecedentConfidence,
+      elozmeny_indoklas: elozmenyIndoklas,
+      elozmeny_reszletek: elozmenyReszletek,
+      elozmeny_targy: elozmenyTargy
     }
   }
 }
@@ -1008,3 +1021,162 @@ export async function quickAttachToDossier(iratId: string, ugyiratId: string, in
     ugyiratId: rpcResult.ugyirat_id
   }
 }
+
+/**
+ * Csatolmány szétválasztása önálló bejövő irattá.
+ * Ha egy beérkezett levélben több különálló számla vagy dokumentum található,
+ * ezzel a művelettel a kiválasztott csatolmány átkerül egy újonnan létrehozott
+ * érkeztetésű bejövő irat alá, új egyedi érkeztetőszámmal és AI feladatsorral.
+ */
+export async function splitAttachmentToNewIncoming(iratId: string, fajlId: string) {
+  const supabase = await createClient()
+
+  // 1. Felhasználó és jogosultság ellenőrzése
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: "Nincs bejelentkezett felhasználó." }
+  }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const role = profile?.docs_szerepkor || "ugyintezo"
+  if (role === "betekinto") {
+    return { error: "Betekintő jogosultsággal nem végezhető irat-szétválasztás." }
+  }
+
+  // 2. Eredeti irat és a kiválasztott fájl lekérése
+  const { data: sourceIrat, error: iratErr } = await supabase
+    .from("irat")
+    .select(`
+      id,
+      company_id,
+      targy,
+      erkeztetoszam,
+      erkezes_modja,
+      erkezes_datuma,
+      kuldo_partner_id,
+      adathordozo_tipus,
+      minosites
+    `)
+    .eq("id", iratId)
+    .single()
+
+  if (iratErr || !sourceIrat) {
+    return { error: "A forrásirat nem található." }
+  }
+
+  const { data: targetFile, error: fileErr } = await supabase
+    .from("irat_fajl")
+    .select("id, eredeti_fajlnev, meret_byte, mime_type, sha256, storage_path, ocr_szoveg")
+    .eq("id", fajlId)
+    .eq("irat_id", iratId)
+    .single()
+
+  if (fileErr || !targetFile) {
+    return { error: "A kiválasztott csatolmány nem található az adott irathoz." }
+  }
+
+  // Ellenőrizzük, hogy marad-e még legalább egy fájl az eredeti irathoz
+  const { count: fileCount } = await supabase
+    .from("irat_fajl")
+    .select("id", { count: "exact", head: true })
+    .eq("irat_id", iratId)
+
+  if ((fileCount || 0) <= 1) {
+    return { error: "Az utolsó csatolmány nem választható le, mert az irat fájl nélkül maradna." }
+  }
+
+  // 3. Új szekvenciális érkeztetőszám allokálása
+  const currentYear = new Date().getFullYear()
+  const { data: erkezId } = await supabase.rpc("generate_erkeztetoszam", { p_ev: currentYear })
+  const newErkeztetoszam = erkezId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
+
+  // 4. Új bejövő irat létrehozása
+  const cleanFileName = targetFile.eredeti_fajlnev.replace(/\.[^/.]+$/, "")
+  const newSubject = `${cleanFileName} (Leválasztva: ${sourceIrat.erkeztetoszam})`
+
+  const { data: newIrat, error: newIratErr } = await supabase
+    .from("irat")
+    .insert({
+      company_id: sourceIrat.company_id,
+      erkeztetoszam: newErkeztetoszam,
+      targy: newSubject,
+      erkezes_modja: sourceIrat.erkezes_modja,
+      erkezes_datuma: sourceIrat.erkezes_datuma,
+      irany: "bejovo",
+      statusz: "erkeztetve",
+      kuldo_partner_id: sourceIrat.kuldo_partner_id,
+      adathordozo_tipus: sourceIrat.adathordozo_tipus || "elektronikus",
+      minosites: sourceIrat.minosites || "nyilt"
+    })
+    .select("id")
+    .single()
+
+  if (newIratErr || !newIrat) {
+    return { error: "Nem sikerült létrehozni az új iratot: " + (newIratErr?.message || "") }
+  }
+
+  // 5. A csatolmány átcsatolása az új irathoz
+  const { error: moveErr } = await supabase
+    .from("irat_fajl")
+    .update({ irat_id: newIrat.id })
+    .eq("id", fajlId)
+
+  if (moveErr) {
+    return { error: "Nem sikerült átcsatolni a fájlt: " + moveErr.message }
+  }
+
+  // 6. Audit naplózás mindkét iratra
+  const { getClientInfo } = await import("@/utils/client-info")
+  const { ip, userAgent } = await getClientInfo()
+
+  await supabase.from("esemeny_naplo").insert([
+    {
+      entitas_tipus: "irat",
+      entitas_id: iratId,
+      esemeny_tipus: "modositva",
+      user_id: user.id,
+      ip_cim: ip,
+      user_agent: userAgent,
+      indoklas: `Csatolmány leválasztva új önálló iratként (${newErkeztetoszam}): ${targetFile.eredeti_fajlnev}`
+    },
+    {
+      entitas_tipus: "irat",
+      entitas_id: newIrat.id,
+      esemeny_tipus: "erkeztetve",
+      user_id: user.id,
+      ip_cim: ip,
+      user_agent: userAgent,
+      indoklas: `Létrehozva szétválasztással a(z) ${sourceIrat.erkeztetoszam} iratból (${targetFile.eredeti_fajlnev})`
+    }
+  ])
+
+  // 7. AI feldolgozás ütemezése az új iratra az ai_feladat_sor-ban
+  try {
+    await supabase.from("ai_feladat_sor").insert({
+      irat_id: newIrat.id,
+      feladat_tipus: "ai_metadata_extraction",
+      statusz: "varakozik",
+      kovetkezo_futtatas: new Date().toISOString()
+    })
+  } catch (aiErr) {
+    console.warn("[Split] AI sorba helyezési figyelmeztetés:", aiErr)
+  }
+
+  // 8. Revalidálás
+  revalidatePath("/inbox")
+  revalidatePath(`/inbox/${iratId}`)
+  revalidatePath(`/inbox/${newIrat.id}`)
+
+  return {
+    success: true,
+    newIratId: newIrat.id,
+    newErkeztetoszam,
+    detachedFileName: targetFile.eredeti_fajlnev
+  }
+}
+

@@ -162,12 +162,9 @@ export function calculateAntecedentMatch(
     }
 
     if (partnerMatched) {
-      // Partner egyezés: önmagában (30-35 pont) a 45-ös küszöb alatt marad,
-      // így pusztán azonos partner miatt nem keletkezik vak javaslat.
-      // Tárgyi egyezéssel kombinálva viszont eléri a magas (>=60%) konfidenciát.
       const partnerBonus = Math.min(8, dossierPartnerCount * 2)
       score += 30 + partnerBonus
-      details.push(`Azonos küldő partner (${target.partner_nev || "megfelelés"}), az ügyiratban már ${dossierPartnerCount} kapcsolódó irat szerepel (+${30 + partnerBonus}%)`)
+      details.push(target.partner_nev ? `Azonos partner: ${target.partner_nev}` : "Azonos küldő partner")
     }
 
     // 3. SUBJECT & TOKEN SIMILARITY (max 30 pts)
@@ -197,16 +194,15 @@ export function calculateAntecedentMatch(
 
       const overlapRatio = matchedTokens.size / Math.min(targetTokens.size, candidateTokens.size)
       if (matchedTokens.size > 0) {
-        const matchedWords = Array.from(matchedTokens).slice(0, 4).join(", ")
         if (overlapRatio >= 0.35) {
           score += 25
-          details.push(`Jelentős tárgyi kulcsszó-átfedés (${Math.round(overlapRatio * 100)}%): [${matchedWords}] (+25%)`)
+          details.push("Hasonló ügytárgy")
         } else if (overlapRatio >= 0.18) {
           score += 15
-          details.push(`Közepes tárgyi kulcsszó-átfedés (${Math.round(overlapRatio * 100)}%): [${matchedWords}] (+15%)`)
+          details.push("Részben átfedő téma")
         } else {
           score += 8
-          details.push(`Részleges kulcsszó-átfedés: [${matchedWords}] (+8%)`)
+          details.push("Kapcsolódó kulcsszavak")
         }
       }
     }
@@ -216,10 +212,10 @@ export function calculateAntecedentMatch(
     if (normDossierTargy && targetNormTargy) {
       if (targetNormTargy === normDossierTargy) {
         score += 10
-        details.push(`Megegyező ügyirattárgy (+10%)`)
+        details.push("Megegyező ügytárgy")
       } else if (targetNormTargy.includes(normDossierTargy) || normDossierTargy.includes(targetNormTargy)) {
         score += 5
-        details.push(`Részben átfedő ügyirattárgy (+5%)`)
+        details.push("Részben megegyező tárgy")
       }
     }
 
@@ -227,9 +223,9 @@ export function calculateAntecedentMatch(
     const isOpen = ["iktatva", "szignalt", "ugyintezes_alatt", "folyamatban"].includes(dossier.statusz)
     if (isOpen && score > 30) {
       score += 5
-      details.push("Az ügyirat jelenleg nyitott, folyamatban lévő eljárás (+5%)")
+      details.push("Nyitott ügyirat")
     } else if (!isOpen && score > 30) {
-      details.push("Figyelem: Az ügyirat jelenleg lezárt/irattározott, új alszám közvetlenül nem iktatható bele.")
+      details.push("Lezárt ügyirat")
     }
 
     const finalScore = Math.min(100, Math.round(score))
@@ -241,9 +237,7 @@ export function calculateAntecedentMatch(
   }
 
   // Értékelési küszöb: legalább 45 pont kell az ajánláshoz
-  // (megakadályozza, hogy csak partner-egyezés alapján ajánljon rendszer)
   if (!bestMatch || highestScore < 45) {
-    const partnerInfo = target.partner_nev ? `a(z) "${target.partner_nev}" partnerhez` : "ehhez a témához"
     return {
       ugyirat_id: null,
       iktatoszam: null,
@@ -253,15 +247,14 @@ export function calculateAntecedentMatch(
       szervezeti_egyseg_nev: null,
       confidence_score: highestScore,
       recommendation_type: "uj_ugy_nyitasa",
-      indoklas: `Új téma javaslat (${highestScore}% egyezés): Nem található korábbi nyitott vagy lezárt ügyirat ${partnerInfo}. Duplikáció nem áll fenn, új ügy nyitása javasolt.`,
-      reszletek: bestDetails.length > 0 ? bestDetails : ["Nem található egyező partner vagy releváns kulcszó-átfedés."],
+      indoklas: "Nem található korábbi előzmény, új ügyirat nyitása javasolt.",
+      reszletek: [],
       irat_count: 0
     }
   }
 
   const isOpen = ["iktatva", "szignalt", "ugyintezes_alatt", "folyamatban"].includes(bestMatch.statusz)
   const isClosed = ["irattarban", "lezart", "selejtezheto", "selejtezett"].includes(bestMatch.statusz)
-  const statusStr = isOpen ? "nyitott" : bestMatch.statusz === "irattarban" ? "irattározott" : "lezárt"
   const dossierTargy = bestMatch.ugy?.targy || bestMatch.iktatoszam
 
   let recommendation_type: AntecedentMatchResult["recommendation_type"] = "uj_ugy_nyitasa"
@@ -269,12 +262,12 @@ export function calculateAntecedentMatch(
 
   if (isClosed) {
     recommendation_type = "uj_ugy_nyitasa"
-    indoklas = `Előzményi egyezés (${highestScore}%): A beérkező irat a(z) ${bestMatch.iktatoszam} (${statusStr}) ügyirathoz kapcsolódik („${dossierTargy}”). Mivel ez az ügyirat már ${statusStr}, közvetlenül nem iktatható bele új irat — új ügyirat nyitása javasolt előzmény-hivatkozással.`
+    indoklas = `Az irat ehhez az ügyirathoz kapcsolódik, de mivel már lezárt, új ügyiratként nyitandó.`
   } else {
     recommendation_type = highestScore >= 60 ? "alszam_csatolas" : "megfontolando_csatolas"
     indoklas = highestScore >= 60
-      ? `Magas valószínűségű egyezés (${highestScore}%): A beérkező irat a(z) ${bestMatch.iktatoszam} (${statusStr}) ügyirathoz kapcsolódik („${dossierTargy}”). Alszámként történő csatolás javasolt a duplikáció elkerülésére.`
-      : `Közepes valószínűségű egyezés (${highestScore}%): Lehetséges előzmény-kapcsolat a(z) ${bestMatch.iktatoszam} ügyirattal. Ellenőrzés és csatolás javasolt.`
+      ? `A beérkező irat partnere és témája megegyezik ezzel a nyitott ügyirattal, ezért alszámként érdemes csatolni.`
+      : `Lehetséges előzmény-kapcsolat a partner vagy a téma alapján. Csatolás előtt ellenőrzendő.`
   }
 
   return {

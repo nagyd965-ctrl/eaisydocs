@@ -30,7 +30,7 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
       erkezes_modja,
       ugyirat_id,
       kuldo_partner_id,
-      partner ( id, nev, adoszam, kulfoldi_adoszam )
+      partner ( id, nev, email, adoszam, kulfoldi_adoszam )
     `)
     .eq("id", resolvedParams.id)
     .single()
@@ -42,7 +42,7 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
   // 2. Fetch the associated files (irat_fajl)
   const { data: fajlok } = await supabase
     .from("irat_fajl")
-    .select("id, storage_path, mime_type, eredeti_fajlnev, kulso_fajl_url")
+    .select("id, storage_path, mime_type, eredeti_fajlnev, kulso_fajl_url, meret_byte")
     .eq("irat_id", resolvedParams.id)
 
   let pdfUrl = null
@@ -100,6 +100,7 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
       <FilingPanelClient 
         irat={irat} 
         pdfUrl={pdfUrl} 
+        fajlok={fajlok || []}
         tervek={tervek || []} 
         ugyiratok={allUgyiratok || []}
         departments={departments || []}

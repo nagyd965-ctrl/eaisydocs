@@ -49,7 +49,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       kulso_forras,
       leiras,
       partner ( nev ),
-      irat_fajl ( id, storage_path, eredeti_fajlnev, mime_type, pdfa_path )
+      irat_fajl ( id, storage_path, eredeti_fajlnev, mime_type, pdfa_path, meret_byte, sha256 )
     `)
     .eq("company_id", companyScope)
     .is("ugyirat_id", null)
@@ -69,7 +69,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       kulso_forras,
       leiras,
       partner ( nev ),
-      irat_fajl ( id, storage_path, eredeti_fajlnev, mime_type, pdfa_path )
+      irat_fajl ( id, storage_path, eredeti_fajlnev, mime_type, pdfa_path, meret_byte, sha256 )
     `)
     .eq("company_id", companyScope)
     .is("ugyirat_id", null)

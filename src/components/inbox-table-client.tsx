@@ -80,12 +80,14 @@ export function InboxTableClient({
   // Gyors megtekintés (Quick View) modál állapotok
   const [viewerOpen, setViewerOpen] = useState(false)
   const [viewerFile, setViewerFile] = useState<any | null>(null)
+  const [viewerFiles, setViewerFiles] = useState<any[]>([])
   const [viewerIratId, setViewerIratId] = useState<string>("")
 
   const handleQuickView = (item: InboxItem) => {
-    const file = item.irat_fajl?.[0]
-    if (file) {
-      setViewerFile(file)
+    const files = item.irat_fajl || []
+    if (files.length > 0) {
+      setViewerFile(files[0])
+      setViewerFiles(files)
       setViewerIratId(item.id)
       setViewerOpen(true)
     } else {
@@ -406,7 +408,7 @@ export function InboxTableClient({
                 <TableRow key={item.id} className="transition-colors hover:bg-muted/40">
                   {isColVisible("erkeztetoszam") && (
                     <TableCell className="font-medium text-primary whitespace-nowrap">
-                      <Link href={`/inbox/view/${item.id}`} className="hover:underline">
+                      <Link href={`/inbox/${item.id}`} className="hover:underline">
                         {item.erkeztetoszam}
                       </Link>
                     </TableCell>
@@ -429,9 +431,13 @@ export function InboxTableClient({
                   )}
                   {isColVisible("targy") && (
                     <TableCell className="max-w-[260px] md:max-w-[360px] lg:max-w-[460px] overflow-hidden">
-                      <div className="truncate block font-medium text-foreground" title={item.targy}>
+                      <Link 
+                        href={`/inbox/${item.id}`} 
+                        className="truncate block font-medium text-foreground hover:text-primary hover:underline transition-colors" 
+                        title={item.targy}
+                      >
                         {item.targy}
-                      </div>
+                      </Link>
                     </TableCell>
                   )}
 
@@ -471,11 +477,20 @@ export function InboxTableClient({
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-primary hover:bg-primary/10 hover:text-primary transition-colors"
+                                  className="h-8 w-8 text-primary hover:bg-primary/10 hover:text-primary transition-colors relative"
                                   onClick={() => handleQuickView(item)}
-                                  title="Csatolt dokumentum gyors megtekintése"
+                                  title={
+                                    item.irat_fajl.length > 1
+                                      ? `${item.irat_fajl.length} csatolt dokumentum gyors megtekintése`
+                                      : "Csatolt dokumentum gyors megtekintése"
+                                  }
                                 >
                                   <Eye className="h-4 w-4" />
+                                  {item.irat_fajl.length > 1 && (
+                                    <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold rounded-full h-4 min-w-4 px-1 flex items-center justify-center pointer-events-none shadow-xs">
+                                      {item.irat_fajl.length}
+                                    </span>
+                                  )}
                                 </Button>
                               )}
                               <DismissInboxDialog
@@ -544,6 +559,7 @@ export function InboxTableClient({
           open={viewerOpen}
           setOpen={setViewerOpen}
           fajl={viewerFile}
+          fajlok={viewerFiles}
           iratId={viewerIratId}
         />
       )}

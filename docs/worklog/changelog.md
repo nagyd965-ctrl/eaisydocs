@@ -4,7 +4,33 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-12)
 
-### 🧹 eaisyHR: Munkaköri Profil és Adatlap UX Tisztítás, Redundanciamentesítés és Linear-Flat Design (A-053 / P-072)
+### 📎 eaisyDocs: Többcsatolmányos E-mailek Kezelése, Irat-szétválasztás és Iktatási UX Egyszerűsítés (A-054 / P-073)
+- **Közvetlen Iktatófelület Elérés (`/inbox` -> `/inbox/[id]`):**
+  - Megszüntettük a redundáns és elavult 3 kártyás köztes oldalt (`/inbox/view/[id]`), amely a táblázat kattintásakor feleslegesen nyílt meg és téves előzményvizsgálattal terhelte a felhasználót.
+  - A bejövő sorban az érkeztetőszám és a tárgy mostantól közvetlenül a modern osztott képernyős iktatófelületre (`/inbox/[id]`) visz.
+  - Az `/inbox/view/[id]` útvonal biztonsági automatikus átirányítást (`redirect`) kapott az iktató felületre.
+- **Többcsatolmányos Előnézet és Fülválasztó (`FilingPanelClient`):**
+  - Ha egy levélben több melléklet (pl. 2 külön PDF számla) érkezik, az előnézeti terület felett egy diszkrét csatolmánysáv (`Csatolmányok (N)`) jelenik meg fájlmérettel és fájlnévvel.
+  - A fülekre kattintva a beépített PDF előnézet azonnal a kiválasztott fájlra vált át anélkül, hogy az űrlap adatai törlődnének.
+- **„Szétválasztás önálló irattá” (Tranzakcionális Document Split):**
+  - Új Server Action (`splitAttachmentToNewIncoming`): egyetlen kattintással leválasztható az éppen nézett csatolmány, ha az egy külön számlát képvisel.
+  - A rendszer új hivatalos érkeztetőszámot generál (`generate_erkeztetoszam` RPC), létrehoz egy új érkeztetett bejövő iratot, átmozgatja a csatolmányt, mindkét irathoz append-only audit naplót jegyez be, és elindítja az aszinkron AI OCR feladatot az új iratra.
+  - Az eredeti iratban a megmaradt csatolmány azonnal folytatható és iktatható.
+- **Egysoros, Integrált Előnézeti Fejléc (UX Letisztítás):**
+  - Eltávolításra kerültek a redundáns gombok (`Válasz`, `Nem iktatandó`, külső link); a bal oldali sáv egyetlen tiszta `h-11`-es toolbar lett: `[← Vissza]` | `[Csatolmányfülek]` | `[Szétválasztás önálló irattá]`.
+  - A PDF előnézeti munkaterület maximális vertikális helyet kapott, minimális vizuális zajjal.
+- **Felhasználóbarát, Tömör Előzmény Javaslat Kártya:**
+  - Kivezetésre kerültek a belső algoritmus pontszámok (`+32%`, `+25%`) és a nehezen olvasható token listák.
+  - A meglévő ügyirathoz kapcsolódó javaslat egy mindössze 2 soros, emberi nyelven megfogalmazott magyarázatot kapott:
+    - Felső sor: `🔗 Javasolt előzmény: <iktatószám> [<egyezés>%] | ✓ Csatolva` (vagy `[Csatolás ehhez]` ha új ügy módban áll).
+    - Alsó sor: 1 rövid, természetes mondat a döntés hátteréről (azonos partner és téma egy nyitott ügyiratban).
+- **Többcsatolmányos Gyorsbetekintő a Főoldali Táblázatban (`DocumentViewer`):**
+  - A bejövő táblázat megtekintés (szem ikon) modálja több melléklet esetén interaktív füleket kapott a csatolt fájlok közötti kényelmes átváltáshoz.
+- **eaisyBill Számla Gyorsbetekintő az Import Panelben (`EaisyBillImportPanel`):**
+  - A bejövő sor tetején lévő "Importálás eaisyBill-ből" táblázat Műveletek oszlopában az `[Átvesz]` gomb mellé bekerült a kanonikus megtekintés (szem ikon) gomb.
+  - A gombra vagy a bizonylatsorszámra kattintva egy in-place `Dialog` modál nyílik meg (`DocumentPreviewFrame`), ahol a felhasználó a számla importálása előtt ellenőrizheti az eredeti számla PDF-et és metaadatait.
+  - A modál fejlécéből közvetlenül kezdeményezhető az átvétel (`[Átvesz a bejövő sorba]`), amely azonnal dinamikus "Átvéve" jelvénnyel nyugtázódik a táblázatban és a modálban is.
+- **Dokumentáció:** [ADR A-054](../architecture/decisions/A-054-multi-attachment-handling-and-document-splitting-architecture.md), [PRD P-073](../product/decisions/P-073-multi-attachment-switcher-and-document-split-ux.md).
 - **Munkaköri Profil Kártya (`EmploymentTab` & `self-service/profile`):**
   - Eltávolítva a fejlécből a redundáns "Munkaköri Leírás Megtekintése" és letöltés gomb; helyét a dolgozói nézetben a tiszta "Munkakör törzslap" közvetlen link vette át.
   - Az alsó "Hivatalos Munkaköri Leírás" dokumentumsávban a `Betekintés` (`PdfViewerDialog`) gomb mellé közvetlenül elhelyezésre került a `Letöltés` akciógomb.

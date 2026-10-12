@@ -66,9 +66,10 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-051](./A-051-hr-organization-structural-separation-from-settings.md) | 2026-10-12 | eaisyHR Szervezeti Felépítés és Beállítások Építészeti Szétválasztása | `[HR]` | `Decided` | [P-070](../../product/decisions/P-070-hr-organization-structural-separation-from-settings.md), `src/app/hr/organization/page.tsx`, `organization-tabs-view.tsx`, `settings/page.tsx` |
 | [A-052](./A-052-hr-job-catalog-specification-and-omnipresent-integration.md) | 2026-10-12 | Nyilvántartott Munkakörök Törzsadatai, Korszerű Szerkesztő és Rendszerszintű Integráció | `[HR]` | `Decided` | [P-071](../../product/decisions/P-071-hr-job-catalog-specification-and-omnipresent-integration.md), `job-edit-dialog.tsx`, `job/[id]/page.tsx`, `job-action-menu.tsx`, `EmploymentTab.tsx`, `self-service/profile/page.tsx` |
 | [A-053](./A-053-hr-job-profile-and-catalog-action-deduplication.md) | 2026-10-12 | Munkaköri Profil és Törzslap Szerkesztési Architektúra, Akció-Deduplikáció és Ikon-Minimalizálás | `[HR]` | `Decided` | [P-072](../../product/decisions/P-072-hr-job-profile-and-catalog-ux-declutter-and-deduplication.md), `job-edit-dialog.tsx`, `job/[id]/page.tsx`, `job-description-upload.tsx`, `EmploymentTab.tsx`, `self-service/profile/page.tsx` |
+| [A-054](./A-054-multi-attachment-handling-and-document-splitting-architecture.md) | 2026-10-12 | Többcsatolmányos E-mailek Kezelése és Irat-szétválasztási Architektúra | `[Docs]` | `Decided` | [P-073](../../product/decisions/P-073-multi-attachment-switcher-and-document-split-ux.md), `filing-panel-client.tsx`, `filing-actions.ts`, `inbox-table-client.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-054`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-055`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 

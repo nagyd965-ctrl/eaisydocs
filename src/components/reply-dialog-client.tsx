@@ -15,6 +15,10 @@ interface ReplyDialogProps {
   originalSubject: string
   iratId: string
   partnerNev?: string
+  triggerVariant?: "default" | "outline" | "secondary" | "ghost"
+  triggerSize?: "default" | "sm" | "lg" | "icon"
+  triggerClassName?: string
+  triggerLabel?: string
 }
 
 const MAX_CHARS = 4000
@@ -24,7 +28,16 @@ function buildTemplate(partnerNev?: string): string {
   return `${salutation}\n\nKöszönjük megkeresését. \n\n\nÜdvözlettel,\n`
 }
 
-export function ReplyDialogClient({ toEmail, originalSubject, iratId, partnerNev }: ReplyDialogProps) {
+export function ReplyDialogClient({ 
+  toEmail, 
+  originalSubject, 
+  iratId, 
+  partnerNev,
+  triggerVariant = "default",
+  triggerSize = "default",
+  triggerClassName,
+  triggerLabel = "Válasz"
+}: ReplyDialogProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [text, setText] = useState(buildTemplate(partnerNev))
@@ -88,8 +101,9 @@ export function ReplyDialogClient({ toEmail, originalSubject, iratId, partnerNev
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogTrigger className={buttonVariants({ variant: "default" })}>
-        Válasz
+      <DialogTrigger className={triggerClassName || buttonVariants({ variant: triggerVariant, size: triggerSize })}>
+        <Mail className="mr-1.5 h-3.5 w-3.5" />
+        {triggerLabel}
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>

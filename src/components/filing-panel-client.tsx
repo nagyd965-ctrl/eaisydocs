@@ -25,13 +25,36 @@ import {
   Hash, 
   Link as LinkIcon,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  Split,
+  Mail,
+  Download,
+  ExternalLink,
 } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
+import { cn } from "@/lib/utils"
 
 import { type FilingIrat, type FilingTerv, type FilingUgyirat } from "./filing-dialog"
 import { type AntecedentMatchResult } from "@/utils/antecedent-matcher"
 import { DocumentPreviewFrame } from "@/components/document-preview-frame"
+import { splitAttachmentToNewIncoming } from "@/app/inbox/filing-actions"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+
+export interface FilingFile {
+  id: string
+  eredeti_fajlnev: string
+  mime_type: string
+  meret_byte?: number
+  storage_path?: string
+  kulso_fajl_url?: string
+}
 
 export interface FilingDepartment {
   id: string
@@ -57,9 +80,17 @@ const DOCUMENT_TYPES = [
   { value: "egyeb", label: "Egyéb irat" },
 ]
 
+function formatFileSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return ""
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 export function FilingPanelClient({ 
   irat, 
   pdfUrl,
+  fajlok = [],
   tervek,
   ugyiratok,
   departments,
@@ -69,6 +100,7 @@ export function FilingPanelClient({
 }: { 
   irat: FilingIrat, 
   pdfUrl: string | null,
+  fajlok?: FilingFile[],
   tervek: FilingTerv[],
   ugyiratok: FilingUgyirat[],
   departments?: FilingDepartment[],
@@ -86,6 +118,84 @@ export function FilingPanelClient({
   const [mode, setMode] = useState<"new" | "existing">(
     initialMode ?? (isInitialAntecedent ? "existing" : "new")
   )
+
+  // Csatolmányok kezelése (többcsatolmányos nézet és szétválasztás)
+  const initialFile = useMemo(() => {
+    if (!fajlok || fajlok.length === 0) return null
+    const nonEmailPdf = fajlok.find(
+      (f) =>
+        (f.mime_type?.startsWith("application/pdf") || f.eredeti_fajlnev?.toLowerCase().endsWith(".pdf")) &&
+        !f.eredeti_fajlnev?.toLowerCase().startsWith("email_torzs")
+    )
+    if (nonEmailPdf) return nonEmailPdf
+    const anyPdf = fajlok.find(
+      (f) => f.mime_type?.startsWith("application/pdf") || f.eredeti_fajlnev?.toLowerCase().endsWith(".pdf")
+    )
+    return anyPdf || fajlok[0]
+  }, [fajlok])
+
+  const [filesList, setFilesList] = useState<FilingFile[]>(fajlok || [])
+  const [activeFileId, setActiveFileId] = useState<string>(
+    initialFile?.id || (fajlok && fajlok.length > 0 ? fajlok[0].id : "")
+  )
+  const [splitCandidate, setSplitCandidate] = useState<FilingFile | null>(null)
+  const [splitLoading, setSplitLoading] = useState(false)
+
+  useEffect(() => {
+    if (fajlok && fajlok.length > 0) {
+      setFilesList(fajlok)
+      if (!activeFileId || !fajlok.some((f) => f.id === activeFileId)) {
+        setActiveFileId(initialFile?.id || fajlok[0].id)
+      }
+    }
+  }, [fajlok, initialFile, activeFileId])
+
+  const activeFile = useMemo(() => {
+    return filesList.find((f) => f.id === activeFileId) || filesList[0] || null
+  }, [filesList, activeFileId])
+
+  const currentPreviewUrl = useMemo(() => {
+    if (activeFile) {
+      return `/api/pdf/${irat.id}?fileId=${activeFile.id}`
+    }
+    return pdfUrl
+  }, [activeFile, irat.id, pdfUrl])
+
+  const handleConfirmSplit = async () => {
+    if (!splitCandidate) return
+    setSplitLoading(true)
+    try {
+      const res = await splitAttachmentToNewIncoming(irat.id, splitCandidate.id)
+      if (res.error) {
+        toast.error("Hiba a szétválasztás során", { description: res.error })
+      } else if (res.success && res.newIratId) {
+        const newId = res.newIratId
+        const newErkez = res.newErkeztetoszam
+        toast.success("Csatolmány sikeresen szétválasztva!", {
+          description: `A(z) ${res.detachedFileName} leválasztva. Új érkeztetőszám: ${newErkez}`,
+          action: {
+            label: "Megnyitás",
+            onClick: () => router.push(`/inbox/${newId}`),
+          },
+        })
+        const remaining = filesList.filter((f) => f.id !== splitCandidate.id)
+        setFilesList(remaining)
+        setSplitCandidate(null)
+        if (remaining.length > 0) {
+          setActiveFileId(remaining[0].id)
+        }
+      }
+    } catch (_err) {
+      toast.error("Váratlan hiba történt a csatolmány szétválasztásakor.")
+    } finally {
+      setSplitLoading(false)
+    }
+  }
+
+  const partnerObj = irat.partner as any
+  const senderName = partnerObj?.nev || "Ismeretlen feladó"
+  const senderEmail = partnerObj?.email || ""
+
   
   // Mezők állapota
   const [targy, setTargy] = useState(irat.targy || "")
@@ -117,12 +227,18 @@ export function FilingPanelClient({
     ugyiratId: string
     iktatoszam: string
     confidence?: number
+    targy?: string | null
+    indoklas?: string | null
+    reszletek?: string[]
   } | null>(
-    isInitialAntecedent && antecedentSuggestion?.ugyirat_id
+    antecedentSuggestion?.ugyirat_id && (antecedentSuggestion?.confidence_score || 0) >= 45
       ? {
           ugyiratId: antecedentSuggestion.ugyirat_id,
           iktatoszam: antecedentSuggestion.iktatoszam || "",
-          confidence: antecedentSuggestion.confidence_score
+          confidence: antecedentSuggestion.confidence_score,
+          targy: antecedentSuggestion.targy,
+          indoklas: antecedentSuggestion.indoklas,
+          reszletek: antecedentSuggestion.reszletek
         }
       : null
   )
@@ -238,7 +354,10 @@ export function FilingPanelClient({
         setDetectedAntecedent({
           ugyiratId: s.elozmeny_ugyirat_id,
           iktatoszam: s.elozmeny_iktatoszam || "",
-          confidence: s.confidence_score || 90
+          confidence: (s as any).elozmeny_confidence || s.confidence_score || 90,
+          targy: (s as any).elozmeny_targy,
+          indoklas: (s as any).elozmeny_indoklas,
+          reszletek: (s as any).elozmeny_reszletek
         })
       }
     }
@@ -282,29 +401,88 @@ export function FilingPanelClient({
   }
 
   return (
-    <ResizablePanelGroup orientation="horizontal" className="h-full items-stretch">
-      {/* Bal oldali dokumentum előnézet (60%) */}
-      <ResizablePanel defaultSize={60} minSize={30}>
-        <div className="flex h-full flex-col bg-muted/30">
-          <div className="flex h-12 items-center border-b px-4 bg-background justify-between">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" onClick={() => router.push("/inbox")} className="h-8">
-                <ArrowLeft className="mr-1.5 h-4 w-4" />
-                Vissza
-              </Button>
-              <div className="text-sm font-medium text-foreground">
-                Dokumentum előnézet
+    <>
+      <ResizablePanelGroup orientation="horizontal" className="h-full items-stretch">
+        {/* Bal oldali dokumentum előnézet (60%) */}
+        <ResizablePanel defaultSize={60} minSize={30}>
+          <div className="flex h-full flex-col bg-muted/30">
+            {/* Fejléc: Vissza gomb | Csatolmányok | Szétválasztás */}
+            <div className="flex h-11 items-center border-b px-3 bg-background justify-between gap-2.5 shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-x-auto">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => router.push("/inbox")} 
+                  className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                >
+                  <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+                  Vissza
+                </Button>
+                
+                <div className="h-4 w-px bg-border/60 shrink-0" />
+
+                {/* Csatolmányok listája */}
+                {filesList && filesList.length > 1 ? (
+                  <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto py-1">
+                    {filesList.map((file) => {
+                      const isActive = file.id === activeFileId
+                      return (
+                        <button
+                          key={file.id}
+                          type="button"
+                          onClick={() => setActiveFileId(file.id)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors shrink-0 max-w-[220px] border cursor-pointer",
+                            isActive
+                              ? "bg-muted/70 text-foreground border-primary/50 font-medium shadow-xs"
+                              : "bg-muted/20 text-muted-foreground border-transparent hover:bg-muted/50 hover:text-foreground"
+                          )}
+                          title={file.eredeti_fajlnev}
+                        >
+                          <FileText className={cn("h-3.5 w-3.5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
+                          <span className="truncate">{file.eredeti_fajlnev}</span>
+                          {file.meret_byte && (
+                            <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                              ({formatFileSize(file.meret_byte)})
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : filesList && filesList.length === 1 ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate min-w-0">
+                    <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="truncate font-medium text-foreground">{filesList[0]?.eredeti_fajlnev}</span>
+                    {filesList[0]?.meret_byte && (
+                      <span className="text-[11px] font-mono shrink-0">({formatFileSize(filesList[0]?.meret_byte)})</span>
+                    )}
+                  </div>
+                ) : null}
               </div>
+
+              {/* Szétválasztás gomb ha több csatolmány van */}
+              {filesList && filesList.length > 1 && activeFile && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSplitCandidate(activeFile)}
+                  className="h-7 text-xs gap-1.5 shrink-0 border-dashed border-primary/40 text-primary hover:bg-primary/10 hover:border-primary transition-colors cursor-pointer ml-auto"
+                  title="A kiválasztott csatolmány leválasztása és új érkeztetett bejövő iratként való létrehozása"
+                >
+                  <Split className="h-3.5 w-3.5" />
+                  <span>Szétválasztás önálló irattá</span>
+                </Button>
+              )}
             </div>
-            <div className="text-xs text-muted-foreground font-mono">
-              Érkeztetve: {irat.erkezes_datuma ? new Date(irat.erkezes_datuma as string).toLocaleDateString("hu-HU") : "N/A"}
+
+            {/* Fájl előnézet */}
+            <div className="flex-1 overflow-hidden relative bg-muted">
+              <DocumentPreviewFrame src={currentPreviewUrl} title={activeFile?.eredeti_fajlnev || "Dokumentum előnézet"} />
             </div>
           </div>
-          <div className="flex-1 overflow-hidden relative bg-muted">
-            <DocumentPreviewFrame src={pdfUrl} title="Dokumentum előnézet" />
-          </div>
-        </div>
-      </ResizablePanel>
+        </ResizablePanel>
 
       <ResizableHandle withHandle />
 
@@ -415,41 +593,44 @@ export function FilingPanelClient({
                 </div>
               )}
 
-              {/* Detektált előzmény-ügyirat banner (1-kattintásos csatolási opció) */}
+              {/* Detektált előzmény-ügyirat banner (felhasználóbarát, tömör összefoglaló) */}
               {detectedAntecedent && (
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between gap-3 text-xs animate-in fade-in">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-1.5 font-semibold text-primary">
-                      <LinkIcon className="h-3.5 w-3.5" />
-                      <span>Javasolt előzmény-ügyirat</span>
+                <div className="rounded-lg border border-primary/25 bg-primary/5 dark:bg-primary/10 p-3 space-y-1.5 text-xs animate-in fade-in transition-all">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <LinkIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="font-semibold text-primary">Javasolt előzmény:</span>
+                      <strong className="font-mono font-semibold text-foreground shrink-0">{detectedAntecedent.iktatoszam}</strong>
                       {detectedAntecedent.confidence && (
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-primary/10 font-mono">
-                          {detectedAntecedent.confidence}% egyezés
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 font-mono text-primary font-medium shrink-0">
+                          {detectedAntecedent.confidence}%
                         </span>
                       )}
                     </div>
-                    <p className="text-muted-foreground">
-                      Iktatószám: <strong className="text-foreground">{detectedAntecedent.iktatoszam}</strong>
-                    </p>
+                    {mode === "new" ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 text-[11px] px-2 font-medium shrink-0 cursor-pointer shadow-none"
+                        onClick={() => {
+                          setMode("existing")
+                          setExistingUgyiratId(detectedAntecedent.ugyiratId)
+                        }}
+                      >
+                        Csatolás ehhez
+                      </Button>
+                    ) : (
+                      <span className="flex items-center gap-1 text-primary font-medium text-[11px] shrink-0">
+                        <Check className="h-3.5 w-3.5" /> Csatolva
+                      </span>
+                    )}
                   </div>
-                  {mode === "new" ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="h-7 text-xs font-medium shrink-0"
-                      onClick={() => {
-                        setMode("existing")
-                        setExistingUgyiratId(detectedAntecedent.ugyiratId)
-                      }}
-                    >
-                      Csatolás ehhez
-                    </Button>
-                  ) : (
-                    <span className="flex items-center gap-1 text-primary font-medium text-[11px] shrink-0">
-                      <Check className="h-3.5 w-3.5" /> Kiválasztva
-                    </span>
-                  )}
+
+                  {/* 1 rövid, tömör, felhasználóbarát magyarázat a miértről */}
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {detectedAntecedent.indoklas || "A beérkező irat partnere és témája megegyezik ezzel a nyitott ügyirattal, ezért alszámként érdemes csatolni."}
+                  </p>
                 </div>
               )}
 
@@ -780,6 +961,80 @@ export function FilingPanelClient({
         </div>
       </ResizablePanel>
     </ResizablePanelGroup>
+
+    {/* Csatolmány szétválasztási megerősítő modál */}
+    <Dialog open={!!splitCandidate} onOpenChange={(open) => !open && !splitLoading && setSplitCandidate(null)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+              <Split className="h-4 w-4" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-semibold">Csatolmány szétválasztása önálló irattá</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Leválasztás új beérkezett iratként, saját érkeztetőszámmal
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-3 py-2 text-sm">
+          <p className="text-xs text-foreground/90 leading-relaxed">
+            Biztosan leválasztja a(z) <strong className="font-semibold text-foreground">{splitCandidate?.eredeti_fajlnev}</strong> mellékletet erről a beérkezett iratról?
+          </p>
+          <div className="rounded-lg border border-border/60 bg-muted/40 p-3 space-y-1.5 text-xs">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>Jelenlegi irat száma:</span>
+              <span className="font-mono font-medium text-foreground">{irat.erkeztetoszam}</span>
+            </div>
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>Fájlméret:</span>
+              <span className="font-mono">{formatFileSize(splitCandidate?.meret_byte)}</span>
+            </div>
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>Küldő partner:</span>
+              <span className="text-foreground">{senderName}</span>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            A művelet során a kiválasztott fájl egy <strong>új érkeztetőszámot</strong> kap, bekerül a bejövő feladatsorba, és automatikusan elindul rá a háttérbeli AI feldolgozás. A jelenlegi irat többi csatolmánya változatlanul megmarad.
+          </p>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={splitLoading}
+            onClick={() => setSplitCandidate(null)}
+          >
+            Mégse
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={splitLoading}
+            onClick={handleConfirmSplit}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium gap-1.5"
+          >
+            {splitLoading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>Leválasztás folyamatban...</span>
+              </>
+            ) : (
+              <>
+                <Split className="h-3.5 w-3.5" />
+                <span>Szétválasztás és új irat generálása</span>
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </>
   )
 }
 
