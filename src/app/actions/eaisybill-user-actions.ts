@@ -382,35 +382,11 @@ export async function importEaisyBillCompanyMembersAction(
             },
           })
 
-          let actionLink = recLinkData?.properties?.action_link
-          if (actionLink) {
-            try {
-              const parsed = new URL(actionLink)
-              parsed.searchParams.set("redirect_to", redirectUrl)
-              actionLink = parsed.toString()
-            } catch {
-              // fallback
-            }
-            if (actionLink.includes("localhost:3000") || actionLink.includes("localhost%3A3000")) {
-              actionLink = actionLink
-                .replaceAll("http://localhost:3000", appUrl)
-                .replaceAll("http%3A%2F%2Flocalhost%3A3000", encodeURIComponent(appUrl))
-                .replaceAll("localhost:3000", new URL(appUrl).host)
-                .replaceAll("localhost%3A3000", encodeURIComponent(new URL(appUrl).host))
-            }
-            if (actionLink.includes("127.0.0.1:3000") || actionLink.includes("127.0.0.1%3A3000")) {
-              actionLink = actionLink
-                .replaceAll("http://127.0.0.1:3000", appUrl)
-                .replaceAll("http%3A%2F%2F127.0.0.1%3A3000", encodeURIComponent(appUrl))
-                .replaceAll("127.0.0.1:3000", new URL(appUrl).host)
-                .replaceAll("127.0.0.1%3A3000", encodeURIComponent(new URL(appUrl).host))
-            }
-
           const tokenHash = recLinkData?.properties?.hashed_token
           const verificationType = recLinkData?.properties?.verification_type || "recovery"
           const inviteUrl = tokenHash
             ? `${appUrl}/auth/callback?token_hash=${tokenHash}&type=${verificationType}&next=/auth/set-password`
-            : actionLink
+            : recLinkData?.properties?.action_link
 
           if (inviteUrl) {
             const emailHtml = buildHtmlEmail(
@@ -484,38 +460,13 @@ export async function importEaisyBillCompanyMembersAction(
         invitedCount++
 
         // Meghívó e-mail küldése a generált jelszóbeállító linkkel
-        let actionLink = linkData.properties?.action_link
-        if (actionLink) {
-          try {
-            const parsed = new URL(actionLink)
-            parsed.searchParams.set("redirect_to", redirectUrl)
-            actionLink = parsed.toString()
-          } catch {
-            // fallback
-          }
-          // Ha az actionLink véletlenül localhostra mutatna (pl. Supabase Auth Site URL miatt),
-          // biztosítjuk az éles https://eaisydocs2.vercel.app domainre történő cserét
-          if (actionLink.includes("localhost:3000") || actionLink.includes("localhost%3A3000")) {
-            actionLink = actionLink
-              .replaceAll("http://localhost:3000", appUrl)
-              .replaceAll("http%3A%2F%2Flocalhost%3A3000", encodeURIComponent(appUrl))
-              .replaceAll("localhost:3000", new URL(appUrl).host)
-              .replaceAll("localhost%3A3000", encodeURIComponent(new URL(appUrl).host))
-          }
-          if (actionLink.includes("127.0.0.1:3000") || actionLink.includes("127.0.0.1%3A3000")) {
-            actionLink = actionLink
-              .replaceAll("http://127.0.0.1:3000", appUrl)
-              .replaceAll("http%3A%2F%2F127.0.0.1%3A3000", encodeURIComponent(appUrl))
-              .replaceAll("127.0.0.1:3000", new URL(appUrl).host)
-              .replaceAll("127.0.0.1%3A3000", encodeURIComponent(new URL(appUrl).host))
-          }
+        const tokenHash = linkData?.properties?.hashed_token
+        const verificationType = linkData?.properties?.verification_type || "invite"
+        const inviteUrl = tokenHash
+          ? `${appUrl}/auth/callback?token_hash=${tokenHash}&type=${verificationType}&next=/auth/set-password`
+          : linkData?.properties?.action_link
 
-          const tokenHash = linkData?.properties?.hashed_token
-          const verificationType = linkData?.properties?.verification_type || "invite"
-          const inviteUrl = tokenHash
-            ? `${appUrl}/auth/callback?token_hash=${tokenHash}&type=${verificationType}&next=/auth/set-password`
-            : actionLink
-
+        if (inviteUrl) {
           try {
             const emailHtml = buildHtmlEmail(
               "Meghívás az eaisyDocs rendszerébe",
