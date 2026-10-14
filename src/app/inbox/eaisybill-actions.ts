@@ -108,7 +108,7 @@ export async function getImportableEaisyBillInvoices(): Promise<{
       .eq("company_id", companyId)
       .not("melleklet_url", "is", null)
       .order("letrehozva", { ascending: false })
-      .limit(100)
+      .limit(1000)
 
     if (billError) {
       return { invoices: [], error: "Hiba az eaisyBill lekérésekor: " + billError.message }
@@ -120,6 +120,7 @@ export async function getImportableEaisyBillInvoices(): Promise<{
       .select("kulso_hivatkozas_id")
       .eq("kulso_forras", "eaisybill")
       .not("kulso_hivatkozas_id", "is", null)
+      .limit(5000)
 
     if (activeCompanyId) {
       alreadyImportedQuery = alreadyImportedQuery.eq("company_id", activeCompanyId)
