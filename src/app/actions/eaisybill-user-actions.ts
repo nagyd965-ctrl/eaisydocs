@@ -406,6 +406,13 @@ export async function importEaisyBillCompanyMembersAction(
                 .replaceAll("127.0.0.1%3A3000", encodeURIComponent(new URL(appUrl).host))
             }
 
+          const tokenHash = recLinkData?.properties?.hashed_token
+          const verificationType = recLinkData?.properties?.verification_type || "recovery"
+          const inviteUrl = tokenHash
+            ? `${appUrl}/auth/callback?token_hash=${tokenHash}&type=${verificationType}&next=/auth/set-password`
+            : actionLink
+
+          if (inviteUrl) {
             const emailHtml = buildHtmlEmail(
               "Meghívás az eaisyDocs rendszerébe",
               `Kedves <strong>${name}</strong>!<br/><br/>Hozzáférést kaptál a(z) <strong>${company.name}</strong> iratkezelő munkaterületéhez az eaisyDocs rendszerben (<a href="${appUrl}">${appUrl}</a>). Az alábbi gombra kattintva beállíthatod a jelszavadat, és azonnal beléphetsz a rendszerbe.`,
@@ -416,7 +423,7 @@ export async function importEaisyBillCompanyMembersAction(
                 { label: "Szerepkör", value: docsRole },
               ],
               "Meghívás elfogadása és jelszó beállítása",
-              actionLink
+              inviteUrl
             )
 
             await sendNotificationEmail({
@@ -503,6 +510,12 @@ export async function importEaisyBillCompanyMembersAction(
               .replaceAll("127.0.0.1%3A3000", encodeURIComponent(new URL(appUrl).host))
           }
 
+          const tokenHash = linkData?.properties?.hashed_token
+          const verificationType = linkData?.properties?.verification_type || "invite"
+          const inviteUrl = tokenHash
+            ? `${appUrl}/auth/callback?token_hash=${tokenHash}&type=${verificationType}&next=/auth/set-password`
+            : actionLink
+
           try {
             const emailHtml = buildHtmlEmail(
               "Meghívás az eaisyDocs rendszerébe",
@@ -514,7 +527,7 @@ export async function importEaisyBillCompanyMembersAction(
                 { label: "Szerepkör", value: docsRole },
               ],
               "Meghívás elfogadása és jelszó beállítása",
-              actionLink
+              inviteUrl
             )
 
             await sendNotificationEmail({
