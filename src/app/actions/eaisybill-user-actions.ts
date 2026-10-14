@@ -371,6 +371,65 @@ export async function importEaisyBillCompanyMembersAction(
         if (!memberInsertErr) {
           importedCount++
         }
+
+        // Létező felhasználó esetén recovery link generálása és e-mail küldése
+        try {
+          const { data: recLinkData } = await supabaseAdmin.auth.admin.generateLink({
+            type: "recovery",
+            email,
+            options: {
+              redirectTo: redirectUrl,
+            },
+          })
+
+          let actionLink = recLinkData?.properties?.action_link
+          if (actionLink) {
+            try {
+              const parsed = new URL(actionLink)
+              parsed.searchParams.set("redirect_to", redirectUrl)
+              actionLink = parsed.toString()
+            } catch {
+              // fallback
+            }
+            if (actionLink.includes("localhost:3000") || actionLink.includes("localhost%3A3000")) {
+              actionLink = actionLink
+                .replaceAll("http://localhost:3000", appUrl)
+                .replaceAll("http%3A%2F%2Flocalhost%3A3000", encodeURIComponent(appUrl))
+                .replaceAll("localhost:3000", new URL(appUrl).host)
+                .replaceAll("localhost%3A3000", encodeURIComponent(new URL(appUrl).host))
+            }
+            if (actionLink.includes("127.0.0.1:3000") || actionLink.includes("127.0.0.1%3A3000")) {
+              actionLink = actionLink
+                .replaceAll("http://127.0.0.1:3000", appUrl)
+                .replaceAll("http%3A%2F%2F127.0.0.1%3A3000", encodeURIComponent(appUrl))
+                .replaceAll("127.0.0.1:3000", new URL(appUrl).host)
+                .replaceAll("127.0.0.1%3A3000", encodeURIComponent(new URL(appUrl).host))
+            }
+
+            const emailHtml = buildHtmlEmail(
+              "Meghívás az eaisyDocs rendszerébe",
+              `Kedves <strong>${name}</strong>!<br/><br/>Hozzáférést kaptál a(z) <strong>${company.name}</strong> iratkezelő munkaterületéhez az eaisyDocs rendszerben (<a href="${appUrl}">${appUrl}</a>). Az alábbi gombra kattintva beállíthatod a jelszavadat, és azonnal beléphetsz a rendszerbe.`,
+              [
+                { label: "Alkalmazás", value: appUrl },
+                { label: "Munkaterület / Cég", value: company.name },
+                { label: "Felhasználónév (E-mail)", value: email },
+                { label: "Szerepkör", value: docsRole },
+              ],
+              "Meghívás elfogadása és jelszó beállítása",
+              actionLink
+            )
+
+            await sendNotificationEmail({
+              to: email,
+              subject: `Meghívás az eaisyDocs rendszerébe – ${company.name}`,
+              html: emailHtml,
+              senderName: "eaisyDocs Rendszer",
+            })
+            invitedCount++
+          }
+        } catch (emailErr) {
+          console.error(`[eaisyBill] Hiba az értesítő e-mail kiküldésekor (${email}):`, emailErr)
+        }
       } else {
         // --- ÚJ FELHASZNÁLÓ: MEGHÍVÓ LINK GENERÁLÁSA & EMAIL KÜLDÉS ---
         const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
@@ -420,6 +479,13 @@ export async function importEaisyBillCompanyMembersAction(
         // Meghívó e-mail küldése a generált jelszóbeállító linkkel
         let actionLink = linkData.properties?.action_link
         if (actionLink) {
+          try {
+            const parsed = new URL(actionLink)
+            parsed.searchParams.set("redirect_to", redirectUrl)
+            actionLink = parsed.toString()
+          } catch {
+            // fallback
+          }
           // Ha az actionLink véletlenül localhostra mutatna (pl. Supabase Auth Site URL miatt),
           // biztosítjuk az éles https://eaisydocs2.vercel.app domainre történő cserét
           if (actionLink.includes("localhost:3000") || actionLink.includes("localhost%3A3000")) {
@@ -440,8 +506,9 @@ export async function importEaisyBillCompanyMembersAction(
           try {
             const emailHtml = buildHtmlEmail(
               "Meghívás az eaisyDocs rendszerébe",
-              `Kedves <strong>${name}</strong>!<br/><br/>Hozzáférést kaptál a(z) <strong>${company.name}</strong> iratkezelő munkaterületéhez az eaisyDocs rendszerben. Az alábbi gombra kattintva beállíthatod a saját jelszavadat, és azonnal használatba veheted az alkalmazást.`,
+              `Kedves <strong>${name}</strong>!<br/><br/>Hozzáférést kaptál a(z) <strong>${company.name}</strong> iratkezelő munkaterületéhez az eaisyDocs rendszerben (<a href="${appUrl}">${appUrl}</a>). Az alábbi gombra kattintva beállíthatod a saját jelszavadat, és azonnal használatba veheted az alkalmazást.`,
               [
+                { label: "Alkalmazás", value: appUrl },
                 { label: "Munkaterület / Cég", value: company.name },
                 { label: "Felhasználónév (E-mail)", value: email },
                 { label: "Szerepkör", value: docsRole },
