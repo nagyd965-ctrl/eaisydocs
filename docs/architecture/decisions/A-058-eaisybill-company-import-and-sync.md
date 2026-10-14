@@ -28,6 +28,7 @@ Többvállalatos környezetben (ahol a partner eaisyBill fiókjában több tucat
 - A hardkódolt környezeti változó fallback-je megszűnt.
 - A funkció az aktuálisan kiválasztott vállalat (`getActiveCompanyServer`) `eaisybill_company_id` mezőjét használja.
 - Védelmi logika: ha a kiválasztott vállalat még nincs eaisyBill azonosítóhoz rendelve, adószám-töredék (első 8 jegy) vagy pontos cégnév alapján megkísérli az automatikus összerendelést és perzisztálást; ha nem összerendelhető, egyértelmű, cselekvésre ösztönző hibaüzenetet küld az importálás szükségességéről.
+- A lekérdezési felső korlát 100-ról 1000 darabra került megemelésre (`.limit(1000)`), az eaisyDocs-ban már meglévő tételek ellenőrző lekérdezése pedig 5000 darabra van biztosítva a teljes számlaállomány megbízható és gyors áttekintéséhez.
 
 ## 3. Mérlegelt Alternatívák
 - **Felhasználói e-mail alapú automatikus lekérés:** Az e-mail címek eltérhetnek a két rendszer között, ráadásul egy felhasználó több eaisyBill céghez is hozzáférhet. A cégalapú explicit import sokkal egyértelműbb és kiszámíthatóbb multi-tenant modellt nyújt.
