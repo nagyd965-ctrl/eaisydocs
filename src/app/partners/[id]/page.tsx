@@ -426,17 +426,14 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
       {/* ── Részletes Fülek (Iratforgalom, Kapcsolattartók, Csatolt Ügyek) */}
       <Tabs defaultValue="documents" className="w-full">
         <TabsList className="mb-4">
-          <TabsTrigger value="documents" className="gap-2">
-            <FileText className="h-3.5 w-3.5" />
-            Iratforgalom ({allDocs.length})
+          <TabsTrigger value="documents">
+            Iratforgalom
           </TabsTrigger>
-          <TabsTrigger value="contacts" className="gap-2">
-            <Users className="h-3.5 w-3.5" />
-            Kapcsolattartók ({contacts.length})
+          <TabsTrigger value="contacts">
+            Kapcsolattartók
           </TabsTrigger>
-          <TabsTrigger value="links" className="gap-2">
-            <LinkIcon className="h-3.5 w-3.5" />
-            Csatolt Ügyek ({kapcsoltIratok?.length || 0})
+          <TabsTrigger value="links">
+            Csatolt Ügyek
           </TabsTrigger>
         </TabsList>
 
