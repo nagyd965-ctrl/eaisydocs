@@ -84,11 +84,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-074](./P-074-physical-storage-searchable-combobox-and-custody-action-harmonization.md) | 2026-10-14 | Fizikai Irattári Helymeghatározás Kereshető Combobox Menü és Kölcsönzési Akciógombok Harmonizációja | `[Docs]` | `Dossiers / Physical Storage & Custody UX` | [A-055](../../architecture/decisions/A-055-physical-location-combobox-and-storage-note-persistence.md), `physical-location-dialog.tsx`, `borrow-dialog.tsx`, `iratok-lista.tsx` |
 | [P-075](./P-075-archive-and-dossier-ux-simplification-and-dialog-header-harmony.md) | 2026-10-14 | Irattári Selejtezési Felületek, Ügyirat Fülek és Modál Fejlécek Letisztítása | `[Docs]` | `Archive, Scrapping & Dossier Detail UX` | [A-056](../../architecture/decisions/A-056-base-ui-dialog-close-composition-and-render-prop-pattern.md), `archive-client.tsx`, `dossiers/[id]/page.tsx`, `outgoing-documents-tab.tsx` |
 | [P-076](./P-076-error-not-found-and-loading-states-ux.md) | 2026-10-14 | Hiba-, „Nem található” és Betöltési Állapotok (Error, Not-found & Loading States) | `[Docs]` | `Error / Not-found / Loading Skeletons` | [A-057](../../architecture/decisions/A-057-route-error-boundaries-and-loading-skeleton-conventions.md), `error.tsx`, `not-found.tsx`, `global-error.tsx`, `dashboard-skeleton.tsx`, `detail-skeleton.tsx`, `split-view-skeleton.tsx` |
+| [P-077](./P-077-company-selector-eaisybill-import-tab.md) | 2026-10-14 | Cégválasztó eaisyBill Import Fül és Vállalati Számlanézet | `[Docs]` | `Company Selector & eaisyBill Multi-tenancy` | [A-058](../../architecture/decisions/A-058-eaisybill-company-import-and-sync.md), `company-selector.tsx`, `company-actions.ts`, `eaisybill-actions.ts`, `/inbox` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-077`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-078`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

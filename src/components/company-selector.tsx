@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Pencil,
+  Download,
 } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import {
@@ -46,6 +47,9 @@ import {
   createCompanyAction,
   updateCompanyAction,
   joinCompanyByTokenAction,
+  getEaisyBillCompaniesAction,
+  importEaisyBillCompanyAction,
+  type EaisyBillCompanyItem,
 } from "@/app/actions/company-actions"
 import { toast } from "sonner"
 import type { Company } from "@/types/company"
@@ -64,9 +68,9 @@ export function CompanySelector() {
   const [popoverOpen, setPopoverOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
 
-  // Cég hozzáadás modál (létrehozás + csatlakozás fülekkel)
+  // Cég hozzáadás modál (létrehozás + csatlakozás + importálás fülekkel)
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
-  const [createTab, setCreateTab] = React.useState<"create" | "join">("create")
+  const [createTab, setCreateTab] = React.useState<"create" | "join" | "import">("import")
 
   // Új cég form állapot
   const [newCountry, setNewCountry] = React.useState<"HU" | "HR">("HU")
@@ -80,6 +84,71 @@ export function CompanySelector() {
   // Csatlakozás form állapot
   const [joinToken, setJoinToken] = React.useState("")
   const [isJoining, setIsJoining] = React.useState(false)
+
+  // eaisyBill import állapotok
+  const [eaisybillCompanies, setEaisybillCompanies] = React.useState<EaisyBillCompanyItem[]>([])
+  const [isLoadingBillCompanies, setIsLoadingBillCompanies] = React.useState(false)
+  const [billSearchQuery, setBillSearchQuery] = React.useState("")
+  const [importingId, setImportingId] = React.useState<string | null>(null)
+
+  const fetchEaisyBillCompanies = React.useCallback(async () => {
+    setIsLoadingBillCompanies(true)
+    try {
+      const res = await getEaisyBillCompaniesAction()
+      if (res.success && res.companies) {
+        setEaisybillCompanies(res.companies)
+      } else if (res.error) {
+        toast.error(res.error)
+      }
+    } catch {
+      toast.error("Nem sikerült lekérni az eaisyBill cégeket.")
+    } finally {
+      setIsLoadingBillCompanies(false)
+    }
+  }, [])
+
+
+  const filteredBillCompanies = React.useMemo(() => {
+    if (!billSearchQuery.trim()) return eaisybillCompanies
+    const q = billSearchQuery.toLowerCase().trim()
+    return eaisybillCompanies.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.tax_number && c.tax_number.toLowerCase().includes(q)) ||
+        (c.address && c.address.toLowerCase().includes(q))
+    )
+  }, [eaisybillCompanies, billSearchQuery])
+
+  const handleImportCompany = async (billCompanyId: string) => {
+    setImportingId(billCompanyId)
+    try {
+      const res = await importEaisyBillCompanyAction(billCompanyId)
+      if (res.success && res.company) {
+        toast.success(`„${res.company.name}” sikeresen importálva és kiválasztva!`)
+        if (!companies.some((c) => c.id === res.company!.id)) {
+          setCompaniesList([...companies, res.company])
+        }
+        await setSelectedCompany(res.company)
+        setCreateDialogOpen(false)
+        router.refresh()
+      } else {
+        toast.error(res.error || "Hiba történt az importálás során.")
+      }
+    } catch {
+      toast.error("Váratlan hiba történt az importálás során.")
+    } finally {
+      setImportingId(null)
+    }
+  }
+
+  const handleSwitchToImportedCompany = async (localCompanyId: string) => {
+    const match = companies.find((c) => c.id === localCompanyId)
+    if (match) {
+      await setSelectedCompany(match)
+      setCreateDialogOpen(false)
+      toast.success(`Átváltva: ${match.name}`)
+    }
+  }
 
   // Cég szerkesztése modál állapot (mindig a meglévő kiválasztott céget szerkeszti)
   const [editDialogOpen, setEditDialogOpen] = React.useState(false)
@@ -365,7 +434,21 @@ export function CompanySelector() {
               <Separator className="bg-border/60" />
 
               {/* Műveletek */}
-              <div className="p-1">
+              <div className="p-1 space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPopoverOpen(false)
+                    setCreateTab("import")
+                    setCreateDialogOpen(true)
+                    fetchEaisyBillCompanies()
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-foreground hover:bg-muted rounded-md transition-colors"
+                >
+                  <Download className="h-3.5 w-3.5 text-primary" />
+                  <span>Importálás eaisyBill-ből</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -375,7 +458,7 @@ export function CompanySelector() {
                   }}
                   className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-foreground hover:bg-muted rounded-md transition-colors"
                 >
-                  <Plus className="h-3.5 w-3.5 text-primary" />
+                  <Plus className="h-3.5 w-3.5 text-muted-foreground" />
                   <span>Új cég hozzáadása</span>
                 </button>
 
@@ -593,34 +676,158 @@ export function CompanySelector() {
         </DialogContent>
       </Dialog>
 
-      {/* CÉG HOZZÁADÁSA MODÁL (ÚJ CÉG / CSATLAKOZÁS FÜLEKKEL) */}
+      {/* CÉG HOZZÁADÁSA MODÁL (IMPORTÁLÁS / ÚJ CÉG / CSATLAKOZÁS FÜLEKKEL) */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-semibold">
               <Building2 className="h-4 w-4 text-primary" />
               Cég hozzáadása
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Hozz létre egy új vállalatot, vagy csatlakozz meglévőhöz egy megosztási kód segítségével.
+              Vedd át meglévő vállalatodat az eaisyBill-ből, hozz létre egy újat, vagy csatlakozz kóddal.
             </DialogDescription>
           </DialogHeader>
 
           <Tabs
             value={createTab}
-            onValueChange={(val) => setCreateTab(val as "create" | "join")}
+            onValueChange={(val) => {
+              const tab = val as "create" | "join" | "import"
+              setCreateTab(tab)
+              if (tab === "import" && eaisybillCompanies.length === 0) {
+                fetchEaisyBillCompanies()
+              }
+            }}
             className="w-full pt-1"
           >
-            <TabsList className="grid w-full grid-cols-2 h-8">
+            <TabsList className="grid w-full grid-cols-3 h-8">
+              <TabsTrigger value="import" className="text-xs flex items-center gap-1.5">
+                <Download className="h-3.5 w-3.5" />
+                eaisyBill import
+              </TabsTrigger>
               <TabsTrigger value="create" className="text-xs flex items-center gap-1.5">
                 <Plus className="h-3.5 w-3.5" />
-                Új cég létrehozása
+                Új cég
               </TabsTrigger>
               <TabsTrigger value="join" className="text-xs flex items-center gap-1.5">
                 <KeyRound className="h-3.5 w-3.5" />
-                Csatlakozás kóddal
+                Csatlakozás
               </TabsTrigger>
             </TabsList>
+
+            {/* TAB: EAISYBILL CÉG IMPORTÁLÁSA */}
+            <TabsContent value="import" className="pt-3 space-y-3">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Keresés eaisyBill cégre név vagy adószám alapján..."
+                  value={billSearchQuery}
+                  onChange={(e) => setBillSearchQuery(e.target.value)}
+                  className="h-8 pl-8 pr-7 text-xs"
+                />
+                {billSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setBillSearchQuery("")}
+                    className="absolute right-2.5 top-2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              <ScrollArea className="h-[290px] pr-2">
+                {isLoadingBillCompanies ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-xs text-muted-foreground gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <span>eaisyBill vállalatok betöltése...</span>
+                  </div>
+                ) : filteredBillCompanies.length === 0 ? (
+                  <div className="text-center py-10 text-xs text-muted-foreground space-y-1">
+                    <p className="font-medium">
+                      {billSearchQuery ? "Nincs találat a megadott keresésre." : "Nem találhatók cégek az eaisyBill-ben."}
+                    </p>
+                    {billSearchQuery && (
+                      <p className="text-[11px]">Próbálj más névre vagy adószám-töredékre keresni.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredBillCompanies.map((comp) => (
+                      <div
+                        key={comp.id}
+                        className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-card hover:border-primary/40 transition-colors gap-3"
+                      >
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="text-xs font-semibold text-foreground truncate">
+                            {comp.name}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-2">
+                            {comp.tax_number ? (
+                              <span className="font-mono tabular-nums">{comp.tax_number}</span>
+                            ) : (
+                              <span className="italic">Nincs adószám</span>
+                            )}
+                            {comp.address && (
+                              <span className="truncate max-w-[210px]">• {comp.address}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex-shrink-0">
+                          {comp.isImported ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => comp.localCompanyId && handleSwitchToImportedCompany(comp.localCompanyId)}
+                              className="h-7 text-[11px] px-2.5 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 cursor-pointer"
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Váltás
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => handleImportCompany(comp.id)}
+                              disabled={importingId === comp.id}
+                              className="h-7 text-[11px] px-2.5 cursor-pointer"
+                            >
+                              {importingId === comp.id ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                  Import...
+                                </>
+                              ) : (
+                                <>
+                                  <Download className="h-3 w-3 mr-1" />
+                                  Importálás
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+
+              <div className="flex items-center justify-between pt-1 border-t border-border/60 text-[11px] text-muted-foreground">
+                <span>Összesen: {eaisybillCompanies.length} vállalat az eaisyBill-ben</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchEaisyBillCompanies}
+                  disabled={isLoadingBillCompanies}
+                  className="h-6 text-[10px] px-2"
+                >
+                  Frissítés
+                </Button>
+              </div>
+            </TabsContent>
 
             {/* TAB: ÚJ CÉG LÉTREHOZÁSA */}
             <TabsContent value="create" className="pt-3">

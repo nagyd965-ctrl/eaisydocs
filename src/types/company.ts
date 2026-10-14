@@ -11,6 +11,7 @@ export interface Company {
   country_code: string
   logo_url?: string | null
   filing_prefix?: string | null
+  eaisybill_company_id?: string | null
   created_at: string
   updated_at: string
 }

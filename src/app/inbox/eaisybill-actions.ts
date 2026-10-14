@@ -22,47 +22,6 @@ export type EaisyBillInvoice = {
   fizetve: boolean
 }
 
-/**
- * Megkeresi a felhasználó eaisyBill company_id-ját.
- * Elsődleges forrás: EAISYBILL_COMPANY_ID env var (megbízható, gyors).
- * Másodlagos: email → company_members dinamikus lookup.
- */
-async function getCompanyIdForEmail(email: string): Promise<string | null> {
-  // 1. Env var – ha be van állítva, ezt használjuk (legmegbízhatóbb)
-  if (process.env.EAISYBILL_COMPANY_ID) {
-    return process.env.EAISYBILL_COMPANY_ID
-  }
-
-  // 2. Dinamikus lookup: company_members-ben keresünk az eaisyBill user_id alapján
-  //    (Ez csak akkor fut, ha nincs env var beállítva)
-  try {
-    const billClient = createEaisyBillClient()
-    let page = 1
-    const perPage = 50
-
-    while (true) {
-      const { data, error } = await billClient.auth.admin.listUsers({ page, perPage })
-      if (error || !data?.users?.length) break
-
-      const match = data.users.find(u => u.email === email)
-      if (match) {
-        const { data: membership } = await billClient
-          .from("company_members")
-          .select("company_id")
-          .eq("user_id", match.id)
-          .maybeSingle()
-        return membership?.company_id ?? null
-      }
-
-      if (data.users.length < perPage) break
-      page++
-    }
-  } catch {
-    // Dinamikus lookup nem sikerült – null visszaadás
-  }
-
-  return null
-}
 
 /**
  * Lekéri az eaisyBill-ből az importálható számlákat.
@@ -84,11 +43,16 @@ export async function getImportableEaisyBillInvoices(): Promise<{
     const activeCompany = await getActiveCompanyServer()
     const activeCompanyId = activeCompany?.id || (await getActiveCompanyIdServer())
 
-    // 1. Company_id keresés az eaisyBill-ben
-    // Először megpróbáljuk az aktív cég adószáma vagy neve alapján párosítani
+    // 1. eaisyBill Company ID meghatározása
     let companyId: string | null = null
 
-    if (activeCompany) {
+    // Elsődleges és közvetlen forrás: a cég explicit eaisybill_company_id mezője
+    if (activeCompany?.eaisybill_company_id) {
+      companyId = activeCompany.eaisybill_company_id
+    }
+
+    // Másodlagos: ha a mező még üres, megpróbáljuk adószám vagy név alapján megtalálni és automatikusan elmenteni
+    if (!companyId && activeCompany) {
       try {
         const cleanTax = activeCompany.tax_number?.replace(/[-\s]/g, "")
         if (cleanTax && cleanTax.length >= 8) {
@@ -112,18 +76,24 @@ export async function getImportableEaisyBillInvoices(): Promise<{
             companyId = matchedComp.id
           }
         }
+
+        // Ha találtunk megbízható egyezést, automatikusan rögzítjük az eaisybill_company_id-t
+        if (companyId) {
+          await docsClient
+            .from("companies")
+            .update({ eaisybill_company_id: companyId })
+            .eq("id", activeCompany.id)
+        }
       } catch (matchErr) {
-        console.warn("[eaisyBill] Cég párosítási hiba eaisyBill-ben:", matchErr)
+        console.warn("[eaisyBill] Cég párosítási figyelmeztetés:", matchErr)
       }
     }
 
-    // Ha nincs közvetlen egyezés (pl. teszt cég esetén), visszalépünk a userhez rendelt / alapértelmezett cégre
     if (!companyId) {
-      companyId = await getCompanyIdForEmail(user.email)
-    }
-
-    if (!companyId) {
-      return { invoices: [], error: `Nincs eaisyBill cég-hozzárendelés ehhez a fiókhoz (${user.email}). Ellenőrizd az eaisyBill company_members táblát.` }
+      return {
+        invoices: [],
+        error: `A(z) „${activeCompany?.name || "Kiválasztott cég"}” nincs eaisyBill fiókhoz társítva. Importáld vagy válaszd ki a megfelelő eaisyBill céget a bal felső cégválasztóban!`
+      }
     }
 
     // 2. Számlák lekérése – CSAK a megcélzott cég számláit

@@ -4,6 +4,13 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-14)
 
+### 🏢 eaisyDocs: eaisyBill Vállalat-import és Dinamikus Cégalapú Számlaszinkronizáció (A-058 / P-077)
+- **Cégimport eaisyBill-ből:** A cégválasztó modál (`CompanySelector`) új, alapértelmezett **„eaisyBill import”** füllel és a lenyílóban közvetlen menüponttal bővült. Az elérhető vállalatok (90+ cég) valós időben kereshetők cégnévre, adószámra vagy címre.
+- **Egykattintásos importálás és váltás:** A még nem importált vállalatok a „Cég importálása” gombbal átemelhetők, automatikusan megkapva a tulajdonosi tagságot, a megfelelő iktatási prefixet és RLS jogosultságot. A már áthozott cégeknél diszkrét „Már importálva – Váltás” gombbal lehet közvetlenül kontextust váltani.
+- **Dinamikus bejövő számlaszinkronizáció (`/inbox`):** Megszűnt az egyetlen cégre (Think AI Kft.) korlátozott hardkódolt környezeti változó fallback. Az „Importálás eaisyBillből” gomb mindig a kiválasztott vállalat `eaisybill_company_id`-jához tartozó számlákat kérdezi le.
+- **Biztonság és Adatbázis:** Új `eaisybill_company_id UUID NULL` mező és egyedi parciális index a `public.companies` táblán. A meglévő Think AI Kft. rekord automatikusan össze lett kapcsolva az eaisyBill megfelelő azonosítójával.
+- **Dokumentáció:** [ADR A-058](../architecture/decisions/A-058-eaisybill-company-import-and-sync.md), [PRD P-077](../product/decisions/P-077-company-selector-eaisybill-import-tab.md).
+
 ### 🛟 eaisyDocs: Egységes Hiba-, „Nem található” Oldalak és Betöltési Skeleton-ek (A-057 / P-076)
 - **Hibakezelés:** új `error.tsx`, `not-found.tsx` és `global-error.tsx` magyar nyelvű, ikon nélküli felülettel; megjeleníti a hibakódot (`digest`), „Újrapróbálás” gombbal (`unstable_retry`) és visszalépéssel. eaisyHR útvonalakon a visszalépés az eaisyHR főoldalra mutat (`getErrorBackTarget`, teszttel).
 - **Skeleton-ek:** új `DashboardSkeleton`, `DetailSkeleton`, `SplitViewSkeleton`; `loading.tsx` a Vezérlőpulthoz, az ügyirat-, partner- és bejövő-adatlapokhoz, a Szabályokhoz; a Beállítások skeleton-je újraírva. A `ContentSkeleton` új `padded` propot kapott, a külön térközű oldalak layout-ugrás nélkül töltenek.

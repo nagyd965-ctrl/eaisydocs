@@ -3,6 +3,7 @@
 import { cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
+import { createEaisyBillClient } from "@/utils/supabase/eaisybill"
 import { SELECTED_COMPANY_COOKIE, getUserCompaniesServer } from "@/utils/company-server"
 import type { Company } from "@/types/company"
 
@@ -381,7 +382,7 @@ export async function getCompanyMembersAction(companyId: string) {
   }
 
   const userIds = members.map((m) => m.user_id)
-  let profileMap: Record<string, { nev?: string; email?: string; docs_szerepkor?: string | null; hr_szerepkor?: string | null }> = {}
+  const profileMap: Record<string, { nev?: string; email?: string; docs_szerepkor?: string | null; hr_szerepkor?: string | null }> = {}
 
   if (userIds.length > 0) {
     // Profilok lekérdezése admin klienssel az RLS kikerüléséhez
@@ -391,8 +392,8 @@ export async function getCompanyMembersAction(companyId: string) {
       .in("id", userIds)
 
     // Auth userek email címeinek és metaadatainak lekérdezése
-    let emailMap = new Map<string, string>()
-    let authNameMap = new Map<string, string>()
+    const emailMap = new Map<string, string>()
+    const authNameMap = new Map<string, string>()
     if (serviceRoleKey) {
       try {
         const { data: authData } = await adminClient.auth.admin.listUsers()
@@ -970,6 +971,183 @@ export async function getCompanyAccessAction(companyId: string) {
     isOwner: Boolean(isOwner),
     role: member?.role || null,
     userId: user.id,
+  }
+}
+
+export interface EaisyBillCompanyItem {
+  id: string
+  name: string
+  tax_number: string | null
+  address: string | null
+  country_code: string
+  isImported: boolean
+  localCompanyId?: string
+}
+
+/**
+ * Lekéri az eaisyBill-ben nyilvántartott cégek listáját és összeveti a helyi eaisyDocs cégekkel.
+ */
+export async function getEaisyBillCompaniesAction(): Promise<{
+  success: boolean
+  companies: EaisyBillCompanyItem[]
+  error?: string
+}> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { success: false, companies: [], error: "Nincs bejelentkezett felhasználó." }
+    }
+
+    const billClient = createEaisyBillClient()
+
+    // 1. Lekérjük az eaisyBill cégeket
+    const { data: billCompanies, error: billError } = await billClient
+      .from("companies")
+      .select("id, name, tax_number, address, country_code")
+      .order("name", { ascending: true })
+
+    if (billError) {
+      return { success: false, companies: [], error: "Hiba az eaisyBill cégek lekérésekor: " + billError.message }
+    }
+
+    // 2. Lekérjük a helyi cégeket, amik már rendelkeznek eaisybill_company_id-val
+    const { data: existingLocal } = await supabase
+      .from("companies")
+      .select("id, eaisybill_company_id")
+      .not("eaisybill_company_id", "is", null)
+
+    const importedMap = new Map<string, string>()
+    for (const c of existingLocal || []) {
+      if (c.eaisybill_company_id) {
+        importedMap.set(c.eaisybill_company_id, c.id)
+      }
+    }
+
+    const list: EaisyBillCompanyItem[] = (billCompanies || []).map(bc => ({
+      id: bc.id,
+      name: bc.name,
+      tax_number: bc.tax_number || null,
+      address: bc.address || null,
+      country_code: bc.country_code || "HU",
+      isImported: importedMap.has(bc.id),
+      localCompanyId: importedMap.get(bc.id),
+    }))
+
+    return { success: true, companies: list }
+  } catch (err: any) {
+    return { success: false, companies: [], error: err.message || "Ismeretlen hiba történt." }
+  }
+}
+
+/**
+ * Átvesz egy céget az eaisyBill-ből az eaisyDocs-ba, és azonnal aktívvá teszi.
+ */
+export async function importEaisyBillCompanyAction(eaisybillCompanyId: string): Promise<{
+  success: boolean
+  company?: Company
+  alreadyExisted?: boolean
+  error?: string
+}> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { success: false, error: "Nincs bejelentkezett felhasználó." }
+    }
+
+    const billClient = createEaisyBillClient()
+
+    // 1. Lekérjük a céget az eaisyBill-ből
+    const { data: billCompany, error: billError } = await billClient
+      .from("companies")
+      .select("id, name, tax_number, address, country_code, representative_name, phone")
+      .eq("id", eaisybillCompanyId)
+      .maybeSingle()
+
+    if (billError || !billCompany) {
+      return { success: false, error: "Nem található a cég az eaisyBill rendszerben." }
+    }
+
+    // 2. Ellenőrizzük, hogy létezik-e már az eaisyDocs-ban ez az eaisybill_company_id
+    const { data: existing } = await supabase
+      .from("companies")
+      .select("id, name, tax_number, address, representative_name, phone, owner_id, share_token, share_token_created_at, country_code, logo_url, filing_prefix, eaisybill_company_id, created_at, updated_at")
+      .eq("eaisybill_company_id", eaisybillCompanyId)
+      .maybeSingle()
+
+    let targetCompany: Company
+    let alreadyExisted = false
+
+    if (existing) {
+      alreadyExisted = true
+      // Már létezik a cég, ellenőrizzük a tagságot
+      const { data: membership } = await supabase
+        .from("company_members")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("company_id", existing.id)
+        .maybeSingle()
+
+      if (!membership) {
+        await supabase
+          .from("company_members")
+          .insert({
+            company_id: existing.id,
+            user_id: user.id,
+            role: "owner",
+            docs_szerepkor: "admin",
+            hr_szerepkor: "admin",
+          })
+      }
+      targetCompany = existing as Company
+    } else {
+      // Iktatási prefix képzése a cégnévből (kezdőbetűk, max 4 karakter)
+      const cleanName = billCompany.name.trim().replace(/["'„”]/g, "")
+      const words = cleanName.split(/\s+/).filter(Boolean)
+      let prefix = "DOCS"
+      if (words.length >= 2) {
+        prefix = words.slice(0, 4).map((w: string) => w[0].toUpperCase()).join("")
+      } else if (words.length === 1 && words[0].length >= 3) {
+        prefix = words[0].slice(0, 4).toUpperCase()
+      }
+
+      const { data: newCompany, error: insertError } = await supabase
+        .from("companies")
+        .insert({
+          name: billCompany.name.trim(),
+          tax_number: billCompany.tax_number?.trim() || null,
+          address: billCompany.address?.trim() || null,
+          representative_name: billCompany.representative_name?.trim() || null,
+          phone: billCompany.phone?.trim() || null,
+          country_code: billCompany.country_code || "HU",
+          filing_prefix: prefix,
+          owner_id: user.id,
+          eaisybill_company_id: billCompany.id,
+        })
+        .select("id, name, tax_number, address, representative_name, phone, owner_id, share_token, share_token_created_at, country_code, logo_url, filing_prefix, eaisybill_company_id, created_at, updated_at")
+        .single()
+
+      if (insertError || !newCompany) {
+        return { success: false, error: "Hiba az eaisyDocs cég létrehozásakor: " + insertError?.message }
+      }
+
+      targetCompany = newCompany as Company
+    }
+
+    // 3. Automatikusan beállítjuk aktív cégnek a cookie-ban
+    const cookieStore = await cookies()
+    cookieStore.set(SELECTED_COMPANY_COOKIE, targetCompany.id, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    })
+
+    revalidatePath("/", "layout")
+    return { success: true, company: targetCompany, alreadyExisted }
+  } catch (err: any) {
+    return { success: false, error: err.message || "Nem sikerült az eaisyBill cég importálása." }
   }
 }
 

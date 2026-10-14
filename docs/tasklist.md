@@ -7,6 +7,12 @@ A listát **minden elvégzett feladat után frissítjük**, követve az állapot
 
 ## 🚀 1. Már Elvégzett Feladatok (Done)
 
+- [x] **eaisyBill Vállalat-import és Cégalapú Dinamikus Számlaszinkronizáció**
+  - Adatbázis: `public.companies.eaisybill_company_id` oszlop és egyedi parciális index.
+  - Szerver akciók: `getEaisyBillCompaniesAction()`, `importEaisyBillCompanyAction(eaisybillCompanyId)` RLS tagság és automatikus cégváltás támogatással.
+  - UI: Cégválasztó modál 3. füle („eaisyBill import”) instant keresővel, kártyás listával, „Cég importálása” vagy „Már importálva – Váltás” gombokkal, plusz közvetlen menüpont a lenyílóban.
+  - Bejövő sor (`/inbox`): szigorúan az aktív cég `eaisybill_company_id`-jához tartozó számlák lekérése, hardkódolt környezeti változó nélkül, intelligens automatikus összerendeléssel.
+  - Dokumentáció: [ADR A-058](architecture/decisions/A-058-eaisybill-company-import-and-sync.md), [PRD P-077](product/decisions/P-077-company-selector-eaisybill-import-tab.md).
 - [x] **A1: Route-szintű Hiba- és „Nem található” oldalak**
   - `error.tsx`, `not-found.tsx`, `global-error.tsx` magyarul, hibakóddal (`digest`), „Újrapróbálás” (`unstable_retry`) gombbal.
   - Moduláris szétválasztás: eaisyHR alatt a visszalépés az eaisyHR főoldalra mutat (`error-navigation.ts`).
