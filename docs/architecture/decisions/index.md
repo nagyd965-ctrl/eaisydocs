@@ -71,10 +71,11 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-056](./A-056-base-ui-dialog-close-composition-and-render-prop-pattern.md) | 2026-10-14 | Base UI Dialog és Sheet Bezáró Gomb (X) Kompozíciós Szabály és Render Prop Gyermek-megőrzés | `[Közös]` | `Decided` | [P-075](../../product/decisions/P-075-archive-and-dossier-ux-simplification-and-dialog-header-harmony.md), `dialog.tsx`, `sheet.tsx`, `outgoing-documents-tab.tsx` |
 | [A-057](./A-057-route-error-boundaries-and-loading-skeleton-conventions.md) | 2026-10-14 | Route-szintű Hibakezelés (error / not-found / global-error) és Betöltési Skeleton Konvenciók | `[Docs]` | `Decided` | [P-076](../../product/decisions/P-076-error-not-found-and-loading-states-ux.md), `error.tsx`, `not-found.tsx`, `global-error.tsx`, `(dashboard)/loading.tsx`, `content-skeleton.tsx` |
 | [A-058](./A-058-eaisybill-company-import-and-sync.md) | 2026-10-14 | eaisyBill Vállalat-import és Dinamikus Cégalapú Számlaszinkronizáció | `[Docs]` | `Decided` | [P-077](../../product/decisions/P-077-company-selector-eaisybill-import-tab.md), `company-selector.tsx`, `company-actions.ts`, `eaisybill-actions.ts`, `companies` |
+| [A-059](./A-059-company-deletion-and-cascade-lifecycle.md) | 2026-10-14 | Cég Végleges Törlése, Kaszkádolt Életciklus és Jogosultságkezelés | `[Docs]` | `Decided` | [P-078](../../product/decisions/P-078-company-deletion-and-management-ux.md), `company-actions.ts`, `company-settings-tab.tsx`, `companies` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-059`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-060`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 

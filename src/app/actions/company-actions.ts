@@ -3,9 +3,17 @@
 import { cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { createEaisyBillClient } from "@/utils/supabase/eaisybill"
 import { SELECTED_COMPANY_COOKIE, getUserCompaniesServer } from "@/utils/company-server"
 import type { Company } from "@/types/company"
+
+function getAdminClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 /**
  * Cégváltás szerverakció.
@@ -217,55 +225,103 @@ export async function updateCompanyAction(
 }
 
 /**
- * Cég törlése (kizárólag a cég tulajdonosa törölheti).
+ * Cég végleges törlése szerverakció.
+ * Csak a cég tulajdonosa (owner) vagy rendszergazda jogosult törölni.
+ * A törlés ON DELETE CASCADE-del törli a céghez kapcsolódó összes rekordot.
+ * Ha az aktív cég lett törölve, automatikusan egy másik elérhető cégre vált a cookie-ban.
  */
-export async function deleteCompanyAction(companyId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export async function deleteCompanyAction(companyId: string): Promise<{
+  success: boolean
+  error?: string
+  remainingCompanyId?: string | null
+}> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Nincs bejelentkezve." }
 
-  if (!user) {
-    return { success: false, error: "Nincs bejelentkezett felhasználó." }
+    const admin = getAdminClient()
+
+    // 1. Cég adatainak lekérése
+    const { data: company, error: compErr } = await admin
+      .from("companies")
+      .select("id, name, owner_id")
+      .eq("id", companyId)
+      .maybeSingle()
+
+    if (compErr || !company) {
+      return { success: false, error: "A cég nem található." }
+    }
+
+    // 2. Felhasználó profiljának ellenőrzése (rendszergazda-e)
+    const { data: profile } = await supabase
+      .from("felhasznalo_profil")
+      .select("docs_szerepkor")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    const isSysAdmin = profile?.docs_szerepkor === "rendszergazda"
+
+    // 3. Cégbeli tagság és szerepkör ellenőrzése
+    const { data: member } = await admin
+      .from("company_members")
+      .select("role")
+      .eq("company_id", companyId)
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    const isOwner = company.owner_id === user.id || member?.role === "owner"
+
+    if (!isOwner && !isSysAdmin) {
+      return {
+        success: false,
+        error: "Csak a cég tulajdonosa vagy rendszergazda jogosult a vállalat törlésére."
+      }
+    }
+
+    // 4. Végleges törlés a companies táblából (minden kapcsolódó adat kaszkádolva törlődik)
+    const { error: deleteErr } = await admin
+      .from("companies")
+      .delete()
+      .eq("id", companyId)
+
+    if (deleteErr) {
+      return { success: false, error: "Hiba a cég törlésekor: " + deleteErr.message }
+    }
+
+    // 5. Ha a törölt cég volt az aktív cég, átváltunk egy megmaradt cégre
+    const cookieStore = await cookies()
+    const currentActiveId = cookieStore.get(SELECTED_COMPANY_COOKIE)?.value
+    let nextCompanyId: string | null = null
+
+    if (currentActiveId === companyId) {
+      const { data: otherMemberships } = await admin
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", user.id)
+        .neq("company_id", companyId)
+        .limit(1)
+
+      if (otherMemberships && otherMemberships.length > 0) {
+        const nextId = otherMemberships[0].company_id
+        nextCompanyId = nextId
+        cookieStore.set(SELECTED_COMPANY_COOKIE, nextId, {
+          path: "/",
+          maxAge: 60 * 60 * 24 * 365,
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+        })
+      } else {
+        cookieStore.delete(SELECTED_COMPANY_COOKIE)
+      }
+    }
+
+    revalidatePath("/", "layout")
+    return { success: true, remainingCompanyId: nextCompanyId }
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Váratlan hiba történt a törlés során."
+    return { success: false, error: errorMsg }
   }
-
-  // Ellenőrizzük, hogy a felhasználó az owner-e
-  const { data: company } = await supabase
-    .from("companies")
-    .select("owner_id, name")
-    .eq("id", companyId)
-    .single()
-
-  if (!company || company.owner_id !== user.id) {
-    return { success: false, error: "Csak a cég tulajdonosa törölheti a vállalatot." }
-  }
-
-  const { error } = await supabase
-    .from("companies")
-    .delete()
-    .eq("id", companyId)
-
-  if (error) {
-    console.error("Hiba cég törlésekor:", error)
-    return { success: false, error: error.message }
-  }
-
-  // Ha a törölt cég volt az aktív, átváltunk a következőre
-  const remaining = await getUserCompaniesServer()
-  const nextCompanyId = remaining.length > 0 ? remaining[0].id : null
-
-  const cookieStore = await cookies()
-  if (nextCompanyId) {
-    cookieStore.set(SELECTED_COMPANY_COOKIE, nextCompanyId, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 365,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-    })
-  } else {
-    cookieStore.delete(SELECTED_COMPANY_COOKIE)
-  }
-
-  revalidatePath("/", "layout")
-  return { success: true, nextCompanyId }
 }
 
 /**
@@ -1146,8 +1202,11 @@ export async function importEaisyBillCompanyAction(eaisybillCompanyId: string): 
 
     revalidatePath("/", "layout")
     return { success: true, company: targetCompany, alreadyExisted }
-  } catch (err: any) {
-    return { success: false, error: err.message || "Nem sikerült az eaisyBill cég importálása." }
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Nem sikerült az eaisyBill cég importálása."
+    return { success: false, error: errorMsg }
   }
 }
+
+
 

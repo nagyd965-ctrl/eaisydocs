@@ -5,7 +5,6 @@ import {
   Building2,
   Copy,
   RefreshCw,
-  Plus,
   Trash2,
   CheckCircle2,
   AlertCircle,
@@ -13,7 +12,6 @@ import {
   Shield,
   Loader2,
   Check,
-  ExternalLink,
   KeyRound,
   UserPlus,
   AlertTriangle,
@@ -22,6 +20,7 @@ import {
   Sliders,
 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +53,7 @@ import {
   getCompanyAccessAction,
   uploadCompanyLogoAction,
   removeCompanyLogoAction,
+  deleteCompanyAction,
 } from "@/app/actions/company-actions"
 import { isHungarianTaxNumber, cleanTaxNumber } from "@/utils/tax-number"
 import { toast } from "sonner"
@@ -109,6 +109,72 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
   // 4. Összes cég állapota
   const [allMemberships, setAllMemberships] = React.useState<any[]>([])
   const [isLoadingAll, setIsLoadingAll] = React.useState(false)
+
+  // 5. Cég törlése állapota
+  const router = useRouter()
+  const [companyToDelete, setCompanyToDelete] = React.useState<Company | null>(null)
+  const [isDeletingCompany, setIsDeletingCompany] = React.useState(false)
+
+  // Tagok betöltése
+  const loadMembers = React.useCallback(async (companyId: string) => {
+    setIsLoadingMembers(true)
+    try {
+      const res = await getCompanyMembersAction(companyId)
+      if (res.success && res.members) {
+        setMembers(res.members)
+      }
+    } catch (err) {
+      console.error("Hiba tagok betöltésekor:", err)
+    } finally {
+      setIsLoadingMembers(false)
+    }
+  }, [])
+
+  // Összes cégtagság betöltése
+  const loadAllMemberships = React.useCallback(async () => {
+    setIsLoadingAll(true)
+    try {
+      const res = await getUserCompanyMembershipsAction()
+      if (res.success && res.list) {
+        setAllMemberships(res.list)
+      }
+    } catch (err) {
+      console.error("Hiba összes cég lekérdezésekor:", err)
+    } finally {
+      setIsLoadingAll(false)
+    }
+  }, [])
+
+  const handleDeleteCompany = async (companyId: string) => {
+    setIsDeletingCompany(true)
+    try {
+      const res = await deleteCompanyAction(companyId)
+      if (res.success) {
+        toast.success("A cég sikeresen törölve.")
+        setCompaniesList(companies.filter((c) => c.id !== companyId))
+        setAllMemberships((prev) => prev.filter((m) => m.company?.id !== companyId))
+
+        if (selectedCompany?.id === companyId) {
+          if (res.remainingCompanyId) {
+            const nextComp = companies.find((c) => c.id === res.remainingCompanyId) || null
+            if (nextComp) {
+              await setSelectedCompany(nextComp)
+            }
+          } else {
+            await setSelectedCompany(null)
+          }
+          router.refresh()
+        }
+        setCompanyToDelete(null)
+      } else {
+        toast.error(res.error || "Nem sikerült a cég törlése.")
+      }
+    } catch {
+      toast.error("Váratlan hiba történt a törlés során.")
+    } finally {
+      setIsDeletingCompany(false)
+    }
+  }
 
   const lastCompanyIdRef = React.useRef<string | null>(null)
 
@@ -200,36 +266,6 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
-  }
-
-  // Tagok betöltése
-  const loadMembers = async (companyId: string) => {
-    setIsLoadingMembers(true)
-    try {
-      const res = await getCompanyMembersAction(companyId)
-      if (res.success && res.members) {
-        setMembers(res.members)
-      }
-    } catch (err) {
-      console.error("Hiba tagok betöltésekor:", err)
-    } finally {
-      setIsLoadingMembers(false)
-    }
-  }
-
-  // Összes cégtagság betöltése
-  const loadAllMemberships = async () => {
-    setIsLoadingAll(true)
-    try {
-      const res = await getUserCompanyMembershipsAction()
-      if (res.success && res.list) {
-        setAllMemberships(res.list)
-      }
-    } catch (err) {
-      console.error("Hiba összes cég lekérdezésekor:", err)
-    } finally {
-      setIsLoadingAll(false)
-    }
   }
 
   // Adószám validáció élő jelzése
@@ -643,16 +679,29 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
 
             <div className="pt-2 flex items-center justify-between flex-wrap gap-2">
               {isOwner ? (
-                <Button type="submit" size="sm" disabled={isSaving} className="h-9 text-xs">
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                      Mentés folyamatban...
-                    </>
-                  ) : (
-                    "Cég adatainak mentése"
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button type="submit" size="sm" disabled={isSaving || isDeletingCompany} className="h-9 text-xs">
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                        Mentés folyamatban...
+                      </>
+                    ) : (
+                      "Cég adatainak mentése"
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 text-xs text-destructive border-destructive/30 hover:bg-destructive/10 hover:border-destructive/60"
+                    disabled={isSaving || isDeletingCompany}
+                    onClick={() => setCompanyToDelete(selectedCompany)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    Cég törlése
+                  </Button>
+                </div>
               ) : (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 px-3 py-2 rounded-md border border-border/60">
                   <Shield className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -989,7 +1038,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       {isCurrentActive ? (
                         <Badge variant="outline" className="text-xs text-primary border-primary/30 flex items-center gap-1">
                           <Check className="h-3 w-3" />
@@ -1001,10 +1050,24 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
                           variant="outline"
                           size="sm"
                           className="h-8 text-xs"
-                          disabled={isSwitching}
+                          disabled={isSwitching || isDeletingCompany}
                           onClick={() => setSelectedCompany(comp)}
                         >
                           Váltás erre
+                        </Button>
+                      )}
+
+                      {(isOwner || isAdmin) && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Cég törlése"
+                          disabled={isDeletingCompany}
+                          onClick={() => setCompanyToDelete(comp)}
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
@@ -1101,6 +1164,65 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
                 <>
                   <Trash2 className="h-3.5 w-3.5" />
                   Tag eltávolítása
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* Cég törlése megerősítő modál (Kanonikus AlertDialog) */}
+      <AlertDialog
+        open={Boolean(companyToDelete)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen && !isDeletingCompany) setCompanyToDelete(null)
+        }}
+      >
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <AlertDialogTitle className="text-base font-semibold">
+                Cég végleges törlése
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-xs text-muted-foreground pt-1 leading-relaxed space-y-2">
+              <span>
+                Biztosan törölni szeretnéd a(z){" "}
+                <strong className="text-foreground">{companyToDelete?.name}</strong> vállalatot?
+              </span>
+              <br />
+              <br />
+              <span>
+                A művelet végleges és nem visszavonható. A céghez tartozó összes irat, ügyirat, partner, beállítás és tagi hozzáférés azonnal törlődik az adatbázisból.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0 pt-2">
+            <AlertDialogCancel
+              disabled={isDeletingCompany}
+              className="h-8 text-xs font-medium"
+            >
+              Mégse
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeletingCompany}
+              onClick={async (e) => {
+                e.preventDefault()
+                if (companyToDelete) {
+                  await handleDeleteCompany(companyToDelete.id)
+                }
+              }}
+              className="h-8 text-xs bg-destructive hover:bg-destructive/90 text-destructive-foreground font-medium gap-1.5"
+            >
+              {isDeletingCompany ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Törlés folyamatban...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Cég végleges törlése
                 </>
               )}
             </AlertDialogAction>

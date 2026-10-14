@@ -7,6 +7,11 @@ A listát **minden elvégzett feladat után frissítjük**, követve az állapot
 
 ## 🚀 1. Már Elvégzett Feladatok (Done)
 
+- [x] **Cég Törlése és Jogosultság-biztonsági Megerősítő Dialógus**
+  - Jogosultság: szigorúan csak a cég tulajdonosa (`owner`) vagy globális rendszergazda törölhet vállalatot.
+  - Szerver akció: `deleteCompanyAction(companyId)` RLS ellenőrzéssel, PostgreSQL kaszkádolt törléssel (`ON DELETE CASCADE`), aktív cég törlése esetén intelligens kontextus- és cookie-váltással a következő elérhető cégre.
+  - UI: Beállítások (`/settings`) Cég fülén „Cég törlése” gomb az aktív szerkesztőkártyán, valamint diszkrét törlés ikon az „Összes elérhető cégem” táblázatban, kanonikus `AlertDialog` figyelmeztetéssel.
+  - Dokumentáció: [ADR A-059](architecture/decisions/A-059-company-deletion-and-cascade-lifecycle.md), [PRD P-078](product/decisions/P-078-company-deletion-and-management-ux.md).
 - [x] **eaisyBill Vállalat-import és Cégalapú Dinamikus Számlaszinkronizáció**
   - Adatbázis: `public.companies.eaisybill_company_id` oszlop és egyedi parciális index.
   - Szerver akciók: `getEaisyBillCompaniesAction()`, `importEaisyBillCompanyAction(eaisybillCompanyId)` RLS tagság és automatikus cégváltás támogatással.

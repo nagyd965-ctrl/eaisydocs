@@ -85,11 +85,13 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-075](./P-075-archive-and-dossier-ux-simplification-and-dialog-header-harmony.md) | 2026-10-14 | Irattári Selejtezési Felületek, Ügyirat Fülek és Modál Fejlécek Letisztítása | `[Docs]` | `Archive, Scrapping & Dossier Detail UX` | [A-056](../../architecture/decisions/A-056-base-ui-dialog-close-composition-and-render-prop-pattern.md), `archive-client.tsx`, `dossiers/[id]/page.tsx`, `outgoing-documents-tab.tsx` |
 | [P-076](./P-076-error-not-found-and-loading-states-ux.md) | 2026-10-14 | Hiba-, „Nem található” és Betöltési Állapotok (Error, Not-found & Loading States) | `[Docs]` | `Error / Not-found / Loading Skeletons` | [A-057](../../architecture/decisions/A-057-route-error-boundaries-and-loading-skeleton-conventions.md), `error.tsx`, `not-found.tsx`, `global-error.tsx`, `dashboard-skeleton.tsx`, `detail-skeleton.tsx`, `split-view-skeleton.tsx` |
 | [P-077](./P-077-company-selector-eaisybill-import-tab.md) | 2026-10-14 | Cégválasztó eaisyBill Import Fül és Vállalati Számlanézet | `[Docs]` | `Company Selector & eaisyBill Multi-tenancy` | [A-058](../../architecture/decisions/A-058-eaisybill-company-import-and-sync.md), `company-selector.tsx`, `company-actions.ts`, `eaisybill-actions.ts`, `/inbox` |
+| [P-078](./P-078-company-deletion-and-management-ux.md) | 2026-10-14 | Cég Törlése Funkció és Biztonsági Megerősítő Dialógus UX | `[Közös]` | `Settings / Multi-Tenancy & Administration` | [A-059](../../architecture/decisions/A-059-company-deletion-and-cascade-lifecycle.md), `company-settings-tab.tsx`, `company-actions.ts` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-078`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-079`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+
 
 
 

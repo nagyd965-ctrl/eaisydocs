@@ -4,6 +4,14 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-14)
 
+### 🏢 eaisyDocs & eaisyHR: Cég Törlése Funkció és Biztonsági Megerősítő Dialógus (A-059 / P-078)
+- **Cégtörlés Jogosultság és Biztonság:** Kizárólag a vállalat tulajdonosa (`owner_id` vagy `company_members.role = 'owner'`), illetve a globális rendszergazda (`rendszergazda`) törölhet céget.
+- **Biztonsági Megerősítő Dialógus (`AlertDialog`):** A törlés gomb megnyomásakor kanonikus felugró modál jelenik meg, amely figyelmezteti a felhasználót, hogy a törlés végleges és visszavonhatatlan, valamint minden kapcsolódó adatot (iratok, ügyiratok, szabályok, jogosultságok) töröl.
+- **Intelligens Kontextus- és Cookie-kezelés:** Amennyiben az éppen aktív vállalat kerül törlésre, a szerveroldali művelet zökkenőmentesen átváltja a munkamenetet egy másik elérhető cégre (vagy törli a sütit), megelőzve az üres vagy hibás állapotokat.
+- **Kaszkádolt Adatbázis Törlés és RLS:** A PostgreSQL táblák idegen kulcsai `ON DELETE CASCADE` szabállyal gondoskodnak a relációk tiszta törléséről, a cégtáblához pedig dedikált RLS törlési házirend (`companies_delete_policy`) került bevezetésre.
+- **UI Integráció (`/settings`):** A Beállítások Cég fülén mind az aktív cég szerkesztőkártyáján („Cég törlése” gomb), mind az „Összes elérhető cégem” listában (diszkrét piros törlés ikon gomb minden tulajdonolt sorban) elérhető a művelet.
+- **Dokumentáció:** [ADR A-059](../architecture/decisions/A-059-company-deletion-and-cascade-lifecycle.md), [PRD P-078](../product/decisions/P-078-company-deletion-and-management-ux.md).
+
 ### 🏢 eaisyDocs: eaisyBill Vállalat-import és Dinamikus Cégalapú Számlaszinkronizáció (A-058 / P-077)
 - **Cégimport eaisyBill-ből:** A cégválasztó modál (`CompanySelector`) új, alapértelmezett **„eaisyBill import”** füllel és a lenyílóban közvetlen menüponttal bővült. Az elérhető vállalatok (90+ cég) valós időben kereshetők cégnévre, adószámra vagy címre.
 - **Egykattintásos importálás és váltás:** A még nem importált vállalatok a „Cég importálása” gombbal átemelhetők, automatikusan megkapva a tulajdonosi tagságot, a megfelelő iktatási prefixet és RLS jogosultságot. A már áthozott cégeknél diszkrét „Már importálva – Váltás” gombbal lehet közvetlenül kontextust váltani.
