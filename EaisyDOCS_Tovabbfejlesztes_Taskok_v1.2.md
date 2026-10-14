@@ -15,7 +15,7 @@
 | **DOC-TASK-01** | `Iratmunkafolyamat & Feladatok` | Feladatkatalógus és a feladatfelvétel beágyazott sablonos átalakítása | DOC-01 | 🔴 Magas | Közepes (2-3 óra) | ✅ **Kész (A-045, P-064)** |
 | **DOC-TASK-02** | `Szignálás & AI Munkafolyamat` | Automatikus szignálás határainak rögzítése (AI szervezeti szinten, személy manuális) | DOC-02 | 🟡 Közepes | Kisebb (1 óra) | ✅ **Kész (Elfogadva)** |
 | **DOC-TASK-03** | `Adminisztráció & UI Struktúra` | Személyes profil (`/profile`) és rendszerszintű beállítások (`/settings`) szétválasztása | DOC-03 | 🟡 Közepes | Közepes (2 óra) | ✅ **Kész (Elkészült)** |
-| **DOC-TASK-04** | `Integráció & Felhasználókezelés` | Egységes felhasználókezelés és külső EaisyBILL felhasználói adatforrás | DOC-04 | 🟡 Közepes | Közepes (2-3 óra) | ⏳ **Tervezett** |
+| **DOC-TASK-04** | `Integráció & Felhasználókezelés` | Egységes felhasználókezelés és külső EaisyBILL felhasználói adatforrás | DOC-04 | 🟡 Közepes | Közepes (2-3 óra) | ✅ **Kész** |
 | **DOC-TASK-05** | `Alaprendszer & Multi-Tenancy` | Több-bérlős működés (Multi-Tenancy) és adatbázis-szintű cégizoláció | DOC-05 | 🔴 Magas | Nagy (3-4 óra) | ✅ **Kész (A-034, A-044, P-053, P-063)** |
 | **DOC-TASK-06** | `Speditőri Folyamatok & ERP` | Fuvarozási iratok automatikus gyűjtése és ERP projekt/munkaszám összerendelés | DOC-06 | 🔴 Magas | Nagy (4-6 óra) | ⏳ **Tervezett** |
 | **DOC-TASK-07** | `Keresés & Dokumentum Intelligencia` | Többszintű navigáció és AI-alapú fuvarozási címkézés (árufajta, súly, célhely) | DOC-07 | 🟡 Közepes | Közepes (3-4 óra) | ⏳ **Tervezett** |
@@ -81,27 +81,22 @@
 
 ---
 
-### DOC-TASK-04: Egységes felhasználókezelés és EaisyBILL-adatforrás integráció ⏳
+### DOC-TASK-04: Egységes felhasználókezelés és EaisyBILL-adatforrás integráció ✅
 - **Eredeti hivatkozás:** DOC-04
-- **Üzleti cél:** Az ERP ökoszisztémában (EaisyBILL, EaisyWORK, EaisyDOCS, EaisyHR) a felhasználói törzset ne kelljen minden modulban manuálisan újra felvenni. Legyen lehetőség a már létező EaisyBILL felhasználói névsort adatforrásként megjelölni és szinkronizálni.
-- **Megvalósítási terv:**
-  1. **Adatforrás választó kapcsoló a Beállításokban:**
-     - `Felhasználói adatforrás: Helyi (EaisyDOCS)` vs. `Felhasználói adatforrás: EaisyBILL`.
-  2. **Felhasználó-átvételi és szinkronizációs varázsló:**
-     - A meglévő EaisyBILL felhasználói névsor lekérdezése (REST API vagy adatbázis összeköttetés).
-     - Kiválasztási lehetőség: nem kötelező mindenkit átvenni (pl. külső könyvelőt nem szükséges behozni az iratkezelőbe).
-  3. **Független moduljogosultságok:**
-     - A közös identitás (e-mail, név) átvétele után a modulspecifikus jogosultságokat (`docs_szerepkor`, `biztonsagi_szint`, `szervezeti_egyseg`) a helyi adminisztrátor határozza meg.
-  4. **Helyi felhasználókezelés megőrzése:**
-     - Azon dolgozók számára, akik még nincsenek benne a számlázóban (pl. fizikai dolgozók, raktárosok), továbbra is elérhető a közvetlen helyi rögzítés.
-- **Érintett fájlok & kutatás:**
-  - Architektúra & Integrációs Terv: `docs/integrations/eaisybill-user-sync-research-and-architecture.md`
-  - `src/app/settings/users/page.tsx`
-  - `src/app/settings/integrations/page.tsx`
-  - `src/utils/integrations/eaisybill-sync.ts`
-  - Adatbázis: `felhasznalo_profil.external_id`, `felhasznalo_profil.sync_source`
-- **Elfogadási feltétel (DoD):** Az adminisztrátor egy gombnyomással importálhatja és frissítheti a kiválasztott felhasználókat az EaisyBILL-ből anélkül, hogy elvesznének a már beállított helyi jogosultságok.
-- **Státusz:** 📝 **Kutatás és Architektúra Terv Kész** (Implementáció a visibill / eaisybill csapattal egyeztetve indítható).
+- **Üzleti cél:** Az ERP ökoszisztémában (EaisyBILL, EaisyWORK, EaisyDOCS, EaisyHR) a felhasználói törzset ne kelljen minden modulban manuálisan újra felvenni. Legyen lehetőség a már létező EaisyBILL felhasználói névsor adatforrásként megjelölni és szinkronizálni.
+- **Megvalósított működés:**
+  1. **Cégalapú taglekérdezés:** Az aktív cég `eaisybill_company_id`-ja alapján párhuzamosan lekérdezi az eaisyBill-ben hozzárendelt tagokat, neveket és e-maileket (`company_members` + `profiles` + `auth.users`).
+  2. **Szelektív import és meghívás:** A Beállítások Cég fülén lévő új „Importálás eaisyBill-ből” gombbal megnyitható varázslóban (`EaisyBillMemberImportDialog`) kizárólag a bepipált munkatársak kerülnek importálásra.
+  3. **Állapotok és szerepkör-megfeleltetés:** Megkülönbözteti a már meglévő cégtagokat, a létező eaisyDocs fiókokat és az új meghívandókat; soronként testreszabható iratkezelési szerepkörrel (`admin`, `vezeto`, `iktato`, `ugyintezo`, `betekinto`).
+  4. **Biztonságos meghívó jelszóbeállító linkkel:** Az új felhasználóknak a Brevo értesítő motoron keresztül automatikus aktivációs e-mailt küld (`supabaseAdmin.auth.admin.generateLink({ type: 'invite' })`), így jelszavukat maguk állíthatják be.
+- **Érintett fájlok & döntések:**
+  - ADR: [A-060](docs/architecture/decisions/A-060-eaisybill-company-member-sync-and-invite.md)
+  - PRD: [P-079](docs/product/decisions/P-079-eaisybill-company-member-sync-and-invite-ux.md)
+  - `src/app/actions/eaisybill-user-actions.ts`
+  - `src/components/settings/eaisybill-member-import-dialog.tsx`
+  - `src/components/settings/company-settings-tab.tsx`
+- **Elfogadási feltétel (DoD):** ✅ **Teljesítve**. Az adminisztrátor egy gombnyomással, szelektíven importálhatja és hívhatja meg a kiválasztott munkatársakat a cég eaisyBill tagjai közül.
+- **Státusz:** ✅ **Kész**.
 
 ---
 

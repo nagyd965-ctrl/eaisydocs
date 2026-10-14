@@ -4,6 +4,14 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-14)
 
+### 👥 eaisyDocs: eaisyBill Cégalapú Munkatárs-szinkronizáció és Szelektív Meghívó Rendszer (A-060 / P-079 / DOC-TASK-04)
+- **Cégalapú Tagkezelés:** Az eaisyBill-ben minden vállalkozáshoz más-más felhasználók tartoznak (`company_members`). Az új funkció az aktív cég `eaisybill_company_id`-ja alapján párhuzamosan lekéri a céghez rendelt összes felhasználót, neveiket és e-mail címeiket.
+- **Szelektív Import és Meghívás:** A Beállítások Cég fül Tagok kártyáján megjelent az „Importálás eaisyBill-ből” gomb, amely a kanonikus `EaisyBillMemberImportDialog` felugró modált nyitja meg. **Kizárólag a bepipált felhasználók kapnak hozzáférést és meghívó e-mailt**, megelőzve a kéretlen leveleket és a felesleges fióklétrehozást.
+- **Állapotjelvények és Szerepkör Lefedés:** A modál vizuálisan megkülönbözteti a már meglévő cégtagokat (letiltott checkbox), a már regisztrált fiókokat (új cégtagság hozzárendelése) és az új munkatársakat (regisztráció és meghívó). Az eaisyBill pénzügyi szerepköreit intelligensen megfelelteti az iratkezelési jogosultságoknak (`admin`, `vezeto`, `iktato`, `ugyintezo`, `betekinto`), amely a sorban közvetlenül módosítható.
+- **Biztonságos Jelszó-iniciálás:** Az új tagoknak a Brevo értesítő motoron keresztül márkázott meghívó e-mailt küldünk a Supabase Auth által generált biztonságos, egyszer használatos jelszóbeállító linkkel (`generateLink({ type: 'invite' })`).
+- **Adatbázis Bővítés:** A `public.felhasznalo_profil` tábla bővült `email`, `eaisybill_user_id`, `sync_source` és `last_synced_at` mezőkkel, valamint egy automatikus e-mail szinkronizációs triggerrel (`trg_sync_felhasznalo_profil_email`).
+- **Dokumentáció:** [ADR A-060](../architecture/decisions/A-060-eaisybill-company-member-sync-and-invite.md), [PRD P-079](../product/decisions/P-079-eaisybill-company-member-sync-and-invite-ux.md).
+
 ### 🏢 eaisyDocs & eaisyHR: Cég Törlése Funkció és Biztonsági Megerősítő Dialógus (A-059 / P-078)
 - **Cégtörlés Jogosultság és Biztonság:** Kizárólag a vállalat tulajdonosa (`owner_id` vagy `company_members.role = 'owner'`), illetve a globális rendszergazda (`rendszergazda`) törölhet céget.
 - **Biztonsági Megerősítő Dialógus (`AlertDialog`):** A törlés gomb megnyomásakor kanonikus felugró modál jelenik meg, amely figyelmezteti a felhasználót, hogy a törlés végleges és visszavonhatatlan, valamint minden kapcsolódó adatot (iratok, ügyiratok, szabályok, jogosultságok) töröl.

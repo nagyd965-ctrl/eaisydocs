@@ -18,6 +18,7 @@ import {
   Pencil,
   Upload,
   Sliders,
+  Download,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -60,6 +61,7 @@ import { toast } from "sonner"
 import type { Company, CompanyMemberWithProfile } from "@/types/company"
 import { InviteUserDialog } from "./invite-user-dialog"
 import { EditMemberRoleDialog } from "./edit-member-role-dialog"
+import { EaisyBillMemberImportDialog } from "./eaisybill-member-import-dialog"
 
 interface CompanySettingsTabProps {
   module?: "docs" | "hr"
@@ -103,6 +105,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
   const [isLoadingMembers, setIsLoadingMembers] = React.useState(false)
   const [removingMemberId, setRemovingMemberId] = React.useState<string | null>(null)
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false)
+  const [eaisyBillImportDialogOpen, setEaisyBillImportDialogOpen] = React.useState(false)
   const [memberToDelete, setMemberToDelete] = React.useState<CompanyMemberWithProfile | null>(null)
   const [memberToEdit, setMemberToEdit] = React.useState<CompanyMemberWithProfile | null>(null)
 
@@ -856,15 +859,27 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
                   A céghez hozzáféréssel rendelkező felhasználók listája és szerepköre.
                 </CardDescription>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                className="h-8 text-xs gap-1.5 bg-[#02b8cc] hover:bg-[#029db0] text-white"
-                onClick={() => setInviteDialogOpen(true)}
-              >
-                <UserPlus className="h-3.5 w-3.5" />
-                Tag hozzáadása
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 border-primary/30 hover:border-primary/60 text-primary hover:bg-primary/5"
+                  onClick={() => setEaisyBillImportDialogOpen(true)}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Importálás eaisyBill-ből
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 bg-[#02b8cc] hover:bg-[#029db0] text-white"
+                  onClick={() => setInviteDialogOpen(true)}
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Tag hozzáadása
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -1092,6 +1107,20 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
           loadAllMemberships()
         }}
       />
+
+      {/* eaisyBill tagok importálása modál */}
+      {selectedCompany && (
+        <EaisyBillMemberImportDialog
+          open={eaisyBillImportDialogOpen}
+          onOpenChange={setEaisyBillImportDialogOpen}
+          companyId={selectedCompany.id}
+          companyName={selectedCompany.name}
+          onSuccess={() => {
+            loadMembers(selectedCompany.id)
+            loadAllMemberships()
+          }}
+        />
+      )}
 
       {/* Tag szerepkörének szerkesztése modál */}
       <EditMemberRoleDialog

@@ -7,6 +7,11 @@ A listát **minden elvégzett feladat után frissítjük**, követve az állapot
 
 ## 🚀 1. Már Elvégzett Feladatok (Done)
 
+- [x] **DOC-TASK-04: eaisyBill Cégalapú Tagok és Munkatársak Szelektív Importja és Meghívása**
+  - Adatbázis: `public.felhasznalo_profil` bővítve `email`, `eaisybill_user_id`, `sync_source`, `last_synced_at` mezőkkel, automatikus e-mail szinkron triggerrel.
+  - Szerver akciók: `getEaisyBillCompanyMembersAction(companyId)`, `importEaisyBillCompanyMembersAction(companyId, selectedMembers)` kizárólag a bepipált tételek átvételével, meghívó link generálással (`generateLink`) és Brevo e-mail küldéssel.
+  - UI: Beállítások (`/settings`) Cég fül Tagok kártyán új „Importálás eaisyBill-ből” gomb, szelektív varázsló modál (`EaisyBillMemberImportDialog`) állapotjelvényekkel és iratkezelési szerepkör választóval.
+  - Dokumentáció: [ADR A-060](architecture/decisions/A-060-eaisybill-company-member-sync-and-invite.md), [PRD P-079](product/decisions/P-079-eaisybill-company-member-sync-and-invite-ux.md).
 - [x] **Cég Törlése és Jogosultság-biztonsági Megerősítő Dialógus**
   - Jogosultság: szigorúan csak a cég tulajdonosa (`owner`) vagy globális rendszergazda törölhet vállalatot.
   - Szerver akció: `deleteCompanyAction(companyId)` RLS ellenőrzéssel, PostgreSQL kaszkádolt törléssel (`ON DELETE CASCADE`), aktív cég törlése esetén intelligens kontextus- és cookie-váltással a következő elérhető cégre.

@@ -86,11 +86,13 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-076](./P-076-error-not-found-and-loading-states-ux.md) | 2026-10-14 | Hiba-, „Nem található” és Betöltési Állapotok (Error, Not-found & Loading States) | `[Docs]` | `Error / Not-found / Loading Skeletons` | [A-057](../../architecture/decisions/A-057-route-error-boundaries-and-loading-skeleton-conventions.md), `error.tsx`, `not-found.tsx`, `global-error.tsx`, `dashboard-skeleton.tsx`, `detail-skeleton.tsx`, `split-view-skeleton.tsx` |
 | [P-077](./P-077-company-selector-eaisybill-import-tab.md) | 2026-10-14 | Cégválasztó eaisyBill Import Fül és Vállalati Számlanézet | `[Docs]` | `Company Selector & eaisyBill Multi-tenancy` | [A-058](../../architecture/decisions/A-058-eaisybill-company-import-and-sync.md), `company-selector.tsx`, `company-actions.ts`, `eaisybill-actions.ts`, `/inbox` |
 | [P-078](./P-078-company-deletion-and-management-ux.md) | 2026-10-14 | Cég Törlése Funkció és Biztonsági Megerősítő Dialógus UX | `[Közös]` | `Settings / Multi-Tenancy & Administration` | [A-059](../../architecture/decisions/A-059-company-deletion-and-cascade-lifecycle.md), `company-settings-tab.tsx`, `company-actions.ts` |
+| [P-079](./P-079-eaisybill-company-member-sync-and-invite-ux.md) | 2026-10-14 | eaisyBill Céges Tagok Importálása és Szelektív Meghívó Rendszer UX | `[Közös]` | `Settings / Multi-Tenancy & User Management` | [A-060](../../architecture/decisions/A-060-eaisybill-company-member-sync-and-invite.md), `eaisybill-member-import-dialog.tsx`, `company-settings-tab.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-079`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-080`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+
 
 
 
