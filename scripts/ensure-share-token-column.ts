@@ -3,8 +3,13 @@ import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 async function migrate() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    console.error("HIBA: A DATABASE_URL környezeti változó nincs beállítva a .env.local fájlban!");
+    process.exit(1);
+  }
   const client = new Client({
-    connectionString: "postgresql://postgres.pdthccijqnhphjbtrtwo:Nincsapellata1%27@aws-0-eu-west-1.pooler.supabase.com:6543/postgres",
+    connectionString,
     ssl: { rejectUnauthorized: false }
   });
   await client.connect();

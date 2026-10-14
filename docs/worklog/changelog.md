@@ -4,6 +4,13 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-14)
 
+### 🛟 eaisyDocs: Egységes Hiba-, „Nem található” Oldalak és Betöltési Skeleton-ek (A-057 / P-076)
+- **Hibakezelés:** új `error.tsx`, `not-found.tsx` és `global-error.tsx` magyar nyelvű, ikon nélküli felülettel; megjeleníti a hibakódot (`digest`), „Újrapróbálás” gombbal (`unstable_retry`) és visszalépéssel. eaisyHR útvonalakon a visszalépés az eaisyHR főoldalra mutat (`getErrorBackTarget`, teszttel).
+- **Skeleton-ek:** új `DashboardSkeleton`, `DetailSkeleton`, `SplitViewSkeleton`; `loading.tsx` a Vezérlőpulthoz, az ügyirat-, partner- és bejövő-adatlapokhoz, a Szabályokhoz; a Beállítások skeleton-je újraírva. A `ContentSkeleton` új `padded` propot kapott, a külön térközű oldalak layout-ugrás nélkül töltenek.
+- **Szerkezet:** a `src/app/page.tsx` a `(dashboard)` route group-ba került (URL változatlan), hogy a Vezérlőpult skeleton-je ne jelenjen meg a `/login`, `/karrier`, `/embed` és `/hr/*` útvonalakon. Az `/audit` oldal kliens oldali betöltési állapota miatt kimaradt.
+- **Biztonsági mentés a változtatás előtt:** git tag `backup/pre-a1-a2-a8-2026-10-14` és csak olvasási adatbázis-pillanatkép (85 tábla, sorszámokkal ellenőrizve; nem tartalmazza a tárolt fájlokat és a jelszavakat).
+- **Dokumentáció:** [ADR A-057](../architecture/decisions/A-057-route-error-boundaries-and-loading-skeleton-conventions.md), [PRD P-076](../product/decisions/P-076-error-not-found-and-loading-states-ux.md).
+
 ### 📦 eaisyDocs: Fizikai Irattári Helymeghatározás Kereshető Combobox Menü, Megjegyzés Perzisztencia és Kölcsönzési Gombok Harmonizációja (A-055 / P-074)
 - **Kereshető Combobox Menü (`LocationCombobox` a `PhysicalLocationDialog`-ban):**
   - Megszüntettük a beviteli mezők alatti zavaró és helypazarló statikus chipeket (`Meglévő: ...`), valamint a felesleges `Gyorsválasztó` feliratot.

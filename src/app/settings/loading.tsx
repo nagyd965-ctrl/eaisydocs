@@ -1,5 +1,5 @@
 import { ContentSkeleton } from "@/components/ui/content-skeleton"
 
 export default function Loading() {
-  return <ContentSkeleton />
+  return <ContentSkeleton padded />
 }

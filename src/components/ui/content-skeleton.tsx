@@ -1,45 +1,53 @@
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
 
-export function ContentSkeleton() {
+/**
+ * Táblázatos oldalak betöltési váza.
+ *
+ * Alapértelmezetten nincs saját margó, mert a layout adja (p-4 md:p-8), és a legtöbb oldal
+ * (iktatókönyv, bejövő sor, partnerek, irattár, feladatok) erre épül. Ha a valódi oldal
+ * saját `p-8 pt-6` margót használ (pl. beállítások, szabályok), `padded` legyen igaz,
+ * különben a tartalom megérkezésekor az oldal megugrana.
+ */
+export function ContentSkeleton({ padded = false }: { padded?: boolean }) {
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2 mb-8">
-        <div>
-          <Skeleton className="h-8 w-[250px] mb-2" />
-          <Skeleton className="h-4 w-[400px]" />
+    <div className={cn("space-y-6", padded && "flex-1 p-8 pt-6")}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-[250px]" />
+          <Skeleton className="h-4 w-[400px] max-w-full" />
         </div>
-        <div className="flex items-center space-x-2">
-          <Skeleton className="h-10 w-24" />
-          <Skeleton className="h-10 w-32" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-32" />
         </div>
       </div>
-      
-      <div className="space-y-4">
-        {/* Search bar and filters row skeleton */}
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-10 w-[300px]" />
-          <div className="flex space-x-2">
-            <Skeleton className="h-10 w-[150px]" />
-            <Skeleton className="h-10 w-[150px]" />
-            <Skeleton className="h-10 w-[100px]" />
+
+      <div className="space-y-3">
+        {/* Eszköztár váz: kereső + oszlopválasztó + szűrés */}
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton className="h-9 w-full max-w-lg" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-9" />
+            <Skeleton className="h-9 w-24" />
           </div>
         </div>
 
-        {/* Table skeleton */}
-        <div className="rounded-md border">
-          <div className="border-b px-4 py-3 flex space-x-4">
+        {/* Táblázat váz */}
+        <div className="rounded-md border border-border/50">
+          <div className="flex space-x-4 border-b px-4 py-3">
             <Skeleton className="h-4 w-1/4" />
             <Skeleton className="h-4 w-1/4" />
             <Skeleton className="h-4 w-1/4" />
             <Skeleton className="h-4 w-1/4" />
           </div>
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="px-4 py-4 flex space-x-4 border-b last:border-0">
+            <div key={i} className="flex space-x-4 border-b px-4 py-4 last:border-0">
               <Skeleton className="h-5 w-1/4" />
               <Skeleton className="h-5 w-1/4" />
               <Skeleton className="h-5 w-1/4" />
-              <div className="w-1/4 flex justify-end">
-                 <Skeleton className="h-8 w-20" />
+              <div className="flex w-1/4 justify-end">
+                <Skeleton className="h-8 w-20" />
               </div>
             </div>
           ))}
