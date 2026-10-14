@@ -454,6 +454,7 @@ export interface SyncPartnerInvoicesInput {
   partnerId?: string
   partnerIds?: string[]
   targetCompanyId?: string
+  skipRevalidate?: boolean
 }
 
 export interface SyncPartnerInvoicesResult {
@@ -737,9 +738,15 @@ export async function syncEaisyBillPartnerInvoicesAction(
         console.warn("Audit napló hiba számla szinkronkor:", logErr)
       }
 
-      revalidatePath("/partners")
-      if (input?.partnerId) {
-        revalidatePath(`/partners/${input.partnerId}`)
+      if (!input?.skipRevalidate) {
+        try {
+          revalidatePath("/partners")
+          if (input?.partnerId) {
+            revalidatePath(`/partners/${input.partnerId}`)
+          }
+        } catch (revalErr) {
+          console.warn("revalidatePath kihagyva:", revalErr)
+        }
       }
     }
 

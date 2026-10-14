@@ -59,12 +59,13 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
     notFound()
   }
 
-  // Automatikus háttér-szinkronizáció a partner eaisyBill számláihoz
+  // Automatikus háttér-szinkronizáció a partner eaisyBill számláihoz (render fázisban skipRevalidate = true)
   if (partner.company_id) {
     try {
       await syncEaisyBillPartnerInvoicesAction({
         partnerId: partner.id,
-        targetCompanyId: partner.company_id
+        targetCompanyId: partner.company_id,
+        skipRevalidate: true
       })
     } catch (syncErr) {
       console.warn("[eaisyDocs] Partner eaisyBill számla szinkron figyelmeztetés:", syncErr)
