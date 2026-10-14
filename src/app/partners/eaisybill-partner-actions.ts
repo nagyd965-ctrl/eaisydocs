@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/utils/supabase/server"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { createEaisyBillClient } from "@/utils/supabase/eaisybill"
 import { getActiveCompanyIdServer, getActiveCompanyServer } from "@/utils/company-server"
 import { revalidatePath } from "next/cache"
@@ -598,8 +599,12 @@ export async function syncEaisyBillPartnerInvoicesAction(
       return { success: true, syncedCount: 0 }
     }
 
-    // 5. Lekérjük a már létező eaisyDocs iratokat a duplikáció elkerülésére
-    const { data: existingIratok } = await docsClient
+    const adminClient = process.env.SUPABASE_SERVICE_ROLE_KEY
+      ? createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      : docsClient
+
+    // 5. Lekérjük a már létező eaisyDocs iratokat a duplikáció elkerülésére (adminClienttel az RLS kizárásával)
+    const { data: existingIratok } = await adminClient
       .from("irat")
       .select("kulso_hivatkozas_id")
       .eq("company_id", activeCompany.id)
@@ -669,6 +674,20 @@ export async function syncEaisyBillPartnerInvoicesAction(
         : `Számla: ${inv.bizonylatsorszam} – ${inv.vevo_nev || matchedPartner.nev} (${formattedAmount} ${currency})`
 
       const docDate = inv.kibocsatas_datuma ? new Date(inv.kibocsatas_datuma).toISOString() : new Date().toISOString()
+
+      // Extra atomi biztonsági ellenőrzés a konkrét számlára párhuzamos futás ellen
+      const { data: alreadySingle } = await adminClient
+        .from("irat")
+        .select("id")
+        .eq("company_id", activeCompany.id)
+        .eq("kulso_forras", "eaisybill")
+        .eq("kulso_hivatkozas_id", inv.id)
+        .maybeSingle()
+
+      if (alreadySingle) {
+        alreadyImportedIds.add(inv.id)
+        continue
+      }
 
       // 1. Beszúrás az irat táblába
       const { data: newIrat, error: iratErr } = await docsClient

@@ -27,7 +27,6 @@ import { getPermissions } from "@/utils/permissions"
 import { cn } from "@/lib/utils"
 import { PartnerDocumentsTable } from "@/components/partner-documents-table"
 import { ContractGeneratorDialog } from "@/components/contracts/contract-generator-dialog"
-import { syncEaisyBillPartnerInvoicesAction } from "@/app/partners/eaisybill-partner-actions"
 import { PartnerInvoiceSyncButton } from "@/components/partners/partner-invoice-sync-button"
 
 export default async function PartnerDetailPage(props: { params: Promise<{ id: string }> }) {
@@ -57,19 +56,6 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
 
   if (!partner) {
     notFound()
-  }
-
-  // Automatikus háttér-szinkronizáció a partner eaisyBill számláihoz (render fázisban skipRevalidate = true)
-  if (partner.company_id) {
-    try {
-      await syncEaisyBillPartnerInvoicesAction({
-        partnerId: partner.id,
-        targetCompanyId: partner.company_id,
-        skipRevalidate: true
-      })
-    } catch (syncErr) {
-      console.warn("[eaisyDocs] Partner eaisyBill számla szinkron figyelmeztetés:", syncErr)
-    }
   }
 
   // 2. Partnerhez kapcsolódó iratok (bejövő és kimenő)
