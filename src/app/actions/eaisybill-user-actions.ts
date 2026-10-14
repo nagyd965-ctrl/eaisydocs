@@ -312,7 +312,10 @@ export async function importEaisyBillCompanyMembersAction(
     let importedCount = 0
     let invitedCount = 0
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      "https://eaisydocs2.vercel.app"
     const redirectUrl = `${appUrl}/auth/callback?next=/settings`
 
     // 3. Feldolgozás tételenként – KIZÁRÓLAG a kiválasztottakra
@@ -415,8 +418,25 @@ export async function importEaisyBillCompanyMembersAction(
         invitedCount++
 
         // Meghívó e-mail küldése a generált jelszóbeállító linkkel
-        const actionLink = linkData.properties?.action_link
+        let actionLink = linkData.properties?.action_link
         if (actionLink) {
+          // Ha az actionLink véletlenül localhostra mutatna (pl. Supabase Auth Site URL miatt),
+          // biztosítjuk az éles https://eaisydocs2.vercel.app domainre történő cserét
+          if (actionLink.includes("localhost:3000") || actionLink.includes("localhost%3A3000")) {
+            actionLink = actionLink
+              .replaceAll("http://localhost:3000", appUrl)
+              .replaceAll("http%3A%2F%2Flocalhost%3A3000", encodeURIComponent(appUrl))
+              .replaceAll("localhost:3000", new URL(appUrl).host)
+              .replaceAll("localhost%3A3000", encodeURIComponent(new URL(appUrl).host))
+          }
+          if (actionLink.includes("127.0.0.1:3000") || actionLink.includes("127.0.0.1%3A3000")) {
+            actionLink = actionLink
+              .replaceAll("http://127.0.0.1:3000", appUrl)
+              .replaceAll("http%3A%2F%2F127.0.0.1%3A3000", encodeURIComponent(appUrl))
+              .replaceAll("127.0.0.1:3000", new URL(appUrl).host)
+              .replaceAll("127.0.0.1%3A3000", encodeURIComponent(new URL(appUrl).host))
+          }
+
           try {
             const emailHtml = buildHtmlEmail(
               "Meghívás az eaisyDocs rendszerébe",

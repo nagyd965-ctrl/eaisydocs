@@ -147,7 +147,7 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
             `Kedves ${candidate.nev}!\n\nÖrömmel értesítjük, hogy jelentkezését a(z) ${munkakor} pozícióra sikeresnek értékeltük. Szeretnénk behívni egy személyes interjúra!\n\nHamarosan jelentkezni fogunk a pontos időpont egyeztetése céljából.\n\nÜdvözlettel,\neaisyHR Csapat`,
             [],
             "Jelentkezés megtekintése",
-            `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/hr/recruitment`
+            `${process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://eaisydocs2.vercel.app'}/hr/recruitment`
           )
         })
       } catch (err) {
@@ -206,7 +206,7 @@ export async function scheduleInterview(candidateId: string, idopont: string, he
             { label: "Helyszín / Link", value: helyszin }
           ],
           "Jelentkezés megtekintése",
-          `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/hr/recruitment`
+          `${process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://eaisydocs2.vercel.app'}/hr/recruitment`
         )
       })
     } catch (err) {
