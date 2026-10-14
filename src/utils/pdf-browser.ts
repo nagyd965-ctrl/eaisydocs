@@ -116,10 +116,10 @@ export async function launchPdfBrowser(): Promise<Browser> {
   if (process.env.VERCEL) {
     const chromium = await import('@sparticuz/chromium-min')
 
-    // A chromium.executablePath() egy URL-t vár, ahonnan letöltheti a binárist,
-    // vagy ha a bináris már be van csomagolva, akkor az elérési útvonalat adja vissza.
-    // A chromium-min automatikusan kezeli ezt.
-    const executablePath = await chromium.default.executablePath()
+    // A chromium-min serverless környezetben a remote tar csomagból bontja ki a binárist
+    const packUrl = process.env.CHROMIUM_PACK_URL ||
+      'https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.x64.tar'
+    const executablePath = await chromium.default.executablePath(packUrl)
 
     return puppeteerCore.launch({
       args: chromium.default.args ?? SERVERLESS_CHROMIUM_ARGS,

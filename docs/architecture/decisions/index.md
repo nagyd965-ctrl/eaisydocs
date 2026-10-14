@@ -73,11 +73,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-058](./A-058-eaisybill-company-import-and-sync.md) | 2026-10-14 | eaisyBill Vállalat-import és Dinamikus Cégalapú Számlaszinkronizáció | `[Docs]` | `Decided` | [P-077](../../product/decisions/P-077-company-selector-eaisybill-import-tab.md), `company-selector.tsx`, `company-actions.ts`, `eaisybill-actions.ts`, `companies` |
 | [A-059](./A-059-company-deletion-and-cascade-lifecycle.md) | 2026-10-14 | Cég Végleges Törlése, Kaszkádolt Életciklus és Jogosultságkezelés | `[Docs]` | `Decided` | [P-078](../../product/decisions/P-078-company-deletion-and-management-ux.md), `company-actions.ts`, `company-settings-tab.tsx`, `companies` |
 | [A-060](./A-060-eaisybill-company-member-sync-and-invite.md) | 2026-10-14 | eaisyBill Cégalapú Felhasználó- és Tagságszinkronizáció, Szelektív Meghívó Rendszer | `[Közös]` | `Decided` | [P-079](../../product/decisions/P-079-eaisybill-company-member-sync-and-invite-ux.md), `eaisybill-user-actions.ts`, `eaisybill-member-import-dialog.tsx`, `company-settings-tab.tsx` |
+| [A-061](./A-061-vercel-serverless-readiness-and-modular-hr-data-sync.md) | 2026-10-14 | Vercel Serverless Felkészítés, Dinamikus Host-kezelés és eaisyHR Különleges Adatszinkronizáció | `[Közös]` | `Decided` | [P-080](../../product/decisions/P-080-modular-hr-branding-and-profile-tabs-ux.md), `pdf-browser.ts`, `mailer.ts`, `onboarding/actions.ts`, `employment-contract-actions.ts` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-061`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-062`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

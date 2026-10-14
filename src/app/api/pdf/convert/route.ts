@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   try {
     const internalSecret = request.headers.get("x-internal-secret");
     const authHeader = request.headers.get("authorization");
-    const validSecret = process.env.CRON_SECRET;
+    const validSecret = process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
     const isSecretValid = Boolean(validSecret && (internalSecret === validSecret || authHeader === `Bearer ${validSecret}`));
 
     let isAuthorized = isSecretValid;

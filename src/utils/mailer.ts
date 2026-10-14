@@ -116,7 +116,8 @@ export function buildHtmlEmail(
   message: string,
   details?: { label: string; value: string }[],
   actionText?: string,
-  actionUrl?: string
+  actionUrl?: string,
+  systemName: "eaisyDocs" | "eaisyHR" = "eaisyDocs"
 ) {
   const detailsHtml =
     details && details.length > 0
@@ -149,7 +150,7 @@ export function buildHtmlEmail(
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 40px 20px; color: #334155;">
       <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); overflow: hidden; border: 1px solid #e2e8f0;">
         <div style="background-color: #0eb39e; padding: 24px 32px; text-align: center;">
-          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">eaisyDocs</h1>
+          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">${systemName}</h1>
         </div>
         <div style="padding: 40px 32px;">
           <h2 style="color: #0f172a; margin-top: 0; margin-bottom: 16px; font-size: 20px; font-weight: 600;">${title}</h2>
@@ -158,7 +159,7 @@ export function buildHtmlEmail(
           ${buttonHtml}
         </div>
         <div style="background-color: #f1f5f9; padding: 24px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
-          <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.5;">Ezt az üzenetet az eaisyDocs rendszer automatikusan generálta.</p>
+          <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.5;">Ezt az üzenetet az ${systemName} rendszer automatikusan generálta.</p>
           <p style="margin: 4px 0 0; font-size: 13px; color: #94a3b8;">Kérjük, ne válaszolj erre az e-mailre!</p>
         </div>
       </div>

@@ -194,6 +194,8 @@ export async function submitLeaveRequest(formData: FormData) {
             await sendNotificationEmail({
               to: userResp.user.email,
               subject: `Új távollét kérelem jóváhagyásra: ${dolgozoNev}`,
+              senderName: "eaisyHR Rendszer",
+              senderEmail: "eaisyhr@thinkai.hu",
               html: buildHtmlEmail(
                 "Távollét kérelem jóváhagyása",
                 `${dolgozoNev} új távollét kérelmet nyújtott be, amely a jóváhagyásodra vár.`,
@@ -202,7 +204,8 @@ export async function submitLeaveRequest(formData: FormData) {
                   { label: "Típus", value: type === 'csusztatas' ? 'Csúsztatás (Túlóra)' : type === 'szabadsag' ? 'Szabadság' : 'Betegszabadság' }
                 ],
                 "Kérelmek megtekintése",
-                `${getBaseUrl()}/hr/manager`
+                `${getBaseUrl()}/hr/manager`,
+                "eaisyHR"
               )
             });
           } catch (e) {

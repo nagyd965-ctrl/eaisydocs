@@ -1,9 +1,13 @@
+import * as os from "os"
 import * as fs from "fs/promises"
 import * as path from "path"
 import { createClient } from "@supabase/supabase-js"
 import { splitBatchPdf, ingestSplitDocuments } from "./batch-scanner"
 
 export function getHotfolderBasePath(): string {
+  if (process.env.VERCEL) {
+    return path.join(os.tmpdir(), "scanner_hotfolder")
+  }
   return process.env.SCANNER_HOTFOLDER_PATH || path.resolve(process.cwd(), "scanner_hotfolder")
 }
 

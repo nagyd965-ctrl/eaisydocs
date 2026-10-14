@@ -503,12 +503,13 @@ export async function ingestSplitDocuments(
 
     // 6. Background PDF/A conversion trigger
     if (fajlResult) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+      const { getBaseUrl } = await import("@/utils/url")
+      const appUrl = getBaseUrl()
       fetch(`${appUrl}/api/pdf/convert`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-internal-secret": process.env.CRON_SECRET || "",
+          "x-internal-secret": process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "",
         },
         body: JSON.stringify({ fajl_id: fajlResult.id }),
       }).catch((err) => console.warn("[BatchScanner] PDF/A worker trigger warning:", err))

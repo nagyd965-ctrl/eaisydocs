@@ -357,16 +357,46 @@ export async function activateOnboardingAccount(onboardingId: string) {
 
     if (contractRecords && contractRecords.length > 0) {
       const latestContract = contractRecords[0]
-      // Szinkronizáljuk a munkaszerződés adatait a dolgozói adatlapra
+      // Szinkronizáljuk a munkaszerződés adatait a dolgozói adatlapra és a jogviszonyra
       await adminClient
         .from("hr_dolgozo_adatlap")
         .update({
-          belepes_datuma: latestContract.kezdes_datuma,
           lakcim: latestContract.lakcim || undefined,
-          szuletesi_ido: latestContract.szuletesi_datum || undefined,
+          szuletesi_datum: latestContract.szuletesi_datum || undefined,
           anyja_neve: latestContract.anyja_neve || undefined
         })
         .eq("id", finalUserId)
+
+      if (latestContract.kezdes_datuma) {
+        await adminClient
+          .from("hr_jogviszony")
+          .update({ belepes_datuma: latestContract.kezdes_datuma })
+          .eq("dolgozo_id", finalUserId)
+      }
+
+      // Különleges / titkos adatok (TAJ, adójel, bankszámlaszám, béradatok) szinkronizálása a hr_dolgozo_titkos_adat táblába
+      const taj = latestContract.taj_szam || ""
+      const ado = latestContract.adoazonosito_jel || ""
+      const bank = latestContract.bankszamlaszam || ""
+      const brutto = latestContract.alapber ? String(latestContract.alapber) : ""
+      const bruttoNum = Number(latestContract.alapber || 0)
+      const netto = bruttoNum > 0 ? String(Math.round(bruttoNum * 0.665)) : ""
+
+      const toByteaHex = (str: string) => "\\x" + Buffer.from(str, "utf-8").toString("hex")
+
+      if (taj || ado || bank || brutto) {
+        await adminClient
+          .from("hr_dolgozo_titkos_adat")
+          .upsert({
+            dolgozo_id: finalUserId,
+            taj_szam_titkositott: taj ? toByteaHex(taj) : null,
+            adoazonosito_titkositott: ado ? toByteaHex(ado) : null,
+            bankszamla_titkositott: bank ? toByteaHex(bank) : null,
+            brutto_ber_titkositott: brutto ? toByteaHex(brutto) : null,
+            netto_ber_titkositott: netto ? toByteaHex(netto) : null,
+            company_id: onboarding.company_id || undefined
+          })
+      }
 
       // Iktatás a személyi dossziéba
       const contractDocIds = Array.from(new Set(contractRecords.map((r: any) => r.dokumentum_id).filter(Boolean)))

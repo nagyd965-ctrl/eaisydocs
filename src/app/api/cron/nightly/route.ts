@@ -423,7 +423,9 @@ export async function GET(request: Request) {
                 if (email) {
                   await sendNotificationEmail({
                     to: email, subject: `${notificationTitle}: ${dolgozoNev}`,
-                    html: buildHtmlEmail(notificationTitle, notificationText, [{ label: "Lejárat", value: v.ervenyesseg_datuma }], "Profil megtekintése", `${getBaseUrl()}/hr`)
+                    senderName: "eaisyHR Rendszer",
+                    senderEmail: "eaisyhr@thinkai.hu",
+                    html: buildHtmlEmail(notificationTitle, notificationText, [{ label: "Lejárat", value: v.ervenyesseg_datuma }], "Profil megtekintése", `${getBaseUrl()}/hr`, "eaisyHR")
                   });
                   emailsSent++;
                 }
@@ -496,7 +498,9 @@ export async function GET(request: Request) {
                   const dolgozoNev = Array.isArray(prof) ? prof[0]?.nev : prof?.nev;
                   await sendNotificationEmail({
                     to: email, subject: `Próbaidő lejárata: ${dolgozoNev}`,
-                    html: buildHtmlEmail("Próbaidő lejárata közeledik", `${dolgozoNev} próbaideje 7 nap múlva lejár!`, [{ label: "Próbaidő vége", value: jv.probaido_vege }], "Profil megtekintése", `${getBaseUrl()}/hr`)
+                    senderName: "eaisyHR Rendszer",
+                    senderEmail: "eaisyhr@thinkai.hu",
+                    html: buildHtmlEmail("Próbaidő lejárata közeledik", `${dolgozoNev} próbaideje 7 nap múlva lejár!`, [{ label: "Próbaidő vége", value: jv.probaido_vege }], "Profil megtekintése", `${getBaseUrl()}/hr`, "eaisyHR")
                   });
                   emailsSent++;
                 }
@@ -556,7 +560,9 @@ export async function GET(request: Request) {
                 if (email) {
                   await sendNotificationEmail({
                     to: email, subject: `T1041 Bejelentés szükséges: ${dolgozoNev}`,
-                    html: buildHtmlEmail("T1041 Bejelentés", `Kérjük, győződj meg róla, hogy megtörtént a T1041 bejelentés!`, [{ label: "Belépés dátuma", value: jv.belepes_datuma }], "Tovább", `${getBaseUrl()}/hr`)
+                    senderName: "eaisyHR Rendszer",
+                    senderEmail: "eaisyhr@thinkai.hu",
+                    html: buildHtmlEmail("T1041 Bejelentés", `Kérjük, győződj meg róla, hogy megtörtént a T1041 bejelentés!`, [{ label: "Belépés dátuma", value: jv.belepes_datuma }], "Tovább", `${getBaseUrl()}/hr`, "eaisyHR")
                   });
                   emailsSent++;
                 }
@@ -614,7 +620,9 @@ export async function GET(request: Request) {
                 if (email) {
                   await sendNotificationEmail({
                     to: email, subject: `${title}: ${dolgozoNev}`,
-                    html: buildHtmlEmail(title, text, [{ label: "Lejárat dátuma", value: sz.lejarat_datuma }, { label: "Képzés neve", value: sz.kepzes_neve }], "Profil megtekintése", `${getBaseUrl()}/hr`)
+                    senderName: "eaisyHR Rendszer",
+                    senderEmail: "eaisyhr@thinkai.hu",
+                    html: buildHtmlEmail(title, text, [{ label: "Lejárat dátuma", value: sz.lejarat_datuma }, { label: "Képzés neve", value: sz.kepzes_neve }], "Profil megtekintése", `${getBaseUrl()}/hr`, "eaisyHR")
                   });
                   emailsSent++;
                 }
@@ -693,7 +701,9 @@ export async function GET(request: Request) {
                 if (email) {
                   await sendNotificationEmail({
                     to: email, subject: `${title}: ${dolgozoNev}`,
-                    html: buildHtmlEmail(title, text, [{ label: "Szerződés vége", value: jv.kilepes_datuma }], "Profil megtekintése", `${getBaseUrl()}/hr`)
+                    senderName: "eaisyHR Rendszer",
+                    senderEmail: "eaisyhr@thinkai.hu",
+                    html: buildHtmlEmail(title, text, [{ label: "Szerződés vége", value: jv.kilepes_datuma }], "Profil megtekintése", `${getBaseUrl()}/hr`, "eaisyHR")
                   });
                   emailsSent++;
                 }

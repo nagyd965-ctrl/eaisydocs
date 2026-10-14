@@ -3,6 +3,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { sendNotificationEmail } from "@/utils/mailer"
+import { getBaseUrl } from "@/utils/url"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export async function onboardEmployee(data: {
@@ -86,7 +87,7 @@ export async function onboardEmployee(data: {
         <br/>
         <p>Kérjük, az első bejelentkezés után azonnal változtasd meg a jelszavadat a Profil beállítások menüpontban!</p>
         <br/>
-        <a href="${process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://eaisydocs2.vercel.app'}/login" style="display:inline-block;padding:10px 20px;background-color:#14b8a6;color:white;text-decoration:none;border-radius:5px;">Bejelentkezés az eaisyHR-be</a>
+        <a href="${getBaseUrl()}/login" style="display:inline-block;padding:10px 20px;background-color:#14b8a6;color:white;text-decoration:none;border-radius:5px;">Bejelentkezés az eaisyHR-be</a>
         <br/><br/>
         <p>Üdvözlettel,<br/>A HR Csapat</p>
       `

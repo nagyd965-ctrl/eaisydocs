@@ -143,12 +143,13 @@ export async function uploadIncomingDocument(formData: FormData) {
 
   // 7. Fire-and-forget hívás a PDF/A konverternek (nem várjuk meg a végét!)
   if (fajlResult) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    const { getBaseUrl } = await import("@/utils/url")
+    const appUrl = getBaseUrl()
     fetch(`${appUrl}/api/pdf/convert`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-internal-secret": process.env.CRON_SECRET || "",
+        "x-internal-secret": process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "",
       },
       body: JSON.stringify({ fajl_id: fajlResult.id })
     }).catch(err => console.error("PDF/A Worker Trigger Error:", err))
@@ -166,4 +167,16 @@ export async function uploadIncomingDocument(formData: FormData) {
 
   revalidatePath("/inbox")
   return { success: true }
+}
+
+export async function syncIncomingEmailsAction() {
+  try {
+    const { processIncomingEmails } = await import("@/utils/imap-service")
+    const res = await processIncomingEmails()
+    revalidatePath("/inbox")
+    return res
+  } catch (err: any) {
+    console.error("[IMAP Sync Action] Error:", err)
+    return { success: false, error: err?.message || String(err) }
+  }
 }

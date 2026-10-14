@@ -243,6 +243,50 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
       console.error("hr_munkaszerzodes insert error:", contractErr)
     }
 
+    // 5b. Ha meglévő dolgozóról van szó (dolgozoId megadva), szinkronizáljuk a szerződés és titkos adatokat az adatlapjára és a titkos tárolóba
+    if (params.dolgozoId) {
+      try {
+        await adminClient
+          .from("hr_dolgozo_adatlap")
+          .update({
+            lakcim: params.lakcim || undefined,
+            szuletesi_datum: params.szuletesiDatum || undefined,
+            anyja_neve: params.anyjaNeve || undefined
+          })
+          .eq("id", params.dolgozoId)
+
+        if (params.kezdesDatuma) {
+          await adminClient
+            .from("hr_jogviszony")
+            .update({ belepes_datuma: params.kezdesDatuma })
+            .eq("dolgozo_id", params.dolgozoId)
+        }
+
+        const taj = params.tajSzam || ""
+        const ado = params.adoazonositoJel || ""
+        const bank = params.bankszamlaszam || ""
+        const brutto = params.alapber ? String(params.alapber) : ""
+        const bruttoNum = Number(params.alapber || 0)
+        const netto = bruttoNum > 0 ? String(Math.round(bruttoNum * 0.665)) : ""
+        const toByteaHex = (str: string) => "\\x" + Buffer.from(str, "utf-8").toString("hex")
+
+        if (taj || ado || bank || brutto) {
+          await adminClient
+            .from("hr_dolgozo_titkos_adat")
+            .upsert({
+              dolgozo_id: params.dolgozoId,
+              taj_szam_titkositott: taj ? toByteaHex(taj) : null,
+              adoazonosito_titkositott: ado ? toByteaHex(ado) : null,
+              bankszamla_titkositott: bank ? toByteaHex(bank) : null,
+              brutto_ber_titkositott: brutto ? toByteaHex(brutto) : null,
+              netto_ber_titkositott: netto ? toByteaHex(netto) : null
+            })
+        }
+      } catch (syncErr) {
+        console.error("Hiba a szerződés adatlap szinkronizációjakor:", syncErr)
+      }
+    }
+
     // 6. Ha van onboarding feladat a munkaszerződésre, automatikusan készre állítjuk és frissítjük az onboarding rekordot!
     if (params.onboardingId) {
       try {

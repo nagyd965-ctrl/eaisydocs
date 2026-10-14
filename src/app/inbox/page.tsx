@@ -8,6 +8,8 @@ import { getImportableEaisyBillInvoices } from "@/app/inbox/eaisybill-actions"
 import { EaisyBillImportPanel } from "@/components/eaisybill-import-panel"
 import { InboxTableClient } from "@/components/inbox-table-client"
 
+import { InboxSyncButton } from "@/components/inbox-sync-button"
+
 export default async function InboxPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams
   const q = typeof params.q === 'string' ? params.q.toLowerCase() : ""
@@ -96,6 +98,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         <div className="flex items-center gap-2">
           {permissions.canAddIncoming && (
             <>
+              <InboxSyncButton />
               <BatchScannerDialog />
               <NewIncomingDialog />
             </>

@@ -318,30 +318,25 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       
       {/* Letisztult 4-füles adatlap */}
       <Tabs defaultValue="szemelyes" className="w-full mt-8">
-        <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent flex-wrap gap-x-2 gap-y-2 pb-2">
-          <TabsTrigger value="szemelyes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Személyes adatok</TabsTrigger>
-          <TabsTrigger value="szakmai_hatter" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Szakmai háttér</TabsTrigger>
-          <TabsTrigger value="munkaviszony_szerzodes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Munkaviszony & Szerződések</TabsTrigger>
-          <TabsTrigger value="tavollet" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Távollét</TabsTrigger>
-          <TabsTrigger value="jelenlet" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Jelenlét</TabsTrigger>
-          <TabsTrigger value="cafeteria" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Cafeteria</TabsTrigger>
-          <TabsTrigger value="idp" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Fejlődés (IDP)</TabsTrigger>
+        <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent flex-nowrap overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden gap-x-1">
+          <TabsTrigger value="szemelyes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Személyes adatok</TabsTrigger>
+          <TabsTrigger value="szakmai_hatter" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Szakmai háttér</TabsTrigger>
+          <TabsTrigger value="munkaviszony_szerzodes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Munkaviszony & Szerződések</TabsTrigger>
+          <TabsTrigger value="tavollet" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Távollét</TabsTrigger>
+          <TabsTrigger value="jelenlet" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Jelenlét</TabsTrigger>
+          <TabsTrigger value="cafeteria" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Cafeteria</TabsTrigger>
+          <TabsTrigger value="idp" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Fejlődés (IDP)</TabsTrigger>
           {canViewSalary && (
-            <TabsTrigger value="berpapirok" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">
+            <TabsTrigger value="berpapirok" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">
               Bérpapírok {employeePayslips.length > 0 && `(${employeePayslips.length})`}
             </TabsTrigger>
           )}
-          {isHrOrAdmin && (
-            <TabsTrigger value="bizalmas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">
-              Bizalmas HR adatok <ShieldAlert className="ml-2 w-3 h-3 text-destructive" />
+          {(isHrOrAdmin || ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "")) && (
+            <TabsTrigger value="bizalmas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">
+              Bizalmas HR adatok <ShieldAlert className="ml-1.5 w-3.5 h-3.5 text-destructive" />
             </TabsTrigger>
           )}
-          {!isHrOrAdmin && ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "") && (
-            <TabsTrigger value="bizalmas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">
-              Bizalmas HR adatok <ShieldAlert className="ml-2 w-3 h-3 text-destructive" />
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-2">Előzmények</TabsTrigger>
+          <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Előzmények</TabsTrigger>
         </TabsList>
 
         <div className="pt-6">
