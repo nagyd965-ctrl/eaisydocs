@@ -316,7 +316,7 @@ export async function importEaisyBillCompanyMembersAction(
       process.env.NEXT_PUBLIC_APP_URL ||
       process.env.NEXT_PUBLIC_SITE_URL ||
       "https://eaisydocs2.vercel.app"
-    const redirectUrl = `${appUrl}/auth/callback?next=/settings`
+    const redirectUrl = `${appUrl}/auth/callback?next=/auth/set-password`
 
     // 3. Feldolgozás tételenként – KIZÁRÓLAG a kiválasztottakra
     for (const item of selectedMembers) {

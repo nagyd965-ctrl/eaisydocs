@@ -25,6 +25,28 @@ export async function GET(request: Request) {
     console.error("[AuthCallback] Error exchanging code for session:", error.message)
   }
 
+  const token_hash = searchParams.get("token_hash")
+  const type = searchParams.get("type") as any
+  if (token_hash && type) {
+    const supabase = await createClient()
+    const { error } = await supabase.auth.verifyOtp({
+      type,
+      token_hash,
+    })
+    if (!error) {
+      const forwardedHost = request.headers.get("x-forwarded-host")
+      const isLocalEnv = process.env.NODE_ENV === "development"
+      if (isLocalEnv) {
+        return NextResponse.redirect(`${origin}${next}`)
+      } else if (forwardedHost) {
+        return NextResponse.redirect(`https://${forwardedHost}${next}`)
+      } else {
+        return NextResponse.redirect(`${origin}${next}`)
+      }
+    }
+    console.error("[AuthCallback] Error verifying OTP token_hash:", error.message)
+  }
+
   // Ha a kód hiányzik vagy érvénytelen, hibaüzenettel a bejelentkezőre irányítjuk
   return NextResponse.redirect(`${origin}/login?message=Nem%20sikerült%20az%20egyszeri%20bejelentkezés`)
 }
