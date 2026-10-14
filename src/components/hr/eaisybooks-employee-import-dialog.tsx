@@ -240,12 +240,12 @@ export function EaisyBooksEmployeeImportDialog({
           </DialogTrigger>
         )
       )}
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+      <DialogContent className="w-[95vw] sm:max-w-4xl lg:max-w-5xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
         {/* Fejléc */}
-        <DialogHeader className="p-6 pb-4 border-b">
+        <DialogHeader className="p-6 pb-4 border-b pr-12">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400">
+              <div className="p-2.5 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 shrink-0">
                 <FileSpreadsheet className="h-5 w-5" />
               </div>
               <div>
@@ -266,7 +266,7 @@ export function EaisyBooksEmployeeImportDialog({
               placeholder="Keresés név, munkakör vagy e-mail alapján..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-9 text-sm h-9"
+              className="pl-9 pr-9 text-sm h-9 bg-background"
             />
             {searchQuery && (
               <button
@@ -306,11 +306,11 @@ export function EaisyBooksEmployeeImportDialog({
               </p>
             </div>
           ) : (
-            <div className="border rounded-md overflow-hidden">
-              <table className="w-full text-left text-sm border-collapse">
+            <div className="border rounded-md overflow-x-auto w-full">
+              <table className="w-full min-w-[760px] text-left text-sm border-collapse">
                 <thead className="bg-muted/50 text-xs text-muted-foreground font-medium border-b select-none">
                   <tr>
-                    <th className="py-2.5 px-3 w-10 text-center">
+                    <th className="py-2.5 px-3 w-10 text-center shrink-0">
                       <Checkbox
                         checked={allFilteredSelected}
                         onCheckedChange={toggleSelectAll}
@@ -318,11 +318,11 @@ export function EaisyBooksEmployeeImportDialog({
                         disabled={importableFiltered.length === 0}
                       />
                     </th>
-                    <th className="py-2.5 px-3 font-medium">Dolgozó</th>
-                    <th className="py-2.5 px-3 font-medium">Munkakör & FEOR</th>
-                    <th className="py-2.5 px-3 font-medium min-w-[200px]">E-mail cím</th>
-                    <th className="py-2.5 px-3 font-medium">Azonosítók</th>
-                    <th className="py-2.5 px-3 font-medium text-right">Belépés</th>
+                    <th className="py-2.5 px-3 font-medium min-w-[180px]">Dolgozó</th>
+                    <th className="py-2.5 px-3 font-medium min-w-[180px]">Munkakör & FEOR</th>
+                    <th className="py-2.5 px-3 font-medium min-w-[210px]">E-mail cím</th>
+                    <th className="py-2.5 px-3 font-medium min-w-[140px]">Azonosítók</th>
+                    <th className="py-2.5 px-3 font-medium w-24 text-right shrink-0">Belépés</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -398,7 +398,7 @@ export function EaisyBooksEmployeeImportDialog({
                         {/* E-mail cím mező (szerkeszthető) */}
                         <td className="py-2.5 px-3 align-middle">
                           {isAlreadyImported ? (
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground font-mono">
                               {currentEmail || "—"}
                             </span>
                           ) : (
@@ -407,7 +407,7 @@ export function EaisyBooksEmployeeImportDialog({
                               placeholder="dolgozo@ceg.hu"
                               value={currentEmail}
                               onChange={(e) => handleEmailChange(emp.id, e.target.value)}
-                              className="h-8 text-xs bg-background"
+                              className="h-8 text-xs bg-background max-w-[220px]"
                               disabled={!isSelected}
                             />
                           )}
@@ -415,7 +415,7 @@ export function EaisyBooksEmployeeImportDialog({
 
                         {/* Maszkolt azonosítók */}
                         <td className="py-2.5 px-3 align-middle">
-                          <div className="flex flex-col text-[11px] tabular-nums text-muted-foreground">
+                          <div className="flex flex-col text-[11px] tabular-nums text-muted-foreground font-mono">
                             <span>TAJ: {emp.maskedTaj}</span>
                             <span>Adó: {emp.maskedTaxId}</span>
                           </div>
@@ -437,8 +437,8 @@ export function EaisyBooksEmployeeImportDialog({
         </div>
 
         {/* Lábléc */}
-        <DialogFooter className="p-4 px-6 border-t bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground w-full sm:w-auto">
+        <DialogFooter className="p-4 px-6 border-t bg-muted/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
             <Checkbox
               id="send-invite-checkbox"
               checked={sendInviteEmail}
@@ -447,15 +447,15 @@ export function EaisyBooksEmployeeImportDialog({
             />
             <label
               htmlFor="send-invite-checkbox"
-              className="cursor-pointer select-none text-foreground font-medium text-xs flex items-center gap-1.5"
+              className="cursor-pointer select-none text-foreground font-medium text-xs flex items-center gap-1.5 whitespace-nowrap"
             >
-              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+              <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               Meghívó e-mail küldése a munkatársaknak (jelszóbeállító linkkel)
             </label>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-            <span className="text-xs text-muted-foreground tabular-nums">
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
               {selectedIds.size} / {employees.filter((e) => e.status === "importable").length} dolgozó kijelölve
             </span>
             <Button
@@ -472,7 +472,7 @@ export function EaisyBooksEmployeeImportDialog({
               size="sm"
               onClick={handleImport}
               disabled={isSubmitting || selectedIds.size === 0}
-              className="bg-teal-600 hover:bg-teal-700 text-white"
+              className="bg-teal-600 hover:bg-teal-700 text-white font-medium"
             >
               {isSubmitting ? (
                 <>
