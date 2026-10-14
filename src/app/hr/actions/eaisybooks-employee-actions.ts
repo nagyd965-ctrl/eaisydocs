@@ -226,7 +226,12 @@ export async function getEaisyBooksPayrollEmployeesAction(
     })
 
     // 5. eaisyHR helyi tagok és profilok lekérése (Deduplikációhoz)
-    const { data: localMembers } = await docsClient
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const { data: localMembers } = await supabaseAdmin
       .from("company_members")
       .select("user_id")
       .eq("company_id", activeCompany.id)
@@ -234,12 +239,12 @@ export async function getEaisyBooksPayrollEmployeesAction(
     const localMemberUserIds = new Set((localMembers || []).map((m) => m.user_id))
     const safeMemberIds = Array.from(localMemberUserIds)
 
-    const { data: localProfiles } = await docsClient
+    const { data: localProfiles } = await supabaseAdmin
       .from("felhasznalo_profil")
       .select("id, nev, email, eaisybill_employee_id, eaisybill_user_id")
       .in("id", safeMemberIds.length > 0 ? safeMemberIds : ["00000000-0000-0000-0000-000000000000"])
 
-    const { data: localAdatlaps } = await docsClient
+    const { data: localAdatlaps } = await supabaseAdmin
       .from("hr_dolgozo_adatlap")
       .select("id, eaisybill_employee_id")
       .eq("company_id", activeCompany.id)
@@ -450,23 +455,27 @@ export async function importEaisyBooksPayrollEmployeesAction(input: {
           ? [addressObj.zip, addressObj.city, addressObj.street].filter(Boolean).join(", ")
           : typeof addressObj === "string" ? addressObj : null
 
-        await supabaseAdmin
+        const { error: adatlapErr } = await supabaseAdmin
           .from("hr_dolgozo_adatlap")
           .upsert(
             {
               id: finalUserId,
               company_id: targetCompanyId,
-              szuletesi_nev: emp.birthName || emp.name,
-              szuletesi_hely: emp.birthPlace || null,
+              szuletesi_datum: emp.birthDate || null,
               szuletesi_ido: emp.birthDate || null,
               anyja_neve: emp.mothersName || null,
-              allampolgarsag: emp.nationality || "Magyar",
-              szemelyi_igazolvany_szam: emp.idCardNumber || null,
+              telefonszam: emp.phone || null,
+              szerzodes_tipusa: emp.employmentType === "megbizas" ? "megbízási" : "határozatlan",
               lakcim: formattedAddress,
               eaisybill_employee_id: emp.id,
             },
             { onConflict: "id" }
           )
+
+        if (adatlapErr) {
+          console.error(`[eaisyBooks] Hiba adatlap rögzítésekor (${emp.name}):`, adatlapErr)
+          continue
+        }
 
         // 5. hr_dolgozo_titkos_adat rögzítése titkosítva
         const taj = emp.tajNumber || ""
@@ -477,7 +486,7 @@ export async function importEaisyBooksPayrollEmployeesAction(input: {
         const netto = bruttoNum > 0 ? String(Math.round(bruttoNum * 0.665)) : ""
 
         if (taj || taxId || bank || brutto) {
-          await supabaseAdmin
+          const { error: secretErr } = await supabaseAdmin
             .from("hr_dolgozo_titkos_adat")
             .upsert(
               {
@@ -491,6 +500,9 @@ export async function importEaisyBooksPayrollEmployeesAction(input: {
               },
               { onConflict: "dolgozo_id" }
             )
+          if (secretErr) {
+            console.error(`[eaisyBooks] Titkos adat mentési hiba (${emp.name}):`, secretErr)
+          }
         }
 
         // 6. Munkakör feloldása vagy automatikus létrehozása (hr_munkakor)
@@ -507,7 +519,7 @@ export async function importEaisyBooksPayrollEmployeesAction(input: {
           if (existingJob?.id) {
             munkakorId = existingJob.id
           } else {
-            const { data: newJob } = await supabaseAdmin
+            const { data: newJob, error: jobErr } = await supabaseAdmin
               .from("hr_munkakor")
               .insert({
                 company_id: targetCompanyId,
@@ -517,7 +529,11 @@ export async function importEaisyBooksPayrollEmployeesAction(input: {
               .select("id")
               .single()
 
-            if (newJob?.id) munkakorId = newJob.id
+            if (newJob?.id) {
+              munkakorId = newJob.id
+            } else if (jobErr) {
+              console.error(`[eaisyBooks] Munkakor létrehozási hiba (${cleanJobTitle}):`, jobErr)
+            }
           }
         }
 
@@ -531,30 +547,41 @@ export async function importEaisyBooksPayrollEmployeesAction(input: {
 
         let jogviszonyId = existingJogv?.id
         if (!jogviszonyId) {
-          const { data: newJogv } = await supabaseAdmin
+          const { data: newJogv, error: jogvErr } = await supabaseAdmin
             .from("hr_jogviszony")
             .insert({
               dolgozo_id: finalUserId,
               company_id: targetCompanyId,
               belepes_datuma: emp.startDate || new Date().toISOString().split("T")[0],
               tipus: emp.employmentType === "megbizas" ? "megbizasi" : "teljes_munkaido",
-              heti_oraszam: Number(emp.weeklyHours) || 40,
             })
             .select("id")
             .single()
 
-          jogviszonyId = newJogv?.id
+          if (jogvErr) {
+            console.error(`[eaisyBooks] Jogviszony hiba (${emp.name}):`, jogvErr)
+          } else {
+            jogviszonyId = newJogv?.id
+          }
         }
 
         if (jogviszonyId && munkakorId) {
-          await supabaseAdmin
+          const weekly = Number(emp.weeklyHours) || 40
+          const fte = Math.round((weekly / 40) * 100) / 100
+          const { error: beosztasErr } = await supabaseAdmin
             .from("hr_beosztas")
             .insert({
               jogviszony_id: jogviszonyId,
               munkakor_id: munkakorId,
               company_id: targetCompanyId,
               ervenyes_tol: emp.startDate || new Date().toISOString().split("T")[0],
+              munkaviszony_tipusa: emp.employmentType === "megbizas" ? "megbízási" : "teljes_munkaido",
+              munkaido_fte: fte,
+              fte: fte,
             })
+          if (beosztasErr) {
+            console.error(`[eaisyBooks] Beosztás hiba (${emp.name}):`, beosztasErr)
+          }
         }
 
         importedCount++
