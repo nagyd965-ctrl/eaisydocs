@@ -16,6 +16,7 @@ import {
   TrendingUp, ShieldAlert, FolderOpen
 } from "lucide-react"
 import { PartnerDialog } from "@/components/partner-dialog"
+import { EaisyBillPartnerImportDialog } from "@/components/partners/eaisybill-partner-import-dialog"
 import { DeletePartnerButton } from "@/components/delete-partner-button"
 import { Badge } from "@/components/ui/badge"
 import { TableToolbar, TableColumnOption, FilterGroup } from "@/components/table-toolbar/table-toolbar"
@@ -331,7 +332,14 @@ export function PartnersTableClient({
         filterGroups={filterGroups}
         activeFiltersCount={activeFiltersCount}
         onClearFilters={handleClearFilters}
-        actions={canEdit ? <PartnerDialog /> : undefined}
+        actions={
+          canEdit ? (
+            <div className="flex items-center gap-2">
+              <EaisyBillPartnerImportDialog />
+              <PartnerDialog />
+            </div>
+          ) : undefined
+        }
       />
 
       {/* ── 4. Partnerek Táblázat */}

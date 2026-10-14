@@ -4,6 +4,16 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-14)
 
+### 🤝 eaisyDocs: eaisyBill Partnertörzs Importálása és Duplikáció-védett Szinkronizáció (A-062 / P-081)
+- **Közvetlen Import Gomb a Partnerek Felületén:** A Partnerek (`/partners`) főoldalán a szabványos `TableToolbar` akció sávjában, közvetlenül a `+ Új Partner` gomb mellett megjelent az „Importálás eaisyBill-ből” gomb (`EaisyBillPartnerImportDialog`).
+- **Linear-Flat Importáló Modál:** Felugró ablak jeleníti meg az aktív céghez (pl. `SANDBOX`) tartozó összes eaisyBill partnert, összesítő statisztikákkal (összes partner, importálható új, már importálva, kijelöltek száma).
+- **Azonnali Keresés és Típus Szűrők:** Valós idejű gépelési keresőmező (név, adószám, székhely, e-mail) és gyors szűrő pill-ek (`Mind`, `Csak új`, `Vevők`, `Szállítók`).
+- **Szelektív és Tömeges Import:** Egyenkénti jelölőnégyzetek és fejléc szintű "Összes új partner kijelölése" funkció.
+- **Négylépcsős Duplikáció-védelem:** Az összevetés ellenőrzi az `eaisybill_partner_id`-t, az adószám első 8 számjegyét, a külföldi/EU adószámot és a nevet. A már meglévő partnerek sora letiltott és zöld *„Már importálva”* jelvénnyel védett.
+- **Intelligens Jogi Forma és Szerepkör Detektálás:** Automatikus konverzió a céges rövidítésekből (`Kft.`, `Zrt.`, `Bt.`, `GmbH` -> `ceg`; `E.V.` -> `egyeni_vallalkozo`; hivatalok -> `intezmeny`), illetve a szerepköröknél (`customer` -> `vevo`, `supplier` -> `szallito`, `both` -> `mindketto`).
+- **Audit Naplózás:** Minden importálás append-only bejegyzést kap az `esemeny_naplo` táblába.
+- **Dokumentáció:** [ADR A-062](../architecture/decisions/A-062-eaisybill-partner-master-import-architecture.md), [PRD P-081](../product/decisions/P-081-eaisybill-partner-master-import-ux.md).
+
 ### 🚀 eaisyDocs & eaisyHR: Vercel Serverless Felkészítés, E-mail Branding és Dolgozói Profil UX (A-061 / P-080)
 - **Vercel Serverless Chromium Pack Támogatás:** A `src/utils/pdf-browser.ts`-ben az `@sparticuz/chromium-min` argumentum nélküli hívását lecseréltük a hivatalos v149.0.0 tar pack letöltési URL-re, megelőzve a Vercel Serverless környezetben fellépő `The input directory does not exist` hibát a PDF generáláskor.
 - **Kánonikus Dinamikus URL-ek és Hotfolder Kezelés:** A `src/app/inbox/actions.ts` és `src/utils/batch-scanner.ts` korábbi hardkódolt `http://localhost:3000` hivatkozásait a központi `getBaseUrl()` segédfüggvényre cseréltük. A hotfolder elérési út Vercel környezetben automatikusan az `os.tmpdir()` írható mappát használja.

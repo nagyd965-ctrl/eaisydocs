@@ -74,11 +74,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-059](./A-059-company-deletion-and-cascade-lifecycle.md) | 2026-10-14 | Cég Végleges Törlése, Kaszkádolt Életciklus és Jogosultságkezelés | `[Docs]` | `Decided` | [P-078](../../product/decisions/P-078-company-deletion-and-management-ux.md), `company-actions.ts`, `company-settings-tab.tsx`, `companies` |
 | [A-060](./A-060-eaisybill-company-member-sync-and-invite.md) | 2026-10-14 | eaisyBill Cégalapú Felhasználó- és Tagságszinkronizáció, Szelektív Meghívó Rendszer | `[Közös]` | `Decided` | [P-079](../../product/decisions/P-079-eaisybill-company-member-sync-and-invite-ux.md), `eaisybill-user-actions.ts`, `eaisybill-member-import-dialog.tsx`, `company-settings-tab.tsx` |
 | [A-061](./A-061-vercel-serverless-readiness-and-modular-hr-data-sync.md) | 2026-10-14 | Vercel Serverless Felkészítés, Dinamikus Host-kezelés és eaisyHR Különleges Adatszinkronizáció | `[Közös]` | `Decided` | [P-080](../../product/decisions/P-080-modular-hr-branding-and-profile-tabs-ux.md), `pdf-browser.ts`, `mailer.ts`, `onboarding/actions.ts`, `employment-contract-actions.ts` |
+| [A-062](./A-062-eaisybill-partner-master-import-architecture.md) | 2026-10-14 | eaisyBill Partnertörzs Importálási Architektúra és Duplikáció-védett Szinkronizáció | `[Közös]` | `Decided` | [P-081](../../product/decisions/P-081-eaisybill-partner-master-import-ux.md), `eaisybill-partner-actions.ts`, `eaisybill-partner-import-dialog.tsx`, `partners-table-client.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-062`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-063`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 
