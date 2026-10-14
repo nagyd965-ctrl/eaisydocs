@@ -45,6 +45,7 @@ export default async function DashboardPage() {
     { data: rawIrattariTervek },
     { count: pendingDisposalCount },
     { count: expiredCount },
+    { data: rawHelyettesitesek },
   ] = await Promise.all([
     supabase
       .from("irat")
@@ -102,7 +103,19 @@ export default async function DashboardPage() {
       .in("statusz", ["irattarban", "lezart"])
       .lte("megorzesi_ido_vege", todayStr)
       .not("megorzesi_ido_vege", "is", null),
+    // Aktív helyettesítések lekérdezése (hogy a helyettesített személyek feladatait és szignált ügyiratait is lássa)
+    supabase
+      .from("helyettesites")
+      .select("kilepo_user_id")
+      .eq("company_id", companyScope)
+      .eq("helyettesito_user_id", userId)
+      .eq("aktiv", true)
+      .lte("mettol", new Date().toISOString())
+      .gte("meddig", new Date().toISOString()),
   ])
+
+  const helyettesitettIds = (rawHelyettesitesek || []).map((h: any) => h.kilepo_user_id)
+  const myFelelosIds = [userId, ...helyettesitettIds]
 
   // Dátum formázás a bannerhez
   const todayFormatted = new Date().toLocaleDateString("hu-HU", {
@@ -198,6 +211,7 @@ export default async function DashboardPage() {
         key={companyScope}
         currentUserId={userId}
         currentUserRole={userRole}
+        myFelelosIds={myFelelosIds}
         allIratok={allIratok}
         allUgyiratok={allUgyiratok}
         allTasks={allTasks}

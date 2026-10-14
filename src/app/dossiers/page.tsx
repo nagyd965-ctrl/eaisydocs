@@ -22,7 +22,20 @@ export default async function DossiersPage() {
       megorzesi_ido_vege,
       szervezeti_egyseg_id,
       ugy!inner ( id, targy, hatarido, statusz, felelos_user_id ),
-      irat ( id, minosites )
+      irat (
+        id,
+        targy,
+        minosites,
+        irat_fajl (
+          id,
+          storage_path,
+          eredeti_fajlnev,
+          mime_type,
+          pdfa_path,
+          meret_byte,
+          sha256
+        )
+      )
     `)
     .eq("company_id", companyScope)
     .order("iktatas_datuma", { ascending: false })

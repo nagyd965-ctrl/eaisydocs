@@ -20,13 +20,15 @@ export function DocumentViewer({
   open, 
   setOpen, 
   fajl,
-  iratId,
+  iratId = "",
+  dossierId,
   fajlok = []
 }: { 
   open: boolean, 
   setOpen: (o: boolean) => void, 
   fajl: any,
-  iratId: string,
+  iratId?: string,
+  dossierId?: string,
   fajlok?: any[]
 }) {
   const [selectedFile, setSelectedFile] = useState<any>(fajl)
@@ -52,7 +54,15 @@ export function DocumentViewer({
         setUrl(null);
       }, 0)
       
-      getDocumentSignedUrl(selectedFile.storage_path, iratId, selectedFile.id)
+      const targetIratId = selectedFile.irat_id || iratId
+      if (!targetIratId) {
+        setTimeout(() => {
+          if (isMounted) setLoading(false);
+        }, 0)
+        return;
+      }
+
+      getDocumentSignedUrl(selectedFile.storage_path, targetIratId, selectedFile.id)
         .then(res => {
           if (!isMounted) return;
           if (res.error) setError(res.error)
@@ -94,7 +104,17 @@ export function DocumentViewer({
               </DialogDescription>
             </div>
 
-            {iratId && (
+            {dossierId ? (
+              <Link
+                href={`/dossiers/${dossierId}`}
+                onClick={() => setOpen(false)}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-7 text-xs gap-1.5 shrink-0 border-primary/30 text-primary hover:bg-primary/5")}
+                title="Megnyitás az ügyirat adatlapon"
+              >
+                <span>Ügyirat megnyitása</span>
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            ) : iratId ? (
               <Link
                 href={`/inbox/${iratId}`}
                 onClick={() => setOpen(false)}
@@ -104,7 +124,7 @@ export function DocumentViewer({
                 <span>Iktatás megnyitása</span>
                 <ArrowRight className="h-3 w-3" />
               </Link>
-            )}
+            ) : null}
           </div>
 
           {/* Csatolmány-választó fülcsík, ha több csatolmány van */}

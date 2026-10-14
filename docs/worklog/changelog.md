@@ -2,7 +2,40 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
-## [Unreleased] – Fejlesztés alatt (2026-10-12)
+## [Unreleased] – Fejlesztés alatt (2026-10-14)
+
+### 📦 eaisyDocs: Fizikai Irattári Helymeghatározás Kereshető Combobox Menü, Megjegyzés Perzisztencia és Kölcsönzési Gombok Harmonizációja (A-055 / P-074)
+- **Kereshető Combobox Menü (`LocationCombobox` a `PhysicalLocationDialog`-ban):**
+  - Megszüntettük a beviteli mezők alatti zavaró és helypazarló statikus chipeket (`Meglévő: ...`), valamint a felesleges `Gyorsválasztó` feliratot.
+  - A mező jobb oldalán diszkrét számlálóval és `ChevronDown` nyíllal ellátott lenyíló Popover menü jött létre.
+  - A menün belül azonnal fókuszba kerülő keresősáv szűri a meglévő helyeket (polc/doboz) valós időben.
+  - A kiválasztott tétel vizuális kiemelést (`Kiválasztva`) és pipát (`Check`) kap.
+  - Új érték beírásakor a menü alján megjelenő gyorsgombbal (vagy az `Enter` leütésével) egyetlen mozdulattal felvehető az új koordináta anélkül, hogy manuálisan újra kellene gépelni.
+  - Egykattintásos törlés a beviteli mezőben (`X` gomb) és a menü láblécében.
+- **Tárolási Megjegyzés Adatperzisztencia és Megjelenítés:**
+  - Kijavítottuk a szerveroldali Supabase lekérdezést az ügyirat adatlapon (`src/app/dossiers/[id]/page.tsx`): a lekérdezés mostantól a `megjegyzes` mezőt is lekéri (`irat_fizikai_hely ( doboz, polc, megjegyzes )`).
+  - A rögzített megjegyzés a táblázat soraiban a hely alatt dőlt betűs második sorként és teljes tooltipként is megjelenik.
+  - A modál újranyitásakor az elmentett megjegyzés automatikusan visszatöltődik a beviteli mezőbe.
+  - A `setPhysicalLocation` Server Action-ben kiegészítettük az `isClearing` vizsgálatot és az audit eseménynaplózást.
+- **Fizikai Hely & Kölcsönzés Gombok Frontend Harmonizációja (`iratok-lista.tsx`, `borrow-dialog.tsx`):**
+  - A táblázat soraiban a korábbi függőleges egymás alá halmozást (`flex-col`) vízszintes, elegáns egymás melletti elrendezésre (`flex items-center gap-1.5 flex-wrap`) cseréltük.
+  - A `+ Hely rögzítése` és `Kölcsönzés rögzítése` gombok 100%-ban azonos geometriát, magasságot (`h-7`), margót (`px-2.5 rounded-md text-[11px] font-medium`) és szaggatott keretet (`border-dashed border-border/80 hover:border-primary/50 hover:bg-primary/5`) kaptak.
+  - A `BorrowDialog`-ban feloldottuk a mesterséges jogosultsági szűkítést, így a szervezet bármely aktív munkatársa kiválasztható kölcsönvevőként.
+- **Iktatókönyv és Irattár Betekintő Egységesítés (`dossiers-table-client.tsx`, `document-viewer.tsx`):**
+  - Az iktatókönyvben lévő megtekintés (szem ikon) működését harmonizáltuk a bejövő sorral a központi `DocumentViewer` meghívásával.
+- **Irattár és Selejtezés UX Tisztítás (`archive-client.tsx`):**
+  - Eltávolítottuk a fülekről (`Javaslatok`, `Jóváhagyandó`, `Irattárban`) a redundáns számláló jelvényeket, mivel a felette lévő KPI kártyák már egyértelműen mutatják a pontos darabszámokat.
+  - A Javaslatok és a Jóváhagyandó fül feletti felesleges figyelmeztető bannereket (pl. a sárga háromszöges "Jóváhagyandó Selejtezések (Szigorú Négy-szem elve)" dobozt) megszüntettük, és egyetlen kompakt, egységes eszköztárrá alakítottuk az elemszámmal és a műveleti gombokkal.
+  - A „Selejtezett & Jegyzőkönyvek” fülön lévő táblázatok fejléceit letisztítottuk: eltávolítottuk az ikonokat/emojikat és az alcímeket, így kizárólag a tiszta főcím maradt meg.
+- **Vezérlőpult (Dashboard) Lejáró Határidők és Saját Feladatok Tisztítás (`dashboard-overview.tsx`):**
+  - Eltávolítottuk a fejlécből a felesleges "Határidők / Feladatok" gombokat, és optimalizáltuk a saját szignált feladatok szűrését.
+- **Ügyirat Adatlap Fül- és Fejléc Címek Egyszerűsítése (`/dossiers/[id]`):**
+  - A „Feladatok & Megjegyzések” fül címét rövidebbre és közvetlenebbre („Feladatok”) cseréltük.
+  - A „Válaszlevelek & Expediálás” fület és a kimenő iratok fejlécét a letisztultabb „Válaszlevelek” megnevezésre frissítettük.
+- **Modál és Varázsló Bezáró Gomb (X) Megjelenítési Javítás (`dialog.tsx`, `sheet.tsx`, `outgoing-documents-tab.tsx`):**
+  - Javítottuk a Base UI `DialogPrimitive.Close` és `SheetPrimitive.Close` renderelési hibáját, ahol a `render={<Button ... />}` prop miatt az `XIcon` törlődött és csak hover hatására jelent meg egy üres háttérnégyzet. Az ikont közvetlenül a gomb belsejébe helyeztük, így a bezáró `X` ikon mindig tisztán látható.
+  - A válaszlevél varázsló fejlécében jobboldali margót (`pr-8`) adtunk a felső sornak, így az ügyiratszám és a bezáró gomb többé nem ütközik vagy takarja ki egymást.
+- **Dokumentáció:** [ADR A-055](../architecture/decisions/A-055-physical-location-combobox-and-storage-note-persistence.md), [ADR A-056](../architecture/decisions/A-056-base-ui-dialog-close-composition-and-render-prop-pattern.md), [PRD P-074](../product/decisions/P-074-physical-storage-searchable-combobox-and-custody-action-harmonization.md), [PRD P-075](../product/decisions/P-075-archive-and-dossier-ux-simplification-and-dialog-header-harmony.md).
 
 ### 📎 eaisyDocs: Többcsatolmányos E-mailek Kezelése, Irat-szétválasztás és Iktatási UX Egyszerűsítés (A-054 / P-073)
 - **Közvetlen Iktatófelület Elérés (`/inbox` -> `/inbox/[id]`):**

@@ -310,7 +310,7 @@ export function OutgoingDocumentsPanel({
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold">
-              Válaszlevelek és Expediálás
+              Válaszlevelek
             </CardTitle>
             {outgoingDocs.length > 0 && (
               <Badge variant="outline" className="text-xs font-normal">

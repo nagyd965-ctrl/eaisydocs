@@ -422,7 +422,7 @@ export function OutgoingDocumentsTab({
         <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <CardTitle className="text-base font-semibold">Válaszlevelek és Expediálás</CardTitle>
+              <CardTitle className="text-base font-semibold">Válaszlevelek</CardTitle>
               {outgoingDocs.length > 0 && (
                 <Badge variant="outline" className="text-xs font-normal">
                   {outgoingDocs.length} kimenő irat
@@ -605,7 +605,7 @@ export function OutgoingDocumentsTab({
         <DialogContent className="sm:max-w-[760px] max-h-[90vh] flex flex-col p-0 gap-0 border border-border/70 overflow-hidden">
           {/* Varázsló Fejléc és Lépésindikátor */}
           <div className="p-6 border-b border-border/50 bg-muted/10">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 pr-8">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 ÚJ KIMENŐ VÁLASZLEVÉL
               </span>

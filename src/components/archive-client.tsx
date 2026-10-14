@@ -6,9 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
-  AlertTriangle,
   CheckCircle2,
-  FileText,
   RefreshCw,
   Calendar,
   Download,
@@ -428,104 +426,82 @@ export function ArchiveClient({
 
       <Tabs defaultValue="suggestions" className="w-full">
         <TabsList className="h-9 inline-flex w-fit items-center gap-1 p-1 bg-muted/80 rounded-lg">
-          <TabsTrigger value="suggestions" className="flex items-center gap-1.5 px-3 h-7 text-xs sm:text-sm font-medium">
-            <span>Javaslatok</span>
-            {filteredSuggestions.length > 0 && (
-              <span className="inline-flex h-4 min-w-4 px-1.5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground">
-                {filteredSuggestions.length}
-              </span>
-            )}
+          <TabsTrigger value="suggestions" className="px-3 h-7 text-xs sm:text-sm font-medium">
+            Javaslatok
           </TabsTrigger>
-          <TabsTrigger value="approvals" className="flex items-center gap-1.5 px-3 h-7 text-xs sm:text-sm font-medium">
-            <span>Jóváhagyandó</span>
-            {filteredApprovals.length > 0 && (
-              <span className="inline-flex h-4 min-w-4 px-1.5 items-center justify-center rounded-full bg-warning text-[10px] font-semibold text-warning-foreground">
-                {filteredApprovals.length}
-              </span>
-            )}
+          <TabsTrigger value="approvals" className="px-3 h-7 text-xs sm:text-sm font-medium">
+            Jóváhagyandó
           </TabsTrigger>
           <TabsTrigger value="archived" className="px-3 h-7 text-xs sm:text-sm font-medium">
-            <span>Irattárban</span>
-            <span className="text-muted-foreground ml-1 tabular-nums">({filteredArchived.length})</span>
+            Irattárban
           </TabsTrigger>
           <TabsTrigger value="scrapped" className="px-3 h-7 text-xs sm:text-sm font-medium">
-            <span>Selejtezett & Jegyzőkönyvek</span>
+            Selejtezett & Jegyzőkönyvek
           </TabsTrigger>
         </TabsList>
 
         {/* 1. JAVASLATOK FÜL */}
         <TabsContent value="suggestions" className="mt-4">
           <div className="border border-border/50 rounded-md bg-card mb-4 overflow-hidden">
-            <div className="p-4 bg-muted/30 border-b border-border/50 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="font-semibold mb-0.5">Selejtezési & Átadási Javaslatok</p>
-                    <p className="text-muted-foreground text-xs">
-                      Az irattári terv szerinti megőrzési időt elért ügyiratok listája a megadott fordulónapig.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      await forceExpireAllDossiers()
-                      router.refresh()
-                    }}
-                    title="Minden lezárt ügyirat megőrzési idejének lejárttá tétele teszteléshez"
-                  >
-                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                    Lejárt generálás
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    disabled={selectedSuggestions.length === 0 || loading}
-                    onClick={handlePropose}
-                  >
-                    Felterjesztés Selejtezésre ({selectedSuggestions.length})
-                  </Button>
-                </div>
+            <div className="p-3 bg-muted/30 border-b border-border/50 flex flex-wrap items-center justify-between gap-3">
+              {/* Fordulónap sáv */}
+              <div className="flex items-center gap-2 text-xs flex-wrap">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium text-foreground">Fordulónap (eddig lejárt ügyiratok):</span>
+                <Input
+                  type="date"
+                  value={targetCutoff}
+                  onChange={(e) => handleCutoffApply(e.target.value)}
+                  className="h-8 w-36 text-xs bg-background"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => handleCutoffApply(todayStr)}
+                >
+                  Mai nap
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    const prevYear = new Date().getFullYear() - 1
+                    handleCutoffApply(`${prevYear}-12-31`)
+                  }}
+                >
+                  Előző év vége
+                </Button>
+                <span className="text-xs text-muted-foreground tabular-nums ml-1">
+                  Megjelenítve: <strong className="text-foreground">{filteredSuggestions.length}</strong> / {scrappingSuggestions.length} db ügyirat
+                </span>
               </div>
 
-              {/* Fordulónap sáv */}
-              <div className="pt-3 border-t border-border/40 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-xs">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium text-foreground">Fordulónap (eddig lejárt ügyiratok):</span>
-                  <Input
-                    type="date"
-                    value={targetCutoff}
-                    onChange={(e) => handleCutoffApply(e.target.value)}
-                    className="h-8 w-36 text-xs bg-background"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs"
-                    onClick={() => handleCutoffApply(todayStr)}
-                  >
-                    Mai nap
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs"
-                    onClick={() => {
-                      const prevYear = new Date().getFullYear() - 1
-                      handleCutoffApply(`${prevYear}-12-31`)
-                    }}
-                  >
-                    Előző év vége
-                  </Button>
-                </div>
-
-                <div className="text-xs text-muted-foreground tabular-nums">
-                  Megjelenítve: <strong className="text-foreground">{filteredSuggestions.length}</strong> / {scrappingSuggestions.length} db ügyirat
-                </div>
+              {/* Műveletek */}
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={async () => {
+                    await forceExpireAllDossiers()
+                    router.refresh()
+                  }}
+                  title="Minden lezárt ügyirat megőrzési idejének lejárttá tétele teszteléshez"
+                >
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                  Lejárt generálás
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="h-8 text-xs"
+                  disabled={selectedSuggestions.length === 0 || loading}
+                  onClick={handlePropose}
+                >
+                  Felterjesztés Selejtezésre ({selectedSuggestions.length})
+                </Button>
               </div>
             </div>
 
@@ -634,32 +610,12 @@ export function ArchiveClient({
         {/* 2. JÓVÁHAGYANDÓ FÜL */}
         <TabsContent value="approvals" className="mt-4">
           <div className="border border-border/50 rounded-md bg-card mb-4 overflow-hidden">
-            <div className="p-4 bg-muted/30 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className={`h-5 w-5 shrink-0 mt-0.5 ${fourEyesRequired ? "text-warning" : "text-success"}`} />
-                <div className="text-sm">
-                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <p className="font-semibold">
-                      Jóváhagyandó Selejtezések {fourEyesRequired ? "(Szigorú Négy-szem elve)" : "(Egyfelhasználós / KKV Mód)"}
-                    </p>
-                    {fourEyesRequired ? (
-                      <Badge variant="outline" className="text-[11px] bg-warning/10 text-warning border-warning/30">
-                        Szigorú audit mód aktív
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[11px] bg-success/10 text-success border-success/30">
-                        Négyszem-elv feloldva (Egyfelhasználós mód)
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-muted-foreground text-xs">
-                    {fourEyesRequired
-                      ? "Az iratkezelő által felterjesztett ügyiratok. A felterjesztő a szigorú audit szabályok szerint nem hagyhatja jóvá a saját javaslatát."
-                      : "A négyszem-elv feloldva: Vezetőként vagy rendszergazdaként a saját felterjesztéseidet is jóváhagyhatod egyetlen lépésben."}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
+            {/* Műveleti eszköztár */}
+            <div className="p-3 bg-muted/30 border-b border-border/50 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <span className="text-xs text-muted-foreground tabular-nums">
+                Jóváhagyásra váró ügyiratok: <strong className="text-foreground">{filteredApprovals.length}</strong> db
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
                 {currentUserRole === "ugyintezo" ? (
                   <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/30 py-1 px-2.5">
                     Ügyintézőként nem hagyhatsz jóvá (kizárólag Vezető vagy Admin)
@@ -668,6 +624,7 @@ export function ArchiveClient({
                   <Button
                     variant="default"
                     size="sm"
+                    className="h-8 text-xs"
                     disabled={selectedApprovals.length === 0 || loading}
                     onClick={() => setApprovePromptOpen(true)}
                   >
@@ -856,14 +813,8 @@ export function ArchiveClient({
         <TabsContent value="scrapped" className="mt-4 space-y-6">
           {/* Csomagok és Hivatalos Jegyzőkönyvek */}
           <div className="border border-border/50 rounded-md bg-card overflow-hidden">
-            <div className="p-4 bg-muted/30 border-b border-border/50">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-primary" />
-                <h2 className="text-sm font-semibold">Hivatalos Selejtezési Jegyzőkönyvek Archívuma</h2>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                A négy-szem elve alapján jóváhagyott, hitelesített és letölthető jegyzőkönyvek.
-              </p>
+            <div className="p-3 px-4 bg-muted/30 border-b border-border/50">
+              <h2 className="text-sm font-semibold">Hivatalos Selejtezési Jegyzőkönyvek Archívuma</h2>
             </div>
 
             <div className="overflow-x-auto">
@@ -1002,14 +953,8 @@ export function ArchiveClient({
 
           {/* Megsemmisített ügyiratok táblázata */}
           <div className="border border-border/50 rounded-md bg-card overflow-hidden">
-            <div className="p-4 bg-muted/30 border-b border-border/50">
-              <div className="flex items-center gap-2">
-                <Trash2 className="w-4 h-4 text-destructive" />
-                <h2 className="text-sm font-semibold">Megsemmisített Ügyiratok Nyilvántartása</h2>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Az alábbi ügyiratok digitális fizikai állományai véglegesen törölve lettek, az eseménynapló rögzítve van.
-              </p>
+            <div className="p-3 px-4 bg-muted/30 border-b border-border/50">
+              <h2 className="text-sm font-semibold">Megsemmisített Ügyiratok Nyilvántartása</h2>
             </div>
 
             <div className="overflow-x-auto">

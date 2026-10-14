@@ -67,9 +67,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-052](./A-052-hr-job-catalog-specification-and-omnipresent-integration.md) | 2026-10-12 | Nyilvántartott Munkakörök Törzsadatai, Korszerű Szerkesztő és Rendszerszintű Integráció | `[HR]` | `Decided` | [P-071](../../product/decisions/P-071-hr-job-catalog-specification-and-omnipresent-integration.md), `job-edit-dialog.tsx`, `job/[id]/page.tsx`, `job-action-menu.tsx`, `EmploymentTab.tsx`, `self-service/profile/page.tsx` |
 | [A-053](./A-053-hr-job-profile-and-catalog-action-deduplication.md) | 2026-10-12 | Munkaköri Profil és Törzslap Szerkesztési Architektúra, Akció-Deduplikáció és Ikon-Minimalizálás | `[HR]` | `Decided` | [P-072](../../product/decisions/P-072-hr-job-profile-and-catalog-ux-declutter-and-deduplication.md), `job-edit-dialog.tsx`, `job/[id]/page.tsx`, `job-description-upload.tsx`, `EmploymentTab.tsx`, `self-service/profile/page.tsx` |
 | [A-054](./A-054-multi-attachment-handling-and-document-splitting-architecture.md) | 2026-10-12 | Többcsatolmányos E-mailek Kezelése és Irat-szétválasztási Architektúra | `[Docs]` | `Decided` | [P-073](../../product/decisions/P-073-multi-attachment-switcher-and-document-split-ux.md), `filing-panel-client.tsx`, `filing-actions.ts`, `inbox-table-client.tsx` |
+| [A-055](./A-055-physical-location-combobox-and-storage-note-persistence.md) | 2026-10-14 | Fizikai Irattári Helymeghatározás Kereshető Combobox Architektúra, Megjegyzés Perzisztencia és Jogosultsági Feloldás | `[Docs]` | `Decided` | [P-074](../../product/decisions/P-074-physical-storage-searchable-combobox-and-custody-action-harmonization.md), `physical-location-dialog.tsx`, `borrow-dialog.tsx`, `borrow-actions.ts`, `iratok-lista.tsx` |
+| [A-056](./A-056-base-ui-dialog-close-composition-and-render-prop-pattern.md) | 2026-10-14 | Base UI Dialog és Sheet Bezáró Gomb (X) Kompozíciós Szabály és Render Prop Gyermek-megőrzés | `[Közös]` | `Decided` | [P-075](../../product/decisions/P-075-archive-and-dossier-ux-simplification-and-dialog-header-harmony.md), `dialog.tsx`, `sheet.tsx`, `outgoing-documents-tab.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-055`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-057`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+
 

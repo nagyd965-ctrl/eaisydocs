@@ -115,7 +115,41 @@ export async function returnDocument(kolcsonzesId: string) {
   return { success: true }
 }
 
-export async function setPhysicalLocation(iratId: string, doboz: string, polc: string) {
+import { getActiveCompanyIdServer } from "@/utils/company-server"
+
+export async function getPhysicalLocationSuggestions() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { polcok: [], dobozok: [] }
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+
+  const { data } = await supabase
+    .from("irat_fizikai_hely")
+    .select("polc, doboz")
+    .eq("company_id", companyScope)
+    .limit(300)
+
+  let list = data || []
+  if (list.length === 0) {
+    const { data: fallback } = await supabase
+      .from("irat_fizikai_hely")
+      .select("polc, doboz")
+      .limit(300)
+    list = fallback || []
+  }
+
+  const polcok = Array.from(new Set(list.map((d: any) => d.polc).filter(Boolean))) as string[]
+  const dobozok = Array.from(new Set(list.map((d: any) => d.doboz).filter(Boolean))) as string[]
+
+  return {
+    polcok: polcok.sort((a, b) => a.localeCompare(b, "hu")),
+    dobozok: dobozok.sort((a, b) => a.localeCompare(b, "hu"))
+  }
+}
+
+export async function setPhysicalLocation(iratId: string, doboz: string, polc: string, megjegyzes?: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
@@ -125,17 +159,41 @@ export async function setPhysicalLocation(iratId: string, doboz: string, polc: s
     return { success: false, error: "Nincs jogosultság." }
   }
 
-  const { error } = await supabase
-    .from("irat_fizikai_hely")
-    .upsert({ 
-      irat_id: iratId, 
-      doboz: doboz || null,
-      polc: polc || null
-    }, { onConflict: "irat_id" })
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
-  if (error) {
-    console.error("Fizikai hely mentési hiba:", error)
-    return { success: false, error: "Mentési hiba: " + error.message }
+  const trimmedDoboz = doboz?.trim() || ""
+  const trimmedPolc = polc?.trim() || ""
+  const trimmedMegjegyzes = megjegyzes?.trim() || null
+
+  const isClearing = !trimmedDoboz && !trimmedPolc && !trimmedMegjegyzes
+
+  if (isClearing) {
+    const { error: delErr } = await supabase
+      .from("irat_fizikai_hely")
+      .delete()
+      .eq("irat_id", iratId)
+
+    if (delErr) {
+      console.error("Fizikai hely törlési hiba:", delErr)
+      return { success: false, error: "Törlési hiba: " + delErr.message }
+    }
+  } else {
+    const { error } = await supabase
+      .from("irat_fizikai_hely")
+      .upsert({ 
+        irat_id: iratId, 
+        doboz: trimmedDoboz || null,
+        polc: trimmedPolc || null,
+        megjegyzes: trimmedMegjegyzes,
+        company_id: companyScope,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "irat_id" })
+
+    if (error) {
+      console.error("Fizikai hely mentési hiba:", error)
+      return { success: false, error: "Mentési hiba: " + error.message }
+    }
   }
 
   // Eseménynapló
@@ -146,7 +204,11 @@ export async function setPhysicalLocation(iratId: string, doboz: string, polc: s
     entitas_id: irat?.ugyirat_id,
     user_id: user.id,
     esemeny_tipus: 'modositva',
-    uj_ertek: { megjegyzes: `Fizikai helyzet módosítva: Polc: ${polc || '-'}, Doboz: ${doboz || '-'}` },
+    uj_ertek: { 
+      megjegyzes: isClearing 
+        ? "Fizikai helyzet törölve" 
+        : `Fizikai helyzet módosítva: Polc: ${trimmedPolc || '-'}, Doboz: ${trimmedDoboz || '-'}${trimmedMegjegyzes ? ` (Megjegyzés: ${trimmedMegjegyzes})` : ''}` 
+    },
     ip_cim: ip,
     user_agent: userAgent
   })

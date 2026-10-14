@@ -321,23 +321,20 @@ export function IratokLista({
                   )}
                 </TableCell>
                 <TableCell>
-                  <div className="flex flex-col items-start gap-1">
-                    <div className="flex items-center">
-                      {(() => {
-                        const fizikai = Array.isArray(irat.irat_fizikai_hely) ? irat.irat_fizikai_hely[0] : irat.irat_fizikai_hely
-                        return fizikai ? (
-                          <div className="text-xs text-muted-foreground mb-1 flex items-center">
-                            <span>Polc: <span className="font-semibold">{fizikai.polc || '-'}</span>, Doboz: <span className="font-semibold">{fizikai.doboz || '-'}</span></span>
-                            {canEdit && <PhysicalLocationDialog iratId={irat.id} currentPolc={fizikai.polc || undefined} currentDoboz={fizikai.doboz || undefined} />}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-muted-foreground italic mb-1 flex items-center">
-                            Nincs rögzítve
-                            {canEdit && <PhysicalLocationDialog iratId={irat.id} />}
-                          </div>
-                        )
-                      })()}
-                    </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {(() => {
+                      const fizikai = Array.isArray(irat.irat_fizikai_hely) ? irat.irat_fizikai_hely[0] : irat.irat_fizikai_hely
+                      return (
+                        <PhysicalLocationDialog 
+                          iratId={irat.id} 
+                          currentPolc={fizikai?.polc || undefined} 
+                          currentDoboz={fizikai?.doboz || undefined}
+                          currentMegjegyzes={fizikai?.megjegyzes || undefined}
+                          iratTargy={irat.targy}
+                          canEdit={canEdit}
+                        />
+                      )
+                    })()}
                     {canEdit && (
                       <BorrowDialog 
                         iratId={irat.id} 

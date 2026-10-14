@@ -59,7 +59,7 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
           verzio,
           pdfa_path
         ),
-        irat_fizikai_hely ( doboz, polc ),
+        irat_fizikai_hely ( doboz, polc, megjegyzes ),
         irat_kolcsonzes_naplo ( id, kinek_user_id, varhato_visszahozatal, statusz )
       )
     `)
@@ -399,8 +399,8 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="overview">Áttekintés</TabsTrigger>
-          <TabsTrigger value="tasks">Feladatok & Megjegyzések</TabsTrigger>
-          <TabsTrigger value="outgoing">Válaszlevelek & Expediálás</TabsTrigger>
+          <TabsTrigger value="tasks">Feladatok</TabsTrigger>
+          <TabsTrigger value="outgoing">Válaszlevelek</TabsTrigger>
           <TabsTrigger value="history">Napló</TabsTrigger>
           <TabsTrigger value="links">Külső Kapcsolatok</TabsTrigger>
         </TabsList>

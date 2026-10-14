@@ -64,6 +64,7 @@ export interface DashboardDepartmentItem {
 interface DashboardOverviewProps {
   currentUserId: string
   currentUserRole: string
+  myFelelosIds?: string[]
   allIratok: DashboardIratItem[]
   allUgyiratok: DashboardUgyiratItem[]
   allTasks: DashboardTaskItem[]
@@ -233,6 +234,7 @@ function BizonylatChartTooltip({ active, payload, label }: any) {
 export function DashboardOverview({
   currentUserId,
   currentUserRole,
+  myFelelosIds,
   allIratok,
   allUgyiratok,
   allTasks,
@@ -256,20 +258,54 @@ export function DashboardOverview({
   }, [period, allIratok])
 
   // KPI values
-  const todayDate = new Date(); todayDate.setHours(0,0,0,0)
-  const in3 = new Date(todayDate); in3.setDate(todayDate.getDate() + 3)
+  const todayDate = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [])
+  const in3 = useMemo(() => {
+    const d = new Date(todayDate)
+    d.setDate(todayDate.getDate() + 3)
+    return d
+  }, [todayDate])
 
   const inboxCount     = filteredIratok.filter(i => i.ugyirat_id === null).length
   const incomingTotal  = filteredIratok.filter(i => i.irany === "bejovo").length
-  const activeDossiers = allUgyiratok.filter(u =>
-    !["lezart","irattarban","selejtezheto","selejtezett"].includes(u.statusz))
-  const urgentDossiers = activeDossiers.filter(u => {
-    if (!u.hatarido) return false
-    const d = new Date(u.hatarido); d.setHours(0,0,0,0); return d <= in3
-  })
-  const overdueCount   = urgentDossiers.filter(u => {
-    const d = new Date(u.hatarido!); d.setHours(0,0,0,0); return d < todayDate
-  }).length
+
+  // Aktív, még nem elintézett/archivált ügyiratok
+  const activeDossiers = useMemo(() => {
+    return allUgyiratok.filter(u =>
+      !["elintezett", "lezart", "irattarban", "selejtezheto", "selejtezett"].includes(u.statusz)
+    )
+  }, [allUgyiratok])
+
+  // Sürgős határidők: 3 napon belül esedékes vagy lejárt, rendezve valódi sürgősség szerint
+  const urgentDossiers = useMemo(() => {
+    return activeDossiers
+      .filter(u => {
+        if (!u.hatarido) return false
+        const d = new Date(u.hatarido)
+        d.setHours(0, 0, 0, 0)
+        return d <= in3
+      })
+      .sort((a, b) => {
+        const daysA = daysUntil(a.hatarido) ?? 999
+        const daysB = daysUntil(b.hatarido) ?? 999
+        // 0 (ma) legfontosabb (0), utána közeledők (1, 2, 3 nap), utána a legfrissebb lejártak (-1, -2...), végén a régen lejártak
+        const scoreA = daysA === 0 ? 0 : daysA > 0 ? daysA : Math.abs(daysA) + 10
+        const scoreB = daysB === 0 ? 0 : daysB > 0 ? daysB : Math.abs(daysB) + 10
+        return scoreA - scoreB
+      })
+  }, [activeDossiers, in3])
+
+  const overdueCount = useMemo(() => {
+    return urgentDossiers.filter(u => {
+      const d = new Date(u.hatarido!)
+      d.setHours(0, 0, 0, 0)
+      return d < todayDate
+    }).length
+  }, [urgentDossiers, todayDate])
+
   const archivedCount  = allUgyiratok.filter(u => ["irattarban","lezart"].includes(u.statusz)).length
   const scrapCount     = allUgyiratok.filter(u => ["selejtezheto","selejtezett"].includes(u.statusz)).length
 
@@ -484,10 +520,99 @@ export function DashboardOverview({
       .slice(0, 5)
   }, [filteredIratok])
 
-  // My items
-  const isPrivileged = ["admin","rendszergazda","iktato","vezeto"].includes(currentUserRole)
-  const myDossiers = allUgyiratok.filter(u => isPrivileged||u.felelos_user_id===currentUserId).slice(0,6)
-  const myTasks    = allTasks.filter(t => (isPrivileged||t.felelos_user_id===currentUserId) && t.allapot !== "kesz" && t.allapot !== "elutasitott").slice(0,6)
+  // Saját felelős azonosítók (bejelentkezett felhasználó + aktív helyettesítések)
+  const effectiveFelelosIds = useMemo(() => {
+    return myFelelosIds && myFelelosIds.length > 0 ? myFelelosIds : [currentUserId]
+  }, [myFelelosIds, currentUserId])
+
+  // 1. Rám szignált ügyiratok (ahol az aktuális felhasználó a kijelölt felelős, és az ügyirat aktív)
+  const myDossiers = useMemo(() => {
+    return allUgyiratok.filter(u =>
+      Boolean(u.felelos_user_id && effectiveFelelosIds.includes(u.felelos_user_id)) &&
+      !["elintezett", "lezart", "irattarban", "selejtezheto", "selejtezett"].includes(u.statusz)
+    )
+  }, [allUgyiratok, effectiveFelelosIds])
+
+  // 2. Ügyiratban rám kiosztott teendők / feladatok (ahol az aktuális felhasználó a felelős és nyitott/folyamatban van)
+  const myTasks = useMemo(() => {
+    return allTasks.filter(t =>
+      Boolean(t.felelos_user_id && effectiveFelelosIds.includes(t.felelos_user_id)) &&
+      t.allapot !== "kesz" &&
+      t.allapot !== "elutasitott"
+    )
+  }, [allTasks, effectiveFelelosIds])
+
+  // Szűrő állapota a Saját feladataim dobozhoz (ha van mindkét típus)
+  const [myItemsFilter, setMyItemsFilter] = useState<"all" | "dossiers" | "tasks">("all")
+
+  // Összevont, rendezett lista: rám szignált ügyiratok ÉS kapott feladatok
+  const unifiedMyItems = useMemo(() => {
+    const list: {
+      id: string
+      kind: "dossier" | "task"
+      title: string
+      iktatoszam: string | null
+      href: string
+      hatarido: string | null
+      statusLabel: string
+      statusColorClass: string
+      kindLabel: "Ügyirat" | "Feladat"
+    }[] = []
+
+    if (myItemsFilter === "all" || myItemsFilter === "dossiers") {
+      myDossiers.forEach(d => {
+        list.push({
+          id: `dossier-${d.id}`,
+          kind: "dossier",
+          title: d.ugy_targy || "Nincs tárgy",
+          iktatoszam: d.iktatoszam,
+          href: `/dossiers/${d.id}`,
+          hatarido: d.hatarido,
+          statusLabel: d.statusz === "szignalt" ? "Szignálva"
+            : d.statusz === "ugyintezes_alatt" ? "Ügyintézés alatt"
+            : d.statusz === "iktatva" ? "Iktatva"
+            : d.statusz,
+          statusColorClass: d.statusz === "szignalt" ? "bg-primary/10 text-primary"
+            : d.statusz === "ugyintezes_alatt" ? "bg-info/10 text-info"
+            : "bg-muted text-muted-foreground",
+          kindLabel: "Ügyirat",
+        })
+      })
+    }
+
+    if (myItemsFilter === "all" || myItemsFilter === "tasks") {
+      myTasks.forEach(t => {
+        list.push({
+          id: `task-${t.id}`,
+          kind: "task",
+          title: t.leiras,
+          iktatoszam: t.iktatoszam,
+          href: t.ugyirat_id ? `/dossiers/${t.ugyirat_id}?tab=tasks` : "/tasks",
+          hatarido: t.hatarido,
+          statusLabel: t.allapot === "folyamatban" ? "Folyamatban"
+            : t.allapot === "nyitott" ? "Új feladat"
+            : t.allapot,
+          statusColorClass: t.allapot === "folyamatban" ? "bg-primary/10 text-primary"
+            : "bg-muted text-muted-foreground",
+          kindLabel: "Feladat",
+        })
+      })
+    }
+
+    // Rendezés: közeledő és frissen lejárt határidők elöl, határidő nélküliek a végén
+    return list.sort((a, b) => {
+      if (a.hatarido && b.hatarido) {
+        const daysA = daysUntil(a.hatarido) ?? 999
+        const daysB = daysUntil(b.hatarido) ?? 999
+        const scoreA = daysA === 0 ? 0 : daysA > 0 ? daysA : Math.abs(daysA) + 10
+        const scoreB = daysB === 0 ? 0 : daysB > 0 ? daysB : Math.abs(daysB) + 10
+        return scoreA - scoreB
+      }
+      if (a.hatarido) return -1
+      if (b.hatarido) return 1
+      return 0
+    })
+  }, [myDossiers, myTasks, myItemsFilter])
 
   const PERIOD_TABS = [
     { key:"all",    label:"Összes" },
@@ -809,19 +934,9 @@ export function DashboardOverview({
 
       {/* ── Option A: Lejáró határidők & Saját feladataim */}
       <div className="rounded-xl border border-border/60 bg-card p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Lejáró határidők & Saját feladataim</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Sürgős teendők és rád rendelt feladatok</p>
-          </div>
-          <div className="flex items-center gap-5">
-            <Link href="/dossiers" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-              Határidők →
-            </Link>
-            <Link href="/tasks" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-              Feladatok →
-            </Link>
-          </div>
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-foreground">Lejáró határidők & Saját feladataim</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Sürgős teendők és rád rendelt feladatok</p>
         </div>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:divide-x lg:divide-border/40">
@@ -871,60 +986,114 @@ export function DashboardOverview({
 
           {/* Jobb: Saját feladataim */}
           <div className="lg:pl-8">
-            <p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
-              Saját feladataim
-            </p>
-            {myTasks.length > 0 ? (
-              <div className="divide-y divide-border/30">
-                {myTasks.map(task => (
-                  <div key={task.id} className="flex items-center justify-between gap-4 py-3.5">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground leading-snug">{task.leiras}</p>
-                      <p className="mt-0.5 font-mono text-[11px] text-muted-foreground/70">{task.iktatoszam || "—"}</p>
-                    </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      {task.hatarido && (
-                        <span className="text-[11px] tabular-nums text-muted-foreground">
-                          {new Date(task.hatarido).toLocaleDateString("hu-HU", { month: "short", day: "numeric" })}
-                        </span>
-                      )}
-                      <span className={cn(
-                        "rounded px-2 py-0.5 text-[11px] font-medium",
-                        task.allapot === "folyamatban" ? "bg-primary/10 text-primary"
-                          : task.allapot === "kesz" ? "bg-success/10 text-success"
-                          : task.allapot === "elutasitott" ? "bg-destructive/10 text-destructive"
-                          : "bg-muted text-muted-foreground"
-                      )}>
-                        {task.allapot === "folyamatban" ? "Folyamatban"
-                          : task.allapot === "kesz" ? "Kész"
-                          : task.allapot === "elutasitott" ? "Elutasítva"
-                          : task.allapot}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                Saját feladataim
+              </p>
+              <div className="inline-flex items-center gap-1 bg-muted/40 p-0.5 rounded-md border border-border/40">
+                <button
+                  type="button"
+                  onClick={() => setMyItemsFilter("all")}
+                  className={cn(
+                    "rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
+                    myItemsFilter === "all"
+                      ? "bg-background text-foreground shadow-xs border border-border/40 font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Mind ({myDossiers.length + myTasks.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMyItemsFilter("dossiers")}
+                  className={cn(
+                    "rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
+                    myItemsFilter === "dossiers"
+                      ? "bg-background text-foreground shadow-xs border border-border/40 font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Ügyiratok ({myDossiers.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMyItemsFilter("tasks")}
+                  className={cn(
+                    "rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
+                    myItemsFilter === "tasks"
+                      ? "bg-background text-foreground shadow-xs border border-border/40 font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Feladatok ({myTasks.length})
+                </button>
               </div>
-            ) : myDossiers.length > 0 ? (
+            </div>
+
+            {unifiedMyItems.length > 0 ? (
               <div className="divide-y divide-border/30">
-                {myDossiers.slice(0, 6).map(d => (
-                  <Link
-                    key={d.id}
-                    href={`/dossiers/${d.id}`}
-                    className="flex items-center justify-between gap-4 py-3.5 transition-opacity hover:opacity-60"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground leading-snug">{d.ugy_targy || "Nincs tárgy"}</p>
-                      <p className="mt-0.5 font-mono text-[11px] text-muted-foreground/70">{d.iktatoszam}</p>
-                    </div>
-                    <span className="flex-shrink-0 rounded px-2 py-0.5 text-[11px] font-medium bg-muted text-muted-foreground">
-                      {d.statusz}
-                    </span>
-                  </Link>
-                ))}
+                {unifiedMyItems.slice(0, 6).map(item => {
+                  const days = daysUntil(item.hatarido)
+                  const overdue = days !== null && days < 0
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      className="flex items-center justify-between gap-4 py-3.5 transition-opacity hover:opacity-75 group"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-medium tracking-wide uppercase px-1.5 py-0.5 rounded bg-muted text-muted-foreground flex-shrink-0">
+                            {item.kindLabel}
+                          </span>
+                          <p className="truncate text-sm font-medium text-foreground leading-snug group-hover:text-primary transition-colors">
+                            {item.title}
+                          </p>
+                        </div>
+                        <p className="mt-0.5 font-mono text-[11px] text-muted-foreground/70 pl-0.5">
+                          {item.iktatoszam || "—"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {item.hatarido && (
+                          <span className={cn(
+                            "rounded px-2 py-0.5 text-[11px] font-medium tabular-nums",
+                            overdue
+                              ? "bg-destructive/10 text-destructive"
+                              : days === 0
+                              ? "bg-warning/10 text-warning"
+                              : "text-muted-foreground bg-muted/40"
+                          )}>
+                            {days === 0 ? "Ma"
+                              : overdue ? `${Math.abs(days!)} napja lejárt`
+                              : `${days} nap`}
+                          </span>
+                        )}
+                        <span className={cn(
+                          "rounded px-2 py-0.5 text-[11px] font-medium",
+                          item.statusColorClass
+                        )}>
+                          {item.statusLabel}
+                        </span>
+                      </div>
+                    </Link>
+                  )
+                })}
               </div>
             ) : (
-              <div className="flex h-40 items-center justify-center">
-                <p className="text-sm text-muted-foreground">Jelenleg nincs rád szignált feladat</p>
+              <div className="flex h-40 flex-col items-center justify-center text-center p-4">
+                <p className="text-sm font-medium text-foreground">
+                  {myItemsFilter === "tasks" ? "Nincsenek aktív feladataid"
+                    : myItemsFilter === "dossiers" ? "Nincsenek rád szignált ügyirataid"
+                    : "Nincsenek aktív saját feladataid"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  {myItemsFilter === "tasks"
+                    ? "Jelenleg egyetlen ügyiratban sincs rád bízott nyitott feladat."
+                    : myItemsFilter === "dossiers"
+                    ? "Jelenleg egyetlen aktív ügyiratnak sem te vagy a kijelölt felelőse."
+                    : "Jelenleg egyetlen nyitott ügyiratnak vagy feladatnak sem te vagy a kijelölt felelőse."}
+                </p>
               </div>
             )}
           </div>

@@ -81,10 +81,13 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-071](./P-071-hr-job-catalog-specification-and-omnipresent-integration.md) | 2026-10-12 | Nyilvántartott Munkakörök Törzsadatai, Korszerű Szerkesztő és Rendszerszintű Integráció | `[HR]` | `HR / Job Catalog, Employee 360° & Self-Service` | [A-052](../../architecture/decisions/A-052-hr-job-catalog-specification-and-omnipresent-integration.md), `job-edit-dialog.tsx`, `job/[id]/page.tsx`, `job-action-menu.tsx`, `EmploymentTab.tsx`, `self-service/profile/page.tsx` |
 | [P-072](./P-072-hr-job-profile-and-catalog-ux-declutter-and-deduplication.md) | 2026-10-12 | Munkaköri Profil és Adatlap UX Tisztítás, Redundanciamentesítés és Linear-Flat Design Harmónia | `[HR]` | `HR / Job Catalog, Employee 360° & Self-Service` | [A-053](../../architecture/decisions/A-053-hr-job-profile-and-catalog-action-deduplication.md), `job-edit-dialog.tsx`, `job/[id]/page.tsx`, `job-description-upload.tsx`, `EmploymentTab.tsx`, `self-service/profile/page.tsx` |
 | [P-073](./P-073-multi-attachment-switcher-and-document-split-ux.md) | 2026-10-12 | Többcsatolmányos Előnézet és Irat-szétválasztási UX | `[Docs]` | `Inbox / Filing Split-View & Attachments` | [A-054](../../architecture/decisions/A-054-multi-attachment-handling-and-document-splitting-architecture.md), `filing-panel-client.tsx`, `filing-actions.ts`, `inbox-table-client.tsx` |
+| [P-074](./P-074-physical-storage-searchable-combobox-and-custody-action-harmonization.md) | 2026-10-14 | Fizikai Irattári Helymeghatározás Kereshető Combobox Menü és Kölcsönzési Akciógombok Harmonizációja | `[Docs]` | `Dossiers / Physical Storage & Custody UX` | [A-055](../../architecture/decisions/A-055-physical-location-combobox-and-storage-note-persistence.md), `physical-location-dialog.tsx`, `borrow-dialog.tsx`, `iratok-lista.tsx` |
+| [P-075](./P-075-archive-and-dossier-ux-simplification-and-dialog-header-harmony.md) | 2026-10-14 | Irattári Selejtezési Felületek, Ügyirat Fülek és Modál Fejlécek Letisztítása | `[Docs]` | `Archive, Scrapping & Dossier Detail UX` | [A-056](../../architecture/decisions/A-056-base-ui-dialog-close-composition-and-render-prop-pattern.md), `archive-client.tsx`, `dossiers/[id]/page.tsx`, `outgoing-documents-tab.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-074`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-076`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+
 
 

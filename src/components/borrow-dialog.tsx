@@ -65,12 +65,13 @@ export function BorrowDialog({ iratId, activeBorrowLog, users }: BorrowDialogPro
     const isLate = new Date(activeBorrowLog.varhato_visszahozatal) < new Date()
 
     return (
-      <div className="flex flex-col items-start gap-1">
-        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-sm w-fit ${isLate ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
-          Kikölcsönözve: {kinek} (Várható: {new Date(activeBorrowLog.varhato_visszahozatal).toLocaleDateString("hu-HU")})
+      <div className="inline-flex items-center gap-1.5 shrink-0 flex-wrap">
+        <span className={`text-[10px] font-medium h-7 px-2.5 rounded-md flex items-center gap-1.5 border ${isLate ? "bg-destructive/10 text-destructive border-destructive/25" : "bg-warning/10 text-warning border-warning/25"}`}>
+          <MapPin className="h-3 w-3 shrink-0" />
+          <span>Kikölcsönözve: <strong className="font-semibold">{kinek}</strong> ({new Date(activeBorrowLog.varhato_visszahozatal).toLocaleDateString("hu-HU")})</span>
         </span>
-        <Button size="sm" variant="ghost" className="h-auto p-0 text-muted-foreground hover:text-primary text-xs" onClick={handleReturn} disabled={isLoading}>
-          <ArchiveRestore className="h-3 w-3 mr-1" /> Visszavétel rögzítése
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground hover:text-primary text-[11px] cursor-pointer" onClick={handleReturn} disabled={isLoading}>
+          <ArchiveRestore className="h-3.5 w-3.5 mr-1 text-primary" /> Visszavétel
         </Button>
       </div>
     )
@@ -78,9 +79,15 @@ export function BorrowDialog({ iratId, activeBorrowLog, users }: BorrowDialogPro
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button size="sm" variant="ghost" className="h-auto p-0 text-muted-foreground hover:text-primary text-xs" onClick={() => setOpen(true)}>
-        <MapPin className="h-3 w-3 mr-1" /> Kölcsönzés rögzítése
-      </Button>
+      <button 
+        type="button"
+        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-medium text-muted-foreground hover:text-foreground border border-dashed border-border/80 hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer shrink-0" 
+        onClick={() => setOpen(true)}
+        title="Kölcsönzés rögzítése"
+      >
+        <MapPin className="h-3 w-3 text-muted-foreground/80 shrink-0" />
+        <span>Kölcsönzés rögzítése</span>
+      </button>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Irat Kölcsönzése</DialogTitle>
@@ -98,9 +105,7 @@ export function BorrowDialog({ iratId, activeBorrowLog, users }: BorrowDialogPro
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {users
-                  .filter(u => ['iktato', 'admin', 'rendszergazda'].includes(u.docs_szerepkor || ''))
-                  .map(u => (
+                {users.map(u => (
                   <SelectItem key={u.id} value={u.id}>{u.nev}</SelectItem>
                 ))}
               </SelectContent>

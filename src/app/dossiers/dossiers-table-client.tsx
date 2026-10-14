@@ -11,20 +11,14 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Button, buttonVariants } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Lock, Eye, ExternalLink, FolderOpen } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Lock, Eye, ExternalLink } from "lucide-react"
 import { StatusBadge } from "@/components/status-badge"
 import { AssignDossierDialog } from "@/components/assign-dossier-dialog"
 import { ExportDossiersDropdown } from "@/components/export-dossiers-dropdown"
 import { TableToolbar, TableColumnOption, FilterGroup } from "@/components/table-toolbar/table-toolbar"
+import { DocumentViewer } from "@/components/document-viewer"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
 export interface DossierItem {
@@ -50,7 +44,17 @@ export interface DossierItem {
   } | null
   irat?: Array<{
     id: string
+    targy?: string
     minosites?: string
+    irat_fajl?: Array<{
+      id: string
+      storage_path: string
+      eredeti_fajlnev: string
+      mime_type?: string | null
+      pdfa_path?: string | null
+      meret_byte?: number | null
+      sha256?: string | null
+    }>
   }>
 }
 
@@ -85,9 +89,39 @@ export function DossiersTableClient({
   const [selectedSecurity, setSelectedSecurity] = useState<string[]>([])
   const [selectedAssignments, setSelectedAssignments] = useState<string[]>([])
 
-  // Gyors betekintő állapot
-  const [selectedDossier, setSelectedDossier] = useState<DossierItem | null>(null)
-  const [dossierModalOpen, setDossierModalOpen] = useState(false)
+  // Gyors megtekintés (DocumentViewer) állapotok
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerFile, setViewerFile] = useState<any | null>(null)
+  const [viewerFiles, setViewerFiles] = useState<any[]>([])
+  const [viewerIratId, setViewerIratId] = useState<string>("")
+  const [viewerDossierId, setViewerDossierId] = useState<string>("")
+
+  const handleQuickView = (dossier: DossierItem) => {
+    const allFiles: any[] = []
+    if (dossier.irat && Array.isArray(dossier.irat)) {
+      for (const ir of dossier.irat) {
+        if (ir.irat_fajl && Array.isArray(ir.irat_fajl)) {
+          for (const f of ir.irat_fajl) {
+            allFiles.push({
+              ...f,
+              irat_id: (f as any).irat_id || ir.id,
+              irat_targy: ir.targy,
+            })
+          }
+        }
+      }
+    }
+
+    if (allFiles.length > 0) {
+      setViewerFile(allFiles[0])
+      setViewerFiles(allFiles)
+      setViewerIratId(allFiles[0].irat_id || (dossier.irat?.[0]?.id ?? ""))
+      setViewerDossierId(dossier.id)
+      setViewerOpen(true)
+    } else {
+      toast.info("Ehhez az ügyirathoz nem található csatolt fájlmelléklet.")
+    }
+  }
 
   const handleToggleColumn = (id: string) => {
     setColumns((prev) =>
@@ -266,6 +300,21 @@ export function DossiersTableClient({
                   ? dossier.szervezeti_egyseg_id === currentUserProfile?.szervezeti_egyseg_id
                   : canAssign
 
+                const dossierFiles: any[] = []
+                if (dossier.irat && Array.isArray(dossier.irat)) {
+                  for (const ir of dossier.irat) {
+                    if (ir.irat_fajl && Array.isArray(ir.irat_fajl)) {
+                      for (const f of ir.irat_fajl) {
+                        dossierFiles.push({
+                          ...f,
+                          irat_id: (f as any).irat_id || ir.id,
+                          irat_targy: ir.targy,
+                        })
+                      }
+                    }
+                  }
+                }
+
                 return (
                   <TableRow key={dossier.id} className="hover:bg-muted/50 transition-colors">
                     {isColVisible("iktatoszam") && (
@@ -321,25 +370,34 @@ export function DossiersTableClient({
                     )}
                     {isColVisible("muveletek") && (
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                            title="Gyors betekintés"
-                            onClick={() => {
-                              setSelectedDossier(dossier)
-                              setDossierModalOpen(true)
-                            }}
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* In-place Quick View (ugyanolyan, mint a bejövő sorban) */}
+                          {dossierFiles.length > 0 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-primary hover:bg-primary/10 hover:text-primary transition-colors relative"
+                              onClick={() => handleQuickView(dossier)}
+                              title={
+                                dossierFiles.length > 1
+                                  ? `${dossierFiles.length} csatolt dokumentum gyors megtekintése`
+                                  : "Csatolt dokumentum gyors megtekintése"
+                              }
+                            >
+                              <Eye className="h-4 w-4" />
+                              {dossierFiles.length > 1 && (
+                                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold rounded-full h-4 min-w-4 px-1 flex items-center justify-center pointer-events-none shadow-xs">
+                                  {dossierFiles.length}
+                                </span>
+                              )}
+                            </Button>
+                          )}
                           <Link
                             href={`/dossiers/${dossier.id}`}
-                            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                            title="Ügyirat megnyitása"
+                            className="inline-flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                            title="Ügyirat adatlap megnyitása"
                           >
-                            <ExternalLink className="h-3.5 w-3.5" />
+                            <ExternalLink className="h-4 w-4" />
                           </Link>
                         </div>
                       </TableCell>
@@ -363,85 +421,17 @@ export function DossiersTableClient({
         </Table>
       </div>
 
-      {/* ── ÜGYIRAT GYORS BETEKINTŐ MODÁL ── */}
-      <Dialog open={dossierModalOpen} onOpenChange={setDossierModalOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <div className="flex items-center gap-2 mb-1">
-              <FolderOpen className="h-4 w-4 text-primary" />
-              <DialogTitle className="text-base font-semibold">
-                {selectedDossier?.iktatoszam || "Ügyirat gyors betekintő"}
-              </DialogTitle>
-            </div>
-            <DialogDescription className="text-xs">
-              Az ügyirat alapadatainak és aktuális állapotának gyors áttekintése.
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedDossier && (
-            <div className="space-y-3 text-xs py-2">
-              <div className="p-3 bg-muted/40 border border-border/60 rounded-md">
-                <span className="text-muted-foreground block mb-1">Tárgy / Ügy megnevezése:</span>
-                <span className="font-semibold text-sm text-foreground">
-                  {(selectedDossier.ugy as any)?.targy || "Nincs megadva tárgy"}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="p-2.5 bg-muted/20 border border-border/40 rounded">
-                  <span className="text-muted-foreground block mb-0.5">Állapot:</span>
-                  <div className="pt-0.5">
-                    <StatusBadge status={selectedDossier.statusz} />
-                  </div>
-                </div>
-                <div className="p-2.5 bg-muted/20 border border-border/40 rounded">
-                  <span className="text-muted-foreground block mb-0.5">Felelős ügyintéző:</span>
-                  <span className="font-semibold">
-                    {((selectedDossier.ugy as any)?.felelos_user as any)?.full_name || "Kiosztatlan"}
-                  </span>
-                </div>
-                <div className="p-2.5 bg-muted/20 border border-border/40 rounded">
-                  <span className="text-muted-foreground block mb-0.5">Iktatás dátuma:</span>
-                  <span className="font-semibold tabular-nums">
-                    {selectedDossier.iktatas_datuma
-                      ? new Date(selectedDossier.iktatas_datuma).toLocaleDateString("hu-HU")
-                      : "—"}
-                  </span>
-                </div>
-                <div className="p-2.5 bg-muted/20 border border-border/40 rounded">
-                  <span className="text-muted-foreground block mb-0.5">Határidő:</span>
-                  <span className="font-semibold tabular-nums">
-                    {(selectedDossier.ugy as any)?.hatarido
-                      ? new Date((selectedDossier.ugy as any).hatarido).toLocaleDateString("hu-HU")
-                      : "Nincs határidő"}
-                  </span>
-                </div>
-                <div className="p-2.5 bg-muted/20 border border-border/40 rounded col-span-2">
-                  <span className="text-muted-foreground block mb-0.5">Szervezeti egység:</span>
-                  <span className="font-semibold">
-                    {selectedDossier.szervezeti_egyseg?.nev || "Központi szervezet"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="flex items-center justify-between sm:justify-between pt-2 border-t border-border/40">
-            <Button variant="ghost" size="sm" onClick={() => setDossierModalOpen(false)}>
-              Bezárás
-            </Button>
-            {selectedDossier?.id && (
-              <Link
-                href={`/dossiers/${selectedDossier.id}`}
-                className={cn(buttonVariants({ size: "sm" }), "gap-1.5")}
-              >
-                <span>Ügyirat teljes megnyitása</span>
-                <ExternalLink className="h-3.5 w-3.5" />
-              </Link>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* In-place Document Viewer Modal */}
+      {viewerFile && (
+        <DocumentViewer
+          open={viewerOpen}
+          setOpen={setViewerOpen}
+          fajl={viewerFile}
+          fajlok={viewerFiles}
+          iratId={viewerIratId}
+          dossierId={viewerDossierId}
+        />
+      )}
     </div>
   )
 }
