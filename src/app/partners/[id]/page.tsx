@@ -27,6 +27,8 @@ import { getPermissions } from "@/utils/permissions"
 import { cn } from "@/lib/utils"
 import { PartnerDocumentsTable } from "@/components/partner-documents-table"
 import { ContractGeneratorDialog } from "@/components/contracts/contract-generator-dialog"
+import { syncEaisyBillPartnerInvoicesAction } from "@/app/partners/eaisybill-partner-actions"
+import { PartnerInvoiceSyncButton } from "@/components/partners/partner-invoice-sync-button"
 
 export default async function PartnerDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
@@ -57,6 +59,18 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
     notFound()
   }
 
+  // Automatikus háttér-szinkronizáció a partner eaisyBill számláihoz
+  if (partner.company_id) {
+    try {
+      await syncEaisyBillPartnerInvoicesAction({
+        partnerId: partner.id,
+        targetCompanyId: partner.company_id
+      })
+    } catch (syncErr) {
+      console.warn("[eaisyDocs] Partner eaisyBill számla szinkron figyelmeztetés:", syncErr)
+    }
+  }
+
   // 2. Partnerhez kapcsolódó iratok (bejövő és kimenő)
   const { data: iratokMintPartner } = await supabase
     .from("irat")
@@ -79,7 +93,8 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
         meret_byte,
         mime_type,
         sha256,
-        pdfa_path
+        pdfa_path,
+        kulso_fajl_url
       ),
       ugyirat:ugyirat_id (
         id,
@@ -222,6 +237,7 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
         <div className="flex items-center gap-2 flex-wrap">
           {permissions.canEdit && (
             <>
+              <PartnerInvoiceSyncButton partnerId={partner.id} companyId={partner.company_id} />
               <ContractGeneratorDialog partner={partner} />
               <PartnerContactDialog partnerId={partner.id} />
               <PartnerDialog partner={partner} />
