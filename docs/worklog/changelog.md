@@ -4,14 +4,25 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-14)
 
-### 🤝 eaisyDocs: eaisyBill Partnertörzs Importálása és Duplikáció-védett Szinkronizáció (A-062 / P-081)
+### 🤝 eaisyDocs: eaisyBill Partnertörzs Importálása, Számlaszinkron és Iratforgalmi Integráció (A-062 / P-081)
 - **Közvetlen Import Gomb a Partnerek Felületén:** A Partnerek (`/partners`) főoldalán a szabványos `TableToolbar` akció sávjában, közvetlenül a `+ Új Partner` gomb mellett megjelent az „Importálás eaisyBill-ből” gomb (`EaisyBillPartnerImportDialog`).
 - **Linear-Flat Importáló Modál:** Felugró ablak jeleníti meg az aktív céghez (pl. `SANDBOX`) tartozó összes eaisyBill partnert, összesítő statisztikákkal (összes partner, importálható új, már importálva, kijelöltek száma).
 - **Azonnali Keresés és Típus Szűrők:** Valós idejű gépelési keresőmező (név, adószám, székhely, e-mail) és gyors szűrő pill-ek (`Mind`, `Csak új`, `Vevők`, `Szállítók`).
 - **Szelektív és Tömeges Import:** Egyenkénti jelölőnégyzetek és fejléc szintű "Összes új partner kijelölése" funkció.
-- **Négylépcsős Duplikáció-védelem:** Az összevetés ellenőrzi az `eaisybill_partner_id`-t, az adószám első 8 számjegyét, a külföldi/EU adószámot és a nevet. A már meglévő partnerek sora letiltott és zöld *„Már importálva”* jelvénnyel védett.
+- **Négylépcsős Partner Duplikáció-védelem:** Az összevetés ellenőrzi az `eaisybill_partner_id`-t, az adószám első 8 számjegyét, a külföldi/EU adószámot és a nevet. A már meglévő partnerek sora letiltott és zöld *„Már importálva”* jelvénnyel védett.
 - **Intelligens Jogi Forma és Szerepkör Detektálás:** Automatikus konverzió a céges rövidítésekből (`Kft.`, `Zrt.`, `Bt.`, `GmbH` -> `ceg`; `E.V.` -> `egyeni_vallalkozo`; hivatalok -> `intezmeny`), illetve a szerepköröknél (`customer` -> `vevo`, `supplier` -> `szallito`, `both` -> `mindketto`).
-- **Audit Naplózás:** Minden importálás append-only bejegyzést kap az `esemeny_naplo` táblába.
+- **Partner Számlák és Iratforgalom Szinkronizációja (`syncEaisyBillPartnerInvoicesAction`):**
+  - **Kizárólag PDF-fel rendelkező számlák áthozatala:** Szigorú szűrés `melleklet_url IS NOT NULL` feltételre, kizárva az üres iratokat.
+  - **Irány és Azonosító Különválasztása:** Bejövő számláknál hivatalos érkeztetőszám (`E/2026/...`), kimenőknél a saját bizonylatszám (pl. `NAV-2026-OUT01`), amely azonosítóként azonnal megjelenik a táblázatban.
+  - **Zéró-tárhely Fájlkapcsolat:** Az `irat_fajl.kulso_fajl_url` közvetlenül az eaisyBill csatolmányra mutat, így a belső `/api/pdf/[id]` és a `DocumentViewer` azonnal, vízjellel streameli a fájlt dupla tárolási költség nélkül.
+- **Adatbázis Szintű Duplikációvédelem és SSR Render Biztonság:**
+  - Létrehoztuk a `idx_irat_company_kulso_hivatkozas` egyedi parciális indexet a `(company_id, kulso_forras, kulso_hivatkozas_id)` mezőkre (`20261014000004_unique_external_invoice_sync.sql`), hardverszinten kiküszöbölve a számladuplikációt.
+  - Megszüntettük a szerver komponens render-fázisában futó mutációt; a szinkron a partner legelső importálásakor, illetve a partner adatlapi `PartnerInvoiceSyncButton` gombbal fut le.
+  - A számlák felmérését adminisztrátori kliens (`adminClient`) végzi, függetlenül a felhasználói RLS szűrőktől.
+- **Partner Adatlap UI Tisztítás és Elrendezés:**
+  - A részletes adatlap fülei (`Iratforgalom`, `Kapcsolattartók`, `Csatolt Ügyek`) letisztult, ikonok és számláló zárójelek nélküli tipográfiát kaptak.
+  - A fejléc akciógombjai egységesen jobbra zártak (`justify-end sm:ml-auto shrink-0`), a redundáns `Új Irat érkeztetése` gomb kivezetésre került.
+- **Audit Naplózás:** Minden importálás és számlaszinkronizáció append-only bejegyzést kap az `esemeny_naplo` táblába.
 - **Dokumentáció:** [ADR A-062](../architecture/decisions/A-062-eaisybill-partner-master-import-architecture.md), [PRD P-081](../product/decisions/P-081-eaisybill-partner-master-import-ux.md).
 
 ### 🚀 eaisyDocs & eaisyHR: Vercel Serverless Felkészítés, E-mail Branding és Dolgozói Profil UX (A-061 / P-080)

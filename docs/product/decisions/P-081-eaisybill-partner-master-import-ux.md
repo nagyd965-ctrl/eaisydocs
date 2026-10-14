@@ -51,22 +51,24 @@ A gomb megjelenése:
 
 ### 2.3 Partner Adatlap és Iratforgalom Szinkronizáció (`PartnerInvoiceSyncButton`)
 A Partner részletes adatlapján (`/partners/[id]`):
-1. **Automatikus Szinkronizáció Betöltéskor:**
-   - Amikor a felhasználó megnyit egy partnert, az oldal szerver komponense automatikusan lekéri az adott partnerhez tartozó, kizárólag PDF-fel rendelkező eaisyBill számlákat.
-   - Az `Iratforgalmi Összegző` kártya (Összes, Bejövő, Kimenő) és az `Iratforgalom` fül azonnal mutatja a számlákat, nulla manuális kattintással.
+1. **Dedikált Manuális Szinkronizáló Gomb (`PartnerInvoiceSyncButton`):**
+   - Az adatlap fejlécében helyezkedik el a `Számlák szinkronizálása` gomb (`RefreshCw` ikonnal).
+   - Kattintáskor forog az ikon, elvégzi az eaisyBill lekérdezést, majd Sonner toast visszajelzést ad (`X db eaisyBill számla sikeresen szinkronizálva!`), és frissíti a nézetet (`router.refresh()`).
 2. **Különválasztott Irány és Azonosító Jelölés:**
    - **Bejövő számla:** Zöld lefelé nyíl, generált érkeztetőszám (`E/2026/000123`), eladó neve a tárgyban.
    - **Kimenő számla:** Kék felfelé nyíl, a bizonylatsorszám (pl. `NAV-2026-OUT01`), vevő neve a tárgyban.
-3. **Manuális Szinkronizáló Gomb (`PartnerInvoiceSyncButton`):**
-   - Az adatlap fejlécében helyezkedik el a `Számlák szinkronizálása` gomb (`RefreshCw` ikonnal).
-   - Kattintáskor forog az ikon, elvégzi az eaisyBill lekérdezést, majd Sonner toast visszajelzést ad (`X db eaisyBill számla sikeresen szinkronizálva!`), és frissíti a nézetet (`router.refresh()`).
-4. **Azonnali Előnézet és Fájlmegnyitás:**
+3. **Fejléc Akciógombok Elrendezése és Tisztítása:**
+   - Az akciógombok (`Számlák szinkronizálása`, `Új szerződés generálása`, `+ Új Kapcsolattartó`, `Szerkesztés`) egységesen jobbra zártak (`justify-end sm:ml-auto shrink-0`).
+   - A redundáns „Új Irat érkeztetése” gomb eltávolításra került a fejlécből, tisztán tartva a partner adatlapot.
+4. **Fülek Tipográfiája és Minimalizmusa:**
+   - A fülek (`Iratforgalom`, `Kapcsolattartók`, `Csatolt Ügyek`) letisztult, ikonok és zárójeles darabszámok nélküli szöveges címkékkel jelennek meg, illeszkedve a flat designhoz.
+5. **Azonnali Előnézet és Fájlmegnyitás:**
    - A táblázat soraiban a megtekintés (szem) gombra kattintva a kánonikus `DocumentViewer` közvetlenül az eaisyBill biztonságos storage URL-jéről tölti be a PDF-et, vízjellel és eseménynaplózással támogatva.
 
 ---
 
 ## 3. Vizuális és Üzleti Eredmény
-- A felhasználó másodpercek alatt át tudja hozni akár egyenként a kívánt partnereit, akár a komplett 30-50-100 tételes partnertörzsét.
-- A partnerekhez tartozó PDF számlák azonnal, zökkenőmentesen megjelennek a partner adatlapján az Iratforgalomban.
+- A felhasználó másodpercek alatt át tudja hozni akár egyenként a kívánt partnereit, akár a komplett partnertörzsét.
+- A partnerekhez tartozó PDF számlák azonnal, duplikációmentesen megjelennek a partner adatlapján az Iratforgalomban.
 - A rendszer megerősítő Sonner toast üzenetet jelenít meg a sikeres műveletekről.
-- Az oldal azonnal és zökkenőmentesen újratölti az adatokat a `revalidatePath` révén.
+- A felület letisztult, stabil és gyors, minimalista fülekkel és precízen jobbra zárt akciógombokkal.

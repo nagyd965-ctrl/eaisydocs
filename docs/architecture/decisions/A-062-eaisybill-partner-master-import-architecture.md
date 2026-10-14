@@ -74,20 +74,30 @@ A partnerekhez tartozó eaisyBill számlák (`invoices` tábla) automatikusan á
    - **Bejövő számla (`INBOUND`):** `irany = 'bejovo'`. Hivatalos eaisyDocs érkeztetőszámot kap (`generate_erkeztetoszam` RPC alapján, pl. `E/2026/000142`), a partner a szállító (`kuldo_partner_id`).
    - **Kimenő számla (`OUTBOUND`):** `irany = 'kimeno'`. Az azonosító közvetlenül maga a saját bizonylatsorszám (pl. `NAV-2026-OUT01`), a partner a vevő (`kuldo_partner_id`), kék kimenő jelvénnyel.
 3. **Zéró-tárhely Fájlkapcsolat:** Az `irat_fajl` rekord nem duplikálja a fájlt a Supabase Storage-ban, hanem `storage_path = 'eaisybill:' + id` és `kulso_fajl_url = melleklet_url` értékekkel közvetlenül a forrásfájlra hivatkozik, amelyet az eaisyDocs belső biztonsági PDF végpontja (`/api/pdf/[id]`) és a `DocumentViewer` azonnal, vízjellel és eseménynaplózással támogat.
-4. **Kétfázisú Automatikus Szinkronizáció:**
-   - A partnerek eaisyBill-ből történő importálásakor a háttérben azonnal lefut a hozzájuk tartozó számlák áthozatala.
-   - A Partner Részletes Adatlap (`/partners/[id]`) betöltésekor a szerver automatikusan felzárkóztatja a partnerhez tartozó új eaisyBill számlákat, valamint az adatlap fejlécében egy manuális szinkron gomb (`PartnerInvoiceSyncButton`) is rendelkezésre áll.
+4. **Szerver Komponens Render-Fázis Biztonság:**
+   - A Server Component (`page.tsx`) tisztán olvasó (`SELECT`) felelősségű. Tilos benne render közben mutáló háttérszinkront és `revalidatePath`-t hívni (Next.js 15 render invariánsok és versenyhelyzetek elkerülése).
+   - A számlák szinkronja a partnerek eaisyBill-ből történő legelső importálásakor automatikusan lefut, illetve az adatlapon a dedikált `PartnerInvoiceSyncButton` gombbal kezdeményezhető.
 
 ---
 
-## 3. Duplikáció-védelem Algoritmusa
-A `getEaisyBillPartnersAction` szerver akció az alábbi prioritási lánc szerint veti össze a helyi partnereket a forrás eaisyBill partnerekkel:
-1. **Explicit ID egyezés:** `partner.eaisybill_partner_id === bp.id`
-2. **Adószám törzsszám egyezés:** Az adószám első 8 számjegye pontosan egyezik.
-3. **Külföldi / EU adószám egyezés:** Kis- és nagybetű független pontos egyezés.
-4. **Partnernév egyezés:** Kis- és nagybetű független, trimmelt névegyezés.
-
-A számláknál a duplikáció-ellenőrzés a `kulso_forras = 'eaisybill'` és `kulso_hivatkozas_id = invoice.id` pároson alapul, így egy bizonylat soha nem jöhet létre duplán.
+## 3. Duplikáció-védelem Algoritmusa és Adatbázis Integritás
+A rendszer többszintű védelemmel garantálja, hogy egyetlen partner és egyetlen külső számla se kerülhessen be többszörösen:
+1. **Partner Duplikáció-védelem:**
+   - **Explicit ID egyezés:** `partner.eaisybill_partner_id === bp.id`
+   - **Adószám törzsszám egyezés:** Az adószám első 8 számjegye pontosan egyezik.
+   - **Külföldi / EU adószám egyezés:** Kis- és nagybetű független pontos egyezés.
+   - **Partnernév egyezés:** Kis- és nagybetű független, trimmelt névegyezés.
+2. **Számla Duplikáció-védelem és RLS Függetlenség:**
+   - A meglévő számlák azonosítását a `syncEaisyBillPartnerInvoicesAction` service-role admin klienssel (`adminClient`) végzi, így a szigorú RLS házirendek nem rejthetik el a már létező rekordokat.
+   - Beszúrás előtt egyedi atomi ellenőrzés (`doubleCheck`) fut a konkrét `kulso_hivatkozas_id` és `company_id` alapján.
+3. **Fizikai PostgreSQL Egyedi Index (`20261014000004_unique_external_invoice_sync.sql`):**
+   - Létrehoztunk egy parciális egyedi indexet:
+     ```sql
+     CREATE UNIQUE INDEX IF NOT EXISTS idx_irat_company_kulso_hivatkozas 
+     ON public.irat (company_id, kulso_forras, kulso_hivatkozas_id) 
+     WHERE (kulso_hivatkozas_id IS NOT NULL);
+     ```
+   - Ez adatbázis motor szinten, hardverszintű atomicitással akadályozza meg, hogy párhuzamos lekérések vagy hálózati újrapróbálkozások esetén duplikátum szülessen.
 
 ---
 
