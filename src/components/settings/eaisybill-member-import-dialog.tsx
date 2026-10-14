@@ -137,6 +137,18 @@ export function EaisyBillMemberImportDialog({
     }
   }
 
+  const handleSetMemberChecked = (email: string, checked: boolean) => {
+    setSelectedEmails((prev) => {
+      const next = new Set(prev)
+      if (checked) {
+        next.add(email)
+      } else {
+        next.delete(email)
+      }
+      return next
+    })
+  }
+
   const handleToggleMember = (email: string) => {
     setSelectedEmails((prev) => {
       const next = new Set(prev)
@@ -292,27 +304,29 @@ export function EaisyBillMemberImportDialog({
                 return (
                   <div
                     key={member.email}
-                    onClick={() => {
-                      if (!isAlready) handleToggleMember(member.email)
-                    }}
                     className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
                       isAlready
-                        ? "bg-muted/20 border-border/60 opacity-70 cursor-not-allowed"
+                        ? "bg-muted/20 border-border/60 opacity-70"
                         : isSelected
-                        ? "bg-primary/5 border-primary/40 cursor-pointer"
-                        : "bg-card border-border/80 hover:border-primary/30 cursor-pointer"
+                        ? "bg-primary/5 border-primary/40"
+                        : "bg-card border-border/80 hover:border-primary/30"
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <label
+                      htmlFor={`cb-${member.email}`}
+                      className={`flex items-center gap-3 min-w-0 flex-1 select-none ${
+                        isAlready ? "cursor-not-allowed" : "cursor-pointer"
+                      }`}
+                    >
                       <Checkbox
                         id={`cb-${member.email}`}
                         checked={isAlready || isSelected}
                         disabled={isAlready}
-                        onCheckedChange={() => {
-                          if (!isAlready) handleToggleMember(member.email)
+                        onCheckedChange={(ch) => {
+                          if (!isAlready) {
+                            handleSetMemberChecked(member.email, ch === true)
+                          }
                         }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                       />
 
                       <div className="min-w-0 flex-1 space-y-0.5">
@@ -332,12 +346,9 @@ export function EaisyBillMemberImportDialog({
                           <span>{member.email}</span>
                         </div>
                       </div>
-                    </div>
+                    </label>
 
-                    <div
-                      className="flex items-center gap-2.5 shrink-0 ml-3"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <div className="flex items-center gap-2.5 shrink-0 ml-3">
                       {/* ÁLLAPOT JELVÉNY */}
                       {isAlready ? (
                         <Badge
