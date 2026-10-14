@@ -2,7 +2,33 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
-## [Unreleased] – Fejlesztés alatt (2026-10-14)
+## [Unreleased] – Fejlesztés alatt (2026-10-15)
+
+### 👥 eaisyHR: eaisyBooks Bérszámfejtési Dolgozók Importálása, Jogviszony Létrehozás és Törzsadatbázis Integráció (A-063 / P-082 / HR-TASK-06)
+- **Közvetlen Bérszámfejtési Import Gomb a HR Munkaasztalon (`/hr/admin`):** Az Állomány áttekintés sávjában, közvetlenül az *„Új Munkatárs Rögzítése”* mellett megjelent a zöld-kiemelt *„Importálás eaisyBooks-ból”* gomb (`EaisyBooksEmployeeImportDialog`).
+- **Linear-Flat Import Dialógus és Reszponzív Táblázat:**
+  - Modern, szélesített modális ablak (`w-[95vw] sm:max-w-4xl lg:max-w-5xl`), fejléci bezáró gomb ütközésvédelemmel (`pr-12`).
+  - Vízszintesen görgethető (`min-w-[760px]`), 6-oszlopos dolgozói táblázat (Kijelölés, Dolgozó neve & státusza, Munkakör & FEOR & heti óraszám, Szerkeszthető E-mail cím, Maszkolt TAJ & Adóazonosító, Belépési dátum).
+  - Élő keresőmező azonnali szűréssel név, munkakör, e-mail vagy FEOR kód alapján.
+- **Szelektív és Tömeges Kijelölés:**
+  - Fejléci *„Összes kijelölése”* jelölőnégyzet az importálható dolgozókhoz.
+  - Dinamikus számláló és állapotjelvények (*„Már állományban van”* inaktív sorral vs. zöld *„Importálható”*).
+- **Egyedi E-mail Cím Kitöltési Lehetőség:**
+  - Amennyiben az eaisyBooks bérszámfejtésben a dolgozóhoz nem tartozik e-mail cím, a HR-es közvetlenül az adott sor beviteli mezőjében megadhatja azt az importálás előtt.
+  - Valós e-mail hiányában a rendszer belső placeholder címet generál (`nev.id@internal.eaisyhr.hu`), így a fióklétrehozás sosem akad el.
+- **Opcionális Aktivációs és Meghívó E-mail:**
+  - Láblécbe integrált kapcsoló: *„Meghívó e-mail küldése a munkatársaknak (jelszóbeállító linkkel)”*.
+  - Bekapcsolt állapotban a Brevo rendszeren keresztül kiküldésre kerül az eaisyHR márkázott értesítés a Supabase Auth által generált biztonságos jelszóbeállító linkkel (`generateLink`).
+- **Biztonságos Különleges Adattárolás és Titkosítás:**
+  - A bérszámfejtésből áthozott TAJ szám, adóazonosító jel, bankszámlaszám, valamint bruttó és nettó bér szigorúan titkosított `BYTEA` formátumban (`toByteaHex`) perzisztálódik a `public.hr_dolgozo_titkos_adat` táblában.
+- **Automatikus Törzsadat- és Jogviszony Létrehozás:**
+  - Automatikus munkakör (`hr_munkakor`) feloldás és hiány esetén automatikus létrehozás az eaisyBooks megnevezéssel és FEOR kóddal.
+  - Teljes munkavállalói adatlap (`public.hr_dolgozo_adatlap`) születési adatokkal, lakcímmel, anyja nevével, telefonszámmal és szerződéstípussal.
+  - Jogviszony (`public.hr_jogviszony`) és beosztás (`public.hr_beosztas`) nyitás pontos belépési dátummal és számított munkaidő FTE értékkel.
+  - Cégtagság (`public.company_members`) és felhasználói profil (`public.felhasznalo_profil`) `hr` modul hozzáféréssel.
+  - Ennek köszönhetően az importált dolgozók azonnal megjelennek a Dolgozói Törzsadatbázisban.
+- **Audit Naplózás:** Minden dolgozó importálása bekerül a `public.hr_esemeny_naplo` táblába `dolgozo_letrehozva` eseménytípussal.
+- **Dokumentáció:** [ADR A-063](../architecture/decisions/A-063-eaisybooks-payroll-employee-import-architecture.md), [PRD P-082](../product/decisions/P-082-eaisybooks-payroll-employee-import-ux.md).
 
 ### 🤝 eaisyDocs: eaisyBill Partnertörzs Importálása, Számlaszinkron és Iratforgalmi Integráció (A-062 / P-081)
 - **Közvetlen Import Gomb a Partnerek Felületén:** A Partnerek (`/partners`) főoldalán a szabványos `TableToolbar` akció sávjában, közvetlenül a `+ Új Partner` gomb mellett megjelent az „Importálás eaisyBill-ből” gomb (`EaisyBillPartnerImportDialog`).
