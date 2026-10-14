@@ -15,7 +15,7 @@ import {
   ArrowLeft, Building2, FolderOpen, Link as LinkIcon, Calendar, 
   FileText, User, Mail, MapPin, Briefcase, Landmark, Phone, 
   Globe, CreditCard, Clock, PlusCircle, ArrowDownLeft, ArrowUpRight,
-  ExternalLink, Users, AlertCircle, FilePlus2
+  ExternalLink, Users, AlertCircle
 } from "lucide-react"
 import Link from "next/link"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -221,7 +221,7 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
         </div>
 
         {/* Akciók */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center justify-end gap-2 flex-wrap sm:ml-auto shrink-0">
           {permissions.canEdit && (
             <>
               <PartnerInvoiceSyncButton partnerId={partner.id} companyId={partner.company_id} />
@@ -230,14 +230,6 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
               <PartnerDialog partner={partner} />
             </>
           )}
-          <Link
-            href={`/inbox?partner_id=${partner.id}&partner_nev=${encodeURIComponent(partner.nev)}`}
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
-            title="Új bejövő irat rögzítése ezzel a partnerrel"
-          >
-            <FilePlus2 className="h-3.5 w-3.5 text-primary" />
-            Új Irat érkeztetése
-          </Link>
         </div>
       </div>
 
