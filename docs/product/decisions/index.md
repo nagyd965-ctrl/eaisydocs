@@ -89,11 +89,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-079](./P-079-eaisybill-company-member-sync-and-invite-ux.md) | 2026-10-14 | eaisyBill Céges Tagok Importálása és Szelektív Meghívó Rendszer UX | `[Közös]` | `Settings / Multi-Tenancy & User Management` | [A-060](../../architecture/decisions/A-060-eaisybill-company-member-sync-and-invite.md), `eaisybill-member-import-dialog.tsx`, `company-settings-tab.tsx` |
 | [P-080](./P-080-modular-hr-branding-and-profile-tabs-ux.md) | 2026-10-14 | eaisyHR & eaisyDocs Kommunikációs Identitás és Dolgozói Profil UX Harmonizáció | `[Közös]` | `HR / Onboarding, Recruitment & Employee 360° UX` | [A-061](../../architecture/decisions/A-061-vercel-serverless-readiness-and-modular-hr-data-sync.md), `employee/[id]/page.tsx`, `recruitment/actions.ts`, `inbox/page.tsx` |
 | [P-081](./P-081-eaisybill-partner-master-import-ux.md) | 2026-10-14 | eaisyBill Partnertörzs Importálása és Szelektív Partnerkezelés UX | `[Közös]` | `Partners / eaisyBill Master Import UX` | [A-062](../../architecture/decisions/A-062-eaisybill-partner-master-import-architecture.md), `eaisybill-partner-actions.ts`, `eaisybill-partner-import-dialog.tsx`, `partners-table-client.tsx` |
+| [P-082](./P-082-eaisybooks-payroll-employee-import-ux.md) | 2026-10-15 | Foglalkoztatottak Importálása eaisyBooks-ból UX és Adatlap Összerendelés | `[HR]` | `HR / Employees & eaisyBooks Payroll Import UX` | [A-063](../../architecture/decisions/A-063-eaisybooks-payroll-employee-import-architecture.md), `src/app/hr/admin/page.tsx`, `eaisybooks-employee-import-dialog.tsx`, `eaisybooks-employee-actions.ts` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-082`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-083`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

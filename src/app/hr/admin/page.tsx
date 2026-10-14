@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { UserPlus, AlertCircle, Users, Briefcase, AlertTriangle, ChevronRight, Clock } from "lucide-react"
 import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
+import { EaisyBooksEmployeeImportDialog } from "@/components/hr/eaisybooks-employee-import-dialog"
 import { EmployeeTable } from "@/components/hr/employee-table"
 import { HrTasksAndAlertsTable, type HrTaskItem } from "@/components/hr/hr-tasks-and-alerts-table"
 import { KpiCard } from "@/components/kpi-card"
@@ -26,6 +27,14 @@ export default async function HrAdminPage() {
 
   const activeCompanyId = await getActiveCompanyIdServer()
   const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+
+  const { data: currentCompany } = await supabase
+    .from("companies")
+    .select("id, name")
+    .eq("id", companyScope)
+    .maybeSingle()
+
+  const currentCompanyName = currentCompany?.name || "Aktív Vállalat"
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
@@ -350,11 +359,17 @@ export default async function HrAdminPage() {
             Teljes állomány áttekintése és HR adminisztráció.
           </p>
         </div>
-        <AddEmployeeDialog
-          availableUsers={availableDocsUsers}
-          jobs={jobs || []}
-          candidates={availableCandidates}
-        />
+        <div className="flex items-center gap-2.5">
+          <EaisyBooksEmployeeImportDialog
+            companyId={companyScope}
+            companyName={currentCompanyName}
+          />
+          <AddEmployeeDialog
+            availableUsers={availableDocsUsers}
+            jobs={jobs || []}
+            candidates={availableCandidates}
+          />
+        </div>
       </div>
 
       {/* Stat kártyák */}

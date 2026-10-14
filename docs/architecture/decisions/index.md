@@ -75,11 +75,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-060](./A-060-eaisybill-company-member-sync-and-invite.md) | 2026-10-14 | eaisyBill Cégalapú Felhasználó- és Tagságszinkronizáció, Szelektív Meghívó Rendszer | `[Közös]` | `Decided` | [P-079](../../product/decisions/P-079-eaisybill-company-member-sync-and-invite-ux.md), `eaisybill-user-actions.ts`, `eaisybill-member-import-dialog.tsx`, `company-settings-tab.tsx` |
 | [A-061](./A-061-vercel-serverless-readiness-and-modular-hr-data-sync.md) | 2026-10-14 | Vercel Serverless Felkészítés, Dinamikus Host-kezelés és eaisyHR Különleges Adatszinkronizáció | `[Közös]` | `Decided` | [P-080](../../product/decisions/P-080-modular-hr-branding-and-profile-tabs-ux.md), `pdf-browser.ts`, `mailer.ts`, `onboarding/actions.ts`, `employment-contract-actions.ts` |
 | [A-062](./A-062-eaisybill-partner-master-import-architecture.md) | 2026-10-14 | eaisyBill Partnertörzs Importálási Architektúra és Duplikáció-védett Szinkronizáció | `[Közös]` | `Decided` | [P-081](../../product/decisions/P-081-eaisybill-partner-master-import-ux.md), `eaisybill-partner-actions.ts`, `eaisybill-partner-import-dialog.tsx`, `partners-table-client.tsx` |
+| [A-063](./A-063-eaisybooks-payroll-employee-import-architecture.md) | 2026-10-15 | eaisyBooks Bérszámfejtés és eaisyHR Munkavállalói Import Architektúra | `[HR]` | `Decided` | [P-082](../../product/decisions/P-082-eaisybooks-payroll-employee-import-ux.md), `eaisybooks-employee-actions.ts`, `eaisybooks-employee-import-dialog.tsx`, `hr/admin/page.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-063`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-064`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

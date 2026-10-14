@@ -7,6 +7,11 @@ A listát **minden elvégzett feladat után frissítjük**, követve az állapot
 
 ## 🚀 1. Már Elvégzett Feladatok (Done)
 
+- [x] **HR-TASK-06: Foglalkoztatottak Importálása eaisyBooks Bérszámfejtésből az eaisyHR-be**
+  - Adatbázis: `public.felhasznalo_profil` és `public.hr_dolgozo_adatlap` bővítve `eaisybill_employee_id UUID` mezővel és indexekkel a duplikációmentes átvételhez.
+  - Szerver akciók: `getEaisyBooksPayrollEmployeesAction(companyId)` és `importEaisyBooksPayrollEmployeesAction(input)` az aktív cég bérszámfejtési dolgozóinak (`accounty_employees` és `accounty_employments`) átemeléséhez. Automatikus munkakör (`hr_munkakor`) feloldás/létrehozás FEOR kóddal, jogviszony (`hr_jogviszony`) és beosztás (`hr_beosztas`) nyitás, titkosított `BYTEA` adatmentés (`hr_dolgozo_titkos_adat`: TAJ, adójel, bankszámla, alapbér) és Brevo aktivációs e-mail küldés jelszóbeállító linkkel.
+  - UI: HR Munkaasztalon (`/hr/admin`) az „Új Dolgozó Felvétele” mellett letisztult „Importálás eaisyBooks-ból” gomb, interaktív varázsló párbeszédablak (`EaisyBooksEmployeeImportDialog`) gyorskeresővel, szerkeszthető e-mail beviteli lehetőséggel és meghívó küldési jelölőnégyzettel.
+  - Dokumentáció: [ADR A-063](architecture/decisions/A-063-eaisybooks-payroll-employee-import-architecture.md), [PRD P-082](product/decisions/P-082-eaisybooks-payroll-employee-import-ux.md).
 - [x] **DOC-TASK-04: eaisyBill Cégalapú Tagok és Munkatársak Szelektív Importja és Meghívása**
   - Adatbázis: `public.felhasznalo_profil` bővítve `email`, `eaisybill_user_id`, `sync_source`, `last_synced_at` mezőkkel, automatikus e-mail szinkron triggerrel.
   - Szerver akciók: `getEaisyBillCompanyMembersAction(companyId)`, `importEaisyBillCompanyMembersAction(companyId, selectedMembers)` kizárólag a bepipált tételek átvételével, meghívó link generálással (`generateLink`) és Brevo e-mail küldéssel.
