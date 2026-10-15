@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { UserPlus, AlertCircle, Users, Briefcase, AlertTriangle, ChevronRight, Clock } from "lucide-react"
+
 import { AddEmployeeDialog } from "@/components/hr/add-employee-dialog"
 import { EaisyBooksEmployeeImportDialog } from "@/components/hr/eaisybooks-employee-import-dialog"
 import { EmployeeTable } from "@/components/hr/employee-table"
@@ -394,8 +394,7 @@ export default async function HrAdminPage() {
       {/* Dolgozói Törzsadatbázis */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-4">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Users className="w-4 h-4 text-primary" />
+          <CardTitle className="text-base font-semibold">
             Dolgozói Törzsadatbázis
           </CardTitle>
           <Link href="/hr/recruitment">
@@ -419,7 +418,6 @@ export default async function HrAdminPage() {
         <CardHeader className="flex flex-row items-center justify-between pb-4">
           <div>
             <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Clock className="w-4 h-4 text-primary" />
               HR Teendők & Figyelmeztetések
               {allHrTasks.length > 0 && (
                 <Badge

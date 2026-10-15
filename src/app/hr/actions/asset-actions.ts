@@ -193,15 +193,21 @@ export async function generateAndFileAssetHandoverAction(params: {
   if (params.dolgozoId) {
     const { data: adatlap } = await adminClient
       .from("hr_dolgozo_adatlap")
-      .select("lakcim, taj_szam, adoazonosito_jel")
+      .select("lakcim")
       .eq("id", params.dolgozoId)
       .maybeSingle()
 
-    if (adatlap) {
-      lakcim = adatlap.lakcim
-      tajSzam = adatlap.taj_szam
-      adoazonosito = adatlap.adoazonosito_jel
-    }
+    const { data: munkaszerzodes } = await adminClient
+      .from("hr_munkaszerzodes")
+      .select("lakcim, taj_szam, adoazonosito_jel")
+      .eq("dolgozo_id", params.dolgozoId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    lakcim = adatlap?.lakcim || munkaszerzodes?.lakcim || null
+    tajSzam = munkaszerzodes?.taj_szam || null
+    adoazonosito = munkaszerzodes?.adoazonosito_jel || null
   }
 
   const pdfData: AssetHandoverPdfData = {

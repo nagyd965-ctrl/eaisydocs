@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Calendar, Palmtree, Sliders, Clock } from "lucide-react"
 import { ShiftPlannerWeeklyGrid } from "@/components/hr/shift-planner-weekly-grid"
 import { ShiftTemplatesManager } from "@/components/hr/shift-templates-manager"
 import { TeamCalendar } from "@/components/hr/team-calendar"
@@ -50,26 +49,23 @@ export function TimeTabsView({
           <TabsList className="bg-transparent p-0 gap-2 h-auto" variant="line">
             <TabsTrigger
               value="shifts"
-              className="gap-2 px-3 py-2 text-xs sm:text-sm font-medium data-active:border-primary data-active:text-primary rounded-none border-b-2 border-transparent transition-all cursor-pointer"
+              className="px-3 py-2 text-xs sm:text-sm font-medium data-active:border-primary data-active:text-primary rounded-none border-b-2 border-transparent transition-all cursor-pointer"
             >
-              <Calendar className="h-4 w-4" />
-              <span>Műszakbeosztás Tervező</span>
+              Műszakbeosztás Tervező
             </TabsTrigger>
 
             <TabsTrigger
               value="leaves"
-              className="gap-2 px-3 py-2 text-xs sm:text-sm font-medium data-active:border-primary data-active:text-primary rounded-none border-b-2 border-transparent transition-all cursor-pointer"
+              className="px-3 py-2 text-xs sm:text-sm font-medium data-active:border-primary data-active:text-primary rounded-none border-b-2 border-transparent transition-all cursor-pointer"
             >
-              <Palmtree className="h-4 w-4" />
-              <span>Távollétek & Csapatnaptár</span>
+              Távollétek & Csapatnaptár
             </TabsTrigger>
 
             <TabsTrigger
               value="templates"
-              className="gap-2 px-3 py-2 text-xs sm:text-sm font-medium data-active:border-primary data-active:text-primary rounded-none border-b-2 border-transparent transition-all cursor-pointer"
+              className="px-3 py-2 text-xs sm:text-sm font-medium data-active:border-primary data-active:text-primary rounded-none border-b-2 border-transparent transition-all cursor-pointer"
             >
-              <Sliders className="h-4 w-4" />
-              <span>Műszaksablonok</span>
+              Műszaksablonok
             </TabsTrigger>
           </TabsList>
         </div>

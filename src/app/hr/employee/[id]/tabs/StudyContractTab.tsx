@@ -101,8 +101,8 @@ export function StudyContractTab({
     <Card className="shadow-none border-border/80">
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <div>
-          <CardTitle className="text-lg flex items-center gap-2 font-semibold">
-            <GraduationCap className="w-5 h-5 text-primary" /> Tanulmányi Szerződések (Mt. 229. §)
+          <CardTitle className="text-lg font-semibold">
+            Tanulmányi Szerződések (Mt. 229. §)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
             Munkáltatói támogatással megvalósuló képzések, tanulmányi munkaidő-kedvezmények és jogszabályi kötelezettségvállalások.

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
-import { ArrowLeft, User, ShieldAlert } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import { WorkplaceTab } from "./tabs/WorkplaceTab"
 import { QualificationTab } from "./tabs/QualificationTab"
 import { StudyContractTab } from "./tabs/StudyContractTab"
@@ -299,9 +299,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <User className="w-5 h-5 text-primary" /> Alap adatok
-            </CardTitle>
+            <CardTitle className="text-lg">Alap adatok</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -333,7 +331,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           )}
           {(isHrOrAdmin || ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "")) && (
             <TabsTrigger value="bizalmas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">
-              Bizalmas HR adatok <ShieldAlert className="ml-1.5 w-3.5 h-3.5 text-destructive" />
+              Bizalmas HR adatok
             </TabsTrigger>
           )}
           <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Előzmények</TabsTrigger>
@@ -608,8 +606,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
             <TabsContent value="bizalmas" className="mt-0 outline-none space-y-12">
               {(isHrOrAdmin || ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "")) && (
                 <div className="space-y-4">
-                  <h2 className="text-xl font-semibold tracking-tight text-destructive flex items-center gap-2 border-b pb-2">
-                    <ShieldAlert className="w-5 h-5" /> Orvosi Alkalmassági Vizsgálatok
+                  <h2 className="text-xl font-semibold tracking-tight text-destructive border-b pb-2">
+                    Orvosi Alkalmassági Vizsgálatok
                   </h2>
                   <MedicalTab 
                     employeeId={profile.id} 
@@ -623,8 +621,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
               {(isHrOrAdmin || ["auditor"].includes(currentUserProfile?.hr_szerepkor || "")) && (
                 <div className="space-y-4">
-                  <h2 className="text-xl font-semibold tracking-tight text-destructive flex items-center gap-2 border-b pb-2">
-                    <ShieldAlert className="w-5 h-5" /> Fegyelmi és Károkozási Ügyek (Mt. 56. §, 179. §)
+                  <h2 className="text-xl font-semibold tracking-tight text-destructive border-b pb-2">
+                    Fegyelmi és Károkozási Ügyek (Mt. 56. §, 179. §)
                   </h2>
                   <DisciplinaryTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_fegyelmi || []} />
                 </div>

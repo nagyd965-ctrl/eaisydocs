@@ -201,8 +201,7 @@ export function PayslipsTab({
       {/* 1. Fejléc & Áttekintés */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-teal-600" />
+          <h2 className="text-xl font-semibold tracking-tight">
             Havi Bérpapírok & Bérjegyzékek (Mt. 155. §)
           </h2>
           <p className="text-sm text-muted-foreground mt-1">

@@ -252,9 +252,7 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
         <CardHeader className="pb-4">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarDays className="w-5 h-5 text-primary" /> Havi Jelenléti Ív
-              </CardTitle>
+              <CardTitle>Havi Jelenléti Ív</CardTitle>
               <CardDescription>
                 A dolgozó munkaidejének és távolléteinek kezelése
               </CardDescription>

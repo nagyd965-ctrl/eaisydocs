@@ -98,6 +98,7 @@ export default function CentralAuditPage() {
   const [selectedEntityCategories, setSelectedEntityCategories] = useState<string[]>([])
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [activePreset, setActivePreset] = useState<"7" | "30" | null>(null)
 
   // ── Lapozás ──
   const [currentPage, setCurrentPage] = useState(1)
@@ -132,7 +133,7 @@ export default function CentralAuditPage() {
       setLogs(result.logs || [])
     }
     setLoading(false)
-  }, [selectedCompany?.id])
+  }, [selectedCompany])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -582,10 +583,11 @@ export default function CentralAuditPage() {
               const start = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
               setDateFrom(start)
               setDateTo(end)
+              setActivePreset("7")
               setCurrentPage(1)
             }}
             className={`text-xs px-2.5 py-0.5 rounded-md transition-colors ${
-              dateFrom === new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10) && dateTo === new Date().toISOString().slice(0, 10)
+              activePreset === "7"
                 ? "bg-primary text-primary-foreground font-medium"
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
@@ -598,10 +600,11 @@ export default function CentralAuditPage() {
               const start = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
               setDateFrom(start)
               setDateTo(end)
+              setActivePreset("30")
               setCurrentPage(1)
             }}
             className={`text-xs px-2.5 py-0.5 rounded-md transition-colors ${
-              dateFrom === new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10) && dateTo === new Date().toISOString().slice(0, 10)
+              activePreset === "30"
                 ? "bg-primary text-primary-foreground font-medium"
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}

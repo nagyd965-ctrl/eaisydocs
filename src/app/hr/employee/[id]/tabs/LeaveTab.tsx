@@ -149,13 +149,10 @@ export function LeaveTab({
       {/* Szabadság Egyenleg */}
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="border border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className="pb-2">
             <div className="space-y-1">
               <CardTitle className="text-lg font-semibold">Szabadság ({currentYear})</CardTitle>
               <CardDescription>Éves alapszabadság és pótszabadságok összege</CardDescription>
-            </div>
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
-              <CalendarDays className="w-5 h-5 text-primary" />
             </div>
           </CardHeader>
           <CardContent>
@@ -193,8 +190,7 @@ export function LeaveTab({
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-primary" />
+              <CardTitle className="text-base font-semibold">
                 Mt. Szabadságkiadási Megfelelőség ({currentYear})
               </CardTitle>
               <CardDescription>

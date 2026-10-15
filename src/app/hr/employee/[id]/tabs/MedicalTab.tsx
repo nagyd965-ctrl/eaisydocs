@@ -127,8 +127,8 @@ export function MedicalTab({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Stethoscope className="w-5 h-5 text-primary"/> Orvosi Alkalmassági Vizsgálatok
+          <CardTitle className="text-lg">
+            Orvosi Alkalmassági Vizsgálatok
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
             Foglalkozás-egészségügyi vizsgálatok nyilvántartása, hivatalos alkalmassági vélemények generálása és iktatása (33/1998. NM rendelet).

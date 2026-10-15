@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { 
   Edit, 
-  Clock, 
   Info, 
   Briefcase, 
   ClipboardList, 
@@ -335,7 +334,6 @@ export function EmploymentTab({
             <div>
               <p className="text-sm text-muted-foreground">Betöltött Munkakör</p>
               <p className="font-semibold text-base text-foreground flex items-center gap-2 flex-wrap">
-                <Briefcase className="w-4 h-4 text-primary shrink-0" />
                 <span>{activeMunkakor?.megnevezes || currentBeosztas?.munkakor?.megnevezes || "Nincs munkakör beállítva"}</span>
                 {activeMunkakor?.feor_kod && (
                   <Badge variant="outline" className="text-xs font-normal">
@@ -416,30 +414,25 @@ export function EmploymentTab({
       {activeMunkakor ? (
         <Card className="border-border">
           <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
-                <Briefcase className="w-5 h-5" />
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <CardTitle className="text-lg font-semibold">
+                  {activeMunkakor.megnevezes}
+                </CardTitle>
+                {activeMunkakor.besorolasi_szint && (
+                  <Badge variant="outline" className="text-xs">
+                    {activeMunkakor.besorolasi_szint}
+                  </Badge>
+                )}
+                {activeMunkakor.feor_kod && (
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    (FEOR: {activeMunkakor.feor_kod})
+                  </span>
+                )}
               </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <CardTitle className="text-lg font-semibold">
-                    {activeMunkakor.megnevezes}
-                  </CardTitle>
-                  {activeMunkakor.besorolasi_szint && (
-                    <Badge variant="outline" className="text-xs">
-                      {activeMunkakor.besorolasi_szint}
-                    </Badge>
-                  )}
-                  {activeMunkakor.feor_kod && (
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      (FEOR: {activeMunkakor.feor_kod})
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Hivatalos munkaköri profil, felelősségi körök, kompetenciák és munkaegészségügyi előírások.
-                </p>
-              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Hivatalos munkaköri profil, felelősségi körök, kompetenciák és munkaegészségügyi előírások.
+              </p>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
@@ -611,8 +604,8 @@ export function EmploymentTab({
       {/* History Timeline */}
       <Card>
         <CardHeader className="pb-3 border-b">
-          <CardTitle className="text-md flex items-center gap-2">
-            <Clock className="w-5 h-5 text-muted-foreground" /> Előző és Jövőbeli Beosztások
+          <CardTitle className="text-md font-semibold">
+            Előző és Jövőbeli Beosztások
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-8">

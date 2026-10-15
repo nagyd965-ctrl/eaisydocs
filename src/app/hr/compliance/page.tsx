@@ -1,4 +1,3 @@
-import { Suspense } from "react"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 import {
   getCompanyLeaveComplianceData,
@@ -10,7 +9,6 @@ import { SafetyTrainingTable } from "@/components/hr/safety-training-table"
 import { OvertimeComplianceTable } from "@/components/hr/overtime-compliance-table"
 import { KpiCard } from "@/components/kpi-card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { CalendarDays, HardHat, Clock } from "lucide-react"
 
 export const metadata = {
   title: "Munkaügyi és Munkavédelmi Megfelelőség | eaisyHR",
@@ -50,20 +48,17 @@ export default async function CompliancePage() {
         </div>
       </div>
 
-      {/* ── 2. TABS RENDSZER (Szabadság vs Munkavédelem vs Munkaidő & Túlóra) ── */}
+      {/* ── 2. TABS RENDSZER (Szabadság vs Munkaidő és túlórakeret vs Munkavédelem és Tűzvédelem) ── */}
       <Tabs defaultValue="leave" className="space-y-6">
         <TabsList className="bg-muted/60 p-1">
-          <TabsTrigger value="leave" className="gap-2 text-xs font-medium">
-            <CalendarDays className="w-4 h-4 text-primary" />
-            <span>Szabadságkiadás (Mt. 122. §)</span>
+          <TabsTrigger value="leave" className="text-xs font-medium">
+            Szabadságkiadás
           </TabsTrigger>
-          <TabsTrigger value="overtime" className="gap-2 text-xs font-medium">
-            <Clock className="w-4 h-4 text-primary" />
-            <span>Munkaidő & Túlórakeret (Mt. 99. §, 135. §)</span>
+          <TabsTrigger value="overtime" className="text-xs font-medium">
+            Munkaidő és túlórakeret
           </TabsTrigger>
-          <TabsTrigger value="safety" className="gap-2 text-xs font-medium">
-            <HardHat className="w-4 h-4 text-primary" />
-            <span>Munkavédelem & Tűzvédelem (Mvt. / Ttv.)</span>
+          <TabsTrigger value="safety" className="text-xs font-medium">
+            Munkavédelem és Tűzvédelem
           </TabsTrigger>
         </TabsList>
 

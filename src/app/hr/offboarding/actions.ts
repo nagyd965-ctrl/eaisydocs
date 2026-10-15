@@ -192,16 +192,18 @@ export async function createOffboarding(
   let resolvedReszleg = extraParams?.reszleg || null
   let resolvedMunkakor = extraParams?.munkakor || null
 
-  // 1. hr_dolgozo_adatlap
-  const { data: adatlap } = await adminClient
-    .from("hr_dolgozo_adatlap")
-    .select("munkakor, reszleg, szervezeti_egyseg:szervezeti_egyseg_id(nev)")
-    .or(`felhasznalo_id.eq.${dolgozoId},id.eq.${dolgozoId}`)
+  // 1. hr_munkaszerzodes
+  const { data: contract } = await adminClient
+    .from("hr_munkaszerzodes")
+    .select("munkakor, reszleg")
+    .eq("dolgozo_id", dolgozoId)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle()
 
-  if (adatlap) {
-    if (!resolvedMunkakor) resolvedMunkakor = adatlap.munkakor || null
-    if (!resolvedReszleg) resolvedReszleg = (adatlap.szervezeti_egyseg as any)?.nev || adatlap.reszleg || null
+  if (contract) {
+    if (!resolvedMunkakor) resolvedMunkakor = contract.munkakor || null
+    if (!resolvedReszleg) resolvedReszleg = contract.reszleg || null
   }
 
   // 2. hr_jogviszony -> hr_beosztas -> hr_munkakor
@@ -671,7 +673,7 @@ export async function getOffboardingDetailData(offboardingId: string) {
     const { data: adatlap } = await adminClient
       .from("hr_dolgozo_adatlap")
       .select("*")
-      .eq("felhasznalo_id", offboarding.dolgozo_id)
+      .eq("id", offboarding.dolgozo_id)
       .maybeSingle()
 
     // Céges eszközök lekérése
@@ -1295,7 +1297,15 @@ export async function generateExitCertificateAction(
   const { data: adatlap } = await adminClient
     .from("hr_dolgozo_adatlap")
     .select("*")
-    .eq("felhasznalo_id", offboarding.dolgozo_id)
+    .eq("id", offboarding.dolgozo_id)
+    .maybeSingle()
+
+  const { data: contractData } = await adminClient
+    .from("hr_munkaszerzodes")
+    .select("*")
+    .eq("dolgozo_id", offboarding.dolgozo_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle()
 
   // Tárgyévi betegszabadság automatikus feloldása ha nem lett manuálisan megadva
@@ -1318,16 +1328,16 @@ export async function generateExitCertificateAction(
     employeeName,
     employeeId: offboarding.dolgozo_id,
     offboardingId,
-    munkakor: payload.munkakor || offboarding.munkakor || adatlap?.munkakor || "Munkavállaló",
-    feorKod: payload.feorKod || adatlap?.feor_kod || adatlap?.feor || null,
-    reszleg: payload.reszleg || offboarding.reszleg || null,
-    szuletesiHely: payload.szuletesiHely || adatlap?.szuletesi_hely || null,
-    szuletesiDatum: payload.szuletesiDatum || adatlap?.szuletesi_datum || null,
-    anyjaNeve: payload.anyjaNeve || adatlap?.anyja_szuletesi_neve || adatlap?.anyja_neve || null,
-    lakcim: payload.lakcim || adatlap?.allando_lakcim || adatlap?.lakcim || null,
-    adoazonosito: payload.adoazonosito || adatlap?.adoazonosito_jel || adatlap?.adoazonosito || null,
-    tajSzam: payload.tajSzam || adatlap?.taj_szam || null,
-    jogviszonyKezdete: payload.jogviszonyKezdete || adatlap?.belepes_datuma || adatlap?.jogviszony_kezdete || null,
+    munkakor: payload.munkakor || offboarding.munkakor || contractData?.munkakor || "Munkavállaló",
+    feorKod: payload.feorKod || null,
+    reszleg: payload.reszleg || offboarding.reszleg || contractData?.reszleg || null,
+    szuletesiHely: payload.szuletesiHely || contractData?.szuletesi_hely || null,
+    szuletesiDatum: payload.szuletesiDatum || adatlap?.szuletesi_datum || contractData?.szuletesi_datum || null,
+    anyjaNeve: payload.anyjaNeve || adatlap?.anyja_neve || contractData?.anyja_neve || null,
+    lakcim: payload.lakcim || adatlap?.lakcim || contractData?.lakcim || null,
+    adoazonosito: payload.adoazonosito || contractData?.adoazonosito_jel || null,
+    tajSzam: payload.tajSzam || contractData?.taj_szam || null,
+    jogviszonyKezdete: payload.jogviszonyKezdete || contractData?.kezdes_datuma || null,
     jogviszonyVege: payload.jogviszonyVege || offboarding.kilepes_datuma || new Date().toISOString().split("T")[0],
     megszunesModja: offboarding.megszunes_modja || "kozos_megegyezes",
     megszunesModjaLabel: payload.megszunesModjaLabel || (TERMINATION_TYPE_LABELS[offboarding.megszunes_modja as TerminationType] || "Közös megegyezés (Mt. 64. § (1) bek. a) pont)"),

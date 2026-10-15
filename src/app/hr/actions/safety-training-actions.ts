@@ -108,19 +108,25 @@ export async function generateAndFileSafetyTrainingAction(params: {
   let reszleg = params.reszleg || null
 
   if (params.dolgozoId) {
-    const { data: profile } = await adminClient
-      .from("felhasznalo_profil")
-      .select("lakcim, szuletesi_datum, szuletesi_hely, anyja_neve, reszleg")
+    const { data: adatlap } = await adminClient
+      .from("hr_dolgozo_adatlap")
+      .select("lakcim, szuletesi_datum, anyja_neve")
       .eq("id", params.dolgozoId)
-      .single()
+      .maybeSingle()
 
-    if (profile) {
-      lakcim = profile.lakcim || null
-      szuletesiDatum = profile.szuletesi_datum || null
-      szuletesiHely = profile.szuletesi_hely || null
-      anyjaNeve = profile.anyja_neve || null
-      if (!reszleg) reszleg = profile.reszleg || null
-    }
+    const { data: munkaszerzodes } = await adminClient
+      .from("hr_munkaszerzodes")
+      .select("lakcim, szuletesi_datum, szuletesi_hely, anyja_neve, reszleg")
+      .eq("dolgozo_id", params.dolgozoId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    lakcim = adatlap?.lakcim || munkaszerzodes?.lakcim || null
+    szuletesiDatum = adatlap?.szuletesi_datum || munkaszerzodes?.szuletesi_datum || null
+    szuletesiHely = munkaszerzodes?.szuletesi_hely || null
+    anyjaNeve = adatlap?.anyja_neve || munkaszerzodes?.anyja_neve || null
+    if (!reszleg) reszleg = munkaszerzodes?.reszleg || null
   } else if (params.onboardingId) {
     const { data: onb } = await adminClient
       .from("hr_onboarding")

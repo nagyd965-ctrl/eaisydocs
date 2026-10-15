@@ -147,8 +147,8 @@ export function AwardsTab({
     <Card className="shadow-none border-border/80">
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <div>
-          <CardTitle className="text-lg flex items-center gap-2 font-semibold">
-            <Trophy className="w-5 h-5 text-warning" /> Kitüntetések és Szakmai Elismerések
+          <CardTitle className="text-lg font-semibold">
+            Kitüntetések és Szakmai Elismerések
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
             Vállalati díjak, jubileumi törzsgárda elismerések, innovációs nívódíjak és formális elismerő oklevelek.

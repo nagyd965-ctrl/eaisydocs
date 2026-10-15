@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { 
-  History, 
   ArrowRight, 
   User, 
   Search, 
@@ -17,8 +16,7 @@ import {
   FileText, 
   Trash2, 
   ShieldAlert, 
-  Lock,
-  Filter
+  Lock
 } from "lucide-react"
 import { format } from "date-fns"
 import { hu } from "date-fns/locale"
@@ -238,8 +236,7 @@ export function AuditLogTab({ employeeId }: { employeeId: string }) {
       <CardHeader className="pb-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <History className="w-5 h-5 text-primary" />
+            <CardTitle className="text-lg">
               Változáskövetés (Audit Napló)
             </CardTitle>
             <CardDescription className="mt-1">
@@ -261,8 +258,8 @@ export function AuditLogTab({ employeeId }: { employeeId: string }) {
 
         {/* Szűrő gombok */}
         <div className="flex items-center gap-2 pt-2 border-t mt-3 flex-wrap">
-          <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium mr-1">
-            <Filter className="w-3 h-3" /> Szűrés:
+          <span className="text-xs text-muted-foreground font-medium mr-1">
+            Szűrés:
           </span>
           <button
             onClick={() => setFilterCategory("all")}
@@ -276,33 +273,33 @@ export function AuditLogTab({ employeeId }: { employeeId: string }) {
           </button>
           <button
             onClick={() => setFilterCategory("secret")}
-            className={`text-xs px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 ${
+            className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
               filterCategory === "secret"
                 ? "bg-primary text-primary-foreground font-medium"
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
           >
-            <Lock className="w-3 h-3" /> Érzékeny adatok ({consolidatedLogs.filter(l => l.entitas_tipus === "hr_dolgozo_titkos_adat").length})
+            Érzékeny adatok ({consolidatedLogs.filter(l => l.entitas_tipus === "hr_dolgozo_titkos_adat").length})
           </button>
           <button
             onClick={() => setFilterCategory("modification")}
-            className={`text-xs px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 ${
+            className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
               filterCategory === "modification"
                 ? "bg-primary text-primary-foreground font-medium"
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
           >
-            <FileEdit className="w-3 h-3" /> Módosítások ({consolidatedLogs.filter(l => ["modositas", "adat_modositas", "munkatars_modositas"].includes(l.esemeny_tipus)).length})
+            Módosítások ({consolidatedLogs.filter(l => ["modositas", "adat_modositas", "munkatars_modositas"].includes(l.esemeny_tipus)).length})
           </button>
           <button
             onClick={() => setFilterCategory("document")}
-            className={`text-xs px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 ${
+            className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
               filterCategory === "document"
                 ? "bg-primary text-primary-foreground font-medium"
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
           >
-            <FileText className="w-3 h-3" /> Iratok & Szerződések ({consolidatedLogs.filter(l => ["hr_dokumentum", "hr_munkaszerzodes", "hr_tanulmanyi_szerzodes"].includes(l.entitas_tipus)).length})
+            Iratok & Szerződések ({consolidatedLogs.filter(l => ["hr_dokumentum", "hr_munkaszerzodes", "hr_tanulmanyi_szerzodes"].includes(l.entitas_tipus)).length})
           </button>
         </div>
       </CardHeader>

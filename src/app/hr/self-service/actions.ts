@@ -276,7 +276,7 @@ export async function submitOvertimeRequest(data: {
     .eq("id", user.id)
     .single()
 
-  let currentManagerId = profile?.kozvetlen_vezeto_id
+  const currentManagerId = profile?.kozvetlen_vezeto_id
 
   if (currentManagerId) {
     const { data: managerLeave } = await supabase

@@ -100,8 +100,8 @@ export function PersonalDataTab({
       <div className="absolute top-0 left-0 w-1 h-full bg-destructive/50"></div>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div className="space-y-1">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Lock className="w-4 h-4 text-destructive" /> Titkosított Személyes Adatok
+          <CardTitle className="text-base font-semibold">
+            Titkosított Személyes Adatok
           </CardTitle>
           <CardDescription>Szigorúan bizalmas, auditált adatok a HR számára</CardDescription>
         </div>

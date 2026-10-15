@@ -133,8 +133,8 @@ export function DisciplinaryTab({
     <Card className="shadow-none border-border/80">
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <div>
-          <CardTitle className="text-lg flex items-center gap-2 font-semibold">
-            <Scale className="w-5 h-5 text-primary" /> Fegyelmi és Károkozási Ügyek (Mt. 56. §, 179. §)
+          <CardTitle className="text-lg font-semibold">
+            Fegyelmi és Károkozási Ügyek (Mt. 56. §, 179. §)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
             Munkáltatói fegyelmi határozatok, írásbeli intézkedések, kártérítési kötelezések és 30 napos törvényi jogorvoslatok nyilvántartása.

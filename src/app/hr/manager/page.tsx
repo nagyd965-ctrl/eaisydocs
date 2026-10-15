@@ -250,10 +250,9 @@ export default async function ManagerPage() {
         <div>
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Users className="w-4 h-4 text-primary" />
-                Közvetlen Beosztottak
-                <span className="ml-auto text-xs text-muted-foreground font-normal">
+              <CardTitle className="text-base font-semibold flex items-center justify-between">
+                <span>Közvetlen Beosztottak</span>
+                <span className="text-xs text-muted-foreground font-normal">
                   {teamMembers.length} fő
                 </span>
               </CardTitle>

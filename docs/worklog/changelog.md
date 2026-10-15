@@ -4,6 +4,21 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-15)
 
+### 🧹 eaisyHR: Séma-biztos PDF Adatlekérések, T1041 / Kiléptetési Adatintegritás és Globális Flat UI Letisztítás
+- **PostgREST Séma Lekérdezési Javítások és Null-Safety:**
+  - **Fegyelmi és Tanulmányi PDF-ek:** A `fetchDisciplinaryPdfData` és `fetchStudyContractPdfData` segédfüggvényekben megszűnt a `hr_dolgozo_adatlap` nem létező mezőinek (`taj_szam`, `adoazonosito_jel`, `szuletesi_hely`) közvetlen lekérdezése; a személyes azonosítókat mostantól biztonságos fallbackkel a legutóbbi `hr_munkaszerzodes` rekordból tölti be a rendszer, kiküszöbölve a 400 Bad Request futásidejű hibákat.
+  - **Orvosi Alkalmassági Lap:** A `fetchMedicalExaminationData`-ban a `szukseges_kepzettseg` mező kikerült a munkaköri join lekérdezésből, megelőzve a generálási hibát.
+  - **T1041 és Kiléptetési Tanúsítvány (`getT1041Data`, `generateExitCertificateAction`, `createOffboarding`):** A személyes azonosítók (TAJ, adóazonosító, születési hely/idő, anyja neve, lakcím) feloldása biztonságosan támaszkodik a munkaszerződésre és az adatlapi adatokra, így a hatósági bejelentőlapok és záró dokumentumok mindig hiánytalan adatokkal készülnek el.
+  - **Eszköz- és Oktatási Jegyzőkönyvek:** Az `asset-actions.ts` és `safety-training-actions.ts` jegyzőkönyv-generátorai is felkészültek a szerződésből történő adatharmonizációra.
+- **Rendszerszintű UI Letisztítás és Linear Flat Design Harmónia (.agents/AGENTS.md):**
+  - **HR Munkaasztal (`/hr/admin`):** Eltávolításra kerültek a `Users` és `Clock` dekoratív ikonok a *„Dolgozói Törzsadatbázis”* és *„HR Teendők & Figyelmeztetések”* kártyafejlécekből.
+  - **Compliance Hub (`/hr/compliance`):** Tisztított fülnevek és dekoratív naptár/óra/sisak ikonok eltávolítása a fülekről (*„Szabadságkiadás”*, *„Munkaidő és túlórakeret”*, *„Munkavédelem és Tűzvédelem”*).
+  - **Dolgozói Részletes Adatlap (`/hr/employee/[id]`):** Valamennyi al-fül (`Alapadatok`, `Orvosi vizsgálatok`, `Fegyelmi ügyek`, `Bérpapírok`, `Változáskövetés`, `Cafeteria`, `Jelenlét`, `Kitüntetések`, `Bizalmas adatok`, `Tanulmányi szerződések`, `Szabadság`, `Munkaviszony`) kártyáiból kivezetésre kerültek a felesleges ikonok, színezett lekerekített dobozok és emojik a tiszta, professzionális megjelenés érdekében.
+  - **Vezetői és Beosztás Kezelés (`/hr/manager`, `components/hr`):** Letisztult fejléc a beosztotti listában, a csapatnaptárban, a jóváhagyási panelen és a munkaidő-beosztás navigációs sávjában.
+- **Kódminőség és Stabilitás:**
+  - Javított `useEffect` dependency array-ek a naplózási és audit felületeken (`audit/page.tsx`, `hr/audit/page.tsx`).
+  - SSR-biztos dátumformázás a szabálymotor kliensen (`rules-client.tsx`).
+
 ### 👥 eaisyHR: eaisyBooks Bérszámfejtési Dolgozók Importálása, Jogviszony Létrehozás és Törzsadatbázis Integráció (A-063 / P-082 / HR-TASK-06)
 - **Közvetlen Bérszámfejtési Import Gomb a HR Munkaasztalon (`/hr/admin`):** Az Állomány áttekintés sávjában, közvetlenül az *„Új Munkatárs Rögzítése”* mellett megjelent a zöld-kiemelt *„Importálás eaisyBooks-ból”* gomb (`EaisyBooksEmployeeImportDialog`).
 - **Linear-Flat Import Dialógus és Reszponzív Táblázat:**

@@ -159,26 +159,29 @@ export async function getT1041Data(params: {
       if (offbDolgozoId) {
         const { data: dAdatlap } = await adminClient
           .from("hr_dolgozo_adatlap")
-          .select("taj_szam, adoazonosito_jel, szuletesi_hely, szuletesi_ido, anyja_neve, lakcim")
-          .or(`felhasznalo_id.eq.${offbDolgozoId},id.eq.${offbDolgozoId}`)
+          .select("szuletesi_ido, anyja_neve, lakcim")
+          .eq("id", offbDolgozoId)
           .maybeSingle()
         if (dAdatlap) {
-          taj = dAdatlap.taj_szam || taj
-          adoazonosito = dAdatlap.adoazonosito_jel || adoazonosito
-          szulHely = dAdatlap.szuletesi_hely || szulHely
           szulDatum = dAdatlap.szuletesi_ido || szulDatum
           anyja = dAdatlap.anyja_neve || anyja
           lakcim = dAdatlap.lakcim || lakcim
         }
         const { data: cData } = await adminClient
           .from("hr_munkaszerzodes")
-          .select("kezdes_datuma")
+          .select("kezdes_datuma, taj_szam, adoazonosito_jel, szuletesi_hely, szuletesi_datum, anyja_neve, lakcim")
           .eq("dolgozo_id", offbDolgozoId)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle()
-        if (cData?.kezdes_datuma) {
-          kezdes = cData.kezdes_datuma
+        if (cData) {
+          if (cData.kezdes_datuma) kezdes = cData.kezdes_datuma
+          taj = cData.taj_szam || taj
+          adoazonosito = cData.adoazonosito_jel || adoazonosito
+          szulHely = cData.szuletesi_hely || szulHely
+          szulDatum = cData.szuletesi_datum || szulDatum
+          anyja = cData.anyja_neve || anyja
+          lakcim = cData.lakcim || lakcim
         }
       }
     }
@@ -244,16 +247,29 @@ export async function getT1041Data(params: {
     }
     const { data: dAdatlap } = await adminClient
       .from("hr_dolgozo_adatlap")
-      .select("taj_szam, adoazonosito_jel, szuletesi_hely, szuletesi_ido, anyja_neve, lakcim")
+      .select("szuletesi_ido, anyja_neve, lakcim")
       .eq("id", dolgozoId)
-      .single()
+      .maybeSingle()
     if (dAdatlap) {
-      taj = dAdatlap.taj_szam || taj
-      adoazonosito = dAdatlap.adoazonosito_jel || adoazonosito
-      szulHely = dAdatlap.szuletesi_hely || szulHely
       szulDatum = dAdatlap.szuletesi_ido || szulDatum
       anyja = dAdatlap.anyja_neve || anyja
       lakcim = dAdatlap.lakcim || lakcim
+    }
+    const { data: cData } = await adminClient
+      .from("hr_munkaszerzodes")
+      .select("kezdes_datuma, taj_szam, adoazonosito_jel, szuletesi_hely, szuletesi_datum, anyja_neve, lakcim")
+      .eq("dolgozo_id", dolgozoId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (cData) {
+      if (cData.kezdes_datuma) kezdes = cData.kezdes_datuma
+      taj = cData.taj_szam || taj
+      adoazonosito = cData.adoazonosito_jel || adoazonosito
+      szulHely = cData.szuletesi_hely || szulHely
+      szulDatum = cData.szuletesi_datum || szulDatum
+      anyja = cData.anyja_neve || anyja
+      lakcim = cData.lakcim || lakcim
     }
   }
 

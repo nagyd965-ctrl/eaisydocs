@@ -7,6 +7,8 @@ A listát **minden elvégzett feladat után frissítjük**, követve az állapot
 
 ## 🚀 1. Már Elvégzett Feladatok (Done)
 
+- [x] **A4: Konzisztens Breadcrumb + Gyors Visszalépés az adatlapokon**
+  - A részletező oldalakon (`/dossiers/[id]`, `/partners/[id]`, `/inbox/[id]`, `/hr/orgunit/[id]`) megvalósult a gyors visszalépő navigáció és a fejléc útvonal-kijelzés.
 - [x] **HR-TASK-06: Foglalkoztatottak Importálása eaisyBooks Bérszámfejtésből az eaisyHR-be**
   - Adatbázis: `public.felhasznalo_profil` és `public.hr_dolgozo_adatlap` bővítve `eaisybill_employee_id UUID` mezővel és indexekkel a duplikációmentes átvételhez.
   - Szerver akciók: `getEaisyBooksPayrollEmployeesAction(companyId)` és `importEaisyBooksPayrollEmployeesAction(input)` az aktív cég bérszámfejtési dolgozóinak (`accounty_employees` és `accounty_employments`) átemeléséhez. Automatikus munkakör (`hr_munkakor`) feloldás/létrehozás FEOR kóddal, jogviszony (`hr_jogviszony`) és beosztás (`hr_beosztas`) nyitás, titkosított `BYTEA` adatmentés (`hr_dolgozo_titkos_adat`: TAJ, adójel, bankszámla, alapbér) és Brevo aktivációs e-mail küldés jelszóbeállító linkkel.
@@ -46,15 +48,6 @@ A listát **minden elvégzett feladat után frissítjük**, követve az állapot
 
 Ezek a funkciók minimális kockázattal járnak, nem igénylik a meglévő adatbázis felforgatását, de azonnal látványos minőségbeli ugrást adnak a napi használatban:
 
-- [ ] **A3: Oldalsáv (Sidebar) dinamikus számláló jelvények (Badges)**
-  - *Mit csinál:* A bal oldali menüben megjelenik a releváns teendők darabszáma kis diszkrét számként:
-    - **Bejövő:** iktatásra váró iratok száma (pl. `3`)
-    - **Feladatok:** saját lejáró / mai határidős feladatok száma (pl. `2`)
-    - **Irattár:** jóváhagyásra váró selejtezések száma (csak archivátor / vezető szerepkörben)
-  - *Miért könnyű:* A lekérdezések a Dashboardon már léteznek, csak át kell adni a `SidebarNav` komponensnek.
-- [ ] **A4: Konzisztens Breadcrumb + Gyors Visszalépés az adatlapokon**
-  - *Mit csinál:* A részletező oldalak tetején (`/dossiers/[id]`, `/partners/[id]`, `/inbox/[id]`) megjelenik az útvonal (pl. *Iktatókönyv / SZERZ-2026-00012*), így egyetlen kattintással visszajuthat a felhasználó a szűrt listához anélkül, hogy a böngésző „Vissza” gombjára kellene támaszkodnia.
-  - *Miért könnyű:* A `src/components/ui/breadcrumb.tsx` már létezik a projektben, csak be kell kötni a fejlécekbe.
 - [ ] **A6: Egységesített Üres Állapot komponens (`EmptyState`)**
   - *Mit csinál:* Ha egy táblázat vagy fül üres (pl. nincs találat a keresésre, nincsenek csatolt iratok, nincs még feladat), mindenhol ugyanaz a letisztult elrendezés jelenik meg (rövid cím, 1 mondatos magyarázat és egy elsődleges akciógomb pl. „Szűrők törlése” vagy „+ Új hozzáadása”).
   - *Miért könnyű:* Egyetlen 40 soros újrahasznosítható komponens, amit az összes táblázat `empty` ágába beillesztünk.
@@ -67,9 +60,6 @@ Ezek a funkciók minimális kockázattal járnak, nem igénylik a meglévő adat
 - [ ] **B2: Jogi visszatartás (Legal Hold) kapcsoló az ügyirat adatlapon**
   - *Mit csinál:* Egy egykattintásos kapcsoló az ügyirat adatlapon: ha egy ügyirat per vagy vizsgálat tárgya, zárolható a selejtezés alól, így a megőrzési idő lejárta után sem kerülhet be a selejtezési javaslatba.
   - *Miért könnyű:* Egyetlen boolean oszlop (`legal_hold`) + kapcsoló a felületen.
-- [ ] **B3: Aktív Szerződések áttekintő blokk a Partner 360° nézeten**
-  - *Mit csinál:* A partner adatlapon egy külön összefoglaló kártya listázza a partnerhez kapcsolódó érvényes szerződéseket és azok lejárati idejét.
-  - *Miért könnyű:* A partner iratai már most le vannak kérve az oldalon, csak egy szűrt nézetet kell nekik adni.
 
 ---
 

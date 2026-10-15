@@ -107,8 +107,7 @@ export async function fetchMedicalExaminationData(
         ervenyes_tol,
         hr_munkakor (
           megnevezes,
-          feor_kod,
-          szukseges_kepzettseg
+          feor_kod
         )
       )
     `)

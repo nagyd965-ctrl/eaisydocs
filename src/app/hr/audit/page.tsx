@@ -194,7 +194,7 @@ export default function HrAuditPage() {
       setLogs(data || [])
     }
     setLoading(false)
-  }, [selectedCompany?.id, supabase])
+  }, [selectedCompany, supabase])
 
   useEffect(() => {
     setCurrentPage(1)

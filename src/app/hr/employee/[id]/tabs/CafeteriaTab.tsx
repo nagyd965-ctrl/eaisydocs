@@ -118,9 +118,7 @@ export function CafeteriaTab({
         {/* Bal oldal: Keretösszeg beállítása */}
         <Card className="border border-border/50">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="w-5 h-5 text-primary" /> Cafeteria Keret ({year})
-            </CardTitle>
+            <CardTitle>Cafeteria Keret ({year})</CardTitle>
             <CardDescription>Határozd meg a dolgozó éves bruttó cafeteria keretét.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -164,9 +162,7 @@ export function CafeteriaTab({
           <CardHeader>
             <div className="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-start">
               <div>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-primary" /> Leadott Nyilatkozat
-                </CardTitle>
+                <CardTitle>Leadott Nyilatkozat</CardTitle>
                 <div className="mt-1.5 space-y-1">
                   {isClosed ? (
                     <>

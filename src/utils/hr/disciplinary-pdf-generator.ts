@@ -103,8 +103,16 @@ export async function fetchDisciplinaryPdfData(
   // 2. Dolgozó személyes adatai
   const { data: adatlap } = await supabase
     .from("hr_dolgozo_adatlap")
-    .select("szuletesi_hely, szuletesi_ido, anyja_neve, lakcim, taj_szam")
+    .select("szuletesi_ido, anyja_neve, lakcim")
     .eq("id", employeeId)
+    .maybeSingle()
+
+  const { data: munkaszerzodes } = await supabase
+    .from("hr_munkaszerzodes")
+    .select("szuletesi_hely, taj_szam, adoazonosito_jel, lakcim, anyja_neve, szuletesi_datum")
+    .eq("dolgozo_id", employeeId)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle()
 
   // 3. Munkakör aktív jogviszonyból
@@ -167,11 +175,14 @@ export async function fetchDisciplinaryPdfData(
     decisionNumber,
     employeeId,
     employeeName,
-    szuletesiHely: adatlap?.szuletesi_hely || "Budapest",
-    szuletesiDatum: adatlap?.szuletesi_ido ? new Date(adatlap.szuletesi_ido).toLocaleDateString("hu-HU") : "–",
-    anyjaNeve: adatlap?.anyja_neve || "–",
-    lakcim: adatlap?.lakcim || "–",
-    tajSzam: adatlap?.taj_szam || "–",
+    szuletesiHely: munkaszerzodes?.szuletesi_hely || "Budapest",
+    szuletesiDatum: (() => {
+      const d = adatlap?.szuletesi_ido || munkaszerzodes?.szuletesi_datum
+      return d ? new Date(d).toLocaleDateString("hu-HU") : "–"
+    })(),
+    anyjaNeve: adatlap?.anyja_neve || munkaszerzodes?.anyja_neve || "–",
+    lakcim: adatlap?.lakcim || munkaszerzodes?.lakcim || "–",
+    tajSzam: munkaszerzodes?.taj_szam || "–",
     munkakor,
     tipus,
     tipusLabel,

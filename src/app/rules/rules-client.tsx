@@ -821,7 +821,7 @@ export function RulesClient({
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                               <span>Utolsó frissítés:</span>
                               <span className="font-medium text-foreground/80">
-                                {new Date(rule.updated_at || rule.created_at || Date.now()).toLocaleDateString("hu-HU", {
+                                {new Date(rule.updated_at || rule.created_at || 0).toLocaleDateString("hu-HU", {
                                   year: "numeric",
                                   month: "2-digit",
                                   day: "2-digit",

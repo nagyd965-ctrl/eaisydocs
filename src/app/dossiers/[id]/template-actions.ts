@@ -172,12 +172,12 @@ export async function updateCustomReplyTemplate(
       .eq("kulcs", "valaszlevel_sablonok")
       .maybeSingle()
 
-    let existing: ReplyTemplate[] =
+    const existing: ReplyTemplate[] =
       Array.isArray(settingRow?.ertek) && settingRow.ertek.length > 0
         ? settingRow.ertek
         : [...DEFAULT_REPLY_TEMPLATES]
 
-    let index = existing.findIndex((t) => t.id === templateId)
+    const index = existing.findIndex((t) => t.id === templateId)
 
     let updatedItem: ReplyTemplate
 
@@ -255,7 +255,7 @@ export async function deleteCustomReplyTemplate(
       .eq("kulcs", "valaszlevel_sablonok")
       .maybeSingle()
 
-    let existing: ReplyTemplate[] =
+    const existing: ReplyTemplate[] =
       Array.isArray(settingRow?.ertek) && settingRow.ertek.length > 0
         ? settingRow.ertek
         : [...DEFAULT_REPLY_TEMPLATES]

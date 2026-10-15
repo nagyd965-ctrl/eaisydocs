@@ -194,7 +194,7 @@ export async function deleteContractTemplateAction(templateId: string): Promise<
       .eq("kulcs", "szerzodes_sablonok")
       .maybeSingle()
 
-    let existing: ContractTemplate[] =
+    const existing: ContractTemplate[] =
       Array.isArray(settingRow?.ertek) && settingRow.ertek.length > 0
         ? settingRow.ertek
         : [...DEFAULT_CONTRACT_TEMPLATES]
@@ -242,7 +242,7 @@ export async function getContractGeneratorContextAction(partnerId: string): Prom
     const supabase = await createClient()
 
     // 1. Partner adatok lekérése (biztonságos, beágyazott join hiba nélkül)
-    let partnerQuery = await supabase
+    const partnerQuery = await supabase
       .from("partner")
       .select("*")
       .eq("id", partnerId)
@@ -385,7 +385,7 @@ export async function generateContractDraftAction(
     const supabase = await createClient()
 
     // 1. Partner adatok betöltése
-    let partnerQuery = await supabase
+    const partnerQuery = await supabase
       .from("partner")
       .select("*")
       .eq("id", params.partnerId)
@@ -629,7 +629,7 @@ export async function finalizeAndFileContractAction(
     }
 
     // 1. Partner törzsadat betöltése
-    let partnerQuery = await supabase
+    const partnerQuery = await supabase
       .from("partner")
       .select("id, nev, email")
       .eq("id", params.partnerId)

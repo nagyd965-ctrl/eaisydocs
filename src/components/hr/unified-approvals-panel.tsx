@@ -214,33 +214,22 @@ export function UnifiedApprovalsPanel({ initialItems }: UnifiedApprovalsPanelPro
       <Card className="border border-border">
         <CardHeader className="pb-3 border-b bg-card/50">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              {countTotal > 0 ? (
-                <div className="h-8 w-8 rounded-lg bg-warning/15 text-warning flex items-center justify-center shrink-0">
-                  <Clock className="w-4 h-4" />
-                </div>
-              ) : (
-                <div className="h-8 w-8 rounded-lg bg-success/15 text-success flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-              )}
-              <div>
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-base font-semibold">
-                    Jóváhagyásra váró kérelmek
-                  </CardTitle>
-                  {countTotal > 0 && (
-                    <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-warning text-warning-foreground text-[11px] font-bold tabular-nums">
-                      {countTotal}
-                    </span>
-                  )}
-                </div>
-                <CardDescription className="text-xs mt-0.5">
-                  {countTotal > 0 
-                    ? "Távolléti, munkaidő korrekciós és túlóra elbírálások egyetlen helyen."
-                    : "A csapatod összes kérelmét elintézted."}
-                </CardDescription>
+            <div>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base font-semibold">
+                  Jóváhagyásra váró kérelmek
+                </CardTitle>
+                {countTotal > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-warning text-warning-foreground text-[11px] font-bold tabular-nums">
+                    {countTotal}
+                  </span>
+                )}
               </div>
+              <CardDescription className="text-xs mt-0.5">
+                {countTotal > 0 
+                  ? "Távolléti, munkaidő korrekciós és túlóra elbírálások egyetlen helyen."
+                  : "A csapatod összes kérelmét elintézted."}
+              </CardDescription>
             </div>
 
             {/* Szűrő gombok */}

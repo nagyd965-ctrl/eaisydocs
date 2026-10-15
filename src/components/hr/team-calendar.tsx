@@ -436,8 +436,8 @@ export function TeamCalendar({
     <Card className="col-span-full">
       <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b bg-muted/10 pb-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5 text-primary" /> Csapatnaptár
+          <CardTitle className="text-lg font-semibold">
+            Csapatnaptár
           </CardTitle>
           <div className="flex bg-muted p-1 rounded-md">
             <button 
