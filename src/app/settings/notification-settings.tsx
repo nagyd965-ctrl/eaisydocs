@@ -1,13 +1,14 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
+import { cn } from "@/lib/utils"
+import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Bell, List, AlertCircle, CheckCircle2, Clock, Info, Monitor, Mail, MessageSquare } from "lucide-react"
+import { Bell, Info, Mail, MessageSquare, ArrowRight, Send } from "lucide-react"
 import { toggleNotificationRule, updateRuleChannels } from "./settings-actions"
 import { toast } from "sonner"
 
@@ -17,16 +18,6 @@ interface Rule {
   kinek: string
   aktiv: boolean
   csatorna?: string[]
-}
-
-interface Log {
-  id: string
-  mikor: string
-  csatorna: string
-  cimzett_email: string
-  targy: string
-  statusz: string
-  hiba_oka: string | null
 }
 
 const triggerNames: Record<string, string> = {
@@ -51,11 +42,11 @@ const targetNames: Record<string, string> = {
   iratkezelo: "Iratkezelő"
 }
 
-export function NotificationSettings({ rules, logs, isAdmin }: { rules: Rule[], logs: Log[], isAdmin?: boolean }) {
+export function NotificationSettings({ rules, isAdmin }: { rules: Rule[]; logs?: unknown[]; isAdmin?: boolean }) {
   const [localRules, setLocalRules] = useState<Rule[]>(rules)
   const [isPending, setIsPending] = useState(false)
 
-  const handleToggle = async (id: string, currentStatus: boolean, channels: string[]) => {
+  const handleToggle = async (id: string, currentStatus: boolean, _channels?: string[]) => {
     if (!isAdmin) {
       toast.error("Nincs jogosultságod", { description: "Csak adminisztrátorok módosíthatják a globális értesítési szabályokat!" })
       return
@@ -180,78 +171,29 @@ export function NotificationSettings({ rules, logs, isAdmin }: { rules: Rule[], 
         </CardContent>
       </Card>
 
-      <Card className="border-border/60">
-        <CardHeader className="pb-4">
-          <div className="flex items-center space-x-2">
-            <List className="h-5 w-5" />
-            <CardTitle className="text-xl">Kiküldési Napló (Audit)</CardTitle>
+      <Card className="border-border/60 bg-muted/20">
+        <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-primary shrink-0">
+              <Send className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Értesítések Kiküldési Naplója (Audit)</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                A rendszer által kiküldött összes e-mail és SMS kézbesítési állapota, szűrése és exportja a Központi Eseménynaplóban érhető el.
+              </p>
+            </div>
           </div>
-          <CardDescription>A rendszer által kiküldött legutóbbi 50 értesítés állapota</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border border-border/50 overflow-hidden overflow-x-auto">
-            <Table className="compact-table">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Időpont</TableHead>
-                  <TableHead>Csatorna</TableHead>
-                  <TableHead>Címzett</TableHead>
-                  <TableHead>Tárgy</TableHead>
-                  <TableHead>Státusz</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="font-medium whitespace-nowrap">
-                      {new Date(log.mikor).toLocaleString("hu-HU")}
-                    </TableCell>
-                    <TableCell>
-                      {log.csatorna === "sms" ? (
-                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 gap-1 text-[11px] font-normal">
-                          <MessageSquare className="h-3 w-3" /> SMS
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-muted text-muted-foreground border-border gap-1 text-[11px] font-normal">
-                          <Mail className="h-3 w-3" /> E-mail
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>{log.cimzett_email}</TableCell>
-                    <TableCell className="max-w-[240px] truncate" title={log.targy}>
-                      {log.targy}
-                    </TableCell>
-                    <TableCell>
-                      {log.statusz === "sikeres" && (
-                        <Badge variant="outline" className="bg-success/10 text-success border-success/30">
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Sikeres
-                        </Badge>
-                      )}
-                      {log.statusz === "hibas" && (
-                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30" title={log.hiba_oka || "Ismeretlen hiba"}>
-                          <AlertCircle className="h-3 w-3 mr-1" /> Hibás
-                        </Badge>
-                      )}
-                      {log.statusz === "folyamatban" && (
-                        <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30">
-                          <Clock className="h-3 w-3 mr-1" /> Folyamatban
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {logs.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                      Még nem küldött ki a rendszer egyetlen értesítést sem.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <Link
+            href="/audit?tab=kikuldesi_naplo"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-2 shrink-0 border-primary/30 hover:bg-primary/10 hover:text-primary")}
+          >
+            Kiküldési Napló Megnyitása
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </CardContent>
       </Card>
     </div>
   )
 }
+

@@ -13,6 +13,8 @@ interface SendSmsParams {
   subject?: string;
   dossierId?: string;
   skipLog?: boolean;
+  modul?: "docs" | "hr";
+  companyId?: string;
 }
 
 async function logSmsAudit(
@@ -21,7 +23,9 @@ async function logSmsAudit(
   status: 'sikeres' | 'hibas', 
   errorReason?: string | null, 
   subject?: string, 
-  dossierId?: string
+  dossierId?: string,
+  modul: "docs" | "hr" = "docs",
+  companyId?: string
 ) {
   try {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -39,18 +43,20 @@ async function logSmsAudit(
       uzenet: body,
       statusz: status,
       hiba_oka: errorReason || null,
-      ugyirat_id: dossierId || null
+      ugyirat_id: dossierId || null,
+      modul: modul,
+      company_id: companyId || null,
     });
   } catch (e) {
     console.error("SMS naplózási hiba:", e);
   }
 }
 
-export async function sendSmsNotification({ to, body, subject, dossierId, skipLog }: SendSmsParams) {
+export async function sendSmsNotification({ to, body, subject, dossierId, skipLog, modul = "docs", companyId }: SendSmsParams) {
   if (!client || !fromPhone) {
     console.warn("Twilio nincs megfelelően konfigurálva az .env fájlban! (SMS szimulált)");
     if (!skipLog) {
-      await logSmsAudit(to, body, 'hibas', 'Twilio nincs konfigurálva (szimulált küldés)', subject, dossierId);
+      await logSmsAudit(to, body, 'hibas', 'Twilio nincs konfigurálva (szimulált küldés)', subject, dossierId, modul, companyId);
     }
     return { success: false, error: "Twilio credentials missing", simulated: true };
   }

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, Suspense } from "react"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useCompany } from "@/contexts/company-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -20,28 +21,18 @@ import {
   DateRangeFilter 
 } from "@/components/table-toolbar/table-toolbar"
 import { KpiCard } from "@/components/kpi-card"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { NotificationAuditTab } from "./notification-audit-tab"
 import { 
   ShieldAlert, 
-  FileText, 
   User, 
-  Eye, 
-  FileEdit, 
-  FileCheck, 
-  Trash2, 
   RefreshCw, 
   Download, 
-  ArrowRight, 
-  CheckCircle2, 
-  Info,
-  Calendar,
-  Layers,
-  ChevronLeft,
-  ChevronRight,
-  Building2,
-  FolderOpen,
-  Archive,
-  Send,
-  Lock
+  Calendar, 
+  Layers, 
+  ChevronLeft, 
+  ChevronRight, 
+  Building2 
 } from "lucide-react"
 import { format } from "date-fns"
 import { hu } from "date-fns/locale"
@@ -85,7 +76,29 @@ export const DOCS_EVENT_CONFIG: Record<string, { label: string; category: Action
   "visszahozva": { label: "Visszavétel", category: "approval", badgeClass: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" }
 }
 
-export default function CentralAuditPage() {
+function CentralAuditPageInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const tabParam = searchParams.get("tab")
+  const activeTab: "rendszernaplo" | "kikuldesi_naplo" = 
+    tabParam === "kikuldesi_naplo" || tabParam === "kikuldes" || tabParam === "ertesitesek"
+      ? "kikuldesi_naplo"
+      : "rendszernaplo"
+
+  const handleTabChange = (val: string) => {
+    const newTab = val as "rendszernaplo" | "kikuldesi_naplo"
+    const params = new URLSearchParams(searchParams.toString())
+    if (newTab === "kikuldesi_naplo") {
+      params.set("tab", "kikuldesi_naplo")
+    } else {
+      params.delete("tab")
+    }
+    const query = params.toString() ? `?${params.toString()}` : ""
+    router.replace(`${pathname}${query}`, { scroll: false })
+  }
+
   const [logs, setLogs] = useState<DocsAuditLogItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedLog, setSelectedLog] = useState<DocsAuditLogItem | null>(null)
@@ -481,29 +494,48 @@ export default function CentralAuditPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={fetchLogs} 
-            disabled={loading}
-            className="gap-2 h-9"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-primary" : ""}`} />
-            Frissítés
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleExportCsv}
-            disabled={loading || filteredLogs.length === 0}
-            className="gap-2 h-9"
-          >
-            <Download className="w-4 h-4" />
-            CSV Export
-          </Button>
-        </div>
+        {activeTab === "rendszernaplo" && (
+          <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchLogs} 
+              disabled={loading}
+              className="gap-2 h-9"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-primary" : ""}`} />
+              Frissítés
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleExportCsv}
+              disabled={loading || filteredLogs.length === 0}
+              className="gap-2 h-9"
+            >
+              <Download className="w-4 h-4" />
+              CSV Export
+            </Button>
+          </div>
+        )}
       </div>
+
+      {/* ── Fő Audit Fülek (Rendszernapló vs Kiküldési Napló) ── */}
+      <Tabs 
+        value={activeTab} 
+        onValueChange={handleTabChange} 
+        className="space-y-6"
+      >
+        <TabsList className="h-10 p-1 bg-muted/60 border border-border/50">
+          <TabsTrigger value="rendszernaplo" className="px-4 py-1.5 text-xs font-medium">
+            Rendszernapló (Audit)
+          </TabsTrigger>
+          <TabsTrigger value="kikuldesi_naplo" className="px-4 py-1.5 text-xs font-medium">
+            Kiküldési Napló
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="rendszernaplo" className="space-y-6 outline-none">
 
       {/* ── Kanonikus KPI Statisztikai Kártyák (Linear Flat Grid - ADR A-029) ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -836,6 +868,15 @@ export default function CentralAuditPage() {
             </div>
           )}
         </Card>
+      </TabsContent>
+
+      <TabsContent value="kikuldesi_naplo" className="space-y-6 outline-none">
+        <NotificationAuditTab 
+          companyId={selectedCompany?.id} 
+          companyName={selectedCompany?.name} 
+        />
+      </TabsContent>
+    </Tabs>
 
       {/* ── Részletes Esemény Betekintő Modal (Dialog) ── */}
       <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
@@ -969,5 +1010,23 @@ export default function CentralAuditPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function CentralAuditPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6 pb-12 animate-pulse">
+        <div className="h-8 w-64 bg-muted rounded" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="h-24 bg-muted rounded-lg" />
+          <div className="h-24 bg-muted rounded-lg" />
+          <div className="h-24 bg-muted rounded-lg" />
+          <div className="h-24 bg-muted rounded-lg" />
+        </div>
+      </div>
+    }>
+      <CentralAuditPageInner />
+    </Suspense>
   )
 }

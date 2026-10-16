@@ -1,7 +1,7 @@
 import { getUserProfile, getTeamMembers, getDepartments } from "./settings-actions"
 import { getIrattariTervek, getFourEyesSetting } from "./admin-actions"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Info, User, Building, Bell, Monitor, Shield, Users, Plane, Settings2 } from "lucide-react"
+import { Info } from "lucide-react"
 import { SettingsClient } from "./settings-client"
 import { createClient } from "@/utils/supabase/server"
 
@@ -18,29 +18,7 @@ export default async function SettingsPage() {
     .order("created_at", { ascending: false })
 
   const isAdmin = profile.szerepkor === 'admin' || profile.docs_szerepkor === 'admin' || profile.szerepkor === 'rendszergazda' || profile.docs_szerepkor === 'rendszergazda'
-
-  let naplo: any[] = []
-  if (isAdmin) {
-    const { createClient: createAdminClient } = await import('@supabase/supabase-js')
-    const supabaseAdmin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-    const { data: naploData } = await supabaseAdmin
-      .from("ertesites_naplo")
-      .select("*")
-      .order("mikor", { ascending: false })
-      .limit(50)
-    
-    if (naploData) {
-      naplo = naploData.filter((log: any) => {
-        const t = (log.targy || '').toLowerCase()
-        const isHr = t.includes('orvosi') || t.includes('t1041') || t.includes('szabadság') || t.includes('szabadsag') || t.includes('próbaidő') || t.includes('probaido') || t.includes('tanulmányi') || t.includes('kpi') || t.includes('interjú') || t.includes('születésnap') || t.includes('szerződés')
-        return !isHr
-      })
-    }
-  }
+  const naplo: any[] = []
 
   const { data: userData } = await supabase.auth.getUser()
 

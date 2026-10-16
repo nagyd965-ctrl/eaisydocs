@@ -90,11 +90,13 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-080](./P-080-modular-hr-branding-and-profile-tabs-ux.md) | 2026-10-14 | eaisyHR & eaisyDocs Kommunikációs Identitás és Dolgozói Profil UX Harmonizáció | `[Közös]` | `HR / Onboarding, Recruitment & Employee 360° UX` | [A-061](../../architecture/decisions/A-061-vercel-serverless-readiness-and-modular-hr-data-sync.md), `employee/[id]/page.tsx`, `recruitment/actions.ts`, `inbox/page.tsx` |
 | [P-081](./P-081-eaisybill-partner-master-import-ux.md) | 2026-10-14 | eaisyBill Partnertörzs Importálása és Szelektív Partnerkezelés UX | `[Közös]` | `Partners / eaisyBill Master Import UX` | [A-062](../../architecture/decisions/A-062-eaisybill-partner-master-import-architecture.md), `eaisybill-partner-actions.ts`, `eaisybill-partner-import-dialog.tsx`, `partners-table-client.tsx` |
 | [P-082](./P-082-eaisybooks-payroll-employee-import-ux.md) | 2026-10-15 | Foglalkoztatottak Importálása eaisyBooks-ból UX és Adatlap Összerendelés | `[HR]` | `HR / Employees & eaisyBooks Payroll Import UX` | [A-063](../../architecture/decisions/A-063-eaisybooks-payroll-employee-import-architecture.md), `src/app/hr/admin/page.tsx`, `eaisybooks-employee-import-dialog.tsx`, `eaisybooks-employee-actions.ts` |
+| [P-083](./P-083-notification-dispatch-audit-centralization-ux.md) | 2026-10-16 | Értesítési Kiküldési Napló Központi Audit Fül és Beállítások Tisztítás UX | `[Közös]` | `Audit / Notification Dispatch Log & Settings UX` | [A-064](../../architecture/decisions/A-064-notification-dispatch-audit-centralization-architecture.md), `src/app/audit/page.tsx`, `src/app/audit/notification-audit-tab.tsx`, `src/app/settings/notification-settings.tsx` |
+| [P-084](./P-084-notification-dispatch-audit-module-separation-ux.md) | 2026-10-16 | Értesítési Kiküldési Napló Moduláris Szétválasztása és eaisyHR Audit UX | `[Közös]` | `HR & Docs / Notification Dispatch Separation UX` | [A-065](../../architecture/decisions/A-065-notification-dispatch-audit-module-separation-architecture.md), `src/app/hr/audit/page.tsx`, `src/app/hr/audit/hr-notification-audit-tab.tsx`, `src/app/hr/settings/notification-settings.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-083`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-085`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

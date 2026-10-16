@@ -2,7 +2,47 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
-## [Unreleased] – Fejlesztés alatt (2026-10-15)
+## [Unreleased] – Fejlesztés alatt (2026-10-16)
+
+### 📨 eaisyDocs & eaisyHR: Értesítési Kiküldési Napló Központosítása és Rendszerbeállítások Letisztítása (A-064 / P-083)
+- **Központi Eseménynapló Kétfülös Bővítése (`/audit`):**
+  - **Fülek struktúrája:** Ikonmentes, tiszta `Rendszernapló (Audit)` és `Kiküldési Napló` fülek, kétirányú URL query-sync támogatással (`?tab=kikuldesi_naplo`).
+  - **Kanonikus Linear Flat KPI Kártyák:** 4 db díszítésmentes `KpiCard` (Összes kiküldés, Sikeres kézbesítési arány %, Kézbesítési hiba darabszám, Kézbesített címzettek száma) szigorúan ikonok és színes szegélyek nélkül (ADR A-029).
+  - **Szabványos `TableToolbar`:**
+    - Instant gépelési keresőmező címzett e-mail/telefonszám, tárgy, iktatószám és üzenettartalom alapján.
+    - Strukturált szűrőcsoportok popoverben: Csatorna (`email` / `sms`), Kézbesítési státusz (`sikeres` / `hibas` / `folyamatban`), Tematikus kategória (`docs` / `hr` / `system`).
+    - Dátumtartomány szűrő gyorsgombokkal (`Mind`, `Ma`, `7 nap`, `30 nap`).
+    - Oszlopok testreszabása és megjelenítés-választó popover.
+  - **Kézbesítési Táblázat:**
+    - Státuszjelvények, csatorna címkék, kattintható iktatószám hivatkozás, kiváltó ügyintéző/automatizmus feloldása.
+    - Kiterjesztett szélességű (`max-w-4xl`–`xl:max-w-6xl`) modális üzenetbetekintő dialógus (`Dialog`) levágásmentes magassággal, ahol az e-mail alsó gombjai és lábléce is természetesen görgethető, a forráskód-váltó felesleges vizuális zaja nélkül.
+    - Kliensoldali UTF-8 BOM CSV export és reszponzív lapozó.
+- **Rendszerbeállítások Tehermentesítése és Sebességoptimalizálás (`/settings`):**
+  - A korábbi elrejtett és szűretlen statikus táblázat kivezetve az *Értesítések* fülről.
+  - Helyette letisztult információs kártya és átvezető gomb került be, amely közvetlenül az `/audit?tab=kikuldesi_naplo` felületre irányít.
+  - A szerveroldali felesleges `ertesites_naplo` lekérdezés megszűnt a `settings/page.tsx`-ben, javítva a beállítások betöltési idejét.
+- **Kapcsolódó döntések:** [ADR A-064](../architecture/decisions/A-064-notification-dispatch-audit-centralization-architecture.md), [PRD P-083](../product/decisions/P-083-notification-dispatch-audit-centralization-ux.md).
+
+### 🛡️ eaisyDocs & eaisyHR: Értesítési Kiküldési Napló Moduláris Szétválasztása és eaisyHR Audit Integráció (A-065 / P-084)
+- **Adatbázis Séma Bővítés & Multi-Tenancy (`public.ertesites_naplo`):**
+  - Hozzáadva a `modul TEXT NOT NULL DEFAULT 'docs' CHECK (modul IN ('docs', 'hr'))` és a `company_id UUID REFERENCES public.companies(id)` oszlop.
+  - Létrehozva a `idx_ertesites_naplo_modul`, `idx_ertesites_naplo_company_id` és az összetett `(modul, company_id, mikor DESC)` indexek.
+  - Adatmigráció: a meglévő 66 rekordból pontosan 11 db HR-specifikus rekord (beleértve Kelemen Roberta 4 db toborzási, interjúmeghívó és belépési e-mailjét) `hr` modulba sorolva, az 55 iratkezelési értesítő pedig `docs` modulban hagyva.
+- **Kiküldő Motorok Kiterjesztése (`mailer.ts` és `twilio.ts`):**
+  - A `sendNotificationEmail` és `sendSmsNotification` modul és bérlő azonosítókat fogad (`modul?: 'docs' | 'hr'`, `companyId?: string`), fallback intelligens kulcsszó-detektálással.
+  - Automatikus perzisztencia a modul és bérlő adatokkal.
+- **eaisyDocs Központi Audit Napló Hardening (`/audit?tab=kikuldesi_naplo`):**
+  - Kizárólag a `modul = 'docs'` iratkezelési értesítések lekérdezése (55 db), a HR adatok teljes elzárásával.
+- **eaisyHR Központi Kiküldési Napló Megvalósítás (`/hr/audit?tab=kikuldesi_naplo`):**
+  - A `/hr/audit` felület kétfülös struktúrára bővítve (`HR Eseménynapló (Audit)` és `Kiküldési Napló`), ikonok nélküli tiszta fülfejléccel és URL szinkronizációval.
+  - Dedikált szerver akció (`getHrNotificationAuditLogs`) szigorú szerepkör-ellenőrzéssel és `modul = 'hr'` szűréssel.
+  - 4 db Linear Flat `KpiCard` (Összes HR Értesítés, Sikeres Kézbesítés %, Hibás, Érintett Címzettek).
+  - Szabványos `TableToolbar` HR kategória szűrőkkel (`recruitment`, `leave`, `health`, `contract`, `system`), dátumtartomány gyorsgombokkal és oszlopválasztóval.
+  - Részletes, szélesített üzenetbetekintő dialógus levágásmentes levéltartalommal és CSV exportálással.
+  - Az eaisyHR beállításokból (`/hr/settings`) közvetlen átvezető kártya az új HR kiküldési naplóra.
+- **Kapcsolódó döntések:** [ADR A-065](../architecture/decisions/A-065-notification-dispatch-audit-module-separation-architecture.md), [PRD P-084](../product/decisions/P-084-notification-dispatch-audit-module-separation-ux.md).
+
+## [2026-10-15]
 
 ### 🧹 eaisyHR: Séma-biztos PDF Adatlekérések, T1041 / Kiléptetési Adatintegritás és Globális Flat UI Letisztítás
 - **PostgREST Séma Lekérdezési Javítások és Null-Safety:**

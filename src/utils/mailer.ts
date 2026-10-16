@@ -10,6 +10,8 @@ interface SendNotificationEmailParams {
   dossierId?: string
   senderName?: string
   senderEmail?: string
+  modul?: "docs" | "hr"
+  companyId?: string
 }
 
 /**
@@ -22,6 +24,8 @@ export async function sendNotificationEmail({
   dossierId,
   senderName,
   senderEmail,
+  modul,
+  companyId,
 }: SendNotificationEmailParams) {
   const apiKey = process.env.BREVO_API_KEY
   const supabase = await createClient()
@@ -29,9 +33,31 @@ export async function sendNotificationEmail({
   // Aktuális user lekérése a naplózáshoz
   const { data: { user } } = await supabase.auth.getUser()
 
+  // Intelligens modul felismerés ha nincs expliciten megadva
+  const resolvedModul: "docs" | "hr" = modul || (
+    subject.toLowerCase().includes("hr") ||
+    subject.toLowerCase().includes("interjú") ||
+    subject.toLowerCase().includes("interju") ||
+    subject.toLowerCase().includes("jelentkezés") ||
+    subject.toLowerCase().includes("jelentkezes") ||
+    subject.toLowerCase().includes("orvosi") ||
+    subject.toLowerCase().includes("szabadság") ||
+    subject.toLowerCase().includes("szabadsag") ||
+    subject.toLowerCase().includes("próbaidő") ||
+    subject.toLowerCase().includes("probaido") ||
+    subject.toLowerCase().includes("tanulmányi") ||
+    subject.toLowerCase().includes("kpi") ||
+    subject.toLowerCase().includes("flottakezelő") ||
+    subject.toLowerCase().includes("flottakezelo") ||
+    subject.toLowerCase().includes("dolgozó") ||
+    subject.toLowerCase().includes("munkavállaló")
+      ? "hr"
+      : "docs"
+  )
+
   if (!apiKey) {
     console.error("Hiányzik a BREVO_API_KEY a környezeti változókból!")
-    await logNotification(supabase, to, subject, html, "hibas", "Hiányzó API kulcs", dossierId, user?.id)
+    await logNotification(supabase, to, subject, html, "hibas", "Hiányzó API kulcs", dossierId, user?.id, resolvedModul, companyId)
     return { success: false, error: "Hiányzó API kulcs" }
   }
 
@@ -45,7 +71,7 @@ export async function sendNotificationEmail({
       },
       body: JSON.stringify({
         sender: {
-          name: senderName || "eaisyDocs Rendszer",
+          name: senderName || (resolvedModul === "hr" ? "eaisyHR Rendszer" : "eaisyDocs Rendszer"),
           email: senderEmail || "ertesites@thinkai.hu",
         },
         to: [{ email: to }],
@@ -57,17 +83,17 @@ export async function sendNotificationEmail({
     if (!response.ok) {
       const errorText = await response.text()
       console.error("Brevo API hiba:", errorText)
-      await logNotification(supabase, to, subject, html, "hibas", `Brevo hiba: ${errorText}`, dossierId, user?.id)
+      await logNotification(supabase, to, subject, html, "hibas", `Brevo hiba: ${errorText}`, dossierId, user?.id, resolvedModul, companyId)
       return { success: false, error: errorText }
     }
 
     const data = await response.json()
-    await logNotification(supabase, to, subject, html, "sikeres", null, dossierId, user?.id)
+    await logNotification(supabase, to, subject, html, "sikeres", null, dossierId, user?.id, resolvedModul, companyId)
     return { success: true, messageId: data.messageId }
   } catch (error: unknown) {
     console.error("Kivétel az e-mail küldés során:", error)
     const errorMessage = error instanceof Error ? error.message : "Ismeretlen hiba"
-    await logNotification(supabase, to, subject, html, "hibas", errorMessage, dossierId, user?.id)
+    await logNotification(supabase, to, subject, html, "hibas", errorMessage, dossierId, user?.id, resolvedModul, companyId)
     return { success: false, error: errorMessage }
   }
 }
@@ -80,7 +106,9 @@ async function logNotification(
   status: "sikeres" | "hibas" | "folyamatban",
   errorReason: string | null = null,
   dossierId?: string,
-  userId?: string
+  userId?: string,
+  modul: "docs" | "hr" = "docs",
+  companyId?: string
 ) {
   try {
     let adminSupabase = supabaseClient
@@ -101,6 +129,8 @@ async function logNotification(
       hiba_oka: errorReason,
       ugyirat_id: dossierId || null,
       kivato_user_id: userId || null,
+      modul: modul,
+      company_id: companyId || null,
     })
 
     if (error) {

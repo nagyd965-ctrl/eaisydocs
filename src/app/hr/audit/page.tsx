@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, Suspense } from "react"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
 import { useCompany } from "@/contexts/company-context"
 import { Card, CardContent } from "@/components/ui/card"
@@ -21,9 +22,10 @@ import {
   DateRangeFilter 
 } from "@/components/table-toolbar/table-toolbar"
 import { KpiCard } from "@/components/kpi-card"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { HrNotificationAuditTab } from "./hr-notification-audit-tab"
 import { 
   ShieldAlert, 
-  FileText, 
   User, 
   Eye, 
   FileEdit, 
@@ -31,7 +33,6 @@ import {
   Trash2, 
   RefreshCw, 
   Download, 
-  ArrowRight, 
   CheckCircle2, 
   Info,
   Calendar,
@@ -138,7 +139,29 @@ const FIELD_LABELS: Record<string, string> = {
   kilepes_datuma: "Kilépés dátuma"
 }
 
-export default function HrAuditPage() {
+function HrAuditPageInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const tabParam = searchParams.get("tab")
+  const activeTab: "esemenynaplo" | "kikuldesi_naplo" = 
+    tabParam === "kikuldesi_naplo" || tabParam === "kikuldes" || tabParam === "ertesitesek"
+      ? "kikuldesi_naplo"
+      : "esemenynaplo"
+
+  const handleTabChange = (val: string) => {
+    const newTab = val as "esemenynaplo" | "kikuldesi_naplo"
+    const params = new URLSearchParams(searchParams.toString())
+    if (newTab === "kikuldesi_naplo") {
+      params.set("tab", "kikuldesi_naplo")
+    } else {
+      params.delete("tab")
+    }
+    const query = params.toString() ? `?${params.toString()}` : ""
+    router.replace(`${pathname}${query}`, { scroll: false })
+  }
+
   const [logs, setLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -527,29 +550,48 @@ export default function HrAuditPage() {
             Minden kritikus rendszeresemény, adatmódosítás és személyes adatfeloldás visszakövethető, append-only naplója (GDPR megfelelőség).
           </p>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={fetchLogs} 
-            disabled={loading || isSwitching}
-            className="gap-1.5 h-8 text-xs"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading || isSwitching ? "animate-spin" : ""}`} />
-            Frissítés
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleExportCsv}
-            disabled={loading || isSwitching || filteredLogs.length === 0}
-            className="gap-1.5 h-8 text-xs"
-          >
-            <Download className="w-3.5 h-3.5" />
-            CSV Export
-          </Button>
-        </div>
+        {activeTab === "esemenynaplo" && (
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchLogs} 
+              disabled={loading || isSwitching}
+              className="gap-1.5 h-8 text-xs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading || isSwitching ? "animate-spin" : ""}`} />
+              Frissítés
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleExportCsv}
+              disabled={loading || isSwitching || filteredLogs.length === 0}
+              className="gap-1.5 h-8 text-xs"
+            >
+              <Download className="w-3.5 h-3.5" />
+              CSV Export
+            </Button>
+          </div>
+        )}
       </div>
+
+      {/* ── Fő HR Audit Fülek (Eseménynapló vs Kiküldési Napló) ── */}
+      <Tabs 
+        value={activeTab} 
+        onValueChange={handleTabChange} 
+        className="space-y-6"
+      >
+        <TabsList className="h-10 p-1 bg-muted/60 border border-border/50">
+          <TabsTrigger value="esemenynaplo" className="px-4 py-1.5 text-xs font-medium">
+            HR Eseménynapló (Audit)
+          </TabsTrigger>
+          <TabsTrigger value="kikuldesi_naplo" className="px-4 py-1.5 text-xs font-medium">
+            Kiküldési Napló
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="esemenynaplo" className="space-y-6 outline-none">
 
       {/* ── KPI Statisztikai Kártyák (Linear Flat Grid) ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1017,6 +1059,33 @@ export default function HrAuditPage() {
           })()}
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="kikuldesi_naplo" className="space-y-6 outline-none">
+          <HrNotificationAuditTab 
+            companyId={selectedCompany?.id} 
+            companyName={selectedCompany?.name} 
+          />
+        </TabsContent>
+      </Tabs>
     </div>
+  )
+}
+
+export default function HrAuditPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6 pb-12 animate-pulse">
+        <div className="h-8 w-64 bg-muted rounded" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="h-24 bg-muted rounded-lg" />
+          <div className="h-24 bg-muted rounded-lg" />
+          <div className="h-24 bg-muted rounded-lg" />
+          <div className="h-24 bg-muted rounded-lg" />
+        </div>
+      </div>
+    }>
+      <HrAuditPageInner />
+    </Suspense>
   )
 }

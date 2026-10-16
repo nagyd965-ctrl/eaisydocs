@@ -76,11 +76,13 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-061](./A-061-vercel-serverless-readiness-and-modular-hr-data-sync.md) | 2026-10-14 | Vercel Serverless Felkészítés, Dinamikus Host-kezelés és eaisyHR Különleges Adatszinkronizáció | `[Közös]` | `Decided` | [P-080](../../product/decisions/P-080-modular-hr-branding-and-profile-tabs-ux.md), `pdf-browser.ts`, `mailer.ts`, `onboarding/actions.ts`, `employment-contract-actions.ts` |
 | [A-062](./A-062-eaisybill-partner-master-import-architecture.md) | 2026-10-14 | eaisyBill Partnertörzs Importálási Architektúra és Duplikáció-védett Szinkronizáció | `[Közös]` | `Decided` | [P-081](../../product/decisions/P-081-eaisybill-partner-master-import-ux.md), `eaisybill-partner-actions.ts`, `eaisybill-partner-import-dialog.tsx`, `partners-table-client.tsx` |
 | [A-063](./A-063-eaisybooks-payroll-employee-import-architecture.md) | 2026-10-15 | eaisyBooks Bérszámfejtés és eaisyHR Munkavállalói Import Architektúra | `[HR]` | `Decided` | [P-082](../../product/decisions/P-082-eaisybooks-payroll-employee-import-ux.md), `eaisybooks-employee-actions.ts`, `eaisybooks-employee-import-dialog.tsx`, `hr/admin/page.tsx` |
+| [A-064](./A-064-notification-dispatch-audit-centralization-architecture.md) | 2026-10-16 | Értesítési Kiküldési Napló Központosítása és Egységes Audit Architektúra | `[Közös]` | `Decided` | [P-083](../../product/decisions/P-083-notification-dispatch-audit-centralization-ux.md), `audit/actions.ts`, `audit/page.tsx`, `notification-audit-tab.tsx`, `settings/notification-settings.tsx` |
+| [A-065](./A-065-notification-dispatch-audit-module-separation-architecture.md) | 2026-10-16 | Értesítési Kiküldési Napló Moduláris Szétválasztása és eaisyHR Integráció | `[Közös]` | `Decided` | [P-084](../../product/decisions/P-084-notification-dispatch-audit-module-separation-ux.md), `ertesites_naplo`, `mailer.ts`, `twilio.ts`, `hr/audit/page.tsx`, `hr/audit/hr-notification-audit-tab.tsx`, `hr/audit/actions.ts` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-064`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-066`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 
