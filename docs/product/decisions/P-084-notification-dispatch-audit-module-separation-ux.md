@@ -43,7 +43,7 @@ A felhasználói visszajelzések alapján elengedhetetlen volt az értesítési 
   - Kattintásra megnyíló, kiterjesztett szélességű (`max-w-4xl`–`xl:max-w-6xl`) modális ablak a levéltörzs levágásmentes, természetes magasságú megjelenítésével, egyetlen gördülékeny görgetősávval és kompakt, egy-soros metaadat sávval.
 
 ### 2.3. eaisyHR Értesítési Beállítások (`/hr/settings`)
-- Az *Értesítések* fülön letisztult információs kártya vezeti át a HR vezetőt az új központi naplóra (`/hr/audit?tab=kikuldesi_naplo`).
+- Az *Értesítések* fülről a felesleges átvezető kártya szintén kivezetésre került a maximális felületi letisztítás érdekében; az értesítési szabályok önállóan kezelhetők, a naplózás pedig a bal oldali oldalsávból elérhető `/hr/audit?tab=kikuldesi_naplo` felületen működik.
 
 ## 3. Megfelelőség a Rendszer Szabályainak
 

@@ -17,9 +17,10 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
     - Státuszjelvények, csatorna címkék, kattintható iktatószám hivatkozás, kiváltó ügyintéző/automatizmus feloldása.
     - Kiterjesztett szélességű (`max-w-4xl`–`xl:max-w-6xl`) modális üzenetbetekintő dialógus (`Dialog`) levágásmentes magassággal, ahol az e-mail alsó gombjai és lábléce is természetesen görgethető, a forráskód-váltó felesleges vizuális zaja nélkül.
     - Kliensoldali UTF-8 BOM CSV export és reszponzív lapozó.
-- **Rendszerbeállítások Tehermentesítése és Sebességoptimalizálás (`/settings`):**
-  - A korábbi elrejtett és szűretlen statikus táblázat kivezetve az *Értesítések* fülről.
-  - Helyette letisztult információs kártya és átvezető gomb került be, amely közvetlenül az `/audit?tab=kikuldesi_naplo` felületre irányít.
+- **Rendszerbeállítások Tehermentesítése és Letisztítása (`/settings` és `/hr/settings`):**
+  - A korábbi elrejtett és szűretlen statikus táblázat, valamint az átvezető kártyák teljesen kivezetve az *Értesítések* fülről mind az eaisyDocs, mind az eaisyHR Beállítások oldalán.
+  - A beállítások oldalak mostantól tisztán és kizárólag a riasztási és értesítési szabályok konfigurálására fókuszálnak.
+  - A kiküldési napló kizárólag a logikus, dedikált helyén, a bal oldali oldalsávból elérhető Központi Eseménynaplóban (`/audit?tab=kikuldesi_naplo` és `/hr/audit?tab=kikuldesi_naplo`) érhető el.
   - A szerveroldali felesleges `ertesites_naplo` lekérdezés megszűnt a `settings/page.tsx`-ben, javítva a beállítások betöltési idejét.
 - **Kapcsolódó döntések:** [ADR A-064](../architecture/decisions/A-064-notification-dispatch-audit-centralization-architecture.md), [PRD P-083](../product/decisions/P-083-notification-dispatch-audit-centralization-ux.md).
 
@@ -39,7 +40,7 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
   - 4 db Linear Flat `KpiCard` (Összes HR Értesítés, Sikeres Kézbesítés %, Hibás, Érintett Címzettek).
   - Szabványos `TableToolbar` HR kategória szűrőkkel (`recruitment`, `leave`, `health`, `contract`, `system`), dátumtartomány gyorsgombokkal és oszlopválasztóval.
   - Részletes, szélesített üzenetbetekintő dialógus levágásmentes levéltartalommal és CSV exportálással.
-  - Az eaisyHR beállításokból (`/hr/settings`) közvetlen átvezető kártya az új HR kiküldési naplóra.
+  - Az eaisyHR beállításokból (`/hr/settings`) a felesleges átvezető kártya szintén kivezetésre került a felület maximális letisztítása érdekében.
 - **Kapcsolódó döntések:** [ADR A-065](../architecture/decisions/A-065-notification-dispatch-audit-module-separation-architecture.md), [PRD P-084](../product/decisions/P-084-notification-dispatch-audit-module-separation-ux.md).
 
 ## [2026-10-15]

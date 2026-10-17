@@ -43,9 +43,9 @@ A felhasználók és adminisztrátorok számára zavaró volt, hogy az értesít
     - Hibás státusz esetén vörös figyelmeztető doboz a pontos hibaok leírásával.
 
 ### 2.2. Beállítások Oldal (`/settings`)
-- Az *Értesítések* fülön a korábbi statikus táblázat helyére egy prémium, Linear-flat információs kártya került:
-  - Bal oldalon: Információs leírás az értesítési naplózásról.
-  - Jobb oldalon: *"Kiküldési Napló Megnyitása"* gomb, amely közvetlenül az `/audit?tab=kikuldesi_naplo` linkre navigál.
+- Az *Értesítések* fülről a lassú, szűretlen statikus táblázat, valamint az átvezető kártyák teljesen kivezetésre kerültek:
+  - A beállítások kizárólag az értesítési szabályok (határidő, szignálás) be- és kikapcsolására, valamint csatornaválasztásra szolgálnak.
+  - A kiküldési naplózás elérése kizárólag a logikus, dedikált helyén, a bal oldalsávból elérhető Központi Eseménynapló (`/audit?tab=kikuldesi_naplo`) felületén történik.
 
 ## 3. Megfelelőség a Rendszer Szabályainak
 

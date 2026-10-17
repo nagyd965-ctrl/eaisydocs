@@ -1,14 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
-import { cn } from "@/lib/utils"
-import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Bell, Info, Mail, MessageSquare, ArrowRight, Send } from "lucide-react"
+import { Bell, Info, Mail, MessageSquare } from "lucide-react"
 import { toggleNotificationRule, updateRuleChannels } from "./settings-actions"
 import { toast } from "sonner"
 
@@ -168,29 +165,6 @@ export function NotificationSettings({ rules, isAdmin }: { rules: Rule[]; logs?:
               <p className="text-muted-foreground">Nincsenek beállított szabályok.</p>
             )}
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/60 bg-muted/20">
-        <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-primary shrink-0">
-              <Send className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">Értesítések Kiküldési Naplója (Audit)</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                A rendszer által kiküldött összes e-mail és SMS kézbesítési állapota, szűrése és exportja a Központi Eseménynaplóban érhető el.
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/audit?tab=kikuldesi_naplo"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-2 shrink-0 border-primary/30 hover:bg-primary/10 hover:text-primary")}
-          >
-            Kiküldési Napló Megnyitása
-            <ArrowRight className="h-4 w-4" />
-          </Link>
         </CardContent>
       </Card>
     </div>
