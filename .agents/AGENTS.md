@@ -64,3 +64,6 @@ Ezek a szabályok a `design/` mappa és az `eaisyDocs_szoftverterv.md` alapján 
 - **Státuszok és Badge-ek:**
   - Kizárólag a központi `StatusBadge` és standard szemantikus HSL színek (`success`, `warning`, `info`, `destructive`, `primary`) alkalmazhatók.
 
+## 8. Verziókezelés & Git Szabályok (Szigorú Biztonsági Korlátozás)
+- **GIT PUSH TILALOM:** **Soha, semmilyen körülmények között nem futtatható `git push` a felhasználó kifejezett, adott üzenetben jóváhagyott külön engedélye vagy utasítása nélkül.** Helyi committal lehet rögzíteni a módosításokat, de a távoli tárolóba (GitHub) történő feltöltés kizárólag a felhasználó közvetlen parancsára történhet!
+
