@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
-import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 import { buildOrgTree, type OrgDolgozo, type OrgUnitNode } from "@/lib/org-chart-utils"
 import { OrganizationTabsView } from "@/components/hr/organization-tabs-view"
 
@@ -14,21 +14,22 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
 
   if (!user) redirect("/login")
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
     .select("hr_szerepkor")
     .eq("id", user.id)
     .single()
 
-  const hrRole = profile?.hr_szerepkor || "munkavallalo"
-  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda", "auditor"].includes(hrRole)
+  const hrRole = scopedRoles.hrRole || profile?.hr_szerepkor || "munkavallalo"
+  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda", "auditor", "berugyi"].includes(hrRole)
 
   if (!isHrOrAdmin) {
     redirect("/hr/self-service/profile")
   }
-
-  const activeCompanyId = await getActiveCompanyIdServer()
-  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   // Aktív cég tagjainak azonosítói
   const { data: companyMembers } = await supabase
@@ -64,9 +65,11 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
       .select(`
         id,
         nev,
+        hr_szerepkor,
         hr_szervezeti_egyseg_id,
         hr_dolgozo_adatlap (
           id,
+          company_id,
           munkaviszony_vege,
           hr_jogviszony (
             id,
@@ -79,21 +82,27 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
       `)
       .in("id", safeMemberIds),
 
-    // 4. Összes felhasználó a szervezeti egységek létszámának számlálásához
-    supabase
-      .from("felhasznalo_profil")
-      .select("id, nev, hr_szervezeti_egyseg_id")
-      .in("id", safeMemberIds)
+    // 4. Munkakörök és egységek lekérdezés lezárása
+    Promise.resolve([])
   ])
 
   const orgUnits = orgUnitsRes.data || []
   const dbJobs = dbJobsRes.data || []
   const employees = employeesRes.data || []
-  const allUsers = allUsersRes.data || []
+
+  // Szigorúan csak az aktív eaisyHR munkavállalók (nem tisztán Docs tagok)
+  const hrEmployees = employees.filter(emp => {
+    if (!emp.hr_dolgozo_adatlap) return false
+    const adatlap = Array.isArray(emp.hr_dolgozo_adatlap) ? emp.hr_dolgozo_adatlap[0] : emp.hr_dolgozo_adatlap
+    if (!adatlap) return false
+    if (adatlap.company_id && adatlap.company_id !== companyScope) return false
+    const isExited = emp.hr_szerepkor === "inaktiv" || (adatlap?.munkaviszony_vege && new Date(adatlap.munkaviszony_vege) <= new Date())
+    return !isExited
+  })
 
   // Szervezeti ábra adatstruktúra felépítése
   const dolgozokByUnit: Record<string, OrgDolgozo[]> = {}
-  employees.forEach(emp => {
+  hrEmployees.forEach(emp => {
     const unitId = emp.hr_szervezeti_egyseg_id
     if (!unitId) return
 
@@ -121,7 +130,7 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
       rootOrgUnits={rootOrgUnits}
       orgUnits={orgUnits}
       dbJobs={dbJobs}
-      allUsers={allUsers}
+      allUsers={hrEmployees}
       defaultTab={defaultTab}
     />
   )

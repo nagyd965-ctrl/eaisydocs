@@ -136,7 +136,7 @@ export function AddEmployeeDialog({
         >
           <TabsList className="grid w-full grid-cols-2 mb-4">
             <TabsTrigger value="select_existing">Meglévő eaisyDocs fiók</TabsTrigger>
-            <TabsTrigger value="create_new">Új fiók (Csak eaisyHR)</TabsTrigger>
+            <TabsTrigger value="create_new">Új fiók</TabsTrigger>
           </TabsList>
 
           <TabsContent value="select_existing" className="space-y-4">

@@ -100,9 +100,8 @@ export function OrganizationTabsView({
         <TabsContent value="orgchart" className="space-y-4 outline-none">
           <Card className="border-border">
             <CardHeader className="border-b pb-4">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <Network className="w-5 h-5 text-primary" />
-                Vállalati Hierarchia & Ábra
+              <CardTitle className="text-lg font-semibold">
+                Vállalati Hierarchia
               </CardTitle>
               <CardDescription>
                 Interaktív vizuális fanézet a vezetők, beosztottak és szervezeti egységek kapcsolatáról.
@@ -119,8 +118,7 @@ export function OrganizationTabsView({
           <Card className="border-border">
             <CardHeader className="pb-4 border-b flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-primary" />
+                <CardTitle className="text-lg font-semibold">
                   Szervezeti Egységek
                 </CardTitle>
                 <CardDescription>
@@ -213,8 +211,7 @@ export function OrganizationTabsView({
           <Card className="border-border">
             <CardHeader className="pb-4 border-b flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Briefcase className="w-5 h-5 text-primary" />
+                <CardTitle className="text-lg font-semibold">
                   Nyilvántartott Munkakörök
                 </CardTitle>
                 <CardDescription>
