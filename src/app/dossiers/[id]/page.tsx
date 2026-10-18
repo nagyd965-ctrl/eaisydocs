@@ -76,7 +76,7 @@ export default async function DossierPage({
 
   const { data: users } = await supabase
     .from("felhasznalo_profil")
-    .select('id, nev, docs_szerepkor, szervezeti_egyseg_id, szervezeti_egyseg:szervezeti_egyseg_id(nev)')
+    .select('id, nev, avatar_url, docs_szerepkor, szervezeti_egyseg_id, szervezeti_egyseg:szervezeti_egyseg_id(nev)')
     .contains('elerheto_modulok', ['docs'])
 
   // Current user role check
@@ -107,6 +107,11 @@ export default async function DossierPage({
 
   const userMap = (users || []).reduce((acc: any, user: any) => {
     acc[user.id] = user.nev
+    return acc
+  }, {})
+
+  const avatarMap = (users || []).reduce((acc: Record<string, string | null>, user: any) => {
+    acc[user.id] = user.avatar_url || null
     return acc
   }, {})
 
@@ -312,7 +317,8 @@ export default async function DossierPage({
   const mappedComments = (comments || []).map((c: any) => ({
     ...c,
     user_email: c.user_id,
-    user_name: userMap[c.user_id] || "Ismeretlen"
+    user_name: userMap[c.user_id] || "Ismeretlen",
+    user_avatar_url: avatarMap[c.user_id] || null
   }))
 
   // Deduplicate consecutive/simultaneous logs where a DB trigger inserted an empty log alongside a rich application log
@@ -372,6 +378,7 @@ export default async function DossierPage({
             users={users || []}
             canEdit={canEdit}
             currentUserEmail={authUser?.user?.email || ""}
+            currentUserId={authUser?.user?.id}
             defaultOpen={notesParam === "1"}
           />
           <DossierAccessDialog 

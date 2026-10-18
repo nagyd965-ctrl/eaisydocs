@@ -57,6 +57,7 @@ import {
 import { TaskRejectDialog } from "./task-reject-dialog"
 import { Badge } from "./ui/badge"
 import { KpiCard } from "./kpi-card"
+import { UserAvatar } from "./user-avatar"
 import { TableToolbar, TableColumnOption } from "./table-toolbar/table-toolbar"
 import {
   Table,
@@ -120,6 +121,7 @@ export interface UserSelectItem {
   id: string
   nev: string
   email?: string
+  avatar_url?: string | null
 }
 
 interface TasksTabProps {
@@ -480,6 +482,7 @@ export function TasksTab({
     const isOverdue = !!deadlineDate && deadlineDate < todayStart && !isKesz && !isElutasitott
     const assignee = users.find((u) => u.id === task.felelos_user_id)
     const assigneeName = assignee?.nev || assignee?.email || "Nincs megadva"
+    const assigneeAvatar = assignee?.avatar_url || null
     return {
       meta,
       deadlineDate,
@@ -488,18 +491,11 @@ export function TasksTab({
       isFolyamatban,
       isOverdue,
       assigneeName,
+      assigneeAvatar,
       catConfig: CATEGORY_CONFIG[meta.kategoria],
       prioConfig: PRIORITY_CONFIG[meta.prioritas],
     }
   }
-
-  const getInitials = (name: string) =>
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((p) => p[0]?.toUpperCase() || "")
-      .join("") || "?"
 
   const matchesTaskFilters = (task: UgyiratTaskItem) => {
     const v = buildTaskView(task)
@@ -912,9 +908,7 @@ export function TasksTab({
                             {isColVisible("felelos") && (
                               <TableCell>
                                 <div className="flex items-center gap-2">
-                                  <div className="h-6 w-6 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold flex items-center justify-center shrink-0">
-                                    {getInitials(v.assigneeName)}
-                                  </div>
+                                  <UserAvatar name={v.assigneeName} src={v.assigneeAvatar} />
                                   <span className="text-xs text-foreground">{v.assigneeName}</span>
                                 </div>
                               </TableCell>
@@ -1039,9 +1033,7 @@ export function TasksTab({
                                   </TableCell>
                                   <TableCell>
                                     <div className="flex items-center gap-2">
-                                      <div className="h-6 w-6 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold flex items-center justify-center shrink-0">
-                                        {getInitials(v.assigneeName)}
-                                      </div>
+                                      <UserAvatar name={v.assigneeName} src={v.assigneeAvatar} />
                                       <span className="text-xs text-muted-foreground">{v.assigneeName}</span>
                                     </div>
                                   </TableCell>
@@ -1111,9 +1103,7 @@ export function TasksTab({
                   <div>
                     <dt className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Felelős</dt>
                     <dd className="flex items-center gap-2 text-sm font-medium text-foreground">
-                      <div className="h-6 w-6 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold flex items-center justify-center shrink-0">
-                        {getInitials(detailView.assigneeName)}
-                      </div>
+                      <UserAvatar name={detailView.assigneeName} src={detailView.assigneeAvatar} />
                       {detailView.assigneeName}
                     </dd>
                   </div>

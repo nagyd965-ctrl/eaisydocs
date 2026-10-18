@@ -13,13 +13,16 @@ import {
 } from "@/components/ui/sheet"
 import { addComment } from "@/app/dossiers/[id]/actions"
 import { MentionInput, renderMentionText } from "@/components/mention-input"
+import { UserAvatar } from "@/components/user-avatar"
 
 export interface DossierNote {
   id: string
   szoveg: string
   created_at: string
+  user_id?: string | null
   user_name?: string | null
   user_email?: string | null
+  user_avatar_url?: string | null
 }
 
 export interface DossierNoteUser {
@@ -35,17 +38,8 @@ interface DossierNotesSheetProps {
   users: DossierNoteUser[]
   canEdit: boolean
   currentUserEmail: string
+  currentUserId?: string
   defaultOpen?: boolean
-}
-
-function getInitials(name?: string | null) {
-  if (!name) return "?"
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return "?"
-  return parts
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() || "")
-    .join("")
 }
 
 function formatNoteTime(iso: string) {
@@ -74,6 +68,7 @@ export function DossierNotesSheet({
   users,
   canEdit,
   currentUserEmail,
+  currentUserId,
   defaultOpen = false,
 }: DossierNotesSheetProps) {
   const [open, setOpen] = useState(defaultOpen)
@@ -152,7 +147,9 @@ export function DossierNotesSheet({
               </div>
             ) : (
               comments.map((comment, index) => {
-                const isMine = !!currentUserEmail && comment.user_email === currentUserEmail
+                const isMine =
+                  (!!currentUserId && comment.user_id === currentUserId) ||
+                  (!!currentUserEmail && comment.user_email === currentUserEmail)
                 const prev = comments[index - 1]
                 const showDay =
                   !prev || new Date(prev.created_at).toDateString() !== new Date(comment.created_at).toDateString()
@@ -177,13 +174,12 @@ export function DossierNotesSheet({
                     >
                       <div className="flex items-center justify-between gap-2 mb-1.5">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div
-                            className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 ${
-                              isMine ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            {getInitials(comment.user_name)}
-                          </div>
+                          <UserAvatar
+                            name={comment.user_name}
+                            src={comment.user_avatar_url}
+                            highlight={isMine}
+                            className="size-7"
+                          />
                           <span className="text-xs font-semibold text-foreground truncate">
                             {comment.user_name || comment.user_email || "Ismeretlen"}
                           </span>
