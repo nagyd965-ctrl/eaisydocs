@@ -924,12 +924,11 @@ export function TasksTab({
       {/* ── TÖBBLÉPÉSES ÜGYIRATI FELADAT VARÁZSLÓ DIALÓGUS (WIZARD) ── */}
       <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
         <DialogContent className="sm:max-w-[1120px] w-[96vw] max-h-[90vh] flex flex-col p-0 gap-0 border border-border/70 overflow-hidden">
-          {/* Varázsló Fejléc és Lépésindikátor */}
+          {/* Varázsló Fejléc és Lépésindikátor – pontosan a válaszlevelek mintájára */}
           <div className="p-6 border-b border-border/50 bg-muted/10">
-            <div className="flex items-center justify-between mb-3.5 pr-8">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
-                Új ügyirati feladat kiadása
+            <div className="flex items-center justify-between mb-4 pr-8">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                ÚJ ÜGYIRATI FELADAT KIADÁSA
               </span>
               <span className="text-xs text-muted-foreground">
                 Ügyirat: <strong className="font-mono text-foreground">{iktatoszam || "—"}</strong>
@@ -937,17 +936,17 @@ export function TasksTab({
             </div>
 
             {/* Lépés Címsor */}
-            <div className="flex items-center gap-3.5 mb-4">
-              <div className="h-9 w-9 rounded-full bg-primary text-primary-foreground font-semibold flex items-center justify-center text-sm shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground font-semibold flex items-center justify-center text-sm shrink-0">
                 {currentStep}
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-foreground leading-tight">
+                <h3 className="text-lg font-semibold text-foreground">
                   {currentStep === 1 && "Sablon kiválasztása vagy egyedi feladat"}
                   {currentStep === 2 && "Feladat alapadatai és felelős"}
                   {currentStep === 3 && "Részletes instrukciók és összegzés"}
                 </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground">
                   {currentStep === 1 && "Válasszon egy előre konfigurált munkafolyamat-sablont, vagy kezdjen üres feladatlappal."}
                   {currentStep === 2 && "Határozza meg a feladat címét, a felelős munkatársat, határidőt és prioritást."}
                   {currentStep === 3 && "Adjon meg pontos munkautasítást, ellenőrizze az adatokat és véglegesítse a kiadást."}
@@ -955,102 +954,23 @@ export function TasksTab({
               </div>
             </div>
 
-            {/* Lépés navigációs fülek – kattintható, áttekinthető lépések */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-3 border-t border-border/40">
-              <button
-                type="button"
-                onClick={() => setCurrentStep(1)}
-                className={`flex items-center gap-2.5 p-2 rounded-lg text-left transition-colors cursor-pointer border ${
-                  currentStep === 1
-                    ? "bg-primary/10 border-primary/50 text-foreground"
-                    : "border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+            {/* Lépés navigációs sáv – egységes 3 sávos folyamatjelző csík */}
+            <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/40">
+              <div
+                className={`h-1.5 flex-1 rounded-full transition-colors ${
+                  currentStep >= 1 ? "bg-primary" : "bg-muted"
                 }`}
-              >
-                <div
-                  className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${
-                    currentStep > 1
-                      ? "bg-primary text-primary-foreground"
-                      : currentStep === 1
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {currentStep > 1 ? <Check className="h-3.5 w-3.5" /> : "1"}
-                </div>
-                <div className="min-w-0">
-                  <span className="text-xs font-medium block truncate">1. Sablon választás</span>
-                  <span className="text-[10px] text-muted-foreground block truncate">
-                    {selectedTemplateId
-                      ? templates.find((t) => t.id === selectedTemplateId)?.cim || "Sablon kiválasztva"
-                      : selectedTemplateId === null
-                      ? "Egyedi feladat"
-                      : "Válasszon sablont"}
-                  </span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setCurrentStep(2)}
-                className={`flex items-center gap-2.5 p-2 rounded-lg text-left transition-colors cursor-pointer border ${
-                  currentStep === 2
-                    ? "bg-primary/10 border-primary/50 text-foreground"
-                    : "border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+              />
+              <div
+                className={`h-1.5 flex-1 rounded-full transition-colors ${
+                  currentStep >= 2 ? "bg-primary" : "bg-muted"
                 }`}
-              >
-                <div
-                  className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${
-                    currentStep > 2
-                      ? "bg-primary text-primary-foreground"
-                      : currentStep === 2
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {currentStep > 2 ? <Check className="h-3.5 w-3.5" /> : "2"}
-                </div>
-                <div className="min-w-0">
-                  <span className="text-xs font-medium block truncate">2. Alapadatok & Felelős</span>
-                  <span className="text-[10px] text-muted-foreground block truncate">
-                    {formFelelos
-                      ? users.find((u) => u.id === formFelelos)?.nev || "Felelős beállítva"
-                      : "Cím, felelős, határidő"}
-                  </span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (formLeiras.trim() && formFelelos && formHatarido) {
-                    setCurrentStep(3)
-                  }
-                }}
-                disabled={!formLeiras.trim() || !formFelelos || !formHatarido}
-                className={`flex items-center gap-2.5 p-2 rounded-lg text-left transition-colors border ${
-                  currentStep === 3
-                    ? "bg-primary/10 border-primary/50 text-foreground"
-                    : formLeiras.trim() && formFelelos && formHatarido
-                    ? "border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/40 cursor-pointer"
-                    : "border-border/30 text-muted-foreground/40 cursor-not-allowed opacity-60"
+              />
+              <div
+                className={`h-1.5 flex-1 rounded-full transition-colors ${
+                  currentStep >= 3 ? "bg-primary" : "bg-muted"
                 }`}
-              >
-                <div
-                  className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${
-                    currentStep === 3
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  3
-                </div>
-                <div className="min-w-0">
-                  <span className="text-xs font-medium block truncate">3. Instrukciók & Jóváhagyás</span>
-                  <span className="text-[10px] text-muted-foreground block truncate">
-                    Összegzés és kiadás
-                  </span>
-                </div>
-              </button>
+              />
             </div>
           </div>
 
