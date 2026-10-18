@@ -185,7 +185,7 @@ export function MfaSettingsCard({ totpFactor: initialFactor }: MfaSettingsCardPr
               </div>
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold">Kétlépcsős azonosítás (2FA)</p>
+                  <p className="text-sm font-semibold">Kétlépcsős azonosítás</p>
                   <Badge className={cn(
                     "text-[10px] px-1.5 py-0 h-4 border-0",
                     isEnabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"

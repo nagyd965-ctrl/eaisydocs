@@ -9,14 +9,14 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { User, Users, UserPlus, Key, Clock, Save, ShieldCheck, FileText, Plane, Building, Plus, Settings, Camera, Upload, Crown } from "lucide-react"
+import { User, Users, UserPlus, Key, Clock, Save, ShieldCheck, FileText, Plane, Building, Plus, Settings, Camera, Upload, Crown, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { updateProfile, createNewUser, updateUserPassword, updateUserRole, uploadAvatar } from "./settings-actions"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { useTheme } from "next-themes"
+
 import { NotificationSettings } from "./notification-settings"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
@@ -54,8 +54,26 @@ export function SettingsClient({
   initialFourEyesRequired?: boolean
 }) {
   const router = useRouter()
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
+  const [timeoutValue, setTimeoutValue] = useState<number>(initialProfile?.munkamenet_idotullepes || 15)
+  const [savingTimeout, setSavingTimeout] = useState(false)
+
+  async function handleTimeoutChange(newTimeout: number) {
+    setSavingTimeout(true)
+    const formData = new FormData()
+    formData.append("munkamenet_idotullepes", String(newTimeout))
+    const res = await updateProfile(formData)
+    setSavingTimeout(false)
+    if (res?.error) {
+      toast.error("Hiba", { description: "Nem sikerült menteni a munkamenet időtúllépést: " + res.error })
+    } else {
+      toast.success("Munkamenet időtúllépés mentve", { 
+        description: `${newTimeout} perc inaktivitás után a rendszer automatikusan kijelentkeztet.` 
+      })
+      router.refresh()
+      window.dispatchEvent(new Event('sessionTimeoutChanged'))
+    }
+  }
+
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
@@ -122,10 +140,7 @@ export function SettingsClient({
     szigoruan_bizalmas: "Szigorúan Bizalmas"
   }
 
-  // Handle hydration for next-themes
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+
 
   function getInitials(name: string): string {
     return (name || "?")
@@ -176,7 +191,7 @@ export function SettingsClient({
   return (
     <>
       {/* 1. TAB: PROFIL */}
-      <TabsContent value="profil" className="space-y-4 outline-none">
+      <TabsContent value="profil" className="space-y-6 outline-none">
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-4">
             <CardTitle className="text-xl">Felhasználói profil</CardTitle>
@@ -259,11 +274,145 @@ export function SettingsClient({
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" disabled={loading} className="bg-[#02b8cc] hover:bg-[#029db0] text-white">
+              <Button type="submit" disabled={loading} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 {loading ? "Mentés..." : success ? "Sikeres mentés!" : "Profil mentése"}
               </Button>
             </CardFooter>
           </form>
+        </Card>
+
+        {/* BIZTONSÁG KÁRTYA */}
+        <Card className="border-border shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl">Biztonság</CardTitle>
+            <CardDescription>Jelszó, munkamenet és adatvédelem</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Jelszó módosítás */}
+            <div className="flex items-center justify-between p-4 bg-muted/30 border rounded-xl hover:bg-muted/50 transition-colors">
+              <div className="flex items-center space-x-4">
+                <div className="h-10 w-10 shrink-0 bg-info/10 text-info rounded-lg flex items-center justify-center">
+                  <Key className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Jelszó módosítás</p>
+                  <p className="text-xs text-muted-foreground">Új jelszó beállítása a fiókodhoz</p>
+                </div>
+              </div>
+              <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+                <DialogTrigger
+                  render={
+                    <Button variant="outline" size="sm" className="bg-background" />
+                  }
+                >
+                  Módosítás
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <form action={async (formData) => {
+                    setPasswordLoading(true)
+                    const res = await updateUserPassword(formData)
+                    setPasswordLoading(false)
+                    if (res.error) {
+                      toast.error("Hiba", { description: res.error })
+                    } else {
+                      setPasswordSuccess(true)
+                      setTimeout(() => {
+                        setPasswordSuccess(false)
+                        setPasswordDialogOpen(false)
+                      }, 1500)
+                    }
+                  }}>
+                    <DialogHeader>
+                      <DialogTitle>Jelszó módosítás</DialogTitle>
+                      <DialogDescription>
+                        Add meg az új jelszavadat. Biztonsági okokból legalább 6 karakter hosszúnak kell lennie.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="password">Új jelszó</Label>
+                        <Input id="password" name="password" type="password" required minLength={6} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="confirmPassword">Új jelszó megerősítése</Label>
+                        <Input id="confirmPassword" name="confirmPassword" type="password" required minLength={6} />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" disabled={passwordLoading} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                        {passwordLoading ? "Mentés..." : passwordSuccess ? "Sikeres módosítás!" : "Jelszó mentése"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Munkamenet időtúllépés */}
+            <div className="flex items-center justify-between p-4 bg-muted/30 border rounded-xl hover:bg-muted/50 transition-colors">
+              <div className="flex items-center space-x-4">
+                <div className="h-10 w-10 shrink-0 bg-warning/10 text-warning border border-warning/20 rounded-lg flex items-center justify-center">
+                  <Clock className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground">Munkamenet időtúllépés</p>
+                    {savingTimeout && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                  </div>
+                  <p className="text-xs text-muted-foreground">inaktivitás után automatikus kijelentkezés</p>
+                </div>
+              </div>
+              <select 
+                name="munkamenet_idotullepes" 
+                value={timeoutValue}
+                disabled={savingTimeout}
+                onChange={async (e) => {
+                  const val = Number(e.target.value)
+                  setTimeoutValue(val)
+                  await handleTimeoutChange(val)
+                }}
+                className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer disabled:opacity-50"
+              >
+                <option value={5}>5 perc</option>
+                <option value={15}>15 perc</option>
+                <option value={30}>30 perc</option>
+                <option value={60}>60 perc</option>
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Kétlépcsős azonosítás */}
+        <MfaSettingsCard totpFactor={totpFactor ?? null} />
+
+        {/* Hivatalos dokumentumok */}
+        <Card className="border-border shadow-sm bg-primary/5 border-primary/20">
+          <CardHeader className="pb-4">
+            <div className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-primary" />
+              <CardTitle className="text-xl text-primary">Hivatalos Dokumentációk</CardTitle>
+            </div>
+            <CardDescription>A rendszer adatkezelési és IT biztonsági garanciái (Audit dokumentumok)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between p-4 bg-background border rounded-xl shadow-sm">
+              <div className="flex items-center space-x-4">
+                <div className="h-10 w-10 shrink-0 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">IT Biztonsági Szabályzat</p>
+                  <p className="text-xs text-muted-foreground">Hozzáférés-szabályozás, naplózás, jelszópolitika</p>
+                </div>
+              </div>
+              <Link 
+                href="/security-policy" 
+                className={cn(buttonVariants({ variant: "outline" }), "border-primary/50 hover:bg-primary/10")}
+              >
+                Megtekintés
+              </Link>
+            </div>
+          </CardContent>
         </Card>
       </TabsContent>
 
@@ -808,222 +957,14 @@ export function SettingsClient({
         </TabsContent>
       )}
 
-      {/* 5. TAB: BIZTONSÁG */}
-      <TabsContent value="biztonsag" className="space-y-4 outline-none">
-        
-        <Card className="border-border shadow-sm mb-6">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-xl">Biztonság</CardTitle>
-            <CardDescription>Jelszó, munkamenet és adatvédelem</CardDescription>
-          </CardHeader>
-          <form action={handleProfileSave}>
-            <CardContent className="space-y-4">
-              {/* Jelszó módosítás */}
-            <div className="flex items-center justify-between p-4 bg-muted/30 border rounded-xl hover:bg-muted/50 transition-colors">
-              <div className="flex items-center space-x-4">
-                <div className="h-10 w-10 shrink-0 bg-info/10 text-info rounded-lg flex items-center justify-center">
-                  <Key className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Jelszó módosítás</p>
-                  <p className="text-xs text-muted-foreground">Új jelszó beállítása a fiókodhoz</p>
-                </div>
-              </div>
-              <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-                <DialogTrigger
-                  render={
-                    <Button variant="outline" size="sm" className="bg-background" />
-                  }
-                >
-                  Módosítás
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <form action={async (formData) => {
-                    setPasswordLoading(true)
-                    const res = await updateUserPassword(formData)
-                    setPasswordLoading(false)
-                    if (res.error) {
-                      toast.error("Hiba", { description: res.error })
-                    } else {
-                      setPasswordSuccess(true)
-                      setTimeout(() => {
-                        setPasswordSuccess(false)
-                        setPasswordDialogOpen(false)
-                      }, 1500)
-                    }
-                  }}>
-                    <DialogHeader>
-                      <DialogTitle>Jelszó módosítás</DialogTitle>
-                      <DialogDescription>
-                        Add meg az új jelszavadat. Biztonsági okokból legalább 6 karakter hosszúnak kell lennie.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="password">Új jelszó</Label>
-                        <Input id="password" name="password" type="password" required minLength={6} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="confirmPassword">Új jelszó megerősítése</Label>
-                        <Input id="confirmPassword" name="confirmPassword" type="password" required minLength={6} />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button type="submit" disabled={passwordLoading} className="bg-[#02b8cc] hover:bg-[#029db0] text-white">
-                        {passwordLoading ? "Mentés..." : passwordSuccess ? "Sikeres módosítás!" : "Jelszó mentése"}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            </div>
-
-            {/* Munkamenet időtúllépés */}
-            <div className="flex items-center justify-between p-4 bg-muted/30 border rounded-xl hover:bg-muted/50 transition-colors">
-              <div className="flex items-center space-x-4">
-                <div className="h-10 w-10 shrink-0 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center">
-                  <Clock className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Munkamenet időtúllépés</p>
-                  <p className="text-xs text-muted-foreground">inaktivitás után automatikus kijelentkezés</p>
-                </div>
-              </div>
-              <select 
-                name="munkamenet_idotullepes" 
-                defaultValue={initialProfile?.munkamenet_idotullepes || 15}
-                className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="5">5 perc</option>
-                <option value="15">15 perc</option>
-                <option value="30">30 perc</option>
-                <option value="60">60 perc</option>
-              </select>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-end border-t pt-6 pb-6">
-            <Button type="submit" disabled={loading} className="bg-[#02b8cc] hover:bg-[#029db0] text-white">
-              <Save className="h-4 w-4 mr-2" />
-              {loading ? "Mentés..." : success ? "Sikeres mentés!" : "Mentés"}
-            </Button>
-          </CardFooter>
-        </form>
-        </Card>
-
-        {/* Kétlépcsős azonosítás (MFA) */}
-        <MfaSettingsCard totpFactor={totpFactor ?? null} />
-
-        {/* Hivatalos dokumentumok */}
-        <Card className="border-border shadow-sm bg-primary/5 border-primary/20">
-          <CardHeader className="pb-4">
-            <div className="flex items-center space-x-2">
-              <FileText className="h-5 w-5 text-primary" />
-              <CardTitle className="text-xl text-primary">Hivatalos Dokumentációk</CardTitle>
-            </div>
-            <CardDescription>A rendszer adatkezelési és IT biztonsági garanciái (Audit dokumentumok)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between p-4 bg-background border rounded-xl shadow-sm">
-              <div className="flex items-center space-x-4">
-                <div className="h-10 w-10 shrink-0 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
-                  <FileText className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">IT Biztonsági Szabályzat</p>
-                  <p className="text-xs text-muted-foreground">Hozzáférés-szabályozás, naplózás, jelszópolitika</p>
-                </div>
-              </div>
-              <Link 
-                href="/security-policy" 
-                className={cn(buttonVariants({ variant: "outline" }), "border-primary/50 hover:bg-primary/10")}
-              >
-                Megtekintés
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
+      
 
       {/* 5. TAB: ÉRTESÍTÉSEK */}
       <TabsContent value="ertesitesek" className="space-y-4 outline-none">
         <NotificationSettings rules={szabalyok || []} logs={naplo || []} isAdmin={isAdmin} />
       </TabsContent>
 
-      {/* RENDSZER BEÁLLÍTÁSOK */}
-      <TabsContent value="rendszer" className="space-y-4 outline-none">
-        <Card className="border-border shadow-sm">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-xl">Rendszer beállítások</CardTitle>
-            <CardDescription>Téma és megjelenítési beállítások</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="theme-select">Téma</Label>
-                <Select value={theme || "system"} onValueChange={(val) => setTheme(val || "system")}>
-                  <SelectTrigger id="theme-select" className="bg-background">
-                    <SelectValue placeholder="Válassz témát">
-                      {mounted && theme === 'light' && 'Világos'}
-                      {mounted && theme === 'dark' && 'Sötét'}
-                      {mounted && theme === 'system' && 'Rendszer alapértelmezett'}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Világos</SelectItem>
-                    <SelectItem value="dark">Sötét</SelectItem>
-                    <SelectItem value="system">Rendszer alapértelmezett</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="language-select">Nyelv</Label>
-                <Select defaultValue="hu" disabled>
-                  <SelectTrigger id="language-select" className="bg-muted/50 cursor-not-allowed text-foreground opacity-100">
-                    <SelectValue placeholder="Magyar">Magyar</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hu">Magyar</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="date-format">Dátum formátum</Label>
-                <Select defaultValue="ddmmyyyy" disabled>
-                  <SelectTrigger id="date-format" className="bg-muted/50 cursor-not-allowed text-foreground opacity-100">
-                    <SelectValue placeholder="DD/MM/YYYY">DD/MM/YYYY</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ddmmyyyy">DD/MM/YYYY</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="number-format">Szám formátum</Label>
-                <Select defaultValue="space" disabled>
-                  <SelectTrigger id="number-format" className="bg-muted/50 cursor-not-allowed text-foreground opacity-100">
-                    <SelectValue placeholder="1 234 567,89">1 234 567,89</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="space">1 234 567,89</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-end border-t pt-6 pb-6">
-            <Button className="bg-[#02b8cc] hover:bg-[#029db0] text-white" onClick={() => {
-              setSuccess(true)
-              setTimeout(() => setSuccess(false), 2000)
-            }}>
-              <Save className="h-4 w-4 mr-2" />
-              {success ? "Sikeres mentés!" : "Rendszer beállítások mentése"}
-            </Button>
-          </CardFooter>
-        </Card>
-      </TabsContent>
+
 
       {/* 7. TAB: HELYETTESÍTÉS */}
       <TabsContent value="helyettesites" className="space-y-4 outline-none">

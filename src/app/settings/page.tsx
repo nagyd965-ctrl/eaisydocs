@@ -98,18 +98,8 @@ export default async function SettingsPage() {
           >
             Értesítések
           </TabsTrigger>
-          <TabsTrigger 
-            value="rendszer" 
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-          >
-            Rendszer
-          </TabsTrigger>
-          <TabsTrigger 
-            value="biztonsag" 
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-          >
-            Biztonság
-          </TabsTrigger>
+
+
           {isAdmin && (
             <TabsTrigger 
               value="rendszergazda" 

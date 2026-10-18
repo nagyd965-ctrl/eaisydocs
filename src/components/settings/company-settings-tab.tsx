@@ -457,10 +457,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
       <Card className="border border-border/80">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-primary" />
-              <CardTitle className="text-base font-semibold">Kiválasztott cég adatai</CardTitle>
-            </div>
+            <CardTitle className="text-base font-semibold">Kiválasztott cég adatai</CardTitle>
             {!isCheckingAccess && (
               <Badge
                 variant={isOwner ? "default" : "outline"}
@@ -723,10 +720,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
       <Card className="border border-border/80">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sliders className="h-4 w-4 text-primary" />
-              <CardTitle className="text-base font-semibold">Céges Könyvelési és Iktatási Szabályok</CardTitle>
-            </div>
+            <CardTitle className="text-base font-semibold">Céges Könyvelési és Iktatási Szabályok</CardTitle>
             <Badge variant="outline" className="text-[10px] h-4 uppercase tracking-wider font-semibold border-primary/30 text-primary">
               AI Rendszer
             </Badge>
@@ -752,10 +746,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
       {isOwner && (
         <Card className="border border-border/80">
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-primary" />
-              <CardTitle className="text-base font-semibold">Cég hozzáférés</CardTitle>
-            </div>
+            <CardTitle className="text-base font-semibold">Cég hozzáférés</CardTitle>
             <CardDescription className="text-xs">
               Meghívó kód generálása, amivel mások csatlakozhatnak a céghez (10 percig érvényes).
             </CardDescription>
@@ -992,10 +983,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
       {/* 4. KÁRTYA: PROFILHOZ TARTOZÓ ÖSSZES CÉG ÁTTEKINTÉSE */}
       <Card className="border border-border/80">
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-primary" />
-            <CardTitle className="text-base font-semibold">Összes elérhető cégem</CardTitle>
-          </div>
+          <CardTitle className="text-base font-semibold">Összes elérhető cégem</CardTitle>
           <CardDescription className="text-xs">
             A fiókodhoz kapcsolt vállalkozások és a hozzájuk rendelt jogosultságaid.
           </CardDescription>

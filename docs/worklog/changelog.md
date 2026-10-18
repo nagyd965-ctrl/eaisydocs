@@ -2,7 +2,58 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
-## [Unreleased] – Fejlesztés alatt (2026-10-16)
+## [Unreleased] – Fejlesztés alatt (2026-10-18)
+
+### 🎨 eaisyHR & eaisyDocs: Beállítások Lapok Konszolidációja, Automata Munkamenet Mentés és Vizuális Egységesítés (A-068 / P-087)
+- **Profil és Biztonság Fülek Integrációja (`/settings` és `/hr/settings`):**
+  - A korábban széttagolt, alig használt "Felhasználói profil" és a különálló "Biztonság" fül egyetlen logikus, letisztult `Profil & Biztonság` lapba olvadt össze mindkét modulban.
+  - A felhasználó egyetlen képernyőn kezeli a személyes adatait, profilképét, valamint a jelszómódosítást, munkamenet időtúllépést és a kétlépcsős azonosítást.
+- **Azonnali Automata Mentés és Interakciós Egyszerűsítés:**
+  - A `munkamenet_idotullepes` választólista mostantól azonnal, az érték kiválasztásakor automatikusan mentésre kerül az adatbázisba, finom folyamatjelző spinnerrel (`Loader2`).
+  - A különálló, felesleges "Mentés" gomb és a kártya lábléc kivezetésre került a munkamenet kártyáról.
+  - A kétlépcsős azonosítás címéből a felesleges `(2FA)` technikai jelölés törlésre került.
+- **Redundáns Rendszer Fül Kivezetése:**
+  - Mivel a világos/sötét téma kapcsoló a bal alsó oldalsáv láblécében globálisan, bármelyik oldalról azonnal elérhető, a Beállításokban lévő felesleges `Rendszer` fül mindkét modulban megszüntetésre került.
+- **Kanonikus Témaszínek és Stílusharmónia:**
+  - A "Profil mentése" és a "Jelszó mentése" gombok átálltak az eaisyHR-rel és a platformmal megegyező kanonikus `bg-primary hover:bg-primary/90 text-primary-foreground` stílusra, megszüntetve a korábbi elütő ciánkék színeket.
+  - Az összes dekoratív emoji kivezetésre került a beállítási kártyák és fülek fejléceiből.
+- **Kapcsolódó döntések:** [ADR A-068](../architecture/decisions/A-068-settings-tabs-consolidation-and-visual-harmony.md), [PRD P-087](../product/decisions/P-087-settings-tabs-consolidation-and-visual-harmony-ux.md).
+
+### 🔐 eaisyHR & eaisyDocs: Átfogó HR Szerepkör Scoping, RPC és Route Guard Összehangolás (A-067 / P-086)
+- **Adatbázis RPC és RLS Szabályok Kiterjesztése (`20261018000002_fix_hr_roles_permissions_and_rpc.sql`):**
+  - A `get_decrypted_hr_data` és `update_decrypted_hr_data` tárolt eljárásokban felvételre került a `berugyi` és `rendszergazda` szerepkör, valamint a cégtagsági (`company_members`) cég-specifikus (scoped) szerepkörök ellenőrzése. A bérszámfejtő mostantól hiba nélkül feloldhatja a dolgozók bankszámlaszámát, adóazonosítóját és bérét.
+  - A `hr_dolgozo_adatlap` SELECT RLS szabály kibővítve a `berugyi` és `munkavedelmi` szerepkörökkel, valamint a közvetlen vezetői (`kozvetlen_vezeto_id`) relációval.
+  - A `hr_dolgozo_titkos_adat` SELECT szabály kibővítve a `berugyi` szerepkörrel.
+- **Intelligens, Szerepkör-specifikus Oldalsáv (`src/components/hr-sidebar.tsx`):**
+  - **Bérügyi munkatárs (`berugyi`):** A Dolgozói Portál mellett a HR Munkaasztal dedikált elemei jelennek meg: *Állomány áttekintés, Bérszámfejtés & Bérpapírok, Naptár & Távollét, Riportok, Szervezeti Felépítés*.
+  - **Munkavédelmi felelős (`munkavedelmi`):** Megkapta a *Munkaügyi Megfelelőség* (`/hr/compliance`) és az *Állomány áttekintés* elérését.
+  - **Közvetlen vezető (`vezeto`):** Dolgozói Portál + *Vezetői nézet* (Csapat áttekintés, Teljesítményértékelés).
+  - **Toborzó (`toborzo`):** A *Dolgozói Életút* csoportban kizárólag a jogosult *Toborzás* almenü jelenik meg, megszüntetve a 403-as kizárásos Onboarding/Offboarding zsákutcákat.
+- **Szerveroldali Route Guardok és Adatlap Jogosultságok:**
+  - `/hr/performance`: a `vezeto` és `auditor` szerepkör felvétele az engedélyezettek közé a hibás kizárás megszüntetésére.
+  - `/hr/reports`: `konyvelo` javítva `berugyi`-ra, `hr_munkatars` hozzáadva.
+  - `/hr/compliance`: dedikált `requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "munkavedelmi", "auditor"])` beépítve.
+  - `/hr/time`: `berugyi`, `rendszergazda`, `auditor` hozzáadva a központi naptárhoz.
+  - `/hr/employee/[id]`: a `berugyi` felvétele az adatlap és a béradatok (`canViewSalary`) kezelői közé; `PersonalDataTab` és `PayslipsTab` bérügyi kezelési joggal felruházva.
+  - `/hr/admin`: az állomány megtekintése engedélyezve `berugyi` és `munkavedelmi` számára, az adminisztratív import/új dolgozó gombok a törzsadatbázis szerkesztőire (`canEdit`) korlátozva.
+  - `/hr/manager`: `requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "vezeto"])` guard hozzáadva.
+- **Kapcsolódó döntések:** [ADR A-067](../architecture/decisions/A-067-comprehensive-hr-roles-scoping-rpc-and-route-guard-alignment.md), [PRD P-086](../product/decisions/P-086-comprehensive-hr-roles-scoping-and-ux-alignment.md).
+
+### 👥 eaisyHR & eaisyDocs: Multi-tenant Cégtagsági Láthatóság és Moduláris HR Állomány Elszigetelés (A-066 / P-085)
+- **`company_members` RLS Házirend Javítása (`20261018000001_fix_company_members_select_policy.sql`):**
+  - Megszüntetve a korábbi korlátozást, amely a nem-tulajdonos/nem-admin tagok (`role = 'member'`) elől elrejtette a cég többi tagját.
+  - A cég bármely tagja láthatja a cég többi tagját a `public.user_has_company_access(company_id)` segítségével. A cégek közötti szigorú izoláció 100%-ban fennmaradt.
+  - A tagok felvétele, módosítása és törlése továbbra is kizárólag a cégtulajdonosoknak és cégadminoknak engedélyezett.
+- **eaisyHR Munkaasztal Állomány Tisztítása (`/hr/admin`):**
+  - A HR vezető (`hr_vezeto`) és HR munkatárs belépve mostantól azonnal látja a teljes céges HR állományt (Think AI Kft. esetén pontosan 8 fő, benne a `betekinto`-vel és a többi kollégával).
+  - Az `activeEmployees` lekérdezés szigorúan a céghez tartozó (`adatlap.company_id === companyScope`), érvényes `hr_dolgozo_adatlap`-pal rendelkező dolgozókra szűkítve.
+  - A 15 tisztán eaisyDocs felhasználó automatikusan kívül marad az eaisyHR Dolgozói Törzsadatbázisán.
+  - Az elérhető Docs profilok listája (`docsProfiles`) az aktív cég tagjaira lett korlátozva az új dolgozó felvétele / importálás dialógusban.
+- **Szervezeti Felépítés és Fa Nézet Hardening (`/hr/organization`):**
+  - A fa és a létszám-számláló kizárólag a valódi, aktív HR munkatársakat veszi figyelembe, megakadályozva a tisztán Docs felhasználók téves megjelenését az eaisyHR szervezeti egységeiben.
+- **Kapcsolódó döntések:** [ADR A-066](../architecture/decisions/A-066-multi-tenant-company-members-colleague-visibility-and-hr-workforce-isolation.md), [PRD P-085](../product/decisions/P-085-multi-tenant-company-members-colleague-visibility-and-hr-workforce-isolation-ux.md).
+
+## 2026-10-16
 
 ### 📨 eaisyDocs & eaisyHR: Értesítési Kiküldési Napló Központosítása és Rendszerbeállítások Letisztítása (A-064 / P-083)
 - **Központi Eseménynapló Kétfülös Bővítése (`/audit`):**

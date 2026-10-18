@@ -5,8 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { User, Monitor, Info } from "lucide-react"
+
+import { Info } from "lucide-react"
 import { SecuritySettingsTab } from "./security-tab"
 import { HrNotificationSettings } from "./notification-settings"
 import { updateProfile } from "@/app/settings/settings-actions"
@@ -65,18 +65,7 @@ export default async function HrSettingsPage() {
           >
             Cég
           </TabsTrigger>
-          <TabsTrigger 
-            value="rendszer" 
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-          >
-            Rendszer
-          </TabsTrigger>
-          <TabsTrigger 
-            value="biztonsag" 
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-          >
-            Biztonság
-          </TabsTrigger>
+
           {isHrOrAdmin && (
             <TabsTrigger 
               value="ertesitesek" 
@@ -88,13 +77,10 @@ export default async function HrSettingsPage() {
         </TabsList>
 
         {/* 1. TAB: PROFIL */}
-        <TabsContent value="profil" className="space-y-4 outline-none">
+        <TabsContent value="profil" className="space-y-6 outline-none">
           <Card className="border-border">
             <CardHeader className="pb-4">
-              <div className="flex items-center space-x-2">
-                <User className="h-5 w-5" />
-                <CardTitle className="text-xl">Felhasználói profil</CardTitle>
-              </div>
+              <CardTitle className="text-xl">Felhasználói profil</CardTitle>
               <CardDescription>Személyes információk és avatar kezelése</CardDescription>
             </CardHeader>
             <form action={async (formData) => { "use server"; await updateProfile(formData); }} key={profile?.telefon || 'profile-form'}>
@@ -138,6 +124,8 @@ export default async function HrSettingsPage() {
               </CardFooter>
             </form>
           </Card>
+
+          <SecuritySettingsTab initialTimeout={profile?.munkamenet_idotullepes || 15} totpFactor={totpFactor} />
         </TabsContent>
 
         {/* CÉG BEÁLLÍTÁSOK TAB */}
@@ -145,78 +133,6 @@ export default async function HrSettingsPage() {
           <CompanySettingsTab module="hr" />
         </TabsContent>
 
-        {/* 2. TAB: RENDSZER */}
-        <TabsContent value="rendszer" className="space-y-4 outline-none">
-          <Card className="border-border">
-            <CardHeader className="pb-4">
-              <div className="flex items-center space-x-2">
-                <Monitor className="h-5 w-5" />
-                <CardTitle className="text-xl">Rendszer beállítások</CardTitle>
-              </div>
-              <CardDescription>Téma és megjelenítési beállítások</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="theme-select">Téma</Label>
-                  <Select defaultValue="light">
-                    <SelectTrigger id="theme-select" className="bg-background">
-                      <SelectValue placeholder="Világos">Világos</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="light">Világos</SelectItem>
-                      <SelectItem value="dark">Sötét</SelectItem>
-                      <SelectItem value="system">Rendszer alapértelmezett</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="language-select">Nyelv</Label>
-                  <Select defaultValue="hu" disabled>
-                    <SelectTrigger id="language-select" className="bg-muted/50 cursor-not-allowed text-foreground opacity-100">
-                      <SelectValue placeholder="Magyar">Magyar</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="hu">Magyar</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="date-format">Dátum formátum</Label>
-                  <Select defaultValue="ddmmyyyy" disabled>
-                    <SelectTrigger id="date-format" className="bg-muted/50 cursor-not-allowed text-foreground opacity-100">
-                      <SelectValue placeholder="DD/MM/YYYY">DD/MM/YYYY</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ddmmyyyy">DD/MM/YYYY</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="number-format">Szám formátum</Label>
-                  <Select defaultValue="space" disabled>
-                    <SelectTrigger id="number-format" className="bg-muted/50 cursor-not-allowed text-foreground opacity-100">
-                      <SelectValue placeholder="1 234 567,89">1 234 567,89</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="space">1 234 567,89</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-end border-t pt-6 pb-6">
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                Rendszer beállítások mentése
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-
-        <SecuritySettingsTab initialTimeout={profile?.munkamenet_idotullepes || 15} totpFactor={totpFactor} />
 
         {isHrOrAdmin && (
           <TabsContent value="ertesitesek" className="space-y-4 outline-none">

@@ -78,11 +78,14 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-063](./A-063-eaisybooks-payroll-employee-import-architecture.md) | 2026-10-15 | eaisyBooks Bérszámfejtés és eaisyHR Munkavállalói Import Architektúra | `[HR]` | `Decided` | [P-082](../../product/decisions/P-082-eaisybooks-payroll-employee-import-ux.md), `eaisybooks-employee-actions.ts`, `eaisybooks-employee-import-dialog.tsx`, `hr/admin/page.tsx` |
 | [A-064](./A-064-notification-dispatch-audit-centralization-architecture.md) | 2026-10-16 | Értesítési Kiküldési Napló Központosítása és Egységes Audit Architektúra | `[Közös]` | `Decided` | [P-083](../../product/decisions/P-083-notification-dispatch-audit-centralization-ux.md), `audit/actions.ts`, `audit/page.tsx`, `notification-audit-tab.tsx`, `settings/notification-settings.tsx` |
 | [A-065](./A-065-notification-dispatch-audit-module-separation-architecture.md) | 2026-10-16 | Értesítési Kiküldési Napló Moduláris Szétválasztása és eaisyHR Integráció | `[Közös]` | `Decided` | [P-084](../../product/decisions/P-084-notification-dispatch-audit-module-separation-ux.md), `ertesites_naplo`, `mailer.ts`, `twilio.ts`, `hr/audit/page.tsx`, `hr/audit/hr-notification-audit-tab.tsx`, `hr/audit/actions.ts` |
+| [A-066](./A-066-multi-tenant-company-members-colleague-visibility-and-hr-workforce-isolation.md) | 2026-10-18 | Multi-tenant Cégtagsági Láthatóság és Moduláris HR Állomány Elszigetelés Architektúra | `[Közös]` | `Decided` | [P-085](../../product/decisions/P-085-multi-tenant-company-members-colleague-visibility-and-hr-workforce-isolation-ux.md), `company_members`, `hr/admin/page.tsx`, `hr/organization/page.tsx` |
+| [A-067](./A-067-comprehensive-hr-roles-scoping-rpc-and-route-guard-alignment.md) | 2026-10-18 | Átfogó HR Szerepkör Scoping, RPC és Route Guard Összehangolás | `[HR]` | `Decided` | [P-086](../../product/decisions/P-086-comprehensive-hr-roles-scoping-and-ux-alignment.md), `hr-sidebar.tsx`, `hr/reports/page.tsx`, `hr/compliance/page.tsx`, `hr/performance/page.tsx`, `hr/time/page.tsx`, `hr/employee/[id]/page.tsx` |
+| [A-068](./A-068-settings-tabs-consolidation-and-visual-harmony.md) | 2026-10-18 | Beállítások Lapok Konszolidációja, Automata Munkamenet Mentés és Vizuális Egységesítés | `[Közös]` | `Decided` | [P-087](../../product/decisions/P-087-settings-tabs-consolidation-and-visual-harmony-ux.md), `settings/page.tsx`, `settings-client.tsx`, `hr/settings/page.tsx`, `security-tab.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-066`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-069`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 
