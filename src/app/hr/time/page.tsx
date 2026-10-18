@@ -3,42 +3,25 @@ import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { redirect } from "next/navigation"
 import { TimeTabsView } from "@/components/hr/time-tabs-view"
 import { getWeeklyShiftRoster, getCompanyShiftTemplates } from "@/app/hr/time/shift-actions"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export default async function TimeAndAttendancePage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect("/auth/login")
-
-  const activeCompanyId = await getActiveCompanyIdServer()
-  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
-
-  // Biztonsági ellenőrzés
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("hr_szerepkor, szerepkor")
-    .eq("id", user.id)
-    .single()
-
-  const isHrAuthorized =
-    profile &&
-    (["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor) ||
-      profile.szerepkor === "admin")
-
-  if (!isHrAuthorized) {
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi", "rendszergazda", "auditor"])
+  if (!auth.authorized || !auth.activeCompanyId) {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">
         <div>
           <h2 className="text-2xl font-bold text-destructive mb-2">Hozzáférés Megtagadva</h2>
           <p className="text-muted-foreground">
-            Csak HR munkatársak férhetnek hozzá a globális naptárhoz és műszaktervezőhöz.
+            Csak HR és bérügyi munkatársak férhetnek hozzá a vállalati naptárhoz és munkaidő-beosztáshoz.
           </p>
         </div>
       </div>
     )
   }
+
+  const supabase = await createClient()
+  const companyScope = auth.companyScope
 
   // 1. Összes (Folyamatban/Jóváhagyott/stb) kérelem, teljes cég dolgozói és szervezeti egységek lekérése a TeamCalendarhoz
   const [{ data: allLeaves }, { data: rawEmployees }, { data: orgUnits }, initialRosterData, initialTemplates] =

@@ -9,17 +9,26 @@ import Link from "next/link"
 import { SubstituteAlertBanner } from "@/components/hr/substitute-alert-banner"
 import { UnifiedApprovalsPanel, type UnifiedApprovalItem } from "@/components/hr/unified-approvals-panel"
 
-import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { Shield } from "lucide-react"
 
 export default async function ManagerPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect("/auth/login")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "vezeto"])
+  if (!auth.authorized || !auth.activeCompanyId) {
+    return (
+      <div className="flex items-center justify-center h-[50vh] text-center">
+        <div>
+          <Shield className="w-12 h-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-2xl font-semibold text-destructive mb-2">Hozzáférés Megtagadva</h2>
+          <p className="text-muted-foreground">Csak vezetők és HR munkatársak férhetnek hozzá a vezetői felülethez.</p>
+        </div>
+      </div>
+    )
   }
 
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const supabase = await createClient()
+  const user = auth.user
+  const activeCompanyId = auth.activeCompanyId
   let companyUserIds: string[] = []
   if (activeCompanyId) {
     const { data: members } = await supabase

@@ -10,29 +10,22 @@ import { PerformanceList } from "@/components/hr/performance-list"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+
 export default async function PerformancePage() {
-  const supabase = await createClient()
-
-  // Biztonsági ellenőrzés
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/auth/login")
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select('hr_szerepkor')
-    .eq("id", user.id)
-    .single()
-
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "vezeto", "auditor"])
+  if (!auth.authorized || !auth.activeCompanyId) {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">
         <div>
           <h2 className="text-2xl font-bold text-destructive mb-2">Hozzáférés Megtagadva</h2>
-          <p className="text-muted-foreground">Csak HR munkatársak férhetnek hozzá a teljesítményértékelésekhez.</p>
+          <p className="text-muted-foreground">Csak vezetők és HR munkatársak férhetnek hozzá a teljesítményértékelésekhez.</p>
         </div>
       </div>
     )
   }
+
+  const { activeCompanyId } = auth
 
   // Admin kliens használata, mert az RLS policy-k még nincsenek teljeskörűen konfigurálva
   const supabaseAdmin = createAdminClient(

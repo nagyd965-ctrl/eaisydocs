@@ -584,7 +584,7 @@ function HrAuditPageInner() {
       >
         <TabsList className="h-10 p-1 bg-muted/60 border border-border/50">
           <TabsTrigger value="esemenynaplo" className="px-4 py-1.5 text-xs font-medium">
-            HR Eseménynapló (Audit)
+            Eseménynapló
           </TabsTrigger>
           <TabsTrigger value="kikuldesi_naplo" className="px-4 py-1.5 text-xs font-medium">
             Kiküldési Napló

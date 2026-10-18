@@ -1,4 +1,6 @@
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { Shield } from "lucide-react"
 import {
   getCompanyLeaveComplianceData,
   getCompanySafetyComplianceData,
@@ -15,8 +17,20 @@ export const metadata = {
 }
 
 export default async function CompliancePage() {
-  const activeCompanyId = await getActiveCompanyIdServer()
-  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "munkavedelmi", "auditor"])
+  if (!auth.authorized || !auth.activeCompanyId) {
+    return (
+      <div className="flex items-center justify-center h-[50vh] text-center">
+        <div>
+          <Shield className="w-12 h-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-2xl font-semibold text-destructive mb-2">Hozzáférés Megtagadva</h2>
+          <p className="text-muted-foreground">Nincs jogosultságod a Munkaügyi és Munkavédelmi Megfelelőség modul megtekintéséhez a kiválasztott cégnél.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const companyScope = auth.companyScope
   const currentYear = new Date().getFullYear()
 
   const [leaveData, safetyData, overtimeData] = await Promise.all([

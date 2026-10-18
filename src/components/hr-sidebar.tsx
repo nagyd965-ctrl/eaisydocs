@@ -118,7 +118,7 @@ const items = [
         url: "/hr/onboarding",
       },
       {
-        title: "Kiléptetés",
+        title: "Offboarding",
         url: "/hr/offboarding",
       }
     ]
@@ -133,31 +133,70 @@ const items = [
 export function HrSidebar({ hrRole = "munkavallalo" }: { hrRole?: string }) {
   const pathname = usePathname()
 
-  // Szerepkör alapú menüszűrés
-  const filteredItems = items.filter(item => {
-    // Admin, HR vezető, HR munkatárs, rendszergazda, auditor mindent lát
-    if (["admin", "hr_vezeto", "hr_munkatars", "rendszergazda", "auditor"].includes(hrRole)) {
-      return true
-    }
-    
-    // Munkavállaló és munkavédelmi felelős csak a Dolgozói Portált látja
-    if (["munkavallalo", "munkavedelmi"].includes(hrRole)) {
-      return item.title === "Dolgozói Portál"
-    }
+  // Szerepkör alapú menüszűrés és almenü-testreszabás
+  const filteredItems = items
+    .map(item => {
+      // 1. Admin, HR vezető, HR munkatárs, rendszergazda, auditor mindent lát
+      if (["admin", "hr_vezeto", "hr_munkatars", "rendszergazda", "auditor"].includes(hrRole)) {
+        return item
+      }
 
-    // Vezető csak a Dolgozói Portált és a Vezetői nézetet látja
-    if (hrRole === "vezeto") {
-      return item.title === "Dolgozói Portál" || item.title === "Vezetői nézet"
-    }
+      // 2. Vezető csak a Dolgozói Portált és a Vezetői nézetet látja
+      if (hrRole === "vezeto") {
+        if (item.title === "Dolgozói Portál" || item.title === "Vezetői nézet") {
+          return item
+        }
+        return null
+      }
 
-    // Toborzó csak a Dolgozói Portált és a Dolgozói Életutat látja
-    if (hrRole === "toborzo") {
-      return item.title === "Dolgozói Portál" || item.title === "Dolgozói Életút"
-    }
+      // 3. Bérügyi munkatárs: Dolgozói Portál + Bérügyi releváns HR Munkaasztal modulok
+      if (hrRole === "berugyi") {
+        if (item.title === "Dolgozói Portál") return item
+        if (item.title === "HR Munkaasztal") {
+          return {
+            ...item,
+            items: item.items?.filter(sub => 
+              ["/hr/admin", "/hr/payroll", "/hr/time", "/hr/reports", "/hr/organization"].includes(sub.url)
+            )
+          }
+        }
+        return null
+      }
 
-    // Biztonsági fallback
-    return item.title === "Dolgozói Portál"
-  })
+      // 4. Munkavédelmi felelős: Dolgozói Portál + Munkaügyi/Munkavédelmi Megfelelőség és Állomány
+      if (hrRole === "munkavedelmi") {
+        if (item.title === "Dolgozói Portál") return item
+        if (item.title === "HR Munkaasztal") {
+          return {
+            ...item,
+            items: item.items?.filter(sub => 
+              ["/hr/admin", "/hr/compliance"].includes(sub.url)
+            )
+          }
+        }
+        return null
+      }
+
+      // 5. Toborzó (ATS): Dolgozói Portál + csak Toborzás (a zárt Onboarding/Offboarding nélkül)
+      if (hrRole === "toborzo") {
+        if (item.title === "Dolgozói Portál") return item
+        if (item.title === "Dolgozói Életút") {
+          return {
+            ...item,
+            items: item.items?.filter(sub => sub.url === "/hr/recruitment")
+          }
+        }
+        return null
+      }
+
+      // 6. Munkavállaló és fallback: kizárólag Dolgozói Portál
+      if (item.title === "Dolgozói Portál") {
+        return item
+      }
+
+      return null
+    })
+    .filter((item): item is (typeof items)[0] => item !== null)
 
   return (
     <Sidebar>

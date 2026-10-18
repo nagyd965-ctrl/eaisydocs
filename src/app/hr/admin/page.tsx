@@ -9,7 +9,7 @@ import { HrTasksAndAlertsTable, type HrTaskItem } from "@/components/hr/hr-tasks
 import { KpiCard } from "@/components/kpi-card"
 import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"
-import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 
@@ -42,7 +42,10 @@ export default async function HrAdminPage() {
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda", "auditor"].includes(profile?.hr_szerepkor || "")
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  const hrRole = scopedRoles.hrRole || profile?.hr_szerepkor || "munkavallalo"
+
+  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda", "auditor", "berugyi", "munkavedelmi"].includes(hrRole)
   if (!isHrOrAdmin) {
     redirect("/hr/self-service/profile")
   }
@@ -88,6 +91,7 @@ export default async function HrAdminPage() {
       hr_szervezeti_egyseg ( id, nev ),
       hr_dolgozo_adatlap (
         id,
+        company_id,
         munkaviszony_vege,
         orvosi_alkalmassag_ervenyesseg,
         szerzodes_tipusa,
@@ -162,13 +166,19 @@ export default async function HrAdminPage() {
   const pendingCorrections = pendingCorrectionsRes.data || []
 
   // Jogosultság ellenőrzése admin műveletekhez (szerkesztés, törlés a törzsadatbázisban)
-  const canEdit = ["admin", "rendszergazda", "hr_vezeto"].includes(profile?.hr_szerepkor || "")
+  const canEdit = ["admin", "rendszergazda", "hr_vezeto", "hr_munkatars"].includes(hrRole)
 
-  // Felvételi adatokhoz meglévő fiókok
-  const assignedIds = employees.filter(e => e.hr_dolgozo_adatlap !== null).map(e => e.id)
+  // Felvételi adatokhoz meglévő fiókok - csak az aktuális céghez tartozó Docs profilok
+  const assignedIds = employees.filter(e => {
+    if (!e.hr_dolgozo_adatlap) return false
+    const adatlap = Array.isArray(e.hr_dolgozo_adatlap) ? e.hr_dolgozo_adatlap[0] : e.hr_dolgozo_adatlap
+    return adatlap && (!adatlap.company_id || adatlap.company_id === companyScope)
+  }).map(e => e.id)
+
   const { data: docsProfiles } = await supabaseAdmin
     .from("felhasznalo_profil")
     .select("id, nev, docs_szerepkor, szerepkor, elerheto_modulok")
+    .in("id", safeMemberIds)
     .contains("elerheto_modulok", ["docs"])
     .order("nev", { ascending: true })
 
@@ -197,10 +207,12 @@ export default async function HrAdminPage() {
     t => t.statusz !== "elutasitva" && t.statusz !== "elfogadva"
   ).length
 
-  // Aktív munkatársak szűrése
+  // Aktív HR munkatársak szűrése (csak a céghez tartozó, érvényes HR adatlappal rendelkezők)
   const activeEmployees = employees.filter((emp: any) => {
     if (!emp.hr_dolgozo_adatlap) return false
     const adatlap = Array.isArray(emp.hr_dolgozo_adatlap) ? emp.hr_dolgozo_adatlap[0] : emp.hr_dolgozo_adatlap
+    if (!adatlap) return false
+    if (adatlap.company_id && adatlap.company_id !== companyScope) return false
     const isExited = emp.hr_szerepkor === "inaktiv" || (adatlap?.munkaviszony_vege && new Date(adatlap.munkaviszony_vege) <= new Date())
     return !isExited
   })
@@ -359,17 +371,19 @@ export default async function HrAdminPage() {
             Teljes állomány áttekintése és HR adminisztráció.
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <EaisyBooksEmployeeImportDialog
-            companyId={companyScope}
-            companyName={currentCompanyName}
-          />
-          <AddEmployeeDialog
-            availableUsers={availableDocsUsers}
-            jobs={jobs || []}
-            candidates={availableCandidates}
-          />
-        </div>
+        {canEdit && (
+          <div className="flex items-center gap-2.5">
+            <EaisyBooksEmployeeImportDialog
+              companyId={companyScope}
+              companyName={currentCompanyName}
+            />
+            <AddEmployeeDialog
+              availableUsers={availableDocsUsers}
+              jobs={jobs || []}
+              candidates={availableCandidates}
+            />
+          </div>
+        )}
       </div>
 
       {/* Stat kártyák */}

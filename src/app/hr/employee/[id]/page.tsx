@@ -31,14 +31,18 @@ import { ExternalLink, FileCheck, Lock, CheckCircle2, Download } from "lucide-re
 import { IDPTab } from "./tabs/IDPTab"
 import { SafetyTrainingEmployeeCard } from "@/components/hr/safety-training-employee-card"
 import { PayslipsTab } from "./tabs/PayslipsTab"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params
   const supabase = await createClient()
 
-  // 1. Get current logged in user (RBAC)
+  // 1. Get current logged in user (RBAC) and scoped role
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/auth/login")
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
   const { data: currentUserProfile } = await supabase
     .from("felhasznalo_profil")
@@ -46,7 +50,9 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin"].includes(currentUserProfile?.hr_szerepkor || "")
+  const currentHrRole = scopedRoles.hrRole || currentUserProfile?.hr_szerepkor || "munkavallalo"
+  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda"].includes(currentHrRole)
+  const isPayroll = currentHrRole === "berugyi"
 
   // 2. Lekérjük a profil adatokat
   const { data: profile, error } = await supabase
@@ -81,8 +87,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
   const isSelf = user.id === resolvedParams.id
   const isSubordinate = profile?.kozvetlen_vezeto_id === user.id
-  const isManager = currentUserProfile?.hr_szerepkor === 'vezeto' && isSubordinate
-  const isAllowed = isHrOrAdmin || isSelf || isManager || ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "")
+  const isManager = currentHrRole === 'vezeto' && isSubordinate
+  const isAllowed = isHrOrAdmin || isPayroll || isSelf || isManager || ["auditor", "munkavedelmi"].includes(currentHrRole)
 
   if (profile && !isAllowed) {
     redirect("/hr/self-service/profile")
@@ -253,8 +259,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     .eq("dolgozo_id", resolvedParams.id)
     .eq("ev", currentYear)
 
-  // Bérpapírok lekérése (biztonság: csak HR/Admin vagy a dolgozó saját maga férhet hozzá)
-  const canViewSalary = isHrOrAdmin || isSelf
+  // Bérpapírok lekérése (biztonság: HR/Admin, Bérügyi, Auditor vagy a dolgozó saját maga férhet hozzá)
+  const canViewSalary = isHrOrAdmin || isPayroll || isSelf || currentHrRole === "auditor"
   let employeePayslips: any[] = []
   if (canViewSalary) {
     const { data: pData } = await supabase
@@ -264,7 +270,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       .order("ev", { ascending: false })
       .order("honap", { ascending: false })
 
-    employeePayslips = (pData || []).filter((p: any) => isHrOrAdmin || p.statusz === "kikuldve" || p.statusz === "atveve")
+    employeePayslips = (pData || []).filter((p: any) => isHrOrAdmin || isPayroll || p.statusz === "kikuldve" || p.statusz === "atveve")
   }
 
   const roleMap: Record<string, string> = {
@@ -329,7 +335,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               Bérpapírok {employeePayslips.length > 0 && `(${employeePayslips.length})`}
             </TabsTrigger>
           )}
-          {(isHrOrAdmin || ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "")) && (
+          {(isHrOrAdmin || isPayroll || ["auditor", "munkavedelmi"].includes(currentHrRole)) && (
             <TabsTrigger value="bizalmas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">
               Bizalmas HR adatok
             </TabsTrigger>
@@ -377,7 +383,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               adatlap={adatlap} 
             />
 
-            <PersonalDataTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} />
+            <PersonalDataTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin || isPayroll} />
           </TabsContent>
 
           {/* 2. Szakmai Háttér (Összevont) */}
@@ -595,16 +601,16 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               <PayslipsTab
                 employeeId={profile.id}
                 employeeName={profile.nev}
-                isHrOrAdmin={isHrOrAdmin}
+                isHrOrAdmin={isHrOrAdmin || isPayroll}
                 initialPayslips={employeePayslips}
               />
             </TabsContent>
           )}
 
           {/* 4. Bizalmas HR Adatok (Összevont) */}
-          {(isHrOrAdmin || ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "")) && (
+          {(isHrOrAdmin || isPayroll || ["auditor", "munkavedelmi"].includes(currentHrRole)) && (
             <TabsContent value="bizalmas" className="mt-0 outline-none space-y-12">
-              {(isHrOrAdmin || ["auditor", "munkavedelmi"].includes(currentUserProfile?.hr_szerepkor || "")) && (
+              {(isHrOrAdmin || ["auditor", "munkavedelmi"].includes(currentHrRole)) && (
                 <div className="space-y-4">
                   <h2 className="text-xl font-semibold tracking-tight text-destructive border-b pb-2">
                     Orvosi Alkalmassági Vizsgálatok
@@ -612,14 +618,14 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                   <MedicalTab 
                     employeeId={profile.id} 
                     employeeName={profile.nev}
-                    isHrOrAdmin={isHrOrAdmin} 
-                    currentUserRole={currentUserProfile?.hr_szerepkor || "munkavallalo"}
+                    isHrOrAdmin={isHrOrAdmin || currentHrRole === "munkavedelmi"} 
+                    currentUserRole={currentHrRole}
                     initialData={adatlap?.hr_orvosi_vizsgalat || []} 
                   />
                 </div>
               )}
 
-              {(isHrOrAdmin || ["auditor"].includes(currentUserProfile?.hr_szerepkor || "")) && (
+              {(isHrOrAdmin || ["auditor"].includes(currentHrRole)) && (
                 <div className="space-y-4">
                   <h2 className="text-xl font-semibold tracking-tight text-destructive border-b pb-2">
                     Fegyelmi és Károkozási Ügyek (Mt. 56. §, 179. §)

@@ -233,15 +233,10 @@ export function PayrollTable({ initialData }: PayrollTableProps) {
     <div className="space-y-6">
       {/* 1. Havi Időszakválasztó és Fejléc Vezérlő */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border rounded-xl p-4 bg-card shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 border border-teal-500/20">
-            <Receipt className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">Elszámolt Időszak</div>
-            <div className="text-xl font-bold text-foreground">
-              {data.year}. {data.monthName}
-            </div>
+        <div>
+          <div className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">Elszámolt Időszak</div>
+          <div className="text-xl font-bold text-foreground">
+            {data.year}. {data.monthName}
           </div>
         </div>
 

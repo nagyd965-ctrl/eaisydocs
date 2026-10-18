@@ -661,20 +661,16 @@ export function ReportsTabs() {
       {/* 2. FÜLES NAVIGÁCIÓ */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-6">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:w-[840px] h-10">
-          <TabsTrigger value="t1041" className="gap-2">
-            <Landmark className="w-4 h-4" />
+          <TabsTrigger value="t1041">
             NAV T1041
           </TabsTrigger>
-          <TabsTrigger value="ksh" className="gap-2">
-            <Building className="w-4 h-4" />
+          <TabsTrigger value="ksh">
             KSH Riport
           </TabsTrigger>
-          <TabsTrigger value="payroll" className="gap-2">
-            <FileSpreadsheet className="w-4 h-4" />
+          <TabsTrigger value="payroll">
             Bérszámfejtés
           </TabsTrigger>
-          <TabsTrigger value="archivum" className="gap-2">
-            <FileText className="w-4 h-4" />
+          <TabsTrigger value="archivum">
             Bevallás Archívum
           </TabsTrigger>
         </TabsList>

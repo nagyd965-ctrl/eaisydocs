@@ -159,31 +159,14 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-3">
           <TabsList className="h-9">
-            <TabsTrigger value="folyamatban" className="gap-2 text-xs">
+            <TabsTrigger value="folyamatban" className="text-xs">
               Folyamatban lévő kiléptetések
-              {inProgressList.length > 0 && (
-                <span className="ml-1 bg-primary/10 text-primary text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-primary/20">
-                  {inProgressList.length}
-                </span>
-              )}
             </TabsTrigger>
-            <TabsTrigger value="lezart" className="gap-2 text-xs">
-              <Archive className="w-3.5 h-3.5" />
+            <TabsTrigger value="lezart" className="text-xs">
               Lezárt kiléptetések
-              {closedList.length > 0 && (
-                <span className="ml-1 bg-muted text-muted-foreground text-[10px] font-semibold px-1.5 py-0.5 rounded-full border">
-                  {closedList.length}
-                </span>
-              )}
             </TabsTrigger>
-            <TabsTrigger value="interju-osszesito" className="gap-2 text-xs">
-              <BarChart2 className="w-3.5 h-3.5" />
+            <TabsTrigger value="interju-osszesito" className="text-xs">
               Kilépési Interjúk & HR Analytics
-              {exitInterviews.length > 0 && (
-                <span className="ml-1 bg-primary/10 text-primary text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-primary/20">
-                  {exitInterviews.length}
-                </span>
-              )}
             </TabsTrigger>
           </TabsList>
 
