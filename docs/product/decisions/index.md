@@ -99,11 +99,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-089](./P-089-task-delegation-and-substitution-ux.md) | 2026-10-18 | Távolléti Feladat-Delegálás és Helyettesítés Újraszervezése Felhasználói Élmény (UX) | `[Docs]` | `Tasks & Settings / Delegation & Substitution UX` | [A-070](../../architecture/decisions/A-070-task-delegation-and-substitution-architecture.md), `tasks/page.tsx`, `tasks/task-actions.ts`, `settings/page.tsx`, `settings-client.tsx`, `delegation-manager.tsx` |
 | [P-090](./P-090-assigned-dossiers-and-subtasks-unified-tasks-view-ux.md) | 2026-10-18 | Rám szignált ügyiratok és hozzáadott al-feladatok UX egységesítése | `[Docs]` | `Tasks / Personal Assigned Dossiers & Subtasks UX` | [A-071](../../architecture/decisions/A-071-assigned-dossiers-and-subtasks-unified-tasks-view.md), `tasks/page.tsx`, `tasks/task-actions.ts`, `tasks/kanban-board.tsx`, `tasks/task-list.tsx`, `tasks/task-calendar.tsx`, `types/tasks.ts` |
 | [P-091](./P-091-tasks-kanban-auto-archive-and-completed-list-view-ux.md) | 2026-10-18 | Tasks Kanban 24-órás Auto-archiválás és Elvégzett Feladatok Lista UX | `[Docs]` | `Tasks / Kanban 24h Window & Completed List UX` | [A-072](../../architecture/decisions/A-072-tasks-kanban-auto-archive-and-completed-list-view.md), `tasks/page.tsx`, `tasks/task-actions.ts`, `tasks/kanban-board.tsx`, `tasks/task-list.tsx`, `types/tasks.ts` |
+| [P-092](./P-092-dossier-tasks-wizard-modal-ux.md) | 2026-10-18 | Ügyirati Feladatok 3-Lépcsős Varázsló (Wizard Modal) Termékkövetelmény és UX | `[Docs]` | `Dossiers / Tasks Tab & Wizard Modal UX` | [A-073](../../architecture/decisions/A-073-dossier-tasks-wizard-modal-workflow.md), `src/components/tasks-tab.tsx`, `src/app/tasks/task-actions.ts` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-092`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-093`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Loader2,
   ArrowRight,
+  ArrowLeft,
   X,
   Trash2,
   Ban,
@@ -38,6 +39,8 @@ import {
   Tag,
   BookmarkPlus,
   Layers,
+  Search,
+  FileText,
 } from "lucide-react"
 import { toast } from "sonner"
 import { addComment, updateDossierStatus } from "@/app/dossiers/[id]/actions"
@@ -149,11 +152,14 @@ export function TasksTab({
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [rejectingTask, setRejectingTask] = useState<{ id: string; title: string } | null>(null)
 
-  // ── IN-PLACE FELADATKÉSZÍTŐ ÉS SABLONÁLLAPOT (DOC-TASK-01: 0 POPUP!) ──
-  const [composerOpen, setComposerOpen] = useState(true)
-  const [catalogOpen, setCatalogOpen] = useState(false)
-  const [templates, setTemplates] = useState<TaskTemplate[]>(DEFAULT_TASK_TEMPLATES)
+  // ── 3 LÉPÉSES FELADAT VARÁZSLÓ DIALÓGUS ÁLLAPOT (WIZARD) ──
+  type WizardStep = 1 | 2 | 3
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [currentStep, setCurrentStep] = useState<WizardStep>(1)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+  const [templateSearch, setTemplateSearch] = useState("")
   const [selectedTemplateCat, setSelectedTemplateCat] = useState<string>("all")
+  const [templates, setTemplates] = useState<TaskTemplate[]>(DEFAULT_TASK_TEMPLATES)
   const [createLoading, setCreateLoading] = useState(false)
 
   // Új feladat mezői
@@ -181,7 +187,43 @@ export function TasksTab({
     setFormHatarido(d.toISOString().split("T")[0])
   }
 
-  // Új sablon in-place rögzítése a katalógusban
+  // Varázsló állapot alaphelyzetbe állítása
+  const resetWizard = () => {
+    setCurrentStep(1)
+    setSelectedTemplateId(null)
+    setTemplateSearch("")
+    setSelectedTemplateCat("all")
+    setFormLeiras("")
+    setFormFelelos("")
+    setFormHatarido("")
+    setFormPrioritas("normal")
+    setFormKategoria("egyeb")
+    setFormReszletek("")
+    setFormSaveAsTemplate(false)
+    setNewTplOpen(false)
+  }
+
+  // Sablon kiválasztása a varázsló 1. lépésében
+  const handleSelectTemplate = (tpl: TaskTemplate) => {
+    setSelectedTemplateId(tpl.id)
+    setFormLeiras(tpl.cim)
+    if (tpl.leiras) setFormReszletek(tpl.leiras)
+    setFormKategoria(tpl.kategoria)
+    setFormPrioritas(tpl.prioritas)
+    setQuickDeadline(tpl.alapertelmezett_hatarido_nap || 3)
+  }
+
+  // Egyedi feladat (sablon nélkül) kiválasztása
+  const handleSelectCustomTask = () => {
+    setSelectedTemplateId(null)
+    setFormLeiras("")
+    setFormReszletek("")
+    setFormKategoria("egyeb")
+    setFormPrioritas("normal")
+    setQuickDeadline(3)
+  }
+
+  // Új sablon in-place rögzítése a varázslóban
   const [newTplOpen, setNewTplOpen] = useState(false)
   const [newTplCim, setNewTplCim] = useState("")
   const [newTplKategoria, setNewTplKategoria] = useState<TaskCategory>("egyeb")
@@ -209,6 +251,7 @@ export function TasksTab({
       if (res.success && res.template) {
         toast.success("Új feladatsablon sikeresen elmentve!")
         setTemplates((prev) => [res.template!, ...prev])
+        handleSelectTemplate(res.template!)
         setNewTplCim("")
         setNewTplLeiras("")
         setNewTplHataridoNap(3)
@@ -242,6 +285,9 @@ export function TasksTab({
       if (res.success) {
         toast.success("Feladatsablon sikeresen törölve.")
         setTemplates((prev) => prev.filter((t) => t.id !== deletingTemplate.id))
+        if (selectedTemplateId === deletingTemplate.id) {
+          setSelectedTemplateId(null)
+        }
         setDeletingTemplate(null)
       } else {
         toast.error(res.error || "Nem sikerült törölni a sablont.")
@@ -253,21 +299,8 @@ export function TasksTab({
     }
   }
 
-  // Sablon alkalmazása az in-place űrlapba (0 felugró ablak!)
-  const handleApplyTemplate = (tpl: TaskTemplate) => {
-    setFormLeiras(tpl.cim)
-    if (tpl.leiras) setFormReszletek(tpl.leiras)
-    setFormKategoria(tpl.kategoria)
-    setFormPrioritas(tpl.prioritas)
-    setQuickDeadline(tpl.alapertelmezett_hatarido_nap || 3)
-    setComposerOpen(true)
-    toast.success(`„${tpl.cim}” sablon adatai sikeresen betöltve az űrlapba.`)
-  }
-
-  // Új feladat mentése
-  const handleCreateTask = async (e: React.FormEvent) => {
-    e.preventDefault()
-
+  // Új feladat véglegesítése a varázslóból
+  const handleSubmitWizardTask = async () => {
     if (!formLeiras.trim()) {
       toast.error("A feladat megnevezése kötelező!")
       return
@@ -306,12 +339,8 @@ export function TasksTab({
         }
 
         toast.success("Feladat sikeresen rögzítve az ügyirathoz!")
-        setFormLeiras("")
-        setFormReszletek("")
-        setFormHatarido("")
-        setFormPrioritas("normal")
-        setFormKategoria("egyeb")
-        setFormSaveAsTemplate(false)
+        resetWizard()
+        setWizardOpen(false)
         router.refresh()
       } else {
         toast.error(res.error || "Hiba történt a feladat mentésekor.")
@@ -413,13 +442,15 @@ export function TasksTab({
     }
   }
 
-  // Népszerű sablonok a gyorsszalaghoz (Quick Ribbon)
-  const quickRibbonTemplates = templates.slice(0, 5)
-
-  // Szűrt sablonok a lenyitható katalógushoz
-  const filteredCatalogTemplates = templates.filter(
-    (t) => selectedTemplateCat === "all" || t.kategoria === selectedTemplateCat
-  )
+  // Szűrt sablonok a feladat varázslóhoz
+  const filteredTemplates = templates.filter((t) => {
+    const matchesCat = selectedTemplateCat === "all" || t.kategoria === selectedTemplateCat
+    const matchesSearch =
+      !templateSearch.trim() ||
+      t.cim.toLowerCase().includes(templateSearch.toLowerCase()) ||
+      (t.leiras && t.leiras.toLowerCase().includes(templateSearch.toLowerCase()))
+    return matchesCat && matchesSearch
+  })
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -444,12 +475,14 @@ export function TasksTab({
             {canEdit && (
               <Button
                 size="sm"
-                variant={composerOpen ? "secondary" : "outline"}
-                onClick={() => setComposerOpen((prev) => !prev)}
-                className="h-8 gap-1.5 text-xs cursor-pointer self-start sm:self-center"
+                onClick={() => {
+                  resetWizard()
+                  setWizardOpen(true)
+                }}
+                className="h-8 gap-1.5 text-xs cursor-pointer self-start sm:self-center bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                {composerOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-                <span>{composerOpen ? "Űrlap bezárása" : "Új feladat rögzítése"}</span>
+                <Plus className="h-3.5 w-3.5" />
+                <span>Új feladat kiadása</span>
               </Button>
             )}
           </CardHeader>
@@ -519,387 +552,29 @@ export function TasksTab({
               </div>
             )}
 
-            {/* ── KÖZVETLEN BEÁGYAZOTT FELADATFELVÉTEL ÉS SABLONSZALAG (DOC-TASK-01) ── */}
-            {canEdit && composerOpen && (
-              <div className="p-4 rounded-xl border border-primary/20 bg-muted/20 space-y-4 transition-all">
-                {/* 1. Gyors Sablonszalag (Quick Ribbon) */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <Sparkles className="h-3 w-3 text-primary" />
-                      Gyors sablonok
-                    </Label>
-                    <button
-                      type="button"
-                      onClick={() => setCatalogOpen((prev) => !prev)}
-                      className="text-[11px] text-primary hover:underline flex items-center gap-1 cursor-pointer font-medium"
-                    >
-                      <Layers className="h-3 w-3" />
-                      <span>{catalogOpen ? "Katalógus elrejtése" : `Összes sablon (${templates.length})`}</span>
-                    </button>
-                  </div>
-
-                  {/* Vízszintes sablon chipek */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {quickRibbonTemplates.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => handleApplyTemplate(t)}
-                        className="px-2.5 py-1 rounded-md text-xs border border-border/80 bg-background hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-colors cursor-pointer flex items-center gap-1"
-                        title={t.leiras || t.cim}
-                      >
-                        <span className="font-medium">{t.cim}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Lenyitható Sablonkatalógus Panel (ha a felhasználó kéri) */}
-                  {catalogOpen && (
-                    <div className="mt-3 p-3.5 rounded-lg border border-border/80 bg-card space-y-3.5">
-                      {/* Fejléc: Cím és Új sablon gomb */}
-                      <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2.5">
-                        <div className="flex items-center gap-1.5">
-                          <Sparkles className="h-3.5 w-3.5 text-primary" />
-                          <span className="text-xs font-semibold text-foreground">Vállalati Feladatsablonok</span>
-                          <span className="text-[10px] text-muted-foreground">({templates.length} elérhető)</span>
-                        </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={newTplOpen ? "secondary" : "outline"}
-                          onClick={() => setNewTplOpen(!newTplOpen)}
-                          className="h-7 text-xs gap-1 cursor-pointer"
-                        >
-                          <Plus className="h-3 w-3" />
-                          <span>{newTplOpen ? "Űrlap bezárása" : "Új sablon rögzítése"}</span>
-                        </Button>
-                      </div>
-
-                      {/* Új Sablon In-Place Űrlap (0 Popup!) */}
-                      {newTplOpen && (
-                        <form onSubmit={handleSaveInlineTemplate} className="p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-primary">Új feladatsablon létrehozása</span>
-                            <span className="text-[10px] text-muted-foreground">Mentés után azonnal elérhető a gyors szalagban</span>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-medium">
-                              Sablon megnevezése <span className="text-destructive">*</span>
-                            </Label>
-                            <Input
-                              value={newTplCim}
-                              onChange={(e) => setNewTplCim(e.target.value)}
-                              placeholder="Pl. Szerződéstervezet jogi ellenjegyzése"
-                              className="h-8 text-xs bg-background"
-                              autoFocus
-                            />
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            <div className="space-y-1">
-                              <Label className="text-[11px] font-medium">Kategória</Label>
-                              <Select value={newTplKategoria} onValueChange={(val: any) => setNewTplKategoria(val)}>
-                                <SelectTrigger className="h-8 text-xs bg-background">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {TASK_CATEGORIES.map((c) => (
-                                    <SelectItem key={c.id} value={c.id} className="text-xs">
-                                      {c.nev || c.shortLabel}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] font-medium">Prioritás</Label>
-                              <Select value={newTplPrioritas} onValueChange={(val: any) => setNewTplPrioritas(val)}>
-                                <SelectTrigger className="h-8 text-xs bg-background">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {TASK_PRIORITIES.map((p) => (
-                                    <SelectItem key={p.id} value={p.id} className="text-xs">
-                                      {p.nev}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] font-medium">Határidő (munkanap)</Label>
-                              <Input
-                                type="number"
-                                min={1}
-                                max={90}
-                                value={newTplHataridoNap}
-                                onChange={(e) => setNewTplHataridoNap(parseInt(e.target.value) || 1)}
-                                className="h-8 text-xs bg-background"
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-medium">Alapértelmezett leírás / instrukció (opcionális)</Label>
-                            <Textarea
-                              value={newTplLeiras}
-                              onChange={(e) => setNewTplLeiras(e.target.value)}
-                              placeholder="Feladat részletes teendői, szükséges dokumentumok listája..."
-                              rows={2}
-                              className="text-xs bg-background"
-                            />
-                          </div>
-                          <div className="flex items-center justify-end gap-2 pt-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setNewTplOpen(false)}
-                              className="h-7 text-xs cursor-pointer"
-                            >
-                              Mégse
-                            </Button>
-                            <Button
-                              type="submit"
-                              size="sm"
-                              disabled={newTplSaving || !newTplCim.trim()}
-                              className="h-7 text-xs bg-primary text-primary-foreground gap-1 cursor-pointer"
-                            >
-                              {newTplSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                              <span>Sablon mentése</span>
-                            </Button>
-                          </div>
-                        </form>
-                      )}
-
-                      {/* Kategória szűrő gombok */}
-                      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedTemplateCat("all")}
-                          className={`px-2 py-0.5 rounded border text-[11px] font-medium transition-colors cursor-pointer ${
-                            selectedTemplateCat === "all"
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "border-border/70 text-muted-foreground hover:bg-muted"
-                          }`}
-                        >
-                          Összes
-                        </button>
-                        {TASK_CATEGORIES.map((cat) => (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => setSelectedTemplateCat(cat.id)}
-                            className={`px-2 py-0.5 rounded border text-[11px] font-medium transition-colors cursor-pointer ${
-                              selectedTemplateCat === cat.id
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "border-border/70 text-muted-foreground hover:bg-muted"
-                            }`}
-                          >
-                            {cat.nev || cat.shortLabel}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1">
-                        {filteredCatalogTemplates.map((tpl) => (
-                          <div
-                            key={tpl.id}
-                            onClick={() => handleApplyTemplate(tpl)}
-                            className="group p-2.5 rounded-md border border-border/60 hover:border-primary/50 bg-background hover:bg-primary/5 transition-colors cursor-pointer flex flex-col justify-between gap-1 relative"
-                          >
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="text-xs font-semibold text-foreground line-clamp-1">
-                                {tpl.cim}
-                              </span>
-                              {tpl.isCustom && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleDeleteCustomTemplate(tpl, e)}
-                                  title="Egyedi sablon törlése"
-                                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-opacity cursor-pointer shrink-0"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-muted-foreground line-clamp-2">
-                              {tpl.leiras || "Nincs részletes leírás."}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. Beágyazott Űrlap */}
-                <form onSubmit={handleCreateTask} className="space-y-3 pt-1">
-                  <div className="space-y-1">
-                    <Label htmlFor="taskLeiras" className="text-xs font-semibold">
-                      Feladat megnevezése <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="taskLeiras"
-                      value={formLeiras}
-                      onChange={(e) => setFormLeiras(e.target.value)}
-                      placeholder="Pl. Számla alaki ellenőrzése és jóváhagyása..."
-                      className="text-xs h-9 font-medium"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
-                    {/* Felelős */}
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium">
-                        Felelős <span className="text-destructive">*</span>
-                      </Label>
-                      <Select value={formFelelos} onValueChange={(val) => setFormFelelos(val || "")}>
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Válassz felelőst..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {users.map((u) => (
-                            <SelectItem key={u.id} value={u.id} className="text-xs">
-                              {u.nev || u.email}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Határidő */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs font-medium">
-                          Határidő <span className="text-destructive">*</span>
-                        </Label>
-                        <div className="flex items-center gap-1 text-[10px] text-primary">
-                          <button
-                            type="button"
-                            onClick={() => setQuickDeadline(2)}
-                            className="hover:underline cursor-pointer"
-                          >
-                            +2 nap
-                          </button>
-                          <span>•</span>
-                          <button
-                            type="button"
-                            onClick={() => setQuickDeadline(7)}
-                            className="hover:underline cursor-pointer"
-                          >
-                            +1 hét
-                          </button>
-                        </div>
-                      </div>
-                      <Input
-                        type="date"
-                        value={formHatarido}
-                        onChange={(e) => setFormHatarido(e.target.value)}
-                        className="h-9 text-xs"
-                      />
-                    </div>
-
-                    {/* Prioritás */}
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium">Prioritás</Label>
-                      <Select
-                        value={formPrioritas}
-                        onValueChange={(val: any) => setFormPrioritas(val)}
-                      >
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TASK_PRIORITIES.map((p) => (
-                            <SelectItem key={p.id} value={p.id} className="text-xs">
-                              {p.nev}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Kategória */}
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium">Kategória</Label>
-                      <Select
-                        value={formKategoria}
-                        onValueChange={(val: any) => setFormKategoria(val)}
-                      >
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TASK_CATEGORIES.map((c) => (
-                            <SelectItem key={c.id} value={c.id} className="text-xs">
-                              {c.nev || c.shortLabel}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Részletes munkautasítás */}
-                  <div className="space-y-1">
-                    <Label htmlFor="taskReszletek" className="text-xs font-medium text-muted-foreground">
-                      Részletes munkautasítás vagy megjegyzés (opcionális)
-                    </Label>
-                    <Textarea
-                      id="taskReszletek"
-                      value={formReszletek}
-                      onChange={(e) => setFormReszletek(e.target.value)}
-                      placeholder="Pl. Kérjük ellenőrizni az adószámot és a teljesítésigazolást..."
-                      rows={2}
-                      className="text-xs"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between pt-1">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="saveAsTpl"
-                        checked={formSaveAsTemplate}
-                        onChange={(e) => setFormSaveAsTemplate(e.target.checked)}
-                        className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
-                      />
-                      <Label htmlFor="saveAsTpl" className="text-xs font-normal text-muted-foreground cursor-pointer">
-                        Mentés új feladatsablonként a jövőbeni gyors használathoz
-                      </Label>
-                    </div>
-
-                    <Button
-                      type="submit"
-                      size="sm"
-                      disabled={createLoading || !formLeiras.trim()}
-                      className="h-8 gap-1.5 text-xs cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
-                    >
-                      {createLoading ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          <span>Rögzítés...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="h-3.5 w-3.5" />
-                          <span>Feladat rögzítése</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </div>
-            )}
-
             {/* ── FELADATOK LISTÁJA ── */}
             {taskList.length === 0 ? (
-              <div className="py-8 text-center border border-dashed rounded-lg bg-muted/20">
-                <Sparkles className="h-6 w-6 text-muted-foreground/60 mx-auto mb-2" />
-                <p className="text-xs font-medium text-foreground">Még nincsenek feladatok rögzítve.</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Válassz egy sablont a fenti szalagból vagy írj be egy egyedi teendőt!
-                </p>
+              <div className="py-10 text-center border border-dashed rounded-lg bg-muted/20 space-y-3">
+                <Sparkles className="h-6 w-6 text-muted-foreground/60 mx-auto" />
+                <div>
+                  <p className="text-xs font-medium text-foreground">Még nincsenek feladatok rögzítve ebben az ügyiratban.</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Kattints az „Új feladat kiadása” gombra feladatsablon választásához vagy egyedi teendő felvételéhez.
+                  </p>
+                </div>
+                {canEdit && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      resetWizard()
+                      setWizardOpen(true)
+                    }}
+                    className="h-8 gap-1.5 text-xs cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Új feladat kiadása</span>
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="space-y-2.5">
@@ -1245,6 +920,680 @@ export function TasksTab({
           </div>
         </Card>
       </div>
+
+      {/* ── TÖBBLÉPÉSES ÜGYIRATI FELADAT VARÁZSLÓ DIALÓGUS (WIZARD) ── */}
+      <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
+        <DialogContent className="sm:max-w-[760px] max-h-[90vh] flex flex-col p-0 gap-0 border border-border/70 overflow-hidden">
+          {/* Varázsló Fejléc és Lépésindikátor */}
+          <div className="p-6 border-b border-border/50 bg-muted/10">
+            <div className="flex items-center justify-between mb-4 pr-8">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                ÚJ ÜGYIRATI FELADAT KIADÁSA
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Ügyirat: <strong className="font-mono text-foreground">{iktatoszam || "—"}</strong>
+              </span>
+            </div>
+
+            {/* Lépés Címsor */}
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground font-semibold flex items-center justify-center text-sm shrink-0">
+                {currentStep}
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">
+                  {currentStep === 1 && "Sablon kiválasztása vagy egyedi feladat"}
+                  {currentStep === 2 && "Feladat alapadatai és felelős"}
+                  {currentStep === 3 && "Részletes instrukciók és összegzés"}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {currentStep === 1 && "Válasszon egy előre konfigurált munkafolyamat-sablont, vagy kezdjen üres adatlappal."}
+                  {currentStep === 2 && "Határozza meg a feladat címét, a felelős munkatársat, határidőt és prioritást."}
+                  {currentStep === 3 && "Adjon meg pontos munkautasítást, ellenőrizze az adatokat és véglegesítse a kiadást."}
+                </p>
+              </div>
+            </div>
+
+            {/* Lépés navigációs sáv */}
+            <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/40">
+              <div
+                className={`h-1.5 flex-1 rounded-full transition-colors ${
+                  currentStep >= 1 ? "bg-primary" : "bg-muted"
+                }`}
+              />
+              <div
+                className={`h-1.5 flex-1 rounded-full transition-colors ${
+                  currentStep >= 2 ? "bg-primary" : "bg-muted"
+                }`}
+              />
+              <div
+                className={`h-1.5 flex-1 rounded-full transition-colors ${
+                  currentStep >= 3 ? "bg-primary" : "bg-muted"
+                }`}
+              />
+            </div>
+          </div>
+
+          {/* Varázsló Törzs (Lépések szerint) */}
+          <div className="p-6 overflow-y-auto flex-1 space-y-6">
+            {/* ── 1. LÉPÉS: SABLON VÁLASZTÁS VAGY EGYEDI FELADAT ── */}
+            {currentStep === 1 && (
+              <div className="space-y-4">
+                {/* Keresés és Új sablon gomb */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Keresés a feladatsablonok között..."
+                      value={templateSearch}
+                      onChange={(e) => setTemplateSearch(e.target.value)}
+                      className="pl-8 h-8 text-xs"
+                    />
+                    {templateSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setTemplateSearch("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={newTplOpen ? "secondary" : "outline"}
+                    onClick={() => setNewTplOpen(!newTplOpen)}
+                    className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>{newTplOpen ? "Sablon űrlap bezárása" : "Új sablon rögzítése"}</span>
+                  </Button>
+                </div>
+
+                {/* Új sablon in-place űrlap a varázslóban */}
+                {newTplOpen && (
+                  <form onSubmit={handleSaveInlineTemplate} className="p-3.5 rounded-xl border border-primary/30 bg-primary/5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-primary">Új feladatsablon hozzáadása a vállalati tárba</span>
+                      <span className="text-[10px] text-muted-foreground">Mentés után azonnal kiválasztható lesz</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-medium">
+                        Sablon megnevezése <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        value={newTplCim}
+                        onChange={(e) => setNewTplCim(e.target.value)}
+                        placeholder="Pl. Szerződéstervezet jogi ellenjegyzése"
+                        className="h-8 text-xs bg-background"
+                        autoFocus
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-medium">Kategória</Label>
+                        <Select value={newTplKategoria} onValueChange={(val: any) => setNewTplKategoria(val)}>
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TASK_CATEGORIES.map((c) => (
+                              <SelectItem key={c.id} value={c.id} className="text-xs">
+                                {c.nev || c.shortLabel}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-medium">Prioritás</Label>
+                        <Select value={newTplPrioritas} onValueChange={(val: any) => setNewTplPrioritas(val)}>
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TASK_PRIORITIES.map((p) => (
+                              <SelectItem key={p.id} value={p.id} className="text-xs">
+                                {p.nev}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-medium">Határidő (munkanap)</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={90}
+                          value={newTplHataridoNap}
+                          onChange={(e) => setNewTplHataridoNap(parseInt(e.target.value) || 1)}
+                          className="h-8 text-xs bg-background"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-medium">Alapértelmezett instrukció (opcionális)</Label>
+                      <Textarea
+                        value={newTplLeiras}
+                        onChange={(e) => setNewTplLeiras(e.target.value)}
+                        placeholder="Feladat részletes teendői, elvárt eredmény..."
+                        rows={2}
+                        className="text-xs bg-background"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setNewTplOpen(false)}
+                        className="h-7 text-xs cursor-pointer"
+                      >
+                        Mégse
+                      </Button>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={newTplSaving || !newTplCim.trim()}
+                        className="h-7 text-xs bg-primary text-primary-foreground gap-1 cursor-pointer"
+                      >
+                        {newTplSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                        <span>Sablon mentése</span>
+                      </Button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Kategória chipek */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTemplateCat("all")}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors cursor-pointer shrink-0 ${
+                      selectedTemplateCat === "all"
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "border-border/70 text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    Összes ({templates.length})
+                  </button>
+                  {TASK_CATEGORIES.map((cat) => {
+                    const count = templates.filter((t) => t.kategoria === cat.id).length
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setSelectedTemplateCat(cat.id)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors cursor-pointer shrink-0 ${
+                          selectedTemplateCat === cat.id
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border/70 text-muted-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {cat.nev || cat.shortLabel} {count > 0 && `(${count})`}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Sablon kártyák rácsa */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1">
+                  {/* Egyedi feladat (sablon nélkül) kártya */}
+                  <div
+                    onClick={handleSelectCustomTask}
+                    className={`group p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
+                      selectedTemplateId === null
+                        ? "border-primary bg-primary/10 ring-1 ring-primary"
+                        : "border-dashed border-border/80 hover:border-primary/50 bg-card hover:bg-muted/10"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className={`p-2 rounded-lg shrink-0 ${selectedTemplateId === null ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                        <FileText className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                          <span className="font-semibold text-xs text-foreground">Egyedi feladat</span>
+                          <Badge variant="outline" className="text-[10px] font-normal">
+                            Sablon nélkül
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                          Üres feladatlap megnyitása és minden adat kézi megadása.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[11px]">
+                      <span className="text-muted-foreground">Teljesen testreszabható</span>
+                      {selectedTemplateId === null ? (
+                        <span className="font-semibold text-primary flex items-center gap-1">
+                          <Check className="h-3 w-3" /> Kiválasztva
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground group-hover:text-foreground">Kiválasztás →</span>
+                      )}
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleSelectCustomTask()
+                        setCurrentStep(2)
+                      }}
+                      className="h-7 text-xs w-full gap-1 cursor-pointer hover:bg-primary/10 hover:text-primary"
+                    >
+                      <Check className="h-3 w-3" />
+                      <span>Kiválasztás és tovább</span>
+                    </Button>
+                  </div>
+
+                  {/* Szűrt sablonok */}
+                  {filteredTemplates.map((t) => {
+                    const isSelected = selectedTemplateId === t.id
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => handleSelectTemplate(t)}
+                        className={`group p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2.5 relative ${
+                          isSelected
+                            ? "border-primary bg-primary/10 ring-1 ring-primary"
+                            : "border-border/70 hover:border-primary/50 bg-card hover:bg-muted/10"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-1.5 mb-1">
+                            <span className="font-semibold text-xs text-foreground line-clamp-1">
+                              {t.cim}
+                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {t.alapertelmezett_hatarido_nap && (
+                                <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-4">
+                                  +{t.alapertelmezett_hatarido_nap} nap
+                                </Badge>
+                              )}
+                              {t.isCustom && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteCustomTemplate(t, e)}
+                                  title="Egyedi sablon törlése"
+                                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                            {t.leiras || "Nincs megadva leírás a sablonhoz."}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[11px]">
+                          <Badge variant="outline" className="text-[10px] font-normal capitalize">
+                            {CATEGORY_CONFIG[t.kategoria]?.label || t.kategoria}
+                          </Badge>
+                          {isSelected ? (
+                            <span className="font-semibold text-primary flex items-center gap-1">
+                              <Check className="h-3 w-3" /> Kiválasztva
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground group-hover:text-foreground">Kiválasztás →</span>
+                          )}
+                        </div>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleSelectTemplate(t)
+                            setCurrentStep(2)
+                          }}
+                          className="h-7 text-xs w-full gap-1 cursor-pointer hover:bg-primary/10 hover:text-primary"
+                        >
+                          <Check className="h-3 w-3" />
+                          <span>Kiválasztás és tovább</span>
+                        </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {filteredTemplates.length === 0 && (
+                  <div className="py-6 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+                    Nincs a keresésnek megfelelő feladatsablon.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── 2. LÉPÉS: FELADAT ALAPADATAI ÉS FELELŐS ── */}
+            {currentStep === 2 && (
+              <div className="space-y-4">
+                {/* Kiválasztott sablon visszajelző csík */}
+                <div className="p-3 rounded-lg border border-primary/20 bg-primary/5 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary shrink-0" />
+                    <span>
+                      Alap: <strong>{selectedTemplateId ? templates.find(t => t.id === selectedTemplateId)?.cim || "Kiválasztott sablon" : "Egyedi feladat (sablon nélkül)"}</strong>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(1)}
+                    className="text-[11px] text-primary hover:underline font-medium cursor-pointer"
+                  >
+                    Sablon módosítása
+                  </button>
+                </div>
+
+                {/* Feladat megnevezése */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="wizTaskLeiras" className="text-xs font-semibold">
+                    Feladat megnevezése <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="wizTaskLeiras"
+                    value={formLeiras}
+                    onChange={(e) => setFormLeiras(e.target.value)}
+                    placeholder="Pl. Számla alaki ellenőrzése és jóváhagyása..."
+                    className="text-xs h-9 font-medium"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Felelős munkatárs */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">
+                      Felelős munkatárs <span className="text-destructive">*</span>
+                    </Label>
+                    <Select value={formFelelos} onValueChange={(val) => setFormFelelos(val || "")}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Válassz felelős munkatársat..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {users.map((u) => (
+                          <SelectItem key={u.id} value={u.id} className="text-xs">
+                            {u.nev || u.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Határidő */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold">
+                        Határidő <span className="text-destructive">*</span>
+                      </Label>
+                      <div className="flex items-center gap-1.5 text-[10px] text-primary">
+                        <button
+                          type="button"
+                          onClick={() => setQuickDeadline(1)}
+                          className="hover:underline cursor-pointer"
+                        >
+                          +1 nap
+                        </button>
+                        <span>•</span>
+                        <button
+                          type="button"
+                          onClick={() => setQuickDeadline(2)}
+                          className="hover:underline cursor-pointer"
+                        >
+                          +2 nap
+                        </button>
+                        <span>•</span>
+                        <button
+                          type="button"
+                          onClick={() => setQuickDeadline(7)}
+                          className="hover:underline cursor-pointer"
+                        >
+                          +1 hét
+                        </button>
+                        <span>•</span>
+                        <button
+                          type="button"
+                          onClick={() => setQuickDeadline(14)}
+                          className="hover:underline cursor-pointer"
+                        >
+                          +2 hét
+                        </button>
+                      </div>
+                    </div>
+                    <Input
+                      type="date"
+                      value={formHatarido}
+                      onChange={(e) => setFormHatarido(e.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Prioritás */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Prioritás</Label>
+                    <Select value={formPrioritas} onValueChange={(val: any) => setFormPrioritas(val)}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TASK_PRIORITIES.map((p) => (
+                          <SelectItem key={p.id} value={p.id} className="text-xs">
+                            {p.nev}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Kategória */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Kategória</Label>
+                    <Select value={formKategoria} onValueChange={(val: any) => setFormKategoria(val)}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TASK_CATEGORIES.map((c) => (
+                          <SelectItem key={c.id} value={c.id} className="text-xs">
+                            {c.nev || c.shortLabel}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg border border-border/60 bg-muted/20 text-xs text-muted-foreground flex items-start gap-2">
+                  <Info className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                  <span>
+                    A feladat kiosztásakor a megjelölt felelős belső értesítést kap a saját feladatlistájában és értesítési sávjában.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* ── 3. LÉPÉS: RÉSZLETES INSTRUKCIÓK ÉS ÖSSZEGZÉS ── */}
+            {currentStep === 3 && (
+              <div className="space-y-4">
+                {/* Részletes munkautasítás */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="wizReszletek" className="text-xs font-semibold">
+                    Részletes munkautasítás vagy megjegyzés (opcionális)
+                  </Label>
+                  <Textarea
+                    id="wizReszletek"
+                    value={formReszletek}
+                    onChange={(e) => setFormReszletek(e.target.value)}
+                    placeholder="Pl. Kérjük ellenőrizni a számla tételeit, az igazolást csatolni a dossziéhoz, majd jóváhagyni az utalást..."
+                    rows={3}
+                    className="text-xs"
+                    autoFocus
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Itt adhatja meg a feladat pontos lépéseit vagy a szükséges ellenőrzési szempontokat.
+                  </p>
+                </div>
+
+                {/* Összegző kártya */}
+                <div className="p-4 rounded-xl border border-border/70 bg-muted/20 space-y-2.5 text-xs">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block">
+                    Feladat összefoglaló
+                  </span>
+
+                  <div className="flex items-center justify-between pb-1.5 border-b border-border/40">
+                    <span className="text-muted-foreground">Feladat címe:</span>
+                    <strong className="text-foreground line-clamp-1">{formLeiras}</strong>
+                  </div>
+
+                  <div className="flex items-center justify-between pb-1.5 border-b border-border/40">
+                    <span className="text-muted-foreground">Felelős:</span>
+                    <span className="font-medium text-foreground">
+                      {users.find((u) => u.id === formFelelos)?.nev || users.find((u) => u.id === formFelelos)?.email || "Nincs megadva"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pb-1.5 border-b border-border/40">
+                    <span className="text-muted-foreground">Határidő:</span>
+                    <span className="font-mono font-medium text-foreground">{formHatarido || "—"}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between pb-1.5 border-b border-border/40">
+                    <span className="text-muted-foreground">Prioritás:</span>
+                    <Badge variant="outline" className="text-[10px] font-normal uppercase">
+                      {PRIORITY_CONFIG[formPrioritas]?.label || formPrioritas}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center justify-between pb-1.5 border-b border-border/40">
+                    <span className="text-muted-foreground">Kategória:</span>
+                    <Badge variant="outline" className="text-[10px] font-normal">
+                      {CATEGORY_CONFIG[formKategoria]?.label || formKategoria}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Ügyirat iktatószám:</span>
+                    <span className="font-mono text-muted-foreground">{iktatoszam || "—"}</span>
+                  </div>
+                </div>
+
+                {/* Mentés sablonként checkbox */}
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="wizSaveAsTpl"
+                    checked={formSaveAsTemplate}
+                    onChange={(e) => setFormSaveAsTemplate(e.target.checked)}
+                    className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <Label htmlFor="wizSaveAsTpl" className="text-xs font-normal text-muted-foreground cursor-pointer">
+                    Mentés új vállalati feladatsablonként a jövőbeni gyors használathoz
+                  </Label>
+                </div>
+
+                <div className="p-3 rounded-lg border border-info/30 bg-info/5 text-info text-xs flex items-start gap-2">
+                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    A jóváhagyás után a feladat azonnal megjelenik az ügyirat munkafolyamatában, és bekerül a felelős munkatárs teendői közé.
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Varázsló Lábléc navigációs gombokkal */}
+          <div className="p-4 border-t border-border/50 bg-muted/20 flex items-center justify-between">
+            {currentStep > 1 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentStep((prev) => (prev - 1) as WizardStep)}
+                className="gap-1.5 cursor-pointer text-xs"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Előző lépés</span>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setWizardOpen(false)}
+                className="text-xs text-muted-foreground"
+              >
+                Mégse
+              </Button>
+            )}
+
+            {currentStep < 3 ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (currentStep === 2) {
+                    if (!formLeiras.trim()) {
+                      toast.error("Kérjük, adja meg a feladat megnevezését!")
+                      return
+                    }
+                    if (!formFelelos) {
+                      toast.error("Kérjük, válasszon felelős munkatársat!")
+                      return
+                    }
+                    if (!formHatarido) {
+                      toast.error("Kérjük, adjon meg határidőt!")
+                      return
+                    }
+                  }
+                  setCurrentStep((prev) => (prev + 1) as WizardStep)
+                }}
+                className="gap-1.5 cursor-pointer text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <span>Következő lépés</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                disabled={createLoading || !formLeiras.trim() || !formFelelos || !formHatarido}
+                onClick={handleSubmitWizardTask}
+                className="gap-1.5 cursor-pointer text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {createLoading ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Feladat rögzítése...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-3.5 w-3.5" />
+                    <span>Feladat kiadása</span>
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Törlés megerősítő párbeszédablak */}
       <Dialog open={!!deletingTask} onOpenChange={(open) => !open && setDeletingTask(null)}>

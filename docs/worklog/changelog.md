@@ -4,6 +4,18 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-18)
 
+### 🪄 eaisyDocs: Ügyirati Feladatok 3-Lépcsős Varázsló (Wizard Modal) és Sablonkezelés (A-073 / P-092)
+- **Főoldali Letisztítás és Beágyazott Composer Megszüntetése:**
+  - A felhasználói visszajelzés alapján az ügyirat részletes adatlapján a feladatok fülről teljesen kivezetésre került a korábbi nagy helyet foglaló és a képernyőt lefelé toló beágyazott űrlap, valamint a kinyitható sablonkatalógus.
+  - Az „Ügyirati Feladatok” kártya fejlécébe egyetlen tiszta, figyelemfelkeltő `+ Új feladat kiadása` gomb került.
+  - A kártyatest így közvetlenül a feladatlistára és az állapotokra koncentrál.
+- **Kanonikus 3-Lépcsős Feladatvarázsló Modál (`TasksTab`):**
+  - A rendszer más moduljaiban (pl. Válaszlevelek) már bizonyított lépésindikátoros dialógus mintájára épült fel az új feladatkiosztó:
+    - **1. Lépés – Sablon kiválasztása vagy egyedi feladat:** Azonnali szöveges kereső, kategóriaszűrő chipek, „Egyedi feladat (Sablon nélkül)” indítókártya, sablonkártyák rácsa egykattintásos továbbhaladással, valamint inline `+ Új sablon rögzítése` űrlap közvetlenül a modálban.
+    - **2. Lépés – Feladat alapadatai és felelős:** Megnevezés, felelős munkatárs választó, határidő gyorsgombokkal (`+1 nap`, `+2 nap`, `+1 hét`, `+2 hét`), prioritás és kategória beállítása.
+    - **3. Lépés – Részletes instrukciók és összegzés:** Részletes munkautasítás vagy megjegyzés, paraméter-összegző kártya, „Mentés új feladatsablonként” jelölőnégyzet, és zöld „Feladat kiadása” gomb audit naplózással.
+- **Kapcsolódó döntések:** [ADR A-073](../architecture/decisions/A-073-dossier-tasks-wizard-modal-workflow.md), [PRD P-092](../product/decisions/P-092-dossier-tasks-wizard-modal-ux.md).
+
 ### 🧹 eaisyDocs: Tasks Kanban 24-órás Auto-archiválás és Elvégzett Feladatok Lista Nézet (A-072 / P-091)
 - **Fejléc Tisztítása és Személyes Fókusz:**
   - A felhasználói visszajelzés alapján a fejlécben korábban szereplő „Összes feladat” vezetői kapcsoló teljes mértékben eltávolításra került. A felület kizárólag a bejelentkezett felhasználó saját és helyettesítés útján ráruházott teendőire fókuszál.
