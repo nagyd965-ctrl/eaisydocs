@@ -108,7 +108,6 @@ export function DossierNotesSheet({
         onClick={() => setOpen(true)}
         className="h-8 gap-1.5 text-xs cursor-pointer"
       >
-        <MessageSquare className="h-3.5 w-3.5" />
         <span>Megjegyzések</span>
         {comments.length > 0 && (
           <span className="ml-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold tabular-nums flex items-center justify-center">
