@@ -50,10 +50,6 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
   const [viewMode, setViewMode] = useState<"aktiv" | "elvegzett" | "osszes">("aktiv")
   const router = useRouter()
 
-  const activeCount = useMemo(() => tasks.filter((t) => t.allapot !== "kesz").length, [tasks])
-  const completedCount = useMemo(() => tasks.filter((t) => t.allapot === "kesz").length, [tasks])
-  const allCount = tasks.length
-
   // Szűrési állapotok a szabványos TableToolbar-hoz
   const [search, setSearch] = useState("")
   const [columns, setColumns] = useState<TableColumnOption[]>(DEFAULT_TASK_COLUMNS)
@@ -209,7 +205,7 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            Aktív feladatok ({activeCount})
+            Aktív feladatok
           </button>
           <button
             type="button"
@@ -221,7 +217,7 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            Elvégzett feladatok ({completedCount})
+            Elvégzett feladatok
           </button>
           <button
             type="button"
@@ -233,7 +229,7 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            Összes ({allCount})
+            Összes
           </button>
         </div>
       </div>
