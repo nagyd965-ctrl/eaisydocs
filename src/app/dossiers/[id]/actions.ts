@@ -951,6 +951,20 @@ export async function addPolymorphicLink(formData: FormData) {
     return { error: "Minden kötelező mezőt ki kell tölteni!" }
   }
 
+  // Duplikáció védelem: ugyanaz a kapcsolat ne kerüljön fel kétszer
+  let dupQuery = supabase
+    .from("irat_kapcsolat")
+    .select("id")
+    .eq("ugyirat_id", ugyirat_id)
+    .eq("entitas_tipus", entitas_tipus)
+    .eq("entitas_id", entitas_id)
+    .eq("kapcsolat_tipusa", kapcsolat_tipusa)
+  dupQuery = irat_id ? dupQuery.eq("irat_id", irat_id) : dupQuery.is("irat_id", null)
+  const { data: duplicate } = await dupQuery.limit(1)
+  if (duplicate && duplicate.length > 0) {
+    return { error: "Ez a kapcsolat már fel van véve ehhez az ügyirathoz." }
+  }
+
   const { error: insertError } = await supabase
     .from("irat_kapcsolat")
     .insert({
@@ -980,6 +994,24 @@ export async function addPolymorphicLink(formData: FormData) {
 
   revalidatePath(`/dossiers/${ugyirat_id}`)
   return { success: true }
+}
+
+/**
+ * Partnerkereső az „Új kapcsolat” varázslóhoz (név vagy adószám alapján).
+ */
+export async function searchLinkPartners(query: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve.", results: [] as Array<{ id: string; nev: string; adoszam?: string | null }> }
+
+  const term = (query || "").trim().replace(/[%_,()]/g, " ").trim()
+  let q = supabase.from("partner").select("id, nev, adoszam").order("nev", { ascending: true }).limit(8)
+  if (term) {
+    q = q.or(`nev.ilike.%${term}%,adoszam.ilike.%${term}%`)
+  }
+  const { data, error } = await q
+  if (error) return { error: "Hiba a partnerek keresésekor.", results: [] as Array<{ id: string; nev: string; adoszam?: string | null }> }
+  return { results: (data || []) as Array<{ id: string; nev: string; adoszam?: string | null }> }
 }
 
 export async function deletePolymorphicLink(id: string, ugyirat_id: string) {

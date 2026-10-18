@@ -18,6 +18,7 @@ import { LifecycleExportButton } from "@/components/lifecycle-export-button"
 import { DossierAccessDialog } from "@/components/dossier-access-dialog"
 import { Badge } from "@/components/ui/badge"
 import { DossierNotesSheet } from "@/components/dossier-notes-sheet"
+import { resolveLinkEntities } from "@/utils/resolve-link-entities"
 
 export default async function DossierPage({
   params,
@@ -83,7 +84,7 @@ export default async function DossierPage({
   const { data: authUser } = await supabase.auth.getUser()
   const { data: currentUserProfile } = await supabase
     .from("felhasznalo_profil")
-    .select('docs_szerepkor, szervezeti_egyseg_id, max_minosites')
+    .select('docs_szerepkor, szervezeti_egyseg_id, max_minosites, elerheto_modulok')
     .eq("id", authUser?.user?.id || "")
     .single()
   
@@ -184,6 +185,7 @@ export default async function DossierPage({
     .from("irat_kapcsolat")
     .select(`
       id,
+      irat_id,
       entitas_tipus,
       entitas_id,
       entitas_forras,
@@ -192,6 +194,11 @@ export default async function DossierPage({
     `)
     .eq("ugyirat_id", id)
     .order("created_at", { ascending: false });
+
+  // Kapcsolt entitások feloldása olvasható nevekre (az eaisyHR adatok csak HR modullal)
+  const hrEnabled = Array.isArray((currentUserProfile as any)?.elerheto_modulok)
+    && (currentUserProfile as any).elerheto_modulok.includes("hr")
+  const linkEntities = await resolveLinkEntities(supabase, polymorphicLinks || [], { hrEnabled })
 
   // Partner felderítése az intelligens válaszlevél címzéshez
   const incomingDocs = (dossier.irat || []).filter((i: any) => i.irany === "bejovo");
@@ -428,7 +435,7 @@ export default async function DossierPage({
           </TabsTrigger>
           <TabsTrigger value="outgoing">Válaszlevelek</TabsTrigger>
           <TabsTrigger value="history">Napló</TabsTrigger>
-          <TabsTrigger value="links">Külső Kapcsolatok</TabsTrigger>
+          <TabsTrigger value="links">Kapcsolódások</TabsTrigger>
         </TabsList>
         
         {/* Összevont Áttekintés + Iratok tab */}
@@ -607,15 +614,14 @@ export default async function DossierPage({
         </TabsContent>
 
         <TabsContent value="links">
-          <Card className="border border-border/50">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">Kapcsolódó Rendszerek</CardTitle>
-              <CardDescription>Külső hivatkozások kezelése ehhez az ügyirathoz és irataihoz.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <PolymorphicLinksTab links={polymorphicLinks || []} ugyiratId={dossier.id} iratok={dossier.irat || []} />
-            </CardContent>
-          </Card>
+          <PolymorphicLinksTab
+            links={(polymorphicLinks || []) as any}
+            ugyiratId={dossier.id}
+            iktatoszam={dossier.iktatoszam}
+            iratok={dossier.irat || []}
+            entities={linkEntities}
+            canEdit={canEdit}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -4,6 +4,14 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-18)
 
+### 🔗 eaisyDocs: Ügyirati „Kapcsolódások” Fül – Emberi Nyelvű Megjelenítés és Háromlépéses Varázsló (P-094)
+- **Átnevezés és egységes kártya:** a „Külső kapcsolatok” fül neve „Kapcsolódások”, egyetlen fejléccel, `+ Új kapcsolat` gombbal és szaggatott keretes üres állapottal.
+- **Olvasható elemek UUID helyett:** a munkavállaló profilképpel és névvel, a partner névvel és adószámmal, a HR dokumentum névvel és kategóriával jelenik meg (`resolveLinkEntities`); az eaisyHR adatok csak HR modullal kerülnek lekérdezésre.
+- **Egy elem = egy sor:** az ismétlődő kapcsolatok összevonása, lenyitható részletekkel; magyar feliratok (eaisyHR / eaisyDocs / ERP / CRM, „Az ügyirat tárgya”, „Csatolt dokumentum”), teljes iktatószám az érintett iratnál.
+- **Kanonikus `TableToolbar`** (keresés, oszlopok, típus- és forrásszűrő) és sorműveletek: Megnyitás, Dokumentum megtekintése, Azonosító másolása, Törlés. A rendszer által létrehozott HR kapcsolatok törlése tiltott.
+- **Háromlépéses „Új kapcsolat” varázsló:** típuskártyák → partnernél élő partnerkereső / külső elemnél rendszer + azonosító → kapcsolat jellege, érintett irat, összegzés. Duplikáció-védelem a szerver oldalon.
+- **Kapcsolódó döntések:** [PRD P-094](../product/decisions/P-094-dossier-links-tab-human-friendly-ux.md).
+
 ### 🗂️ eaisyDocs: Ügyirati Feladatok Táblázatos Nézet, Részletező Panel és Megjegyzések Slide-over (P-093)
 - **Feladatok fül átalakítása:** teljes szélességű kártya (a Válaszlevelek mintájára), 4 `KpiCard`, kanonikus `TableToolbar` (kereső, oszlopválasztó, állapot/prioritás/határidő szűrés) és feladat táblázat gyors „kész” kapcsolóval és `Kezelés` menüvel.
 - **Feladat részletező Sheet:** sorra kattintva tényadatok, leírás, elutasítás indoka és állapotműveletek.
