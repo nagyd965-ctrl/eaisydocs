@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
-import { Input } from "@/components/ui/input"
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react"
+import { cn } from "@/lib/utils"
 
 interface MentionUser {
   id: string
@@ -15,15 +15,55 @@ interface MentionInputProps {
   onSubmit: () => void
   disabled?: boolean
   placeholder?: string
+  autoFocus?: boolean
+  /** Escape lenyomása, ha a @említés lista nincs nyitva (pl. szerkesztés megszakítása) */
+  onEscape?: () => void
+  /** Vágólapról beillesztett fájlok (pl. képernyőkép) */
+  onPasteFiles?: (files: File[]) => void
+  className?: string
 }
 
-export function MentionInput({ users, value, onChange, onSubmit, disabled, placeholder }: MentionInputProps) {
+const MAX_TEXTAREA_HEIGHT = 168
+
+/**
+ * Többsoros írómező @említés-választóval.
+ * Enter: küldés, Shift+Enter: új sor.
+ */
+export function MentionInput({
+  users,
+  value,
+  onChange,
+  onSubmit,
+  disabled,
+  placeholder,
+  autoFocus,
+  onEscape,
+  onPasteFiles,
+  className,
+}: MentionInputProps) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [mentionQuery, setMentionQuery] = useState("")
   const [mentionStartIndex, setMentionStartIndex] = useState(-1)
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // A mező magassága a tartalomhoz igazodik (maximum MAX_TEXTAREA_HEIGHT)
+  useLayoutEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`
+  }, [value])
+
+  useEffect(() => {
+    if (autoFocus) {
+      const el = inputRef.current
+      el?.focus()
+      el?.setSelectionRange(el.value.length, el.value.length)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const filteredUsers = users.filter(u =>
     u.nev.toLowerCase().includes(mentionQuery.toLowerCase())
@@ -59,7 +99,7 @@ export function MentionInput({ users, value, onChange, onSubmit, disabled, place
     setTimeout(() => inputRef.current?.focus(), 0)
   }, [value, mentionStartIndex, mentionQuery, onChange])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value
     onChange(newValue)
 
@@ -69,8 +109,8 @@ export function MentionInput({ users, value, onChange, onSubmit, disabled, place
     let atIndex = -1
     for (let i = cursorPos - 1; i >= 0; i--) {
       if (newValue[i] === "@") {
-        // Check if it's at start or preceded by space
-        if (i === 0 || newValue[i - 1] === " ") {
+        // Check if it's at start or preceded by whitespace (space / newline)
+        if (i === 0 || /\s/.test(newValue[i - 1])) {
           atIndex = i
           break
         }
@@ -97,7 +137,7 @@ export function MentionInput({ users, value, onChange, onSubmit, disabled, place
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showDropdown && filteredUsers.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault()
@@ -121,29 +161,50 @@ export function MentionInput({ users, value, onChange, onSubmit, disabled, place
       }
     }
 
-    // Normal enter → submit the comment
-    if (e.key === "Enter" && !showDropdown) {
+    // Normal enter → submit the comment (Shift+Enter: új sor; IME szerkesztés közben nem küld)
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !showDropdown) {
       e.preventDefault()
       onSubmit()
+      return
+    }
+
+    if (e.key === "Escape" && !showDropdown && onEscape) {
+      e.preventDefault()
+      onEscape()
+    }
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!onPasteFiles) return
+    const files = Array.from(e.clipboardData?.files || [])
+    if (files.length > 0) {
+      e.preventDefault()
+      onPasteFiles(files)
     }
   }
 
   return (
     <div className="relative flex-1">
-      <Input
+      <textarea
         ref={inputRef}
+        rows={1}
         value={value}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         placeholder={placeholder}
         disabled={disabled}
+        className={cn(
+          "block w-full min-w-0 resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm leading-relaxed transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30",
+          className
+        )}
       />
 
       {/* Mention dropdown */}
       {showDropdown && filteredUsers.length > 0 && (
         <div
           ref={dropdownRef}
-          className="absolute bottom-full left-0 mb-1 w-full max-h-[180px] overflow-y-auto rounded-lg border border-border bg-popover shadow-md z-50"
+          className="absolute bottom-full left-0 mb-1 w-full max-h-[180px] overflow-y-auto rounded-lg border border-border bg-popover z-50"
         >
           {filteredUsers.map((user, index) => (
             <button

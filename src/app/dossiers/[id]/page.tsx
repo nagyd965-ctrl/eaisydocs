@@ -302,16 +302,48 @@ export default async function DossierPage({
   const { data: logs } = await logsQuery.order("tortent", { ascending: true })
 
   // Fetch comments
-  const { data: comments } = await supabase
+  let { data: comments, error: commentsError } = await supabase
     .from("ugyirat_megjegyzes")
     .select(`
       id,
       szoveg,
       created_at,
+      szerkesztve_at,
       user_id
     `)
     .eq("ugyirat_id", id)
     .order("created_at", { ascending: true });
+
+  // A P-095 migráció előtti adatbázissal is működjön a megjegyzések listája
+  if (commentsError) {
+    const fallback = await supabase
+      .from("ugyirat_megjegyzes")
+      .select("id, szoveg, created_at, user_id")
+      .eq("ugyirat_id", id)
+      .order("created_at", { ascending: true });
+    comments = fallback.data as any;
+  }
+
+  // Megjegyzés csatolmányok és olvasottsági állapot
+  const { data: noteAttachments } = await supabase
+    .from("ugyirat_megjegyzes_csatolmany")
+    .select("id, megjegyzes_id, fajlnev, mime_type, meret_byte")
+    .eq("ugyirat_id", id)
+    .order("created_at", { ascending: true });
+
+  const { data: noteReadState } = await supabase
+    .from("ugyirat_megjegyzes_olvasas")
+    .select("last_read_at")
+    .eq("ugyirat_id", id)
+    .eq("user_id", authUser?.user?.id || "")
+    .maybeSingle();
+
+  const attachmentsByNote = (noteAttachments || []).reduce((acc: Record<string, any[]>, a: any) => {
+    (acc[a.megjegyzes_id] = acc[a.megjegyzes_id] || []).push(a)
+    return acc
+  }, {})
+
+  const notesLastReadAt: string | null = (noteReadState as any)?.last_read_at || null
 
   // Fetch tasks
   const { data: tasks } = await supabase
@@ -325,8 +357,16 @@ export default async function DossierPage({
     ...c,
     user_email: c.user_id,
     user_name: userMap[c.user_id] || "Ismeretlen",
-    user_avatar_url: avatarMap[c.user_id] || null
+    user_avatar_url: avatarMap[c.user_id] || null,
+    attachments: attachmentsByNote[c.id] || []
   }))
+
+  // Olvasatlan: mások által írt, az utolsó olvasás óta érkezett megjegyzések
+  const unreadNotesCount = mappedComments.filter(
+    (c: any) =>
+      c.user_id !== authUser?.user?.id &&
+      (!notesLastReadAt || new Date(c.created_at).getTime() > new Date(notesLastReadAt).getTime())
+  ).length
 
   // Deduplicate consecutive/simultaneous logs where a DB trigger inserted an empty log alongside a rich application log
   const dedupedLogs = (logs || []).filter((log: any, idx: number, arr: any[]) => {
@@ -387,6 +427,8 @@ export default async function DossierPage({
             currentUserEmail={authUser?.user?.email || ""}
             currentUserId={authUser?.user?.id}
             defaultOpen={notesParam === "1"}
+            unreadCount={unreadNotesCount}
+            lastReadAt={notesLastReadAt}
           />
           <DossierAccessDialog 
             ugyiratId={dossier.id}

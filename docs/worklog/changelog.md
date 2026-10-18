@@ -4,6 +4,14 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-18)
 
+### 💬 eaisyDocs: Belső Megjegyzések Bővítése – Többsoros Író, Szerkesztés/Törlés, Csatolmányok, Olvasatlan Jelzés (P-095)
+- **Többsoros író mező:** önnövő `textarea`, `Enter` küld, `Shift+Enter` új sor, az @említés-választó változatlanul működik.
+- **Szerkesztés és törlés:** saját megjegyzésen `⋮` menü; helyben szerkesztés („· szerkesztve” jelzéssel), törlés megerősítéssel. Az előző / törölt szöveg az append-only eseménynaplóban megmarad.
+- **Csatolmányok:** képek és dokumentumok (max. 5 fájl, 10 MB / fájl) gemkapoccsal, húzással vagy vágólapról beillesztve; privát `megjegyzes_csatolmanyok` tároló, 60 mp-es aláírt URL, naplózott megtekintés és letöltés.
+- **Olvasatlan jelzés:** számjelvény a „Megjegyzések” gombon, „Olvasatlan üzenetek” elválasztó a panelben, megnyitáskor olvasottnak jelölés.
+- **Adatbázis:** új migráció (`20261018000003_ugyirat_megjegyzes_extensions.sql`) – alkalmazása szükséges a működéshez.
+- **Kapcsolódó döntések:** [PRD P-095](../product/decisions/P-095-dossier-notes-edit-attachments-unread-ux.md).
+
 ### 🔗 eaisyDocs: Ügyirati „Kapcsolódások” Fül – Emberi Nyelvű Megjelenítés és Háromlépéses Varázsló (P-094)
 - **Átnevezés és egységes kártya:** a „Külső kapcsolatok” fül neve „Kapcsolódások”, egyetlen fejléccel, `+ Új kapcsolat` gombbal és szaggatott keretes üres állapottal.
 - **Olvasható elemek UUID helyett:** a munkavállaló profilképpel és névvel, a partner névvel és adószámmal, a HR dokumentum névvel és kategóriával jelenik meg (`resolveLinkEntities`); az eaisyHR adatok csak HR modullal kerülnek lekérdezésre.

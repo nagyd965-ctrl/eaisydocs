@@ -219,9 +219,15 @@ export function formatAuditLogEvent(log: AuditLogRaw, options?: FormatAuditOptio
   // 8. BELSŐ MEGJEGYZÉSEK (COMMENTS)
   // ──────────────────────────────────────────────────────────────────────────
   else if (indoklas.toLowerCase().includes("megjegyzés") || ujErtek.megjegyzes) {
-    title = "Belső megjegyzés rögzítve"
-    icon = "message-square"
-    color = "text-info"
+    const isEditedNote = indoklas.startsWith("Belső megjegyzés szerkesztve")
+    const isDeletedNote = indoklas.startsWith("Belső megjegyzés törölve")
+    title = isEditedNote
+      ? "Belső megjegyzés szerkesztve"
+      : isDeletedNote
+        ? "Belső megjegyzés törölve"
+        : "Belső megjegyzés rögzítve"
+    icon = isDeletedNote ? "trash-2" : "message-square"
+    color = isDeletedNote ? "text-muted-foreground" : "text-info"
 
     // Ha az indoklásban már benne van a szöveg
     if (indoklas.includes(":") && !indoklas.endsWith("Megjegyzés hozzáadva")) {

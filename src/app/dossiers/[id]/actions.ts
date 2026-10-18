@@ -152,7 +152,89 @@ export async function closeDossier(ugyiratId: string) {
   return { success: true }
 }
 
-export async function addComment(ugyiratId: string, text: string) {
+// ─────────────────────────────────────────────────────────────────────────────
+// Belső megjegyzések (P-095): csatolmányok, szerkesztés, törlés, olvasottság
+// ─────────────────────────────────────────────────────────────────────────────
+
+const NOTE_BUCKET = "megjegyzes_csatolmanyok"
+const NOTE_MAX_FILES = 5
+const NOTE_MAX_FILE_BYTES = 10 * 1024 * 1024
+
+/** Engedélyezett csatolmány-kiterjesztések és a hozzájuk tartozó MIME típus. */
+const NOTE_ALLOWED_EXT: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  txt: "text/plain",
+}
+
+async function getStorageAdminClient() {
+  const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+  return createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+}
+
+function noteFileExt(name: string) {
+  const idx = name.lastIndexOf(".")
+  return idx >= 0 ? name.slice(idx + 1).toLowerCase() : ""
+}
+
+/** @említések értesítései. Szerkesztésnél csak az újonnan megemlítettek kapnak értesítést. */
+async function notifyNoteMentions(
+  supabase: any,
+  user: any,
+  ugyiratId: string,
+  text: string,
+  previousText = ""
+) {
+  const { data: allUsers } = await supabase
+    .from("felhasznalo_profil")
+    .select("id, nev")
+
+  if (!allUsers || allUsers.length === 0) return
+
+  const senderProfile = allUsers.find((u: any) => u.id === user.id)
+  const senderName = senderProfile?.nev || "Valaki"
+
+  const { data: ugyiratData } = await supabase
+    .from("ugyirat")
+    .select("iktatoszam")
+    .eq("id", ugyiratId)
+    .single()
+
+  const iktatoszam = ugyiratData?.iktatoszam || ""
+
+  // Hosszabb nevek először, hogy "Nagy Dániel" ne matcheljen "Nagy"-ként
+  const sortedUsers = [...allUsers].sort((a: any, b: any) => b.nev.length - a.nev.length)
+
+  for (const u of sortedUsers) {
+    if (text.includes(`@${u.nev}`) && !previousText.includes(`@${u.nev}`)) {
+      await supabase.from("alkalmazas_ertesites").insert({
+        user_id: u.id,
+        cim: `Megemlítettek egy megjegyzésben${iktatoszam ? ` (${iktatoszam})` : ""}`,
+        szoveg: `${senderName}: ${text.length > 120 ? text.substring(0, 120) + "…" : text}`,
+        link_url: `/dossiers/${ugyiratId}?notes=1`
+      })
+    }
+  }
+}
+
+function notePreview(text: string) {
+  const t = text.trim()
+  if (!t) return "(csak csatolmány)"
+  return t.length > 100 ? `${t.substring(0, 100)}...` : t
+}
+
+/**
+ * Új belső megjegyzés rögzítése. A csatolmányok a `files` mezőben érkeznek (FormData).
+ */
+export async function addComment(ugyiratId: string, text: string, formData?: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -160,67 +242,332 @@ export async function addComment(ugyiratId: string, text: string) {
 
   const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
   if (permCheck.error) return { error: permCheck.error }
-  if (!text.trim()) return { error: "A megjegyzés nem lehet üres." }
+
+  const files = (formData?.getAll("files") || []).filter(
+    (f): f is File => typeof f !== "string" && f.size > 0
+  )
+
+  if (!text.trim() && files.length === 0) return { error: "A megjegyzés nem lehet üres." }
+
+  // --- Csatolmányok ellenőrzése ---
+  if (files.length > NOTE_MAX_FILES) {
+    return { error: `Legfeljebb ${NOTE_MAX_FILES} fájl csatolható egy megjegyzéshez.` }
+  }
+  for (const f of files) {
+    if (!NOTE_ALLOWED_EXT[noteFileExt(f.name)]) {
+      return { error: `Nem támogatott fájltípus: ${f.name}` }
+    }
+    if (f.size > NOTE_MAX_FILE_BYTES) {
+      return { error: `A fájl túl nagy (max. 10 MB): ${f.name}` }
+    }
+  }
+
+  const noteId = crypto.randomUUID()
+
+  // --- Fájlok feltöltése a privát tárolóba ---
+  const uploaded: Array<{ storage_path: string; fajlnev: string; mime_type: string; meret_byte: number }> = []
+  for (const f of files) {
+    const ext = noteFileExt(f.name)
+    const storagePath = `${ugyiratId}/${noteId}/${crypto.randomUUID()}.${ext}`
+    const buffer = Buffer.from(await f.arrayBuffer())
+    const { error: upErr } = await supabase.storage
+      .from(NOTE_BUCKET)
+      .upload(storagePath, buffer, { contentType: NOTE_ALLOWED_EXT[ext], upsert: false })
+
+    if (upErr) {
+      if (uploaded.length > 0) {
+        await supabase.storage.from(NOTE_BUCKET).remove(uploaded.map((u) => u.storage_path))
+      }
+      return { error: `Hiba a(z) ${f.name} feltöltésekor.` }
+    }
+    uploaded.push({
+      storage_path: storagePath,
+      fajlnev: f.name,
+      mime_type: NOTE_ALLOWED_EXT[ext],
+      meret_byte: f.size,
+    })
+  }
 
   const { error } = await supabase
     .from("ugyirat_megjegyzes")
     .insert({
+      id: noteId,
       ugyirat_id: ugyiratId,
       user_id: user.id,
-      szoveg: text
+      szoveg: text.trim()
     })
 
-  if (error) return { error: "Hiba a megjegyzés mentésekor." }
+  if (error) {
+    if (uploaded.length > 0) {
+      await supabase.storage.from(NOTE_BUCKET).remove(uploaded.map((u) => u.storage_path))
+    }
+    return { error: "Hiba a megjegyzés mentésekor." }
+  }
+
+  if (uploaded.length > 0) {
+    const { error: attErr } = await supabase
+      .from("ugyirat_megjegyzes_csatolmany")
+      .insert(
+        uploaded.map((u) => ({
+          megjegyzes_id: noteId,
+          ugyirat_id: ugyiratId,
+          feltoltotte_user_id: user.id,
+          ...u,
+        }))
+      )
+
+    if (attErr) {
+      // A megjegyzés nem maradhat félig mentett állapotban
+      await supabase.from("ugyirat_megjegyzes").delete().eq("id", noteId)
+      await supabase.storage.from(NOTE_BUCKET).remove(uploaded.map((u) => u.storage_path))
+      return { error: "Hiba a csatolmányok mentésekor." }
+    }
+  }
 
   const { ip, userAgent } = await getClientInfo()
 
-  const previewText = text.trim().length > 100 ? `${text.trim().substring(0, 100)}...` : text.trim()
+  const attachmentNames = uploaded.map((u) => u.fajlnev)
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
     esemeny_tipus: "modositva",
     user_id: user.id,
-    indoklas: `Belső megjegyzés rögzítve: „${previewText}”`,
-    uj_ertek: { megjegyzes: text.trim() },
+    indoklas: `Belső megjegyzés rögzítve: „${notePreview(text)}”${
+      attachmentNames.length > 0 ? ` (csatolmány: ${attachmentNames.join(", ")})` : ""
+    }`,
+    uj_ertek: {
+      megjegyzes: text.trim(),
+      ...(attachmentNames.length > 0 ? { csatolmanyok: attachmentNames } : {}),
+    },
     ip_cim: ip,
     user_agent: userAgent
   })
 
-  // --- @mention értesítések ---
-  // Felhasználók kikeresése név alapján — a szövegben @FelhasználóNév mintákat keresünk
-  const { data: allUsers } = await supabase
-    .from("felhasznalo_profil")
-    .select("id, nev")
+  if (text.trim()) {
+    await notifyNoteMentions(supabase, user, ugyiratId, text)
+  }
 
-  if (allUsers && allUsers.length > 0) {
-    // Küldő neve
-    const senderProfile = allUsers.find(u => u.id === user.id)
-    const senderName = senderProfile?.nev || "Valaki"
+  // A saját új megjegyzés után a beszélgetés olvasottnak számít
+  await supabase
+    .from("ugyirat_megjegyzes_olvasas")
+    .upsert(
+      { ugyirat_id: ugyiratId, user_id: user.id, last_read_at: new Date().toISOString() },
+      { onConflict: "ugyirat_id,user_id" }
+    )
 
-    // Ügyirat iktatószámának lekérése
-    const { data: ugyiratData } = await supabase
-      .from("ugyirat")
-      .select("iktatoszam")
-      .eq("id", ugyiratId)
-      .single()
+  revalidatePath(`/dossiers/${ugyiratId}`)
+  return { success: true }
+}
 
-    const iktatoszam = ugyiratData?.iktatoszam || ""
+/** Saját belső megjegyzés szerkesztése. Az előző és az új szöveg az eseménynaplóba kerül. */
+export async function updateComment(ugyiratId: string, commentId: string, text: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve." }
 
-    // Ismert felhasználóneveket keresünk a szövegben (hosszabb nevek először, 
-    // hogy "Nagy Dániel" ne matcheljen "Nagy"-ként ha van egy "Nagy" nevű user is)
-    const sortedUsers = [...allUsers].sort((a, b) => b.nev.length - a.nev.length)
+  const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
+  if (permCheck.error) return { error: permCheck.error }
 
-    for (const u of sortedUsers) {
-      if (text.includes(`@${u.nev}`)) {
-        await supabase.from("alkalmazas_ertesites").insert({
-          user_id: u.id,
-          cim: `Megemlítettek egy megjegyzésben${iktatoszam ? ` (${iktatoszam})` : ""}`,
-          szoveg: `${senderName}: ${text.length > 120 ? text.substring(0, 120) + "…" : text}`,
-          link_url: `/dossiers/${ugyiratId}?notes=1`
-        })
-      }
+  const newText = text.trim()
+  if (!newText) return { error: "A megjegyzés nem lehet üres." }
+
+  const { data: existing } = await supabase
+    .from("ugyirat_megjegyzes")
+    .select("id, user_id, szoveg")
+    .eq("id", commentId)
+    .eq("ugyirat_id", ugyiratId)
+    .maybeSingle()
+
+  if (!existing) return { error: "A megjegyzés nem található." }
+  if (existing.user_id !== user.id) return { error: "Csak a saját megjegyzését szerkesztheti." }
+  if (existing.szoveg === newText) return { success: true }
+
+  const { data: updated, error } = await supabase
+    .from("ugyirat_megjegyzes")
+    .update({ szoveg: newText, szerkesztve_at: new Date().toISOString() })
+    .eq("id", commentId)
+    .eq("user_id", user.id)
+    .select("id")
+
+  if (error || !updated || updated.length === 0) return { error: "Hiba a megjegyzés módosításakor." }
+
+  const { ip, userAgent } = await getClientInfo()
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "ugyirat",
+    entitas_id: ugyiratId,
+    esemeny_tipus: "modositva",
+    user_id: user.id,
+    indoklas: `Belső megjegyzés szerkesztve: „${notePreview(newText)}”`,
+    elozo_ertek: { megjegyzes: existing.szoveg },
+    uj_ertek: { megjegyzes: newText },
+    ip_cim: ip,
+    user_agent: userAgent
+  })
+
+  await notifyNoteMentions(supabase, user, ugyiratId, newText, existing.szoveg || "")
+
+  revalidatePath(`/dossiers/${ugyiratId}`)
+  return { success: true }
+}
+
+/**
+ * Saját belső megjegyzés törlése (a csatolmányaival együtt).
+ * A törölt szöveg és a fájlnevek az append-only eseménynaplóban megmaradnak.
+ */
+export async function deleteComment(ugyiratId: string, commentId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
+  if (permCheck.error) return { error: permCheck.error }
+
+  const { data: existing } = await supabase
+    .from("ugyirat_megjegyzes")
+    .select("id, user_id, szoveg")
+    .eq("id", commentId)
+    .eq("ugyirat_id", ugyiratId)
+    .maybeSingle()
+
+  if (!existing) return { error: "A megjegyzés nem található." }
+  if (existing.user_id !== user.id) return { error: "Csak a saját megjegyzését törölheti." }
+
+  const { data: attachments } = await supabase
+    .from("ugyirat_megjegyzes_csatolmany")
+    .select("storage_path, fajlnev")
+    .eq("megjegyzes_id", commentId)
+
+  const { data: deleted, error } = await supabase
+    .from("ugyirat_megjegyzes")
+    .delete()
+    .eq("id", commentId)
+    .eq("user_id", user.id)
+    .select("id")
+
+  if (error || !deleted || deleted.length === 0) return { error: "Hiba a megjegyzés törlésekor." }
+
+  // A tárolóból a service role kliens távolítja el a fájlokat (a törlés jogosultságát fent ellenőriztük)
+  if (attachments && attachments.length > 0) {
+    try {
+      const admin = await getStorageAdminClient()
+      await admin.storage.from(NOTE_BUCKET).remove(attachments.map((a: any) => a.storage_path))
+    } catch (e) {
+      console.warn("Megjegyzés-csatolmányok tárolóból törlése sikertelen:", e)
     }
   }
+
+  const { ip, userAgent } = await getClientInfo()
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "ugyirat",
+    entitas_id: ugyiratId,
+    esemeny_tipus: "modositva",
+    user_id: user.id,
+    indoklas: `Belső megjegyzés törölve: „${notePreview(existing.szoveg || "")}”`,
+    elozo_ertek: {
+      megjegyzes: existing.szoveg,
+      ...(attachments && attachments.length > 0
+        ? { csatolmanyok: attachments.map((a: any) => a.fajlnev) }
+        : {}),
+    },
+    ip_cim: ip,
+    user_agent: userAgent
+  })
+
+  revalidatePath(`/dossiers/${ugyiratId}`)
+  return { success: true }
+}
+
+/**
+ * Képcsatolmányok rövid életű (60 mp) aláírt URL-jei az előnézethez.
+ * A kérés egyetlen naplóbejegyzést hoz létre.
+ */
+export async function getNoteImageUrls(ugyiratId: string, attachmentIds: string[]) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve.", urls: {} as Record<string, string> }
+  if (attachmentIds.length === 0) return { urls: {} as Record<string, string> }
+
+  const { data: rows } = await supabase
+    .from("ugyirat_megjegyzes_csatolmany")
+    .select("id, storage_path, fajlnev, mime_type")
+    .eq("ugyirat_id", ugyiratId)
+    .in("id", attachmentIds.slice(0, 50))
+
+  const images = (rows || []).filter((r: any) => (r.mime_type || "").startsWith("image/"))
+  if (images.length === 0) return { urls: {} as Record<string, string> }
+
+  const { data: signed } = await supabase.storage
+    .from(NOTE_BUCKET)
+    .createSignedUrls(images.map((r: any) => r.storage_path), 60)
+
+  const urls: Record<string, string> = {}
+  for (const r of images as any[]) {
+    const s = signed?.find((x) => x.path === r.storage_path)
+    if (s?.signedUrl) urls[r.id] = s.signedUrl
+  }
+
+  const { ip, userAgent } = await getClientInfo()
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "ugyirat",
+    entitas_id: ugyiratId,
+    esemeny_tipus: "megtekintve",
+    user_id: user.id,
+    indoklas: `Megjegyzés képcsatolmány előnézet megtekintve: ${images.map((r: any) => r.fajlnev).join(", ")}`,
+    ip_cim: ip,
+    user_agent: userAgent
+  })
+
+  return { urls }
+}
+
+/** Egy megjegyzés-csatolmány megnyitása / letöltése rövid életű (60 mp) aláírt URL-lel, naplózva. */
+export async function getNoteAttachmentUrl(attachmentId: string, mode: "view" | "download" = "view") {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  const { data: att } = await supabase
+    .from("ugyirat_megjegyzes_csatolmany")
+    .select("id, ugyirat_id, storage_path, fajlnev")
+    .eq("id", attachmentId)
+    .maybeSingle()
+
+  if (!att) return { error: "A csatolmány nem található vagy nincs jogosultsága hozzá." }
+
+  const { data: signed, error } = await supabase.storage
+    .from(NOTE_BUCKET)
+    .createSignedUrl(att.storage_path, 60, mode === "download" ? { download: att.fajlnev } : undefined)
+
+  if (error || !signed?.signedUrl) return { error: "Nem sikerült a fájl elérési útját előállítani." }
+
+  const { ip, userAgent } = await getClientInfo()
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "ugyirat",
+    entitas_id: att.ugyirat_id,
+    esemeny_tipus: mode === "download" ? "letoltve" : "megtekintve",
+    user_id: user.id,
+    indoklas: `Megjegyzés csatolmány ${mode === "download" ? "letöltve" : "megtekintve"}: ${att.fajlnev}`,
+    ip_cim: ip,
+    user_agent: userAgent
+  })
+
+  return { url: signed.signedUrl }
+}
+
+/** A felhasználó utolsó olvasási időpontjának rögzítése az ügyirat belső megjegyzéseihez. */
+export async function markNotesRead(ugyiratId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  const { error } = await supabase
+    .from("ugyirat_megjegyzes_olvasas")
+    .upsert(
+      { ugyirat_id: ugyiratId, user_id: user.id, last_read_at: new Date().toISOString() },
+      { onConflict: "ugyirat_id,user_id" }
+    )
+
+  if (error) return { error: "Hiba az olvasottság rögzítésekor." }
 
   revalidatePath(`/dossiers/${ugyiratId}`)
   return { success: true }
