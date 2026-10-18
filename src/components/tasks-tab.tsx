@@ -527,7 +527,7 @@ export function TasksTab({
                   <div className="flex items-center justify-between">
                     <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                       <Sparkles className="h-3 w-3 text-primary" />
-                      Gyors sablonok (1-kattintásos kitöltés)
+                      Gyors sablonok
                     </Label>
                     <button
                       type="button"
@@ -1149,8 +1149,7 @@ export function TasksTab({
         <Card className="flex flex-col h-[650px] border border-border/60">
           <CardHeader className="pb-3 border-b border-border/40">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base font-semibold">
                 Belső Megjegyzések
               </CardTitle>
               {comments.length > 0 && (

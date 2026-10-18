@@ -81,11 +81,15 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-066](./A-066-multi-tenant-company-members-colleague-visibility-and-hr-workforce-isolation.md) | 2026-10-18 | Multi-tenant Cégtagsági Láthatóság és Moduláris HR Állomány Elszigetelés Architektúra | `[Közös]` | `Decided` | [P-085](../../product/decisions/P-085-multi-tenant-company-members-colleague-visibility-and-hr-workforce-isolation-ux.md), `company_members`, `hr/admin/page.tsx`, `hr/organization/page.tsx` |
 | [A-067](./A-067-comprehensive-hr-roles-scoping-rpc-and-route-guard-alignment.md) | 2026-10-18 | Átfogó HR Szerepkör Scoping, RPC és Route Guard Összehangolás | `[HR]` | `Decided` | [P-086](../../product/decisions/P-086-comprehensive-hr-roles-scoping-and-ux-alignment.md), `hr-sidebar.tsx`, `hr/reports/page.tsx`, `hr/compliance/page.tsx`, `hr/performance/page.tsx`, `hr/time/page.tsx`, `hr/employee/[id]/page.tsx` |
 | [A-068](./A-068-settings-tabs-consolidation-and-visual-harmony.md) | 2026-10-18 | Beállítások Lapok Konszolidációja, Automata Munkamenet Mentés és Vizuális Egységesítés | `[Közös]` | `Decided` | [P-087](../../product/decisions/P-087-settings-tabs-consolidation-and-visual-harmony-ux.md), `settings/page.tsx`, `settings-client.tsx`, `hr/settings/page.tsx`, `security-tab.tsx` |
+| [A-069](./A-069-docs-organizational-units-revamp.md) | 2026-10-18 | eaisyDocs Szervezeti Egységek Megújítása és Kétfülös Fanézet Architektúra | `[Docs]` | `Decided` | [P-088](../../product/decisions/P-088-docs-organizational-units-revamp-ux.md), `settings/page.tsx`, `settings-client.tsx`, `departments-tab.tsx`, `settings-actions.ts` |
+| [A-070](./A-070-task-delegation-and-substitution-architecture.md) | 2026-10-18 | Távolléti Feladat-Delegálás és Helyettesítés Architektúra Újraszervezése | `[Docs]` | `Decided` | [P-089](../../product/decisions/P-089-task-delegation-and-substitution-ux.md), `tasks/page.tsx`, `tasks/task-actions.ts`, `settings/page.tsx`, `settings-client.tsx`, `delegation-manager.tsx` |
+| [A-071](./A-071-assigned-dossiers-and-subtasks-unified-tasks-view.md) | 2026-10-18 | Rám szignált ügyiratok és hozzáadott al-feladatok egységesítése a Saját feladatok felületen | `[Docs]` | `Decided` | [P-090](../../product/decisions/P-090-assigned-dossiers-and-subtasks-unified-tasks-view-ux.md), `tasks/page.tsx`, `tasks/task-actions.ts`, `tasks/kanban-board.tsx`, `tasks/task-list.tsx`, `tasks/task-calendar.tsx`, `types/tasks.ts` |
+| [A-072](./A-072-tasks-kanban-auto-archive-and-completed-list-view.md) | 2026-10-18 | Tasks Kanban 24-órás Auto-archiválás és Elvégzett Feladatok Lista Architektúra | `[Docs]` | `Decided` | [P-091](../../product/decisions/P-091-tasks-kanban-auto-archive-and-completed-list-view-ux.md), `tasks/page.tsx`, `tasks/task-actions.ts`, `tasks/kanban-board.tsx`, `tasks/task-list.tsx`, `types/tasks.ts` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-069`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-073`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

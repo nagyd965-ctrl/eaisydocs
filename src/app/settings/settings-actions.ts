@@ -120,20 +120,53 @@ export async function uploadAvatar(formData: FormData) {
   return { success: true, avatarUrl: publicUrl }
 }
 
-export async function getTeamMembers() {
+export async function getTeamMembers(targetCompanyId?: string | null) {
   const supabase = await createClient()
-  
-  const { data: profiles, error } = await supabase
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = targetCompanyId !== undefined ? targetCompanyId : (await getActiveCompanyIdServer())
+
+  let memberUserIds: string[] = []
+  const memberDocsRolesMap = new Map<string, string>()
+
+  if (activeCompanyId) {
+    const { data: cm } = await supabase
+      .from("company_members")
+      .select("user_id, docs_szerepkor")
+      .eq("company_id", activeCompanyId)
+
+    if (cm) {
+      memberUserIds = cm.map(m => m.user_id)
+      cm.forEach(m => {
+        if (m.docs_szerepkor) memberDocsRolesMap.set(m.user_id, m.docs_szerepkor)
+      })
+    }
+  }
+
+  let query = supabase
     .from("felhasznalo_profil")
     .select("*")
     .contains("elerheto_modulok", ["docs"])
-    .order("created_at", { ascending: false })
+    .order("nev")
+
+  if (activeCompanyId) {
+    query = query.in(
+      "id",
+      memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"]
+    )
+  }
+
+  const { data: profiles, error } = await query
 
   if (error) {
     return { error: error.message }
   }
 
-  return { profiles }
+  const scopedProfiles = (profiles || []).map(p => ({
+    ...p,
+    docs_szerepkor: memberDocsRolesMap.get(p.id) || p.docs_szerepkor || "ugyintezo"
+  }))
+
+  return { profiles: scopedProfiles }
 }
 
 export async function createNewUser(formData: FormData) {
@@ -259,15 +292,25 @@ export async function updateUserRole(userId: string, newRole: string, currentMin
 
 export async function getDepartments() {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  let query = supabase
     .from("szervezeti_egyseg")
-    .select("*, vezeto:felhasznalo_profil!vezeto_id(id, nev)")
+    .select("*, vezeto:felhasznalo_profil!vezeto_id(id, nev, avatar_url, docs_szerepkor, max_minosites)")
     .order("nev")
 
+  if (activeCompanyId) {
+    query = query.or(`company_id.eq.${activeCompanyId},company_id.is.null`)
+  }
+
+  const { data, error } = await query
+
   if (error) {
+    console.error("[getDepartments] Error:", error)
     return []
   }
-  return data
+  return data || []
 }
 
 export async function setDepartmentLeader(departmentId: string, leaderId: string | null) {
@@ -318,13 +361,116 @@ export async function setDepartmentLeader(departmentId: string, leaderId: string
 }
 
 export async function createDepartment(formData: FormData) {
-  const nev = formData.get("nev") as string
+  const nev = (formData.get("nev") as string)?.trim()
   if (!nev) return { error: "Név megadása kötelező!" }
 
+  const szuloIdRaw = formData.get("szulo_id") as string
+  const szulo_id = !szuloIdRaw || szuloIdRaw === "__none__" || szuloIdRaw === "none" ? null : szuloIdRaw
+  const prefixRaw = (formData.get("iktato_prefix") as string)?.trim().toUpperCase()
+  const iktato_prefix = prefixRaw ? prefixRaw : null
+  const vezetoIdRaw = formData.get("vezeto_id") as string
+  const vezeto_id = !vezetoIdRaw || vezetoIdRaw === "__none__" || vezetoIdRaw === "none" ? null : vezetoIdRaw
+
   const supabase = await createClient()
-  const { error } = await supabase
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  const { data: newDept, error } = await supabase
     .from("szervezeti_egyseg")
-    .insert({ nev })
+    .insert({
+      nev,
+      szulo_id,
+      iktato_prefix,
+      vezeto_id,
+      company_id: activeCompanyId || null
+    })
+    .select("id")
+    .single()
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  // Ha adtunk meg vezetőt, szinkronizáljuk a vezetői státuszt
+  if (vezeto_id && newDept?.id) {
+    await setDepartmentLeader(newDept.id, vezeto_id)
+  }
+
+  revalidatePath("/settings")
+  return { success: true }
+}
+
+export async function updateDepartment(id: string, formData: FormData) {
+  const nev = (formData.get("nev") as string)?.trim()
+  if (!nev) return { error: "Név megadása kötelező!" }
+
+  const szuloIdRaw = formData.get("szulo_id") as string
+  const szulo_id = !szuloIdRaw || szuloIdRaw === "__none__" || szuloIdRaw === "none" || szuloIdRaw === id ? null : szuloIdRaw
+  const prefixRaw = (formData.get("iktato_prefix") as string)?.trim().toUpperCase()
+  const iktato_prefix = prefixRaw ? prefixRaw : null
+  const vezetoIdRaw = formData.get("vezeto_id") as string
+  const vezeto_id = !vezetoIdRaw || vezetoIdRaw === "__none__" || vezetoIdRaw === "none" ? null : vezetoIdRaw
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) return { error: "Hiányzik a konfiguráció." }
+
+  const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const { error } = await supabaseAdmin
+    .from("szervezeti_egyseg")
+    .update({
+      nev,
+      szulo_id,
+      iktato_prefix,
+      vezeto_id
+    })
+    .eq("id", id)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  if (vezeto_id) {
+    await setDepartmentLeader(id, vezeto_id)
+  }
+
+  revalidatePath("/settings")
+  return { success: true }
+}
+
+export async function deleteDepartment(id: string) {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) return { error: "Hiányzik a konfiguráció." }
+
+  const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  // 1. Gyermek egységek szülőjét nullázzuk a szétesés elkerülésére
+  await supabaseAdmin
+    .from("szervezeti_egyseg")
+    .update({ szulo_id: null })
+    .eq("szulo_id", id)
+
+  // 2. Felhasználók szervezeti_egyseg_id-ját nullázzuk
+  await supabaseAdmin
+    .from("felhasznalo_profil")
+    .update({ szervezeti_egyseg_id: null })
+    .eq("szervezeti_egyseg_id", id)
+
+  // 3. Törlés
+  const { error } = await supabaseAdmin
+    .from("szervezeti_egyseg")
+    .delete()
+    .eq("id", id)
 
   if (error) {
     return { error: error.message }
@@ -334,16 +480,31 @@ export async function createDepartment(formData: FormData) {
   return { success: true }
 }
 
-export async function deleteDepartment(id: string) {
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from("szervezeti_egyseg")
-    .delete()
-    .eq("id", id)
+export async function removeUserFromDepartment(userId: string, departmentId: string) {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) return { error: "Hiányzik a konfiguráció." }
 
-  if (error) {
-    return { error: error.message }
-  }
+  const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const { error } = await supabaseAdmin
+    .from("felhasznalo_profil")
+    .update({ szervezeti_egyseg_id: null })
+    .eq("id", userId)
+    .eq("szervezeti_egyseg_id", departmentId)
+
+  if (error) return { error: "Hiba a felhasználó eltávolításakor: " + error.message }
+
+  // Ha ő volt a kijelölt vezető, nullázzuk a vezeto_id-t is
+  await supabaseAdmin
+    .from("szervezeti_egyseg")
+    .update({ vezeto_id: null })
+    .eq("id", departmentId)
+    .eq("vezeto_id", userId)
 
   revalidatePath("/settings")
   return { success: true }
@@ -443,6 +604,8 @@ export async function addUsersToDepartment(departmentId: string, userIds: string
   revalidatePath("/settings")
   return { success: true }
 }
+
+export const assignUsersToDepartment = addUsersToDepartment
 
 export async function updateRuleChannels(id: string, channels: string[]) {
   const supabase = await createClient()

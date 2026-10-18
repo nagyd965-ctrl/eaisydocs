@@ -15,18 +15,18 @@ import { updateProfile, createNewUser, updateUserPassword, updateUserRole, uploa
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 
 import { NotificationSettings } from "./notification-settings"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
-import { createSubstitution, deleteSubstitution } from "./substitution-actions"
+import { DelegationSettingsCard } from "@/components/delegation-manager"
 import { MfaSettingsCard } from "@/components/mfa-settings-card"
 import { IrattariTervManager } from "@/components/irattari-terv-manager"
 import { Archive, ScrollText, Download, Filter, Scale } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { CompanySettingsTab } from "@/components/settings/company-settings-tab"
+import { DepartmentsTab } from "@/components/settings/departments-tab"
 
 export function SettingsClient({ 
   initialProfile, 
@@ -36,6 +36,7 @@ export function SettingsClient({
   szabalyok, 
   naplo, 
   helyettesitesek = [], 
+  incomingHelyettesitesek = [],
   isAdmin, 
   totpFactor, 
   irattariTervek = [], 
@@ -48,6 +49,7 @@ export function SettingsClient({
   szabalyok?: any[], 
   naplo?: any[], 
   helyettesitesek?: any[], 
+  incomingHelyettesitesek?: any[],
   isAdmin?: boolean, 
   totpFactor?: any, 
   irattariTervek?: any[], 
@@ -91,22 +93,8 @@ export function SettingsClient({
   const [selectedMemberDepartment, setSelectedMemberDepartment] = useState<string>("")
   const [selectedMemberClearance, setSelectedMemberClearance] = useState<string>("nyilt")
   const [editRoleLoading, setEditRoleLoading] = useState(false)
-  const [departmentLoading, setDepartmentLoading] = useState(false)
   const [fourEyesRequired, setFourEyesRequired] = useState(initialFourEyesRequired)
   const [fourEyesLoading, setFourEyesLoading] = useState(false)
-  
-  // Helyettesítés állapotok
-  const [substituteUser, setSubstituteUser] = useState("")
-  const [substituteFrom, setSubstituteFrom] = useState("")
-  const [substituteTo, setSubstituteTo] = useState("")
-  const [substituteLoading, setSubstituteLoading] = useState(false)
-
-  // Új állapotok a szervezeti egységhez
-  const [addUsersDialogOpen, setAddUsersDialogOpen] = useState(false)
-  const [selectedDepartmentForAdd, setSelectedDepartmentForAdd] = useState<string | null>(null)
-  const [selectedUsersToAdd, setSelectedUsersToAdd] = useState<string[]>([])
-  const [addUsersLoading, setAddUsersLoading] = useState(false)
-  const [addDeptDialogOpen, setAddDeptDialogOpen] = useState(false)
   
   const [profileForm, setProfileForm] = useState({
     nev: initialProfile?.nev || "",
@@ -384,6 +372,14 @@ export function SettingsClient({
 
         {/* Kétlépcsős azonosítás */}
         <MfaSettingsCard totpFactor={totpFactor ?? null} />
+
+        {/* Távolléti feladat-delegálás (Helyettesítés) */}
+        <DelegationSettingsCard
+          currentUserId={initialProfile?.id}
+          myDelegations={helyettesitesek || []}
+          incomingDelegations={incomingHelyettesitesek || []}
+          teamMembers={teamMembers || []}
+        />
 
         {/* Hivatalos dokumentumok */}
         <Card className="border-border shadow-sm bg-primary/5 border-primary/20">
@@ -680,280 +676,10 @@ export function SettingsClient({
 
       {isAdmin && (
         <TabsContent value="osztalyok" className="space-y-4 outline-none">
-          <Card className="border-border shadow-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl">Szervezeti Egységek</CardTitle>
-              <CardDescription>
-                A cég osztályainak (részlegeinek) kezelése.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              
-              {/* Osztályok listája */}
-              <div className="space-y-4">
-                {departments?.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 px-4 border rounded-xl border-dashed">
-                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
-                      <Building className="h-6 w-6 text-muted-foreground" />
-                    </div>
-                    <p className="text-sm font-semibold text-foreground">Még nincsenek szervezeti egységek</p>
-                    <p className="text-xs text-muted-foreground mt-1 text-center max-w-sm">
-                      Hozz létre osztályokat a fenti mező segítségével, hogy a felhasználókat csoportosíthasd.
-                    </p>
-                  </div>
-                ) : (
-                  <Accordion type="multiple" className="w-full space-y-4">
-                    {departments?.map((dept) => {
-                      const deptUsers = teamMembers?.filter(m => m.szervezeti_egyseg_id === dept.id) || [];
-                      return (
-                      <AccordionItem key={dept.id} value={dept.id} className="border rounded-xl bg-card overflow-hidden transition-all data-[state=open]:border-primary/50 px-2">
-                        <div className="flex items-center w-full justify-between pr-4 group">
-                          <AccordionTrigger className="flex-1 hover:no-underline py-4 px-2 justify-start gap-4">
-                            <div className="flex items-center gap-4">
-                              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 text-primary">
-                                <Building className="h-5 w-5" />
-                              </div>
-                              <div className="text-left">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <p className="text-sm font-semibold text-foreground">{dept.nev}</p>
-                                  {dept.vezeto?.nev ? (
-                                    <Badge variant="outline" className="text-[11px] font-normal border-primary/40 text-primary bg-primary/5 gap-1">
-                                      <Crown className="h-3 w-3 text-amber-500" />
-                                      {dept.vezeto.nev}
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="text-[11px] font-normal text-muted-foreground border-dashed">
-                                      Nincs vezető
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-xs text-muted-foreground font-normal mt-0.5">{deptUsers.length} tag</p>
-                              </div>
-                            </div>
-                          </AccordionTrigger>
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
-                              onClick={async (e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                if (confirm(`Biztosan törlöd a(z) ${dept.nev} osztályt?`)) {
-                                  const { deleteDepartment } = await import("./settings-actions")
-                                  const res = await deleteDepartment(dept.id)
-                                  if (res.error) toast.error("Hiba", { description: res.error })
-                                  else toast.success("Sikeres", { description: "Szervezeti egység törölve." })
-                                }
-                              }}
-                            >
-                              Törlés
-                            </Button>
-                          </div>
-                        </div>
-                        <AccordionContent className="px-4 pb-4 pt-0">
-                          <div className="border-t pt-4 mt-2 space-y-4">
-                            {/* Felelős Osztályvezető Kijelölése */}
-                            <div className="bg-muted/30 p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                              <div>
-                                <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                                  <Crown className="h-3.5 w-3.5 text-amber-500" />
-                                  Szervezeti Egység Vezetője
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  A 3 napot meghaladó határidő-túllépések és vezetői eszkalációk automatikusan hozzá futnak be.
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Select
-                                  value={dept.vezeto_id || "none"}
-                                  onValueChange={async (val) => {
-                                    const newLeaderId = val === "none" ? null : val;
-                                    const { setDepartmentLeader } = await import("./settings-actions");
-                                    const res = await setDepartmentLeader(dept.id, newLeaderId);
-                                    if (res.error) toast.error("Hiba", { description: res.error });
-                                    else {
-                                      toast.success("Sikeres", { description: "Osztályvezető sikeresen frissítve!" });
-                                      router.refresh();
-                                    }
-                                  }}
-                                >
-                                  <SelectTrigger className="w-[220px] h-8 text-xs bg-background">
-                                    <SelectValue placeholder="Válassz vezetőt...">
-                                      {dept.vezeto?.nev || teamMembers?.find(m => m.id === dept.vezeto_id)?.nev || "Nincs kijelölt vezető"}
-                                    </SelectValue>
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="none">Nincs kijelölt vezető</SelectItem>
-                                    {teamMembers?.map((m) => (
-                                      <SelectItem key={m.id} value={m.id}>
-                                        {m.nev} {m.szervezeti_egyseg_id === dept.id ? "" : "(Más osztály)"}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Hozzárendelt tagok</h4>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  className="h-8 rounded-full text-xs font-semibold"
-                                  onClick={() => {
-                                    setSelectedDepartmentForAdd(dept.id)
-                                    setSelectedUsersToAdd([])
-                                    setAddUsersDialogOpen(true)
-                                  }}
-                                >
-                                  Tagok hozzáadása
-                                </Button>
-                              </div>
-                              
-                              {deptUsers.length > 0 ? (
-                                <div className="grid gap-2">
-                                  {deptUsers.map(u => (
-                                    <div key={u.id} className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg transition-colors group/item">
-                                      <div className="flex items-center gap-3">
-                                        <div className="h-8 w-8 shrink-0 bg-secondary rounded-full flex items-center justify-center font-semibold text-xs text-secondary-foreground">
-                                          {u.nev?.substring(0, 1).toUpperCase() || "?"}
-                                        </div>
-                                        <div>
-                                          <div className="flex items-center gap-1.5">
-                                            <p className="text-sm font-medium text-foreground">{u.nev}</p>
-                                            {u.id === dept.vezeto_id && (
-                                              <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 text-[10px] px-1.5 py-0 h-4 border-amber-500/30">
-                                                Vezető
-                                              </Badge>
-                                            )}
-                                          </div>
-                                          <p className="text-xs text-muted-foreground">{u.email || ""}</p>
-                                        </div>
-                                      </div>
-                                      <Badge variant="secondary" className="uppercase font-semibold text-[10px] tracking-wider bg-background border">
-                                        {u.docs_szerepkor}
-                                      </Badge>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="py-6 text-center">
-                                  <p className="text-sm text-muted-foreground">Ebben az osztályban nincsenek felhasználók.</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    )})}
-                  </Accordion>
-                )}
-                <Dialog open={addUsersDialogOpen} onOpenChange={setAddUsersDialogOpen}>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>Felhasználók Hozzáadása</DialogTitle>
-                      <DialogDescription>
-                        Jelöld ki azokat a felhasználókat, akiket be szeretnél osztani ebbe a szervezeti egységbe.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4 max-h-[300px] overflow-y-auto pr-2">
-                      {teamMembers?.filter(u => u.szervezeti_egyseg_id !== selectedDepartmentForAdd).length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center">Nincs hozzáadható felhasználó.</p>
-                      ) : (
-                        teamMembers?.filter(u => u.szervezeti_egyseg_id !== selectedDepartmentForAdd).map((u) => (
-                          <div key={u.id} className="flex items-center space-x-3 bg-muted/20 p-2 rounded-md">
-                            <Checkbox 
-                              id={`user-${u.id}`} 
-                              checked={selectedUsersToAdd.includes(u.id)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedUsersToAdd([...selectedUsersToAdd, u.id])
-                                } else {
-                                  setSelectedUsersToAdd(selectedUsersToAdd.filter(id => id !== u.id))
-                                }
-                              }}
-                            />
-                            <Label htmlFor={`user-${u.id}`} className="flex-1 cursor-pointer">
-                              <div className="font-medium text-sm">{u.nev}</div>
-                              <div className="text-xs text-muted-foreground uppercase">{u.docs_szerepkor}</div>
-                            </Label>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setAddUsersDialogOpen(false)}>Mégsem</Button>
-                      <Button 
-                        disabled={addUsersLoading || selectedUsersToAdd.length === 0}
-                        onClick={async () => {
-                          if (!selectedDepartmentForAdd || selectedUsersToAdd.length === 0) return;
-                          setAddUsersLoading(true);
-                          const { addUsersToDepartment } = await import("./settings-actions");
-                          const res = await addUsersToDepartment(selectedDepartmentForAdd, selectedUsersToAdd);
-                          setAddUsersLoading(false);
-                          if (res.error) {
-                            toast.error("Hiba", { description: res.error });
-                          } else {
-                            toast.success("Sikeres hozzáadás!");
-                            setAddUsersDialogOpen(false);
-                            setSelectedUsersToAdd([]);
-                          }
-                        }}
-                      >
-                        {addUsersLoading ? "Mentés..." : "Hozzáadás"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-
-                <Dialog open={addDeptDialogOpen} onOpenChange={setAddDeptDialogOpen}>
-                  <DialogTrigger
-                    render={
-                      <Button variant="outline" className="w-full border-dashed border-2 py-6 text-muted-foreground hover:text-foreground mt-4" />
-                    }
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Új szervezeti egység létrehozása
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <form action={async (formData) => {
-                      setDepartmentLoading(true)
-                      const { createDepartment } = await import("./settings-actions")
-                      const res = await createDepartment(formData)
-                      setDepartmentLoading(false)
-                      if (res.error) toast.error("Hiba", { description: res.error })
-                      else {
-                        toast.success("Sikeres", { description: "Szervezeti egység létrehozva." })
-                        setAddDeptDialogOpen(false)
-                      }
-                    }}>
-                      <DialogHeader>
-                        <DialogTitle>Új Szervezeti Egység</DialogTitle>
-                        <DialogDescription>
-                          Hozz létre új osztályokat (részlegeket) a cégedben.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="nev">Osztály neve</Label>
-                          <Input id="nev" name="nev" placeholder="Pl. Pénzügy, HR, Értékesítés" required />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" type="button" onClick={() => setAddDeptDialogOpen(false)}>Mégsem</Button>
-                        <Button type="submit" disabled={departmentLoading} className="rounded-full">
-                          {departmentLoading ? "Létrehozás..." : "Létrehozás"}
-                        </Button>
-                      </DialogFooter>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-
-              </div>
-            </CardContent>
-          </Card>
+          <DepartmentsTab 
+            departments={departments || []} 
+            teamMembers={teamMembers || []} 
+          />
         </TabsContent>
       )}
 
@@ -966,104 +692,7 @@ export function SettingsClient({
 
 
 
-      {/* 7. TAB: HELYETTESÍTÉS */}
-      <TabsContent value="helyettesites" className="space-y-4 outline-none">
-        <Card className="border-border shadow-sm">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-xl">Helyettesítés beállítása</CardTitle>
-            <CardDescription>
-              Állítsd be, hogy szabadságod vagy távolléted alatt ki lássa el a feladataidat.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label>Helyettesítő munkatárs</Label>
-                <Select value={substituteUser} onValueChange={(val) => val && setSubstituteUser(val)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Válassz kollégát...">
-                      {substituteUser ? teamMembers.find(u => u.id === substituteUser)?.nev : "Válassz kollégát..."}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {teamMembers.filter(u => u.id !== initialProfile?.id).map((member: any) => (
-                      <SelectItem key={member.id} value={member.id}>{member.nev}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Mettől</Label>
-                <Input type="date" value={substituteFrom} onChange={e => setSubstituteFrom(e.target.value)} min={new Date().toISOString().split('T')[0]} />
-              </div>
-              <div className="space-y-2">
-                <Label>Meddig</Label>
-                <Input type="date" value={substituteTo} onChange={e => setSubstituteTo(e.target.value)} min={substituteFrom || new Date().toISOString().split('T')[0]} />
-              </div>
-            </div>
-            <Button 
-              className="bg-primary hover:bg-primary/90 text-primary-foreground"
-              disabled={substituteLoading || !substituteUser || !substituteFrom || !substituteTo}
-              onClick={async () => {
-                setSubstituteLoading(true)
-                const res = await createSubstitution(substituteUser, substituteFrom, substituteTo)
-                setSubstituteLoading(false)
-                if(res.success) {
-                  toast.success("Helyettesítés beállítva!")
-                  setSubstituteUser("")
-                  setSubstituteFrom("")
-                  setSubstituteTo("")
-                } else {
-                  toast.error(res.error)
-                }
-              }}
-            >
-              {substituteLoading ? "Mentés..." : "Helyettesítés rögzítése"}
-            </Button>
-          </CardContent>
-        </Card>
 
-        {helyettesitesek.length > 0 && (
-          <Card className="border-border shadow-sm mt-6">
-            <CardHeader className="pb-4 border-b">
-              <CardTitle>Aktuális és korábbi helyettesítések</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                {helyettesitesek.map((h: any) => {
-                  const isPast = new Date(h.meddig) < new Date()
-                  const isActive = !isPast && new Date(h.mettol) <= new Date()
-                  return (
-                    <div key={h.id} className="flex items-center justify-between p-4 border rounded-md bg-card">
-                      <div>
-                        <p className="font-semibold">{h.helyettesito?.nev}</p>
-                        <p className="text-sm text-muted-foreground tabular-nums">
-                          {new Date(h.mettol).toLocaleDateString("hu-HU")} - {new Date(h.meddig).toLocaleDateString("hu-HU")}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <Badge variant="outline" className={isActive ? "text-primary border-primary bg-primary/5" : isPast ? "text-muted-foreground" : "text-blue-500 border-blue-200 bg-blue-50/50"}>
-                          {isActive ? "Aktív" : isPast ? "Lejárt" : "Tervezett"}
-                        </Badge>
-                        {!isPast && (
-                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={async () => {
-                            if(confirm("Biztosan törlöd a helyettesítést?")) {
-                              await deleteSubstitution(h.id)
-                              toast.success("Törölve")
-                            }
-                          }}>
-                            Törlés
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </TabsContent>
 
       {/* RENDSZERGAZDA TAB — csak adminoknak */}
       {isAdmin && (

@@ -4,6 +4,87 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-18)
 
+### 🧹 eaisyDocs: Tasks Kanban 24-órás Auto-archiválás és Elvégzett Feladatok Lista Nézet (A-072 / P-091)
+- **Fejléc Tisztítása és Személyes Fókusz:**
+  - A felhasználói visszajelzés alapján a fejlécben korábban szereplő „Összes feladat” vezetői kapcsoló teljes mértékben eltávolításra került. A felület kizárólag a bejelentkezett felhasználó saját és helyettesítés útján ráruházott teendőire fókuszál.
+- **Kanban Tábla 24-órás Gördülő Ablaka a „Kész” Oszlopban:**
+  - A Kanban tábla „Kész” oszlopában mostantól kizárólag a frissen, az elmúlt 24 órában elvégzett feladatok és ügyiratok (`completed_at >= now() - 24 hours`) jelennek meg.
+  - Ezzel megelőzhető, hogy 100-200 elvégzett feladat felhalmozódásával a Kanban tábla áttekinthetetlenné váljon vagy a böngésző memóriáját terhelje.
+  - A Kanban táblán az oszlop alján diszkrét információs sáv jelzi a korábban elvégzett feladatok darabszámát (`+{archivedCount} régebben elvégzett feladat`), felhívva a figyelmet, hogy a teljes archívum a Lista nézetben böngészhető.
+  - Kártyák áthúzásakor optimistán azonnal beáll a lezárási időbélyeg, így a frissen elvégzett feladat 24 órán át a táblán marad, és szükség esetén visszahúzható.
+- **Lista Nézet Szegmentált Fülei (`TaskList`):**
+  - A Lista nézet táblázata felett modern, Linear-stílusú fülválasztó jelent meg:
+    - **Aktív feladatok ({activeCount}):** A nyitott és folyamatban lévő teendők.
+    - **Elvégzett feladatok ({completedCount}):** Minden korábbi lezárt ügyirat és befejezett feladat a lezárás pontos dátumával.
+    - **Összes ({allCount}):** Teljes együttes lista.
+  - A `TableToolbar` keresője, időszakszűrője és oszlopválasztója mindkét fülön azonnal működik.
+- **Kapcsolódó döntések:** [ADR A-072](../architecture/decisions/A-072-tasks-kanban-auto-archive-and-completed-list-view.md), [PRD P-091](../product/decisions/P-091-tasks-kanban-auto-archive-and-completed-list-view-ux.md).
+
+### 📋 eaisyDocs: Rám szignált ügyiratok és hozzáadott al-feladatok egységesítése a Saját feladatok felületen (A-071 / P-090)
+- **Problémafeltárás és Alapvető Integrációs Hiányosság Javítása:**
+  - A korábbi működésben a `/tasks` („Saját feladataim”) oldal kizárólag a `feladat` táblából kérdezte le a rekordokat (amely mindössze 2 db tesztfeladatot tartalmazott), teljesen figyelmen kívül hagyva az Iktatókönyvben nyilvántartott és a felhasználóra szignált ügyiratokat.
+  - A felhasználó az Iktatókönyvben 13 szignált ügyirattal rendelkezett, amelyekből egyetlen egy sem jelent meg a feladatkezelőben.
+- **Párhuzamos Lekérdezés és Teljeskörű Összekapcsolás (`tasks/page.tsx`):**
+  - A feladatok oldal mostantól párhuzamosan lekérdezi mind a felhasználóra (és helyettesítettjeire) szignált ügyiratokat (`ugyirat` + `ugy!inner` ahol `felelos_user_id IN felelosIds`), mind pedig a hozzárendelt al-feladatokat (`feladat` tábla).
+  - Determinisztikus típus-egyesítés: mindkét forrás a központi `Task` interfészre képződik le (`tipus: "ugyirat"` vs `tipus: "al_feladat"`, `ugyirat_${id}` kulcsokkal).
+  - Alapértelmezés szerint a felhasználó saját teendői jelennek meg („Saját feladataim”), míg vezetői jogkör esetén a fejlécben elérhető a diszkrét nézetváltó az „Összes szervezeti feladat” áttekintéséhez.
+- **Státusz Leképezés és Kanban Életciklus Szinkronizáció (`tasks/task-actions.ts`):**
+  - Az ügyiratok státusza automatikusan a feladat-életciklusnak megfelelően jelenik meg:
+    - `iktatva`, `szignalt` -> `Nyitott`
+    - `ugyintezes_alatt`, `folyamatban` -> `Folyamatban`
+    - `elintezett`, `lezart`, `irattarban`, `selejtezheto`, `selejtezett` -> `Kész`
+    - `elutasitott` -> `Elutasított`
+  - A Kanban táblán kártyamozgatáskor az `updateTaskStatus` kezeli az ügyirat státuszok és szülő ügyek szinkronizálását, valamint az eseménynapló (`esemeny_naplo`) audit bejegyzéseit.
+  - Szigorú lezárási védelem: az ügyirat nem állítható `Kész` állapotba, amennyiben folyamatban lévő vagy elutasított al-feladat található benne.
+  - Elutasítás kezelése: a Kanban kártya `Elutasított` oszlopba húzásakor megnyílik a `TaskRejectDialog`, kötelező szöveges indoklást kérve a művelet naplózásához.
+- **Biztonságos Dátumkezelés és NULL-védelem:**
+  - Megszűnt az érvénytelen dátumok és 1970-es fallback dátumok hibája: minden felületen (Kanban, Lista, Naptár) null-guard és `isNaN` ellenőrzés védi a határidő nélküli ügyiratokat, egységes és diszkrét „Nincs határidő” feliratot megjelenítve.
+- **Vizuális Jelölések és Típus szerinti Szűrés (`TaskList`):**
+  - Az ügyiratok `Ügyirat` badge-et (kiemelt teal háttérrel), az al-feladatok `Al-feladat` badge-et kapnak a gyors beazonosíthatóság érdekében.
+  - A Lista nézet szabványos `TableToolbar` szűrősávjában új „Feladat típusa” szűrőcsoport érhető el, amellyel egy kattintással szűrhetőek a szignált ügyiratok és a hozzáadott al-feladatok.
+- **Kapcsolódó döntések:** [ADR A-071](../architecture/decisions/A-071-assigned-dossiers-and-subtasks-unified-tasks-view.md), [PRD P-090](../product/decisions/P-090-assigned-dossiers-and-subtasks-unified-tasks-view-ux.md).
+
+### 👥 eaisyDocs: Távolléti Feladat-Delegálás és Helyettesítés Újraszervezése („A” Opció) (A-070 / P-089)
+- **Koncepció és Tisztázás (eaisyDocs vs eaisyHR határvonal):**
+  - Tisztázásra került, hogy az eaisyDocs nem kezel szabadságokat és távollét-kérelmeket (az az eaisyHR hatásköre).
+  - Az eaisyDocs szoftverterv 6.5 fejezete alapján a helyettesítés funkciója kizárólag a **folyamatos ügyintézés és iratkezelési feladat-delegálás** biztosítása, auditált formában.
+- **Beállítások Fül Tisztítása:**
+  - A korábbi önálló, üres "Helyettesítés" fül kivezetésre került a Beállítások (`/settings`) oldalról.
+  - Helyette a Beállítások `Profil & Biztonság` lapjának alján kapott helyet a modern `DelegationSettingsCard` komponens.
+- **Közvetlen Munkafolyamat Integráció a Feladatok Oldalon (`/tasks`):**
+  - **Fejléc Akció Gomb & Modál (`TaskDelegationDialog`):** Közvetlenül a Saját feladataim lap fejlécéből elérhető a `Távolléti feladat-delegálás` gomb, ahol a felhasználó azonnal beállíthatja, kit bíz meg feladatai elvégzésével (mettől - meddig tartomány, helyettesítő kolléga, megjegyzés).
+  - **Aktív Delegálási Információs Sáv (`ActiveDelegationBanner`):** Ha a felhasználónak aktív helyettesítése van (akár őt helyettesítik, akár ő helyettesít más munkatársat), a táblázat felett diszkrét, figyelemfelhívó banner jelenik meg a megbízás részleteivel.
+- **Kanonikus Komponens és Kétoldalú Áttekintés (`DelegationManager`):**
+  - `src/components/delegation-manager.tsx`: Egyetlen újrafelhasználható, egységes komponens, amely listázza:
+    - **Általam leadott delegálások:** kik és milyen időszakban látják el a feladataimat, azonnali visszavonási lehetőséggel.
+    - **Rám bízott feladatok (helyettesítések):** kiknek a feladataiban működök közre, a megbízó nevével, időszakával és megjegyzésével.
+- **Szerveroldali Multi-Tenant és Jogosultság Javítások:**
+  - **Szigorú Cégszintű és Moduláris Kolléga Szűrés (`tasks/page.tsx`, `settings-actions.ts`):** A helyettesítő kiválasztó lista mostantól kizárólag a jelenleg aktív céghez hozzáadott munkatársakat listázza (`company_members.company_id = activeCompanyId`), és szigorúan szűri azokat, akik rendelkeznek `eaisyDocs` modul hozzáféréssel (`elerheto_modulok @> ['docs']`). A kizárólag eaisyHR felhasználók nem keveredhetnek be a dokumentum-delegálásba.
+  - `substitution-actions.ts`: A helyettesítések rögzítése mostantól cégszinten szeparált (`company_id` mentése az aktív cég alapján), szerveroldali cégtagsági és eaisyDocs modul validációval megerősítve.
+  - Dátumvalidáció: beépítve a `meddig >= mettol` ellenőrzés és az ön-helyettesítés tiltása.
+  - Revalidáció: `/tasks`, `/settings`, `/` útvonalak azonnali frissítése.
+  - `task-actions.ts`: A feladat lezárási és státuszfrissítési jogosultság kiterjesztve a kijelölt aktív helyettesítő kollégákra is, így a helyettes valós időben elvégezheti és lezárhatja a megbízója feladatait.
+- **Kapcsolódó döntések:** [ADR A-070](../architecture/decisions/A-070-task-delegation-and-substitution-architecture.md), [PRD P-089](../product/decisions/P-089-task-delegation-and-substitution-ux.md).
+
+### 🏢 eaisyDocs: Szervezeti Egységek Megújítása és Kétfülös Fanézet („B” Koncepció) (A-069 / P-088)
+- **Modern Kétfülös Szervezeti Egység Kezelő (`DepartmentsTab`):**
+  - A Beállítások (`/settings`) „Szervezeti Egységek” tabján lévő korábbi szűkös, egydimenziós harmonika (`Accordion`) leváltásra került egy modern, kétfülös vezérlőközpontra:
+    - **1. Szervezeti Egységek (Táblázat & Kezelés):**
+      - Kliensoldali instant keresősáv (`Search` ikon, azonnali szűrés névre és iktató prefixre).
+      - Részletes táblázat: Megnevezés, Iktató prefix (`iktato_prefix` monospace badge), Szülő egység (`Building2`), Osztályvezető (`Crown` aranyszínű jelvény, avatár és név), Hozzárendelt munkatársak számláló gomb, Műveleti gombok (Tagok hozzáadása `UserPlus`, Szerkesztés `Edit`, Törlés `Trash2`).
+      - Teljes szélességű szaggatott keretes egység létrehozási gomb az egyszerű navigációhoz.
+    - **2. Szervezeti Ábra (`DocsOrgChartTree` fanézet):**
+      - Rekurzív fanézet a `szulo_id` hierarchia alapján, szintenként eltérő élénk szegélyszínekkel (`primary`, `info`, `purple`, stb.).
+      - Hierarchikus csomópontok: Iktató prefix címke, Osztályvezető kártya, valamint az egységhez beosztott munkatársak névjegy-chipjei (avatár, iratkezelési szerepkör `docs_szerepkor` badge, biztonsági minősítési szint `max_minosites` lakat ikonnal).
+- **Iratkezelési Fókusz (HR Munkakörök Tudatos Kihagyása):**
+  - Az eaisyHR-rel ellentétben az eaisyDocs-ban nincs szükség FEOR munkaköri katalógusra. A jogosultságokat és az iratokhoz való hozzáférést a 7 szintű iratkezelési szerepkör (`docs_szerepkor`) és a 4 biztonsági minősítési szint (`max_minosites`) garantálja.
+- **Teljeskörű Modális Interakciók és Szerver Műveletek (`settings-actions.ts`):**
+  - Új szervezeti egység létrehozása és szerkesztése szülő egység, iktató prefix és vezető választóval.
+  - Tagok hozzárendelése többes kijelöléses (`Checkbox`) modállal.
+  - Tagok megtekintése és egykattintásos eltávolítása (`UserMinus`).
+  - Biztonságos törlés (`deleteDepartment`): gyermek egységek `szulo_id`-jának és a tagok `szervezeti_egyseg_id`-jának automatikus nullázása az integritás védelmében.
+- **Kapcsolódó döntések:** [ADR A-069](../architecture/decisions/A-069-docs-organizational-units-revamp.md), [PRD P-088](../product/decisions/P-088-docs-organizational-units-revamp-ux.md).
+
 ### 🎨 eaisyHR & eaisyDocs: Beállítások Lapok Konszolidációja, Automata Munkamenet Mentés és Vizuális Egységesítés (A-068 / P-087)
 - **Profil és Biztonság Fülek Integrációja (`/settings` és `/hr/settings`):**
   - A korábban széttagolt, alig használt "Felhasználói profil" és a különálló "Biztonság" fül egyetlen logikus, letisztult `Profil & Biztonság` lapba olvadt össze mindkét modulban.

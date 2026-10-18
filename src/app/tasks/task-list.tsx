@@ -25,22 +25,10 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { TableToolbar, TableColumnOption, FilterGroup } from "@/components/table-toolbar/table-toolbar"
+import { Task } from "@/types/tasks"
+import { cn } from "@/lib/utils"
 
-interface Task {
-  id: string
-  leiras: string
-  hatarido: string
-  allapot: string
-  felelos_user_id: string
-  kategoria?: string | null
-  prioritas?: string | null
-  indoklas?: string | null
-  reszletek?: string | null
-  ugyirat: {
-    id: string
-    iktatoszam: string
-  } | null
-}
+export type { Task }
 
 const STATUS_LABELS: Record<string, string> = {
   nyitott: "Nyitott",
@@ -59,7 +47,12 @@ const DEFAULT_TASK_COLUMNS: TableColumnOption[] = [
 export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [viewMode, setViewMode] = useState<"aktiv" | "elvegzett" | "osszes">("aktiv")
   const router = useRouter()
+
+  const activeCount = useMemo(() => tasks.filter((t) => t.allapot !== "kesz").length, [tasks])
+  const completedCount = useMemo(() => tasks.filter((t) => t.allapot === "kesz").length, [tasks])
+  const allCount = tasks.length
 
   // Szűrési állapotok a szabványos TableToolbar-hoz
   const [search, setSearch] = useState("")
@@ -67,6 +60,7 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([])
 
   useEffect(() => {
     setTasks(initialTasks)
@@ -87,9 +81,23 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
     setFromDate("")
     setToDate("")
     setSelectedStatuses([])
+    setSelectedTypes([])
   }
 
   const filterGroups: FilterGroup[] = [
+    {
+      id: "tipus",
+      title: "Feladat típusa",
+      options: [
+        { id: "ugyirat", label: "Szignált ügyirat", checked: selectedTypes.includes("ugyirat") },
+        { id: "al_feladat", label: "Hozzáadott al-feladat", checked: selectedTypes.includes("al_feladat") },
+      ],
+      onToggle: (optId) => {
+        setSelectedTypes((prev) =>
+          prev.includes(optId) ? prev.filter((x) => x !== optId) : [...prev, optId]
+        )
+      },
+    },
     {
       id: "allapot",
       title: "Feladat állapota",
@@ -107,10 +115,13 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
     },
   ]
 
-  const activeFiltersCount = selectedStatuses.length
+  const activeFiltersCount = selectedStatuses.length + selectedTypes.length
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
+      if (viewMode === "aktiv" && task.allapot === "kesz") return false
+      if (viewMode === "elvegzett" && task.allapot !== "kesz") return false
+
       if (search.trim()) {
         const q = search.toLowerCase()
         const matchDesc = task.leiras?.toLowerCase().includes(q)
@@ -133,9 +144,14 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
         if (!selectedStatuses.includes(task.allapot)) return false
       }
 
+      if (selectedTypes.length > 0) {
+        const tType = task.tipus || (task.id.startsWith("ugyirat_") ? "ugyirat" : "al_feladat")
+        if (!selectedTypes.includes(tType)) return false
+      }
+
       return true
     })
-  }, [tasks, search, fromDate, toDate, selectedStatuses])
+  }, [tasks, viewMode, search, fromDate, toDate, selectedStatuses, selectedTypes])
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -180,6 +196,48 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
 
   return (
     <div className="space-y-3">
+      {/* Nézetváltó kapcsoló: Aktív / Elvégzett / Összes feladat */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-1 p-0.5 bg-muted/60 rounded-md border border-border/60 text-xs w-fit">
+          <button
+            type="button"
+            onClick={() => setViewMode("aktiv")}
+            className={cn(
+              "px-3 py-1.5 rounded transition-colors font-medium cursor-pointer",
+              viewMode === "aktiv"
+                ? "bg-background text-foreground shadow-xs border border-border/40"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Aktív feladatok ({activeCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("elvegzett")}
+            className={cn(
+              "px-3 py-1.5 rounded transition-colors font-medium cursor-pointer",
+              viewMode === "elvegzett"
+                ? "bg-background text-foreground shadow-xs border border-border/40"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Elvégzett feladatok ({completedCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("osszes")}
+            className={cn(
+              "px-3 py-1.5 rounded transition-colors font-medium cursor-pointer",
+              viewMode === "osszes"
+                ? "bg-background text-foreground shadow-xs border border-border/40"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Összes ({allCount})
+          </button>
+        </div>
+      </div>
+
       {/* Szabványos TableToolbar */}
       <TableToolbar
         searchValue={search}
@@ -218,18 +276,30 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
                 >
                   {isColVisible("ugyirat") && (
                     <TableCell>
-                      {task.ugyirat ? (
-                        <Link
-                          href={`/dossiers/${task.ugyirat.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="font-semibold text-primary hover:underline text-xs inline-flex items-center gap-1 font-mono"
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {task.ugyirat ? (
+                          <Link
+                            href={`/dossiers/${task.ugyirat.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="font-semibold text-primary hover:underline text-xs inline-flex items-center gap-1 font-mono"
+                          >
+                            {task.ugyirat.iktatoszam}
+                            <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground italic text-xs">Nincs csatolva</span>
+                        )}
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] px-1.5 py-0 h-4 font-normal ${
+                            task.tipus === "ugyirat" || task.id.startsWith("ugyirat_")
+                              ? "bg-primary/10 text-primary border-primary/30"
+                              : "bg-muted text-muted-foreground border-border"
+                          }`}
                         >
-                          {task.ugyirat.iktatoszam}
-                          <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground italic text-xs">Nincs csatolva</span>
-                      )}
+                          {task.tipus === "ugyirat" || task.id.startsWith("ugyirat_") ? "Ügyirat" : "Al-feladat"}
+                        </Badge>
+                      </div>
                     </TableCell>
                   )}
                   {isColVisible("leiras") && (
@@ -241,7 +311,7 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
                       {task.allapot === "elutasitott" && (
                         <div className="text-[11px] text-destructive flex items-center gap-1.5 mt-1 font-normal truncate bg-destructive/5 px-2 py-0.5 rounded border border-destructive/20 w-fit">
                           <Ban className="h-3 w-3 shrink-0" />
-                          <span className="italic text-foreground/80">„{task.indoklas || "Téves szignálás"}”</span>
+                          <span className="italic text-foreground/80">„{task.indoklas || "Téves szignálás / Elutasítva"}”</span>
                         </div>
                       )}
                     </TableCell>
@@ -250,17 +320,31 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
                     <TableCell>
                       <span
                         className={`font-medium tabular-nums text-xs ${
-                          new Date(task.hatarido) < new Date() && task.allapot !== "kesz"
+                          task.hatarido &&
+                          !isNaN(new Date(task.hatarido).getTime()) &&
+                          new Date(task.hatarido) < new Date() &&
+                          task.allapot !== "kesz"
                             ? "text-destructive"
                             : "text-muted-foreground"
                         }`}
                       >
-                        {format(new Date(task.hatarido), "yyyy. MM. dd.", { locale: hu })}
+                        {task.hatarido && !isNaN(new Date(task.hatarido).getTime())
+                          ? format(new Date(task.hatarido), "yyyy. MM. dd.", { locale: hu })
+                          : <span className="text-muted-foreground/60 italic">Nincs határidő</span>}
                       </span>
                     </TableCell>
                   )}
                   {isColVisible("allapot") && (
-                    <TableCell className="text-right">{getStatusBadge(task.allapot)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex flex-col items-end gap-0.5">
+                        {getStatusBadge(task.allapot)}
+                        {task.allapot === "kesz" && task.completed_at && !isNaN(new Date(task.completed_at).getTime()) && (
+                          <span className="text-[10px] text-muted-foreground/70">
+                            {format(new Date(task.completed_at), "yyyy. MM. dd.", { locale: hu })}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                   )}
                 </TableRow>
               ))
@@ -293,7 +377,9 @@ export function TaskList({ initialTasks }: { initialTasks: Task[] }) {
                   </Badge>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <CalendarIcon className="h-3.5 w-3.5" />
-                    {format(new Date(selectedTask.hatarido), "yyyy. MM. dd.", { locale: hu })}
+                    {selectedTask.hatarido && !isNaN(new Date(selectedTask.hatarido).getTime())
+                      ? format(new Date(selectedTask.hatarido), "yyyy. MM. dd.", { locale: hu })
+                      : "Nincs határidő"}
                   </span>
                 </div>
                 <DialogTitle className="text-base font-semibold pt-2 leading-relaxed">

@@ -29,8 +29,10 @@ export interface Task {
   indoklas?: string | null
   created_at?: string
   updated_at?: string
+  completed_at?: string | null
   ugyirat?: {
     id: string
     iktatoszam: string
   } | null
+  tipus?: "ugyirat" | "al_feladat"
 }

@@ -21,6 +21,154 @@ export async function updateTaskStatus(
     return { success: false, error: "Nincs bejelentkezve." }
   }
 
+  // 0. Ha az elem egy szignált ügyirat (ugyirat_{id})
+  if (taskId.startsWith("ugyirat_")) {
+    const ugyiratId = taskId.replace("ugyirat_", "")
+
+    // 1. Ügyirat és meglévő állapot lekérése
+    const { data: currentUgyirat, error: fetchErr } = await supabase
+      .from("ugyirat")
+      .select("id, statusz, ugy_id, iktatoszam, ugy!inner ( id, statusz, felelos_user_id, targy )")
+      .eq("id", ugyiratId)
+      .single()
+
+    if (fetchErr || !currentUgyirat) {
+      return { success: false, error: "Az ügyirat nem található." }
+    }
+
+    const ugy = currentUgyirat.ugy as any
+    const isAssignee = ugy?.felelos_user_id === user.id
+
+    // 2. Jogosultság ellenőrzése
+    const { data: profile } = await supabase
+      .from("felhasznalo_profil")
+      .select("docs_szerepkor")
+      .eq("id", user.id)
+      .single()
+
+    const role = profile?.docs_szerepkor || "ugyintezo"
+    const isPrivileged = ["admin", "iktato", "vezeto", "rendszergazda"].includes(role)
+
+    let isSubstitute = false
+    if (!isAssignee && !isPrivileged && ugy?.felelos_user_id) {
+      const { data: sub } = await supabase
+        .from("helyettesites")
+        .select("id")
+        .eq("kilepo_user_id", ugy.felelos_user_id)
+        .eq("helyettesito_user_id", user.id)
+        .eq("aktiv", true)
+        .lte("mettol", new Date().toISOString())
+        .gte("meddig", new Date().toISOString())
+        .maybeSingle()
+      if (sub) {
+        isSubstitute = true
+      }
+    }
+
+    if (!isAssignee && !isPrivileged && !isSubstitute) {
+      return {
+        success: false,
+        error:
+          "Nincs jogosultságod az ügyirat állapotának módosításához (csak a felelős, a helyettes vagy a vezető módosíthatja).",
+      }
+    }
+
+    // 3. Ha elutasítás történik, az indoklás kötelező
+    if (newStatus === "elutasitott" && (!indoklas || !indoklas.trim())) {
+      return {
+        success: false,
+        error: "Elutasítás esetén a szöveges indoklás megadása kötelező.",
+      }
+    }
+
+    // 4. Befejezés (Kész) ellenőrzése: ne lehessen lezárni, ha vannak befejezetlen feladatok
+    if (newStatus === "kesz") {
+      const { data: tasks } = await supabase
+        .from("feladat")
+        .select("id, allapot")
+        .eq("ugyirat_id", ugyiratId)
+
+      if (tasks && tasks.length > 0) {
+        const rejectedCount = tasks.filter((t) => t.allapot === "elutasitott").length
+        if (rejectedCount > 0) {
+          return {
+            success: false,
+            error: `Az ügyirat nem zárható le: ${rejectedCount} db elutasított feladat található benne. Kérjük vizsgálja felül a feladatokat.`,
+          }
+        }
+        const unfinishedCount = tasks.filter((t) => t.allapot !== "kesz").length
+        if (unfinishedCount > 0) {
+          return {
+            success: false,
+            error: `Az ügyirat nem zárható le: még ${unfinishedCount} db befejezetlen feladat van folyamatban.`,
+          }
+        }
+      }
+    }
+
+    // 5. Cél státusz meghatározása
+    let targetUgyiratStatusz = "iktatva"
+    let targetUgyStatusz = ugy?.statusz || "folyamatban"
+
+    if (newStatus === "nyitott") {
+      targetUgyiratStatusz = "iktatva"
+      targetUgyStatusz = "folyamatban"
+    } else if (newStatus === "folyamatban") {
+      targetUgyiratStatusz = "ugyintezes_alatt"
+      targetUgyStatusz = "folyamatban"
+    } else if (newStatus === "kesz") {
+      targetUgyiratStatusz = "elintezett"
+      targetUgyStatusz = "lezart"
+    } else if (newStatus === "elutasitott") {
+      targetUgyiratStatusz = "elutasitott"
+    }
+
+    const { error: ugyiratUpdateErr } = await supabase
+      .from("ugyirat")
+      .update({ statusz: targetUgyiratStatusz })
+      .eq("id", ugyiratId)
+
+    if (ugyiratUpdateErr) {
+      console.error("Hiba az ügyirat státusz frissítésekor:", ugyiratUpdateErr)
+      return { success: false, error: ugyiratUpdateErr.message }
+    }
+
+    if (ugy?.id && (newStatus === "kesz" || newStatus === "folyamatban" || newStatus === "nyitott")) {
+      const ugyUpdatePayload: Record<string, any> = { statusz: targetUgyStatusz }
+      if (newStatus === "kesz") {
+        ugyUpdatePayload.lezarva = new Date().toISOString()
+      } else {
+        ugyUpdatePayload.lezarva = null
+      }
+      await supabase
+        .from("ugy")
+        .update(ugyUpdatePayload)
+        .eq("id", ugy.id)
+    }
+
+    // 6. Audit naplózás
+    const { ip, userAgent } = await getClientInfo()
+    await supabase.from("esemeny_naplo").insert({
+      entitas_tipus: "ugyirat",
+      entitas_id: ugyiratId,
+      esemeny_tipus: "modositva",
+      user_id: user.id,
+      elozo_ertek: { statusz: currentUgyirat.statusz },
+      uj_ertek: { statusz: targetUgyiratStatusz, allapot: newStatus, indoklas: indoklas || null },
+      indoklas: indoklas
+        ? `Ügyirat állapota módosítva: ${currentUgyirat.statusz} -> ${targetUgyiratStatusz}. Indoklás: ${indoklas}`
+        : `Ügyirat állapota módosítva: ${currentUgyirat.statusz} -> ${targetUgyiratStatusz}`,
+      ip_cim: ip,
+      user_agent: userAgent,
+    })
+
+    revalidatePath(`/dossiers/${ugyiratId}`)
+    revalidatePath("/tasks")
+    revalidatePath("/dossiers")
+    revalidatePath("/")
+    return { success: true }
+  }
+
   // 1. Feladat és meglévő állapot lekérése
   const { data: currentTask, error: fetchErr } = await supabase
     .from("feladat")
@@ -43,11 +191,27 @@ export async function updateTaskStatus(
   const isPrivileged = ["admin", "iktato", "vezeto", "rendszergazda"].includes(role)
   const isAssignee = currentTask.felelos_user_id === user.id
 
-  if (!isAssignee && !isPrivileged) {
+  let isSubstitute = false
+  if (!isAssignee && !isPrivileged && currentTask.felelos_user_id) {
+    const { data: sub } = await supabase
+      .from("helyettesites")
+      .select("id")
+      .eq("kilepo_user_id", currentTask.felelos_user_id)
+      .eq("helyettesito_user_id", user.id)
+      .eq("aktiv", true)
+      .lte("mettol", new Date().toISOString())
+      .gte("meddig", new Date().toISOString())
+      .maybeSingle()
+    if (sub) {
+      isSubstitute = true
+    }
+  }
+
+  if (!isAssignee && !isPrivileged && !isSubstitute) {
     return {
       success: false,
       error:
-        "Nincs jogosultságod a feladat állapotának módosításához (csak a felelős vagy vezető módosíthatja).",
+        "Nincs jogosultságod a feladat állapotának módosításához (csak a felelős, a helyettes vagy a vezető módosíthatja).",
     }
   }
 
@@ -143,6 +307,10 @@ export async function rejectTask(taskId: string, indoklas: string) {
 }
 
 export async function deleteTask(taskId: string) {
+  if (taskId.startsWith("ugyirat_")) {
+    return { success: false, error: "Iktatott ügyirat nem törölhető a feladatok nézetből." }
+  }
+
   const supabase = await createClient()
   const {
     data: { user },

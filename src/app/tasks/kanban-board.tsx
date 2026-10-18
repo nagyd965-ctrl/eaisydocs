@@ -39,22 +39,10 @@ import { toast } from "sonner"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { TaskRejectDialog } from "@/components/task-reject-dialog"
+import { Task } from "@/types/tasks"
 
-export interface Task {
-  id: string
-  leiras: string
-  hatarido: string
-  allapot: string
-  felelos_user_id: string
-  kategoria?: string | null
-  prioritas?: string | null
-  indoklas?: string | null
-  reszletek?: string | null
-  ugyirat: {
-    id: string
-    iktatoszam: string
-  } | null
-}
+export type { Task }
 
 const COLUMNS = [
   { id: "nyitott", title: "Nyitott" },
@@ -72,15 +60,26 @@ const STATUS_LABELS: Record<string, string> = {
 
 // --- Kártya belső tartalma ---
 function TaskCardContent({ task, isOverdue }: { task: Task; isOverdue: boolean }) {
+  const isDossier = task.tipus === "ugyirat" || task.id.startsWith("ugyirat_")
   return (
     <CardContent className="p-4 space-y-2">
       <div className="font-medium text-sm flex items-center justify-between gap-2">
-        <span className="truncate">
+        <span className="truncate flex items-center gap-1.5">
           {task.ugyirat ? (
-            <span className="text-foreground">{task.ugyirat.iktatoszam || "Nincs Iktatószám"}</span>
+            <span className="text-foreground font-mono font-medium">{task.ugyirat.iktatoszam || "Nincs Iktatószám"}</span>
           ) : (
-            <span className="text-muted-foreground italic">Általános feladat</span>
+            <span className="text-muted-foreground italic text-xs">Általános feladat</span>
           )}
+          <Badge
+            variant="outline"
+            className={`text-[9px] px-1.5 py-0 h-4 font-normal ${
+              isDossier
+                ? "bg-primary/10 text-primary border-primary/30"
+                : "bg-muted text-muted-foreground border-border"
+            }`}
+          >
+            {isDossier ? "Ügyirat" : "Al-feladat"}
+          </Badge>
         </span>
         {task.ugyirat && (
           <span className="text-[10px] text-primary/70 shrink-0 flex items-center gap-0.5">
@@ -95,7 +94,7 @@ function TaskCardContent({ task, isOverdue }: { task: Task; isOverdue: boolean }
         <div className="flex items-start gap-1.5 pt-1 text-[11px] text-destructive">
           <Ban className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <span className="italic line-clamp-2 text-foreground/80 leading-tight">
-            „{task.indoklas || "Téves szignálás"}”
+            „{task.indoklas || "Téves szignálás / Elutasítva"}”
           </span>
         </div>
       )}
@@ -106,7 +105,9 @@ function TaskCardContent({ task, isOverdue }: { task: Task; isOverdue: boolean }
           }`}
         >
           {isOverdue ? <AlertCircle className="h-3 w-3" /> : <Calendar className="h-3 w-3" />}
-          {format(new Date(task.hatarido), "yyyy. MM. dd.", { locale: hu })}
+          {task.hatarido && !isNaN(new Date(task.hatarido).getTime())
+            ? format(new Date(task.hatarido), "yyyy. MM. dd.", { locale: hu })
+            : "Nincs határidő"}
         </span>
       </div>
     </CardContent>
@@ -131,7 +132,11 @@ function SortableTaskCard({
     opacity: isDragging ? 0.4 : 1,
   }
 
-  const isOverdue = new Date(task.hatarido) < new Date() && task.allapot !== "kesz"
+  const isOverdue =
+    !!task.hatarido &&
+    !isNaN(new Date(task.hatarido).getTime()) &&
+    new Date(task.hatarido) < new Date() &&
+    task.allapot !== "kesz"
 
   return (
     <Card
@@ -208,6 +213,8 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [rejectingTaskId, setRejectingTaskId] = useState<string | null>(null)
+  const [rejectingTaskTitle, setRejectingTaskTitle] = useState<string>("")
   const [isMounted, setIsMounted] = useState(false)
   const router = useRouter()
 
@@ -257,19 +264,43 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
       return
     }
 
+    // Ha elutasított oszlopba húztuk, nyissuk meg az indoklás dialógust
+    if (newStatus === "elutasitott") {
+      setRejectingTaskId(activeId)
+      setRejectingTaskTitle(
+        activeTask.ugyirat?.iktatoszam
+          ? `${activeTask.ugyirat.iktatoszam}: ${activeTask.leiras}`
+          : activeTask.leiras
+      )
+      return
+    }
+
     // Oszlopok közötti mozgatás
     const originalStatus = activeTask.allapot as any
+    const originalCompletedAt = activeTask.completed_at
 
     // Optimista frissítés
     setTasks((prev) =>
-      prev.map((t) => (t.id === activeId ? { ...t, allapot: newStatus } : t))
+      prev.map((t) =>
+        t.id === activeId
+          ? {
+              ...t,
+              allapot: newStatus,
+              completed_at: newStatus === "kesz" ? new Date().toISOString() : null,
+            }
+          : t
+      )
     )
 
     const response = await updateTaskStatus(activeId, newStatus as any, originalStatus)
     if (!response.success) {
       toast.error(response.error || "Nem sikerült elmenteni az állapotot!")
       setTasks((prev) =>
-        prev.map((t) => (t.id === activeId ? { ...t, allapot: originalStatus } : t))
+        prev.map((t) =>
+          t.id === activeId
+            ? { ...t, allapot: originalStatus, completed_at: originalCompletedAt }
+            : t
+        )
       )
     } else {
       toast.success("Feladat állapota frissítve!")
@@ -291,6 +322,9 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
     return <div className="h-[400px] w-full animate-pulse bg-muted/20 rounded-md"></div>
   }
 
+  const now = Date.now()
+  const twentyFourHoursMs = 24 * 60 * 60 * 1000
+
   return (
     <div className="space-y-4">
       <DndContext
@@ -300,15 +334,29 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
         onDragEnd={handleDragEnd}
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start pb-4">
-          {COLUMNS.map((column) => (
-            <DroppableColumn
-              key={column.id}
-              id={column.id}
-              title={column.title}
-              tasks={tasks.filter((t) => t.allapot === column.id)}
-              onTaskDoubleClick={handleTaskDoubleClick}
-            />
-          ))}
+          {COLUMNS.map((column) => {
+            const rawColTasks = tasks.filter((t) => t.allapot === column.id)
+            let colTasks = rawColTasks
+
+            if (column.id === "kesz") {
+              colTasks = rawColTasks.filter((t) => {
+                if (!t.completed_at) return true
+                const compTime = new Date(t.completed_at).getTime()
+                if (isNaN(compTime)) return true
+                return now - compTime <= twentyFourHoursMs
+              })
+            }
+
+            return (
+              <DroppableColumn
+                key={column.id}
+                id={column.id}
+                title={column.title}
+                tasks={colTasks}
+                onTaskDoubleClick={handleTaskDoubleClick}
+              />
+            )
+          })}
         </div>
 
         {/* DragOverlay közvetlenül a DndContext-ben az eaisyhr szerint */}
@@ -318,7 +366,10 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
               <TaskCardContent
                 task={activeTask}
                 isOverdue={
-                  new Date(activeTask.hatarido) < new Date() && activeTask.allapot !== "kesz"
+                  !!activeTask.hatarido &&
+                  !isNaN(new Date(activeTask.hatarido).getTime()) &&
+                  new Date(activeTask.hatarido) < new Date() &&
+                  activeTask.allapot !== "kesz"
                 }
               />
             </Card>
@@ -338,7 +389,9 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
                   </Badge>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <CalendarIcon className="h-3.5 w-3.5" />
-                    {format(new Date(selectedTask.hatarido), "yyyy. MM. dd.", { locale: hu })}
+                    {selectedTask.hatarido && !isNaN(new Date(selectedTask.hatarido).getTime())
+                      ? format(new Date(selectedTask.hatarido), "yyyy. MM. dd.", { locale: hu })
+                      : "Nincs határidő"}
                   </span>
                 </div>
                 <DialogTitle className="text-base font-semibold pt-2 leading-relaxed">
@@ -371,7 +424,7 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
                     <div className="space-y-0.5">
                       <span className="font-semibold text-destructive text-[11px] block">Elutasítás indoklása:</span>
                       <p className="text-foreground italic leading-relaxed">
-                        „{selectedTask.indoklas || "Téves szignálás"}”
+                        „{selectedTask.indoklas || "Téves szignálás / Elutasítva"}”
                       </p>
                     </div>
                   </div>
@@ -396,6 +449,24 @@ export function KanbanBoard({ initialTasks }: { initialTasks: Task[] }) {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Elutasítás / Visszaküldés indoklás dialógus */}
+      <TaskRejectDialog
+        open={!!rejectingTaskId}
+        onOpenChange={(open) => !open && setRejectingTaskId(null)}
+        taskId={rejectingTaskId}
+        taskTitle={rejectingTaskTitle}
+        onSuccess={(savedReason) => {
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === rejectingTaskId
+                ? { ...t, allapot: "elutasitott", indoklas: savedReason }
+                : t
+            )
+          )
+          setRejectingTaskId(null)
+        }}
+      />
     </div>
   )
 }

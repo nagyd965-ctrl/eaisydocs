@@ -6,8 +6,11 @@ import { SettingsClient } from "./settings-client"
 import { createClient } from "@/utils/supabase/server"
 
 export default async function SettingsPage() {
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   const { profile, email } = await getUserProfile()
-  const { profiles: teamMembers } = await getTeamMembers()
+  const { profiles: teamMembers } = await getTeamMembers(activeCompanyId)
   const departments = await getDepartments()
 
   const supabase = await createClient()
@@ -30,14 +33,31 @@ export default async function SettingsPage() {
   const irattariTervek = isAdmin ? await getIrattariTervek() : []
   const initialFourEyesRequired = isAdmin ? await getFourEyesSetting() : true
 
-  const { data: helyettesitesek } = await supabase
+  let myHelyettesitesQuery = supabase
     .from("helyettesites")
     .select(`
-      id, mettol, meddig, aktiv,
-      helyettesito:helyettesito_user_id(id, nev)
+      id, mettol, meddig, aktiv, kilepo_user_id, helyettesito_user_id,
+      helyettesito:felhasznalo_profil!helyettesito_user_id(id, nev, avatar_url, docs_szerepkor)
     `)
     .eq("kilepo_user_id", userData.user?.id || "")
     .order("mettol", { ascending: false })
+
+  let incomingHelyettesitesQuery = supabase
+    .from("helyettesites")
+    .select(`
+      id, mettol, meddig, aktiv, kilepo_user_id, helyettesito_user_id,
+      kilepo:felhasznalo_profil!kilepo_user_id(id, nev, avatar_url, docs_szerepkor)
+    `)
+    .eq("helyettesito_user_id", userData.user?.id || "")
+    .order("mettol", { ascending: false })
+
+  if (activeCompanyId) {
+    myHelyettesitesQuery = myHelyettesitesQuery.or(`company_id.eq.${activeCompanyId},company_id.is.null`)
+    incomingHelyettesitesQuery = incomingHelyettesitesQuery.or(`company_id.eq.${activeCompanyId},company_id.is.null`)
+  }
+
+  const { data: helyettesitesek } = await myHelyettesitesQuery
+  const { data: incomingHelyettesitesek } = await incomingHelyettesitesQuery
 
   if (!profile) {
     return (
@@ -78,12 +98,6 @@ export default async function SettingsPage() {
               Csapat
             </TabsTrigger>
           )}
-          <TabsTrigger 
-            value="helyettesites" 
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-          >
-            Helyettesítés
-          </TabsTrigger>
           {isAdmin && (
             <TabsTrigger 
               value="osztalyok" 
@@ -118,6 +132,7 @@ export default async function SettingsPage() {
           szabalyok={(szabalyok || []).filter(s => ['hatarido_kozeledik', 'hatarido_lejart', 'uj_szignalas', 'allapotvaltozas', 'megorzesi_ido_lejart'].includes(s.esemeny_tipus))}
           naplo={naplo || []}
           helyettesitesek={helyettesitesek || []}
+          incomingHelyettesitesek={incomingHelyettesitesek || []}
           isAdmin={isAdmin}
           totpFactor={totpFactor}
           irattariTervek={irattariTervek}

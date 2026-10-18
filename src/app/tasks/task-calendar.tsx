@@ -27,18 +27,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Task } from "@/types/tasks"
 
-interface Task {
-  id: string
-  leiras: string
-  hatarido: string
-  allapot: string
-  felelos_user_id: string
-  ugyirat: {
-    id: string
-    iktatoszam: string
-  } | null
-}
+export type { Task }
 
 interface TaskCalendarProps {
   tasks: Task[]
@@ -79,7 +70,9 @@ export function TaskCalendar({ tasks }: TaskCalendarProps) {
 
   const getTasksForDay = (day: Date) => {
     return tasks.filter((task) => {
+      if (!task.hatarido) return false
       const taskDate = new Date(task.hatarido)
+      if (isNaN(taskDate.getTime())) return false
       return isSameDay(taskDate, day)
     })
   }
@@ -182,7 +175,9 @@ export function TaskCalendar({ tasks }: TaskCalendarProps) {
                   </Badge>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <CalendarIcon className="h-3.5 w-3.5" />
-                    {format(new Date(selectedTask.hatarido), "yyyy. MM. dd.", { locale: hu })}
+                    {selectedTask.hatarido && !isNaN(new Date(selectedTask.hatarido).getTime())
+                      ? format(new Date(selectedTask.hatarido), "yyyy. MM. dd.", { locale: hu })
+                      : "Nincs határidő"}
                   </span>
                 </div>
                 <DialogTitle className="text-base font-semibold pt-2 leading-relaxed">
