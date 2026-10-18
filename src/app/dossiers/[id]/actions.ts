@@ -216,7 +216,7 @@ export async function addComment(ugyiratId: string, text: string) {
           user_id: u.id,
           cim: `Megemlítettek egy megjegyzésben${iktatoszam ? ` (${iktatoszam})` : ""}`,
           szoveg: `${senderName}: ${text.length > 120 ? text.substring(0, 120) + "…" : text}`,
-          link_url: `/dossiers/${ugyiratId}?tab=feladatok`
+          link_url: `/dossiers/${ugyiratId}?notes=1`
         })
       }
     }

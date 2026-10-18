@@ -17,9 +17,17 @@ import { OutgoingDocumentsTab } from "@/components/outgoing-documents-tab"
 import { LifecycleExportButton } from "@/components/lifecycle-export-button"
 import { DossierAccessDialog } from "@/components/dossier-access-dialog"
 import { Badge } from "@/components/ui/badge"
+import { DossierNotesSheet } from "@/components/dossier-notes-sheet"
 
-export default async function DossierPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function DossierPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ notes?: string }>
+}) {
   const { id } = await params;
+  const { notes: notesParam } = await searchParams;
   const supabase = await createClient();
 
   const { data: dossier } = await supabase
@@ -357,6 +365,15 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <DossierNotesSheet
+            ugyiratId={dossier.id}
+            iktatoszam={dossier.iktatoszam}
+            comments={mappedComments}
+            users={users || []}
+            canEdit={canEdit}
+            currentUserEmail={authUser?.user?.email || ""}
+            defaultOpen={notesParam === "1"}
+          />
           <DossierAccessDialog 
             ugyiratId={dossier.id}
             iktatoszam={dossier.iktatoszam}
@@ -399,7 +416,9 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="overview">Áttekintés</TabsTrigger>
-          <TabsTrigger value="tasks">Feladatok</TabsTrigger>
+          <TabsTrigger value="tasks">
+            Feladatok{openTasks > 0 ? ` (${openTasks})` : ""}
+          </TabsTrigger>
           <TabsTrigger value="outgoing">Válaszlevelek</TabsTrigger>
           <TabsTrigger value="history">Napló</TabsTrigger>
           <TabsTrigger value="links">Külső Kapcsolatok</TabsTrigger>
@@ -547,11 +566,9 @@ export default async function DossierPage({ params }: { params: Promise<{ id: st
             ugyiratId={dossier.id} 
             ugyId={ugy?.id}
             status={dossier.statusz}
-            comments={mappedComments}
             tasks={tasks || []}
             users={users || []}
             canEdit={canEdit}
-            currentUserEmail={authUser?.user?.email || ""}
             iktatoszam={dossier.iktatoszam}
           />
         </TabsContent>

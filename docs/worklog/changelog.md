@@ -4,6 +4,14 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-18)
 
+### 🗂️ eaisyDocs: Ügyirati Feladatok Táblázatos Nézet, Részletező Panel és Megjegyzések Slide-over (P-093)
+- **Feladatok fül átalakítása:** teljes szélességű kártya (a Válaszlevelek mintájára), 4 `KpiCard`, kanonikus `TableToolbar` (kereső, oszlopválasztó, állapot/prioritás/határidő szűrés) és feladat táblázat gyors „kész” kapcsolóval és `Kezelés` menüvel.
+- **Feladat részletező Sheet:** sorra kattintva tényadatok, leírás, elutasítás indoka és állapotműveletek.
+- **24 órás archívum:** az elvégzett feladatok 24 óra után az összecsukható „Elvégzett feladatok” szekcióba kerülnek, `Újranyitás` lehetőséggel.
+- **Belső megjegyzések:** a kétoszlopos chat helyett jobb oldali slide-over (`DossierNotesSheet`), az ügyirat fejlécéből bármely fülről megnyitható; nap szerinti csoportosítás, avatarok, @említés kiemelés. Az említés-értesítések linkje `?notes=1`.
+- **Fülcímke:** `Feladatok (N)` a nyitott feladatok számával.
+- **Kapcsolódó döntések:** [PRD P-093](../product/decisions/P-093-dossier-tasks-table-and-notes-sheet-ux.md).
+
 ### 🪄 eaisyDocs: Ügyirati Feladatok 3-Lépcsős Varázsló (Wizard Modal) és Sablonkezelés (A-073 / P-092)
 - **Főoldali Letisztítás és Beágyazott Composer Megszüntetése:**
   - A felhasználói visszajelzés alapján az ügyirat részletes adatlapján a feladatok fülről teljesen kivezetésre került a korábbi nagy helyet foglaló és a képernyőt lefelé toló beágyazott űrlap, valamint a kinyitható sablonkatalógus.

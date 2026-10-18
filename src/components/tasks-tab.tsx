@@ -41,9 +41,11 @@ import {
   Layers,
   Search,
   FileText,
+  ClipboardList,
+  Archive,
 } from "lucide-react"
 import { toast } from "sonner"
-import { addComment, updateDossierStatus } from "@/app/dossiers/[id]/actions"
+import { updateDossierStatus } from "@/app/dossiers/[id]/actions"
 import {
   updateTaskStatus,
   deleteTask,
@@ -54,8 +56,24 @@ import {
 } from "@/app/tasks/task-actions"
 import { TaskRejectDialog } from "./task-reject-dialog"
 import { Badge } from "./ui/badge"
-import { Progress } from "./ui/progress"
-import { MentionInput, renderMentionText } from "./mention-input"
+import { KpiCard } from "./kpi-card"
+import { TableToolbar, TableColumnOption } from "./table-toolbar/table-toolbar"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -81,15 +99,8 @@ import {
 } from "@/utils/task-templates"
 import { TaskTemplate, TaskCategory, TaskPriority } from "@/types/tasks"
 
-export interface TaskComment {
-  id: string
-  szoveg: string
-  created_at: string
-  user_name?: string | null
-  user_email?: string | null
-  felhasznalo?: { nev?: string | null }
-  felhasznalo_id?: string
-}
+/** Ennyi idő után kerül egy „Kész” feladat automatikusan az „Elvégzett feladatok” szekcióba. */
+const COMPLETED_ARCHIVE_AFTER_MS = 24 * 60 * 60 * 1000
 
 export interface UgyiratTaskItem {
   id: string
@@ -102,6 +113,7 @@ export interface UgyiratTaskItem {
   indoklas?: string | null
   reszletek?: string | null
   created_at?: string
+  updated_at?: string
 }
 
 export interface UserSelectItem {
@@ -114,11 +126,9 @@ interface TasksTabProps {
   ugyiratId: string
   ugyId: string
   status: string
-  comments: TaskComment[]
   tasks: UgyiratTaskItem[]
   users: UserSelectItem[]
   canEdit: boolean
-  currentUserEmail: string
   iktatoszam?: string
 }
 
@@ -126,20 +136,31 @@ export function TasksTab({
   ugyiratId,
   ugyId,
   status,
-  comments,
   tasks,
   users,
   canEdit,
-  currentUserEmail,
   iktatoszam,
 }: TasksTabProps) {
   const router = useRouter()
 
-  // Megjegyzések állapota
-  const [commentText, setCommentText] = useState("")
-  const [commentLoading, setCommentLoading] = useState(false)
   const [statusLoading, setStatusLoading] = useState<string | null>(null)
   const [taskLoading, setTaskLoading] = useState<string | null>(null)
+
+  // Táblázat szűrők, oszlopok és részletpanel állapota
+  const [taskSearch, setTaskSearch] = useState("")
+  const [statusFilters, setStatusFilters] = useState<string[]>([])
+  const [priorityFilters, setPriorityFilters] = useState<string[]>([])
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [showCompleted, setShowCompleted] = useState(false)
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null)
+  const [taskColumns, setTaskColumns] = useState<TableColumnOption[]>([
+    { id: "felelos", label: "Felelős", isVisible: true },
+    { id: "hatarido", label: "Határidő", isVisible: true },
+    { id: "prioritas", label: "Prioritás", isVisible: true },
+    { id: "allapot", label: "Állapot", isVisible: true },
+    { id: "kategoria", label: "Kategória", isVisible: false },
+  ])
 
   // Helyi optimista feladatlista
   const [taskList, setTaskList] = useState<UgyiratTaskItem[]>(tasks)
@@ -361,20 +382,6 @@ export function TasksTab({
   const hasRejectedTasks = rejectedTasks > 0
   const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
 
-  const handleAddComment = async () => {
-    if (!commentText.trim()) return
-
-    setCommentLoading(true)
-    const { error } = await addComment(ugyiratId, commentText)
-    setCommentLoading(false)
-
-    if (error) {
-      toast.error(error)
-    } else {
-      toast.success("Megjegyzés hozzáadva!")
-      setCommentText("")
-    }
-  }
 
   const handleStatusChange = async (newStatus: string) => {
     setStatusLoading(newStatus)
@@ -398,7 +405,14 @@ export function TasksTab({
     // Optimista frissítés
     setTaskList((prev) =>
       prev.map((t) =>
-        t.id === taskId ? { ...t, allapot: newStatus, indoklas: indoklas !== undefined ? indoklas : t.indoklas } : t
+        t.id === taskId
+          ? {
+              ...t,
+              allapot: newStatus,
+              updated_at: new Date().toISOString(),
+              indoklas: indoklas !== undefined ? indoklas : t.indoklas,
+            }
+          : t
       )
     )
 
@@ -452,474 +466,816 @@ export function TasksTab({
     return matchesCat && matchesSearch
   })
 
+  // ── Feladattábla adatai: szűrés, rendezés, 24 órás automatikus archiválás ──
+  const nowMs = Date.now()
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+
+  const buildTaskView = (task: UgyiratTaskItem) => {
+    const meta = parseTaskMetadata(task)
+    const deadlineDate = task.hatarido ? new Date(task.hatarido) : null
+    const isKesz = task.allapot === "kesz"
+    const isElutasitott = task.allapot === "elutasitott"
+    const isFolyamatban = task.allapot === "folyamatban"
+    const isOverdue = !!deadlineDate && deadlineDate < todayStart && !isKesz && !isElutasitott
+    const assignee = users.find((u) => u.id === task.felelos_user_id)
+    const assigneeName = assignee?.nev || assignee?.email || "Nincs megadva"
+    return {
+      meta,
+      deadlineDate,
+      isKesz,
+      isElutasitott,
+      isFolyamatban,
+      isOverdue,
+      assigneeName,
+      catConfig: CATEGORY_CONFIG[meta.kategoria],
+      prioConfig: PRIORITY_CONFIG[meta.prioritas],
+    }
+  }
+
+  const getInitials = (name: string) =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() || "")
+      .join("") || "?"
+
+  const matchesTaskFilters = (task: UgyiratTaskItem) => {
+    const v = buildTaskView(task)
+    const q = taskSearch.trim().toLowerCase()
+    if (q) {
+      const assignee = users.find((u) => u.id === task.felelos_user_id)
+      const haystack = [v.meta.displayTitle, v.meta.reszletek, assignee?.nev, assignee?.email]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+      if (!haystack.includes(q)) return false
+    }
+    if (statusFilters.length > 0 && !statusFilters.includes(task.allapot)) return false
+    if (priorityFilters.length > 0 && !priorityFilters.includes(v.meta.prioritas)) return false
+    if (dateFrom || dateTo) {
+      const d = task.hatarido ? task.hatarido.slice(0, 10) : ""
+      if (!d) return false
+      if (dateFrom && d < dateFrom) return false
+      if (dateTo && d > dateTo) return false
+    }
+    return true
+  }
+
+  // A „Kész” feladat 24 óra után automatikusan az „Elvégzett feladatok” szekcióba kerül
+  const isArchivedTask = (task: UgyiratTaskItem) =>
+    task.allapot === "kesz" &&
+    !!task.updated_at &&
+    nowMs - new Date(task.updated_at).getTime() > COMPLETED_ARCHIVE_AFTER_MS
+
+  const statusRank: Record<string, number> = { elutasitott: 0, folyamatban: 1, nyitott: 2, kesz: 3 }
+  const filteredTasks = taskList.filter(matchesTaskFilters)
+  const activeTasks = filteredTasks
+    .filter((t) => !isArchivedTask(t))
+    .sort((a, b) => {
+      const rankDiff = (statusRank[a.allapot] ?? 2) - (statusRank[b.allapot] ?? 2)
+      if (rankDiff !== 0) return rankDiff
+      return new Date(a.hatarido || 0).getTime() - new Date(b.hatarido || 0).getTime()
+    })
+  const archivedTasks = filteredTasks
+    .filter(isArchivedTask)
+    .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime())
+  const totalArchived = taskList.filter(isArchivedTask).length
+
+  // KPI értékek
+  const openCount = taskList.filter((t) => t.allapot === "nyitott").length
+  const overdueCount = taskList.filter((t) => buildTaskView(t).isOverdue).length
+
+  // Oszlopok és szűrők a kanonikus TableToolbar-hoz
+  const isColVisible = (id: string) => taskColumns.find((c) => c.id === id)?.isVisible ?? true
+  const visibleOptionalCols = taskColumns.filter((c) => c.isVisible).length
+  const toggleTaskColumn = (id: string) =>
+    setTaskColumns((prev) => prev.map((c) => (c.id === id ? { ...c, isVisible: !c.isVisible } : c)))
+  const toggleInList = (list: string[], id: string) =>
+    list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
+
+  const taskFilterGroups = [
+    {
+      id: "allapot",
+      title: "Állapot",
+      options: [
+        { id: "nyitott", label: "Nyitott", checked: statusFilters.includes("nyitott") },
+        { id: "folyamatban", label: "Folyamatban", checked: statusFilters.includes("folyamatban") },
+        { id: "kesz", label: "Kész", checked: statusFilters.includes("kesz") },
+        { id: "elutasitott", label: "Elutasítva", checked: statusFilters.includes("elutasitott") },
+      ],
+      onToggle: (id: string) => setStatusFilters((prev) => toggleInList(prev, id)),
+    },
+    {
+      id: "prioritas",
+      title: "Prioritás",
+      options: Object.entries(PRIORITY_CONFIG).map(([id, cfg]) => ({
+        id,
+        label: cfg.label,
+        checked: priorityFilters.includes(id),
+      })),
+      onToggle: (id: string) => setPriorityFilters((prev) => toggleInList(prev, id)),
+    },
+  ]
+
+  const openWizard = () => {
+    resetWizard()
+    setWizardOpen(true)
+  }
+
+  // Feladat kezelő menü (táblázat sorok)
+  const renderTaskMenu = (task: UgyiratTaskItem, v: ReturnType<typeof buildTaskView>) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-border/70 hover:border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+        disabled={taskLoading === task.id}
+        title="Kezelés"
+      >
+        {taskLoading === task.id ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <MoreVertical className="h-4 w-4" />
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        {!v.isFolyamatban && !v.isKesz && (
+          <DropdownMenuItem
+            onClick={() => handleTaskStatusChange(task.id, "folyamatban")}
+            className="text-xs cursor-pointer"
+          >
+            <ArrowRight className="mr-2 h-3.5 w-3.5 text-info" />
+            Folyamatban
+          </DropdownMenuItem>
+        )}
+
+        {!v.isKesz && (
+          <DropdownMenuItem
+            onClick={() => handleTaskStatusChange(task.id, "kesz")}
+            className="text-xs cursor-pointer"
+          >
+            <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-success" />
+            Készre jelentés
+          </DropdownMenuItem>
+        )}
+
+        {(v.isKesz || v.isElutasitott) && (
+          <DropdownMenuItem
+            onClick={() => handleTaskStatusChange(task.id, "nyitott")}
+            className="text-xs cursor-pointer"
+          >
+            <RotateCcw className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+            {v.isElutasitott ? "Újranyitás / Visszaállítás" : "Visszaállítás nyitottra"}
+          </DropdownMenuItem>
+        )}
+
+        {!v.isElutasitott && (
+          <DropdownMenuItem
+            onClick={() => setRejectingTask({ id: task.id, title: v.meta.displayTitle })}
+            className="text-xs text-warning cursor-pointer"
+          >
+            <Ban className="mr-2 h-3.5 w-3.5 text-warning" />
+            Elutasítás indoklással...
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => setDeletingTask({ id: task.id, title: v.meta.displayTitle })}
+          className="text-xs text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer font-medium"
+        >
+          <Trash2 className="mr-2 h-3.5 w-3.5 text-destructive" />
+          Feladat törlése
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  // Részletpanelen megnyitott feladat (a helyi, optimista listából, hogy mindig friss legyen)
+  const detailTask = detailTaskId ? taskList.find((t) => t.id === detailTaskId) || null : null
+  const detailView = detailTask ? buildTaskView(detailTask) : null
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      {/* ── BAL OSZLOP (65%): ÜGYIRATI FELADATOK MUNKAPAD ── */}
-      <div className="lg:col-span-8 space-y-6">
-        <Card className="border border-border/60">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-base font-semibold">Ügyirati Feladatok</CardTitle>
-                {totalTasks > 0 && (
-                  <Badge variant="outline" className="text-xs font-normal">
-                    {completedTasks}/{totalTasks} kész
-                  </Badge>
-                )}
-              </div>
-              <CardDescription className="text-xs text-muted-foreground">
-                Határidős munkafolyamat és feladatkiosztás az ügyiratban.
-              </CardDescription>
-            </div>
-
-            {canEdit && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  resetWizard()
-                  setWizardOpen(true)
-                }}
-                className="h-8 gap-1.5 text-xs cursor-pointer self-start sm:self-center bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Új feladat kiadása</span>
-              </Button>
-            )}
-          </CardHeader>
-
-          <CardContent className="space-y-5">
-            {/* Progress bar – ha vannak feladatok */}
-            {totalTasks > 0 && (
-              <div className="space-y-1.5 pt-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">
-                    {completedTasks}/{totalTasks} feladat lezárva
-                    {inProgressTasks > 0 && (
-                      <span className="text-info font-medium"> • {inProgressTasks} folyamatban</span>
-                    )}
-                    {rejectedTasks > 0 && (
-                      <span className="text-destructive font-medium"> • {rejectedTasks} elutasítva</span>
-                    )}
-                  </span>
-                  <span
-                    className={`font-semibold tabular-nums text-xs ${
-                      allTasksCompleted ? "text-success" : "text-muted-foreground"
-                    }`}
-                  >
-                    {progressPercent}%
-                  </span>
-                </div>
-                <Progress value={progressPercent} className="h-1.5" />
-              </div>
-            )}
-
-            {/* Elutasított feladat figyelmeztető banner */}
-            {hasRejectedTasks && (
-              <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive flex items-start gap-2.5 text-xs">
-                <Ban className="h-4 w-4 shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <span className="font-semibold block">
-                    Elutasított feladat az ügyiratban ({rejectedTasks} db)
-                  </span>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Az ügyiratban elutasított feladat található, ami akadályozza a lezárást. Kérjük vizsgálja felül a feladatot!
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Siker banner: minden feladat kész */}
-            {allTasksCompleted && status !== "elintezett" && status !== "lezart" && status !== "irattarban" && (
-              <div className="p-3 rounded-lg border border-success/30 bg-success/5 text-foreground flex items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
-                  <span>
-                    <strong>Minden feladat sikeresen lezárult ({completedTasks}/{totalTasks}).</strong> Az ügyirat elintézhető.
-                  </span>
-                </div>
-                {canEdit && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleStatusChange("elintezett")}
-                    disabled={statusLoading !== null}
-                    className="h-7 text-xs border-success/40 text-success hover:bg-success/10 cursor-pointer"
-                  >
-                    {statusLoading === "elintezett" && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                    Ügyirat elintézése
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {/* ── FELADATOK LISTÁJA ── */}
-            {taskList.length === 0 ? (
-              <div className="py-10 text-center border border-dashed rounded-lg bg-muted/20 space-y-3">
-                <Sparkles className="h-6 w-6 text-muted-foreground/60 mx-auto" />
-                <div>
-                  <p className="text-xs font-medium text-foreground">Még nincsenek feladatok rögzítve ebben az ügyiratban.</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Kattints az „Új feladat kiadása” gombra feladatsablon választásához vagy egyedi teendő felvételéhez.
-                  </p>
-                </div>
-                {canEdit && (
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      resetWizard()
-                      setWizardOpen(true)
-                    }}
-                    className="h-8 gap-1.5 text-xs cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Új feladat kiadása</span>
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {taskList.map((task) => {
-                  const meta = parseTaskMetadata(task)
-                  const isKesz = task.allapot === "kesz"
-                  const isElutasitott = task.allapot === "elutasitott"
-                  const isFolyamatban = task.allapot === "folyamatban"
-
-                  const catConfig = CATEGORY_CONFIG[meta.kategoria]
-                  const prioConfig = PRIORITY_CONFIG[meta.prioritas]
-
-                  const deadlineDate = task.hatarido ? new Date(task.hatarido) : null
-                  const now = new Date()
-                  now.setHours(0, 0, 0, 0)
-                  const isOverdue = !!deadlineDate && deadlineDate < now && !isKesz && !isElutasitott
-
-                  const assignee = users.find((u) => u.id === task.felelos_user_id)
-                  const assigneeName = assignee?.nev || assignee?.email || "Nincs megadva"
-
-                  return (
-                    <div
-                      key={task.id}
-                      className={`group relative flex flex-col md:flex-row md:items-start justify-between gap-3 p-3.5 rounded-lg border transition-all ${
-                        isKesz
-                          ? "border-border/40 bg-muted/20 opacity-80"
-                          : isElutasitott
-                          ? "border-destructive/30 bg-destructive/[0.02]"
-                          : isFolyamatban
-                          ? "border-info/30 bg-info/[0.02]"
-                          : "border-border/70 hover:border-primary/40 bg-card hover:bg-muted/10"
-                      }`}
-                    >
-                      {/* Bal oldali rész: Gyors állapot toggle + Tartalom */}
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <button
-                          type="button"
-                          disabled={!canEdit || taskLoading === task.id}
-                          onClick={() => {
-                            if (isKesz) {
-                              handleTaskStatusChange(task.id, "nyitott")
-                            } else if (isElutasitott) {
-                              handleTaskStatusChange(task.id, "nyitott")
-                            } else {
-                              handleTaskStatusChange(task.id, "kesz")
-                            }
-                          }}
-                          title={
-                            isKesz
-                              ? "Kész (kattints az újranyitáshoz)"
-                              : isElutasitott
-                              ? "Elutasított (kattints az újranyitáshoz)"
-                              : "Kattints a készre jelöléshez"
-                          }
-                          className={`mt-0.5 shrink-0 h-5 w-5 rounded-md flex items-center justify-center border transition-all cursor-pointer ${
-                            isKesz
-                              ? "bg-success border-success text-success-foreground"
-                              : isElutasitott
-                              ? "border-destructive/60 text-destructive bg-destructive/10 hover:bg-destructive/20"
-                              : isFolyamatban
-                              ? "border-info text-info bg-info/10 hover:bg-success hover:border-success hover:text-success-foreground"
-                              : "border-muted-foreground/40 hover:border-primary hover:bg-primary/10 text-transparent hover:text-primary"
-                          }`}
-                        >
-                          {taskLoading === task.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin text-current" />
-                          ) : isKesz ? (
-                            <Check className="h-3.5 w-3.5 stroke-[3]" />
-                          ) : isElutasitott ? (
-                            <X className="h-3.5 w-3.5 stroke-[2.5]" />
-                          ) : isFolyamatban ? (
-                            <span className="h-2 w-2 rounded-full bg-blue-500" />
-                          ) : (
-                            <Check className="h-3.5 w-3.5 stroke-[2.5]" />
-                          )}
-                        </button>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span
-                              className={`font-semibold text-sm leading-snug ${
-                                isKesz
-                                  ? "line-through text-muted-foreground"
-                                  : isElutasitott
-                                  ? "text-muted-foreground/80 line-through"
-                                  : "text-foreground"
-                              }`}
-                            >
-                              {meta.displayTitle}
-                            </span>
-
-                            {catConfig && meta.kategoria !== "egyeb" && (
-                              <span className={`text-[10px] font-medium px-2 py-0.5 rounded border ${catConfig.badgeClass}`}>
-                                {catConfig.shortLabel}
-                              </span>
-                            )}
-
-                            {prioConfig && (meta.prioritas === "surgos" || meta.prioritas === "magas") && (
-                              <span
-                                className={`text-[10px] font-medium px-2 py-0.5 rounded border flex items-center gap-1.5 ${prioConfig.badgeClass}`}
-                              >
-                                <span className={`w-1.5 h-1.5 rounded-full ${prioConfig.dotClass}`} />
-                                {prioConfig.label}
-                              </span>
-                            )}
-                          </div>
-
-                          {meta.reszletek && (
-                            <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed bg-muted/40 border border-border/50 rounded-md px-2.5 py-1.5 line-clamp-2">
-                              {meta.reszletek}
-                            </p>
-                          )}
-
-                          {isElutasitott && (
-                            <div className="mt-2 flex items-start gap-2 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-md px-3 py-2">
-                              <Ban className="h-3.5 w-3.5 shrink-0 mt-0.5 text-destructive" />
-                              <div className="space-y-0.5">
-                                <span className="font-semibold text-[11px] block">Elutasítás indoklása:</span>
-                                <p className="text-foreground italic text-xs leading-relaxed">
-                                  „{task.indoklas || meta.indoklas || "Téves szignálás"}”
-                                </p>
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="flex items-center flex-wrap gap-2 mt-2 text-xs text-muted-foreground">
-                            <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-0.5 rounded border border-border/40 text-[11px]">
-                              <User className="h-3 w-3 text-muted-foreground/70" />
-                              <span>
-                                Felelős: <strong className="text-foreground">{assigneeName}</strong>
-                              </span>
-                            </div>
-
-                            <div
-                              className={`flex items-center gap-1.5 bg-muted/50 px-2 py-0.5 rounded border border-border/40 text-[11px] ${
-                                isOverdue ? "border-destructive/40 text-destructive font-medium bg-destructive/5" : ""
-                              }`}
-                            >
-                              <Calendar className="h-3 w-3 text-muted-foreground/70" />
-                              <span>
-                                Határidő:{" "}
-                                {deadlineDate ? deadlineDate.toLocaleDateString("hu-HU") : "Nincs megadva"}
-                                {isOverdue && " • Lejárt!"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Jobb oldali Műveletek */}
-                      <div className="flex items-center gap-2 shrink-0 self-start md:self-center pt-2 md:pt-0 border-t md:border-t-0 border-border/40">
-                        <TaskStatusBadge allapot={task.allapot} />
-
-                        {!isKesz && !isElutasitott && canEdit && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleTaskStatusChange(task.id, "kesz")}
-                            disabled={taskLoading === task.id}
-                            className="h-8 text-xs gap-1 text-success border-success/30 hover:bg-success/10 cursor-pointer"
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                            <span>Kész</span>
-                          </Button>
-                        )}
-
-                        {canEdit && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger
-                              className="inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-md border border-border/70 hover:border-border text-muted-foreground hover:text-foreground hover:bg-muted text-xs transition-colors cursor-pointer"
-                              disabled={taskLoading === task.id}
-                              title="Műveletek"
-                            >
-                              {taskLoading === task.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <>
-                                  <span>Kezelés</span>
-                                  <MoreVertical className="h-3.5 w-3.5" />
-                                </>
-                              )}
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-52">
-                              {!isFolyamatban && !isKesz && (
-                                <DropdownMenuItem
-                                  onClick={() => handleTaskStatusChange(task.id, "folyamatban")}
-                                  className="text-xs cursor-pointer"
-                                >
-                                  <ArrowRight className="mr-2 h-3.5 w-3.5 text-info" />
-                                  Folyamatban
-                                </DropdownMenuItem>
-                              )}
-
-                              {!isKesz && (
-                                <DropdownMenuItem
-                                  onClick={() => handleTaskStatusChange(task.id, "kesz")}
-                                  className="text-xs cursor-pointer"
-                                >
-                                  <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-success" />
-                                  Készre jelentés
-                                </DropdownMenuItem>
-                              )}
-
-                              {(isKesz || isElutasitott) && (
-                                <DropdownMenuItem
-                                  onClick={() => handleTaskStatusChange(task.id, "nyitott")}
-                                  className="text-xs cursor-pointer"
-                                >
-                                  <RotateCcw className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-                                  {isElutasitott ? "Újranyitás / Visszaállítás" : "Visszaállítás nyitottra"}
-                                </DropdownMenuItem>
-                              )}
-
-                              {!isElutasitott && (
-                                <DropdownMenuItem
-                                  onClick={() => setRejectingTask({ id: task.id, title: meta.displayTitle })}
-                                  className="text-xs text-warning cursor-pointer"
-                                >
-                                  <Ban className="mr-2 h-3.5 w-3.5 text-warning" />
-                                  Elutasítás indoklással...
-                                </DropdownMenuItem>
-                              )}
-
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => setDeletingTask({ id: task.id, title: meta.displayTitle })}
-                                className="text-xs text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer font-medium"
-                              >
-                                <Trash2 className="mr-2 h-3.5 w-3.5 text-destructive" />
-                                Feladat törlése
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── JOBB OSZLOP (35%): BELSŐ MEGJEGYZÉSEK (TEAM CHAT) ── */}
-      <div className="lg:col-span-4 sticky top-6">
-        <Card className="flex flex-col h-[650px] border border-border/60">
-          <CardHeader className="pb-3 border-b border-border/40">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold">
-                Belső Megjegyzések
-              </CardTitle>
-              {comments.length > 0 && (
-                <Badge variant="outline" className="text-xs font-normal">
-                  {comments.length}
+    <div className="space-y-4">
+      {/* ── ÜGYIRATI FELADATOK: teljes szélességű munkapad (a Válaszlevelek fül mintájára) ── */}
+      <Card className="border border-border/60">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base font-semibold">Ügyirati feladatok</CardTitle>
+              {totalTasks > 0 && (
+                <Badge variant="outline" className="text-xs font-normal tabular-nums">
+                  {completedTasks}/{totalTasks} kész
                 </Badge>
               )}
             </div>
             <CardDescription className="text-xs text-muted-foreground">
-              Csapatmegjegyzések és @említések az ügyirathoz.
+              Határidős munkafolyamat és feladatkiosztás az ügyiratban.
             </CardDescription>
-          </CardHeader>
+          </div>
 
-          <CardContent className="flex-1 overflow-y-auto space-y-3.5 p-4">
-            {comments.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-4 text-muted-foreground">
-                <MessageSquare className="h-8 w-8 mb-2 opacity-40" />
-                <p className="text-xs font-medium">Még nincsenek belső megjegyzések.</p>
-                <p className="text-[11px] mt-0.5">Írj egy észrevételt vagy említs meg egy kollégát a @ jellel!</p>
+          {canEdit && (
+            <Button
+              size="sm"
+              onClick={openWizard}
+              className="h-8 gap-1.5 text-xs cursor-pointer self-start sm:self-center bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Új feladat kiadása</span>
+            </Button>
+          )}
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {/* Elutasított feladat figyelmeztető banner */}
+          {hasRejectedTasks && (
+            <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive flex items-start gap-2.5 text-xs">
+              <Ban className="h-4 w-4 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <span className="font-semibold block">
+                  Elutasított feladat az ügyiratban ({rejectedTasks} db)
+                </span>
+                <p className="text-muted-foreground leading-relaxed">
+                  Az ügyiratban elutasított feladat található, ami akadályozza a lezárást. Kérjük vizsgálja felül a feladatot!
+                </p>
               </div>
-            ) : (
-              comments.map((comment) => {
-                const isMine = comment.user_email === currentUserEmail
-                const mentionParts = renderMentionText(comment.szoveg, users)
-                return (
-                  <div
-                    key={comment.id}
-                    className={`flex flex-col ${isMine ? "items-end" : "items-start"} gap-1`}
-                  >
-                    <span className="text-[10px] text-muted-foreground px-1">
-                      {comment.user_name || comment.user_email} •{" "}
-                      {new Date(comment.created_at).toLocaleString("hu-HU", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                    <div
-                      className={`px-3.5 py-2 rounded-2xl max-w-[90%] text-xs leading-relaxed ${
-                        isMine
-                          ? "bg-primary text-primary-foreground rounded-tr-sm"
-                          : "bg-muted text-foreground border border-border/50 rounded-tl-sm"
-                      }`}
-                    >
-                      {Array.isArray(mentionParts)
-                        ? mentionParts.map((part, i) =>
-                            typeof part === "string" ? (
-                              <span key={i}>{part}</span>
-                            ) : (
-                              <span
-                                key={i}
-                                className={`font-semibold ${
-                                  isMine ? "text-primary-foreground underline" : "text-primary font-bold"
+            </div>
+          )}
+
+          {/* Siker banner: minden feladat kész */}
+          {allTasksCompleted && status !== "elintezett" && status !== "lezart" && status !== "irattarban" && (
+            <div className="p-3 rounded-lg border border-success/30 bg-success/5 text-foreground flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
+                <span>
+                  <strong>Minden feladat sikeresen lezárult ({completedTasks}/{totalTasks}).</strong> Az ügyirat elintézhető.
+                </span>
+              </div>
+              {canEdit && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleStatusChange("elintezett")}
+                  disabled={statusLoading !== null}
+                  className="h-7 text-xs border-success/40 text-success hover:bg-success/10 cursor-pointer"
+                >
+                  {statusLoading === "elintezett" && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                  Ügyirat elintézése
+                </Button>
+              )}
+            </div>
+          )}
+
+          {totalTasks === 0 ? (
+            /* ── ÜRES ÁLLAPOT (a Válaszlevelek fül mintájára) ── */
+            <div className="py-12 text-center border border-dashed rounded-lg bg-muted/20 space-y-3">
+              <ClipboardList className="h-6 w-6 text-muted-foreground/60 mx-auto" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">Még nincsenek feladatok rögzítve ebben az ügyiratban.</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto leading-relaxed">
+                  Kattintson az „Új feladat kiadása” gombra feladatsablon választásához vagy egyedi teendő felvételéhez.
+                </p>
+              </div>
+              {canEdit && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={openWizard}
+                  className="h-8 gap-1.5 text-xs cursor-pointer"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Feladat kiadása most</span>
+                </Button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* KPI sáv */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <KpiCard label="Nyitott" value={openCount} sub="Még nem megkezdett feladat" />
+                <KpiCard label="Folyamatban" value={inProgressTasks} sub="Jelenleg dolgoznak rajta" />
+                <KpiCard
+                  label="Lejárt"
+                  value={overdueCount}
+                  sub="Határidő túllépve"
+                  highlight={overdueCount > 0}
+                />
+                <KpiCard
+                  label="Elvégzett"
+                  value={completedTasks}
+                  sub={`${completedTasks}/${totalTasks} feladat · ${progressPercent}%`}
+                />
+              </div>
+
+              {/* Kanonikus TableToolbar */}
+              <TableToolbar
+                searchValue={taskSearch}
+                onSearchChange={setTaskSearch}
+                searchPlaceholder="Keresés a feladatok között..."
+                columns={taskColumns}
+                onToggleColumn={toggleTaskColumn}
+                dateRange={{
+                  from: dateFrom,
+                  to: dateTo,
+                  onFromChange: setDateFrom,
+                  onToChange: setDateTo,
+                }}
+                filterGroups={taskFilterGroups}
+                activeFiltersCount={statusFilters.length + priorityFilters.length}
+                onClearFilters={() => {
+                  setStatusFilters([])
+                  setPriorityFilters([])
+                }}
+              />
+
+              {/* Aktív feladatok táblázata */}
+              <div className="rounded-lg border border-border/60 overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent bg-muted/30">
+                      <TableHead className="w-10 pl-3" />
+                      <TableHead className="text-xs text-muted-foreground">Feladat</TableHead>
+                      {isColVisible("kategoria") && (
+                        <TableHead className="text-xs text-muted-foreground">Kategória</TableHead>
+                      )}
+                      {isColVisible("felelos") && (
+                        <TableHead className="text-xs text-muted-foreground">Felelős</TableHead>
+                      )}
+                      {isColVisible("hatarido") && (
+                        <TableHead className="text-xs text-muted-foreground">Határidő</TableHead>
+                      )}
+                      {isColVisible("prioritas") && (
+                        <TableHead className="text-xs text-muted-foreground">Prioritás</TableHead>
+                      )}
+                      {isColVisible("allapot") && (
+                        <TableHead className="text-xs text-muted-foreground">Állapot</TableHead>
+                      )}
+                      <TableHead className="text-xs text-muted-foreground text-right pr-3">Műveletek</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {activeTasks.length === 0 ? (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell
+                          colSpan={3 + visibleOptionalCols}
+                          className="py-8 text-center text-xs text-muted-foreground"
+                        >
+                          {filteredTasks.length === 0
+                            ? "Nincs a szűrésnek megfelelő feladat."
+                            : "Nincs aktív feladat – az elvégzett feladatok az alábbi szekcióban találhatók."}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      activeTasks.map((task) => {
+                        const v = buildTaskView(task)
+                        return (
+                          <TableRow
+                            key={task.id}
+                            onClick={() => setDetailTaskId(task.id)}
+                            className={`cursor-pointer ${v.isKesz ? "opacity-75" : ""}`}
+                          >
+                            {/* Gyors állapot toggle */}
+                            <TableCell className="w-10 pl-3 pr-0" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                disabled={!canEdit || taskLoading === task.id}
+                                onClick={() =>
+                                  handleTaskStatusChange(task.id, v.isKesz || v.isElutasitott ? "nyitott" : "kesz")
+                                }
+                                title={
+                                  v.isKesz
+                                    ? "Kész (kattints az újranyitáshoz)"
+                                    : v.isElutasitott
+                                    ? "Elutasított (kattints az újranyitáshoz)"
+                                    : "Kattints a készre jelöléshez"
+                                }
+                                className={`h-5 w-5 rounded-md flex items-center justify-center border transition-colors cursor-pointer disabled:cursor-not-allowed ${
+                                  v.isKesz
+                                    ? "bg-success border-success text-success-foreground"
+                                    : v.isElutasitott
+                                    ? "border-destructive/60 text-destructive bg-destructive/10 hover:bg-destructive/20"
+                                    : v.isFolyamatban
+                                    ? "border-info text-info bg-info/10 hover:bg-success hover:border-success hover:text-success-foreground"
+                                    : "border-muted-foreground/40 hover:border-primary hover:bg-primary/10 text-transparent hover:text-primary"
                                 }`}
                               >
-                                @{part.name}
-                              </span>
-                            )
-                          )
-                        : mentionParts}
+                                {taskLoading === task.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin text-current" />
+                                ) : v.isKesz ? (
+                                  <Check className="h-3.5 w-3.5 stroke-[3]" />
+                                ) : v.isElutasitott ? (
+                                  <X className="h-3.5 w-3.5 stroke-[2.5]" />
+                                ) : v.isFolyamatban ? (
+                                  <span className="h-2 w-2 rounded-full bg-info" />
+                                ) : (
+                                  <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                                )}
+                              </button>
+                            </TableCell>
+
+                            {/* Feladat címe + rövid kontextus */}
+                            <TableCell className="whitespace-normal min-w-[220px] max-w-[420px]">
+                              <p
+                                className={`text-sm font-medium leading-snug ${
+                                  v.isKesz || v.isElutasitott
+                                    ? "line-through text-muted-foreground"
+                                    : "text-foreground"
+                                }`}
+                              >
+                                {v.meta.displayTitle}
+                              </p>
+                              {v.isElutasitott ? (
+                                <p className="text-[11px] text-destructive mt-0.5 line-clamp-1">
+                                  Indoklás: {task.indoklas || v.meta.indoklas || "Téves szignálás"}
+                                </p>
+                              ) : (
+                                v.meta.reszletek && (
+                                  <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+                                    {v.meta.reszletek}
+                                  </p>
+                                )
+                              )}
+                            </TableCell>
+
+                            {isColVisible("kategoria") && (
+                              <TableCell>
+                                {v.catConfig && (
+                                  <span
+                                    className={`text-[10px] font-medium px-2 py-0.5 rounded border ${v.catConfig.badgeClass}`}
+                                  >
+                                    {v.catConfig.shortLabel}
+                                  </span>
+                                )}
+                              </TableCell>
+                            )}
+
+                            {isColVisible("felelos") && (
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <div className="h-6 w-6 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold flex items-center justify-center shrink-0">
+                                    {getInitials(v.assigneeName)}
+                                  </div>
+                                  <span className="text-xs text-foreground">{v.assigneeName}</span>
+                                </div>
+                              </TableCell>
+                            )}
+
+                            {isColVisible("hatarido") && (
+                              <TableCell>
+                                <span
+                                  className={`text-xs tabular-nums ${
+                                    v.isOverdue ? "text-destructive font-medium" : "text-foreground"
+                                  }`}
+                                >
+                                  {v.deadlineDate ? v.deadlineDate.toLocaleDateString("hu-HU") : "—"}
+                                </span>
+                                {v.isOverdue && (
+                                  <span className="block text-[10px] text-destructive">Lejárt</span>
+                                )}
+                              </TableCell>
+                            )}
+
+                            {isColVisible("prioritas") && (
+                              <TableCell>
+                                {v.prioConfig && (
+                                  <span
+                                    className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded border ${v.prioConfig.badgeClass}`}
+                                  >
+                                    <span className={`w-1.5 h-1.5 rounded-full ${v.prioConfig.dotClass}`} />
+                                    {v.prioConfig.label}
+                                  </span>
+                                )}
+                              </TableCell>
+                            )}
+
+                            {isColVisible("allapot") && (
+                              <TableCell>
+                                <TaskStatusBadge allapot={task.allapot} />
+                              </TableCell>
+                            )}
+
+                            {/* Műveletek */}
+                            <TableCell className="text-right pr-3" onClick={(e) => e.stopPropagation()}>
+                              {canEdit && (
+                                <div className="flex items-center justify-end gap-2">
+                                  {!v.isKesz && !v.isElutasitott && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleTaskStatusChange(task.id, "kesz")}
+                                      disabled={taskLoading === task.id}
+                                      className="h-8 text-xs gap-1 text-success border-success/30 hover:bg-success/10 cursor-pointer"
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                      <span>Kész</span>
+                                    </Button>
+                                  )}
+                                  {renderTaskMenu(task, v)}
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* ── ELVÉGZETT FELADATOK: a kész feladatok 24 óra után automatikusan ide kerülnek ── */}
+              {totalArchived > 0 && (
+                <div className="rounded-lg border border-border/60 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowCompleted((prev) => !prev)}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/30 transition-colors cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <Archive className="h-4 w-4 text-muted-foreground" />
+                      Elvégzett feladatok
+                      <span className="text-muted-foreground font-normal tabular-nums">({totalArchived})</span>
+                    </span>
+                    <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <span className="hidden sm:inline">A kész feladatok 24 óra után automatikusan ide kerülnek.</span>
+                      {showCompleted ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </span>
+                  </button>
+
+                  {showCompleted && (
+                    <div className="border-t border-border/60">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent bg-muted/30">
+                            <TableHead className="text-xs text-muted-foreground pl-4">Feladat</TableHead>
+                            <TableHead className="text-xs text-muted-foreground">Felelős</TableHead>
+                            <TableHead className="text-xs text-muted-foreground">Lezárva</TableHead>
+                            <TableHead className="text-xs text-muted-foreground text-right pr-3">Műveletek</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {archivedTasks.length === 0 ? (
+                            <TableRow className="hover:bg-transparent">
+                              <TableCell colSpan={4} className="py-6 text-center text-xs text-muted-foreground">
+                                Nincs a szűrésnek megfelelő elvégzett feladat.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            archivedTasks.map((task) => {
+                              const v = buildTaskView(task)
+                              return (
+                                <TableRow
+                                  key={task.id}
+                                  onClick={() => setDetailTaskId(task.id)}
+                                  className="cursor-pointer"
+                                >
+                                  <TableCell className="pl-4 whitespace-normal min-w-[220px] max-w-[420px]">
+                                    <p className="text-sm text-muted-foreground line-through leading-snug">
+                                      {v.meta.displayTitle}
+                                    </p>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      <div className="h-6 w-6 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold flex items-center justify-center shrink-0">
+                                        {getInitials(v.assigneeName)}
+                                      </div>
+                                      <span className="text-xs text-muted-foreground">{v.assigneeName}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground tabular-nums">
+                                    {task.updated_at
+                                      ? new Date(task.updated_at).toLocaleDateString("hu-HU")
+                                      : "—"}
+                                  </TableCell>
+                                  <TableCell className="text-right pr-3" onClick={(e) => e.stopPropagation()}>
+                                    {canEdit && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => handleTaskStatusChange(task.id, "nyitott")}
+                                        disabled={taskLoading === task.id}
+                                        className="h-8 text-xs gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                                      >
+                                        {taskLoading === task.id ? (
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                          <RotateCcw className="h-3.5 w-3.5" />
+                                        )}
+                                        <span>Újranyitás</span>
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── FELADAT RÉSZLETEK PANEL (jobb oldali kihúzható) ── */}
+      <Sheet open={!!detailTask} onOpenChange={(isOpen) => !isOpen && setDetailTaskId(null)}>
+        <SheetContent
+          side="right"
+          className="data-[side=right]:w-full data-[side=right]:sm:max-w-[480px] p-0 gap-0 shadow-none border-border/70"
+        >
+          {detailTask && detailView && (
+            <>
+              <SheetHeader className="p-5 pr-14 border-b border-border/50 bg-muted/10 gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Feladat részletei · <span className="font-mono normal-case">{iktatoszam || "—"}</span>
+                </span>
+                <SheetTitle className="text-base font-semibold leading-snug">
+                  {detailView.meta.displayTitle}
+                </SheetTitle>
+                <SheetDescription className="flex items-center gap-2 flex-wrap">
+                  <TaskStatusBadge allapot={detailTask.allapot} />
+                  {detailView.isOverdue && (
+                    <span className="text-[11px] font-medium text-destructive">Lejárt a határidő</span>
+                  )}
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-4">
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Felelős</dt>
+                    <dd className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <div className="h-6 w-6 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold flex items-center justify-center shrink-0">
+                        {getInitials(detailView.assigneeName)}
+                      </div>
+                      {detailView.assigneeName}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Határidő</dt>
+                    <dd
+                      className={`text-sm font-medium tabular-nums ${
+                        detailView.isOverdue ? "text-destructive" : "text-foreground"
+                      }`}
+                    >
+                      {detailView.deadlineDate ? detailView.deadlineDate.toLocaleDateString("hu-HU") : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Prioritás</dt>
+                    <dd>
+                      {detailView.prioConfig && (
+                        <span
+                          className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded border ${detailView.prioConfig.badgeClass}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${detailView.prioConfig.dotClass}`} />
+                          {detailView.prioConfig.label}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Kategória</dt>
+                    <dd>
+                      {detailView.catConfig && (
+                        <span
+                          className={`text-[11px] font-medium px-2 py-0.5 rounded border ${detailView.catConfig.badgeClass}`}
+                        >
+                          {detailView.catConfig.label}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Kiadva</dt>
+                    <dd className="text-sm text-foreground tabular-nums">
+                      {detailTask.created_at ? new Date(detailTask.created_at).toLocaleDateString("hu-HU") : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+                      Utolsó módosítás
+                    </dt>
+                    <dd className="text-sm text-foreground tabular-nums">
+                      {detailTask.updated_at
+                        ? new Date(detailTask.updated_at).toLocaleString("hu-HU", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "—"}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="space-y-1.5">
+                  <h4 className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Munkautasítás / leírás
+                  </h4>
+                  {detailView.meta.reszletek ? (
+                    <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap rounded-lg border border-border/60 bg-muted/20 p-3">
+                      {detailView.meta.reszletek}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground rounded-lg border border-dashed border-border/60 p-3">
+                      Ehhez a feladathoz nem tartozik részletes munkautasítás.
+                    </p>
+                  )}
+                </div>
+
+                {detailView.isElutasitott && (
+                  <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2.5">
+                    <Ban className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <span className="font-semibold text-[11px] block">Elutasítás indoklása</span>
+                      <p className="text-foreground italic leading-relaxed">
+                        „{detailTask.indoklas || detailView.meta.indoklas || "Téves szignálás"}”
+                      </p>
                     </div>
                   </div>
-                )
-              })
-            )}
-          </CardContent>
-
-          <div className="p-3 border-t border-border/40 bg-muted/20">
-            <div className="flex gap-2">
-              <MentionInput
-                users={users}
-                value={commentText}
-                onChange={setCommentText}
-                onSubmit={handleAddComment}
-                placeholder="Írj egy megjegyzést... (@-tal említhetsz)"
-                disabled={!canEdit || commentLoading}
-              />
-              <Button
-                type="button"
-                onClick={handleAddComment}
-                disabled={!commentText.trim() || !canEdit || commentLoading}
-                className="gap-1.5 cursor-pointer shrink-0 h-9 px-3"
-              >
-                {commentLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
                 )}
-                <span className="hidden sm:inline">Küldés</span>
-              </Button>
-            </div>
-          </div>
-        </Card>
-      </div>
+              </div>
+
+              {canEdit && (
+                <SheetFooter className="flex-row flex-wrap items-center gap-2 p-4 border-t border-border/50 bg-muted/20">
+                  {detailTask.allapot === "nyitott" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleTaskStatusChange(detailTask.id, "folyamatban")}
+                      disabled={taskLoading === detailTask.id}
+                      className="h-8 text-xs gap-1 cursor-pointer"
+                    >
+                      <ArrowRight className="h-3.5 w-3.5 text-info" />
+                      <span>Folyamatban</span>
+                    </Button>
+                  )}
+                  {!detailView.isKesz && !detailView.isElutasitott && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleTaskStatusChange(detailTask.id, "kesz")}
+                      disabled={taskLoading === detailTask.id}
+                      className="h-8 text-xs gap-1 text-success border-success/30 hover:bg-success/10 cursor-pointer"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Készre jelentés</span>
+                    </Button>
+                  )}
+                  {(detailView.isKesz || detailView.isElutasitott) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleTaskStatusChange(detailTask.id, "nyitott")}
+                      disabled={taskLoading === detailTask.id}
+                      className="h-8 text-xs gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      <span>Újranyitás</span>
+                    </Button>
+                  )}
+                  {!detailView.isElutasitott && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const target = { id: detailTask.id, title: detailView.meta.displayTitle }
+                        setDetailTaskId(null)
+                        setRejectingTask(target)
+                      }}
+                      className="h-8 text-xs gap-1 text-warning border-warning/30 hover:bg-warning/10 cursor-pointer"
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                      <span>Elutasítás...</span>
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      const target = { id: detailTask.id, title: detailView.meta.displayTitle }
+                      setDetailTaskId(null)
+                      setDeletingTask(target)
+                    }}
+                    className="h-8 text-xs gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer sm:ml-auto"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Törlés</span>
+                  </Button>
+                </SheetFooter>
+              )}
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+
 
       {/* ── TÖBBLÉPÉSES ÜGYIRATI FELADAT VARÁZSLÓ DIALÓGUS (WIZARD) ── */}
       <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
