@@ -4,6 +4,17 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-19)
 
+### 🤖 eaisyHR: AI Álláshirdetés Varázsló és Karrier Oldali HTML/Markdown Renderelés
+- **HTML & Markdown Biztonságos Renderelő (`src/components/rich-text-content.tsx` & `src/lib/sanitize-html.ts`):**
+  - A publikus karrieroldalon (`/karrier/[id]`) megadott részletes leírások mostantól formázott HTML-ként és Markdownként jelennek meg tiszta `@tailwindcss/typography` stílusokkal, kliensoldali XSS szűréssel és biztonsági tisztítással.
+- **AI Álláshirdetés Generáló Varázsló (`src/app/hr/recruitment/ai-posting-actions.ts` & `src/components/hr/manage-posting-dialog.tsx`):**
+  - Google Gemini 2.5 Flash integráció az álláshirdetések automatikus megfogalmazásához.
+  - Tiszta, fókuszált felugró modál (`isAiModalOpen`), elkerülve a fő űrlap zsúfoltságát.
+  - **Cég- és helyszíntudatos generálás:** Az AI automatikusan megkapja az aktívan kiválasztott cég nevét (`selectedCompany.name`) és székhelyét (`selectedCompany.address`), beépítve a cégnevet a bemutatásba és létrehozva a „Munkavégzés helye” blokkot.
+  - Intelligens offline sablon fallback és egyedi szempontok megadási lehetősége.
+- **Csak Belső Hirdetés Kapcsoló Redesign:**
+  - Letisztult, aszimmetrikus keretektől és középre igazítási hibáktól mentes settings-kártya elrendezés a toborzási űrlapon.
+
 ### 🤝 eaisyHR: Dolgozói Ajánlási Rendszer (Referral) és Beállítható Bónusz („A” Opció - A-075 / P-099 / BRD-011)
 - **Kétfülös Karrier Oldal („A” Opció - `/hr/self-service/career` & `src/components/hr/internal-career-view.tsx`):**
   - **Fülek elrendezése:** A fejléc alatt közvetlenül elérhető az **Álláshirdetések** és a **Saját ajánlásaim** fül, valós idejű darabszám jelvényekkel (`postings.length` és `referrals.length`), dekoratív ikonoktól mentes, tiszta szöveges formában az ADR A-029 szabvány szerint.
