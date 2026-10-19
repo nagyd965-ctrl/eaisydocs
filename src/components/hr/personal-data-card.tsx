@@ -75,8 +75,7 @@ export function PersonalDataCard() {
   }
 
   return (
-    <Card className="border-destructive/20 relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-1 h-full bg-destructive/50"></div>
+    <Card className="relative overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div className="space-y-1">
           <CardTitle className="text-base font-semibold flex items-center gap-2">

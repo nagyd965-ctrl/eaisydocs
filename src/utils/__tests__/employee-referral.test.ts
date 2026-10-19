@@ -75,12 +75,12 @@ async function runTests() {
   console.log("\n--- 4. TESZT: Bónusz státusz átmenetek ---")
   const validStatuses = ["fuggoben", "feltetelhez_kotve", "kifizetheto", "kifizetve", "elutasitva"]
   for (const status of validStatuses) {
-    const { error: updateErr } = await adminClient
+    const res: any = await adminClient
       .from("hr_dolgozoi_ajanlas")
-      .update({ bonusz_statusz: status })
+      .update({ bonusz_statusz: status } as any)
       .eq("id", insertedReferral.id)
 
-    assert.strictEqual(updateErr, null, `Nem lehet hiba a(z) ${status} státuszra váltáskor`)
+    assert.strictEqual(res.error, null, `Nem lehet hiba a(z) ${status} státuszra váltáskor`)
   }
   console.log("✅ 4. TESZT SIKERES: Minden megengedett bónusz státusz átmenet érvényes.")
 

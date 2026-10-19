@@ -154,11 +154,16 @@ export default async function SelfServicePage() {
     .eq("dolgozo_id", user.id)
     .order("created_at", { ascending: false })
 
-  const { data: kpiLogs } = await supabaseAdmin
-    .from("hr_esemeny_naplo")
-    .select("*, felhasznalo_profil(nev)")
-    .eq("entitas_tipus", "hr_teljesitmeny")
-    .order("created_at", { ascending: true })
+  const kpiIds = (kpis || []).map((k: any) => k.id).filter(Boolean)
+
+  const { data: kpiLogs } = kpiIds.length > 0
+    ? await supabaseAdmin
+        .from("hr_esemeny_naplo")
+        .select("*, felhasznalo_profil(nev)")
+        .eq("entitas_tipus", "hr_teljesitmeny")
+        .in("entitas_id", kpiIds)
+        .order("created_at", { ascending: true })
+    : { data: [] }
 
   const nev = adatlap?.felhasznalo_profil?.nev || "Dolgozó"
 

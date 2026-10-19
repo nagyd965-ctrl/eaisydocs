@@ -5,6 +5,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ArrowLeft, Briefcase, Calendar } from "lucide-react"
 import { ApplicationForm } from "./application-form"
+import { RichTextContent } from "@/components/rich-text-content"
 
 export default async function HirdetesReszletekPage({ params }: { params: Promise<{ id: string }> }) {
   const supabaseAdmin = createAdminClient(
@@ -67,24 +68,21 @@ export default async function HirdetesReszletekPage({ params }: { params: Promis
       {/* Main Content */}
       <main className="max-w-4xl mx-auto mt-8 px-4 grid md:grid-cols-[1fr_400px] gap-8 items-start">
         {/* Leírás */}
-        <div className="bg-white p-8 rounded-lg shadow-sm border space-y-6">
+        <div className="bg-card p-8 rounded-lg border border-border/60 space-y-6">
           {hirdetes.rovid_leiras && (
-            <p className="text-lg text-muted-foreground leading-relaxed font-medium">
+            <p className="text-base text-muted-foreground leading-relaxed font-medium pb-4 border-b border-border/40">
               {hirdetes.rovid_leiras}
             </p>
           )}
 
-          <div className="prose max-w-none prose-slate">
-            {hirdetes.reszletes_leiras ? (
-              <div className="whitespace-pre-wrap leading-relaxed text-foreground/90 font-normal">
-                {hirdetes.reszletes_leiras}
-              </div>
-            ) : (
-              <div>
-                <p>Csatlakozz hozzánk <strong>{hirdetes.cim}</strong> pozícióba!</p>
-              </div>
-            )}
-          </div>
+          <RichTextContent
+            content={hirdetes.reszletes_leiras}
+            fallback={
+              <p className="text-sm leading-relaxed text-foreground/90">
+                Csatlakozz hozzánk <strong>{hirdetes.cim}</strong> pozícióba!
+              </p>
+            }
+          />
         </div>
 
         {/* Űrlap */}

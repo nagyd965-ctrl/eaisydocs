@@ -45,7 +45,7 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [timesheet, setTimesheet] = useState<TimesheetEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(true)
   const [overtimeBalance, setOvertimeBalance] = useState<number | null>(null)
   const [overtimeDialogOpen, setOvertimeDialogOpen] = useState(false)
 
