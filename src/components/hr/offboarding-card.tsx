@@ -56,37 +56,39 @@ export function OffboardingCard({ offboarding }: OffboardingCardProps) {
     else toast.success("Utolsó munkanap sikeresen frissítve!")
   }
 
-  // Utolsó munkanap intelligens formázása (matching Onboarding)
+  // Utolsó munkanap formázása (pl. 2026. 10. 20.)
   const formatDateInfo = () => {
-    if (!offboarding.utolso_munkanap || offboarding.utolso_munkanap === "Hamarosan") {
+    const rawDate = offboarding.utolso_munkanap || offboarding.utolso_munkaban_toltott_nap || offboarding.kilepes_datuma
+    if (!rawDate || rawDate === "Hamarosan") {
       return { text: "Hamarosan", badgeClass: "bg-muted text-muted-foreground" }
     }
 
     try {
-      const exitDate = new Date(offboarding.utolso_munkanap)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      exitDate.setHours(0, 0, 0, 0)
-
-      const diffTime = exitDate.getTime() - today.getTime()
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-      const formatted = exitDate.toLocaleDateString("hu-HU", {
-        month: "short",
-        day: "numeric",
-      })
-
-      if (diffDays === 0) {
-        return { text: "Ma (utolsó nap)", badgeClass: "bg-warning/15 text-warning border-warning/30 font-semibold" }
-      } else if (diffDays < 0) {
-        return { text: `${formatted} (${Math.abs(diffDays)} napja kilépett)`, badgeClass: "bg-muted text-muted-foreground" }
-      } else if (diffDays <= 7) {
-        return { text: `${formatted} (${diffDays} nap múlva)`, badgeClass: "bg-warning/15 text-warning border-warning/30" }
-      } else {
-        return { text: `${formatted} (${diffDays} nap múlva)`, badgeClass: "bg-primary/10 text-primary border-primary/20" }
+      const datePart = rawDate.split("T")[0]
+      const parts = datePart.split("-")
+      if (parts.length === 3 && parts[0].length === 4) {
+        return {
+          text: `${parts[0]}. ${parts[1]}. ${parts[2]}.`,
+          badgeClass: "bg-muted/50 text-foreground border-border/60 font-medium tabular-nums"
+        }
       }
+
+      const exitDate = new Date(rawDate)
+      if (!isNaN(exitDate.getTime())) {
+        const formatted = exitDate.toLocaleDateString("hu-HU", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        })
+        return {
+          text: formatted,
+          badgeClass: "bg-muted/50 text-foreground border-border/60 font-medium tabular-nums"
+        }
+      }
+
+      return { text: rawDate, badgeClass: "bg-muted text-muted-foreground" }
     } catch {
-      return { text: offboarding.utolso_munkanap, badgeClass: "bg-muted text-muted-foreground" }
+      return { text: rawDate, badgeClass: "bg-muted text-muted-foreground" }
     }
   }
 

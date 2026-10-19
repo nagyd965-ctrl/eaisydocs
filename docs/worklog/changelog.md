@@ -2,7 +2,54 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
-## [Unreleased] – Fejlesztés alatt (2026-10-18)
+## [Unreleased] – Fejlesztés alatt (2026-10-19)
+
+### 🎯 eaisyHR: Teljesítményértékelés és Dolgozói Életút (Offboarding) Hardening és Integráció (P-097)
+- **Teljesítményértékelés Multi-Tenant Cégszintű Izoláció (`/hr/performance` & `/hr/performance/dashboard`):**
+  - Javításra került a korábbi auditban feltárt hiányosság: az `addKpi` és `addCycle` szerver akciók immár beégetik az aktív cég azonosítóját (`company_id: activeCompanyId`).
+  - A `/hr/performance` értékelési főoldal a céges tagságok (`company_members`) alapján szűri le a látható dolgozók körét (`safeMemberIds`), és a `hr_teljesitmeny`, `hr_teljesitmeny_ciklus`, `hr_dolgozo_adatlap` valamint a kapcsolódó audit napló szigorúan ezekre a cégtagokra korlátozódik.
+  - A vezetői dashboard (`/hr/performance/dashboard`) jogosultság-ellenőrzést kapott (`requireHrAuthServer`), valamint az aggregált KPI-k, értékelési ciklusok és munkatársak kizárólag az aktív cég adatai alapján töltődnek be.
+- **Dolgozói Életút: Offboarding Folyamat Javítás és Dolgozói 360° Integráció (`/hr/offboarding` & `/hr/employee/[id]`):**
+  - **Cégszintű rögzítés és revalidáció:** A `createOffboarding` szerver akció mostantól automatikusan rögzíti a `company_id: activeCompanyId` értéket a `hr_offboarding` és a keletkező `hr_offboarding_feladat` sorokban is, megakadályozva, hogy a szigorú cégválasztó szűrő elől eltűnjenek a frissen létrehozott folyamatok. A folyamat indítása, lezárása és újranyitása automatikusan revalidálja az érintett munkavállaló adatlapját is (`/hr/employee/[dolgozoId]`).
+  - **Közvetlen Kiléptetés Indítási Dialógus (`AddOffboardingDialog`):** Kiegészült `preselectedEmployeeId` és `preselectedEmployeeName` támogatással. Ha a dolgozó saját adatlapjáról indítják, a legördülő menü helyett egy letisztult, közvetlen dolgozói névkártyát jelenít meg, elkerülve a felesleges keresgélést, és mentés után azonnal frissíti a nézetet (`router.refresh()`).
+  - **Munkavállalói 360° Adatlap Fejléc Integráció (`/hr/employee/[id]`):**
+    - Folyamatban lévő offboarding esetén: Figyelemfelkeltő, de letisztult sárga státuszjelvény (`Kiléptetés folyamatban (Kilépés: YYYY.MM.DD)`) és közvetlen gyorsnavigációs gomb (`Offboarding feladatok kezelése`).
+    - Lezárt / korábban kilépett munkatárs esetén: Neutrális szürke `Kilépett` jelvény a pontos dátummal.
+    - Aktív munkatárs esetén: Zöld `Aktív` jelvény, mellette pedig a HR / Adminisztrátor számára egykattintásos **`Kiléptetés indítása`** gomb (`UserMinus` ikon), amely helyben megnyitja az előre kitöltött kiléptetési modált.
+- **Központi HR Teendők & Figyelmeztetések Rendszerintegráció (`/hr/admin`):**
+  - Az adminisztrátori munkaasztal teendő és figyelmeztető táblázata (`HrTasksAndAlertsTable`) mostantól közvetlenül figyeli és valós időben beemeli az aktív **Onboarding** és **Offboarding** folyamatokat.
+  - Törvényi és határidős súlyozás: kritikus riasztást kap a lejáró vagy már elérkezett belépés (T1041 NAV bejelentés és munkaszerződés ellenőrzése) és a kilépés (az Mt. 80. § szerinti szigorú 5 munkanapos elszámolási és igazolás-kiadási határidő kiemelésével).
+  - Közvetlen gyorsműveleti gombokkal (`Onboarding`, `Kiléptetés`) és a `TableToolbar` szűrőfelületébe integrált tematikus szűréssel.
+- **Kiléptetési Folyamat Lezárási Integritás és Feladat-védelem (`/hr/offboarding` & `OffboardingProfileModal`):**
+  - **Hamis készrejelölés megszüntetése:** Megszűnt az a súlyos adatintegritási hiba, amely a folyamat lezárásakor a még nyitott teendőket automatikusan `done` (100%) státuszra állította át. A rendszer a feladatokat soha többé nem hamisítja elvégzettre.
+  - **Szerveroldali lezárási korlát:** A `closeOffboarding` megtagadja a lezárást, ha befejezetlen feladatok vannak folyamatban, kivéve ha kifejezett kivételes lezárást kérnek (`force: true`), de a feladatok ebben az esetben is nyitottak maradnak.
+  - **Kliensoldali figyelmeztetés és jóváhagyás:** Befejezetlen feladatok esetén a lezárás gomb borostyán figyelmeztető színre vált, a dialógus pontosan kiírja az elvégzetlen feladatok számát és kötelező megerősítő nyilatkozatot kér.
+  - **Újranyitás és feladat-reset:** Az újranyitás dialógusban választható a feladatok automatikus visszaállítása nyitott (`pending`) állapotra, a teendők fejlécében pedig megjelent az „Összes újranyitása” gyorsművelet.
+- **Belső Karrieroldal Cégszintű Szűrése (`/hr/self-service/career`):**
+  - A nyitott álláshirdetések (`hr_allashirdetes`) lekérdezése céges szűrőt kapott (`company_id.eq.${activeCompanyId},company_id.is.null`), megakadályozva az idegen cégek belső állásainak megjelenítését.
+- **Beléptetési és Kiléptetési Listasáv Tisztítás és Eszköztár Ergonómia (`/hr/onboarding` & `/hr/offboarding`):**
+  - Eltávolításra kerültek a felesleges és zavaró beágyazott szűrőgombok mindkét modulból (`Megállapodás` és `Fiók állapot` pill-sorok).
+  - A `[Kártyák] [Táblázat]` nézetváltó gombok átkerültek a fehér eszköztár jobb oldalára, egységes egységet képezve a keresőmezővel.
+  - A nagy függőleges holttér megszüntetésre került: a fülek és a fehér eszköztár közötti távolság jelentősen csökkent (`space-y-2.5`), a felesleges elválasztó vonalak és alsó paddingok kivezetésével a keresősáv közvetlenül a fülek alá simul.
+- **Dátumok Szinkronizációja és Letisztult Megjelenítése (Onboarding & Offboarding):**
+  - Feloldásra került az adatbázis oszlopnév eltérés: a `hr_offboarding` tábla `utolso_munkaban_toltott_nap` és `kilepes_datuma` oszlopai mostantól automatikusan hozzá vannak rendelve a kliens által várt `utolso_munkanap` mezőhöz.
+  - Az `OffboardingProfileModal` dátummezője vezérelt `value={currentDate}` állapotot kapott, amely azonnal felveszi az aszinkron adatokat és szerkesztéskor menti az adatbázisba.
+  - Mind a beléptetésnél (`OnboardingCard`, `OnboardingList`), mind a kiléptetésnél (`OffboardingCard`, `OffboardingList`) kivezetésre került a relatív napkiírás (`(X nap múlva)`, `(X napja)`), helyette egységesen a tiszta hivatalos dátumformátum (pl. `2026. 10. 20.`) jelenik meg semleges keretes jelvényben.
+- **Kapcsolódó döntések:** [PRD P-097](../product/decisions/P-097-performance-and-offboarding-hardening.md).
+
+### 📄 eaisyHR: Munkavállalói Hivatalos Dokumentumok Dedikált Fülre Helyezése és Munkaviszony Tisztítás (P-096)
+- **Új „Hivatalos dokumentumok” fül a Dolgozói 360° Adatlapon (`/hr/employee/[id]`):**
+  - A korábbi elrendezésben a `Munkaviszony & Szerződések` fül alá volt zsúfolva a teljes hivatalos iratidővonal (munkaszerződések, NAV bejelentők, jegyzőkönyvek, határozatok, kitüntetések), ami óriási vertikális helyet foglalt el.
+  - A dokumentumkezelés átkerült egy önálló fülre a *Bizalmas HR adatok* után, letisztult `Hivatalos dokumentumok` felirattal (zavaró zárójeles számlálók nélkül, a `Bérpapírok` fülről szintén lekerült a zárójeles számkijelzés).
+  - A dedikált fülön kapott helyet a teljes iratkezelési eszköztár: tömeges eaisyDocs iktatás (`BatchFileHrDocumentsDialog`), kézi fájlfeltöltés (`ManualUploadDialog`), dinamikus szerződés/irat generáló (`ContractGeneratorDialog`), a munkaköri leírás átvételi akciókártya, valamint a teljes dokumentum-idővonal az aláírt példány kezeléssel, betekintéssel és letöltéssel.
+- **„Munkaviszony” fül letisztítása és ergonomikus elrendezése:**
+  - A fül neve tiszta `Munkaviszony`-ra módosult, kizárólag a jogviszonyra és beosztásra (`EmploymentTab`), a munkavédelmi és tűzvédelmi oktatásokra (`SafetyTrainingEmployeeCard`), valamint a tanulmányi szerződésekre (`StudyContractTab`) fókuszálva.
+  - Megszűnt a végtelen vertikális görgetés, a munkaköri és beosztási alapadatok azonnal áttekinthetővé váltak.
+- **„Fejlesztési tervek” megnevezés egységesítése:**
+  - A korábbi `Fejlődés (IDP)` fül és az `Egyéni Fejlesztési Tervek (IDP)` kártyafőcím egységesen és letisztultan a **`Fejlesztési tervek`** megnevezést kapta mind a felső fülsorban, mind a belső főcímben (`IDPTab.tsx`).
+- **Bérszámfejtési műszerfal és bérpapírok szinkronizáció javítása (`getPayrollDashboardData`):**
+  - Javításra került a korábbi eltérés, ami miatt a meglévő, már átvett bérpapíroknál a HR bérszámfejtési munkaasztal „Generálásra vár” státuszt mutatott: a korábbi bérpapír rekordoknál hiányzó `company_id` miatt a céges szűrő nem találta meg őket, így a felület a nyers jelenléti ívből generált helyszíni szimulációt mutatott. A `company_id` mezők vissza lettek töltve, és a lekérdezés a cégtagok azonosítóira (`memberUserIds`) lett robusztussá téve.
+- **Kapcsolódó döntések:** [PRD P-096](../product/decisions/P-096-employee-official-documents-dedicated-tab-ux.md).
 
 ### 💬 eaisyDocs: Belső Megjegyzések Bővítése – Többsoros Író, Szerkesztés/Törlés, Csatolmányok, Olvasatlan Jelzés (P-095)
 - **Többsoros író mező:** önnövő `textarea`, `Enter` küld, `Shift+Enter` új sor, az @említés-választó változatlanul működik.

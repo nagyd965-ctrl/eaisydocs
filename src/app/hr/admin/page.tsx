@@ -78,7 +78,8 @@ export default async function HrAdminPage() {
     allashirdetesekRes,
     onboardingsRes,
     pendingLeavesRes,
-    pendingCorrectionsRes
+    pendingCorrectionsRes,
+    offboardingsRes
   ] = await Promise.all([
     // 1. Dolgozók lekérése az aktív céghez részletes adatlappal
     supabase.from("felhasznalo_profil").select(`
@@ -123,8 +124,8 @@ export default async function HrAdminPage() {
       .eq("aktiv", true)
       .eq("publikus", true),
 
-    // 6. Onboarding folyamatok
-    supabase.from("hr_onboarding")
+    // 6. Onboarding folyamatok az aktív céghez
+    supabaseAdmin.from("hr_onboarding")
       .select("*, hr_onboarding_feladat(*)")
       .eq("company_id", companyScope),
 
@@ -146,6 +147,23 @@ export default async function HrAdminPage() {
       `)
       .in("dolgozo_id", safeMemberIds)
       .eq("statusz", "jovahagyasra_var")
+      .order("created_at", { ascending: false }),
+
+    // 9. Offboarding folyamatok az aktív céghez
+    supabaseAdmin.from("hr_offboarding")
+      .select(`
+        id,
+        dolgozo_id,
+        kilepes_datuma,
+        utolso_munkaban_toltott_nap,
+        statusz,
+        munkakor,
+        reszleg,
+        felhasznalo_profil ( id, nev ),
+        hr_offboarding_feladat ( id, cim, statusz )
+      `)
+      .eq("company_id", companyScope)
+      .eq("statusz", "folyamatban")
       .order("created_at", { ascending: false })
   ])
 
@@ -164,6 +182,7 @@ export default async function HrAdminPage() {
   const onboardings = onboardingsRes.data || []
   const pendingLeaves = pendingLeavesRes.data || []
   const pendingCorrections = pendingCorrectionsRes.data || []
+  const offboardings = offboardingsRes.data || []
 
   // Jogosultság ellenőrzése admin műveletekhez (szerkesztés, törlés a törzsadatbázisban)
   const canEdit = ["admin", "rendszergazda", "hr_vezeto", "hr_munkatars"].includes(hrRole)
@@ -342,22 +361,130 @@ export default async function HrAdminPage() {
     })
   })
 
-  // 4. Onboarding folyamatok
+  // 4. Onboarding (Új belépők) folyamatok
   onboardings.forEach((o: any) => {
-    const hasPending = o.hr_onboarding_feladat?.some((f: any) => f.statusz === "pending")
-    if (hasPending || ["elokeszites", "folyamatban"].includes(o.statusz)) {
-      allHrTasks.push({
-        id: `onb-${o.id}`,
-        category: "onboarding",
-        severity: "info",
-        title: "Új belépő beillesztési feladatai folyamatban vannak",
-        description: `${o.aktualis_lepes || 1}. lépésnél tart`,
-        employeeName: o.nev || "Új belépő",
-        dateInfo: "Folyamatban",
-        href: "/hr/onboarding",
-        actionLabel: "Onboarding",
-      })
+    if (o.statusz === "lezart") return
+
+    const tasks = o.hr_onboarding_feladat || []
+    const pendingTasks = tasks.filter((t: any) => t.statusz === "pending")
+    const pendingCount = pendingTasks.length
+    const totalCount = tasks.length
+    const belepes = o.belepes_datuma
+    const isIsoDate = belepes && /^\d{4}-\d{2}-\d{2}$/.test(belepes)
+
+    let severity: "critical" | "warning" | "info" = "info"
+    let title = "Új belépő beillesztési folyamata aktív"
+    let description = `${pendingCount}/${totalCount} feladat függőben`
+    let dateInfo = belepes || "Folyamatban"
+    let days: number | null = null
+
+    if (isIsoDate) {
+      days = daysUntil(belepes)
+      if (days !== null && days <= 0) {
+        severity = "critical"
+        title = "Új belépő: Munkaszerződés és T1041 bejelentés sürgős!"
+        description = `Belépés dátuma: ${belepes} (${days === 0 ? "Ma esedékes" : `${Math.abs(days)} napja lejárt`}) · ${pendingCount} nyitott feladat`
+        dateInfo = days === 0 ? "Ma esedékes!" : `Lejárt (${belepes})`
+      } else if (days !== null && days <= 7) {
+        severity = "warning"
+        title = "Új belépő előkészítése esedékes (Belépés közelít)"
+        description = `Belépés: ${belepes} · ${pendingCount}/${totalCount} nyitott feladat (szerződés, eszközök)`
+        dateInfo = `${days} nap van hátra (${belepes})`
+      } else {
+        severity = "info"
+        title = "Új belépő előkészítés alatt"
+        description = `Tervezett belépés: ${belepes} · ${pendingCount}/${totalCount} nyitott feladat`
+        dateInfo = `${days} nap múlva (${belepes})`
+      }
+    } else {
+      severity = pendingCount > 0 ? "warning" : "info"
+      title = "Új belépő beillesztési feladatai folyamatban vannak"
+      description = `Tervezett belépés: ${belepes || "Hamarosan"} · ${pendingCount}/${totalCount} nyitott feladat`
+      dateInfo = belepes || "Hamarosan"
     }
+
+    allHrTasks.push({
+      id: `onb-${o.id}`,
+      category: "onboarding",
+      severity,
+      title,
+      description,
+      employeeName: o.nev || "Új munkatárs",
+      employeeId: o.dolgozo_id || undefined,
+      position: o.munkakor || null,
+      dateInfo,
+      daysRemaining: days,
+      href: "/hr/onboarding",
+      actionLabel: "Onboarding",
+    })
+  })
+
+  // 5. Offboarding (Kiléptetés) folyamatok
+  offboardings.forEach((off: any) => {
+    if (off.statusz !== "folyamatban") return
+
+    const tasks = off.hr_offboarding_feladat || []
+    const pendingTasks = tasks.filter((t: any) => t.statusz === "pending")
+    const pendingCount = pendingTasks.length
+    const totalCount = tasks.length
+    const kilepes = off.kilepes_datuma || off.utolso_munkaban_toltott_nap
+    const isIsoDate = kilepes && /^\d{4}-\d{2}-\d{2}$/.test(kilepes)
+
+    let severity: "critical" | "warning" | "info" = "warning"
+    let title = "Kiléptetési folyamat folyamatban van"
+    let description = `${pendingCount}/${totalCount} nyitott feladat (eszközátvétel, elszámolás)`
+    let dateInfo = kilepes || "Folyamatban"
+    let days: number | null = null
+
+    if (isIsoDate) {
+      days = daysUntil(kilepes)
+      if (days !== null && days <= 0) {
+        severity = "critical"
+        title = "Sürgős: Kiléptetés zárása és igazolások kiadása (Mt. 80. §)"
+        description = `Utolsó munkanap: ${kilepes} · ${pendingCount} nyitott feladat (Mt. 80. § 5 napos kiadási határidő!)`
+        dateInfo = days === 0 ? "Ma esedékes!" : `Lejárt (${kilepes})`
+      } else if (days !== null && days <= 7) {
+        severity = "warning"
+        title = "Közelgő kiléptetés – elszámolás és eszközök előkészítése"
+        description = `Utolsó munkanap: ${kilepes} · ${pendingCount}/${totalCount} nyitott feladat`
+        dateInfo = `${days} nap van hátra (${kilepes})`
+      } else {
+        severity = "info"
+        title = "Kiléptetés előkészítés alatt"
+        description = `Tervezett kilépés: ${kilepes} · ${pendingCount}/${totalCount} nyitott feladat`
+        dateInfo = `${days} nap múlva (${kilepes})`
+      }
+    } else {
+      severity = "warning"
+      title = "Kiléptetési folyamat zárásra vár"
+      description = `${pendingCount}/${totalCount} nyitott feladat`
+      dateInfo = kilepes || "Folyamatban"
+    }
+
+    const employeeName = off.felhasznalo_profil?.nev || "Munkatárs"
+
+    allHrTasks.push({
+      id: `off-${off.id}`,
+      category: "offboarding",
+      severity,
+      title,
+      description,
+      employeeName,
+      employeeId: off.dolgozo_id,
+      position: off.munkakor || null,
+      dateInfo,
+      daysRemaining: days,
+      href: "/hr/offboarding",
+      actionLabel: "Kiléptetés",
+    })
+  })
+
+  // Sürgősségi és határidő szerinti rendezés: critical > warning > info
+  const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 }
+  allHrTasks.sort((a, b) => {
+    const sevDiff = (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3)
+    if (sevDiff !== 0) return sevDiff
+    return (a.daysRemaining ?? 999) - (b.daysRemaining ?? 999)
   })
 
   return (

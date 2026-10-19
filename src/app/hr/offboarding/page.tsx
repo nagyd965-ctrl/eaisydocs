@@ -97,6 +97,7 @@ export default async function OffboardingPage() {
 
       return {
         ...item,
+        utolso_munkanap: item.utolso_munkaban_toltott_nap || item.kilepes_datuma || null,
         munkakor: munkakor || item.munkakor,
         reszleg: reszleg || item.reszleg,
       }

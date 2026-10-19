@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export async function addKpi(formData: FormData) {
   const supabase = await createClient()
@@ -45,10 +46,13 @@ export async function addKpi(formData: FormData) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   const { error, data: newKpi } = await adminClient
     .from("hr_teljesitmeny")
     .insert([{
       dolgozo_id: dolgozoId,
+      company_id: activeCompanyId,
       celkituzes: ertekelesSzovege, // ez lesz a cél neve
       ertekeles_szovege: null, // részletes értékelés később
       ciklus_id: ciklusId || null,
@@ -223,13 +227,16 @@ export async function addCycle(formData: FormData) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   const { error } = await adminClient
     .from("hr_teljesitmeny_ciklus")
     .insert([{
       megnevezes,
       kezdo_datum: kezdoDatum,
       befejezo_datum: befejezoDatum,
-      statusz: "tervezes"
+      statusz: "tervezes",
+      company_id: activeCompanyId
     }])
 
   if (error) {

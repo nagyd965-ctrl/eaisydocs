@@ -21,8 +21,7 @@ import {
   Archive,
   ChevronRight,
   BarChart2,
-  Clock,
-  ShieldCheck,
+  X,
   Briefcase
 } from "lucide-react"
 import { updateOffboardingDate } from "@/app/hr/offboarding/actions"
@@ -35,6 +34,16 @@ import { TERMINATION_SHORT_LABELS, type TerminationType } from "@/utils/hr/termi
 
 export { type OffboardingTask }
 
+function formatHungarianDate(rawDate?: string | null): string {
+  if (!rawDate || rawDate === "Hamarosan") return "Hamarosan"
+  const datePart = rawDate.split("T")[0]
+  const parts = datePart.split("-")
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[0]}. ${parts[1]}. ${parts[2]}.`
+  }
+  return rawDate
+}
+
 export interface OffboardingListItem {
   id: string
   dolgozo_id?: string
@@ -45,6 +54,7 @@ export interface OffboardingListItem {
   } | null
   statusz: "folyamatban" | "lezart" | string
   utolso_munkanap?: string | null
+  utolso_munkaban_toltott_nap?: string | null
   kilepes_datuma?: string | null
   megszunes_modja?: string | null
   reszleg?: string | null
@@ -68,7 +78,6 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
   const [activeTab, setActiveTab] = useState<string>("folyamatban")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [search, setSearch] = useState("")
-  const [agreementFilter, setAgreementFilter] = useState<"all" | "missing" | "ready">("all")
   const [selectedOffboarding, setSelectedOffboarding] = useState<OffboardingListItem | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
 
@@ -79,7 +88,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
   // Aktív lista a kiléptetésekhez
   const currentList = activeTab === "folyamatban" ? inProgressList : closedList
 
-  // Szűrés kereső és megállapodás állapota alapján
+  // Szűrés kereső alapján
   const filteredList = currentList.filter((o) => {
     const nev = o.felhasznalo_profil?.nev || (o as any).nev || ""
     const munkakor = o.munkakor || o.felhasznalo_profil?.munkakor || ""
@@ -87,13 +96,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
       nev.toLowerCase().includes(search.toLowerCase()) ||
       munkakor.toLowerCase().includes(search.toLowerCase())
 
-    if (!matchesSearch) return false
-
-    const hasAgreement = Boolean(o.szerzodes_pdf_url)
-    if (agreementFilter === "missing") return !hasAgreement
-    if (agreementFilter === "ready") return hasAgreement
-
-    return true
+    return matchesSearch
   })
 
   // Statisztikai KPI-k számítása (a folyamatban lévőkből)
@@ -102,7 +105,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
 
   // Közelgő kilépések (30 napon belül)
   const upcomingDepartures = inProgressList.filter((o) => {
-    const exitDateStr = o.utolso_munkanap || o.kilepes_datuma
+    const exitDateStr = o.utolso_munkanap || o.utolso_munkaban_toltott_nap || o.kilepes_datuma
     if (!exitDateStr || exitDateStr === "Hamarosan") return false
     try {
       const exit = new Date(exitDateStr)
@@ -133,7 +136,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 1. Felső Statisztikai Sáv (KPI kártyák - EXACT match to Onboarding Image 1) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard
@@ -156,8 +159,8 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
       </div>
 
       {/* 2. Füles Navigáció (Folyamatban lévő vs Lezárt vs Interjúk) */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-3">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-2.5">
+        <div className="flex items-center justify-between">
           <TabsList className="h-9">
             <TabsTrigger value="folyamatban" className="text-xs">
               Folyamatban lévő kiléptetések
@@ -169,10 +172,32 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
               Kilépési Interjúk & HR Analytics
             </TabsTrigger>
           </TabsList>
+        </div>
 
-          {/* Nézetváltó (csak kiléptetés taboknál) */}
-          {activeTab !== "interju-osszesito" && (
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+        {/* 3. Keresősáv és Nézetváltó (folyamatban / lezárt nézetnél) */}
+        {activeTab !== "interju-osszesito" && (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-2.5 rounded-lg border">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Keresés név vagy munkakör alapján..."
+                className="pl-8 pr-8 h-9 text-sm"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                  title="Keresés törlése"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 justify-end shrink-0">
               <div className="flex rounded-lg border bg-muted/40 p-0.5">
                 <Button
                   variant={viewMode === "grid" ? "default" : "ghost"}
@@ -192,54 +217,6 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
                 </Button>
               </div>
             </div>
-          )}
-        </div>
-
-        {/* 3. Keresősáv és Szűrők (folyamatban / lezárt nézetnél) */}
-        {activeTab !== "interju-osszesito" && (
-          <div className="flex flex-col sm:flex-row gap-3 justify-between items-center bg-card p-3 rounded-lg border">
-            <div className="relative w-full sm:w-80">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Keresés név vagy munkakör alapján..."
-                className="pl-8 h-9 text-sm"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <span className="text-xs text-muted-foreground shrink-0 hidden md:inline">Megállapodás:</span>
-              <div className="flex gap-1 flex-wrap">
-                <Button
-                  type="button"
-                  variant={agreementFilter === "all" ? "default" : "outline"}
-                  size="sm"
-                  className="h-8 text-xs px-2.5 rounded-full"
-                  onClick={() => setAgreementFilter("all")}
-                >
-                  Mind
-                </Button>
-                <Button
-                  type="button"
-                  variant={agreementFilter === "missing" ? "default" : "outline"}
-                  size="sm"
-                  className="h-8 text-xs px-2.5 rounded-full gap-1 text-warning"
-                  onClick={() => setAgreementFilter("missing")}
-                >
-                  <Clock className="w-3 h-3" /> Megszüntetés hiányzik
-                </Button>
-                <Button
-                  type="button"
-                  variant={agreementFilter === "ready" ? "default" : "outline"}
-                  size="sm"
-                  className="h-8 text-xs px-2.5 rounded-full gap-1 text-success"
-                  onClick={() => setAgreementFilter("ready")}
-                >
-                  <ShieldCheck className="w-3 h-3" /> Beiktatva
-                </Button>
-              </div>
-            </div>
           </div>
         )}
 
@@ -251,8 +228,8 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
                 <Users className="w-6 h-6 opacity-40" />
               </div>
               <p className="font-medium text-foreground">
-                {search || agreementFilter !== "all" 
-                  ? "Nincs a szűrésnek megfelelő kiléptetési folyamat." 
+                {search 
+                  ? "Nincs a keresésnek megfelelő kiléptetési folyamat." 
                   : "Jelenleg nincsenek aktív kiléptetési folyamatok."}
               </p>
               <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
@@ -306,7 +283,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm font-medium tabular-nums">{person.utolso_munkanap || "Hamarosan"}</span>
+                          <span className="text-sm font-medium tabular-nums">{formatHungarianDate(person.utolso_munkanap || person.utolso_munkaban_toltott_nap || person.kilepes_datuma)}</span>
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary" className="text-xs font-normal">
@@ -401,7 +378,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm font-medium tabular-nums">{person.utolso_munkanap || "Hamarosan"}</span>
+                          <span className="text-sm font-medium tabular-nums">{formatHungarianDate(person.utolso_munkanap || person.utolso_munkaban_toltott_nap || person.kilepes_datuma)}</span>
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary" className="text-xs font-normal">

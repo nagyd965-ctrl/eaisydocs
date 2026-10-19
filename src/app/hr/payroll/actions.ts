@@ -276,11 +276,12 @@ export async function getPayrollDashboardData(
     cafeteriaMap.set(c.dolgozo_id, (cafeteriaMap.get(c.dolgozo_id) || 0) + monthlyAmt)
   })
 
-  // 9. Meglévő hr_berpapir rekordok az aktív céghez
+  // 9. Meglévő hr_berpapir rekordok az aktív céghez vagy annak tagjaihoz
   const { data: existingPayslips } = await adminClient
     .from("hr_berpapir")
     .select("*")
-    .eq("company_id", activeCompanyId)
+    .in("dolgozo_id", memberUserIds)
+    .or(`company_id.eq.${activeCompanyId},company_id.is.null`)
     .eq("ev", year)
     .eq("honap", month)
 

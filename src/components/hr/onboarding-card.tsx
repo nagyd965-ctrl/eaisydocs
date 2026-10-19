@@ -46,32 +46,37 @@ export function OnboardingCard({ onboarding, orgUnits, jobs }: OnboardingCardPro
     else toast.success("Belépési dátum sikeresen frissítve!")
   }
 
-  // Belépési dátum intelligens formázása
+  // Belépési dátum formázása (pl. 2026. 10. 14.)
   const formatEntryDate = () => {
     if (!onboarding.belepes_datuma || onboarding.belepes_datuma === "Hamarosan") {
       return { text: "Hamarosan", badgeClass: "bg-muted text-muted-foreground" }
     }
 
     try {
-      const entryDate = new Date(onboarding.belepes_datuma)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      entryDate.setHours(0, 0, 0, 0)
-
-      const diffDays = Math.round((entryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      const formatted = entryDate.toLocaleDateString("hu-HU", { month: "short", day: "numeric" })
-
-      if (diffDays === 0) {
-        return { text: "Ma kezd!", badgeClass: "bg-success/10 text-success border-success/20 font-semibold animate-pulse" }
-      } else if (diffDays === 1) {
-        return { text: "Holnap kezd", badgeClass: "bg-primary/10 text-primary border-primary/20 font-medium" }
-      } else if (diffDays > 1 && diffDays <= 14) {
-        return { text: `${formatted} (${diffDays} nap múlva)`, badgeClass: "bg-primary/10 text-primary border-primary/20 font-medium" }
-      } else if (diffDays > 14) {
-        return { text: formatted, badgeClass: "bg-muted/50 text-muted-foreground border-border/50" }
-      } else {
-        return { text: `${formatted} (${Math.abs(diffDays)} napja)`, badgeClass: "bg-muted text-muted-foreground" }
+      const rawDate = onboarding.belepes_datuma
+      const datePart = rawDate.split("T")[0]
+      const parts = datePart.split("-")
+      if (parts.length === 3 && parts[0].length === 4) {
+        return {
+          text: `${parts[0]}. ${parts[1]}. ${parts[2]}.`,
+          badgeClass: "bg-muted/50 text-foreground border-border/60 font-medium tabular-nums"
+        }
       }
+
+      const entryDate = new Date(rawDate)
+      if (!isNaN(entryDate.getTime())) {
+        const formatted = entryDate.toLocaleDateString("hu-HU", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        })
+        return {
+          text: formatted,
+          badgeClass: "bg-muted/50 text-foreground border-border/60 font-medium tabular-nums"
+        }
+      }
+
+      return { text: rawDate, badgeClass: "bg-muted text-muted-foreground" }
     } catch {
       return { text: onboarding.belepes_datuma, badgeClass: "bg-muted text-muted-foreground" }
     }

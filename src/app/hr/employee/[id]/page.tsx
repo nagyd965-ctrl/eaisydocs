@@ -27,7 +27,8 @@ import { FileHrDocumentDialog } from "@/components/hr/file-hr-document-dialog"
 import { BatchFileHrDocumentsDialog } from "@/components/hr/batch-file-hr-documents-dialog"
 import { UploadSignedDocumentDialog } from "@/components/hr/upload-signed-document-dialog"
 import { JobDescriptionBadgeAction } from "@/components/hr/job-description-badge-action"
-import { ExternalLink, FileCheck, Lock, CheckCircle2, Download } from "lucide-react"
+import { AddOffboardingDialog } from "@/components/hr/add-offboarding-dialog"
+import { ExternalLink, FileCheck, Lock, CheckCircle2, Download, UserMinus } from "lucide-react"
 import { IDPTab } from "./tabs/IDPTab"
 import { SafetyTrainingEmployeeCard } from "@/components/hr/safety-training-employee-card"
 import { PayslipsTab } from "./tabs/PayslipsTab"
@@ -283,23 +284,77 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   }
   const displayRole = roleMap[profile.hr_szerepkor] || profile.hr_szerepkor
 
+  // Offboarding státusz lekérése a dolgozóhoz
+  const { data: employeeOffboarding } = await supabase
+    .from("hr_offboarding")
+    .select("id, statusz, kilepes_datuma, utolso_munkaban_toltott_nap, megszunes_modja")
+    .eq("dolgozo_id", resolvedParams.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const isOffboardingActive = employeeOffboarding?.statusz === "folyamatban"
+  const isOffboardingClosed = employeeOffboarding?.statusz === "lezart"
+  const isInactive = profile.hr_szerepkor === "inaktiv" || !!adatlap?.munkaviszony_vege || isOffboardingClosed
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/hr/admin">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
-            {profile.nev}
-            <Badge variant="default" className="text-sm">Aktív</Badge>
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {displayRole}
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link href="/hr/admin">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight flex items-center flex-wrap gap-2.5">
+              {profile.nev}
+              {isOffboardingActive ? (
+                <Link href="/hr/offboarding">
+                  <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/30 hover:bg-warning/20 transition-colors gap-1.5 cursor-pointer">
+                    <UserMinus className="w-3.5 h-3.5" />
+                    Kiléptetés folyamatban (Kilépés: {employeeOffboarding.kilepes_datuma || "Nincs megadva"})
+                  </Badge>
+                </Link>
+              ) : isInactive ? (
+                <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-border gap-1.5">
+                  Kilépett ({employeeOffboarding?.kilepes_datuma || adatlap?.munkaviszony_vege || "Inaktív"})
+                </Badge>
+              ) : (
+                <Badge variant="default" className="text-xs">Aktív</Badge>
+              )}
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              {displayRole}
+            </p>
+          </div>
         </div>
+
+        {/* Műveleti sáv (pl. Kiléptetés indítása HR-nek) */}
+        {isHrOrAdmin && (
+          <div className="flex items-center gap-2">
+            {isOffboardingActive ? (
+              <Link href="/hr/offboarding">
+                <Button variant="outline" size="sm" className="gap-2 text-xs border-warning/40 text-warning hover:bg-warning/10">
+                  <UserMinus className="h-3.5 w-3.5" />
+                  Offboarding feladatok kezelése
+                </Button>
+              </Link>
+            ) : !isInactive ? (
+              <AddOffboardingDialog
+                employees={[]}
+                preselectedEmployeeId={profile.id}
+                preselectedEmployeeName={profile.nev}
+                triggerButton={
+                  <Button variant="outline" size="sm" className="gap-2 text-xs border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive">
+                    <UserMinus className="h-3.5 w-3.5" />
+                    Kiléptetés indítása
+                  </Button>
+                }
+              />
+            ) : null}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -325,14 +380,14 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
         <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent flex-nowrap overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden gap-x-1">
           <TabsTrigger value="szemelyes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Személyes adatok</TabsTrigger>
           <TabsTrigger value="szakmai_hatter" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Szakmai háttér</TabsTrigger>
-          <TabsTrigger value="munkaviszony_szerzodes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Munkaviszony & Szerződések</TabsTrigger>
+          <TabsTrigger value="munkaviszony" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Munkaviszony</TabsTrigger>
           <TabsTrigger value="tavollet" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Távollét</TabsTrigger>
           <TabsTrigger value="jelenlet" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Jelenlét</TabsTrigger>
           <TabsTrigger value="cafeteria" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Cafeteria</TabsTrigger>
-          <TabsTrigger value="idp" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Fejlődés (IDP)</TabsTrigger>
+          <TabsTrigger value="idp" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Fejlesztési tervek</TabsTrigger>
           {canViewSalary && (
             <TabsTrigger value="berpapirok" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">
-              Bérpapírok {employeePayslips.length > 0 && `(${employeePayslips.length})`}
+              Bérpapírok
             </TabsTrigger>
           )}
           {(isHrOrAdmin || isPayroll || ["auditor", "munkavedelmi"].includes(currentHrRole)) && (
@@ -340,6 +395,9 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               Bizalmas HR adatok
             </TabsTrigger>
           )}
+          <TabsTrigger value="dokumentumok" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">
+            Hivatalos dokumentumok
+          </TabsTrigger>
           <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Előzmények</TabsTrigger>
         </TabsList>
 
@@ -355,7 +413,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
             />
           </TabsContent>
 
-          {/* Új: Fejlődés (IDP) */}
+          {/* Fejlesztési tervek */}
           <TabsContent value="idp" className="mt-0 outline-none">
             <IDPTab dolgozoId={profile.id} isManagerView={isHrOrAdmin} />
           </TabsContent>
@@ -403,9 +461,9 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
             </div>
           </TabsContent>
 
-          {/* 3. Munkaviszony & Szerződések (Összevont) */}
-          <TabsContent value="munkaviszony_szerzodes" className="mt-0 outline-none space-y-12">
-            {/* Jogviszony (Jövőbeli) */}
+          {/* 3. Munkaviszony */}
+          <TabsContent value="munkaviszony" className="mt-0 outline-none space-y-12">
+            {/* Jogviszony és Munkarend */}
             <div className="space-y-4">
               <h2 className="text-xl font-semibold tracking-tight border-b pb-2">Jogviszony és Munkarend</h2>
               <EmploymentTab 
@@ -432,160 +490,6 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                 isHrOrAdmin={isHrOrAdmin}
                 trainings={(safetyTrainingsData as any) || []}
               />
-            </div>
-
-            {/* Generált / Feltöltött Dokumentumok */}
-            <div className="space-y-6">
-              <div className="flex justify-between items-center border-b pb-2">
-                <div>
-                  <h2 className="text-xl font-semibold tracking-tight">Hivatalos Dokumentumok</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Szerződések idővonala és generálása.</p>
-                </div>
-                {isHrOrAdmin && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {(() => {
-                      const unfiled = (hrDocuments || []).filter((d: any) => !d.iktatoszam)
-                      return unfiled.length > 0 ? (
-                        <BatchFileHrDocumentsDialog
-                          employeeId={profile.id}
-                          employeeName={profile.nev}
-                          unfiledDocs={unfiled}
-                        />
-                      ) : null
-                    })()}
-                    <ManualUploadDialog employeeId={profile.id} />
-                    <ContractGeneratorDialog 
-                      employee={profile} 
-                      adatlap={adatlap} 
-                      munkakor={activeMunkakor}
-                      vezetoNev={vezetoNev}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Munkaköri leírás verziójelző / átvételi akciókártya */}
-              {activeMunkakor && (
-                <JobDescriptionBadgeAction
-                  employeeId={profile.id}
-                  employeeName={profile.nev}
-                  munkakor={activeMunkakor}
-                  latestJobVersion={latestJobVersion}
-                  existingDoc={existingJobDoc}
-                  isHrOrAdmin={isHrOrAdmin}
-                />
-              )}
-
-              <div className="border rounded-lg relative overflow-hidden bg-card">
-                <div className="absolute left-8 top-0 bottom-0 w-px bg-border"></div>
-                <div className="p-6 space-y-8">
-                  {hrDocuments && hrDocuments.length > 0 ? hrDocuments.map((doc: any) => (
-                    <div key={doc.id} className="flex gap-6 relative">
-                      <div className={`w-4 h-4 rounded-full ${doc.iktatoszam ? "bg-success" : "bg-primary"} mt-1 relative z-10 outline outline-4 outline-background`}></div>
-                      <div className="flex-1 border rounded-lg p-4 bg-background hover:bg-muted/50 transition-colors">
-                        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="font-medium text-foreground">{doc.nev}</h4>
-                              {doc.iktatoszam ? (
-                                <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs font-mono gap-1">
-                                  <FileCheck className="w-3 h-3" />
-                                  Iktatva: {doc.iktatoszam}
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/40">
-                                  Belső HR vázlat
-                                </Badge>
-                              )}
-                              {doc.alairt_fajl_url || doc.alairas_statusz === "alairva" ? (
-                                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs gap-1 font-medium">
-                                  <CheckCircle2 className="w-3 h-3 text-primary" />
-                                  Aláírt példány
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/20 font-normal">
-                                  Tervezet
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-muted-foreground">Kategória: {doc.kategoria || "Egyéb"}</p>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                              <span>Létrehozva: {new Date(doc.created_at).toLocaleString("hu-HU")}</span>
-                              {doc.iktatva_ekor && (
-                                <span>• Iktatás ideje: {new Date(doc.iktatva_ekor).toLocaleString("hu-HU")}</span>
-                              )}
-                              {doc.alairva_ekor && (
-                                <span className="text-success font-medium tabular-nums">
-                                  • Aláírva: {new Date(doc.alairva_ekor).toLocaleString("hu-HU")}
-                                </span>
-                              )}
-                              {doc.ugyirat_id && (
-                                <Link 
-                                  href={`/dossiers/${doc.ugyirat_id}`} 
-                                  className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
-                                  target="_blank"
-                                >
-                                  <ExternalLink className="w-3 h-3" /> Megtekintés dossziéban
-                                </Link>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1.5 self-end sm:self-center">
-                            {/* 1. Aláírt példány feltöltése / cseréje */}
-                            {isHrOrAdmin && (
-                              <UploadSignedDocumentDialog
-                                document={doc}
-                                employeeId={profile.id}
-                                employeeName={profile.nev}
-                              />
-                            )}
-
-                            {/* 2. In-browser Megtekintés (ha van aláírt példány, azt nyitja meg!) */}
-                            {(doc.displayUrl || doc.signedUrl || doc.url) && (
-                              <PdfViewerDialog 
-                                url={doc.displayUrl || doc.signedUrl || doc.url} 
-                                title={doc.alairt_fajl_url ? `${doc.nev} (Aláírt példány)` : doc.nev} 
-                              />
-                            )}
-
-                            {/* 3. Közvetlen Letöltés */}
-                            {(doc.displayUrl || doc.signedUrl || doc.url) && (
-                              <a
-                                href={doc.displayUrl || doc.signedUrl || doc.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                download
-                                className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors inline-flex items-center justify-center"
-                                title="Letöltés"
-                              >
-                                <Download className="w-4 h-4" />
-                              </a>
-                            )}
-
-                            {/* 4. Iktatás (ha még nincs iktatva) */}
-                            {isHrOrAdmin && !doc.iktatoszam && (
-                              <FileHrDocumentDialog 
-                                document={doc} 
-                                employeeId={profile.id} 
-                                employeeName={profile.nev} 
-                              />
-                            )}
-                            {isHrOrAdmin && !doc.iktatoszam ? (
-                              <DeleteContractButton documentId={doc.id} fileUrl={doc.url} dolgozoId={profile.id} />
-                            ) : isHrOrAdmin && (
-                              <div className="p-1 text-muted-foreground" title="Hivatalosan iktatott irat az irattári szabályok szerint nem törölhető">
-                                <Lock className="w-4 h-4 opacity-50" />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )) : (
-                    <div className="pl-12 text-muted-foreground py-4">Még nincsenek generált vagy feltöltött dokumentumok.</div>
-                  )}
-                </div>
-              </div>
             </div>
 
             {/* Tanulmányi Szerződés */}
@@ -635,6 +539,160 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               )}
             </TabsContent>
           )}
+
+          {/* Hivatalos Dokumentumok */}
+          <TabsContent value="dokumentumok" className="mt-0 outline-none space-y-6">
+            <div className="flex justify-between items-center border-b pb-2">
+              <div>
+                <h2 className="text-xl font-semibold tracking-tight">Hivatalos Dokumentumok</h2>
+                <p className="text-sm text-muted-foreground mt-1">Szerződések, nyilatkozatok és jogi iratok idővonala és generálása.</p>
+              </div>
+              {isHrOrAdmin && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(() => {
+                    const unfiled = (hrDocuments || []).filter((d: any) => !d.iktatoszam)
+                    return unfiled.length > 0 ? (
+                      <BatchFileHrDocumentsDialog
+                        employeeId={profile.id}
+                        employeeName={profile.nev}
+                        unfiledDocs={unfiled}
+                      />
+                    ) : null
+                  })()}
+                  <ManualUploadDialog employeeId={profile.id} />
+                  <ContractGeneratorDialog 
+                    employee={profile} 
+                    adatlap={adatlap} 
+                    munkakor={activeMunkakor}
+                    vezetoNev={vezetoNev}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Munkaköri leírás verziójelző / átvételi akciókártya */}
+            {activeMunkakor && (
+              <JobDescriptionBadgeAction
+                employeeId={profile.id}
+                employeeName={profile.nev}
+                munkakor={activeMunkakor}
+                latestJobVersion={latestJobVersion}
+                existingDoc={existingJobDoc}
+                isHrOrAdmin={isHrOrAdmin}
+              />
+            )}
+
+            <div className="border rounded-lg relative overflow-hidden bg-card">
+              <div className="absolute left-8 top-0 bottom-0 w-px bg-border"></div>
+              <div className="p-6 space-y-8">
+                {hrDocuments && hrDocuments.length > 0 ? hrDocuments.map((doc: any) => (
+                  <div key={doc.id} className="flex gap-6 relative">
+                    <div className={`w-4 h-4 rounded-full ${doc.iktatoszam ? "bg-success" : "bg-primary"} mt-1 relative z-10 outline outline-4 outline-background`}></div>
+                    <div className="flex-1 border rounded-lg p-4 bg-background hover:bg-muted/50 transition-colors">
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-medium text-foreground">{doc.nev}</h4>
+                            {doc.iktatoszam ? (
+                              <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs font-mono gap-1">
+                                <FileCheck className="w-3 h-3" />
+                                Iktatva: {doc.iktatoszam}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/40">
+                                Belső HR vázlat
+                              </Badge>
+                            )}
+                            {doc.alairt_fajl_url || doc.alairas_statusz === "alairva" ? (
+                              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs gap-1 font-medium">
+                                <CheckCircle2 className="w-3 h-3 text-primary" />
+                                Aláírt példány
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/20 font-normal">
+                                Tervezet
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">Kategória: {doc.kategoria || "Egyéb"}</p>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                            <span>Létrehozva: {new Date(doc.created_at).toLocaleString("hu-HU")}</span>
+                            {doc.iktatva_ekor && (
+                              <span>• Iktatás ideje: {new Date(doc.iktatva_ekor).toLocaleString("hu-HU")}</span>
+                            )}
+                            {doc.alairva_ekor && (
+                              <span className="text-success font-medium tabular-nums">
+                                • Aláírva: {new Date(doc.alairva_ekor).toLocaleString("hu-HU")}
+                              </span>
+                            )}
+                            {doc.ugyirat_id && (
+                              <Link 
+                                href={`/dossiers/${doc.ugyirat_id}`} 
+                                className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
+                                target="_blank"
+                              >
+                                <ExternalLink className="w-3 h-3" /> Megtekintés dossziéban
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 self-end sm:self-center">
+                          {/* 1. Aláírt példány feltöltése / cseréje */}
+                          {isHrOrAdmin && (
+                            <UploadSignedDocumentDialog
+                              document={doc}
+                              employeeId={profile.id}
+                              employeeName={profile.nev}
+                            />
+                          )}
+
+                          {/* 2. In-browser Megtekintés (ha van aláírt példány, azt nyitja meg!) */}
+                          {(doc.displayUrl || doc.signedUrl || doc.url) && (
+                            <PdfViewerDialog 
+                              url={doc.displayUrl || doc.signedUrl || doc.url} 
+                              title={doc.alairt_fajl_url ? `${doc.nev} (Aláírt példány)` : doc.nev} 
+                            />
+                          )}
+
+                          {/* 3. Közvetlen Letöltés */}
+                          {(doc.displayUrl || doc.signedUrl || doc.url) && (
+                            <a
+                              href={doc.displayUrl || doc.signedUrl || doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors inline-flex items-center justify-center"
+                              title="Letöltés"
+                            >
+                              <Download className="w-4 h-4" />
+                            </a>
+                          )}
+
+                          {/* 4. Iktatás (ha még nincs iktatva) */}
+                          {isHrOrAdmin && !doc.iktatoszam && (
+                            <FileHrDocumentDialog 
+                              document={doc} 
+                              employeeId={profile.id} 
+                              employeeName={profile.nev} 
+                            />
+                          )}
+                          {isHrOrAdmin && !doc.iktatoszam ? (
+                            <DeleteContractButton documentId={doc.id} fileUrl={doc.url} dolgozoId={profile.id} />
+                          ) : isHrOrAdmin && (
+                            <div className="p-1 text-muted-foreground" title="Hivatalosan iktatott irat az irattári szabályok szerint nem törölhető">
+                              <Lock className="w-4 h-4 opacity-50" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="pl-12 text-muted-foreground py-4">Még nincsenek generált vagy feltöltött dokumentumok.</div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
 
         </div>
       </Tabs>

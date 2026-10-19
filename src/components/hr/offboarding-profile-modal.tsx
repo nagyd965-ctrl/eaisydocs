@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
+import { Checkbox } from "@/components/ui/checkbox"
 import { 
   Mail, 
   CalendarDays, 
@@ -40,7 +41,8 @@ import {
   Building2,
   ArrowLeft,
   MessageSquare,
-  FileCheck
+  FileCheck,
+  AlertTriangle
 } from "lucide-react"
 import { 
   addOffboardingTask, 
@@ -48,8 +50,10 @@ import {
   toggleOffboardingTaskStatus,
   closeOffboardingProcess,
   reopenOffboardingProcess,
+  resetOffboardingTasksProcess,
   deleteOffboardingProcess,
-  getOffboardingDetailData
+  getOffboardingDetailData,
+  updateOffboardingDate
 } from "@/app/hr/offboarding/actions"
 import { TerminationPanel } from "@/components/hr/termination-panel"
 import { AssetReturnPanel } from "@/components/hr/asset-return-panel"
@@ -80,6 +84,30 @@ export function OffboardingProfileModal({
   const [activeDepartment, setActiveDepartment] = useState<string>("all")
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null)
   const [detailData, setDetailData] = useState<any>(null)
+  const [forceCloseAck, setForceCloseAck] = useState(false)
+  const [resetTasksOnReopen, setResetTasksOnReopen] = useState(true)
+  const [isResettingTasks, setIsResettingTasks] = useState(false)
+
+  const initialDate = offboarding.utolso_munkanap || offboarding.utolso_munkaban_toltott_nap || offboarding.kilepes_datuma || ""
+  const [currentDate, setCurrentDate] = useState<string>(initialDate)
+
+  useEffect(() => {
+    const serverDate = detailData?.utolso_munkanap || detailData?.utolso_munkaban_toltott_nap || detailData?.kilepes_datuma || offboarding.utolso_munkanap || offboarding.utolso_munkaban_toltott_nap || offboarding.kilepes_datuma
+    if (serverDate) {
+      setCurrentDate(serverDate)
+    }
+  }, [detailData, offboarding])
+
+  const handleInputDateChange = async (newVal: string) => {
+    setCurrentDate(newVal)
+    if (onDateChange) {
+      onDateChange(newVal)
+    } else if (newVal) {
+      const res = await updateOffboardingDate(offboarding.id, newVal)
+      if (res.error) toast.error(res.error)
+      else toast.success("Utolsó munkanap sikeresen frissítve!")
+    }
+  }
 
   const employeeName = offboarding.felhasznalo_profil?.nev || (offboarding as any).nev || "Kilépő munkatárs"
   const munkakor = detailData?.munkakor || offboarding.munkakor || offboarding.felhasznalo_profil?.munkakor || null
@@ -110,8 +138,9 @@ export function OffboardingProfileModal({
   const tasks: OffboardingTask[] = detailData?.feladatok || offboarding.hr_offboarding_feladat || []
   const doneCount = tasks.filter((t) => t.statusz === "done").length
   const totalCount = tasks.length
+  const pendingCount = totalCount - doneCount
   const progress = totalCount > 0 ? (doneCount / totalCount) * 100 : 0
-  const isDone = progress === 100
+  const isDone = totalCount > 0 && doneCount === totalCount
   const isClosed = offboarding.statusz === "lezart"
 
   const filteredTasks = tasks.filter((t) => {
@@ -155,10 +184,11 @@ export function OffboardingProfileModal({
   }
 
   // Lezárás
-  const handleCloseOffboarding = async () => {
+  const handleCloseOffboarding = async (force: boolean = false) => {
     setIsClosing(true)
-    const res = await closeOffboardingProcess(offboarding.id)
+    const res = await closeOffboardingProcess(offboarding.id, { force })
     setIsClosing(false)
+    setForceCloseAck(false)
     if (res.error) {
       toast.error(res.error)
     } else {
@@ -173,12 +203,25 @@ export function OffboardingProfileModal({
   }
 
   // Újranyitás
-  const handleReopenOffboarding = async () => {
-    const res = await reopenOffboardingProcess(offboarding.id)
+  const handleReopenOffboarding = async (resetTasks: boolean = true) => {
+    const res = await reopenOffboardingProcess(offboarding.id, { resetTasks })
     if (res.error) {
       toast.error(res.error)
     } else {
       toast.success("Kiléptetés újranyitva!")
+      await loadFullDetails()
+    }
+  }
+
+  // Összes feladat státuszának visszaállítása folyamatban lévőre (pending)
+  const handleResetTasks = async () => {
+    setIsResettingTasks(true)
+    const res = await resetOffboardingTasksProcess(offboarding.id)
+    setIsResettingTasks(false)
+    if (res.error) {
+      toast.error(res.error)
+    } else {
+      toast.success("Minden feladat visszaállítva folyamatban (pending) státuszra.")
       await loadFullDetails()
     }
   }
@@ -283,9 +326,102 @@ export function OffboardingProfileModal({
           {/* Fejléc Műveleti gombok */}
           <div className="flex items-center gap-2 shrink-0">
             {isClosed ? (
-              <Button variant="outline" size="sm" onClick={handleReopenOffboarding} className="gap-1.5 text-xs">
-                <RotateCcw className="w-3.5 h-3.5" /> Újranyitás
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "gap-1.5 text-xs cursor-pointer"
+                )}>
+                  <RotateCcw className="w-3.5 h-3.5" /> Újranyitás
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Kiléptetési folyamat újranyitása</AlertDialogTitle>
+                    <AlertDialogDescription className="space-y-3 pt-2 text-left">
+                      <p className="text-foreground">
+                        Biztosan újranyitod {employeeName} kiléptetési folyamatát?
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        A folyamat állapota újra „Folyamatban” lesz, a dolgozói profil és a jogosultságok visszaállnak.
+                      </p>
+                      <div className="flex items-center space-x-2.5 pt-3 border-t">
+                        <Checkbox
+                          id="resetTasksCheckbox"
+                          checked={resetTasksOnReopen}
+                          onCheckedChange={(c) => setResetTasksOnReopen(Boolean(c))}
+                        />
+                        <label htmlFor="resetTasksCheckbox" className="text-xs font-medium cursor-pointer text-foreground select-none">
+                          Feladatok visszaállítása nyitott (folyamatban) állapotra
+                        </label>
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Mégse</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => handleReopenOffboarding(resetTasksOnReopen)}
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                    >
+                      Igen, újranyitás
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : pendingCount > 0 ? (
+              <AlertDialog>
+                <AlertDialogTrigger className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "gap-1.5 text-xs border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
+                )}>
+                  <Archive className="w-3.5 h-3.5" /> Kiléptetés lezárása
+                </AlertDialogTrigger>
+                <AlertDialogContent className="sm:max-w-[520px]">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2.5 text-base font-semibold text-amber-600 dark:text-amber-400">
+                      <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      Nem fejeződött be minden feladat!
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="space-y-3.5 pt-2 text-left">
+                      <div className="p-3.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs space-y-2 text-foreground">
+                        <div className="font-semibold text-amber-700 dark:text-amber-300 flex items-center justify-between">
+                          <span>Függőben lévő feladatok:</span>
+                          <Badge variant="outline" className="border-amber-500/40 bg-amber-500/20 text-amber-800 dark:text-amber-200 font-bold tabular-nums">
+                            {pendingCount} / {totalCount} feladat elvégzetlen
+                          </Badge>
+                        </div>
+                        <p className="text-muted-foreground leading-relaxed">
+                          A kiléptetési folyamat szabályosan csak az összes kötelező teendő teljesítése után zárható le (pl. eszközleadás, NAV kijelentés, kilépő igazolások).
+                        </p>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Kivételes lezárás esetén a rendszer a feladatokat <strong>NEM állítja át automatikusan készre</strong>, azok valós, befejezetlen állapotukban kerülnek archiválásra.
+                      </p>
+                      <div className="flex items-start space-x-2.5 pt-2.5 border-t">
+                        <Checkbox
+                          id="forceCloseAck"
+                          checked={forceCloseAck}
+                          onCheckedChange={(c) => setForceCloseAck(Boolean(c))}
+                          className="mt-0.5"
+                        />
+                        <label htmlFor="forceCloseAck" className="text-xs font-medium cursor-pointer text-foreground leading-snug select-none">
+                          Tudomásul veszem, hogy {pendingCount} feladat elvégzetlen marad, és kivételes lezárást kérek
+                        </label>
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter className="gap-2 sm:gap-2">
+                    <AlertDialogCancel onClick={() => setForceCloseAck(false)}>Vissza a feladatokhoz</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => handleCloseOffboarding(true)} 
+                      disabled={isClosing || !forceCloseAck}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-medium"
+                    >
+                      {isClosing ? "Lezárás folyamatban..." : "Kivételes lezárás jóváhagyása"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             ) : (
               <AlertDialog>
                 <AlertDialogTrigger className={cn(
@@ -294,20 +430,29 @@ export function OffboardingProfileModal({
                 )}>
                   <Archive className="w-3.5 h-3.5" /> Kiléptetés lezárása
                 </AlertDialogTrigger>
-                <AlertDialogContent>
+                <AlertDialogContent className="sm:max-w-[480px]">
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Kiléptetési folyamat lezárása</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Biztosan lezárod {employeeName} kiléptetési folyamatát?
-                      A folyamat során keletkezett hivatalos kilépő iratok (törvényes kilépő igazolások Mt. 80. §, megszüntetési megállapodás, eszközleszámolás, NAV igazolások) automatikusan beiktatásra kerülnek az eaisyDocs személyi dossziéba (50 év törvényes megőrzési idővel), és a folyamat archivált státuszba lép.
+                    <AlertDialogTitle className="flex items-center gap-2.5 text-base font-semibold text-success">
+                      <div className="w-8 h-8 rounded-full bg-success/15 flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-4 h-4 text-success" />
+                      </div>
+                      Kiléptetési folyamat lezárása
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="space-y-2.5 pt-2 text-left">
+                      <p className="text-sm text-foreground">
+                        Biztosan lezárod {employeeName} kiléptetési folyamatát? Minden feladat sikeresen elvégezve (100%).
+                      </p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        A folyamat során keletkezett hivatalos kilépő iratok (törvényes kilépő igazolások Mt. 80. §, megszüntetési megállapodás, eszközleszámolás, NAV igazolások) automatikusan beiktatásra kerülnek az eaisyDocs személyi dossziéba (50 év törvényes megőrzési idővel), és a folyamat archivált státuszba lép.
+                      </p>
                     </AlertDialogDescription>
                   </AlertDialogHeader>
-                  <AlertDialogFooter>
+                  <AlertDialogFooter className="gap-2 sm:gap-2">
                     <AlertDialogCancel>Mégse</AlertDialogCancel>
                     <AlertDialogAction 
-                      onClick={handleCloseOffboarding} 
+                      onClick={() => handleCloseOffboarding(false)} 
                       disabled={isClosing}
-                      className="bg-success hover:bg-success/90 text-success-foreground"
+                      className="bg-success hover:bg-success/90 text-success-foreground font-medium"
                     >
                       {isClosing ? "Lezárás folyamatban..." : "Igen, lezárás és archiválás"}
                     </AlertDialogAction>
@@ -351,7 +496,7 @@ export function OffboardingProfileModal({
             dolgozoId={offboarding.dolgozo_id}
             munkakor={munkakor}
             reszleg={reszleg}
-            kilepesDatuma={offboarding.kilepes_datuma || offboarding.utolso_munkanap}
+            kilepesDatuma={currentDate || offboarding.kilepes_datuma || offboarding.utolso_munkaban_toltott_nap || offboarding.utolso_munkanap}
             initialData={detailData}
             adatlap={detailData?.adatlap}
             onSuccess={() => {
@@ -399,7 +544,7 @@ export function OffboardingProfileModal({
             dolgozoId={offboarding.dolgozo_id}
             munkakor={munkakor}
             reszleg={reszleg}
-            kilepesDatuma={offboarding.kilepes_datuma || offboarding.utolso_munkanap}
+            kilepesDatuma={currentDate || offboarding.kilepes_datuma || offboarding.utolso_munkaban_toltott_nap || offboarding.utolso_munkanap}
             initialData={detailData}
             adatlap={detailData?.adatlap}
             targyeviBetegszabadsagNapok={detailData?.targyeviBetegszabadsagNapok}
@@ -420,8 +565,8 @@ export function OffboardingProfileModal({
                   <Input 
                     type="date" 
                     className="pl-9 h-9 text-sm font-medium bg-muted/20 border-border/50 focus:bg-background"
-                    defaultValue={offboarding.utolso_munkanap || ""} 
-                    onChange={(e) => onDateChange && onDateChange(e.target.value)}
+                    value={currentDate} 
+                    onChange={(e) => handleInputDateChange(e.target.value)}
                   />
                 </div>
               </div>
@@ -450,9 +595,29 @@ export function OffboardingProfileModal({
                     Részlegek közötti feladatmegosztás és előkészület.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Progress value={progress} className="w-28 h-2" />
-                  <span className="text-xs font-bold text-primary tabular-nums">{Math.round(progress)}%</span>
+                <div className="flex items-center gap-3">
+                  {doneCount > 0 && !isClosed && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleResetTasks}
+                      disabled={isResettingTasks}
+                      className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer gap-1"
+                      title="Minden feladat státuszának visszaállítása folyamatban (pending) állapotra"
+                    >
+                      {isResettingTasks ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <RotateCcw className="w-3 h-3" />
+                      )}
+                      Összes újranyitása
+                    </Button>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Progress value={progress} className="w-28 h-2" />
+                    <span className="text-xs font-bold text-primary tabular-nums">{Math.round(progress)}%</span>
+                  </div>
                 </div>
               </div>
 

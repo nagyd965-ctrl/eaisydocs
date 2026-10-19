@@ -14,16 +14,17 @@ import {
   LayoutGrid, 
   List, 
   Search, 
-  UserCheck, 
+  UserCheck,
   UserPlus, 
-  Clock, 
+  Clock,
   CheckCircle2, 
   Calendar, 
   Users, 
   TrendingUp,
   AlertCircle,
   Archive,
-  ChevronRight
+  ChevronRight,
+  X
 } from "lucide-react"
 import { updateOnboardingDate } from "@/app/hr/onboarding/actions"
 import { OnboardingCard } from "./onboarding-card"
@@ -31,6 +32,16 @@ import { OnboardingProfileModal } from "./onboarding-profile-modal"
 import type { OrgUnitOption, JobOption } from "@/app/hr/actions/job-org-actions"
 import { toast } from "sonner"
 import { type OnboardingProfile, type OnboardingTask } from "@/types/hr"
+
+function formatHungarianDate(rawDate?: string | null): string {
+  if (!rawDate || rawDate === "Hamarosan") return "Hamarosan"
+  const datePart = rawDate.split("T")[0]
+  const parts = datePart.split("-")
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[0]}. ${parts[1]}. ${parts[2]}.`
+  }
+  return rawDate
+}
 
 interface OnboardingListProps {
   onboardings: OnboardingProfile[]
@@ -42,7 +53,6 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
   const [activeTab, setActiveTab] = useState<string>("folyamatban")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [search, setSearch] = useState("")
-  const [accountFilter, setAccountFilter] = useState<"all" | "varakozik" | "aktivalva">("all")
   const [selectedOnboarding, setSelectedOnboarding] = useState<OnboardingProfile | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
 
@@ -53,22 +63,13 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
   // Aktív lista kiválasztása a fül alapján
   const currentList = activeTab === "folyamatban" ? inProgressList : closedList
 
-  // Szűrés kereső és fiókállapot alapján
+  // Szűrés kereső alapján
   const filteredList = currentList.filter((o) => {
     const matchesSearch =
       o.nev.toLowerCase().includes(search.toLowerCase()) ||
       (o.munkakor?.toLowerCase() || "").includes(search.toLowerCase())
 
-    if (!matchesSearch) return false
-
-    if (accountFilter === "varakozik") {
-      return o.fiok_allapot !== "aktivalva" && !o.dolgozo_id
-    }
-    if (accountFilter === "aktivalva") {
-      return o.fiok_allapot === "aktivalva" || Boolean(o.dolgozo_id)
-    }
-
-    return true
+    return matchesSearch
   })
 
   // Statisztikai KPI-k számítása (a folyamatban lévőkből)
@@ -108,7 +109,7 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 1. Felső Statisztikai Sáv (KPI kártyák) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard
@@ -131,8 +132,8 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
       </div>
 
       {/* 2. Füles Navigáció (Folyamatban lévő vs Lezárt) */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-3">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-2.5">
+        <div className="flex items-center justify-between">
           <TabsList className="h-9">
             <TabsTrigger value="folyamatban" className="text-xs">
               Folyamatban lévő beléptetések
@@ -141,9 +142,31 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
               Lezárt beléptetések
             </TabsTrigger>
           </TabsList>
+        </div>
 
-          {/* Nézetváltó és Gyors Szűrők */}
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+        {/* 3. Keresősáv és Nézetváltó */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-2.5 rounded-lg border">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Keresés név vagy munkakör alapján..."
+              className="pl-8 pr-8 h-9 text-sm"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                title="Keresés törlése"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 justify-end shrink-0">
             <div className="flex rounded-lg border bg-muted/40 p-0.5">
               <Button
                 variant={viewMode === "grid" ? "default" : "ghost"}
@@ -165,52 +188,6 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
           </div>
         </div>
 
-        {/* 3. Keresősáv és Fiók Szűrő */}
-        <div className="flex flex-col sm:flex-row gap-3 justify-between items-center bg-card p-3 rounded-lg border">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Keresés név vagy munkakör alapján..."
-              className="pl-8 h-9 text-sm"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <span className="text-xs text-muted-foreground shrink-0 hidden md:inline">Fiók állapot:</span>
-            <div className="flex gap-1 flex-wrap">
-              <Button
-                type="button"
-                variant={accountFilter === "all" ? "default" : "outline"}
-                size="sm"
-                className="h-8 text-xs px-2.5 rounded-full"
-                onClick={() => setAccountFilter("all")}
-              >
-                Mind
-              </Button>
-              <Button
-                type="button"
-                variant={accountFilter === "varakozik" ? "default" : "outline"}
-                size="sm"
-                className="h-8 text-xs px-2.5 rounded-full gap-1 text-warning"
-                onClick={() => setAccountFilter("varakozik")}
-              >
-                <Clock className="w-3 h-3" /> Aktiválásra vár
-              </Button>
-              <Button
-                type="button"
-                variant={accountFilter === "aktivalva" ? "default" : "outline"}
-                size="sm"
-                className="h-8 text-xs px-2.5 rounded-full gap-1 text-success"
-                onClick={() => setAccountFilter("aktivalva")}
-              >
-                <UserCheck className="w-3 h-3" /> Fiók aktív
-              </Button>
-            </div>
-          </div>
-        </div>
-
         {/* 4. Tartalom (Folyamatban lévő vagy Lezárt) */}
         <TabsContent value={activeTab} className="mt-0 outline-none">
           {filteredList.length === 0 ? (
@@ -219,8 +196,8 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
                 <Users className="w-6 h-6 opacity-40" />
               </div>
               <p className="font-medium text-foreground">
-                {search || accountFilter !== "all" 
-                  ? "Nincs a szűrésnek megfelelő beléptetési folyamat." 
+                {search 
+                  ? "Nincs a keresésnek megfelelő beléptetési folyamat." 
                   : activeTab === "folyamatban" 
                     ? "Jelenleg nincsenek aktív beléptetési folyamatok." 
                     : "Még nincsenek lezárt beléptetési folyamatok."}
@@ -272,7 +249,7 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm font-medium tabular-nums">{person.belepes_datuma || "Hamarosan"}</span>
+                          <span className="text-sm font-medium tabular-nums">{formatHungarianDate(person.belepes_datuma)}</span>
                         </TableCell>
                         <TableCell>
                           {isAccountActive ? (

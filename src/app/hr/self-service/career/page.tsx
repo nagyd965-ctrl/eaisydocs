@@ -6,6 +6,8 @@ import { buttonVariants } from "@/components/ui/button"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
+import { getActiveCompanyIdServer } from "@/utils/company-server"
+
 export default async function InternalCareerPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -14,8 +16,10 @@ export default async function InternalCareerPage() {
     redirect("/login")
   }
 
-  // Lekérdezzük az összes aktív hirdetést (publikus + belső)
-  const { data: hirdetesek } = await supabase
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  // Lekérdezzük az aktív céghez tartozó aktív hirdetéseket (publikus + belső)
+  let query = supabase
     .from("hr_allashirdetes")
     .select(`
       id, 
@@ -26,6 +30,12 @@ export default async function InternalCareerPage() {
       hr_munkakor (megnevezes)
     `)
     .eq("aktiv", true)
+
+  if (activeCompanyId) {
+    query = query.or(`company_id.eq.${activeCompanyId},company_id.is.null`)
+  }
+
+  const { data: hirdetesek } = await query
     .order("created_at", { ascending: false })
     .returns<any[]>()
 

@@ -26,44 +26,65 @@ export default async function PerformancePage() {
   }
 
   const { activeCompanyId } = auth
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
-  // Admin kliens használata, mert az RLS policy-k még nincsenek teljeskörűen konfigurálva
+  // Admin kliens használata az adatok biztonságos, céges szűréséhez
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: kpis } = await supabaseAdmin
-    .from("hr_teljesitmeny")
-    .select("*, hr_teljesitmeny_ciklus(megnevezes), hr_dolgozo_adatlap(felhasznalo_profil(nev))")
-    .order("created_at", { ascending: false })
+  // Aktív cég tagjainak azonosítói
+  const { data: companyMembers } = await supabaseAdmin
+    .from("company_members")
+    .select("user_id")
+    .eq("company_id", companyScope)
+  const memberUserIds = (companyMembers || []).map((m: any) => m.user_id)
+  const safeMemberIds = memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"]
 
-  const { data: employees } = await supabaseAdmin
-    .from("hr_dolgozo_adatlap")
-    .select(`
-      id,
-      felhasznalo_profil ( nev, avatar_url ),
-      hr_jogviszony (
-        hr_beosztas (
-          ervenyes_ig,
-          hr_munkakor ( megnevezes )
+  const [kpisRes, employeesRes, cyclesRes, logsRes] = await Promise.all([
+    supabaseAdmin
+      .from("hr_teljesitmeny")
+      .select("*, hr_teljesitmeny_ciklus(megnevezes), hr_dolgozo_adatlap(felhasznalo_profil(nev))")
+      .in("dolgozo_id", safeMemberIds)
+      .or(`company_id.eq.${companyScope},company_id.is.null`)
+      .order("created_at", { ascending: false }),
+
+    supabaseAdmin
+      .from("hr_dolgozo_adatlap")
+      .select(`
+        id,
+        felhasznalo_profil ( nev, avatar_url ),
+        hr_jogviszony (
+          hr_beosztas (
+            ervenyes_ig,
+            hr_munkakor ( megnevezes )
+          )
         )
-      )
-    `)
+      `)
+      .in("id", safeMemberIds),
 
-  const { data: cycles } = await supabaseAdmin
-    .from("hr_teljesitmeny_ciklus")
-    .select("*")
-    .order("kezdo_datum", { ascending: false })
+    supabaseAdmin
+      .from("hr_teljesitmeny_ciklus")
+      .select("*")
+      .or(`company_id.eq.${companyScope},company_id.is.null`)
+      .order("kezdo_datum", { ascending: false }),
 
-  const { data: logs } = await supabaseAdmin
-    .from("hr_esemeny_naplo")
-    .select("*, felhasznalo_profil(nev)")
-    .eq("entitas_tipus", "hr_teljesitmeny")
-    .order("created_at", { ascending: true })
+    supabaseAdmin
+      .from("hr_esemeny_naplo")
+      .select("*, felhasznalo_profil(nev)")
+      .eq("entitas_tipus", "hr_teljesitmeny")
+      .in("felhasznalo_id", safeMemberIds)
+      .order("created_at", { ascending: true })
+  ])
+
+  const kpis = kpisRes.data || []
+  const employees = employeesRes.data || []
+  const cycles = cyclesRes.data || []
+  const logs = logsRes.data || []
 
   return (
-    <div className="space-y-6 pb-10">
+    <div key={companyScope} className="space-y-6 pb-10">
       
       <div className="flex justify-between items-end">
         <div>

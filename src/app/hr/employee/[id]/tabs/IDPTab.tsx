@@ -9,7 +9,7 @@ export async function IDPTab({ dolgozoId, isManagerView = true }: { dolgozoId: s
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">Egyéni Fejlesztési Tervek (IDP)</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Fejlesztési tervek</h2>
           <p className="text-sm text-muted-foreground">
             A munkavállaló karrierfejlesztési céljai, képzései és kompetenciafejlesztési tervei.
           </p>
@@ -21,8 +21,8 @@ export async function IDPTab({ dolgozoId, isManagerView = true }: { dolgozoId: s
 
       {tervek.length === 0 ? (
         <div className="text-center p-12 border rounded-lg border-dashed">
-          <h3 className="text-lg font-semibold mb-2">Nincs rögzített IDP</h3>
-          <p className="text-muted-foreground mb-4">A dolgozónak még nincsenek egyéni fejlesztési tervei.</p>
+          <h3 className="text-lg font-semibold mb-2">Nincs rögzített fejlesztési terv</h3>
+          <p className="text-muted-foreground mb-4">A dolgozónak még nincsenek rögzített fejlesztési tervei.</p>
           {isManagerView && (
             <IdpPlanDialog dolgozoId={dolgozoId} buttonVariant="default" buttonText="Első Terv Létrehozása" />
           )}

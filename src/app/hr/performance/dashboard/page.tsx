@@ -7,20 +7,11 @@ import { Badge } from "@/components/ui/badge"
 import { KpiCard } from "@/components/kpi-card"
 import { DashboardCharts } from "./components/dashboard-charts"
 
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+
 export default async function DashboardPage() {
-  const supabase = await createClient()
-
-  // Biztonsági ellenőrzés
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/auth/login")
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select('hr_szerepkor')
-    .eq("id", user.id)
-    .single()
-
-  if (!profile || !["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)) {
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "auditor"])
+  if (!auth.authorized || !auth.activeCompanyId) {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">
         <div>
@@ -31,22 +22,43 @@ export default async function DashboardPage() {
     )
   }
 
+  const { activeCompanyId } = auth
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: kpis } = await supabaseAdmin
-    .from("hr_teljesitmeny")
-    .select("*, hr_teljesitmeny_ciklus(megnevezes, statusz)")
+  // Aktív cég tagjainak azonosítói
+  const { data: companyMembers } = await supabaseAdmin
+    .from("company_members")
+    .select("user_id")
+    .eq("company_id", companyScope)
+  const memberUserIds = (companyMembers || []).map((m: any) => m.user_id)
+  const safeMemberIds = memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"]
 
-  const { data: cycles } = await supabaseAdmin
-    .from("hr_teljesitmeny_ciklus")
-    .select("*")
+  const [kpisRes, cyclesRes, employeesRes] = await Promise.all([
+    supabaseAdmin
+      .from("hr_teljesitmeny")
+      .select("*, hr_teljesitmeny_ciklus(megnevezes, statusz)")
+      .in("dolgozo_id", safeMemberIds)
+      .or(`company_id.eq.${companyScope},company_id.is.null`),
 
-  const { data: employees } = await supabaseAdmin
-    .from("hr_dolgozo_adatlap")
-    .select("id, felhasznalo_profil(nev)")
+    supabaseAdmin
+      .from("hr_teljesitmeny_ciklus")
+      .select("*")
+      .or(`company_id.eq.${companyScope},company_id.is.null`),
+
+    supabaseAdmin
+      .from("hr_dolgozo_adatlap")
+      .select("id, felhasznalo_profil(nev)")
+      .in("id", safeMemberIds)
+  ])
+
+  const kpis = kpisRes.data || []
+  const cycles = cyclesRes.data || []
+  const employees = employeesRes.data || []
 
   // Számítások
   const totalEmployees = employees?.length || 0

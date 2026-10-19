@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { generateTerminationPdfBuffer } from "@/utils/hr/termination-pdf-generator"
 import { type TerminationPdfData, type TerminationType, DEFAULT_COMPANY_DETAILS, TERMINATION_TYPE_LABELS } from "@/utils/hr/termination-constants"
 import { generateAssetReturnPdfBuffer, type AssetReturnItem, type AssetReturnPdfData } from "@/utils/hr/asset-return-pdf-generator"
@@ -152,6 +153,7 @@ export interface CreateOffboardingParams {
   reszleg?: string
   munkakor?: string
   indoklas?: string
+  companyId?: string
 }
 
 export async function createOffboarding(
@@ -164,6 +166,8 @@ export async function createOffboarding(
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
+
+  const activeCompanyId = extraParams?.companyId || (await getActiveCompanyIdServer())
 
   // Check if active offboarding already exists
   const { data: existing } = await adminClient
@@ -264,6 +268,7 @@ export async function createOffboarding(
     .from("hr_offboarding")
     .insert([{
       dolgozo_id: dolgozoId,
+      company_id: activeCompanyId,
       kilepes_datuma: kilepesDatuma,
       utolso_munkaban_toltott_nap: extraParams?.utolsoMunkanap || kilepesDatuma,
       megszunes_modja: extraParams?.megszunesModja || "kozos_megegyezes",
@@ -281,12 +286,12 @@ export async function createOffboarding(
 
   // Intelligens alapértelmezett kiléptetési feladatok
   const defaultTasks = [
-    { offboarding_id: newOffboarding.id, cim: "Munkaviszony megszüntetési megállapodás előkészítése & aláírása", felelos_reszleg: "HR" },
-    { offboarding_id: newOffboarding.id, cim: "Céges munkaeszközök és irodai kulcsok/belépők leadása (Mt. 179. §)", felelos_reszleg: "IT / Üzemeltetés" },
-    { offboarding_id: newOffboarding.id, cim: "E-mail fiók, VPN és jogosultságok visszavonása", felelos_reszleg: "IT" },
-    { offboarding_id: newOffboarding.id, cim: "T1041 NAV kijelentés és nyugta rögzítése", felelos_reszleg: "Bérszámfejtés" },
-    { offboarding_id: newOffboarding.id, cim: "Kilépési interjú lefolytatása", felelos_reszleg: "HR" },
-    { offboarding_id: newOffboarding.id, cim: "Törvényes kilépő igazolások kiadása (Mt. 80. §)", felelos_reszleg: "Bérszámfejtés" },
+    { offboarding_id: newOffboarding.id, company_id: activeCompanyId, cim: "Munkaviszony megszüntetési megállapodás előkészítése & aláírása", felelos_reszleg: "HR" },
+    { offboarding_id: newOffboarding.id, company_id: activeCompanyId, cim: "Céges munkaeszközök és irodai kulcsok/belépők leadása (Mt. 179. §)", felelos_reszleg: "IT / Üzemeltetés" },
+    { offboarding_id: newOffboarding.id, company_id: activeCompanyId, cim: "E-mail fiók, VPN és jogosultságok visszavonása", felelos_reszleg: "IT" },
+    { offboarding_id: newOffboarding.id, company_id: activeCompanyId, cim: "T1041 NAV kijelentés és nyugta rögzítése", felelos_reszleg: "Bérszámfejtés" },
+    { offboarding_id: newOffboarding.id, company_id: activeCompanyId, cim: "Kilépési interjú lefolytatása", felelos_reszleg: "HR" },
+    { offboarding_id: newOffboarding.id, company_id: activeCompanyId, cim: "Törvényes kilépő igazolások kiadása (Mt. 80. §)", felelos_reszleg: "Bérszámfejtés" },
   ]
 
   await adminClient.from("hr_offboarding_feladat").insert(defaultTasks)
@@ -300,10 +305,16 @@ export async function createOffboarding(
   })
 
   revalidatePath("/hr/offboarding")
+  revalidatePath(`/hr/employee/${dolgozoId}`)
+  revalidatePath("/hr/employees")
+  revalidatePath("/hr/admin")
   return { success: true, id: newOffboarding.id }
 }
 
-export async function closeOffboarding(offboardingId: string) {
+export async function closeOffboarding(
+  offboardingId: string,
+  options?: { force?: boolean; forceReason?: string }
+) {
   const supabase = await createClient()
   const adminClient = getAdminClient()
 
@@ -321,6 +332,20 @@ export async function closeOffboarding(offboardingId: string) {
   }
 
   const employeeName = offboarding.felhasznalo_profil?.nev || "Munkatárs"
+
+  // 1. Feladatok integritási ellenőrzése
+  const { data: allTasks } = await adminClient
+    .from("hr_offboarding_feladat")
+    .select("id, cim, felelos_reszleg, statusz")
+    .eq("offboarding_id", offboardingId)
+
+  const pendingTasks = (allTasks || []).filter(t => t.statusz === "pending")
+
+  if (pendingTasks.length > 0 && !options?.force) {
+    return {
+      error: `A kiléptetés nem zárható le, mert még ${pendingTasks.length} feladat elvégzésre vár! Kérjük, végezd el vagy töröld a nem releváns teendőket a lezárás előtt.`
+    }
+  }
 
   // 0. Fail-Safe: Ha a törvényes kilépő igazolás még nem készült el, automatikusan előállítjuk a meglévő adatokkal (Mt. 80. §)
   let kilepoPdfUrl = offboarding.kilepo_igazolas_pdf_url
@@ -416,12 +441,8 @@ export async function closeOffboarding(offboardingId: string) {
     }
   }
 
-  // 3. Automatikusan elvégzettre állítjuk a még nyitott offboarding feladatokat
-  await adminClient
-    .from("hr_offboarding_feladat")
-    .update({ statusz: 'done' })
-    .eq("offboarding_id", offboardingId)
-    .eq("statusz", "pending")
+  // 3. FONTOS: A nyitott (pending) feladatokat SOHA NEM állítjuk automatikusan done-ra!
+  // Megőrizzük az integritást és a valós állapotot: a befejezetlen feladatok pending-ek maradnak.
 
   // 4. Státusz lezárása
   const { error: updateErr } = await adminClient
@@ -477,18 +498,26 @@ export async function closeOffboarding(offboardingId: string) {
     ? `${filedResults.length} kilépő irat beiktatva a személyi dossziéba (${filedResults.map(f => f.iktatoszam).join(", ")}).` 
     : "Nincsenek új iktatandó dokumentumok."
 
+  const isForceClose = pendingTasks.length > 0
+  const taskAuditNote = isForceClose
+    ? `FIGYELEM: Kivételes lezárás ${pendingTasks.length} befejezetlen feladattal! (Indoklás: ${options?.forceReason || "Kivételes jóváhagyás"}).`
+    : "Minden kiléptetési feladat maradéktalanul elvégezve."
+
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "munkatars_modositas", 
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
-    megjegyzes: `Kiléptetés hivatalosan lezárva (${employeeName}). Fiók letiltva (Auth ban) és jogosultságok visszavonva. ${filingNote}`
+    megjegyzes: `Kiléptetés lezárva (${employeeName}). ${taskAuditNote} Fiók letiltva (Auth ban) és jogosultságok visszavonva. ${filingNote}`
   })
 
   revalidatePath("/hr/offboarding")
   revalidatePath("/hr/settings")
   revalidatePath("/hr/admin")
   revalidatePath("/hr")
+  if (offboarding.dolgozo_id) {
+    revalidatePath(`/hr/employee/${offboarding.dolgozo_id}`)
+  }
   return { 
     success: true, 
     filedCount: filedResults.length,
@@ -496,7 +525,10 @@ export async function closeOffboarding(offboardingId: string) {
   }
 }
 
-export async function reopenOffboarding(offboardingId: string) {
+export async function reopenOffboarding(
+  offboardingId: string,
+  options?: { resetTasks?: boolean }
+) {
   const supabase = await createClient()
   const adminClient = getAdminClient()
 
@@ -505,7 +537,7 @@ export async function reopenOffboarding(offboardingId: string) {
 
   const { data: offboarding } = await adminClient
     .from("hr_offboarding")
-    .select("dolgozo_id")
+    .select("dolgozo_id, felhasznalo_profil(nev)")
     .eq("id", offboardingId)
     .single()
 
@@ -517,6 +549,14 @@ export async function reopenOffboarding(offboardingId: string) {
   if (error) {
     console.error("Hiba a kiléptetés újranyitásakor:", error)
     return { error: error.message }
+  }
+
+  // Ha kérték a feladatok visszaállítását nyitott (pending) állapotra
+  if (options?.resetTasks) {
+    await adminClient
+      .from("hr_offboarding_feladat")
+      .update({ statusz: 'pending' })
+      .eq("offboarding_id", offboardingId)
   }
 
   // Személyi dosszié újranyitása iktatva státuszra, hogy lehessen módosítani / új iratot felvenni
@@ -556,18 +596,52 @@ export async function reopenOffboarding(offboardingId: string) {
       .eq("id", offboarding.dolgozo_id)
   }
 
+  const profil = Array.isArray(offboarding?.felhasznalo_profil) ? offboarding.felhasznalo_profil[0] : offboarding?.felhasznalo_profil
+  const employeeName = (profil as any)?.nev || "Munkatárs"
+  const taskResetNote = options?.resetTasks ? " és a kiléptetési feladatok visszaállítva nyitott (folyamatban) állapotra" : ""
+
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
-    esemeny_tipus: "munkatars_modositas", 
+    esemeny_tipus: "munkatars_modositas",
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
-    megjegyzes: `Kiléptetés újranyitva. Auth fiók és jogosultságok visszaállítva.`
+    megjegyzes: `Kiléptetés újranyitva (${employeeName})${taskResetNote}. Fiók és jogosultságok újra aktívak.`
   })
 
   revalidatePath("/hr/offboarding")
   revalidatePath("/hr/settings")
   revalidatePath("/hr/admin")
   revalidatePath("/hr")
+  if (offboarding?.dolgozo_id) {
+    revalidatePath(`/hr/employee/${offboarding.dolgozo_id}`)
+  }
+  return { success: true }
+}
+
+export async function resetOffboardingTasks(offboardingId: string) {
+  const supabase = await createClient()
+  const adminClient = getAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { error } = await adminClient
+    .from("hr_offboarding_feladat")
+    .update({ statusz: 'pending' })
+    .eq("offboarding_id", offboardingId)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  await adminClient.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "munkatars_modositas",
+    entitas_tipus: "hr_offboarding",
+    entitas_id: offboardingId,
+    megjegyzes: "Offboarding feladatok kézzel visszaállítva folyamatban (pending) státuszra."
+  })
+
+  revalidatePath("/hr/offboarding")
   return { success: true }
 }
 
@@ -615,6 +689,7 @@ export async function fileSingleOffboardingDocument({
 
 export const closeOffboardingProcess = closeOffboarding
 export const reopenOffboardingProcess = reopenOffboarding
+export const resetOffboardingTasksProcess = resetOffboardingTasks
 
 export async function deleteOffboardingProcess(offboardingId: string) {
   const supabase = await createClient()
@@ -830,6 +905,7 @@ export async function getOffboardingDetailData(offboardingId: string) {
 
     const payload = {
       ...offboarding,
+      utolso_munkanap: offboarding.utolso_munkaban_toltott_nap || offboarding.kilepes_datuma || null,
       munkakor: resolvedMunkakor || offboarding.munkakor,
       reszleg: resolvedReszleg || offboarding.reszleg,
       adatlap: adatlap || null,

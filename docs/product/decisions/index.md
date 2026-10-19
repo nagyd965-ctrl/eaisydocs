@@ -103,11 +103,13 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-093](./P-093-dossier-tasks-table-and-notes-sheet-ux.md) | 2026-10-18 | Ügyirati Feladatok Teljes Szélességű Táblázat, Részletező Panel és Megjegyzések Slide-over | `[Docs]` | `Dossiers / Tasks Tab & Notes Sheet UX` | [P-092](./P-092-dossier-tasks-wizard-modal-ux.md), `src/components/tasks-tab.tsx`, `src/components/dossier-notes-sheet.tsx`, `src/app/dossiers/[id]/page.tsx` |
 | [P-094](./P-094-dossier-links-tab-human-friendly-ux.md) | 2026-10-18 | Ügyirati Kapcsolódások Fül – Emberi Nyelvű Megjelenítés és Háromlépéses Kapcsolat Varázsló | `[Docs]` | `Dossiers / Links Tab UX` | [P-093](./P-093-dossier-tasks-table-and-notes-sheet-ux.md), `src/components/polymorphic-links-tab.tsx`, `src/utils/resolve-link-entities.ts`, `src/app/dossiers/[id]/actions.ts` |
 | [P-095](./P-095-dossier-notes-edit-attachments-unread-ux.md) | 2026-10-18 | Belső Megjegyzések Bővítése – Többsoros Író, Szerkesztés/Törlés, Csatolmányok, Olvasatlan Jelzés | `[Docs]` | `Dossiers / Notes Sheet UX` | [P-093](./P-093-dossier-tasks-table-and-notes-sheet-ux.md), `src/components/dossier-notes-sheet.tsx`, `src/components/mention-input.tsx`, `src/app/dossiers/[id]/actions.ts`, `supabase/migrations/20261018000003_ugyirat_megjegyzes_extensions.sql` |
+| [P-096](./P-096-employee-official-documents-dedicated-tab-ux.md) | 2026-10-19 | Munkavállalói Hivatalos Dokumentumok Dedikált Fülre Helyezése és Munkaviszony Tisztítás UX | `[HR]` | `HR / Employee Profile & Documents UX` | `src/app/hr/employee/[id]/page.tsx` |
+| [P-097](./P-097-performance-and-offboarding-hardening.md) | 2026-10-19 | Teljesítményértékelés és Dolgozói Életút (Offboarding) Hardening és Integráció | `[HR]` | `HR / Performance & Offboarding Hardening` | `src/app/hr/performance/actions.ts`, `src/app/hr/performance/page.tsx`, `src/app/hr/performance/dashboard/page.tsx`, `src/app/hr/offboarding/actions.ts`, `src/components/hr/add-offboarding-dialog.tsx`, `src/app/hr/employee/[id]/page.tsx`, `src/app/hr/self-service/career/page.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-093`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-098`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 
