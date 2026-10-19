@@ -3,7 +3,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/utils/supabase/server"
 import { PersonalDataCard } from "@/components/hr/personal-data-card"
-import { RecentDocumentsCard } from "@/components/hr/recent-documents-card"
 import { JobDescriptionAcknowledgment } from "@/components/hr/job-description-acknowledgment"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 import { redirect } from "next/navigation"
@@ -39,7 +38,7 @@ export default async function SelfServiceProfilePage() {
       .select("*, hr_beosztas(*, hr_munkakor(*))")
       .eq("dolgozo_id", user.id)
       .is("kilepes_datuma", null)
-      .single(),
+      .maybeSingle(),
     supabase
       .from("hr_orvosi_vizsgalat")
       .select("ervenyesseg_datuma")
@@ -143,12 +142,6 @@ export default async function SelfServiceProfilePage() {
           })()
         : [])
 
-  const { data: dokumentumok } = await supabase
-    .from("hr_dokumentum")
-    .select("*")
-    .eq("dolgozo_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(5)
 
   const szerepkorLabel: Record<string, string> = {
     hr_munkatars: "HR Munkatárs",
@@ -486,9 +479,6 @@ export default async function SelfServiceProfilePage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Legutóbbi Dokumentumaim */}
-      <RecentDocumentsCard documents={dokumentumok || []} />
 
     </div>
   )

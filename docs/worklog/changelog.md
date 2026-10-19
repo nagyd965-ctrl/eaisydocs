@@ -4,6 +4,77 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-19)
 
+### 🤝 eaisyHR: Dolgozói Ajánlási Rendszer (Referral) és Beállítható Bónusz („A” Opció - A-075 / P-099 / BRD-011)
+- **Kétfülös Karrier Oldal („A” Opció - `/hr/self-service/career` & `src/components/hr/internal-career-view.tsx`):**
+  - **Fülek elrendezése:** A fejléc alatt közvetlenül elérhető az **Álláshirdetések** és a **Saját ajánlásaim** fül, valós idejű darabszám jelvényekkel (`postings.length` és `referrals.length`), dekoratív ikonoktól mentes, tiszta szöveges formában az ADR A-029 szabvány szerint.
+  - **Közvetlen ajánlásindítás:**
+    - A fejlécből elérhető a platform szinten egyetlen kanonikus `[+ Ismerős ajánlása]` gomb (`UserPlus` ikon).
+    - Minden nyitott álláshirdetés kártyáján helyben megtalálható az `[Ajánlás]` gomb, amely automatikusan előválasztja a pozíciót az űrlapon.
+    - Minden álláskártyán megjelenik a fix sikerdíj jelvény (`🎯 X Ft bónusz`).
+- **Saját Ajánlásaim Kezelőfelület (`src/components/hr/my-referrals-view.tsx`):**
+  - **4 Linear Flat KPI Kártya (ADR A-029):** *Összes Ajánlásom*, *Folyamatban*, *Sikeres Felvétel*, *Jóváhagyott Bónusz* – letisztult struktúra, kiemelt tabular-nums összegekkel, ikonmentesen.
+  - **Kanonikus TableToolbar:** Instant kereső jelölt nevére, e-mailjére vagy pozíciójára, valamint bónusz státusz szűrő (*Kiválasztás zajlik*, *Próbaidő alatt*, *Jóváhagyva/Kifizethető*, *Kifizetve*, *Elutasítva*).
+  - **Ajánlások részletes listája:** Jelölt elérhetőségei, pozíció, ajánlás dátuma, toborzási pipeline fázis jelvény (`hr_toborzas.statusz`), bónusz státusz jelvény, sikerdíj összege, LinkedIn hivatkozás és feltöltött önéletrajz letöltési lehetőség.
+  - **Ajánlás visszavonása & Kanonikus `AlertDialog` modál:** Függőben lévő ajánlásoknál közvetlen törlési lehetőség (`Trash2` ikon), amely a rendszer szabványos shadcn `AlertDialog` megerősítő párbeszédpanelével nyílik meg (natív `confirm()` nélkül), törölve a toborzási rekordot és a storage-ban lévő CV fájlt is.
+  - **Redundancia-mentesítés:** Eltávolítva a programkártyában és az üres állapotban korábban duplikált zöld gombok, valamint a dekoratív emoji és ikonbox elemek.
+- **Ismerős Ajánlása Modál (`src/components/hr/referral-dialog.tsx`):**
+  - Választó nyitott állásokra és *"🎯 Általános ajánlás (Talent pool)"* opcióra.
+  - Jelölt teljes neve, e-mail címe (regex ellenőrzéssel), telefonszáma, LinkedIn profil linkje.
+  - Önéletrajz feltöltés (PDF, DOC, DOCX, max 10MB) kliens- és szerveroldali biztonsági ellenőrzéssel.
+  - Szöveges indoklás a jelölt erősségeiről.
+  - GDPR hozzájárulási megerősítő nyilatkozat.
+  - Flat bónusz kiemelő sáv a fix sikerdíj összegével és a próbaidőhöz kötött kifizetési szabállyal.
+- **Cégszintű Bónusz Konfiguráció (`src/components/settings/company-settings-tab.tsx` & `src/app/actions/company-actions.ts`):**
+  - A `/hr/settings` oldalon a "Cég" fülön új beviteli mező: **Dolgozói ajánlási bónusz (Ft)**.
+  - A cégtulajdonos/admin testreszabhatja a fix sikerdíj mértékét, amely a `companies.referral_bonus_amount` oszlopban perzisztálódik (alapértelmezett: 150 000 Ft).
+- **Adatbázis Séma és Szigorú Multi-Tenant RLS (`supabase/migrations/20261019000001_create_hr_dolgozoi_ajanlas.sql`):**
+  - Létrejött a `hr_dolgozoi_ajanlas` tábla (`company_id`, `ajanlo_dolgozo_id`, `allashirdetes_id`, `toborzas_id`, `jelolt_nev`, `jelolt_email`, `cv_storage_path`, `bonusz_osszeg`, `bonusz_statusz`, stb.).
+  - Restrictive `tenant_isolation_restrictive` házirend a cégközi elszigeteléshez.
+  - Permissive RLS: A munkatárs kizárólag a saját ajánlásait láthatja (`ajanlo_dolgozo_id = auth.uid()`), a HR/Adminisztrátorok a teljes céges állományt felügyelhetik.
+  - Kétirányú toborzási híd: Az ajánlás automatikusan létrehozza a jelöltet a `hr_toborzas` pipeline-ban is, összekapcsolva az ATS-szel.
+  - 5 db automatizált egység- és integrációs teszt (`src/utils/__tests__/employee-referral.test.ts`).
+- **Kapcsolódó döntések:** [ADR A-075](../architecture/decisions/A-075-employee-referral-system-and-configurable-bonus-architecture.md), [PRD P-099](../product/decisions/P-099-employee-referral-system-and-configurable-bonus-ux.md), [BRD-011](../business/decisions/011-employee-referral-system-and-bonus-governance.md).
+
+### 📄 eaisyHR: Dolgozói Önkiszolgáló Dokumentumaim Oldal, Univerzális DocumentViewer és Portál Audit Javítások (A-074 / P-098)
+- **Szabadságtörténet Mt. szerinti Munkanap Kalkuláció (`src/components/hr/leave-history-list.tsx` & `src/utils/hr/leave-calculator.ts`):**
+  - **Valós munkanapok kijelzése:** A korábbi naiv naptári különbség (`durationDays`) helyett, amely pl. egy hétfőtől péntekig tartó távollétre 9 napot írt ki a hétvégékkel, a felület a valós Mt. szerinti munkanapokat veszi figyelembe (`(X munkanap)` formátumban).
+  - **Munkaszüneti napok integrációja:** A `calculateWorkingDays` algoritmus kezeli a hétvégéket és a `hr_munkaszuneti_nap` táblából lekérdezett hivatalos nemzeti munkaszüneti napokat, illetve elsődlegesen a mentett `leave.munkanapok_szama` értéket alkalmazza.
+  - **Időzóna-eltolódási hiba javítása:** Megszűnt az ISO UTC konverziós bug a dátumléptetőben (`cur.setHours(0,0,0,0)` utáni UTC-1 napos visszacsúszás), 11 db automatizált egységteszttel igazolva.
+- **Helyettesítő Kiválasztó Multi-Tenant Cégszintű Elszigetelés (`src/app/hr/self-service/time/page.tsx` & `actions.ts`):**
+  - **Cégre szűrt dolgozói lista:** Az `availableUsers` lekérdezés szigorúan az aktív céghez tartozó személyeket (`company_id`, `company_members`) gyűjti össze, kizárva, hogy többcéges környezetben idegen cég alkalmazottai megjelenjenek a helyettesítő kiválasztó legördülőben.
+  - **Szerveroldali védelem:** A `saveSubstitute` akció rögzíti az aktív `company_id`-t a `hr_helyettesites` táblában, szerveroldalon ellenőrzi, hogy a megadott helyettes az aktív céghez tartozik-e, és revalidálja a `/hr/self-service/time` útvonalat.
+  - **Aktív helyettes céges izolációja:** A `currentSubstitute` lekérdezés szintén cég-specifikus szűrést kapott, és a figyelmeztető banner közvetlenül a `#helyettesites` horgonyra irányít.
+- **Belső Állások Kereső és Részleg Szűrő Sáv (`/hr/self-service/career` & `src/components/hr/internal-career-view.tsx`):**
+  - **Kanonikus TableToolbar & KpiCard:** Az egyszerű kártyalista elé bekerült a 4 db Linear Flat KPI kártya (Nyitott Pozíciók, Belső Pályázatok, Érintett Területek, Legfrissebb Kiírás).
+  - **Instant Keresés és Részlegválasztó Popover:** A `TableToolbar` segítségével azonnal szűrhető a pozíció címe, leírása, munkaköre vagy szervezeti egysége (`hr_szervezeti_egyseg`), valamint a Popoverben részleg szerinti jelölőnégyzetek találhatók pontos darabszámokkal (pl. `Fejlesztés (2)`), kiegészítve belső/publikus kapcsolókkal.
+  - **Belső állások megtekinthetősége:** A `/karrier/[id]` oldalon elhárításra került a korábbi 404-es hiba: az aktív belső állások mostantól bejelentkezve közvetlenül megtekinthetők és megpályázhatók.
+- **Önálló „Dokumentumaim” Oldal a Dolgozói Portálban (`/hr/self-service/documents` & `hr-sidebar.tsx`):**
+  - **Közvetlen navigáció:** A `Dolgozói Portál` oldalsáv menüjébe bekerült az új `Dokumentumaim` menüpont (`FileText` ikon), amely minden jogosultsággal rendelkező dolgozó számára azonnal elérhető.
+  - **4 db Linear Flat KPI Kártya (ADR A-029):** Összes Irat, Hivatalosan Iktatva, Aláírt Példányok, Legutóbbi Irat – díszítő ikonok és szegélyek nélkül, letisztult felső kisbetűs címkékkel és tabular-nums kiemelt számértékekkel.
+  - **Teljeskörű iratállomány:** Megszűnt az 5 tételes korlátozás; a nézet a munkavállalóhoz tartozó összes iratot lekérdezi a `hr_dokumentum` táblából (szerződések, havi jelenléti ívek, szabadság-nyilvántartás, orvosi alkalmassági, cafeteria nyilatkozat, tanulmányi szerződés, NAV T1041 hatósági bejelentők, kitüntetések).
+  - **Idővonalas kártyalista:** Dátumok, kategóriák, zöld iktatószám címkék (`Iktatva: HR/2026/...`), aláírási jelvények és közvetlen dosszié ugrás.
+- **Kanonikus `TableToolbar` és Szűrés Popover Integráció (ADR A-029 & P-043):**
+  - Eltávolításra kerültek az ad-hoc vízszintes kategóriagombok (pill-sor), helyüket a rendszerkanonikus `TableToolbar` vette át:
+    - **Bal oldal:** Instant gépelési keresőmező (`Search` ikon, keresés iratnévre, iktatószámra és kategóriára, gyors törlő `X` gombbal).
+    - **Jobb oldal:** Oszlopválasztó Popover (`Columns3`) és kiemelt zöld/teal **`Szűrés` Popover Gomb** aktív szűrőszámláló jelvénnyel.
+    - **Szűrés Popover:** Naptári dátumtartomány szűrő, kategória-jelölőnégyzetek élő darabszámlálóval (Munkaszerződés, Jelenléti ív, Orvosi alkalmassági, Cafeteria, Munkavédelem, Hatósági, Kitüntetések) és állapotkapcsolók (*Csak iktatott*, *Csak aláírt*).
+- **Univerzális In-Place `DocumentViewer` Megoldás (`src/components/document-viewer.tsx`):**
+  - A korábbi korlát feloldásával a `DocumentViewer` mostantól univerzálisan működik:
+    - **Iktatott iratoknál (`irat_id`):** Átfut az `/api/pdf/[id]` végponton, érvényesíti a minősítési szintet, ráilleszti a dinamikus betekintői vízjelet és append-only audit eseményt generál az `esemeny_naplo` táblába.
+    - **Még nem iktatott HR fájloknál (`url`, `alairt_fajl_url`):** A `getSignedFileUrl` szerveroldali akcióval rövid élettartamú (60s) aláírt Supabase Storage URL-t kér le, és a beágyazott PDF/kép nézegetőben jeleníti meg a fájlt letöltési kényszer nélkül.
+  - Minden dokumentum mellett két egyenrangú művelet érhető el: **`Megtekintés`** (in-place `DocumentViewer`) és **`Letöltés`** (közvetlen fájlmentés).
+- **Letöltési Végpont Biztonsági Javítás (`/api/hr/download-document/route.ts`):**
+  - Az engedélyezési ellenőrzés pontosítva lett a `hr_dokumentum.url` és `alairt_fajl_url` mezőkre a korábbi nem létező `fajl_path` helyett, megakadályozva a jogosulatlan 404/403-as hibákat a valós tárolási útvonalaknál.
+- **Saját Profil Felület Letisztítása (`/hr/self-service/profile`):**
+  - A profiloldal aljáról kivezetésre került a redundáns és korlátozott 5 elemes `RecentDocumentsCard` szekció.
+  - A profiloldal így a tiszta törzsadatokra és kötelező munkavédelmi/egészségügyi érvényességekre koncentrál.
+  - A munkaviszony lekérdezés `.single()` metódusa `.maybeSingle()`-re lett javítva, elkerülve a PostgREST hibákat frissen beléptetett munkatársaknál.
+- **Portál Kezdőlap KPI Kártya Korrekció (`/hr/page.tsx`):**
+  - Megszűnt a megtévesztő 4. kártya, amely a cafeteria keret helyett az évszámot ("2026") mutatta.
+  - A kártya feladata átalakult a sokkal relevánsabb **Munkaidő Egyenleg** (`hr_tulora_egyenleg.perc`) kijelzésére.
+  - Kiemelt formázott óra:perc értékkel (`formatOvertime`), dinamikus felirattal és közvetlen hivatkozással a munkaidő-nyilvántartásra (`/hr/self-service/time`).
+- **Kapcsolódó döntések:** [ADR A-074](../architecture/decisions/A-074-universal-document-viewer-and-employee-documents-architecture.md), [PRD P-098](../product/decisions/P-098-employee-self-service-documents-page-and-profile-declutter-ux.md).
+
 ### 🎯 eaisyHR: Teljesítményértékelés és Dolgozói Életút (Offboarding) Hardening és Integráció (P-097)
 - **Teljesítményértékelés Multi-Tenant Cégszintű Izoláció (`/hr/performance` & `/hr/performance/dashboard`):**
   - Javításra került a korábbi auditban feltárt hiányosság: az `addKpi` és `addCycle` szerver akciók immár beégetik az aktív cég azonosítóját (`company_id: activeCompanyId`).

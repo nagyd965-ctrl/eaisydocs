@@ -69,8 +69,8 @@ Ez a dokumentum rögzíti az **eaisyDocs** és **eaisyHR** alkalmazás éles, el
 | `/hr/self-service/benefits` | **Saját Cafeteria** (Éves keret felosztása, cafeteria nyilatkozat leadása és PDF letöltése) | `[HR]` | Saját munkavállaló | **Éles / Kész** |
 | `/hr/self-service/career` | **Belső Karrier & Képzések** (Nyitott belső pozíciók, képzési előzmények) | `[HR]` | Saját munkavállaló | **Éles / Kész** |
 | `/hr/self-service/goals` | **Saját Célok & KPI** (Kitűzött személyes célok állapota, önértékelés leadása) | `[HR]` | Saját munkavállaló | **Éles / Kész** |
-| `/hr/self-service/idp` | **Egyéni Fejlesztési Terv (IDP)** (Fejlődési mérföldkövek, mentor visszajelzések) | `[HR]` | Saját munkavállaló | **Éles / Kész** |
-| `/hr/self-service/dokumentumok`| **Saját HR Dokumentumok** (Munkaszerződés, aláírt nyilatkozatok letöltése) | `[HR]` | Saját munkavállaló | **Éles / Kész** |
+| `/hr/self-service/documents` | **Saját HR Dokumentumok (Dokumentumaim)** (`EmployeeDocumentsView`, KPI sáv, TableToolbar szűrés popover, DocumentViewer in-place előnézet) | `[HR]` | Saját munkavállaló | **Éles / Kész** |
+| `/hr/self-service/dokumentumok`| **Visszamenőleges átirányítás** (Automatikusan átirányít a `/hr/self-service/documents` útvonalra) | `[HR]` | Saját munkavállaló | **Éles / Kész** |
 | `/karrier` | **Publikus Karrierportál** (Aktív nyitott álláshirdetések SEO-optimalizált listája) | `[HR]` | Nyilvános (regisztráció nélkül) | **Éles / Kész** |
 | `/karrier/[id]` | **Álláshirdetés & Jelentkezési Űrlap** (Pozíció részletei, PDF önéletrajz feltöltés, automatikus ATS beküldés) | `[HR]` | Nyilvános | **Éles / Kész** |
 

@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { checkMedicalValidityForDate } from "@/utils/hr/medical-compliance-checker"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export async function submitLeaveRequest(formData: FormData) {
   const supabase = await createClient()
@@ -727,6 +728,31 @@ export async function saveSubstitute(formData: FormData) {
     return { error: "Minden mező kötelező!" }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  // Multi-tenant védelem: ellenőrizzük, hogy a helyettes az aktív cég tagja-e
+  if (activeCompanyId) {
+    const { data: member } = await supabase
+      .from("company_members")
+      .select("id")
+      .eq("company_id", activeCompanyId)
+      .eq("user_id", helyettesId)
+      .maybeSingle()
+
+    if (!member) {
+      const { data: adatlap } = await supabase
+        .from("hr_dolgozo_adatlap")
+        .select("id")
+        .eq("company_id", activeCompanyId)
+        .eq("id", helyettesId)
+        .maybeSingle()
+
+      if (!adatlap) {
+        return { error: "A kiválasztott helyettes nem tagja a jelenlegi szervezetnek/cégnek!" }
+      }
+    }
+  }
+
   const { error } = await supabase
     .from("hr_helyettesites")
     .insert({
@@ -734,11 +760,13 @@ export async function saveSubstitute(formData: FormData) {
       helyettes_id: helyettesId,
       kezdet_datuma,
       veg_datuma,
-      aktiv: true
+      aktiv: true,
+      company_id: activeCompanyId || null,
     })
 
   if (error) return { error: error.message }
   revalidatePath("/hr/self-service")
+  revalidatePath("/hr/self-service/time")
   return { success: true }
 }
 
@@ -755,5 +783,6 @@ export async function deleteSubstitute(id: string) {
 
   if (error) return { error: error.message }
   revalidatePath("/hr/self-service")
+  revalidatePath("/hr/self-service/time")
   return { success: true }
 }

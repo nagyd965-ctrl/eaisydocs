@@ -1,12 +1,8 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Briefcase, ArrowRight, Lock } from "lucide-react"
-import { buttonVariants } from "@/components/ui/button"
-import Link from "next/link"
-import { cn } from "@/lib/utils"
-
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { InternalCareerView, InternalJobPosting } from "@/components/hr/internal-career-view"
+import { getMyReferralsAction, getReferralBonusAmountAction } from "./referral-actions"
 
 export default async function InternalCareerPage() {
   const supabase = await createClient()
@@ -18,16 +14,27 @@ export default async function InternalCareerPage() {
 
   const activeCompanyId = await getActiveCompanyIdServer()
 
-  // Lekérdezzük az aktív céghez tartozó aktív hirdetéseket (publikus + belső)
+  // Lekérdezzük az aktív céghez tartozó aktív hirdetéseket a munkakör és részleg adataival együtt
   let query = supabase
     .from("hr_allashirdetes")
     .select(`
       id, 
       cim, 
       rovid_leiras,
+      reszletes_leiras,
       nyitva_tol,
+      nyitva_ig,
       is_internal,
-      hr_munkakor (megnevezes)
+      publikus,
+      created_at,
+      hr_munkakor (
+        id,
+        megnevezes,
+        hr_szervezeti_egyseg (
+          id,
+          nev
+        )
+      )
     `)
     .eq("aktiv", true)
 
@@ -35,60 +42,17 @@ export default async function InternalCareerPage() {
     query = query.or(`company_id.eq.${activeCompanyId},company_id.is.null`)
   }
 
-  const { data: hirdetesek } = await query
-    .order("created_at", { ascending: false })
-    .returns<any[]>()
+  const [{ data: hirdetesek }, referrals, bonusAmount] = await Promise.all([
+    query.order("created_at", { ascending: false }),
+    getMyReferralsAction(),
+    getReferralBonusAmountAction(),
+  ])
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Belső Álláshirdetések</h1>
-        <p className="text-muted-foreground mt-1">
-          Nézd meg a nyitott pozícióinkat, és jelentkezz egy új kihívásra a cégen belül!
-        </p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {hirdetesek?.map((hirdetes) => (
-          <Card key={hirdetes.id} className={cn("flex flex-col hover:border-primary/40 transition-colors", hirdetes.is_internal ? "border-primary/50 bg-primary/5" : "")}>
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <CardTitle className="text-xl">{hirdetes.cim}</CardTitle>
-                {hirdetes.is_internal && (
-                  <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-primary/10 text-primary border-primary/20">
-                    <Lock className="w-3 h-3 mr-1" />
-                    Belső
-                  </span>
-                )}
-              </div>
-              <CardDescription className="flex items-center gap-2 mt-2">
-                <Briefcase className="w-4 h-4" /> 
-                {hirdetes.hr_munkakor?.megnevezes || hirdetes.cim}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1">
-              <p className="text-sm text-muted-foreground">
-                {hirdetes.rovid_leiras || "Nincs rövid leírás megadva."}
-              </p>
-            </CardContent>
-            <div className="p-6 pt-0 mt-auto">
-              <Link 
-                href={`/karrier/${hirdetes.id}`} 
-                className={cn(buttonVariants({ variant: hirdetes.is_internal ? "default" : "outline" }), "w-full")}
-              >
-                Részletek és jelentkezés
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Link>
-            </div>
-          </Card>
-        ))}
-
-        {!hirdetesek?.length && (
-          <div className="col-span-full py-12 text-center text-muted-foreground border border-dashed rounded-lg">
-            Jelenleg nincsenek nyitott pozíciók.
-          </div>
-        )}
-      </div>
-    </div>
+    <InternalCareerView
+      postings={(hirdetesek as InternalJobPosting[]) || []}
+      initialReferrals={referrals}
+      bonusAmount={bonusAmount}
+    />
   )
 }

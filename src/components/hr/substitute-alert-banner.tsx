@@ -76,7 +76,7 @@ export function SubstituteAlertBanner({ managerId, pendingApprovalsCount }: Prop
         </p>
       </div>
       <a
-        href="/hr/settings#helyettesites"
+        href="/hr/self-service/time#helyettesites"
         className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-md border border-warning/40 bg-background hover:bg-muted transition-colors shrink-0"
       >
         <CalendarCheck className="w-3.5 h-3.5" />

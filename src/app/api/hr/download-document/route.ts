@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     const { data: empDoc } = await supabase
       .from("hr_dokumentum")
       .select("id, dolgozo_id")
-      .eq("fajl_path", filePath)
+      .or(`url.eq.${filePath},alairt_fajl_url.eq.${filePath}`)
       .maybeSingle()
 
     const isOwnDocument = empDoc?.dolgozo_id === user.id

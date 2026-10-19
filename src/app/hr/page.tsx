@@ -101,6 +101,25 @@ export default async function SelfServicePage() {
     else timeStatus = "checked_in"
   }
 
+  // 3. Túlóra / Munkaidő egyenleg
+  const { data: tuloraData } = await supabase
+    .from("hr_tulora_egyenleg")
+    .select("perc")
+    .eq("dolgozo_id", user.id)
+    .maybeSingle()
+
+  const overtimeMinutes = tuloraData?.perc ?? 0
+
+  const formatOvertime = (perc: number) => {
+    const abs = Math.abs(perc)
+    const h = Math.floor(abs / 60)
+    const m = abs % 60
+    const sign = perc > 0 ? "+" : perc < 0 ? "-" : ""
+    if (h === 0 && m === 0) return "0 perc"
+    if (m === 0) return `${sign}${h} óra`
+    return `${sign}${h} ó ${m} p`
+  }
+
 
   // Cafeteria
 
@@ -212,10 +231,16 @@ export default async function SelfServicePage() {
           href="/hr/self-service/time"
         />
         <KpiCard
-          label="Cafeteria Keret"
-          value={cafeteriaKeret ? currentYear : "–"}
-          sub={cafeteriaKeret ? "Aktív keret" : "Nincs keret"}
-          href="/hr/self-service/benefits"
+          label="Munkaidő Egyenleg"
+          value={formatOvertime(overtimeMinutes)}
+          sub={
+            overtimeMinutes > 0
+              ? "Túlóra többlet"
+              : overtimeMinutes < 0
+              ? "Ledolgozandó idő"
+              : "Egyensúlyban"
+          }
+          href="/hr/self-service/time"
         />
       </div>
 

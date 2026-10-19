@@ -161,7 +161,7 @@ export async function joinCompanyByTokenAction(shareToken: string) {
  */
 export async function updateCompanyAction(
   companyId: string,
-  data: Partial<Pick<Company, "name" | "tax_number" | "address" | "representative_name" | "phone" | "country_code" | "filing_prefix" | "logo_url">>
+  data: Partial<Pick<Company, "name" | "tax_number" | "address" | "representative_name" | "phone" | "country_code" | "filing_prefix" | "logo_url" | "referral_bonus_amount">>
 ) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -184,10 +184,10 @@ export async function updateCompanyAction(
     .eq("user_id", user.id)
     .maybeSingle()
 
-  const isOwner = company?.owner_id === user.id || member?.role === "owner"
+  const isOwner = company?.owner_id === user.id || member?.role === "owner" || member?.role === "admin" || (member as any)?.hr_szerepkor === "admin"
 
   if (!isOwner) {
-    return { success: false, error: "Kizárólag a cég tulajdonosa módosíthatja a cég adatait." }
+    return { success: false, error: "Kizárólag a cég tulajdonosa vagy adminisztrátora módosíthatja a cég adatait." }
   }
 
   const updatePayload: Record<string, any> = {
@@ -205,6 +205,9 @@ export async function updateCompanyAction(
       ? data.filing_prefix.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 10)
       : "DOCS"
     updatePayload.filing_prefix = cleanPrefix || "DOCS"
+  }
+  if (data.referral_bonus_amount !== undefined) {
+    updatePayload.referral_bonus_amount = typeof data.referral_bonus_amount === "number" ? data.referral_bonus_amount : 150000
   }
   if (data.logo_url !== undefined) {
     updatePayload.logo_url = data.logo_url
@@ -1015,12 +1018,12 @@ export async function getCompanyAccessAction(companyId: string) {
 
   const { data: member } = await supabase
     .from("company_members")
-    .select("role")
+    .select("role, hr_szerepkor")
     .eq("company_id", companyId)
     .eq("user_id", user.id)
     .maybeSingle()
 
-  const isOwner = company?.owner_id === user.id || member?.role === "owner"
+  const isOwner = company?.owner_id === user.id || member?.role === "owner" || member?.role === "admin" || (member as any)?.hr_szerepkor === "admin"
 
   return {
     success: true,

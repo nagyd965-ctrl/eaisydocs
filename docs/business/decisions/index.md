@@ -16,8 +16,10 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [BRD-008](./008-configurable-four-eyes-disposal-and-sme-mode.md) | 2026-10-02 | Konfigurálható négyszem-elv és egyfelhasználós KKV mód selejtezésnél | `[Docs]` | `Governance & Compliance` | [A-028](../../architecture/decisions/A-028-configurable-four-eyes-disposal.md), [P-042](../../product/decisions/P-042-configurable-four-eyes-disposal-ux.md) |
 | [BRD-009](./009-multi-tenancy-isolation-and-membership-governance.md) | 2026-10-08 | Többcég-kezelés és Tagsági Jogosultsági Szabályok | `[Közös]` | `Multi-Tenancy & Governance` | [A-034](../../architecture/decisions/A-034-multi-tenancy-architecture.md), [P-053](../../product/decisions/P-053-multi-tenancy-company-selector-ux.md) |
 | [BRD-010](./010-company-branding-filing-prefix-and-member-roles.md) | 2026-10-08 | Céglogó, Testreszabható Iktató Prefix és Tag Szerepkör Menedzsment | `[Közös]` | `Branding & Governance` | [A-035](../../architecture/decisions/A-035-company-branding-filing-prefix-and-member-roles.md), [P-054](../../product/decisions/P-054-company-branding-filing-prefix-and-member-roles.md) |
+| [BRD-011](./011-employee-referral-system-and-bonus-governance.md) | 2026-10-19 | Dolgozói Ajánlási Program és Bónusz Kifizetési Szabályzat | `[HR]` | `Recruitment & Compensation` | [A-075](../../architecture/decisions/A-075-employee-referral-system-and-configurable-bonus-architecture.md), [P-099](../../product/decisions/P-099-employee-referral-system-and-configurable-bonus-ux.md) |
 
 ---
 
 > **Új BRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `BRD-011`), készítsd el a fájlt `00X-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `BRD-012`), készítsd el a fájlt `00X-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+

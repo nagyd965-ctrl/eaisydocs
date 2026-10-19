@@ -69,7 +69,7 @@ export function SubstituteSettingsCard({ availableUsers, currentSubstitute }: Su
   }
 
   return (
-    <Card>
+    <Card id="helyettesites">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold">
           Helyettesítés

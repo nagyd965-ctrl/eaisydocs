@@ -5,6 +5,8 @@ import { CalendarDays, Clock, CheckCircle2, XCircle, Eye, Download } from "lucid
 import { Button } from "@/components/ui/button"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 
+import { calculateWorkingDays } from "@/utils/hr/leave-calculator"
+
 const tipusLabel: Record<string, string> = {
   szabadsag: "Szabadság",
   beteg: "Betegszabadság",
@@ -31,7 +33,12 @@ export interface LeaveHistoryItem {
   [key: string]: any
 }
 
-export function LeaveHistoryList({ leaves }: { leaves: LeaveHistoryItem[] }) {
+export interface LeaveHistoryListProps {
+  leaves: LeaveHistoryItem[]
+  holidays?: string[]
+}
+
+export function LeaveHistoryList({ leaves, holidays = [] }: LeaveHistoryListProps) {
   if (!leaves || leaves.length === 0) {
     return (
       <Card>
@@ -87,12 +94,17 @@ export function LeaveHistoryList({ leaves }: { leaves: LeaveHistoryItem[] }) {
       <CardContent className="p-0">
         <div className="divide-y divide-border">
           {leaves.map((leave) => {
-            const startDate = leave.kezdet_datuma ? new Date(leave.kezdet_datuma) : null
-            const endDate = leave.veg_datuma ? new Date(leave.veg_datuma) : null
-            const durationDays =
-              startDate && endDate && !isNaN(startDate.getTime()) && !isNaN(endDate.getTime())
-                ? Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
-                : null
+            const startDateStr = leave.kezdet_datuma || leave.kezdete
+            const endDateStr = leave.veg_datuma || leave.vege
+            const startDate = startDateStr ? new Date(startDateStr) : null
+            const endDate = endDateStr ? new Date(endDateStr) : null
+
+            const workingDays =
+              typeof leave.munkanapok_szama === "number" && leave.munkanapok_szama > 0
+                ? leave.munkanapok_szama
+                : startDateStr && endDateStr
+                  ? calculateWorkingDays(startDateStr, endDateStr, holidays)
+                  : null
 
             return (
               <div
@@ -115,8 +127,8 @@ export function LeaveHistoryList({ leaves }: { leaves: LeaveHistoryItem[] }) {
                       {endDate && !isNaN(endDate.getTime())
                         ? endDate.toLocaleDateString("hu-HU")
                         : "–"}
-                      {durationDays !== null && (
-                        <span className="ml-2 text-muted-foreground/60">({durationDays} nap)</span>
+                      {workingDays !== null && (
+                        <span className="ml-2 font-medium text-muted-foreground/80">({workingDays} munkanap)</span>
                       )}
                     </p>
                   </div>

@@ -4,6 +4,7 @@ import { EmployeeTimesheet } from "@/components/hr/employee-timesheet"
 import { SubstituteSettingsCard } from "@/components/hr/substitute-settings-card"
 import { LeaveRequestDialog } from "@/components/hr/leave-request-dialog"
 import { redirect } from "next/navigation"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 
 export default async function SelfServiceTimePage() {
   const supabase = await createClient()
@@ -13,26 +14,31 @@ export default async function SelfServiceTimePage() {
     redirect("/login")
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const memberRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
+  // Távollétek lekérése
   const { data: tavolletek } = await supabase
     .from("hr_tavollet")
     .select("*")
     .eq("dolgozo_id", user.id)
     .order("created_at", { ascending: false })
 
-  const { data: myProfile } = await supabase
-    .from("felhasznalo_profil")
-    .select("hr_szerepkor")
-    .eq("id", user.id)
-    .single()
+  // Munkaszüneti napok lekérése a munkanapok pontos Mt. szerinti kalkulációjához
+  const currentYear = new Date().getFullYear()
+  const { data: holidaysData } = await supabase
+    .from("hr_munkaszuneti_nap")
+    .select("datum")
+    .gte("datum", `${currentYear - 1}-01-01`)
+    .lte("datum", `${currentYear + 1}-12-31`)
+    .eq("athelye_munkanap", false)
 
-  const isManagerOrAdmin = ['hr_vezeto', 'vezeto', 'admin'].includes(myProfile?.hr_szerepkor)
+  const holidays = (holidaysData || []).map((h: any) => h.datum as string)
 
-  // Stat számítás
-  const totalTavollet = tavolletek?.filter(t => t.statusz === "jovahagyva").length || 0
-  const pendingCount = tavolletek?.filter(t => t.statusz === "jovahagyasra_var").length || 0
+  const isManagerOrAdmin = ['hr_vezeto', 'vezeto', 'admin'].includes(memberRoles.hrRole || "")
 
-  // Helyettesítések lekérése
-  const { data: currentSubstituteList } = await supabase
+  // Helyettesítések lekérése (aktív cégre szűrve)
+  let substituteQuery = supabase
     .from("hr_helyettesites")
     .select("*, helyettes_profil:felhasznalo_profil!hr_helyettesites_helyettes_id_fkey(nev)")
     .eq("vezeto_id", user.id)
@@ -41,8 +47,14 @@ export default async function SelfServiceTimePage() {
     .order("created_at", { ascending: false })
     .limit(1)
 
+  if (activeCompanyId) {
+    substituteQuery = substituteQuery.or(`company_id.eq.${activeCompanyId},company_id.is.null`)
+  }
+
+  const { data: currentSubstituteList } = await substituteQuery
   const currentSubstitute = currentSubstituteList?.[0] || null
   
+  // Helyettesítő személyek lekérdezése (szigorúan a multi-tenant aktív cégre szűrve)
   let availableUsers: any[] = []
   if (isManagerOrAdmin) {
     const { createClient: createAdminClient } = await import("@supabase/supabase-js")
@@ -50,14 +62,61 @@ export default async function SelfServiceTimePage() {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-    const { data: availableAdatlapUsers } = await supabaseAdmin
-      .from("hr_dolgozo_adatlap")
-      .select("id, felhasznalo_profil!inner(id, nev)")
-      .neq("id", user.id)
 
-    availableUsers = availableAdatlapUsers
-      ?.map((a: any) => a.felhasznalo_profil)
-      .sort((a: any, b: any) => a.nev.localeCompare(b.nev)) || []
+    if (activeCompanyId) {
+      // 1. Céghez tartozó tagok lekérése a company_members táblából
+      const { data: members } = await supabaseAdmin
+        .from("company_members")
+        .select("user_id")
+        .eq("company_id", activeCompanyId)
+
+      const memberIds = (members || []).map((m: any) => m.user_id).filter((id: string) => id !== user.id)
+
+      // 2. Céghez tartozó dolgozói adatlapok lekérése
+      const { data: adatlapUsers } = await supabaseAdmin
+        .from("hr_dolgozo_adatlap")
+        .select("id, felhasznalo_profil!inner(id, nev)")
+        .eq("company_id", activeCompanyId)
+        .neq("id", user.id)
+
+      // 3. Cégtagok profiljainak lekérése
+      let memberProfiles: any[] = []
+      if (memberIds.length > 0) {
+        const { data: profiles } = await supabaseAdmin
+          .from("felhasznalo_profil")
+          .select("id, nev")
+          .in("id", memberIds)
+        memberProfiles = profiles || []
+      }
+
+      // Egyesítés duplikációk nélkül (kizárólag az aktív céghez tartozó személyek)
+      const userMap = new Map<string, { id: string; nev: string }>()
+      for (const a of (adatlapUsers || [])) {
+        const profile = (Array.isArray(a.felhasznalo_profil) ? a.felhasznalo_profil[0] : a.felhasznalo_profil) as { id: string; nev: string } | undefined
+        if (profile?.id && profile?.nev) {
+          userMap.set(profile.id, { id: profile.id, nev: profile.nev })
+        }
+      }
+      for (const p of memberProfiles) {
+        if (p?.id && p?.nev && !userMap.has(p.id)) {
+          userMap.set(p.id, { id: p.id, nev: p.nev })
+        }
+      }
+
+      availableUsers = Array.from(userMap.values()).sort((a, b) =>
+        (a.nev || "").localeCompare(b.nev || "", "hu", { sensitivity: "base" })
+      )
+    } else {
+      const { data: availableAdatlapUsers } = await supabaseAdmin
+        .from("hr_dolgozo_adatlap")
+        .select("id, felhasznalo_profil!inner(id, nev)")
+        .neq("id", user.id)
+
+      availableUsers = (availableAdatlapUsers || [])
+        .map((a: any) => (Array.isArray(a.felhasznalo_profil) ? a.felhasznalo_profil[0] : a.felhasznalo_profil))
+        .filter((p: any) => p && p.id && p.nev)
+        .sort((a: any, b: any) => (a.nev || "").localeCompare(b.nev || "", "hu", { sensitivity: "base" }))
+    }
   }
 
   return (
@@ -78,7 +137,7 @@ export default async function SelfServiceTimePage() {
       <EmployeeTimesheet employeeId={user.id} />
 
       {/* Saját Kérelmeim */}
-      <LeaveHistoryList leaves={tavolletek || []} />
+      <LeaveHistoryList leaves={tavolletek || []} holidays={holidays} />
 
       {/* Helyettesítés – csak vezető/admin szerepkörnek */}
       {isManagerOrAdmin && (

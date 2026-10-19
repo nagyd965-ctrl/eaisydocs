@@ -80,16 +80,37 @@ export function calculateWorkingDays(
 ): number {
   const unnepSet = new Set(unnepnapok)
   let count = 0
-  const cur = new Date(startDate)
-  const end = new Date(endDate)
 
-  // Normalizálás (időzóna-semleges összehasonlítás)
-  cur.setHours(0, 0, 0, 0)
-  end.setHours(0, 0, 0, 0)
+  let cur: Date
+  let end: Date
+
+  if (typeof startDate === "string" && startDate.includes("-")) {
+    const [y, m, d] = startDate.split("T")[0].split("-").map(Number)
+    cur = new Date(y, m - 1, d, 12, 0, 0)
+  } else {
+    cur = new Date(startDate)
+    cur.setHours(12, 0, 0, 0)
+  }
+
+  if (typeof endDate === "string" && endDate.includes("-")) {
+    const [y, m, d] = endDate.split("T")[0].split("-").map(Number)
+    end = new Date(y, m - 1, d, 12, 0, 0)
+  } else {
+    end = new Date(endDate)
+    end.setHours(12, 0, 0, 0)
+  }
+
+  if (isNaN(cur.getTime()) || isNaN(end.getTime()) || cur > end) {
+    return 0
+  }
 
   while (cur <= end) {
     const dow = cur.getDay()
-    const dateStr = cur.toISOString().split("T")[0]
+    const y = cur.getFullYear()
+    const m = String(cur.getMonth() + 1).padStart(2, "0")
+    const d = String(cur.getDate()).padStart(2, "0")
+    const dateStr = `${y}-${m}-${d}`
+
     // Munkanap: nem hétvége ÉS nem munkaszüneti nap
     if (dow !== 0 && dow !== 6 && !unnepSet.has(dateStr)) {
       count++
@@ -99,3 +120,4 @@ export function calculateWorkingDays(
 
   return count
 }
+

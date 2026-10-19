@@ -41,6 +41,10 @@ const items = [
         url: "/hr/self-service/profile",
       },
       {
+        title: "Dokumentumaim",
+        url: "/hr/self-service/documents",
+      },
+      {
         title: "Jelenlét & Szabadság",
         url: "/hr/self-service/time",
       },

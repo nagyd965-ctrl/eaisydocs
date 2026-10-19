@@ -25,7 +25,6 @@ export default async function HirdetesReszletekPage({ params }: { params: Promis
     `)
     .eq("id", id)
     .eq("aktiv", true)
-    .eq("publikus", true)
     .single()
     .returns<any>()
 
@@ -33,7 +32,7 @@ export default async function HirdetesReszletekPage({ params }: { params: Promis
     console.error("Supabase hiba a hirdetes lekeresekor:", error)
   }
 
-  if (!hirdetes) {
+  if (!hirdetes || (!hirdetes.publikus && !hirdetes.is_internal)) {
     notFound()
   }
 

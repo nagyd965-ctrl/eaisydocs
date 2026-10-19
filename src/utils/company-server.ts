@@ -28,7 +28,7 @@ export async function getUserCompaniesServer(): Promise<Company[]> {
 
   const { data: companies, error } = await supabase
     .from("companies")
-    .select("id, name, tax_number, address, representative_name, phone, owner_id, share_token, share_token_created_at, country_code, logo_url, filing_prefix, eaisybill_company_id, created_at, updated_at")
+    .select("id, name, tax_number, address, representative_name, phone, owner_id, share_token, share_token_created_at, country_code, logo_url, filing_prefix, referral_bonus_amount, eaisybill_company_id, created_at, updated_at")
     .in("id", companyIds)
 
   if (error || !companies) {

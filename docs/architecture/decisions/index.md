@@ -86,11 +86,13 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-071](./A-071-assigned-dossiers-and-subtasks-unified-tasks-view.md) | 2026-10-18 | Rám szignált ügyiratok és hozzáadott al-feladatok egységesítése a Saját feladatok felületen | `[Docs]` | `Decided` | [P-090](../../product/decisions/P-090-assigned-dossiers-and-subtasks-unified-tasks-view-ux.md), `tasks/page.tsx`, `tasks/task-actions.ts`, `tasks/kanban-board.tsx`, `tasks/task-list.tsx`, `tasks/task-calendar.tsx`, `types/tasks.ts` |
 | [A-072](./A-072-tasks-kanban-auto-archive-and-completed-list-view.md) | 2026-10-18 | Tasks Kanban 24-órás Auto-archiválás és Elvégzett Feladatok Lista Architektúra | `[Docs]` | `Decided` | [P-091](../../product/decisions/P-091-tasks-kanban-auto-archive-and-completed-list-view-ux.md), `tasks/page.tsx`, `tasks/task-actions.ts`, `tasks/kanban-board.tsx`, `tasks/task-list.tsx`, `types/tasks.ts` |
 | [A-073](./A-073-dossier-tasks-wizard-modal-workflow.md) | 2026-10-18 | Ügyirati Feladatok 3-Lépcsős Varázsló (Wizard Modal) Architektúra | `[Docs]` | `Decided` | [P-092](../../product/decisions/P-092-dossier-tasks-wizard-modal-ux.md), `src/components/tasks-tab.tsx`, `src/app/tasks/task-actions.ts` |
+| [A-074](./A-074-universal-document-viewer-and-employee-documents-architecture.md) | 2026-10-19 | Univerzális In-Place Dokumentum Megtekintés (DocumentViewer) és Önkiszolgáló Iratkezelési Architektúra | `[HR]` `[Közös]` | `Decided` | [P-098](../../product/decisions/P-098-employee-self-service-documents-page-and-profile-declutter-ux.md), `src/components/document-viewer.tsx`, `src/app/hr/self-service/documents/page.tsx`, `employee-documents-view.tsx` |
+| [A-075](./A-075-employee-referral-system-and-configurable-bonus-architecture.md) | 2026-10-19 | Dolgozói Ajánlási Rendszer és Konfigurálható Bónusz Architektúra | `[HR]` | `Decided` | [P-099](../../product/decisions/P-099-employee-referral-system-and-configurable-bonus-ux.md), `hr_dolgozoi_ajanlas`, `referral-actions.ts`, `internal-career-view.tsx`, `my-referrals-view.tsx`, `referral-dialog.tsx`, `company-settings-tab.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-074`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-076`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

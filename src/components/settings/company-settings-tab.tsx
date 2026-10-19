@@ -89,6 +89,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
   const [phone, setPhone] = React.useState("")
   const [countryCode, setCountryCode] = React.useState<"HU" | "HR">("HU")
   const [filingPrefix, setFilingPrefix] = React.useState("DOCS")
+  const [referralBonusAmount, setReferralBonusAmount] = React.useState<number>(150000)
   const [isSaving, setIsSaving] = React.useState(false)
   const [isUploadingLogo, setIsUploadingLogo] = React.useState(false)
   const logoInputRef = React.useRef<HTMLInputElement | null>(null)
@@ -191,6 +192,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
       setPhone(selectedCompany.phone || "")
       setCountryCode((selectedCompany.country_code as "HU" | "HR") || "HU")
       setFilingPrefix(selectedCompany.filing_prefix || "DOCS")
+      setReferralBonusAmount(selectedCompany.referral_bonus_amount ?? 150000)
 
       const isDifferentCompany = lastCompanyIdRef.current !== selectedCompany.id
       lastCompanyIdRef.current = selectedCompany.id
@@ -302,6 +304,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
         phone: phone.trim() || null,
         country_code: countryCode,
         filing_prefix: cleanPrefix,
+        referral_bonus_amount: referralBonusAmount,
       })
 
       if (res.success) {
@@ -315,6 +318,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
           phone: phone.trim() || null,
           country_code: countryCode,
           filing_prefix: cleanPrefix,
+          referral_bonus_amount: referralBonusAmount,
           updated_at: new Date().toISOString(),
         }
         updateCompanyInState(updated)
@@ -673,6 +677,26 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
                 />
                 <p className="text-[10px] text-muted-foreground">
                   Az új iktatószámok ezzel a prefixszel jönnek létre (pl. {filingPrefix || "DOCS"}/2026/00001).
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="company-referral-bonus" className="text-xs">
+                  Dolgozói ajánlási bónusz (Ft)
+                </Label>
+                <Input
+                  id="company-referral-bonus"
+                  type="number"
+                  min={0}
+                  step={5000}
+                  value={referralBonusAmount}
+                  onChange={(e) => setReferralBonusAmount(Number(e.target.value) || 0)}
+                  disabled={!isOwner}
+                  placeholder="150000"
+                  className="h-9 text-xs tabular-nums disabled:opacity-80 disabled:cursor-not-allowed disabled:bg-muted/40"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Belső állásajánlás esetén a munkatársnak járó fix sikerdíj összege.
                 </p>
               </div>
             </div>

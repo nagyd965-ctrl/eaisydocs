@@ -55,14 +55,42 @@ export function DocumentViewer({
       }, 0)
       
       const targetIratId = selectedFile.irat_id || iratId
+      const targetStoragePath = selectedFile.storage_path || selectedFile.url || selectedFile.fajl_path || selectedFile.alairt_fajl_url
+
       if (!targetIratId) {
+        if (targetStoragePath) {
+          if (targetStoragePath.startsWith("http://") || targetStoragePath.startsWith("https://") || targetStoragePath.startsWith("blob:") || targetStoragePath.startsWith("data:") || targetStoragePath.startsWith("/api/")) {
+            setTimeout(() => {
+              if (isMounted) {
+                setUrl(targetStoragePath)
+                setLoading(false)
+              }
+            }, 0)
+            return
+          }
+          // Supabase Storage útvonal esetén aláírt URL lekérése
+          import("@/app/hr/offboarding/actions").then(({ getSignedFileUrl }) => {
+            getSignedFileUrl(targetStoragePath).then(res => {
+              if (!isMounted) return
+              if (res.error) setError(res.error)
+              else setUrl(res.signedUrl || null)
+            }).catch(err => {
+              if (!isMounted) return
+              setError(err.message || "Hiba a fájl betöltésekor")
+            }).finally(() => {
+              if (isMounted) setLoading(false)
+            })
+          })
+          return
+        }
+
         setTimeout(() => {
           if (isMounted) setLoading(false);
         }, 0)
         return;
       }
 
-      getDocumentSignedUrl(selectedFile.storage_path, targetIratId, selectedFile.id)
+      getDocumentSignedUrl(targetStoragePath || "", targetIratId, selectedFile.id)
         .then(res => {
           if (!isMounted) return;
           if (res.error) setError(res.error)
@@ -94,10 +122,12 @@ export function DocumentViewer({
             <div className="min-w-0">
               <DialogTitle className="text-base sm:text-lg font-semibold truncate flex items-center gap-2">
                 <FileText className="h-4 w-4 text-primary shrink-0" />
-                <span className="truncate">{selectedFile?.eredeti_fajlnev || "Dokumentum előnézet"}</span>
+                <span className="truncate">{selectedFile?.eredeti_fajlnev || selectedFile?.nev || "Dokumentum előnézet"}</span>
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                 {selectedFile && [
+                  selectedFile.iktatoszam ? `Iktatószám: ${selectedFile.iktatoszam}` : null,
+                  selectedFile.kategoria || null,
                   typeof selectedFile.meret_byte === "number" && selectedFile.meret_byte > 0 ? formatFileSize(selectedFile.meret_byte) : null,
                   selectedFile.sha256 ? `SHA256: ${selectedFile.sha256.substring(0, 16)}...` : null
                 ].filter(Boolean).join(" • ")}

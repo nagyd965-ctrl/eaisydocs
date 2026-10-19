@@ -101,3 +101,41 @@ describe("Annual Leave HTML Generator", () => {
     assert.ok(html.includes("Munkáltató képviselője"))
   })
 })
+
+describe("Working Days Calculator (Mt. szerinti munkanap kalkuláció)", () => {
+  it("hétfőtől péntekig tartó szabadság pontosan 5 munkanap (nem 9 naptári nap)", () => {
+    // 2026-06-08 (Hétfő) - 2026-06-12 (Péntek)
+    const days = calculateWorkingDays("2026-06-08", "2026-06-12", [])
+    assert.strictEqual(days, 5)
+  })
+
+  it("hétfőtől következő hét hétfőig tartó szabadság kiszűri a köztes hétvégét (6 munkanap)", () => {
+    // 2026-06-08 (Hétfő) - 2026-06-15 (Hétfő) = 8 naptári nap, de 6 munkanap
+    const days = calculateWorkingDays("2026-06-08", "2026-06-15", [])
+    assert.strictEqual(days, 6)
+  })
+
+  it("munkaszüneti napot (pl. 2026-05-01 péntek) levon a munkanapokból", () => {
+    // 2026-04-27 (Hétfő) - 2026-05-01 (Péntek, május 1. ünnep)
+    const holidays = ["2026-05-01"]
+    const days = calculateWorkingDays("2026-04-27", "2026-05-01", holidays)
+    assert.strictEqual(days, 4)
+  })
+
+  it("hétvégi időszak esetén 0 munkanapot ad vissza", () => {
+    // 2026-06-13 (Szombat) - 2026-06-14 (Vasárnap)
+    const days = calculateWorkingDays("2026-06-13", "2026-06-14", [])
+    assert.strictEqual(days, 0)
+  })
+
+  it("egyedi munkanap (hétfő) 1 nap", () => {
+    const days = calculateWorkingDays("2026-06-08", "2026-06-08", [])
+    assert.strictEqual(days, 1)
+  })
+
+  it("egyedi munkaszüneti nap 0 munkanap", () => {
+    const days = calculateWorkingDays("2026-05-01", "2026-05-01", ["2026-05-01"])
+    assert.strictEqual(days, 0)
+  })
+})
+

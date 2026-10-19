@@ -218,3 +218,37 @@ export interface OrgUnit {
   vezeto_user_id?: string | null
   [key: string]: unknown
 }
+
+export type ReferralBonusStatus = "fuggoben" | "feltetelhez_kotve" | "kifizetheto" | "kifizetve" | "elutasitva"
+
+export interface EmployeeReferral {
+  id: string
+  company_id: string
+  ajanlo_dolgozo_id: string
+  allashirdetes_id?: string | null
+  toborzas_id?: string | null
+  jelolt_nev: string
+  jelolt_email: string
+  jelolt_telefon?: string | null
+  linkedin_url?: string | null
+  cv_storage_path?: string | null
+  ajanlas_indoklas?: string | null
+  bonusz_osszeg: number
+  bonusz_statusz: ReferralBonusStatus
+  kifizetes_datuma?: string | null
+  megjegyzes?: string | null
+  created_at: string
+  updated_at: string
+  hr_allashirdetes?: {
+    id: string
+    cim: string
+    hr_munkakor?: {
+      megnevezes?: string
+    } | null
+  } | null
+  hr_toborzas?: {
+    id: string
+    statusz: string
+  } | null
+}
+
