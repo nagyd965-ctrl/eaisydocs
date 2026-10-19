@@ -6,6 +6,8 @@ export interface GenerateJobPostingInput {
   cim: string
   munkakorNev?: string
   instructions?: string
+  cegNev?: string
+  cegCim?: string
 }
 
 export interface GenerateJobPostingResult {
@@ -17,7 +19,7 @@ export interface GenerateJobPostingResult {
 
 /**
  * AI Álláshirdetés Generáló Akció (Google Gemini 2.5 Flash)
- * A megadott pozíciónév, belső munkakör és opcionális kulcsszavak alapján
+ * A megadott pozíciónév, belső munkakör, hirdető cég adatai és opcionális kulcsszavak alapján
  * professzionális, piacképes magyar nyelvű hirdetést állít össze.
  */
 export async function generateJobPostingWithAiAction(
@@ -39,15 +41,25 @@ export async function generateJobPostingWithAiAction(
 
   const munkakor = input.munkakorNev?.trim() || cim
   const userInstructions = input.instructions?.trim() || ""
+  const cegNev = input.cegNev?.trim() || ""
+  const cegCim = input.cegCim?.trim() || ""
 
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) {
     // Intelligens sablon fallback, ha nincs beállítva API kulcs
+    const companyIntro = cegNev
+      ? `A(z) <strong>${cegNev}</strong> csapataként elkötelezettek vagyunk az innovatív és emberközpontú megoldások iránt. Célunk, hogy a legkorszerűbb eszközökkel támogassuk ügyfeleinket és munkatársaink szakmai kiteljesedését.`
+      : `Dinamikusan növekvő vállalatunk elkötelezett az innovatív és emberközpontú megoldások iránt. Célunk, hogy a legkorszerűbb eszközökkel támogassuk ügyfeleinket és munkatársaink szakmai kiteljesedését.`
+
+    const locationSection = cegCim
+      ? `\n\n<h3>Munkavégzés helye</h3>\n<p>${cegCim} (modern irodai környezet, hibrid / rugalmas munkavégzéssel kiegészítve).</p>`
+      : ""
+
     return {
       success: true,
-      rovid_leiras: `Csatlakozz csapatunkhoz mint ${cim}! Keresünk egy motivált, önálló és szakmailag igényes kollégát modern munkakörnyezetbe.`,
-      reszletes_leiras: `<h3>Rólunk</h3>
-<p>Dinamikusan növekvő vállalatunk elkötelezett az innovatív és emberközpontú megoldások iránt. Célunk, hogy a legkorszerűbb eszközökkel támogassuk ügyfeleinket és munkatársaink szakmai kiteljesedését.</p>
+      rovid_leiras: `Csatlakozz csapatunkhoz${cegNev ? ` a(z) ${cegNev}-nél` : ""} mint ${cim}! Keresünk egy motivált, önálló és szakmailag igényes kollégát modern munkakörnyezetbe.`,
+      reszletes_leiras: `<h3>Rólunk / A vállalatról</h3>
+<p>${companyIntro}</p>
 
 <h3>Főbb feladatok és felelősségek</h3>
 <ul>
@@ -65,10 +77,10 @@ export async function generateJobPostingWithAiAction(
 
 <h3>Amit kínálunk</h3>
 <ul>
-  <li>Versenyképes juttatási csomag és fix juttatások.</li>
+  <li>Versenyképes juttatási csomag és megbecsülés.</li>
   <li>Rugalmas munkaidő és hibrid munkavégzési lehetőség.</li>
   <li>Támogató, összetartó csapat és szakmai fejlődési lehetőség.</li>
-</ul>`,
+</ul>${locationSection}`,
     }
   }
 
@@ -79,24 +91,27 @@ export async function generateJobPostingWithAiAction(
     const prompt = `Te egy élvonalbeli, professzionális magyar HR szakértő és toborzási szövegíró vagy az eaisyHR rendszerben.
 Feladatod egy professzionális, rendkívül vonzó, piacképes és modern magyar nyelvű álláshirdetés készítése.
 
-POZÍCIÓ ADATAI:
+SZERVEZET ÉS POZÍCIÓ ADATAI:
 - Hirdetés nyilvános megnevezése: "${cim}"
 - Belső munkakör / szakterület: "${munkakor}"
+${cegNev ? `- Hirdető vállalat / munkáltató neve: "${cegNev}"` : ""}
+${cegCim ? `- Cég székhelye / irodája (munkavégzés helyszíne): "${cegCim}"` : ""}
 ${userInstructions ? `- Felhasználó specifikus elvárásai / kulcsszavai: "${userInstructions}"` : ""}
 
 KÖVETELMÉNYEK:
 Válaszolj KIZÁRÓLAG érvényes JSON formátumban:
 {
-  "rovid_leiras": "1-2 mondatos, figyelemfelkeltő, frappáns kedvcsináló a kártyás listázáshoz (max. 180 karakter, ne legyen közhelyes).",
+  "rovid_leiras": "1-2 mondatos, figyelemfelkeltő, frappáns kedvcsináló a kártyás listázáshoz (max. 180 karakter, ne legyen közhelyes${cegNev ? `, említheted a céget: ${cegNev}` : ""}).",
   "reszletes_leiras": "Strukturált, professzionális leírás tiszta HTML formátumban (h3, h4, p, ul, li, strong, blockquote tagekkel)."
 }
 
 A "reszletes_leiras" kötelező tartalmi blokkjai:
-1. <h3>Rólunk / A csapatról</h3>: Inspiráló, dinamikus bemutatás, miért jó nálunk dolgozni.
+1. <h3>Rólunk / A vállalatról</h3>: Inspiráló, dinamikus bemutatás${cegNev ? ` (említsd név szerint a(z) ${cegNev} vállalatot, annak innovatív és emberközpontú értékeit)` : ""}, miért nagyszerű nálunk dolgozni.
 2. <h3>Főbb feladatok</h3>: 4-6 konkrét, jól megfogalmazott bullet point (<ul><li>).
 3. <h3>Szakmai elvárások</h3>: 4-6 pont a szükséges tudásról, tapasztalatról, készségekről (ha a felhasználó adott kulcsszavakat, ezeket kötelezően építsd be).
 4. <h3>Előnyt jelent</h3>: 2-3 releváns plusz kompetencia vagy tapasztalat.
 5. <h3>Amit kínálunk</h3>: Juttatási csomag, rugalmasság / home office lehetőség, modern technológiák, szakmai képzések, összetartó kultúra.
+${cegCim ? `6. <h3>Munkavégzés helye</h3>: ${cegCim} (hangsúlyozd a kényelmes irodai környezetet és a rugalmas / hibrid lehetőséget).` : ""}
 
 Formázási szabályok:
 - Csak tiszta HTML tageket használj a "reszletes_leiras" mezőben (h3, h4, p, ul, li, strong, em).

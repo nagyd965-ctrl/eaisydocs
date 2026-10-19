@@ -20,6 +20,7 @@ import { Sparkles, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Switch } from "@/components/ui/switch"
 import { generateJobPostingWithAiAction } from "@/app/hr/recruitment/ai-posting-actions"
+import { useCompany } from "@/contexts/company-context"
 
 export interface JobOptionItem {
   id: string
@@ -48,6 +49,7 @@ export function ManagePostingDialog({
   onSaved: (data: PostingFormData) => void
   children?: React.ReactNode 
 }) {
+  const { selectedCompany } = useCompany()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -99,6 +101,8 @@ export function ManagePostingDialog({
         cim: cim.trim(),
         munkakorNev: selectedJobName,
         instructions: aiInstructions.trim(),
+        cegNev: selectedCompany?.name || undefined,
+        cegCim: selectedCompany?.address || undefined,
       })
 
       if (!result.success) {
@@ -307,6 +311,15 @@ export function ManagePostingDialog({
                   <span className="text-muted-foreground">Belső munkakör:</span>
                   <span className="font-medium text-foreground text-right">
                     {jobs.find(j => j.id === munkakorId)?.megnevezes}
+                  </span>
+                </div>
+              )}
+              {selectedCompany?.name && (
+                <div className="flex items-center justify-between border-t border-border/40 pt-1.5">
+                  <span className="text-muted-foreground">Hirdető szervezet:</span>
+                  <span className="font-medium text-foreground text-right truncate max-w-[260px]" title={selectedCompany.name}>
+                    {selectedCompany.name}
+                    {selectedCompany.address ? ` (${selectedCompany.address.split(",")[0].trim()})` : ""}
                   </span>
                 </div>
               )}
