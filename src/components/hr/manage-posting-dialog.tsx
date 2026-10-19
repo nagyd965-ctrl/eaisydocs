@@ -167,18 +167,20 @@ export function ManagePostingDialog({
             />
           </div>
 
-          <div className="flex items-center space-x-2 pt-2 pb-2">
+          <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 p-3.5 transition-colors hover:border-border">
+            <div className="space-y-0.5 pr-4 text-left">
+              <Label htmlFor="is_internal" className="text-sm font-medium text-foreground cursor-pointer">
+                Csak Belső Hirdetés
+              </Label>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Ha be van kapcsolva, a hirdetés kizárólag a belépett munkatársak számára látható, a publikus karrieroldalról rejtve marad.
+              </p>
+            </div>
             <Switch
               id="is_internal"
               checked={isInternal}
               onCheckedChange={setIsInternal}
             />
-            <Label htmlFor="is_internal" className="flex flex-col space-y-1">
-              <span>Csak Belső Hirdetés</span>
-              <span className="font-normal text-sm text-muted-foreground">
-                Ha be van kapcsolva, a hirdetés nem jelenik meg a publikus karrieroldalon, csak a belépett dolgozók láthatják.
-              </span>
-            </Label>
           </div>
 
           <div className="flex justify-end pt-4">
