@@ -46,16 +46,18 @@ interface EmployeeDisplayInfo {
 export function AddKpiDialog({ 
   employees, 
   cycles, 
-  allKpis = []
+  allKpis = [],
+  defaultDolgozoId
 }: { 
   employees: AddKpiEmployeeItem[]
   cycles?: PerformanceCycle[]
   allKpis?: PerformanceKpi[]
+  defaultDolgozoId?: string
   catalogue?: any[]
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [dolgozoId, setDolgozoId] = useState<string>("")
+  const [dolgozoId, setDolgozoId] = useState<string>(defaultDolgozoId || "")
   const [ciklusId, setCiklusId] = useState<string>("")
   const [celMegnevezes, setCelMegnevezes] = useState<string>("")
   const [meroszamTipusa, setMeroszamTipusa] = useState<string>("szazalek")
@@ -128,12 +130,12 @@ export function AddKpiDialog({
     setOpen(isOpen)
     if (isOpen) {
       if (!ciklusId && defaultCycle) setCiklusId(defaultCycle)
-      if (!dolgozoId && employeeDisplayList.length > 0) {
-        setDolgozoId(employeeDisplayList[0].id)
-      }
+      setDolgozoId(defaultDolgozoId || "")
     } else {
       setEmployeePickerOpen(false)
       setEmployeeSearchQuery("")
+      setDolgozoId("")
+      setCelMegnevezes("")
     }
   }
 
@@ -226,9 +228,13 @@ export function AddKpiDialog({
                 <User className="w-3.5 h-3.5 text-primary" />
                 Érintett Dolgozó
               </span>
-              {selectedEmployee && (
+              {selectedEmployee ? (
                 <span className="text-[11px] text-muted-foreground font-normal normal-case">
                   Aktuális terheltség: <strong className="text-foreground">{selectedEmployee.activeKpiCount} db</strong> aktív cél
+                </span>
+              ) : (
+                <span className="text-[11px] text-muted-foreground font-normal normal-case italic">
+                  Válassz ki egy munkatársat
                 </span>
               )}
             </Label>
@@ -237,7 +243,10 @@ export function AddKpiDialog({
               <PopoverTrigger
                 ref={triggerRef}
                 type="button"
-                className="w-full h-auto min-h-[54px] p-2.5 rounded-lg border border-input bg-background hover:bg-muted/20 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition-colors flex items-center justify-between gap-3 text-left shadow-xs cursor-pointer"
+                className={cn(
+                  "w-full h-auto min-h-[54px] p-2.5 rounded-lg border bg-background hover:bg-muted/20 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition-colors flex items-center justify-between gap-3 text-left shadow-xs cursor-pointer",
+                  !selectedEmployee ? "border-dashed border-border/80" : "border-input"
+                )}
               >
                 {selectedEmployee ? (
                   <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -273,9 +282,21 @@ export function AddKpiDialog({
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between w-full text-muted-foreground px-1">
-                    <span className="text-sm">Válassz dolgozót a listából...</span>
-                    <ChevronDown className="w-4 h-4" />
+                  <div className="flex items-center justify-between w-full px-1">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-full bg-muted/60 border border-dashed border-muted-foreground/30 flex items-center justify-center shrink-0">
+                        <User className="w-4 h-4 text-muted-foreground" />
+                      </div>
+                      <div className="text-left">
+                        <span className="text-sm font-medium text-foreground block">
+                          Válassz dolgozót a listából...
+                        </span>
+                        <span className="text-[11px] text-muted-foreground block">
+                          Kattints a munkatársak kereséséhez és kiválasztásához
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
                   </div>
                 )}
               </PopoverTrigger>
