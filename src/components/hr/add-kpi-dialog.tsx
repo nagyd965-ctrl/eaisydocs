@@ -485,7 +485,6 @@ export function AddKpiDialog({
           </div>
 
           {/* Célérték és Kezdeti Állapot */}
-          {/* Célérték és Kezdeti Állapot */}
           {meroszamTipusa === "igen_nem" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -502,7 +501,7 @@ export function AddKpiDialog({
                     )}
                   >
                     <Check className="w-3.5 h-3.5" />
-                    Igen (1)
+                    Igen
                   </button>
                   <button
                     type="button"
@@ -515,7 +514,7 @@ export function AddKpiDialog({
                     )}
                   >
                     <X className="w-3.5 h-3.5" />
-                    Nem (0)
+                    Nem
                   </button>
                 </div>
               </div>
@@ -529,12 +528,12 @@ export function AddKpiDialog({
                     className={cn(
                       "h-8 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1.5 cursor-pointer",
                       aktualisErtek === "0"
-                        ? "bg-background text-foreground font-semibold border border-border shadow-xs"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     )}
                   >
-                    <X className="w-3.5 h-3.5 text-muted-foreground" />
-                    Nem (0)
+                    <X className="w-3.5 h-3.5" />
+                    Nem
                   </button>
                   <button
                     type="button"
@@ -547,7 +546,7 @@ export function AddKpiDialog({
                     )}
                   >
                     <Check className="w-3.5 h-3.5" />
-                    Igen (1)
+                    Igen
                   </button>
                 </div>
               </div>
