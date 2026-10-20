@@ -90,11 +90,13 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-075](./A-075-employee-referral-system-and-configurable-bonus-architecture.md) | 2026-10-19 | Dolgozói Ajánlási Rendszer és Konfigurálható Bónusz Architektúra | `[HR]` | `Decided` | [P-099](../../product/decisions/P-099-employee-referral-system-and-configurable-bonus-ux.md), `hr_dolgozoi_ajanlas`, `referral-actions.ts`, `internal-career-view.tsx`, `my-referrals-view.tsx`, `referral-dialog.tsx`, `company-settings-tab.tsx` |
 | [A-076](./A-076-ai-job-posting-generator-and-secure-rich-text-rendering.md) | 2026-10-20 | AI-Vezérelt Álláshirdetés Generálás és Biztonságos Rich Text Renderelési Architektúra | `[HR]` | `Decided` | [P-100](../../product/decisions/P-100-ai-job-posting-wizard-and-career-rich-text-ux.md), `src/app/hr/recruitment/ai-posting-actions.ts`, `src/components/hr/manage-posting-dialog.tsx`, `src/components/rich-text-content.tsx`, `src/lib/sanitize-html.ts` |
 | [A-077](./A-077-searchable-dossier-selector-inbox-filing.md) | 2026-10-21 | Kereshető Ügyirat-Kiválasztó és Intelligens Iktatási Csatolás Architektúra | `[Docs]` | `Decided` | [P-101](../../product/decisions/P-101-searchable-dossier-selector-inbox-filing.md), `dossier-search-selector.tsx`, `filing-panel-client.tsx`, `inbox/[id]/page.tsx` |
+| [A-078](./A-078-performance-management-module-overhaul-and-kpi-catalogue.md) | 2026-10-21 | Teljesítményértékelés Modul Modernizáció, Sablontár és Linear-Flat Architektúra | `[HR]` | `Decided` | [P-102](../../product/decisions/P-102-performance-management-module-overhaul-and-kpi-catalogue-ux.md), `performance/page.tsx`, `performance-list.tsx`, `add-kpi-dialog.tsx`, `manage-cycles-dialog.tsx`, `performance/dashboard/page.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-078`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-079`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+
 
 
 

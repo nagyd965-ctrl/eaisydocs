@@ -106,25 +106,42 @@ export interface Employee {
 
 export interface KpiItem {
   id: string
-  megnevezes: string
+  megnevezes?: string
+  celkituzes?: string
   leiras?: string | null
   suly?: number | null
+  sulyozas?: number | null
   cel_ertek?: number | null
   aktualis_ertek?: number | null
   pontszam?: number | null
   onertekeles_pontszam?: number | null
   onertekeles_szoveg?: string | null
+  onertekeles_szovege?: string | null
   vezeto_ertekeles_szoveg?: string | null
+  ertekeles_szovege?: string | null
   statusz?: string
   ciklus_id?: string | null
   dolgozo_id?: string
   szulo_kpi_id?: string | null
   mertekegyseg?: string | null
+  meroszam_tipusa?: string | null
+  workflow_fazis?: string | null
   created_at?: string
-  [key: string]: unknown
+  [key: string]: any
+}
+
+export interface KpiCatalogueItem {
+  id: string
+  megnevezes: string
+  leiras?: string | null
+  meroszam_tipusa: "szam" | "szazalek" | "osszeg" | "igen_nem" | "skala" | string
+  aktiv?: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export type PerformanceKpi = KpiItem
+
 
 export interface PerformanceCycle {
   id: string

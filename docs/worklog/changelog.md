@@ -4,6 +4,28 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-21)
 
+### 🎯 eaisyHR: Vezetői Teljesítményértékelés Modul Teljes Megújítása (A-078 / P-102)
+- **Kanonikus KPI Mérőszámcsík (`src/app/hr/performance/page.tsx`):**
+  - 4 db Linear-flat `KpiCard` a fejléc alatt: *Aktív Ciklus*, *Érintett Dolgozók* (részvételi arány), *Kitűzött Célok (KPI)* (átlag/fő) és *Vezetői Értékelésre Vár* (önértékelés után pontozandó célok).
+  - Törlésre került a felesleges, fejlesztői jellegű kék `Alert` információs doboz.
+- **Kanonikus `TableToolbar` és Intelligens Szűrés (`src/components/hr/performance-list.tsx`):**
+  - Instant gépelési kereső: kolléga neve, beosztása és célkitűzés címe alapján.
+  - Tematikus `Szűrés` Popover: Értékelési Ciklusok, Workflow Fázisok (1–5) és Teljesítmény Sávok (`Kiváló`, `Normál`, `Fejlesztendő`).
+  - Újracsiszolt, cselekvőképes Empty State közvetlen célrögzítési és cikluskezelési gombokkal.
+  - Linear-flat dolgozói kártyák profilképpel, beosztással, haladási mutatóval és prémium kategória badge-dzsel.
+- **Vállalati KPI Sablontár (`hr_kpi_katalogus`) Bekötése (`src/components/hr/add-kpi-dialog.tsx`):**
+  - 1-kattintásos gyorsválasztó gombok a vállalati sablonokhoz (*Ügyfél-elégedettség CSAT*, *Projektátadási arány*, *Árbevétel elvárás*, *Tréning elvégzése*, *Új ügyfelek*).
+  - Automatikus kitöltés: cél neve, mérőszám típusa, javasolt célérték, leírás.
+  - Munkatárs kiválasztó avatarral és munkakörrel, mértékegység-tudatos beviteli mezők (`%`, `Ft`, `db`, `skala`, `igen_nem`), valamint súlyozás gyorsgombok (`1.0x`, `1.5x`, `2.0x`).
+- **Modern Cikluskezelés (`src/components/hr/manage-cycles-dialog.tsx`):**
+  - Lenyitható új ciklus rögzítési blokk, formázott dátumok és szöveges, egyértelmű állapotváltó gombok (`Megnyitás`, `Értékelés indítása`, `Ciklus lezárása`).
+- **Linear-Flat Vezetői Dashboard és Bérszámfejtési Összesítő (`src/app/hr/performance/dashboard/page.tsx`):**
+  - Visszalépési navigáció a főoldalra.
+  - A pasztell dobozok helyett egységes Linear-flat 5-lépcsős folyamat rács.
+  - Esztétikus diagram empty state-ek feliratokkal az üres diagram helyett.
+  - Dolgozói bérszámfejtési és prémium javaslati táblázat avatarokkal, progress barral és prémium kategória jelvénnyel.
+
+
 ### 📂 eaisyDocs: Kereshető Ügyirat-Kiválasztó és Intelligens Iktatási Csatolás (A-077 / P-101)
 - **Kanonikus `DossierSearchSelector` Komponens (`src/components/dossier-search-selector.tsx`):**
   - A cégválasztóhoz (`company-selector.tsx`) hasonló, beágyazott popover keresősávval (`Search` ikon, instant gépelési szűrés, ékezetfüggetlen normalizálás).

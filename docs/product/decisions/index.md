@@ -109,11 +109,13 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-099](./P-099-employee-referral-system-and-configurable-bonus-ux.md) | 2026-10-19 | Dolgozói Ajánlási Rendszer és Beállítható Bónusz UX | `[HR]` | `HR / Self-Service & Referral Bonus UX` | [A-075](../../architecture/decisions/A-075-employee-referral-system-and-configurable-bonus-architecture.md), `src/components/hr/internal-career-view.tsx`, `src/components/hr/my-referrals-view.tsx`, `src/components/hr/referral-dialog.tsx`, `src/components/settings/company-settings-tab.tsx` |
 | [P-100](./P-100-ai-job-posting-wizard-and-career-rich-text-ux.md) | 2026-10-20 | AI Álláshirdetés Varázsló és Karrieroldali Rich Text Renderelés Termékkövetelmény és UX | `[HR]` | `HR / Recruitment & Career Public UX` | [A-076](../../architecture/decisions/A-076-ai-job-posting-generator-and-secure-rich-text-rendering.md), `src/components/hr/manage-posting-dialog.tsx`, `src/app/karrier/[id]/page.tsx`, `src/app/hr/self-service/profile/page.tsx` |
 | [P-101](./P-101-searchable-dossier-selector-inbox-filing.md) | 2026-10-21 | Kereshető Ügyirat-Kiválasztó és Intelligens Csatolás Felhasználói Élmény (UX) | `[Docs]` | `Inbox / Filing Split-View & Dossier Picker UX` | [A-077](../../architecture/decisions/A-077-searchable-dossier-selector-inbox-filing.md), `dossier-search-selector.tsx`, `filing-panel-client.tsx`, `inbox/[id]/page.tsx` |
+| [P-102](./P-102-performance-management-module-overhaul-and-kpi-catalogue-ux.md) | 2026-10-21 | Teljesítményértékelés Modul Megújítása és Vállalati Sablontár UX | `[HR]` | `HR / Performance Management & KPI Catalogue UX` | [A-078](../../architecture/decisions/A-078-performance-management-module-overhaul-and-kpi-catalogue.md), `performance/page.tsx`, `performance-list.tsx`, `add-kpi-dialog.tsx`, `manage-cycles-dialog.tsx`, `performance/dashboard/page.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-102`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-103`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+
 
 
 
