@@ -129,13 +129,36 @@ export function calculateAntecedentMatch(
     const dossierTargy = dossier.ugy?.targy || ""
     const dossierIratok = dossier.irat || []
 
-    // 1. DIRECT REFERENCE MATCH (max 40 pts)
+    // 1. DIRECT REFERENCE MATCH (max 45 pts)
     if (dossierIktatoszam && targetFullText.includes(dossierIktatoszam.toLowerCase())) {
       score += 40
       details.push(`Közvetlen iktatószám hivatkozás található a szövegben: "${dossierIktatoszam}" (+40%)`)
     } else if (dossierUgyszam && targetFullText.includes(dossierUgyszam.toLowerCase())) {
       score += 35
       details.push(`Közvetlen ügyszám hivatkozás található a szövegben: "${dossierUgyszam}" (+35%)`)
+    }
+
+    // 1.b DIRECT INVOICE / REFERENCE NUMBER MATCH IN PREVIOUS IRATOK (max 45 pts)
+    // Ha a beérkező irat szövege tartalmaz egy számlaszámot, ami a dosszié valamelyik korábbi iratában szerepel (pl. helyesbített számla)
+    let invoiceMatchFound = false
+    let matchedInvoiceRef = ""
+    for (const dIrat of dossierIratok) {
+      if (dIrat.targy) {
+        const dTokens = dIrat.targy.match(/[A-Z0-9]{2,}[-/][A-Z0-9\-_/]+/gi) || []
+        for (const token of dTokens) {
+          if (token.length >= 4 && targetFullText.includes(token.toLowerCase())) {
+            invoiceMatchFound = true
+            matchedInvoiceRef = token
+            break
+          }
+        }
+      }
+      if (invoiceMatchFound) break
+    }
+
+    if (invoiceMatchFound) {
+      score += 45
+      details.push(`Közvetlen számla-előzmény megegyezés: "${matchedInvoiceRef}" megtalálható az ügyiratban (+45%)`)
     }
 
     // 2. PARTNER MATCH (max 45 pts)
@@ -260,9 +283,16 @@ export function calculateAntecedentMatch(
   let recommendation_type: AntecedentMatchResult["recommendation_type"] = "uj_ugy_nyitasa"
   let indoklas = ""
 
-  if (isClosed) {
+  const isCorrectiveInvoice = /helyesb|módosít|storn|érvénytelenít|korrekci/i.test(
+    (target.targy || "") + " " + (target.leiras || "")
+  )
+
+  if (isClosed && !isCorrectiveInvoice) {
     recommendation_type = "uj_ugy_nyitasa"
     indoklas = `Az irat ehhez az ügyirathoz kapcsolódik, de mivel már lezárt, új ügyiratként nyitandó.`
+  } else if (isClosed && isCorrectiveInvoice) {
+    recommendation_type = "alszam_csatolas"
+    indoklas = `Helyesbítő / stornó számla az eredeti számla ügyiratához (${bestMatch.iktatoszam}). Számvitelileg alszámként csatolandó a lezárt státusz ellenére is.`
   } else {
     recommendation_type = highestScore >= 60 ? "alszam_csatolas" : "megfontolando_csatolas"
     indoklas = highestScore >= 60

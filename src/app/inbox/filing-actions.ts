@@ -484,6 +484,12 @@ ADÓSZÁMOK SZÉTVÁLASZTÁSA:
 - "partner_adoszam": A partner belföldi MAGYAR adószáma (pl. "32478520-2-41" vagy 8 jegyű törzsszám "32478520"). Csak magyar cégek esetén töltsd ki! Ha a számlán mindkét formátum (belföldi és HU-s közösségi) szerepel, ide MINDIG a belföldi kötőjeles formátumot írd (pl. "32478520-2-41")! NE ide írd a HU előtagos EU adószámot! Külföldi cégnél (pl. amerikai, német, szerb) értéke kötelezően null!
 - "partner_kulfoldi_adoszam": Ha a partner rendelkezik közösségi (EU) adószámmal (pl. "HU32478520", "DE123456789", "ATU12345678") VAGY külföldi cég esetén helyi adóazonosítóval (pl. amerikai "US EIN 61-1797223" vagy "61-1797223", szerbiai PIB: "101092577", román CUI, stb.), azt ide írd be!
 
+KRITIKUS SZABÁLY HELYESBÍTŐ, MÓDOSÍTÓ ÉS STORNÓ SZÁMLÁKHOZ:
+- Ha a számla fejlécében, címében vagy szövegében az szerepel, hogy "[SORSZÁM] HELYESBÍTŐ SZÁMLÁJA", "Helyesbítő számla", "Módosító számla", "Stornó számla", "Helyesbített számla sorszáma: [SORSZÁM]", vagy "Credit note for [SORSZÁM]":
+  1. A "dokumentum_tipus" kötelezően legyen: "szamla".
+  2. A "hivatkozott_szam" mezőbe PONTOSAN az EREDETI (helyesbített) számla sorszámát írd be (pl. a "THINK-2026-51 HELYESBÍTŐ SZÁMLÁJA" esetén a hivatkozott_szam legyen: "THINK-2026-51"), SOHA NE a helyesbítő számla új saját sorszámát!
+  3. A "targy" mező formátuma: "Helyesbítő számla ([Saját sorszám]) – Eredeti: [Helyesbített számlaszám] – [Partner név]" (pl. "Helyesbítő számla (THINK-2026-54) – Eredeti: THINK-2026-51 – Think AI Kft.").
+
 Kötelező mezők:
 1. "targy": Hivatalos, tömör magyar ügyirat tárgy (pl. "Munkaszerződés - Kovács Béla", vagy "Szolgáltatási keretszerződés - Telekom Nyrt.", vagy "NAV határozat adóügyben").
 2. "dokumentum_tipus": Az alábbiak egyike pontosan: "szerzodes" | "szamla" | "hatosagi_level" | "beadvany" | "igazolas" | "egyeb".
@@ -567,12 +573,22 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
       extractedHatarido = `${deadlineMatch[1]}-${deadlineMatch[2]}-${deadlineMatch[3]}`
     }
 
-    // Hivatkozási szám keresés
-    const refMatch = docText.match(
-      /(?:hivatkozási szám|hivatkozás|iktatószám|iktatási szám|szerződésszám|szerz\. sz|számlaszám|ügyszám|határozatszám|referenciaszám|ref\.|ref\s*:)[:\s.]*([A-Z]{2,}[-/][0-9A-Z\-_/]+|[A-Z0-9]{3,}[-/][0-9]{4}[A-Z0-9\-_/]*)/i
+    // Helyesbített számla felismerése (pl. "THINK-2026-51 HELYESBÍTŐ SZÁMLÁJA" vagy "Helyesbített számla: THINK-2026-51")
+    const correctiveMatch = docText.match(
+      /([A-Z0-9\-_/]{3,})\s+(?:helyesbítő\s+számlája|módosító\s+számlája|stornó\s+számlája|helyesbítője)|(?:helyesbített\s+számla|módosított\s+számla|stornózott\s+számla|eredeti\s+számla|hivatkozott\s+számla|credit\s+note\s+for)[:\s]+([A-Z0-9\-_/]{3,})/i
     )
-    if (refMatch) {
-      extractedHivSzam = refMatch[1].trim()
+    if (correctiveMatch) {
+      extractedHivSzam = (correctiveMatch[1] || correctiveMatch[2])?.trim()
+      suggestedType = "szamla"
+      suggestedTargy = `Helyesbítő számla – Eredeti: ${extractedHivSzam}`
+    } else {
+      // Általános hivatkozási szám keresés
+      const refMatch = docText.match(
+        /(?:hivatkozási szám|hivatkozás|iktatószám|iktatási szám|szerződésszám|szerz\. sz|számlaszám|ügyszám|határozatszám|referenciaszám|ref\.|ref\s*:)[:\s.]*([A-Z]{2,}[-/][0-9A-Z\-_/]+|[A-Z0-9]{3,}[-/][0-9]{4}[A-Z0-9\-_/]*)/i
+      )
+      if (refMatch) {
+        extractedHivSzam = refMatch[1].trim()
+      }
     }
 
     if (textLower.includes("munkaszerz") || textLower.includes("munkaviszony") || textLower.includes("munkavállaló")) {
@@ -702,26 +718,132 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
   let elozmenyUgyiratId: string | undefined
   let elozmenyIktatoszam: string | undefined
   let antecedentConfidence: number | undefined
+  let elozmenyIndoklas: string | undefined = undefined
+  let elozmenyReszletek: string[] | undefined = undefined
+  let elozmenyTargy: string | undefined = undefined
 
+  // 7.a Ha a számla helyesbítő számla vagy van hivatkozott számlaszáma
   if (aiResult.hivatkozott_szam) {
+    const cleanRef = aiResult.hivatkozott_szam.trim()
+
+    // 7.a.1 Először ellenőrizzük, hogy közvetlenül egy meglévő ügyirat iktatószáma-e
     const { data: matchedDossier } = await supabase
       .from("ugyirat")
-      .select("id, iktatoszam")
-      .ilike("iktatoszam", `%${aiResult.hivatkozott_szam.trim()}%`)
+      .select("id, iktatoszam, ugy(targy)")
+      .ilike("iktatoszam", `%${cleanRef}%`)
       .limit(1)
       .maybeSingle()
 
     if (matchedDossier) {
       elozmenyUgyiratId = matchedDossier.id
       elozmenyIktatoszam = matchedDossier.iktatoszam
-      antecedentConfidence = 95
+      antecedentConfidence = 98
+      elozmenyTargy = (matchedDossier.ugy as any)?.targy || undefined
+      elozmenyIndoklas = `Közvetlen iktatószám hivatkozás található a dokumentumon: ${matchedDossier.iktatoszam}`
+      elozmenyReszletek = [`A dokumentumban szereplő hivatkozott szám közvetlenül megegyezik a(z) ${matchedDossier.iktatoszam} ügyirattal.`]
+    }
+
+    // 7.a.2 KRITIKUS: Ha nem iktatószám, megnézzük, hogy egy már beiktatott IRAT számlaszáma vagy tárgya-e!
+    // Példa: "THINK-2026-51 HELYESBÍTŐ SZÁMLÁJA" esetén a "THINK-2026-51" a korábbi számla sorszáma!
+    if (!elozmenyUgyiratId && cleanRef.length >= 3) {
+      const { data: matchedIrats } = await supabase
+        .from("irat")
+        .select(`
+          id,
+          targy,
+          erkeztetoszam,
+          kulso_hivatkozas_id,
+          ugyirat_id,
+          ugyirat:ugyirat_id (
+            id,
+            iktatoszam,
+            statusz,
+            ugy ( targy )
+          )
+        `)
+        .not("ugyirat_id", "is", null)
+        .or(`targy.ilike.%${cleanRef}%,erkeztetoszam.ilike.%${cleanRef}%,kulso_hivatkozas_id.eq.${cleanRef}`)
+        .limit(1)
+
+      if (matchedIrats && matchedIrats.length > 0) {
+        const matchedIrat = matchedIrats[0]
+        const ugyiratObj = matchedIrat.ugyirat as any
+        const uId = Array.isArray(ugyiratObj) ? ugyiratObj[0]?.id : ugyiratObj?.id
+        const uIktatoszam = Array.isArray(ugyiratObj) ? ugyiratObj[0]?.iktatoszam : ugyiratObj?.iktatoszam
+        const uTargy = Array.isArray(ugyiratObj) ? ugyiratObj[0]?.ugy?.targy : ugyiratObj?.ugy?.targy
+
+        if (uId && uIktatoszam) {
+          elozmenyUgyiratId = uId
+          elozmenyIktatoszam = uIktatoszam
+          antecedentConfidence = 99
+          elozmenyTargy = uTargy || matchedIrat.targy || undefined
+          const isCorrective = /helyesb|módosít|storn|érvénytelenít|korrekci/i.test(
+            (aiResult.targy || "") + " " + (docText || "")
+          )
+          elozmenyIndoklas = isCorrective
+            ? `Helyesbített eredeti számla megtalálva: „${matchedIrat.targy || cleanRef}” a(z) ${uIktatoszam} ügyiratban. A helyesbítő számlát ehhez az ügyirathoz kell csatolni alszámként.`
+            : `Hivatkozott előzmény-számla megtalálva: „${matchedIrat.targy || cleanRef}” a(z) ${uIktatoszam} ügyiratban.`
+          elozmenyReszletek = [
+            `Hivatkozott eredeti sorszám: ${cleanRef}`,
+            `Eredeti számla az ügyiratban: ${matchedIrat.targy || cleanRef}`,
+            `Cél gyűjtőügyirat: ${uIktatoszam}`
+          ]
+        }
+      }
     }
   }
 
-  let elozmenyIndoklas: string | undefined = undefined
-  let elozmenyReszletek: string[] | undefined = undefined
-  let elozmenyTargy: string | undefined = undefined
+  // 7.a.3 Ha a hivatkozott szám nem adott egyértelmű találatot, de a dokumentum szövege tartalmaz helyesbítő mintát
+  if (!elozmenyUgyiratId && docText) {
+    const correctiveMatch = docText.match(
+      /([A-Z0-9\-_/]{3,})\s+(?:helyesbítő\s+számlája|módosító\s+számlája|stornó\s+számlája|helyesbítője)|(?:helyesbített\s+számla|módosított\s+számla|stornózott\s+számla|eredeti\s+számla|hivatkozott\s+számla|credit\s+note\s+for)[:\s]+([A-Z0-9\-_/]{3,})/i
+    )
+    const detectedOriginalInvoiceNo = (correctiveMatch?.[1] || correctiveMatch?.[2])?.trim()
+    if (detectedOriginalInvoiceNo && detectedOriginalInvoiceNo.length >= 4) {
+      const { data: matchedIrats } = await supabase
+        .from("irat")
+        .select(`
+          id,
+          targy,
+          ugyirat_id,
+          ugyirat:ugyirat_id (
+            id,
+            iktatoszam,
+            statusz,
+            ugy ( targy )
+          )
+        `)
+        .not("ugyirat_id", "is", null)
+        .or(`targy.ilike.%${detectedOriginalInvoiceNo}%,erkeztetoszam.ilike.%${detectedOriginalInvoiceNo}%,kulso_hivatkozas_id.eq.${detectedOriginalInvoiceNo}`)
+        .limit(1)
 
+      if (matchedIrats && matchedIrats.length > 0) {
+        const matchedIrat = matchedIrats[0]
+        const ugyiratObj = matchedIrat.ugyirat as any
+        const uId = Array.isArray(ugyiratObj) ? ugyiratObj[0]?.id : ugyiratObj?.id
+        const uIktatoszam = Array.isArray(ugyiratObj) ? ugyiratObj[0]?.iktatoszam : ugyiratObj?.iktatoszam
+        const uTargy = Array.isArray(ugyiratObj) ? ugyiratObj[0]?.ugy?.targy : ugyiratObj?.ugy?.targy
+
+        if (uId && uIktatoszam) {
+          elozmenyUgyiratId = uId
+          elozmenyIktatoszam = uIktatoszam
+          antecedentConfidence = 99
+          elozmenyTargy = uTargy || matchedIrat.targy || undefined
+          elozmenyIndoklas = `Helyesbített eredeti számla megtalálva: „${matchedIrat.targy || detectedOriginalInvoiceNo}” a(z) ${uIktatoszam} ügyiratban. A helyesbítő számlát ehhez az ügyirathoz kell csatolni alszámként.`
+          elozmenyReszletek = [
+            `Kiolvasott helyesbített sorszám: ${detectedOriginalInvoiceNo}`,
+            `Eredeti számla: ${matchedIrat.targy || detectedOriginalInvoiceNo}`,
+            `Cél gyűjtőügyirat: ${uIktatoszam}`
+          ]
+          if (!aiResult.hivatkozott_szam) {
+            aiResult.hivatkozott_szam = detectedOriginalInvoiceNo
+          }
+        }
+      }
+    }
+  }
+
+  // 7.a.4 Ha eddig nem találtunk közvetlen hivatkozást, általános előzmény-kereső futtatása
   if (!elozmenyUgyiratId) {
     const { findAntecedentSuggestion } = await import("@/utils/antecedent-matcher")
     const match = await findAntecedentSuggestion(iratId, supabase)

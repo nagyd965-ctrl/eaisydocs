@@ -38,6 +38,7 @@ import { type FilingIrat, type FilingTerv, type FilingUgyirat } from "./filing-d
 import { type AntecedentMatchResult } from "@/utils/antecedent-matcher"
 import { DocumentPreviewFrame } from "@/components/document-preview-frame"
 import { splitAttachmentToNewIncoming } from "@/app/inbox/filing-actions"
+import { DossierSearchSelector } from "@/components/dossier-search-selector"
 import {
   Dialog,
   DialogContent,
@@ -351,6 +352,7 @@ export function FilingPanelClient({
       setAiHasRun(true) // az újraelemzés gomb mostantól látható
 
       if (s.elozmeny_ugyirat_id) {
+        setExistingUgyiratId(s.elozmeny_ugyirat_id)
         setDetectedAntecedent({
           ugyiratId: s.elozmeny_ugyirat_id,
           iktatoszam: s.elozmeny_iktatoszam || "",
@@ -379,6 +381,17 @@ export function FilingPanelClient({
     formData.append("partner_kulfoldi_adoszam", partnerKulfoldiAdoszam)
     formData.append("hivatkozott_szam", hivatkozottSzam)
     formData.append("hatarido", hatarido)
+
+    if (mode === "existing") {
+      if (!existingUgyiratId) {
+        isSubmittingRef.current = false
+        setLoading(false)
+        setError("Kérjük, válassz ki egy meglévő ügyiratot a csatoláshoz!")
+        toast.error("Nincs kiválasztva ügyirat a csatoláshoz!")
+        return
+      }
+      formData.set("existing_ugyirat_id", existingUgyiratId)
+    }
     
     try {
       const result = await fileIncomingDocument(formData)
@@ -890,49 +903,21 @@ export function FilingPanelClient({
                   {/* Meglévőhöz csatolás panel */}
                   <TabsContent value="existing" className="space-y-4 pt-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="existing_ugyirat_id" className="text-xs font-medium">
-                        Kiválasztott ügyirat <span className="text-destructive">*</span>
+                      <Label htmlFor="existing_ugyirat_id" className="text-xs font-medium flex items-center justify-between">
+                        <span>Kiválasztott ügyirat <span className="text-destructive">*</span></span>
+                        <span className="text-[11px] text-muted-foreground font-normal">
+                          {attachableUgyiratok.length} nyitott ügyirat elérhető
+                        </span>
                       </Label>
-                      <Select 
-                        name="existing_ugyirat_id" 
-                        required={mode === "existing"}
+
+                      <DossierSearchSelector
+                        ugyiratok={attachableUgyiratok}
                         value={existingUgyiratId}
-                        onValueChange={(val) => setExistingUgyiratId(val || "")}
-                      >
-                        <SelectTrigger id="existing_ugyirat_id">
-                          <SelectValue placeholder="Válassz egy meglévő ügyiratot...">
-                            {(value) => {
-                              const item = ugyiratok.find(u => u.id === value);
-                              const targyStr = Array.isArray(item?.ugy) ? item?.ugy[0]?.targy : item?.ugy?.targy;
-                              return item ? `${item.iktatoszam} - ${targyStr || ''}` : "Válassz egy meglévő ügyiratot...";
-                            }}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {attachableUgyiratok.map((u) => {
-                            const targyStr = Array.isArray(u.ugy) ? u.ugy[0]?.targy : u.ugy?.targy;
-                            return (
-                              <SelectItem 
-                                key={u.id} 
-                                value={u.id} 
-                                label={`${u.iktatoszam} - ${targyStr || ''}`}
-                              >
-                                <span>
-                                  {u.iktatoszam} - {targyStr}
-                                </span>
-                              </SelectItem>
-                            );
-                          })}
-                          {attachableUgyiratok.length === 0 && (
-                            <div className="p-3 text-xs text-muted-foreground text-center">
-                              Nincs aktív, folyamatban lévő ügyirat, amelyhez csatolni lehetne.
-                            </div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Az irat a kiválasztott ügyiraton belül kapja meg a következő szabad alszámot.
-                      </p>
+                        onChange={(val) => setExistingUgyiratId(val)}
+                        currentPartnerName={partnerNev}
+                        currentDocSubject={targy}
+                        currentReferenceNum={hivatkozottSzam}
+                      />
                     </div>
                   </TabsContent>
                 </Tabs>

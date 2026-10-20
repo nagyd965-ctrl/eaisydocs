@@ -76,10 +76,33 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
     .select("id, tetelszam, megnevezes")
     .order("tetelszam")
 
-  const { data: allUgyiratok } = await supabase
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || null
+
+  let ugyiratQuery = supabase
     .from("ugyirat")
-    .select("id, iktatoszam, statusz, ugy ( targy )")
+    .select(`
+      id,
+      iktatoszam,
+      statusz,
+      iktatas_datuma,
+      ugy ( targy ),
+      irat (
+        id,
+        targy,
+        leiras,
+        erkeztetoszam,
+        partner:kuldo_partner_id ( id, nev, adoszam )
+      )
+    `)
     .order("iktatas_datuma", { ascending: false })
+
+  if (companyScope) {
+    ugyiratQuery = ugyiratQuery.or(`company_id.eq.${companyScope},company_id.is.null`)
+  }
+
+  const { data: allUgyiratok } = await ugyiratQuery
 
   const { data: departments } = await supabase
     .from("szervezeti_egyseg")

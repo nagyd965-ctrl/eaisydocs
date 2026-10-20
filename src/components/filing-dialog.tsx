@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, FileDown } from "lucide-react"
+import { DossierSearchSelector } from "@/components/dossier-search-selector"
 
 export interface FilingIrat {
   id: string
@@ -44,6 +45,7 @@ export function FilingDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<"new" | "existing">("new")
+  const [existingUgyiratId, setExistingUgyiratId] = useState("")
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -53,6 +55,15 @@ export function FilingDialog({
     const formData = new FormData(e.currentTarget)
     formData.append("irat_id", irat.id)
     formData.append("mode", mode)
+
+    if (mode === "existing") {
+      formData.set("existing_ugyirat_id", existingUgyiratId)
+      if (!existingUgyiratId) {
+        setError("Kérjük, válassz ki egy meglévő ügyiratot a csatoláshoz!")
+        setLoading(false)
+        return
+      }
+    }
     
     try {
       const result = await fileIncomingDocument(formData)
@@ -140,23 +151,11 @@ export function FilingDialog({
               <TabsContent value="existing" className="space-y-4 pt-4">
                 <div className="grid gap-2">
                   <Label htmlFor="existing_ugyirat_id">Keresés a folyamatban lévő ügyiratok között</Label>
-                  <Select name="existing_ugyirat_id" required={mode === "existing"}>
-                    <SelectTrigger id="existing_ugyirat_id">
-                      <SelectValue placeholder="Válassz egy meglévő ügyiratot..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ugyiratok
-                        .filter((u) => !["irattarban", "lezart", "selejtezheto", "selejtezett"].includes(u.statusz))
-                        .map((u) => {
-                          const ugyTargy = Array.isArray(u.ugy) ? u.ugy[0]?.targy : u.ugy?.targy
-                          return (
-                            <SelectItem key={u.id} value={u.id}>
-                              {u.iktatoszam} - {ugyTargy}
-                            </SelectItem>
-                          )
-                        })}
-                    </SelectContent>
-                  </Select>
+                  <DossierSearchSelector
+                    ugyiratok={ugyiratok.filter((u) => !["irattarban", "lezart", "selejtezheto", "selejtezett"].includes(u.statusz))}
+                    value={existingUgyiratId}
+                    onChange={(val) => setExistingUgyiratId(val)}
+                  />
                   <p className="text-xs text-muted-foreground mt-1">Az irat új alszámot kap a kiválasztott ügyiraton belül.</p>
                 </div>
               </TabsContent>

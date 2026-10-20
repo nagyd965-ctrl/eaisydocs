@@ -2,7 +2,25 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
-## [Unreleased] – Fejlesztés alatt (2026-10-19)
+## [Unreleased] – Fejlesztés alatt (2026-10-21)
+
+### 📂 eaisyDocs: Kereshető Ügyirat-Kiválasztó és Intelligens Iktatási Csatolás (A-077 / P-101)
+- **Kanonikus `DossierSearchSelector` Komponens (`src/components/dossier-search-selector.tsx`):**
+  - A cégválasztóhoz (`company-selector.tsx`) hasonló, beágyazott popover keresősávval (`Search` ikon, instant gépelési szűrés, ékezetfüggetlen normalizálás).
+  - **Tematikus kategória szűrőchipek:** *Mind*, *Számlák & Pénzügy*, *Szerződések*, *HR*, *Egyéb* élő darabszám jelvénnyel a releváns ügyiratok azonnali szűréséhez.
+  - **Intelligens Partner-Ajánló Sáv (`✨ Javasolt ügyiratok a küldő partnerhez`):** Automatikusan a lista elejére sorolja az irat küldő partneréhez tartozó nyitott ügyiratokat.
+  - **Gazdag ügyirat kártyák a listában:** Iktatószám, státusz, csatolt iratok száma, ügy tárgya, kapcsolódó számla- és hivatkozási számok, létrehozás dátuma és kiválasztási zöld pipa.
+  - **Megerősítő kártya és validáció:** Egyértelmű visszajelzés a leendő alszámról (`/2`), valamint kliensoldali blokkolás üresen maradt kiválasztás esetén.
+- **Relációs Adatgazdagítás és Többcéges Védelem (`src/app/inbox/[id]/page.tsx`):**
+  - Az ügyiratok mellett lekérésre kerülnek a bennük lévő korábbi iratok és partnerek adatai is, lehetővé téve a korábbi számlaszámokra és partnerekre történő közvetlen keresést.
+  - Szigorú multi-tenant cég szerinti szűrés az aktív cég azonosítójával.
+- **Iktatási dialógus harmonizáció (`src/components/filing-dialog.tsx`):**
+  - A modál alapú iktatási ablak szintén megkapta az új kereshető komponenst a teljes platform egységesség jegyében.
+- **Helyesbítő és Stornó Számlák Intelligens Összerendelése (`src/app/inbox/filing-actions.ts` & `src/utils/antecedent-matcher.ts`):**
+  - **Kifejezett felismerés:** A Gemini prompt és heurisztikus regex felismeri a helyesbítő mintákat (pl. *„THINK-2026-51 HELYESBÍTŐ SZÁMLÁJA”*, *„Módosító számla”*, *„Stornó számla”*).
+  - **Hivatkozott eredeti számla kiolvasása:** Nem a módosító számla saját számát, hanem az eredeti sorszámot (`THINK-2026-51`) olvassa ki `hivatkozott_szam`-ként.
+  - **Relációs irat-keresés:** A rendszer nemcsak az ügyiratok iktatószámában keres, hanem az `irat` táblában megkeresi az eredeti számlát, és annak gyűjtőügyiratát (`ugyirat_id`) 99%-os biztonsággal azonnal felajánlja előzményként.
+  - **Lezártsági védelem feloldása:** Helyesbítő és stornó számláknál számviteli megfontolásból a lezárt ügyirathoz való alszámos csatolást is engedélyezi és javasolja a motor.
 
 ### 🤖 eaisyHR: AI Álláshirdetés Varázsló és Karrier Oldali HTML/Markdown Renderelés
 - **HTML & Markdown Biztonságos Renderelő (`src/components/rich-text-content.tsx` & `src/lib/sanitize-html.ts`):**
