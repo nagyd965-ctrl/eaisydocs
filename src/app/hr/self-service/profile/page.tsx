@@ -7,14 +7,10 @@ import { JobDescriptionAcknowledgment } from "@/components/hr/job-description-ac
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 import { redirect } from "next/navigation"
 import { 
-  CalendarDays, 
-  Stethoscope, 
+  CalendarDays,
+  Stethoscope,
   Briefcase, 
   UserCircle, 
-  ClipboardList, 
-  GraduationCap, 
-  HardHat, 
-  FileText, 
   Eye, 
   Download 
 } from "lucide-react"
@@ -348,8 +344,7 @@ export default async function SelfServiceProfilePage() {
           <CardContent className="pt-6 space-y-6">
             {/* Feladatok és Hatáskörök */}
             <div className="space-y-3">
-              <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground">
-                <ClipboardList className="w-4 h-4 text-primary" />
+              <h4 className="text-sm font-semibold text-foreground">
                 Feladatok és Felelősségi Körök ({feladatok.length})
               </h4>
               {feladatok.length > 0 ? (
@@ -376,8 +371,7 @@ export default async function SelfServiceProfilePage() {
             {/* Elvárt Kompetenciák */}
             {kompetenciak.length > 0 && (
               <div className="space-y-3 pt-3 border-t">
-                <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground">
-                  <GraduationCap className="w-4 h-4 text-primary" />
+                <h4 className="text-sm font-semibold text-foreground">
                   Elvárt Kompetenciák és Képzettség
                 </h4>
                 <div className="flex flex-wrap gap-2">
@@ -393,8 +387,7 @@ export default async function SelfServiceProfilePage() {
             {/* Munkavédelem & Foglalkozás-egészségügy */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t">
               <div className="p-3.5 rounded-lg border bg-muted/20 space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                  <HardHat className="w-4 h-4 text-warning" />
+                <div className="text-xs font-semibold text-foreground">
                   Munkavédelmi és Védőeszköz Előírások
                 </div>
                 <div className="space-y-1.5 text-xs">
@@ -414,8 +407,7 @@ export default async function SelfServiceProfilePage() {
               </div>
 
               <div className="p-3.5 rounded-lg border bg-muted/20 space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                  <Stethoscope className="w-4 h-4 text-primary" />
+                <div className="text-xs font-semibold text-foreground">
                   Foglalkozás-egészségügyi Alkalmasság
                 </div>
                 <div className="space-y-1.5 text-xs">
@@ -439,18 +431,15 @@ export default async function SelfServiceProfilePage() {
 
             {/* Hivatalos Munkaköri Leírás Verzió Állapot */}
             <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/10 text-xs">
-              <div className="flex items-center gap-2.5">
-                <FileText className="w-4 h-4 text-primary shrink-0" />
-                <div>
-                  <span className="font-medium text-foreground">
-                    {latestJobVersion ? `Hivatalos Munkaköri Leírás (v${latestJobVersion.verzio_szam})` : "Munkaköri leírás dokumentum"}
-                  </span>
-                  <p className="text-[11px] text-muted-foreground">
-                    {latestJobVersion?.fajl_nev 
-                      ? `${latestJobVersion.fajl_nev} • Kiadva: ${new Date(latestJobVersion.kiadas_datum || latestJobVersion.created_at).toLocaleDateString("hu-HU")}`
-                      : "Még nincs digitális munkaköri leírás verzió feltöltve."}
-                  </p>
-                </div>
+              <div>
+                <span className="font-medium text-foreground">
+                  {latestJobVersion ? `Hivatalos Munkaköri Leírás (v${latestJobVersion.verzio_szam})` : "Munkaköri leírás dokumentum"}
+                </span>
+                <p className="text-[11px] text-muted-foreground">
+                  {latestJobVersion?.fajl_nev 
+                    ? `${latestJobVersion.fajl_nev} • Kiadva: ${new Date(latestJobVersion.kiadas_datum || latestJobVersion.created_at).toLocaleDateString("hu-HU")}`
+                    : "Még nincs digitális munkaköri leírás verzió feltöltve."}
+                </p>
               </div>
               {latestJobVersion?.signedUrl && (
                 <div className="flex items-center gap-1.5 shrink-0">
