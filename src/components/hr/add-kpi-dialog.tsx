@@ -1,14 +1,30 @@
 "use client"
 
-import { useState } from "react"
+import * as React from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, Loader2, Sparkles, BookOpen, User, Calendar, Target, Scale } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { 
+  Plus, 
+  Loader2, 
+  User, 
+  Calendar, 
+  Target, 
+  Scale, 
+  Search, 
+  X, 
+  Check, 
+  ChevronDown 
+} from "lucide-react"
 import { toast } from "sonner"
 import { addKpi } from "@/app/hr/performance/actions"
-import { type PerformanceKpi, type PerformanceCycle, type KpiCatalogueItem } from "@/types/hr"
+import { cn } from "@/lib/utils"
+import { type PerformanceKpi, type PerformanceCycle } from "@/types/hr"
 
 export interface AddKpiEmployeeItem {
   id: string
@@ -18,17 +34,24 @@ export interface AddKpiEmployeeItem {
   [key: string]: any
 }
 
+interface EmployeeDisplayInfo {
+  id: string
+  nev: string
+  avatarUrl: string
+  initials: string
+  munkakor: string
+  activeKpiCount: number
+}
 
 export function AddKpiDialog({ 
   employees, 
   cycles, 
-  allKpis,
-  catalogue = []
+  allKpis = []
 }: { 
   employees: AddKpiEmployeeItem[]
   cycles?: PerformanceCycle[]
   allKpis?: PerformanceKpi[]
-  catalogue?: KpiCatalogueItem[]
+  catalogue?: any[]
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -39,59 +62,96 @@ export function AddKpiDialog({
   const [celErtek, setCelErtek] = useState<string>("100")
   const [aktualisErtek, setAktualisErtek] = useState<string>("0")
   const [sulyozas, setSulyozas] = useState<string>("1.0")
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
-  const [templateDesc, setTemplateDesc] = useState<string | null>(null)
+
+  // Dolgozó választó popover állapotok
+  const [employeePickerOpen, setEmployeePickerOpen] = useState(false)
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState("")
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const [triggerWidth, setTriggerWidth] = useState<number | undefined>(undefined)
 
   // Find default open cycle if any
   const defaultCycle = cycles?.find(c => c.statusz === "nyitott" || c.statusz === "aktiv")?.id || cycles?.[0]?.id || ""
+
+  // Feldolgozott dolgozói lista avatarral, beosztással és KPI terheltséggel
+  const employeeDisplayList: EmployeeDisplayInfo[] = useMemo(() => {
+    return employees.map((emp) => {
+      const profil = Array.isArray(emp.felhasznalo_profil) ? emp.felhasznalo_profil[0] : emp.felhasznalo_profil
+      const nev = profil?.nev || emp.nev || "Ismeretlen dolgozó"
+      const avatarUrl = profil?.avatar_url || ""
+      const initials = nev.substring(0, 2).toUpperCase()
+
+      const activeJogviszony = Array.isArray(emp.hr_jogviszony) ? emp.hr_jogviszony[0] : emp.hr_jogviszony
+      const allBeosztas = activeJogviszony?.hr_beosztas
+      const activeBeosztas = Array.isArray(allBeosztas)
+        ? allBeosztas.find((b: any) => b.ervenyes_ig === null) || allBeosztas[0]
+        : allBeosztas
+      const munkakor = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beosztás"
+
+      // Aktív (nem lezárt) KPI-ok száma a terheltséghez
+      const activeKpis = allKpis.filter(
+        k => k.dolgozo_id === emp.id && k.workflow_fazis !== "lezart" && !k.ertekeles_lezarva_datum
+      )
+
+      return {
+        id: emp.id,
+        nev,
+        avatarUrl,
+        initials,
+        munkakor,
+        activeKpiCount: activeKpis.length
+      }
+    })
+  }, [employees, allKpis])
+
+  // Keresett dolgozók
+  const filteredEmployees = useMemo(() => {
+    const q = employeeSearchQuery.trim().toLowerCase()
+    if (!q) return employeeDisplayList
+    return employeeDisplayList.filter(
+      emp => emp.nev.toLowerCase().includes(q) || emp.munkakor.toLowerCase().includes(q)
+    )
+  }, [employeeDisplayList, employeeSearchQuery])
+
+  // Kiválasztott dolgozó adatai
+  const selectedEmployee = useMemo(() => {
+    return employeeDisplayList.find(e => e.id === dolgozoId) || null
+  }, [employeeDisplayList, dolgozoId])
+
+  // Trigger szélességének követése
+  useEffect(() => {
+    if (employeePickerOpen && triggerRef.current) {
+      setTriggerWidth(triggerRef.current.offsetWidth)
+    }
+  }, [employeePickerOpen])
 
   const onOpenChangeWrapper = (isOpen: boolean) => {
     setOpen(isOpen)
     if (isOpen) {
       if (!ciklusId && defaultCycle) setCiklusId(defaultCycle)
-      if (!dolgozoId && employees.length > 0) setDolgozoId(employees[0].id)
+      if (!dolgozoId && employeeDisplayList.length > 0) {
+        setDolgozoId(employeeDisplayList[0].id)
+      }
     } else {
-      setSelectedTemplateId(null)
-      setTemplateDesc(null)
-    }
-  }
-
-  const handleSelectTemplate = (template: KpiCatalogueItem) => {
-    setSelectedTemplateId(template.id)
-    setCelMegnevezes(template.megnevezes)
-    setMeroszamTipusa(template.meroszam_tipusa || "szazalek")
-    setTemplateDesc(template.leiras || null)
-
-    // Intelligens alapértelmezett célérték típus alapján
-    switch (template.meroszam_tipusa) {
-      case "skala":
-        setCelErtek("5")
-        setAktualisErtek("1")
-        break
-      case "osszeg":
-        setCelErtek("5000000")
-        setAktualisErtek("0")
-        break
-      case "igen_nem":
-        setCelErtek("1")
-        setAktualisErtek("0")
-        break
-      case "szam":
-        setCelErtek("10")
-        setAktualisErtek("0")
-        break
-      case "szazalek":
-      default:
-        setCelErtek("100")
-        setAktualisErtek("0")
-        break
+      setEmployeePickerOpen(false)
+      setEmployeeSearchQuery("")
     }
   }
 
   const handleMeroszamChange = (type: string) => {
     setMeroszamTipusa(type)
-    if (type === "skala" && celErtek === "100") setCelErtek("5")
-    else if (type === "igen_nem") setCelErtek("1")
+    if (type === "skala") {
+      setCelErtek("5")
+      setAktualisErtek("1")
+    } else if (type === "igen_nem") {
+      setCelErtek("1")
+      setAktualisErtek("0")
+    } else if (type === "osszeg" && celErtek === "100") {
+      setCelErtek("1000000")
+      setAktualisErtek("0")
+    } else if (type === "szazalek" && celErtek === "5") {
+      setCelErtek("100")
+      setAktualisErtek("0")
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -124,7 +184,6 @@ export function AddKpiDialog({
         toast.success("Célkitűzés sikeresen rögzítve!")
         setOpen(false)
         setCelMegnevezes("")
-        setSelectedTemplateId(null)
       }
     } catch {
       toast.error("Váratlan hiba történt a célkitűzés rögzítésekor.")
@@ -158,90 +217,155 @@ export function AddKpiDialog({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Vállalati Sablonok Gyorsválasztó */}
-        {catalogue.length > 0 && (
-          <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
-            <div className="flex items-center justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              <span className="flex items-center gap-1.5 text-primary">
-                <Sparkles className="w-3.5 h-3.5" />
-                Vállalati KPI Sablonok (1-kattintásos kitöltés)
-              </span>
-              {selectedTemplateId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedTemplateId(null)
-                    setTemplateDesc(null)
-                  }}
-                  className="text-[11px] text-muted-foreground hover:text-foreground underline"
-                >
-                  Sablon feloldása
-                </button>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {catalogue.map((cat) => {
-                const isSelected = selectedTemplateId === cat.id
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => handleSelectTemplate(cat)}
-                    className={`inline-flex items-center text-xs px-2.5 py-1 rounded-md border transition-all text-left ${
-                      isSelected
-                        ? "bg-primary text-primary-foreground border-primary font-medium shadow-xs"
-                        : "bg-background hover:bg-muted/70 text-foreground border-input"
-                    }`}
-                  >
-                    <BookOpen className="w-3 h-3 mr-1.5 opacity-70 shrink-0" />
-                    <span>{cat.megnevezes}</span>
-                  </button>
-                )
-              })}
-            </div>
-            {templateDesc && (
-              <p className="text-xs text-muted-foreground italic pt-1 pl-1">
-                ℹ️ {templateDesc}
-              </p>
-            )}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           
-          {/* Dolgozó kiválasztása */}
+          {/* Profi Dolgozó Választó (Avatar, Munkakör, KPI terheltség) */}
           <div className="space-y-1.5">
-            <Label htmlFor="dolgozoId" className="flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-muted-foreground" />
-              Érintett Dolgozó
+            <Label className="flex items-center justify-between text-xs font-semibold text-foreground uppercase tracking-wider">
+              <span className="flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-primary" />
+                Érintett Dolgozó
+              </span>
+              {selectedEmployee && (
+                <span className="text-[11px] text-muted-foreground font-normal normal-case">
+                  Aktuális terheltség: <strong className="text-foreground">{selectedEmployee.activeKpiCount} db</strong> aktív cél
+                </span>
+              )}
             </Label>
-            <div className="relative">
-              <select
-                id="dolgozoId"
-                name="dolgozoId"
-                value={dolgozoId}
-                onChange={(e) => setDolgozoId(e.target.value)}
-                required
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+
+            <Popover open={employeePickerOpen} onOpenChange={setEmployeePickerOpen}>
+              <PopoverTrigger
+                ref={triggerRef}
+                type="button"
+                className="w-full h-auto min-h-[54px] p-2.5 rounded-lg border border-input bg-background hover:bg-muted/20 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition-colors flex items-center justify-between gap-3 text-left shadow-xs cursor-pointer"
               >
-                <option value="" disabled>Válassz dolgozót...</option>
-                {employees.map((emp) => {
-                  const profil = Array.isArray(emp.felhasznalo_profil) ? emp.felhasznalo_profil[0] : emp.felhasznalo_profil
-                  const nev = profil?.nev || emp.nev || "Ismeretlen"
-                  const activeJogviszony = Array.isArray(emp.hr_jogviszony) ? emp.hr_jogviszony[0] : emp.hr_jogviszony
-                  const allBeosztas = activeJogviszony?.hr_beosztas
-                  const activeBeosztas = Array.isArray(allBeosztas)
-                    ? allBeosztas.find((b: any) => b.ervenyes_ig === null) || allBeosztas[0]
-                    : allBeosztas
-                  const munkakor = activeBeosztas?.hr_munkakor?.megnevezes || ""
-                  return (
-                    <option key={emp.id} value={emp.id}>
-                      {nev} {munkakor ? `(${munkakor})` : ""}
-                    </option>
-                  )
-                })}
-              </select>
-            </div>
+                {selectedEmployee ? (
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <Avatar className="h-9 w-9 shrink-0 border border-border">
+                      <AvatarImage src={selectedEmployee.avatarUrl} alt={selectedEmployee.nev} />
+                      <AvatarFallback className="bg-primary/10 text-primary font-semibold text-xs">
+                        {selectedEmployee.initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-sm leading-tight text-foreground truncate">
+                        {selectedEmployee.nev}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate mt-0.5">
+                        {selectedEmployee.munkakor}
+                      </div>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-2">
+                      {selectedEmployee.activeKpiCount === 0 ? (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground font-normal bg-muted/30">
+                          0 aktív cél
+                        </Badge>
+                      ) : selectedEmployee.activeKpiCount <= 2 ? (
+                        <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-medium">
+                          {selectedEmployee.activeKpiCount} aktív cél
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] bg-warning/10 text-warning border-warning/20 font-medium">
+                          {selectedEmployee.activeKpiCount} aktív cél
+                        </Badge>
+                      )}
+                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between w-full text-muted-foreground px-1">
+                    <span className="text-sm">Válassz dolgozót a listából...</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                )}
+              </PopoverTrigger>
+
+              <PopoverContent 
+                align="start"
+                className="p-2 bg-popover border border-border shadow-xl rounded-xl z-[70]"
+                style={{ width: triggerWidth ? `${Math.max(triggerWidth, 340)}px` : "100%" }}
+              >
+                {/* Keresőmező a dolgozókhoz */}
+                <div className="relative mb-2">
+                  <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground pointer-events-none" />
+                  <Input
+                    value={employeeSearchQuery}
+                    onChange={(e) => setEmployeeSearchQuery(e.target.value)}
+                    placeholder="Keresés név vagy beosztás alapján..."
+                    className="pl-8 pr-7 h-9 text-xs"
+                    autoFocus
+                  />
+                  {employeeSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setEmployeeSearchQuery("")}
+                      className="absolute right-2 top-2 text-muted-foreground hover:text-foreground p-0.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Dolgozói lista */}
+                <div className="max-h-60 overflow-y-auto space-y-1 pr-0.5">
+                  {filteredEmployees.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-muted-foreground">
+                      Nincs a keresésnek megfelelő dolgozó.
+                    </div>
+                  ) : (
+                    filteredEmployees.map((emp) => {
+                      const isSelected = emp.id === dolgozoId
+                      return (
+                        <div
+                          key={emp.id}
+                          onClick={() => {
+                            setDolgozoId(emp.id)
+                            setEmployeePickerOpen(false)
+                            setEmployeeSearchQuery("")
+                          }}
+                          className={cn(
+                            "flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors text-sm",
+                            isSelected
+                              ? "bg-primary/10 text-foreground font-medium border border-primary/20"
+                              : "hover:bg-muted/60 text-foreground border border-transparent"
+                          )}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
+                            <Avatar className="h-8 w-8 shrink-0 border border-border">
+                              <AvatarImage src={emp.avatarUrl} alt={emp.nev} />
+                              <AvatarFallback className="bg-primary/10 text-primary font-semibold text-xs">
+                                {emp.initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold text-xs truncate leading-snug">{emp.nev}</div>
+                              <div className="text-[11px] text-muted-foreground truncate">{emp.munkakor}</div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 shrink-0">
+                            {emp.activeKpiCount === 0 ? (
+                              <Badge variant="outline" className="text-[10px] text-muted-foreground font-normal bg-muted/20">
+                                0 cél
+                              </Badge>
+                            ) : emp.activeKpiCount <= 2 ? (
+                              <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-medium">
+                                {emp.activeKpiCount} cél
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] bg-warning/10 text-warning border-warning/20 font-medium">
+                                {emp.activeKpiCount} cél
+                              </Badge>
+                            )}
+                            {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Cél megnevezése */}
@@ -252,7 +376,7 @@ export function AddKpiDialog({
               value={celMegnevezes}
               onChange={(e) => setCelMegnevezes(e.target.value)}
               required
-              placeholder="Pl. Éves fluktuáció 10% alatt tartása vagy CSAT index"
+              placeholder="Pl. Fluktuáció 10% alatt tartása vagy Új ügyfelek száma"
               className="font-medium"
             />
           </div>
