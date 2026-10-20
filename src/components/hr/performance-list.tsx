@@ -16,6 +16,7 @@ import { EditKpiDialog } from "@/components/hr/edit-kpi-dialog"
 import { AddKpiDialog } from "@/components/hr/add-kpi-dialog"
 import { KpiWorkflowStepper, deriveWorkflowPhase } from "@/components/hr/kpi-workflow-stepper"
 import { TableToolbar, type FilterGroup } from "@/components/table-toolbar/table-toolbar"
+import { cn } from "@/lib/utils"
 import { 
   Target, 
   TrendingUp, 
@@ -30,10 +31,15 @@ import {
   Plus, 
   RotateCcw,
   Sparkles,
-  History
+  History,
+  Workflow,
+  Check,
+  X,
+  Clock,
+  CheckCircle2,
+  Calendar
 } from "lucide-react"
 import { type KpiCatalogueItem, type PerformanceCycle, type PerformanceKpi } from "@/types/hr"
-
 
 export interface PerformanceEmployee {
   id: string
@@ -41,6 +47,83 @@ export interface PerformanceEmployee {
   hr_jogviszony?: any
   kpis?: PerformanceKpi[]
   [key: string]: any
+}
+
+function KpiBinaryProgressControl({ initialValue }: { initialValue: string }) {
+  const [val, setVal] = useState(initialValue)
+  return (
+    <div className="flex items-center gap-2">
+      <input type="hidden" name="igen_nem_val" value={val} />
+      <div className="grid grid-cols-2 gap-1 p-1 bg-muted/40 border border-input rounded-md h-9 items-center">
+        <button
+          type="button"
+          onClick={() => setVal("0")}
+          className={cn(
+            "h-7 px-2.5 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1 cursor-pointer",
+            val === "0"
+              ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          )}
+        >
+          <X className="w-3 h-3" />
+          Nem
+        </button>
+        <button
+          type="button"
+          onClick={() => setVal("1")}
+          className={cn(
+            "h-7 px-2.5 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1 cursor-pointer",
+            val === "1"
+              ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          )}
+        >
+          <Check className="w-3 h-3" />
+          Igen
+        </button>
+      </div>
+      <span className="text-xs text-muted-foreground font-medium">
+        {val === "1" ? "(Teljesítve)" : "(Folyamatban)"}
+      </span>
+    </div>
+  )
+}
+
+function getPhaseBadge(phase: string) {
+  switch (phase) {
+    case "celkituzes":
+      return (
+        <Badge variant="outline" className="text-xs bg-muted/40 text-muted-foreground border-border font-medium">
+          1. Célkitűzés aktív
+        </Badge>
+      )
+    case "onertekeles":
+      return (
+        <Badge variant="outline" className="text-xs bg-info/10 text-info border-info/30 font-medium">
+          2. Önértékelés leadva
+        </Badge>
+      )
+    case "vezetoi_ertekeles":
+      return (
+        <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/30 font-medium">
+          3. Vezetői értékelésre vár
+        </Badge>
+      )
+    case "megbeszeles":
+      return (
+        <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30 font-medium">
+          4. Megbeszélésre vár
+        </Badge>
+      )
+    case "lezart":
+      return (
+        <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/30 font-medium">
+          <Lock className="w-3 h-3 mr-1" /> 5. Lezárva
+        </Badge>
+      )
+    default:
+      return null
+  }
 }
 
 export function PerformanceList({ 
@@ -204,39 +287,51 @@ export function PerformanceList({
         />
       </div>
 
-      {/* Üres állapot: ha egyáltalán nincs célkitűzés */}
-      {totalKpisInSystem === 0 ? (
-        <Card className="border-dashed border-2">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+      {filteredEmployees.length === 0 ? (
+        <Card className="border border-border/80 shadow-xs">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center px-4">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
               <Target className="w-7 h-7 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold mb-1">Nincsenek még rögzített célkitűzések</h3>
-            <p className="text-sm text-muted-foreground max-w-md mb-6">
-              Rögzíts új vállalati KPI-t vagy egyéni célkitűzést valamelyik munkatársnak a nyitott értékelési ciklushoz.
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <AddKpiDialog 
-                employees={employees} 
-                cycles={cycles} 
-                allKpis={allKpis} 
-                catalogue={catalogue} 
-              />
-            </div>
-          </CardContent>
-        </Card>
-      ) : filteredEmployees.length === 0 ? (
-        /* Üres állapot szűrés után */
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-            <Target className="w-10 h-10 mb-3 opacity-30" />
-            <p className="font-medium text-foreground">Nincs a szűrésnek megfelelő célkitűzés</p>
-            <p className="text-xs text-muted-foreground mt-1 mb-4">
-              Próbáld meg módosítani a keresőszót vagy töröld az aktív szűrőket.
-            </p>
-            <Button variant="outline" size="sm" onClick={handleClearFilters} className="gap-2">
-              <RotateCcw className="w-3.5 h-3.5" /> Szűrők visszaállítása
-            </Button>
+
+            {totalKpisInSystem === 0 ? (
+              <div className="max-w-md space-y-2">
+                <h3 className="font-semibold text-lg text-foreground">
+                  Még nincsenek rögzített célkitűzések
+                </h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Kezdd el a teljesítményértékelést egy új célkitűzés (KPI) hozzáadásával vagy válassz az előre beállított katalógusból!
+                </p>
+                <div className="pt-4 flex items-center justify-center gap-3">
+                  <AddKpiDialog 
+                    employees={employees} 
+                    cycles={cycles} 
+                    allKpis={allKpis}
+                    catalogue={catalogue}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="max-w-md space-y-2">
+                <h3 className="font-semibold text-lg text-foreground">
+                  Nincs találat a megadott szűrési feltételekre
+                </h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Próbáld meg módosítani a keresőszót vagy töröld az aktív szűrőket ({activeFiltersCount} aktív szűrő).
+                </p>
+                <div className="pt-3">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleClearFilters}
+                    className="gap-2"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Szűrők alaphelyzetbe állítása
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -261,8 +356,8 @@ export function PerformanceList({
           const munkakor = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs munkakör"
 
           return (
-            <Card key={emp.id} className="overflow-hidden transition-all hover:border-primary/40">
-              <CardHeader className="bg-muted/30 pb-4">
+            <Card key={emp.id} className="overflow-hidden transition-all hover:border-primary/40 border shadow-xs">
+              <CardHeader className="bg-muted/20 border-b pb-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-11 w-11 border border-border">
@@ -273,7 +368,7 @@ export function PerformanceList({
                     </Avatar>
                     <div>
                       <div className="flex items-center gap-2">
-                        <CardTitle className="text-lg font-semibold">{nev}</CardTitle>
+                        <CardTitle className="text-base font-semibold">{nev}</CardTitle>
                         <Badge variant="outline" className="text-xs font-normal">
                           {munkakor}
                         </Badge>
@@ -307,8 +402,8 @@ export function PerformanceList({
                 </div>
               </CardHeader>
 
-              <CardContent className="pt-4">
-                <Accordion className="w-full">
+              <CardContent className="p-3 sm:p-4 space-y-3">
+                <Accordion type="multiple" className="w-full space-y-3">
                   {emp.kpis.map((kpi: any) => {
                     const percent = kpi.pontszam || 0
                     const phase = deriveWorkflowPhase(kpi)
@@ -333,333 +428,533 @@ export function PerformanceList({
                       kpi.meroszam_tipusa === "skala" ? "Pont" :
                       kpi.meroszam_tipusa === "igen_nem" ? "Bináris" : "Db"
 
+                    const meroszamTypeFullLabel = 
+                      kpi.meroszam_tipusa === "szazalek" ? "Százalék (%)" :
+                      kpi.meroszam_tipusa === "osszeg" ? "Pénzügyi (HUF)" :
+                      kpi.meroszam_tipusa === "skala" ? "Skála (1–5)" :
+                      kpi.meroszam_tipusa === "igen_nem" ? "Igen / Nem" : "Darabszám"
+
                     return (
-                      <AccordionItem key={kpi.id} value={kpi.id} className="border-b last:border-0 relative">
-                        <div className="absolute top-4 right-12 pt-0 z-10" onClick={(e) => e.stopPropagation()}>
-                          <AlertDialog>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger
-                                render={
-                                  <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-muted/50" />
-                                }
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setEditKpiId(kpi.id)}>
-                                  <Edit className="h-4 w-4 mr-2" /> Szerkesztés
-                                </DropdownMenuItem>
-                                <AlertDialogTrigger
-                                  nativeButton={false}
-                                  render={
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10" />
-                                  }
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" /> Törlés
-                                </AlertDialogTrigger>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Biztosan törölni szeretnéd ezt a célkitűzést?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Ez a művelet nem vonható vissza. A KPI véglegesen törlődik a rendszerből.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Mégse</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={async () => {
-                                    const { deleteKpi } = await import("@/app/hr/performance/actions")
-                                    const res = await deleteKpi(kpi.id)
-                                    if (res?.error) toast.error(res.error)
-                                    else toast.success("Célkitűzés sikeresen törölve!")
-                                  }}
-                                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                                >
-                                  Törlés
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-
-                        <AccordionTrigger className="hover:no-underline hover:bg-muted/10 px-2 rounded-md transition-colors">
-                          <div className="flex items-center justify-between w-full pr-6">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                                <span className="font-semibold text-base truncate">{kpi.celkituzes}</span>
-                                <Badge variant="outline" className="font-normal text-[10px] uppercase">
-                                  {kpi.hr_teljesitmeny_ciklus?.megnevezes || kpi.ertekelt_idoszak || "Ciklus"}
-                                </Badge>
-                                <Badge variant="secondary" className="font-normal text-[10px] uppercase">
-                                  {meroszamLabel}
-                                </Badge>
-                                {kpi.sulyozas && (
-                                  <Badge variant="outline" className="font-normal text-[10px] tabular-nums text-muted-foreground">
-                                    Súly: {kpi.sulyozas}x
-                                  </Badge>
-                                )}
-                                {phase === "lezart" && (
-                                  <Badge className="bg-success/10 text-success border-0 text-[10px] uppercase">
-                                    <Lock className="w-3 h-3 mr-1" /> Lezárt
-                                  </Badge>
-                                )}
+                      <AccordionItem 
+                        key={kpi.id} 
+                        value={kpi.id} 
+                        className="border rounded-xl bg-card overflow-hidden transition-all hover:border-primary/40 relative shadow-2xs"
+                      >
+                        <div className="flex items-center">
+                          <AccordionTrigger className="hover:no-underline p-3.5 sm:p-4 hover:bg-muted/15 transition-colors cursor-pointer w-full text-left">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 w-full pr-12">
+                              {/* Bal oldal: Ikon + Cél címe + Meta Tag-ek */}
+                              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                                <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+                                  <Target className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-sm text-foreground truncate group-hover:text-primary transition-colors">
+                                    {kpi.celkituzes}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                    <span className="text-[11px] text-muted-foreground font-medium">
+                                      {kpi.hr_teljesitmeny_ciklus?.megnevezes || kpi.ertekelt_idoszak || "Ciklus"}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground">•</span>
+                                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal bg-muted/30">
+                                      {meroszamTypeFullLabel}
+                                    </Badge>
+                                    {kpi.sulyozas && (
+                                      <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal tabular-nums text-muted-foreground">
+                                        Súly: {kpi.sulyozas}x
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-4">
-                                <span className={`font-semibold tabular-nums text-sm ${textClass}`}>{percent}%</span>
-                                <Progress value={percent} className={`w-32 h-2 ${bgClass} [&>div]:${colorClass}`} />
-                                <span className="text-xs text-muted-foreground tabular-nums hidden sm:inline">
-                                  {kpi.aktualis_ertek ?? 0} / {kpi.cel_ertek ?? 100} {meroszamLabel}
-                                </span>
+
+                              {/* Jobb oldal: Fázis jelvény + Progress sáv + Érték */}
+                              <div className="flex flex-wrap items-center gap-3 sm:gap-4 shrink-0">
+                                {getPhaseBadge(phase)}
+
+                                <div className="flex items-center gap-2.5">
+                                  <div className="text-right">
+                                    <span className={`text-sm font-semibold tabular-nums ${textClass}`}>{percent}%</span>
+                                    <div className="text-[10px] text-muted-foreground tabular-nums">
+                                      {kpi.meroszam_tipusa === "igen_nem" 
+                                        ? (kpi.aktualis_ertek > 0 ? "Teljesítve" : "Folyamatban")
+                                        : `${kpi.aktualis_ertek ?? 0} / ${kpi.cel_ertek ?? 100} ${meroszamLabel}`}
+                                    </div>
+                                  </div>
+                                  <Progress value={percent} className={`w-20 sm:w-28 h-2 ${bgClass} [&>div]:${colorClass}`} />
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </AccordionTrigger>
+                          </AccordionTrigger>
 
-                        <AccordionContent className="px-2 pt-4 pb-6">
-                          <div className="pl-4 sm:pl-7 space-y-6">
-                            {/* Workflow Stepper */}
-                            <div className="pb-4 border-b">
+                          {/* Külön lebegő gomb jobb oldalon a 3-dots műveletekhez */}
+                          <div className="absolute right-3 top-3 sm:top-3.5 z-10" onClick={(e) => e.stopPropagation()}>
+                            <AlertDialog>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  render={
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60" />
+                                  }
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => setEditKpiId(kpi.id)}>
+                                    <Edit className="h-4 w-4 mr-2" /> Szerkesztés
+                                  </DropdownMenuItem>
+                                  <AlertDialogTrigger
+                                    nativeButton={false}
+                                    render={
+                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10" />
+                                    }
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" /> Törlés
+                                  </AlertDialogTrigger>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Biztosan törölni szeretnéd ezt a célkitűzést?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Ez a művelet nem vonható vissza. A KPI véglegesen törlődik a rendszerből.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Mégse</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={async () => {
+                                      const { deleteKpi } = await import("@/app/hr/performance/actions")
+                                      const res = await deleteKpi(kpi.id)
+                                      if (res?.error) toast.error(res.error)
+                                      else toast.success("Célkitűzés sikeresen törölve!")
+                                    }}
+                                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                  >
+                                    Törlés
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </div>
+
+                        {/* Részletes Munkaterület (Expanded State) */}
+                        <AccordionContent className="p-0 border-t bg-muted/5">
+                          <div className="p-4 sm:p-6 space-y-6">
+
+                            {/* Felső Fáziskövető Kártya (Linear Stepper) */}
+                            <div className="p-4 rounded-xl border bg-card shadow-2xs">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b mb-3">
+                                <div className="flex items-center gap-2">
+                                  <Workflow className="w-4 h-4 text-primary" />
+                                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Értékelési Folyamat Lépései
+                                  </span>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {phase === "celkituzes" && "1. Lépés: Célkitűzés aktív, várakozás a dolgozói önértékelésre"}
+                                  {phase === "onertekeles" && "2. Lépés: Dolgozói önértékelés beérkezett, vezetői értékelés szükséges"}
+                                  {phase === "vezetoi_ertekeles" && "3. Lépés: Vezetői értékelés rögzítve, 1-on-1 megbeszélés esedékes"}
+                                  {phase === "megbeszeles" && "4. Lépés: Megbeszélés lezajlott, célkitűzés véglegesítésre kész"}
+                                  {phase === "lezart" && "5. Lépés: Célkitűzés lezárva és hitelesítve a bónuszelszámoláshoz"}
+                                </span>
+                              </div>
                               <KpiWorkflowStepper currentPhase={phase} />
                             </div>
 
-                            {/* Idővonal */}
-                            <div className="relative pl-4 border-l-2 border-muted space-y-6">
-                              <div className="relative">
-                                <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-primary/20 border-2 border-primary ring-4 ring-background" />
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="font-medium text-sm">Célkitűzés rögzítve</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {kpi.created_at ? new Date(kpi.created_at).toLocaleDateString("hu-HU") : ""}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                  Célérték: {kpi.cel_ertek} {meroszamLabel} • Kezdeti állapot: {kpi.aktualis_ertek || 0}
-                                </p>
-                              </div>
+                            {/* 2 Oszlopos Rendszer: Balra Előrehaladás & Tevékenységek, Jobbra Vezetői Műveletek */}
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-                              {/* Önértékelés megjelenítése */}
-                              {kpi.onertekeles_szovege && (
-                                <div className="relative">
-                                  <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-info/20 border-2 border-info ring-4 ring-background" />
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <User className="w-3 h-3 text-info" />
-                                    <span className="font-medium text-sm">Dolgozói önértékelés leadva</span>
-                                  </div>
-                                  <p className="text-sm bg-info/5 p-3 rounded-md border border-info/20 mt-2">
-                                    {kpi.onertekeles_szovege}
-                                  </p>
-                                </div>
-                              )}
-
-                              {logs?.filter(log => log.entitas_id === kpi.id && !["kpi_onertekeles", "kpi_vezetoi_ertekeles", "kpi_megbeszeles", "kpi_lezaras"].includes(log.esemeny_tipus)).map(log => (
-                                <div key={log.id} className="relative">
-                                  <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
-                                  <div className="flex items-center gap-2 mb-1">
-                                    {log.esemeny_tipus === "kpi_bejegyzes" ? (
-                                      <MessageSquare className="w-3 h-3 text-primary" />
-                                    ) : (
-                                      <History className="w-3 h-3 text-muted-foreground" />
-                                    )}
-                                    <span className="font-medium text-sm">
-                                      {log.esemeny_tipus === "kpi_frissites" && "Állapot frissítés"}
-                                      {log.esemeny_tipus === "kpi_hozzaadas" && "Rendszer bejegyzés"}
-                                      {log.esemeny_tipus === "kpi_bejegyzes" && "Aktivitás / Bejegyzés"}
+                              {/* BAL OLDAL (7 oszlop): Teljesülés & Aktivitási Napló */}
+                              <div className="lg:col-span-7 space-y-5">
+                                
+                                {/* Haladás Kártya */}
+                                <div className="p-4 rounded-xl border bg-card shadow-2xs space-y-4">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                      <TrendingUp className="w-4 h-4 text-primary" />
+                                      Teljesülés & Haladás
                                     </span>
-                                    <span className="text-xs text-muted-foreground">
-                                      {new Date(log.created_at).toLocaleString("hu-HU", { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                      {log.felhasznalo_profil?.nev && ` - ${log.felhasznalo_profil.nev}`}
-                                    </span>
+                                    <Badge variant="outline" className="text-xs tabular-nums text-muted-foreground font-normal">
+                                      Súlyozás: {kpi.sulyozas || "1.0"}x
+                                    </Badge>
                                   </div>
-                                  <p className="text-sm bg-muted/30 p-3 rounded-md border border-muted mt-2">
-                                    {log.megjegyzes}
-                                  </p>
-                                </div>
-                              ))}
 
-                              {/* Vezetői értékelés megjelenítése */}
-                              {kpi.ertekeles_szovege && (
-                                <div className="relative">
-                                  <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-primary/20 border-2 border-primary ring-4 ring-background" />
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Award className="w-3 h-3 text-primary" />
-                                    <span className="font-medium text-sm">Vezetői értékelés</span>
+                                  <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
+                                    <div className="flex items-baseline gap-2">
+                                      <span className={`text-3xl font-semibold tabular-nums ${textClass}`}>{percent}%</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {kpi.meroszam_tipusa === "igen_nem" ? (
+                                          kpi.aktualis_ertek > 0 ? "✓ Teljesítve" : "✕ Folyamatban (Nincs teljesítve)"
+                                        ) : (
+                                          `(${kpi.aktualis_ertek ?? 0} / ${kpi.cel_ertek ?? 100} ${meroszamLabel})`
+                                        )}
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {kpi.meroszam_tipusa === "igen_nem" ? (
+                                        <span>Elvárt állapot: <strong className="text-foreground">Igen</strong></span>
+                                      ) : (
+                                        <span>Célérték: <strong className="text-foreground">{kpi.cel_ertek} {meroszamLabel}</strong></span>
+                                      )}
+                                    </div>
                                   </div>
-                                  <p className="text-sm bg-primary/5 p-3 rounded-md border border-primary/20 mt-2">
-                                    {kpi.ertekeles_szovege}
-                                  </p>
-                                </div>
-                              )}
 
-                              {/* Megbeszélés szekció */}
-                              {kpi.megbeszeles_datum && (
-                                <div className="relative">
-                                  <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-primary/20 border-2 border-primary ring-4 ring-background" />
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <CalendarCheck className="w-3 h-3 text-primary" />
-                                    <span className="font-medium text-sm">Értékelő megbeszélés megtörtént</span>
-                                    <span className="text-xs text-muted-foreground">{new Date(kpi.megbeszeles_datum).toLocaleDateString("hu-HU")}</span>
-                                  </div>
-                                  {kpi.megbeszeles_megjegyzes && (
-                                    <p className="text-sm bg-primary/5 p-3 rounded-md border border-primary/20 mt-2">
-                                      {kpi.megbeszeles_megjegyzes}
-                                    </p>
+                                  <Progress value={percent} className={`h-2.5 ${bgClass} [&>div]:${colorClass}`} />
+
+                                  {/* Haladás Frissítése Űrlap (ha nincs lezárva) */}
+                                  {phase !== "lezart" && (
+                                    <div className="pt-3 border-t">
+                                      <form
+                                        action={async (formData) => {
+                                          let newValStr = formData.get("percent") as string
+                                          if (kpi.meroszam_tipusa === "igen_nem") {
+                                            newValStr = formData.get("igen_nem_val") === "1" ? "1" : "0"
+                                          }
+                                          const newVal = parseFloat(newValStr)
+                                          const { updateKpiProgress } = await import("@/app/hr/performance/actions")
+                                          const res = await updateKpiProgress(kpi.id, newVal)
+                                          if (res?.error) toast.error(res.error)
+                                          else toast.success("Állapot sikeresen frissítve!")
+                                        }}
+                                        className="space-y-3"
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-xs font-medium text-foreground">
+                                            Jelenlegi állapot módosítása:
+                                          </span>
+                                        </div>
+
+                                        {kpi.meroszam_tipusa === "igen_nem" ? (
+                                          <div className="flex items-center gap-3">
+                                            <KpiBinaryProgressControl initialValue={kpi.aktualis_ertek > 0 ? "1" : "0"} />
+                                            <Button type="submit" size="sm" variant="secondary" className="h-9 text-xs shrink-0">
+                                              Frissítés
+                                            </Button>
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center gap-3">
+                                            <Input
+                                              key={`input-${kpi.id}-${kpi.aktualis_ertek}`}
+                                              type="number"
+                                              step="any"
+                                              name="percent"
+                                              defaultValue={kpi.aktualis_ertek || 0}
+                                              min={0}
+                                              className="w-32 h-9 text-sm tabular-nums"
+                                            />
+                                            <span className="text-xs text-muted-foreground font-medium">
+                                              / {kpi.cel_ertek || 100} {meroszamLabel}
+                                            </span>
+                                            <Button type="submit" size="sm" variant="secondary" className="h-9 text-xs ml-auto">
+                                              Mentés
+                                            </Button>
+                                          </div>
+                                        )}
+                                      </form>
+                                    </div>
                                   )}
                                 </div>
-                              )}
 
-                              {/* Vezetői bejegyzés rögzítése - ha nincs lezárva */}
-                              {phase !== "lezart" && (
-                                <div className="relative">
-                                  <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <MessageSquare className="w-3 h-3 text-muted-foreground" />
-                                    <span className="font-medium text-sm">Vezetői bejegyzés rögzítése</span>
+                                {/* Tevékenységek & Előzmények Kártya */}
+                                <div className="p-4 rounded-xl border bg-card shadow-2xs space-y-4">
+                                  <div className="flex items-center justify-between pb-2 border-b">
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                      <History className="w-4 h-4 text-primary" />
+                                      Tevékenységek & Előzmények
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground">
+                                      {kpi.created_at ? `Kitűzve: ${new Date(kpi.created_at).toLocaleDateString("hu-HU")}` : ""}
+                                    </span>
                                   </div>
-                                  <form
-                                    className="flex items-center gap-3 mt-2"
-                                    action={async (formData) => {
-                                      const msg = formData.get("megjegyzes") as string
-                                      if (!msg) return
-                                      const { addKpiActivity } = await import("@/app/hr/performance/actions")
-                                      const res = await addKpiActivity(kpi.id, msg)
-                                      if (res?.error) toast.error(res.error)
-                                      else toast.success("Aktivitás sikeresen rögzítve!")
-                                    }}
-                                  >
-                                    <Input type="text" name="megjegyzes" placeholder="Pl: Pozitív visszajelzés a haladásról..." required className="flex-1 h-8 text-sm" />
-                                    <Button type="submit" size="sm" variant="outline" className="h-8">Hozzáadás</Button>
-                                  </form>
-                                </div>
-                              )}
 
-                              {/* Állapot frissítése - ha nincs lezárva */}
-                              {phase !== "lezart" && (
-                                <div className="relative">
-                                  <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-muted border-2 border-muted-foreground ring-4 ring-background" />
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <TrendingUp className="w-3 h-3 text-muted-foreground" />
-                                    <span className="font-medium text-sm">Jelenlegi Állapot frissítése</span>
-                                  </div>
-                                  <form
-                                    className="flex items-center gap-3 mt-2"
-                                    action={async (formData) => {
-                                      let newValStr = formData.get("percent") as string
-                                      if (kpi.meroszam_tipusa === "igen_nem") {
-                                        newValStr = formData.get("igen_nem_val") === "on" ? "1" : "0"
-                                      }
-                                      const newVal = parseFloat(newValStr)
-                                      const { updateKpiProgress } = await import("@/app/hr/performance/actions")
-                                      const res = await updateKpiProgress(kpi.id, newVal)
-                                      if (res?.error) toast.error(res.error)
-                                      else toast.success("Állapot sikeresen frissítve!")
-                                    }}
-                                  >
-                                    {kpi.meroszam_tipusa === "igen_nem" ? (
-                                      <div className="flex items-center gap-2">
-                                        <input type="checkbox" name="igen_nem_val" defaultChecked={kpi.aktualis_ertek > 0} className="h-4 w-4 rounded border-gray-300" />
-                                        <span className="text-sm">Teljesítve</span>
+                                  {/* Eseményfolyam */}
+                                  <div className="space-y-3">
+                                    {/* 1. Létrehozás esemény */}
+                                    <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/20 border border-muted/50 text-xs">
+                                      <div className="w-7 h-7 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                                        <Target className="w-3.5 h-3.5" />
                                       </div>
-                                    ) : (
-                                      <>
-                                        <Input key={`input-${kpi.id}-${kpi.aktualis_ertek}`} type="number" step="any" name="percent" defaultValue={kpi.aktualis_ertek || 0} min={0} className="w-32 h-8 text-sm tabular-nums" />
-                                        <span className="text-sm font-medium">
-                                          / {kpi.cel_ertek || 100} {meroszamLabel}
-                                        </span>
-                                      </>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="font-semibold text-foreground">Célkitűzés Rögzítve</span>
+                                          <span className="text-[11px] text-muted-foreground">
+                                            {kpi.created_at ? new Date(kpi.created_at).toLocaleDateString("hu-HU") : ""}
+                                          </span>
+                                        </div>
+                                        <p className="text-muted-foreground mt-0.5">
+                                          {kpi.meroszam_tipusa === "igen_nem" 
+                                            ? `Elvárt állapot: Igen • Kezdő állapot: ${kpi.aktualis_ertek > 0 ? "Igen" : "Nem"}`
+                                            : `Célérték: ${kpi.cel_ertek} ${meroszamLabel} • Kezdő érték: ${kpi.aktualis_ertek || 0} ${meroszamLabel}`}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {/* 2. Dolgozói Önértékelés (ha leadva) */}
+                                    {kpi.onertekeles_szovege && (
+                                      <div className="flex items-start gap-3 p-3 rounded-lg bg-info/5 border border-info/20 text-xs">
+                                        <div className="w-7 h-7 rounded-md bg-info/10 text-info flex items-center justify-center shrink-0 mt-0.5">
+                                          <User className="w-3.5 h-3.5" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="font-semibold text-info">Dolgozói Önértékelés</span>
+                                            <Badge variant="outline" className="text-[10px] bg-info/10 text-info border-info/30">Leadva</Badge>
+                                          </div>
+                                          <p className="text-foreground mt-1 bg-background p-2.5 rounded border border-info/10 leading-relaxed italic">
+                                            „{kpi.onertekeles_szovege}”
+                                          </p>
+                                        </div>
+                                      </div>
                                     )}
-                                    <Button type="submit" size="sm" variant="secondary" className="h-8">Frissítés</Button>
-                                  </form>
-                                </div>
-                              )}
 
-                            </div>
+                                    {/* 3. Vezetői Értékelés (ha rögzítve) */}
+                                    {kpi.ertekeles_szovege && (
+                                      <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs">
+                                        <div className="w-7 h-7 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                                          <Award className="w-3.5 h-3.5" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="font-semibold text-primary">Vezetői Értékelés</span>
+                                            <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">Rögzítve</Badge>
+                                          </div>
+                                          <p className="text-foreground mt-1 bg-background p-2.5 rounded border border-primary/10 leading-relaxed">
+                                            „{kpi.ertekeles_szovege}”
+                                          </p>
+                                        </div>
+                                      </div>
+                                    )}
 
-                            {/* Akciók szekció - fázistól függően */}
-                            <div className="space-y-3 pt-4 border-t">
-                              {phase === "onertekeles" && (
-                                <form
-                                  action={async (formData) => {
-                                    const evalText = formData.get("ertekelesSzovege") as string
-                                    if (!evalText) return
-                                    const { addKpiManagerEvaluation } = await import("@/app/hr/performance/actions")
-                                    const res = await addKpiManagerEvaluation(kpi.id, evalText)
-                                    if (res?.error) toast.error(res.error)
-                                    else toast.success("Vezetői értékelés rögzítve!")
-                                  }}
-                                  className="space-y-2 p-3 rounded-lg border bg-primary/5 border-primary/20"
-                                >
-                                  <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                                    <Award className="w-4 h-4" /> Vezetői Értékelés Beküldése
-                                    <Badge className="bg-primary/10 text-primary border-0 text-[10px]">Vezetői lépés</Badge>
+                                    {/* 4. Megbeszélés (ha rögzítve) */}
+                                    {kpi.megbeszeles_datum && (
+                                      <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-muted text-xs">
+                                        <div className="w-7 h-7 rounded-md bg-foreground/10 text-foreground flex items-center justify-center shrink-0 mt-0.5">
+                                          <CalendarCheck className="w-3.5 h-3.5" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="font-semibold text-foreground">Értékelő Megbeszélés Megtörtént</span>
+                                            <span className="text-[11px] text-muted-foreground">{new Date(kpi.megbeszeles_datum).toLocaleDateString("hu-HU")}</span>
+                                          </div>
+                                          {kpi.megbeszeles_megjegyzes && (
+                                            <p className="text-muted-foreground mt-1 bg-background p-2 rounded border border-border leading-relaxed">
+                                              {kpi.megbeszeles_megjegyzes}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Egyéb naplóbejegyzések */}
+                                    {logs?.filter(log => log.entitas_id === kpi.id && !["kpi_onertekeles", "kpi_vezetoi_ertekeles", "kpi_megbeszeles", "kpi_lezaras"].includes(log.esemeny_tipus)).map(log => (
+                                      <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/20 border border-muted/50 text-xs">
+                                        <div className="w-7 h-7 rounded-md bg-muted text-muted-foreground flex items-center justify-center shrink-0 mt-0.5">
+                                          <MessageSquare className="w-3.5 h-3.5" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="font-medium text-foreground">
+                                              {log.esemeny_tipus === "kpi_frissites" && "Állapot Frissítés"}
+                                              {log.esemeny_tipus === "kpi_hozzaadas" && "Rendszer Bejegyzés"}
+                                              {log.esemeny_tipus === "kpi_bejegyzes" && "Vezetői Megjegyzés"}
+                                            </span>
+                                            <span className="text-[11px] text-muted-foreground">
+                                              {new Date(log.created_at).toLocaleString("hu-HU", { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                              {log.felhasznalo_profil?.nev && ` • ${log.felhasznalo_profil.nev}`}
+                                            </span>
+                                          </div>
+                                          <p className="text-muted-foreground mt-0.5">{log.megjegyzes}</p>
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
-                                  <Textarea
-                                    name="ertekelesSzovege"
-                                    placeholder="Írd le a részletes vezetői visszajelzést..."
-                                    required
-                                    className="min-h-[80px] text-sm bg-background"
-                                  />
-                                  <Button type="submit" size="sm" className="w-full">
-                                    Értékelés beküldése
-                                  </Button>
-                                </form>
-                              )}
 
-                              {phase === "vezetoi_ertekeles" && (
-                                <form
-                                  action={async (formData) => {
-                                    const megjegyzes = formData.get("megjegyzes") as string
-                                    const { confirmMeeting } = await import("@/app/hr/performance/actions")
-                                    const res = await confirmMeeting(kpi.id, megjegyzes || undefined)
-                                    if (res?.error) toast.error(res.error)
-                                    else toast.success("Megbeszélés rögzítve!")
-                                  }}
-                                  className="space-y-2 p-3 rounded-lg border bg-primary/5 border-primary/20"
-                                >
-                                  <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                                    <CalendarCheck className="w-4 h-4" /> Értékelő Megbeszélés Rögzítése
-                                    <Badge className="bg-primary/10 text-primary border-0 text-[10px]">Vezetői lépés</Badge>
+                                  {/* Új bejegyzés űrlap */}
+                                  {phase !== "lezart" && (
+                                    <form
+                                      className="flex items-center gap-2 pt-3 border-t"
+                                      action={async (formData) => {
+                                        const msg = formData.get("megjegyzes") as string
+                                        if (!msg) return
+                                        const { addKpiActivity } = await import("@/app/hr/performance/actions")
+                                        const res = await addKpiActivity(kpi.id, msg)
+                                        if (res?.error) toast.error(res.error)
+                                        else toast.success("Megjegyzés sikeresen rögzítve!")
+                                      }}
+                                    >
+                                      <Input
+                                        type="text"
+                                        name="megjegyzes"
+                                        placeholder="Visszajelzés vagy megjegyzés hozzáadása..."
+                                        required
+                                        className="h-9 text-xs flex-1"
+                                      />
+                                      <Button type="submit" size="sm" variant="outline" className="h-9 text-xs shrink-0">
+                                        Hozzáadás
+                                      </Button>
+                                    </form>
+                                  )}
+                                </div>
+
+                              </div>
+
+                              {/* JOBB OLDAL (5 oszlop): Vezetői Kiértékelés & Munkafolyamat Teendők */}
+                              <div className="lg:col-span-5 space-y-5">
+                                
+                                <div className="p-4 rounded-xl border bg-card shadow-2xs space-y-4">
+                                  <div className="flex items-center justify-between pb-2 border-b">
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                      <Award className="w-4 h-4 text-primary" />
+                                      Vezetői Műveletek
+                                    </span>
+                                    <Badge variant="outline" className="text-[10px] font-normal">
+                                      {phase === "celkituzes" && "1 / 5 Fázis"}
+                                      {phase === "onertekeles" && "2 / 5 Fázis"}
+                                      {phase === "vezetoi_ertekeles" && "3 / 5 Fázis"}
+                                      {phase === "megbeszeles" && "4 / 5 Fázis"}
+                                      {phase === "lezart" && "5 / 5 Lezárva"}
+                                    </Badge>
                                   </div>
-                                  <Textarea
-                                    name="megjegyzes"
-                                    placeholder="Megbeszélés jegyzőkönyve vagy összegző megjegyzések (opcionális)..."
-                                    className="min-h-[60px] text-sm bg-background"
-                                    rows={2}
-                                  />
-                                  <Button type="submit" size="sm" variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10">
-                                    <CalendarCheck className="w-4 h-4 mr-2" /> Megbeszélés megtörtént
-                                  </Button>
-                                </form>
-                              )}
 
-                              {phase === "megbeszeles" && (
-                                <Button
-                                  size="sm"
-                                  className="w-full bg-success hover:bg-success/90 text-success-foreground font-semibold"
-                                  onClick={async () => {
-                                    const { finalCloseKpi } = await import("@/app/hr/performance/actions")
-                                    const res = await finalCloseKpi(kpi.id)
-                                    if (res?.error) toast.error(res.error)
-                                    else toast.success("Célkitűzés véglegesen lezárva!")
-                                  }}
-                                >
-                                  <Lock className="w-4 h-4 mr-2" /> Célkitűzés Végleges Lezárása
-                                </Button>
-                              )}
+                                  {/* 1. CELKITUZES FÁZIS: Dolgozóra várunk */}
+                                  {phase === "celkituzes" && (
+                                    <div className="p-4 rounded-lg border border-dashed border-border bg-muted/20 space-y-3 text-center">
+                                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
+                                        <User className="w-5 h-5" />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <h4 className="text-xs font-semibold text-foreground">Várakozás a Dolgozói Önértékelésre</h4>
+                                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                          A célkitűzés aktív. A munkatárs a <strong>Dolgozói Portálon</strong> tudja leadni a saját önértékelését. Amint beküldte, itt azonnal megnyílik a vezetői értékelési űrlap.
+                                        </p>
+                                      </div>
+                                      <Badge variant="outline" className="text-[10px] bg-background text-muted-foreground font-normal">
+                                        Következő lépés: Dolgozói kitöltés
+                                      </Badge>
+                                    </div>
+                                  )}
 
-                              {phase === "lezart" && (
-                                <div className="flex items-center gap-2 justify-center py-2.5 px-3 rounded-md bg-success/10 text-success text-xs font-semibold uppercase tracking-wider">
-                                  <Lock className="w-3.5 h-3.5" /> Ez a célkitűzés véglegesen le van zárva.
+                                  {/* 2. ONERTEKELES FÁZIS: Vezetőnek kell értékelnie */}
+                                  {phase === "onertekeles" && (
+                                    <form
+                                      action={async (formData) => {
+                                        const evalText = formData.get("ertekelesSzovege") as string
+                                        if (!evalText) return
+                                        const { addKpiManagerEvaluation } = await import("@/app/hr/performance/actions")
+                                        const res = await addKpiManagerEvaluation(kpi.id, evalText)
+                                        if (res?.error) toast.error(res.error)
+                                        else toast.success("Vezetői értékelés sikeresen mentve!")
+                                      }}
+                                      className="space-y-3 p-3.5 rounded-lg border bg-primary/5 border-primary/20"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                                          <Award className="w-3.5 h-3.5" />
+                                          Vezetői Értékelés Leadása
+                                        </div>
+                                        <Badge className="bg-primary/10 text-primary border-0 text-[10px]">Aktív teendő</Badge>
+                                      </div>
+                                      <p className="text-[11px] text-muted-foreground">
+                                        A munkatárs önértékelése beérkezett. Kérlek, rögzítsd a vezetői visszajelzést:
+                                      </p>
+                                      <Textarea
+                                        name="ertekelesSzovege"
+                                        placeholder="Írd le a részletes vezetői visszajelzést, erősségeket és fejlődési pontokat..."
+                                        required
+                                        className="min-h-[100px] text-xs bg-background"
+                                      />
+                                      <Button type="submit" size="sm" className="w-full text-xs">
+                                        Vezetői Értékelés Beküldése
+                                      </Button>
+                                    </form>
+                                  )}
+
+                                  {/* 3. VEZETOI_ERTEKELES FÁZIS: 1-on-1 Megbeszélés rögzítése */}
+                                  {phase === "vezetoi_ertekeles" && (
+                                    <form
+                                      action={async (formData) => {
+                                        const megjegyzes = formData.get("megjegyzes") as string
+                                        const { confirmMeeting } = await import("@/app/hr/performance/actions")
+                                        const res = await confirmMeeting(kpi.id, megjegyzes || undefined)
+                                        if (res?.error) toast.error(res.error)
+                                        else toast.success("Értékelő megbeszélés rögzítve!")
+                                      }}
+                                      className="space-y-3 p-3.5 rounded-lg border bg-primary/5 border-primary/20"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                                          <CalendarCheck className="w-3.5 h-3.5" />
+                                          1-on-1 Megbeszélés Igazolása
+                                        </div>
+                                        <Badge className="bg-primary/10 text-primary border-0 text-[10px]">Személyes egyeztetés</Badge>
+                                      </div>
+                                      <p className="text-[11px] text-muted-foreground">
+                                        Ülj le a munkatárssal, és vitassátok meg a teljesítményt. A megbeszélés után itt rögzítheted a jegyzőkönyvet:
+                                      </p>
+                                      <Textarea
+                                        name="megjegyzes"
+                                        placeholder="Megbeszélés jegyzőkönyve, közös megállapodások (opcionális)..."
+                                        className="min-h-[80px] text-xs bg-background"
+                                        rows={3}
+                                      />
+                                      <Button type="submit" size="sm" variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10 text-xs">
+                                        <CalendarCheck className="w-3.5 h-3.5 mr-1.5" />
+                                        Megbeszélés Megtörténtének Igazolása
+                                      </Button>
+                                    </form>
+                                  )}
+
+                                  {/* 4. MEGBESZELES FÁZIS: Végleges Lezárás */}
+                                  {phase === "megbeszeles" && (
+                                    <div className="p-4 rounded-lg border bg-success/5 border-success/20 space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-success flex items-center gap-1.5">
+                                          <Lock className="w-3.5 h-3.5" />
+                                          Zárásra Kész
+                                        </span>
+                                        <Badge className="bg-success/10 text-success border-0 text-[10px]">Utolsó lépés</Badge>
+                                      </div>
+                                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                        Minden értékelési fázis és az 1-on-1 egyeztetés sikeresen lezajlott. A zárással a pontszám véglegessé válik és átkerül a bérszámfejtési bónuszelszámoláshoz.
+                                      </p>
+                                      <Button
+                                        size="sm"
+                                        className="w-full bg-success hover:bg-success/90 text-success-foreground font-semibold text-xs"
+                                        onClick={async () => {
+                                          const { finalCloseKpi } = await import("@/app/hr/performance/actions")
+                                          const res = await finalCloseKpi(kpi.id)
+                                          if (res?.error) toast.error(res.error)
+                                          else toast.success("Célkitűzés véglegesen lezárva!")
+                                        }}
+                                      >
+                                        <Lock className="w-3.5 h-3.5 mr-1.5" />
+                                        Célkitűzés Végleges Lezárása
+                                      </Button>
+                                    </div>
+                                  )}
+
+                                  {/* 5. LEZART FÁZIS: Zárolt, hitelesített állapot */}
+                                  {phase === "lezart" && (
+                                    <div className="p-4 rounded-lg border bg-success/5 border-success/20 space-y-2 text-center">
+                                      <div className="w-9 h-9 rounded-full bg-success/10 text-success flex items-center justify-center mx-auto">
+                                        <Lock className="w-4 h-4" />
+                                      </div>
+                                      <div className="space-y-0.5">
+                                        <h4 className="text-xs font-semibold text-success">Célkitűzés Hitelesítve és Lezárva</h4>
+                                        <p className="text-[11px] text-muted-foreground">
+                                          A cél adatai zárolva vannak. A pontszám ({percent}%) beépült a munkatárs ciklus-bónuszába.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
+
                                 </div>
-                              )}
 
-                              {phase === "celkituzes" && (
-                                <div className="flex items-center gap-2 justify-center py-2 px-3 rounded-md bg-muted/60 text-muted-foreground text-xs">
-                                  <User className="w-3.5 h-3.5" /> Várakozás a dolgozó önértékelésére a Dolgozói Portálon...
-                                </div>
-                              )}
+                              </div>
+
                             </div>
 
                           </div>
