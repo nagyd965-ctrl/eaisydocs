@@ -81,37 +81,13 @@ export function EditKpiDialog({
 
 
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="meroszamTipusa">Mérőszám Típusa</Label>
-              <select 
-                id="meroszamTipusa"
-                name="meroszamTipusa" 
-                defaultValue={String(kpi.meroszam_tipusa || kpi.mertekegyseg || "szazalek")}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="szazalek">Százalék (%)</option>
-                <option value="szam">Darabszám</option>
-                <option value="osszeg">Összeg (HUF)</option>
-                <option value="igen_nem">Igen/Nem</option>
-                <option value="skala">Skála (1-5)</option>
-              </select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="sulyozas">Súlyozás</Label>
-              <Input id="sulyozas" name="sulyozas" type="number" step="0.1" min="0" max="10" defaultValue={Number(kpi.sulyozas ?? kpi.suly ?? 1)} required />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="sulyozas">Célkitűzés Súlyozása (Szorzó)</Label>
+            <Input id="sulyozas" name="sulyozas" type="number" step="0.1" min="0.1" max="5" defaultValue={Number(kpi.sulyozas ?? 1)} required className="tabular-nums" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="celErtek">Célérték</Label>
-              <Input id="celErtek" name="celErtek" type="number" step="0.01" min="0" defaultValue={Number(kpi.cel_ertek ?? 100)} required />
-            </div>
-            
-            {/* Az aktuális értéket a slider-en/űrlapon lehet frissíteni, de ide is be lehetne tenni */}
-          </div>
+          <input type="hidden" name="meroszamTipusa" value={kpi.meroszam_tipusa || "igen_nem"} />
+          <input type="hidden" name="celErtek" value={kpi.cel_ertek || 1} />
 
           <div className="pt-4 flex justify-end gap-2">
             <Button variant="outline" type="button" onClick={() => setOpen(false)} disabled={loading}>

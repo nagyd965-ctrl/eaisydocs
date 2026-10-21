@@ -60,9 +60,6 @@ export function AddKpiDialog({
   const [dolgozoId, setDolgozoId] = useState<string>(defaultDolgozoId || "")
   const [ciklusId, setCiklusId] = useState<string>("")
   const [celMegnevezes, setCelMegnevezes] = useState<string>("")
-  const [meroszamTipusa, setMeroszamTipusa] = useState<string>("szazalek")
-  const [celErtek, setCelErtek] = useState<string>("100")
-  const [aktualisErtek, setAktualisErtek] = useState<string>("0")
   const [sulyozas, setSulyozas] = useState<string>("1.0")
 
   // Dolgozó választó popover állapotok
@@ -139,23 +136,6 @@ export function AddKpiDialog({
     }
   }
 
-  const handleMeroszamChange = (type: string) => {
-    setMeroszamTipusa(type)
-    if (type === "skala") {
-      setCelErtek("5")
-      setAktualisErtek("1")
-    } else if (type === "igen_nem") {
-      setCelErtek("1")
-      setAktualisErtek("0")
-    } else if (type === "osszeg" && celErtek === "100") {
-      setCelErtek("1000000")
-      setAktualisErtek("0")
-    } else if (type === "szazalek" && celErtek === "5") {
-      setCelErtek("100")
-      setAktualisErtek("0")
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!dolgozoId) {
@@ -173,9 +153,9 @@ export function AddKpiDialog({
     formData.append("dolgozoId", dolgozoId)
     formData.append("ertekelesSzovege", celMegnevezes.trim())
     formData.append("ciklusId", ciklusId || defaultCycle)
-    formData.append("meroszamTipusa", meroszamTipusa)
-    formData.append("celErtek", celErtek)
-    formData.append("aktualisErtek", aktualisErtek)
+    formData.append("meroszamTipusa", "igen_nem")
+    formData.append("celErtek", "1")
+    formData.append("aktualisErtek", "0")
     formData.append("sulyozas", sulyozas)
 
     try {
@@ -191,17 +171,6 @@ export function AddKpiDialog({
       toast.error("Váratlan hiba történt a célkitűzés rögzítésekor.")
     } finally {
       setLoading(false)
-    }
-  }
-
-  const getUnitSuffix = () => {
-    switch (meroszamTipusa) {
-      case "szazalek": return "%"
-      case "osszeg": return "Ft"
-      case "szam": return "db"
-      case "skala": return "pont"
-      case "igen_nem": return ""
-      default: return ""
     }
   }
 
@@ -428,172 +397,38 @@ export function AddKpiDialog({
             </select>
           </div>
 
-          {/* Mérőszám Típusa és Súlyozás */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="meroszamTipusa">Mérőszám Típusa</Label>
-              <select
-                id="meroszamTipusa"
-                value={meroszamTipusa}
-                onChange={(e) => handleMeroszamChange(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                <option value="szazalek">Százalék (%)</option>
-                <option value="szam">Darabszám (db)</option>
-                <option value="osszeg">Összeg (HUF)</option>
-                <option value="skala">Skála (1-5 pont)</option>
-                <option value="igen_nem">Igen / Nem (Bináris)</option>
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="sulyozas" className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Scale className="w-3.5 h-3.5 text-muted-foreground" />
-                  Súlyozás (Szorzó)
-                </span>
-                <span className="text-[11px] text-muted-foreground tabular-nums">{sulyozas}x</span>
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="sulyozas"
-                  type="number"
-                  step="0.1"
-                  min="0.1"
-                  max="5.0"
-                  value={sulyozas}
-                  onChange={(e) => setSulyozas(e.target.value)}
-                  required
-                  className="tabular-nums"
-                />
-                <div className="flex gap-1">
-                  {["1.0", "1.5", "2.0"].map((w) => (
-                    <Button
-                      key={w}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSulyozas(w)}
-                      className={`h-10 px-2 text-xs tabular-nums ${sulyozas === w ? "border-primary text-primary font-semibold" : ""}`}
-                    >
-                      {w}x
-                    </Button>
-                  ))}
-                </div>
-              </div>
+          {/* Célkitűzés Súlyozása / Prioritása */}
+          <div className="space-y-2">
+            <Label htmlFor="sulyozas" className="flex items-center justify-between text-xs font-semibold">
+              <span className="flex items-center gap-1.5 text-foreground">
+                <Scale className="w-3.5 h-3.5 text-primary" />
+                Célkitűzés Súlyozása (Prioritás)
+              </span>
+              <span className="text-[11px] text-muted-foreground tabular-nums">{sulyozas}x szorzó</span>
+            </Label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { val: "1.0", label: "Normál (1x)", desc: "Alap célkitűzés" },
+                { val: "1.5", label: "Kiemelt (1.5x)", desc: "Fontos KPI" },
+                { val: "2.0", label: "Stratégiai (2x)", desc: "Kiemelt prioritás" }
+              ].map((item) => (
+                <button
+                  key={item.val}
+                  type="button"
+                  onClick={() => setSulyozas(item.val)}
+                  className={cn(
+                    "flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-all cursor-pointer",
+                    sulyozas === item.val
+                      ? "border-primary bg-primary/10 text-primary font-semibold shadow-2xs"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                  )}
+                >
+                  <span className="text-xs font-medium">{item.label}</span>
+                  <span className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</span>
+                </button>
+              ))}
             </div>
           </div>
-
-          {/* Célérték és Kezdeti Állapot */}
-          {meroszamTipusa === "igen_nem" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-foreground">Elvárt Célérték</Label>
-                <div className="grid grid-cols-2 gap-1 p-1 bg-muted/30 border border-input rounded-md h-10 items-center">
-                  <button
-                    type="button"
-                    onClick={() => setCelErtek("1")}
-                    className={cn(
-                      "h-8 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1.5 cursor-pointer",
-                      celErtek === "1"
-                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    Igen
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCelErtek("0")}
-                    className={cn(
-                      "h-8 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1.5 cursor-pointer",
-                      celErtek === "0"
-                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    Nem
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-foreground">Kezdeti Állapot</Label>
-                <div className="grid grid-cols-2 gap-1 p-1 bg-muted/30 border border-input rounded-md h-10 items-center">
-                  <button
-                    type="button"
-                    onClick={() => setAktualisErtek("0")}
-                    className={cn(
-                      "h-8 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1.5 cursor-pointer",
-                      aktualisErtek === "0"
-                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    Nem
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAktualisErtek("1")}
-                    className={cn(
-                      "h-8 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1.5 cursor-pointer",
-                      aktualisErtek === "1"
-                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    Igen
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="celErtek" className="flex items-center justify-between">
-                  <span>Elvárt Célérték</span>
-                  {getUnitSuffix() && (
-                    <span className="text-xs text-muted-foreground font-normal">{getUnitSuffix()}</span>
-                  )}
-                </Label>
-                <Input
-                  id="celErtek"
-                  type="number"
-                  step={meroszamTipusa === "skala" ? "1" : "any"}
-                  min={meroszamTipusa === "skala" ? "1" : undefined}
-                  max={meroszamTipusa === "skala" ? "5" : undefined}
-                  value={celErtek}
-                  onChange={(e) => setCelErtek(e.target.value)}
-                  required
-                  className="tabular-nums font-semibold"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="aktualisErtek" className="flex items-center justify-between">
-                  <span>Kezdeti Állapot</span>
-                  {getUnitSuffix() && (
-                    <span className="text-xs text-muted-foreground font-normal">{getUnitSuffix()}</span>
-                  )}
-                </Label>
-                <Input
-                  id="aktualisErtek"
-                  type="number"
-                  step={meroszamTipusa === "skala" ? "1" : "any"}
-                  min={meroszamTipusa === "skala" ? "1" : undefined}
-                  max={meroszamTipusa === "skala" ? "5" : undefined}
-                  value={aktualisErtek}
-                  onChange={(e) => setAktualisErtek(e.target.value)}
-                  required
-                  className="tabular-nums"
-                />
-              </div>
-            </div>
-          )}
 
           {/* Gombok */}
           <div className="pt-4 flex justify-end gap-2 border-t mt-4">
