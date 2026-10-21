@@ -485,7 +485,7 @@ export function PerformanceList({
                                         onClick={() => setManualEvalOpenId(kpi.id)}
                                         className="text-xs shrink-0 cursor-pointer whitespace-nowrap"
                                       >
-                                        Értékelés azonnal (dolgozó nélkül)
+                                        Értékelés azonnal
                                       </Button>
                                     )}
                                   </div>
@@ -748,9 +748,9 @@ export function PerformanceList({
                                 <Input
                                   type="text"
                                   name="megjegyzes"
-                                  placeholder="Rövid megjegyzés fűzése a haladáshoz..."
+                                  placeholder="Megjegyzés hozzáfűzése..."
                                   required
-                                  className="h-8 text-xs w-full sm:w-72 bg-background"
+                                  className="h-8 text-xs w-full sm:w-80 bg-background"
                                 />
                                 <Button type="submit" size="sm" variant="outline" className="h-8 text-xs shrink-0 cursor-pointer">
                                   Küldés

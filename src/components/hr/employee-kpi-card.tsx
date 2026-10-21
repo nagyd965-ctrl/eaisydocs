@@ -417,9 +417,9 @@ function SingleGoalWorkspace({
               <Input
                 type="text"
                 name="megjegyzes"
-                placeholder="Rövid megjegyzés fűzése a célhoz..."
+                placeholder="Megjegyzés hozzáfűzése..."
                 required
-                className="h-8 text-xs w-full sm:w-64 bg-background"
+                className="h-8 text-xs w-full sm:w-80 bg-background"
               />
               <Button type="submit" size="sm" variant="secondary" className="h-8 text-xs shrink-0 cursor-pointer">
                 Küldés
