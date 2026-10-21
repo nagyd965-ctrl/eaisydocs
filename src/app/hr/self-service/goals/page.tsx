@@ -28,17 +28,17 @@ export default async function SelfServiceGoalsPage() {
     .order("created_at", { ascending: true })
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Céljaim</h1>
-          <p className="text-muted-foreground mt-1">
-            Teljesítményértékelés, célkitűzések és eredmények.
+          <h1 className="text-3xl font-semibold tracking-tight">Céljaim & Értékelésem</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Teljesítményértékelés, célkitűzések, haladási állapot és dolgozói önértékelés.
           </p>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-1 max-w-4xl">
+      <div>
         <EmployeeKpiCard kpis={kpis || []} logs={kpiLogs || []} />
       </div>
     </div>

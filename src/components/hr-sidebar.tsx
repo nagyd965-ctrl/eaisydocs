@@ -49,6 +49,10 @@ const items = [
         url: "/hr/self-service/time",
       },
       {
+        title: "Céljaim & Értékelésem",
+        url: "/hr/self-service/goals",
+      },
+      {
         title: "Fejlődési Tervem",
         url: "/hr/self-service/idp",
       },

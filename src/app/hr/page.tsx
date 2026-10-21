@@ -5,7 +5,7 @@ import { CalendarDays, ArrowRight, Coffee, Clock, AlertCircle, Wallet } from "lu
 import { createClient } from "@/utils/supabase/server"
 import { TimeTrackingCard } from "@/components/hr/time-tracking-card"
 import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
-import { EmployeeKpiCard } from "@/components/hr/employee-kpi-card"
+import { EmployeeKpiWidget } from "@/components/hr/employee-kpi-widget"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { calculateAnnualLeave, calculateWorkingDays } from "@/utils/hr/leave-calculator"
@@ -353,7 +353,7 @@ export default async function SelfServicePage() {
           </Card>
         )}
 
-        <EmployeeKpiCard kpis={kpis || []} logs={kpiLogs || []} />
+        <EmployeeKpiWidget kpis={kpis || []} />
       </div>
 
     </div>
