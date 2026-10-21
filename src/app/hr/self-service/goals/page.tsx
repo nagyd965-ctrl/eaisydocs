@@ -54,14 +54,16 @@ export default async function SelfServiceGoalsPage() {
 
   const totalGoals = kpis.length
   const totalWeight = kpis.reduce((acc: number, curr: any) => acc + (Number(curr.sulyozas) || 1), 0)
-  const avgScore = totalGoals > 0 
-    ? Math.round(kpis.reduce((acc: number, curr: any) => acc + (Number(curr.pontszam) || 0), 0) / totalGoals) 
-    : 0
 
   const pendingSelfEvalCount = kpis.filter((k: any) => {
     const phase = k.workflow_fazis || (k.ertekeles_lezarva_datum ? "lezart" : k.ertekeles_szovege ? "vezetoi_ertekeles" : k.onertekeles_szovege ? "onertekeles" : "celkituzes")
     return !k.onertekeles_szovege && phase === "celkituzes"
   }).length
+
+  const allClosed = totalGoals > 0 && kpis.every((k: any) => {
+    const phase = k.workflow_fazis || (k.ertekeles_lezarva_datum ? "lezart" : "celkituzes")
+    return phase === "lezart"
+  })
 
   return (
     <div className="space-y-6 pb-12 w-full">
@@ -72,7 +74,7 @@ export default async function SelfServiceGoalsPage() {
             Céljaim & Értékelésem
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Személyes célkitűzések követése, haladás frissítése és dolgozói önértékelés leadása a vezető felé.
+            Személyes célkitűzések követése és dolgozói önértékelés leadása a vezető felé.
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -90,7 +92,7 @@ export default async function SelfServiceGoalsPage() {
         </div>
       </div>
 
-      {/* Kanonikus Linear-flat KPI sáv (ADR A-029) */}
+      {/* Kanonikus Linear-flat KPI sáv (ADR A-029) - 100% folyamatorientált, %-mentes */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Aktív Értékelési Ciklus"
@@ -103,9 +105,17 @@ export default async function SelfServiceGoalsPage() {
           sub={totalGoals > 0 ? `Összesített súlyozás: ${totalWeight.toFixed(1)}x` : "Nincs még rögzített cél"}
         />
         <KpiCard
-          label="Átlagos Teljesülésem"
-          value={`${avgScore}%`}
-          sub={avgScore >= 80 ? "Kiváló teljesítményarány" : avgScore >= 50 ? "Jó ütemben haladsz a célokkal" : "Folyamatban lévő célkitűzések"}
+          label="Folyamat Állapota"
+          value={
+            allClosed 
+              ? "5. Minden cél lezárva" 
+              : pendingSelfEvalCount > 0 
+                ? "2. Önértékelésre vár" 
+                : totalGoals > 0 
+                  ? "3. Vezetői értékelés alatt" 
+                  : "Nincs kitűzött cél"
+          }
+          sub="Az 5 lépéses folyamat szerint"
         />
         <KpiCard
           label="Önértékelés Teendő"

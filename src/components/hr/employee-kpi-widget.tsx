@@ -2,10 +2,8 @@
 
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Target, ArrowRight, CheckCircle2, Lock, TrendingUp } from "lucide-react"
+import { Target, ArrowRight, CheckCircle2, Lock, Clock, User, CalendarCheck } from "lucide-react"
 import { deriveWorkflowPhase } from "@/components/hr/kpi-workflow-stepper"
 import { cn } from "@/lib/utils"
 
@@ -13,10 +11,48 @@ export interface EmployeeKpiWidgetProps {
   kpis: any[]
 }
 
+function getWidgetStepBadge(phase: string) {
+  switch (phase) {
+    case "celkituzes":
+      return (
+        <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-primary/10 text-primary border-primary/20 font-medium shrink-0">
+          1. Célkitűzés
+        </Badge>
+      )
+    case "onertekeles":
+      return (
+        <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold shrink-0">
+          2. Te jössz!
+        </Badge>
+      )
+    case "vezetoi_ertekeles":
+      return (
+        <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 font-medium shrink-0">
+          3. Vezető értékeli
+        </Badge>
+      )
+    case "megbeszeles":
+      return (
+        <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-primary/10 text-primary border-primary/30 font-medium shrink-0">
+          4. 1-on-1 Megbeszélés
+        </Badge>
+      )
+    case "lezart":
+      return (
+        <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-success/15 text-success border-success/30 font-semibold shrink-0">
+          <Lock className="w-2.5 h-2.5 mr-0.5" /> 5. Lezárva
+        </Badge>
+      )
+    default:
+      return null
+  }
+}
+
 export function EmployeeKpiWidget({ kpis = [] }: EmployeeKpiWidgetProps) {
-  const avgScore = kpis.length > 0 
-    ? Math.round(kpis.reduce((acc, curr) => acc + (curr.pontszam || 0), 0) / kpis.length)
-    : 0
+  const pendingCount = kpis.filter(k => {
+    const p = deriveWorkflowPhase(k)
+    return p === "celkituzes" || (p === "onertekeles" && !k.onertekeles_szovege)
+  }).length
 
   return (
     <Card className="border shadow-xs overflow-hidden flex flex-col justify-between">
@@ -30,12 +66,9 @@ export function EmployeeKpiWidget({ kpis = [] }: EmployeeKpiWidgetProps) {
               Aktuális Célkitűzéseim
             </CardTitle>
             {kpis.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wider hidden sm:inline">Átlag:</span>
-                <span className="font-semibold text-xs tabular-nums text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
-                  {avgScore}%
-                </span>
-              </div>
+              <Badge variant="outline" className="text-[11px] font-medium bg-background">
+                {pendingCount > 0 ? `${pendingCount} önértékelésre vár` : `${kpis.length} rögzítve`}
+              </Badge>
             )}
           </div>
         </CardHeader>
@@ -54,24 +87,9 @@ export function EmployeeKpiWidget({ kpis = [] }: EmployeeKpiWidgetProps) {
           ) : (
             <div className="divide-y divide-border/60">
               {kpis.slice(0, 4).map((kpi) => {
-                const percent = kpi.pontszam || 0
                 const phase = deriveWorkflowPhase(kpi)
                 const title = kpi.celkituzes || kpi.megnevezes || "Célkitűzés"
                 const cycle = kpi.hr_teljesitmeny_ciklus?.megnevezes || kpi.ertekelt_idoszak || "Aktuális ciklus"
-
-                let colorClass = "bg-primary"
-                let bgClass = "bg-primary/20"
-                let textClass = "text-primary"
-
-                if (percent >= 80) {
-                  colorClass = "bg-success"
-                  bgClass = "bg-success/20"
-                  textClass = "text-success"
-                } else if (percent <= 30) {
-                  colorClass = "bg-warning"
-                  bgClass = "bg-warning/20"
-                  textClass = "text-warning"
-                }
 
                 return (
                   <div key={kpi.id} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3">
@@ -80,30 +98,14 @@ export function EmployeeKpiWidget({ kpis = [] }: EmployeeKpiWidgetProps) {
                         <span className="font-medium text-xs text-foreground truncate block">
                           {title}
                         </span>
-                        {phase === "onertekeles" && (
-                          <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] py-0 px-1 font-semibold animate-pulse shrink-0">
-                            Te jössz!
-                          </Badge>
-                        )}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
                         <span className="truncate">{cycle}</span>
-                        <span>•</span>
-                        <span className="shrink-0">
-                          {kpi.meroszam_tipusa === "igen_nem" 
-                            ? (kpi.aktualis_ertek > 0 ? "Teljesítve" : "Folyamatban")
-                            : `${kpi.aktualis_ertek ?? 0} / ${kpi.cel_ertek ?? 100} ${kpi.meroszam_tipusa === "szazalek" ? "%" : kpi.meroszam_tipusa === "osszeg" ? "Ft" : kpi.meroszam_tipusa === "skala" ? "Pont" : "db"}`}
-                        </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5 shrink-0">
-                      <div className="text-right">
-                        <span className={cn("text-xs font-semibold tabular-nums", textClass)}>
-                          {percent}%
-                        </span>
-                        <Progress value={percent} className={cn("w-14 sm:w-16 h-1.5 mt-0.5", bgClass, `[&>div]:${colorClass}`)} />
-                      </div>
+                    <div className="shrink-0">
+                      {getWidgetStepBadge(phase)}
                     </div>
                   </div>
                 )
@@ -115,7 +117,7 @@ export function EmployeeKpiWidget({ kpis = [] }: EmployeeKpiWidgetProps) {
 
       <CardFooter className="pt-2.5 pb-2.5 px-4 border-t bg-muted/10 flex items-center justify-between">
         <span className="text-[11px] text-muted-foreground">
-          {kpis.length} cél rögzítve
+          {kpis.length} kitűzött cél
         </span>
         <Link 
           href="/hr/self-service/goals" 

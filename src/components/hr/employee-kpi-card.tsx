@@ -1,24 +1,19 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
+import { Card, CardContent } from "@/components/ui/card"
 import { 
   Target, 
-  TrendingUp, 
   CheckCircle2, 
   User, 
   Lock, 
   Award, 
   CalendarCheck, 
   History, 
-  Check, 
-  X, 
+  MessageSquare, 
   ArrowRight, 
   Calendar, 
-  Layers, 
   Scale, 
-  Flag, 
   Sparkles, 
   Clock, 
   Edit3
@@ -28,7 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
-import { addKpiSelfEvaluation, addKpiActivity, updateKpiProgress } from "@/app/hr/performance/actions"
+import { addKpiSelfEvaluation, addKpiActivity } from "@/app/hr/performance/actions"
 import { KpiWorkflowStepper, deriveWorkflowPhase } from "@/components/hr/kpi-workflow-stepper"
 import { cn } from "@/lib/utils"
 
@@ -76,23 +71,23 @@ function getPhaseBadge(phase: string) {
       )
     case "onertekeles":
       return (
-        <Badge variant="outline" className="text-xs py-1 px-2.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 font-semibold flex items-center gap-1.5">
+        <Badge variant="outline" className="text-xs py-1 px-2.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold flex items-center gap-1.5">
           <Clock className="w-3.5 h-3.5" />
-          2. Vezetői értékelésre vár
+          2. Önértékelés leadva (Vezetőre vár)
         </Badge>
       )
     case "vezetoi_ertekeles":
       return (
-        <Badge variant="outline" className="text-xs py-1 px-2.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold flex items-center gap-1.5">
-          <Award className="w-3.5 h-3.5" />
-          3. Vezető értékelt (Megbeszélés következik)
+        <Badge variant="outline" className="text-xs py-1 px-2.5 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 font-semibold flex items-center gap-1.5">
+          <CalendarCheck className="w-3.5 h-3.5" />
+          3. Vezető értékelt (1-on-1 Megbeszélés előtt)
         </Badge>
       )
     case "megbeszeles":
       return (
-        <Badge variant="outline" className="text-xs py-1 px-2.5 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 font-semibold flex items-center gap-1.5">
-          <CalendarCheck className="w-3.5 h-3.5" />
-          4. 1-on-1 Megbeszélés megtörtént
+        <Badge variant="outline" className="text-xs py-1 px-2.5 bg-primary/10 text-primary border-primary/30 font-semibold flex items-center gap-1.5">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          4. Megbeszélés lezajlott (Zárás előtt)
         </Badge>
       )
     case "lezart":
@@ -116,120 +111,65 @@ function SingleGoalWorkspace({
   logs?: KpiLogItem[]
   activeCycleName?: string 
 }) {
-  const percent = kpi.pontszam || 0
   const title = kpi.celkituzes || kpi.megnevezes || kpi.ertekeles_szovege || "Névtelen Célkitűzés"
   const phase = deriveWorkflowPhase(kpi as any)
   const [isEditingSelfEval, setIsEditingSelfEval] = useState(false)
-  const [binaryVal, setBinaryVal] = useState<"0" | "1">((kpi.aktualis_ertek && kpi.aktualis_ertek > 0) ? "1" : "0")
-  const [isSavingProgress, setIsSavingProgress] = useState(false)
   const [isSubmittingEval, setIsSubmittingEval] = useState(false)
 
-  const meroszamTypeFullLabel = 
-    kpi.meroszam_tipusa === "szazalek" ? "Százalék (%)" :
-    kpi.meroszam_tipusa === "osszeg" ? "Pénzügyi (Ft)" :
-    kpi.meroszam_tipusa === "skala" ? "Skála (1–5)" :
-    kpi.meroszam_tipusa === "igen_nem" ? "Igen / Nem (Bináris)" : "Darabszám"
-
-  const meroszamUnit = 
-    kpi.meroszam_tipusa === "szazalek" ? "%" :
-    kpi.meroszam_tipusa === "osszeg" ? "Ft" :
-    kpi.meroszam_tipusa === "skala" ? "Pont" :
-    kpi.meroszam_tipusa === "igen_nem" ? "" : "db"
-
-  let colorClass = "bg-primary"
-  let bgClass = "bg-primary/20"
-  let textClass = "text-primary"
-
-  if (percent >= 80) {
-    colorClass = "bg-success"
-    bgClass = "bg-success/20"
-    textClass = "text-success"
-  } else if (percent <= 30) {
-    colorClass = "bg-warning"
-    bgClass = "bg-warning/20"
-    textClass = "text-warning"
-  }
-
-  // Szűrt naplóbejegyzések ehhez a KPI-hoz
+  // Szűrt naplóbejegyzések
   const relevantLogs = logs.filter(l => l.entitas_id === kpi.id || l.kpi_id === kpi.id)
 
   return (
     <Card className="border border-border/80 rounded-2xl bg-card shadow-xs overflow-hidden transition-all">
-      {/* 1. FEJLÉC SÁV */}
+      {/* 1. FEJLÉC SÁV (NINCS % és NINCS progress bar!) */}
       <div className="p-6 bg-muted/15 border-b border-border/60">
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           {/* Bal oldal: Ikon + Cím + Pill-ek */}
           <div className="flex items-start sm:items-center gap-4 min-w-0">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
-              <Target className="w-6 h-6" />
+            <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+              <Target className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
                 {title}
               </h2>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <Badge variant="outline" className="text-xs py-0.5 px-2.5 bg-background/80 text-foreground border-border">
+              <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                <Badge variant="outline" className="text-xs py-0.5 px-2.5 bg-background text-foreground border-border">
                   <Calendar className="w-3 h-3 mr-1 text-muted-foreground" />
                   {kpi.hr_teljesitmeny_ciklus?.megnevezes || activeCycleName || "Aktuális Ciklus"}
                 </Badge>
-                <Badge variant="outline" className="text-xs py-0.5 px-2.5 bg-background/80 text-foreground border-border">
-                  <Layers className="w-3 h-3 mr-1 text-muted-foreground" />
-                  {meroszamTypeFullLabel}
-                </Badge>
                 {kpi.sulyozas && (
-                  <Badge variant="outline" className="text-xs py-0.5 px-2.5 bg-background/80 text-foreground border-border tabular-nums">
+                  <Badge variant="outline" className="text-xs py-0.5 px-2.5 bg-background text-foreground border-border tabular-nums">
                     <Scale className="w-3 h-3 mr-1 text-muted-foreground" />
                     Súlyozás: {kpi.sulyozas}x
                   </Badge>
                 )}
-                <Badge variant="outline" className="text-xs py-0.5 px-2.5 bg-background/80 text-foreground border-border">
-                  <Flag className="w-3 h-3 mr-1 text-muted-foreground" />
-                  Célérték: {kpi.meroszam_tipusa === "igen_nem" ? "Igen (Kész)" : `${kpi.cel_ertek || 100} ${meroszamUnit}`}
-                </Badge>
               </div>
             </div>
           </div>
 
-          {/* Jobb oldal: Fázis jelvény + Nagy Százalék kijelző */}
-          <div className="flex flex-wrap items-center sm:items-end justify-between xl:justify-end gap-5 shrink-0 pt-2 xl:pt-0 border-t xl:border-t-0 border-border/40">
+          {/* Jobb oldal: Fázis jelvény */}
+          <div className="shrink-0">
             {getPhaseBadge(phase)}
-
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <div className="flex items-baseline justify-end gap-1">
-                  <span className={`text-3xl sm:text-4xl font-semibold tabular-nums tracking-tight ${textClass}`}>
-                    {percent}%
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground font-medium mt-0.5 tabular-nums">
-                  {kpi.meroszam_tipusa === "igen_nem" 
-                    ? (kpi.aktualis_ertek && kpi.aktualis_ertek > 0 ? "✓ Teljesítve" : "✕ Folyamatban")
-                    : `${kpi.aktualis_ertek ?? 0} / ${kpi.cel_ertek ?? 100} ${meroszamUnit}`}
-                </div>
-              </div>
-              <div className="w-28 sm:w-36">
-                <Progress value={percent} className={`h-2.5 ${bgClass} [&>div]:${colorClass}`} />
-              </div>
-            </div>
           </div>
         </div>
       </div>
 
-      {/* 2. MÉRLEGFOLYAMAT (Linear Workflow Stepper) */}
+      {/* 2. MÉRLEGFOLYAMAT (Linear Workflow Stepper az 5 lépéssel) */}
       <div className="p-5 sm:p-6 border-b border-border/60 bg-card">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-2 border-b border-border/40">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-primary" />
             <span className="text-xs font-semibold uppercase tracking-wider text-foreground">
-              Értékelési Folyamat Mérföldkövei
+              Értékelési Folyamat Lépései
             </span>
           </div>
           <span className="text-xs text-muted-foreground">
-            {phase === "celkituzes" && "1/5 Lépés: Célkitűzés aktív — Töltsd ki a jobb oldali önértékelést!"}
-            {phase === "onertekeles" && "2/5 Lépés: Önértékelés leadva — A vezetői visszajelzésre várunk"}
-            {phase === "vezetoi_ertekeles" && "3/5 Lépés: Vezetői értékelés kész — Személyes 1-on-1 megbeszélés következik"}
-            {phase === "megbeszeles" && "4/5 Lépés: Megbeszélés lezajlott — Végleges lezárás folyamatban"}
-            {phase === "lezart" && "5/5 Lépés: Hitelesítve és lezárva a bónuszelszámoláshoz"}
+            {phase === "celkituzes" && "1. Lépés: Célkitűzés aktív — Töltsd ki az önértékelést a jobb oldali munkalapon!"}
+            {phase === "onertekeles" && "2. Lépés: Önértékelés leadva — A vezetői visszajelzésre várunk"}
+            {phase === "vezetoi_ertekeles" && "3. Lépés: Vezetői értékelés kész — Személyes 1-on-1 megbeszélés következik"}
+            {phase === "megbeszeles" && "4. Lépés: Megbeszélés lezajlott — Végleges lezárás folyamatban"}
+            {phase === "lezart" && "5. Lépés: Hitelesítve és lezárva"}
           </span>
         </div>
         <div className="pt-2 pb-1">
@@ -240,234 +180,131 @@ function SingleGoalWorkspace({
       {/* 3. TÁGAS KÉTOSZLOPOS MUNKATERÜLET */}
       <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-card">
         
-        {/* BAL OSZLOP (7 oszlop): Haladás & Teljesülés Követése + Tevékenység Előzmények */}
+        {/* BAL OSZLOP (7 oszlop): Célkitűzés állapota és Előzményei */}
         <div className="lg:col-span-7 space-y-6">
 
-          {/* Haladási Állapot Kártya */}
+          {/* Mérföldkövek és Tartalom Kártya */}
           <div className="p-5 rounded-xl border border-border/80 bg-muted/10 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pb-2 border-b border-border/50">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 text-primary" />
-                Haladási Állapot és Teljesülés
+                <Target className="w-4 h-4 text-primary" />
+                Célkitűzés és Mérföldkövek
               </span>
-              <Badge variant="outline" className="text-xs tabular-nums text-muted-foreground font-normal">
-                Súly: {kpi.sulyozas || "1.0"}x
-              </Badge>
+              {kpi.sulyozas && (
+                <Badge variant="outline" className="text-xs tabular-nums text-muted-foreground font-normal">
+                  Súlyozás: {kpi.sulyozas}x
+                </Badge>
+              )}
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 pt-1">
-              <div className="flex items-baseline gap-2.5">
-                <span className={`text-3xl font-semibold tabular-nums ${textClass}`}>{percent}%</span>
-                <span className="text-xs text-muted-foreground font-medium">
-                  {kpi.meroszam_tipusa === "igen_nem" ? (
-                    kpi.aktualis_ertek && kpi.aktualis_ertek > 0 ? "✓ Teljesített feladat" : "✕ Folyamatban lévő feladat"
-                  ) : (
-                    `Jelenlegi állás: ${kpi.aktualis_ertek ?? 0} / ${kpi.cel_ertek ?? 100} ${meroszamUnit}`
-                  )}
-                </span>
+            {/* 1. Lépés: Rögzítés */}
+            <div className="flex items-start gap-3 p-3.5 rounded-xl bg-background border border-border/60 text-xs">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                <Target className="w-4 h-4" />
               </div>
-              <div className="text-xs text-muted-foreground">
-                Elvárt célérték: <strong className="text-foreground">{kpi.meroszam_tipusa === "igen_nem" ? "Igen" : `${kpi.cel_ertek} ${meroszamUnit}`}</strong>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-foreground">1. Célkitűzés Rögzítve</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {kpi.created_at ? new Date(kpi.created_at).toLocaleDateString("hu-HU") : ""}
+                  </span>
+                </div>
+                <p className="text-muted-foreground mt-0.5">
+                  Értékelési ciklus: {kpi.hr_teljesitmeny_ciklus?.megnevezes || activeCycleName || "Aktuális időszak"}
+                </p>
               </div>
             </div>
 
-            <Progress value={percent} className={`h-2.5 ${bgClass} [&>div]:${colorClass}`} />
+            {/* 2. Lépés: Saját Önértékelés */}
+            {kpi.onertekeles_szovege ? (
+              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-blue-500/5 border border-blue-500/20 text-xs">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
+                  <User className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">2. Saját Önértékelésed</span>
+                    <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                      Leadva
+                    </Badge>
+                  </div>
+                  <p className="text-foreground mt-1.5 bg-background p-3 rounded-lg border border-blue-500/15 leading-relaxed italic">
+                    „{kpi.onertekeles_szovege}”
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-background border border-dashed border-border text-xs text-muted-foreground">
+                <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center shrink-0 text-muted-foreground">
+                  <User className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex-1">
+                  <span className="font-medium text-foreground">2. Önértékelés:</span> Még nem küldted be az önértékelésedet. Töltsd ki a jobb oldali munkalapot!
+                </div>
+              </div>
+            )}
 
-            {/* Dolgozói Haladás Frissítése (ha nincs lezárva) */}
-            {phase !== "lezart" && (
-              <div className="pt-4 border-t border-border/60">
-                <form
-                  action={async (formData) => {
-                    setIsSavingProgress(true)
-                    try {
-                      let newValStr = formData.get("percent") as string
-                      if (kpi.meroszam_tipusa === "igen_nem") {
-                        newValStr = binaryVal
-                      }
-                      const newVal = parseFloat(newValStr)
-                      const res = await updateKpiProgress(kpi.id, newVal)
-                      if (res?.error) toast.error(res.error)
-                      else toast.success("Haladásod sikeresen frissítve!")
-                    } catch (e: any) {
-                      toast.error("Hiba történt a mentéskor.")
-                    } finally {
-                      setIsSavingProgress(false)
-                    }
-                  }}
-                  className="space-y-3"
-                >
-                  <label className="text-xs font-semibold text-foreground block">
-                    Saját haladásod beállítása és mentése:
-                  </label>
+            {/* 3. Lépés: Vezetői Visszajelzés */}
+            {kpi.ertekeles_szovege ? (
+              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-primary/5 border border-primary/20 text-xs">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                  <Award className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-primary">3. Vezetői Visszajelzés</span>
+                    <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">
+                      Rögzítve
+                    </Badge>
+                  </div>
+                  <p className="text-foreground mt-1.5 bg-background p-3 rounded-lg border border-primary/15 leading-relaxed">
+                    „{kpi.ertekeles_szovege}”
+                  </p>
+                </div>
+              </div>
+            ) : phase !== "celkituzes" && (
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-background border border-dashed border-border text-xs text-muted-foreground">
+                <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center shrink-0 text-muted-foreground">
+                  <Award className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex-1">
+                  <span className="font-medium text-foreground">3. Vezetői Értékelés:</span> Várakozás a vezető visszajelzésére.
+                </div>
+              </div>
+            )}
 
-                  {kpi.meroszam_tipusa === "igen_nem" ? (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2.5 p-1 bg-muted/40 border border-input rounded-xl items-center">
-                        <button
-                          type="button"
-                          onClick={() => setBinaryVal("0")}
-                          className={cn(
-                            "h-11 px-4 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer",
-                            binaryVal === "0"
-                              ? "bg-background text-foreground shadow-xs border border-border"
-                              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                          )}
-                        >
-                          <X className="w-4 h-4 text-destructive" />
-                          Nem (Folyamatban)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setBinaryVal("1")}
-                          className={cn(
-                            "h-11 px-4 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer",
-                            binaryVal === "1"
-                              ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                          )}
-                        >
-                          <Check className="w-4 h-4" />
-                          Igen (Teljesítve)
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <p className="text-[11px] text-muted-foreground">
-                          {binaryVal === "1" ? "A feladat elkészültnek lesz jelölve (100%)." : "A feladat folyamatban marad (0%)."}
-                        </p>
-                        <Button 
-                          type="submit" 
-                          size="sm" 
-                          disabled={isSavingProgress}
-                          className="h-9 px-4 text-xs font-medium cursor-pointer"
-                        >
-                          {isSavingProgress ? "Mentés..." : "Haladás Mentése"}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          step="any"
-                          name="percent"
-                          defaultValue={kpi.aktualis_ertek || 0}
-                          min={0}
-                          className="w-32 h-9 text-sm tabular-nums bg-background"
-                        />
-                        <span className="text-xs text-muted-foreground font-medium">
-                          / {kpi.cel_ertek || 100} {meroszamUnit}
-                        </span>
-                      </div>
-                      <Button 
-                        type="submit" 
-                        size="sm" 
-                        disabled={isSavingProgress}
-                        className="h-9 px-4 text-xs font-medium ml-auto cursor-pointer"
-                      >
-                        {isSavingProgress ? "Mentés..." : "Haladás Mentése"}
-                      </Button>
-                    </div>
+            {/* 4. Lépés: 1-on-1 Megbeszélés */}
+            {kpi.megbeszeles_datum && (
+              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-purple-500/5 border border-purple-500/20 text-xs">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 mt-0.5">
+                  <CalendarCheck className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-purple-600 dark:text-purple-400">4. 1-on-1 Megbeszélés Megtörtént</span>
+                    <span className="text-[11px] text-muted-foreground">{new Date(kpi.megbeszeles_datum).toLocaleDateString("hu-HU")}</span>
+                  </div>
+                  {kpi.megbeszeles_megjegyzes && (
+                    <p className="text-muted-foreground mt-1.5 bg-background p-2.5 rounded-lg border border-purple-500/15 leading-relaxed">
+                      {kpi.megbeszeles_megjegyzes}
+                    </p>
                   )}
-                </form>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Események, Megjegyzések & Idővonal Kártya */}
-          <div className="p-5 rounded-xl border border-border/80 bg-card space-y-4">
+          {/* Aktivitási Napló & Megjegyzések Kártya */}
+          <div className="p-5 rounded-xl border border-border/80 bg-card space-y-3">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 pb-2 border-b border-border/50">
               <History className="w-4 h-4 text-primary" />
-              Célkitűzés Életútja és Előzményei
+              Aktivitási Napló & Megjegyzések
             </span>
 
-            <div className="space-y-3 text-xs">
-              {/* 1. Létrehozás esemény */}
-              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-muted/20 border border-muted/50">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                  <Target className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-foreground">Célkitűzés Rögzítve</span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {kpi.created_at ? new Date(kpi.created_at).toLocaleDateString("hu-HU") : ""}
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground mt-0.5">
-                    {kpi.meroszam_tipusa === "igen_nem" 
-                      ? "Mérőszám típusa: Igen/Nem (Bináris) • Elvárt eredmény: Igen"
-                      : `Célérték: ${kpi.cel_ertek} ${meroszamUnit} • Súlyozás: ${kpi.sulyozas || 1}x`}
-                  </p>
-                </div>
-              </div>
-
-              {/* 2. Saját önértékelés esemény (ha leadva) */}
-              {kpi.onertekeles_szovege && (
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-blue-500/5 border border-blue-500/20">
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
-                    <User className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-blue-600 dark:text-blue-400">Önértékelésed Beküldve</span>
-                      <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
-                        Leadva
-                      </Badge>
-                    </div>
-                    <p className="text-foreground mt-1.5 bg-background/80 p-3 rounded-lg border border-blue-500/15 leading-relaxed italic">
-                      „{kpi.onertekeles_szovege}”
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* 3. Vezetői visszajelzés (ha megérkezett) */}
-              {kpi.ertekeles_szovege && (
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-primary/5 border border-primary/20">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                    <Award className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-primary">Vezetői Visszajelzés</span>
-                      <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">
-                        Értékelve
-                      </Badge>
-                    </div>
-                    <p className="text-foreground mt-1.5 bg-background/80 p-3 rounded-lg border border-primary/15 leading-relaxed">
-                      „{kpi.ertekeles_szovege}”
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* 4. Megbeszélés (ha rögzítették) */}
-              {kpi.megbeszeles_datum && (
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                  <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 mt-0.5">
-                    <CalendarCheck className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-purple-600 dark:text-purple-400">1-on-1 Megbeszélés Megtörtént</span>
-                      <span className="text-[11px] text-muted-foreground">{new Date(kpi.megbeszeles_datum).toLocaleDateString("hu-HU")}</span>
-                    </div>
-                    {kpi.megbeszeles_megjegyzes && (
-                      <p className="text-muted-foreground mt-1.5 bg-background/80 p-3 rounded-lg border border-purple-500/15 leading-relaxed">
-                        {kpi.megbeszeles_megjegyzes}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* További eseménynaplók */}
+            <div className="space-y-2.5">
               {relevantLogs.map((log) => (
-                <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/10 border border-border/40">
-                  <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5 text-muted-foreground">
-                    <History className="w-3.5 h-3.5" />
-                  </div>
+                <div key={log.id} className="flex items-start gap-2.5 p-2.5 rounded-lg bg-muted/15 border border-border/40 text-xs">
+                  <MessageSquare className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium text-foreground">{log.felhasznalo_profil?.nev || "Rendszer"}</span>
@@ -482,24 +319,24 @@ function SingleGoalWorkspace({
             {/* Új bejegyzés / megjegyzés hozzáfűzése */}
             {phase !== "lezart" && (
               <form
-                className="flex items-center gap-2 pt-3 border-t border-border/60"
+                className="flex items-center gap-2 pt-2 border-t border-border/60"
                 action={async (formData) => {
                   const msg = formData.get("megjegyzes") as string
                   if (!msg) return
                   const res = await addKpiActivity(kpi.id, msg)
                   if (res?.error) toast.error(res.error)
-                  else toast.success("Bejegyzés rögzítve!")
+                  else toast.success("Megjegyzés sikeresen rögzítve!")
                 }}
               >
                 <Input
                   type="text"
                   name="megjegyzes"
-                  placeholder="Új bejegyzés vagy megjegyzés hozzáfűzése a haladáshoz..."
+                  placeholder="Rövid megjegyzés hozzáfűzése a célhoz..."
                   required
-                  className="h-9 text-xs flex-1 bg-background"
+                  className="h-8 text-xs flex-1 bg-background"
                 />
-                <Button type="submit" size="sm" variant="secondary" className="h-9 text-xs shrink-0 cursor-pointer">
-                  Hozzáadás
+                <Button type="submit" size="sm" variant="secondary" className="h-8 text-xs shrink-0 cursor-pointer">
+                  Küldés
                 </Button>
               </form>
             )}
@@ -507,7 +344,7 @@ function SingleGoalWorkspace({
 
         </div>
 
-        {/* JOBB OSZLOP (5 oszlop): Kiemelt Önértékelési Munkaterület */}
+        {/* JOBB OSZLOP (5 oszlop): Dolgozói Önértékelés Munkaterület */}
         <div className="lg:col-span-5 space-y-6">
 
           <div className="p-5 rounded-xl border border-border/80 bg-card space-y-5">
@@ -518,14 +355,14 @@ function SingleGoalWorkspace({
               </span>
               <Badge variant="outline" className="text-xs font-normal">
                 {phase === "celkituzes" && "Kitöltendő"}
-                {phase === "onertekeles" && "Vezetői értékelésre vár"}
+                {phase === "onertekeles" && "Vezetőre vár"}
                 {phase === "vezetoi_ertekeles" && "Megbeszélés előtt"}
                 {phase === "megbeszeles" && "Lezárás előtt"}
                 {phase === "lezart" && "Lezárva"}
               </Badge>
             </div>
 
-            {/* 1. ESET: Még nincs leadva az önértékelés VAGY a felhasználó szerkeszti */}
+            {/* 1. ESET: Még nincs leadva az önértékelés VAGY szerkeszti */}
             {(!kpi.onertekeles_szovege || isEditingSelfEval) && phase !== "lezart" && (
               <form
                 action={async (formData) => {
@@ -558,22 +395,22 @@ function SingleGoalWorkspace({
                 </div>
 
                 <div className="p-3 rounded-lg bg-background/60 border border-primary/10 text-[11px] text-muted-foreground space-y-1">
-                  <span className="font-semibold text-foreground block">Tippek a hatékony önértékeléshez:</span>
+                  <span className="font-semibold text-foreground block">Tippek az önértékeléshez:</span>
                   <ul className="list-disc pl-4 space-y-0.5">
-                    <li>Milyen konkrét funkciókat, mérföldköveket vagy eredményeket értél el?</li>
-                    <li>Milyen nehézségek adódtak a megvalósítás során és hogyan küzdötted le őket?</li>
-                    <li>Miben fejlődtél a feladat elvégzése által?</li>
+                    <li>Milyen konkrét funkciókat, mérföldköveket értél el?</li>
+                    <li>Milyen nehézségek adódtak és hogyan oldottad meg őket?</li>
+                    <li>Miben fejlődtél a feladat során?</li>
                   </ul>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-foreground block">
-                    Önértékelésed részletes leírása:
+                    Önértékelésed leírása:
                   </label>
                   <Textarea
                     name="ertekelesSzovege"
                     defaultValue={kpi.onertekeles_szovege || ""}
-                    placeholder="Pl. A megadott funkciót határidőre és a specifikációnak megfelelő minőségben szállítottam. A folyamat során az alábbi mérföldköveket teljesítettem..."
+                    placeholder="Írd le részletesen az elért eredményeidet, sikereidet vagy a tapasztalataidat..."
                     required
                     className="min-h-[160px] text-xs bg-background leading-relaxed"
                   />
@@ -604,7 +441,7 @@ function SingleGoalWorkspace({
               </form>
             )}
 
-            {/* 2. ESET: Önértékelés leadva és nincs szerkesztési módban */}
+            {/* 2. ESET: Önértékelés leadva és nem szerkesztési módban */}
             {kpi.onertekeles_szovege && !isEditingSelfEval && (
               <div className="p-4 rounded-xl border border-border/80 bg-muted/15 space-y-4">
                 <div className="flex items-center justify-between">
@@ -631,20 +468,20 @@ function SingleGoalWorkspace({
                 </div>
 
                 {phase === "onertekeles" && (
-                  <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 space-y-1">
                     <div className="font-semibold flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5" />
-                      Vezetői elbírálásra vár
+                      Vezetői értékelésre vár
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-normal">
-                      A vezetőd értesítést kapott a beküldésről. Amint elkészül az értékeléssel és a pontszámmal, az eredmény itt azonnal megjelenik.
+                      A vezetőd megkapta az értékelésedet. Amint elkészül a visszajelzéssel, itt azonnal látni fogod.
                     </p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* 3. ESET: Vezetői visszajelzés elkészült */}
+            {/* 3. ESET: Vezetői értékelés beérkezett */}
             {phase === "vezetoi_ertekeles" && kpi.ertekeles_szovege && (
               <div className="p-4 rounded-xl border bg-primary/5 border-primary/20 space-y-3">
                 <div className="flex items-center gap-2 text-xs font-semibold text-primary">
@@ -668,7 +505,7 @@ function SingleGoalWorkspace({
                 </div>
                 <h4 className="text-xs font-semibold text-purple-600 dark:text-purple-400">1-on-1 Megbeszélés Megtörtént</h4>
                 <p className="text-[11px] text-muted-foreground">
-                  A vezető hamarosan véglegesíti a cél lezárását és a bónuszelszámolást.
+                  A célkitűzés hamarosan véglegesen lezárásra kerül a vezető által.
                 </p>
               </div>
             )}
@@ -681,7 +518,7 @@ function SingleGoalWorkspace({
                 </div>
                 <h4 className="text-xs font-semibold text-success">Célkitűzés Hitelesítve és Lezárva</h4>
                 <p className="text-[11px] text-muted-foreground">
-                  Végleges elért eredmény: <strong className="text-foreground">{percent}%</strong>
+                  Mind az 5 lépés sikeresen lezárult.
                 </p>
               </div>
             )}
@@ -759,12 +596,6 @@ export function EmployeeKpiCard({
             >
               <Target className={cn("w-3.5 h-3.5", isActive ? "text-primary-foreground" : "text-primary")} />
               <span className="max-w-[220px] truncate">{kpi.celkituzes || kpi.megnevezes}</span>
-              <span className={cn(
-                "px-2 py-0.5 rounded-md text-[10px] font-semibold tabular-nums",
-                isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
-              )}>
-                {kpi.pontszam || 0}%
-              </span>
               {isPendingEval && (
                 <span className={cn(
                   "w-2 h-2 rounded-full",
@@ -785,7 +616,7 @@ export function EmployeeKpiCard({
               : "bg-card text-muted-foreground hover:text-foreground hover:bg-muted/40 border-border"
           )}
         >
-          Összes cél egyben ({kpis.length})
+          Összes cél ({kpis.length})
         </button>
       </div>
 
