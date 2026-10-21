@@ -4,6 +4,43 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-21)
 
+### 🎯 eaisyHR: Dolgozói Célkitűzések Lista Nézet és Összesített KPI Sáv Refaktorálás (A-080 / P-104)
+- **Kanonikus Lista Nézet és In-Place Kibontás (`src/components/hr/employee-kpi-card.tsx`):**
+  - Megszűnt a vízszintes tab/pill gombos célkiválasztó, amely rossz élményt nyújtott több cél esetén.
+  - Helyette az áttekintő és vezetői nézethez hasonló **tisztán strukturált lista nézet** (`GoalListItem` kártyák):
+    - Cél címe, értékelési ciklus neve, célérték jelvény (pl. `200 000 Ft` vagy `Minőségi mérföldkő`), prioritás súlyozás (`1.5x`).
+    - Önértékelési állapot jelvény: kiemelt `Te jössz! (Önértékelésre vár)` pulzáló jelvény, ha az adott célhoz a dolgozónak még értékelést kell leadnia.
+    - Fázis jelvény és in-place kibontó/becsukó gomb (`Részletek` / `Becsukás` + animált chevron).
+    - Alapértelmezetten minden cél bezárva (összecsukva) jelenik meg a felhasználói kérésnek megfelelően.
+- **Párosított Cél és Elért Eredmény Munkasáv (`src/components/hr/employee-kpi-card.tsx` & `performance-list.tsx`):**
+  - Megszűnt az értelmetlen és zavaró `Elért eredményed (darabszám/összeg/százalék):` felirat.
+  - Helyette a cél és az elért eredmény közvetlenül egymás mellé került egy 2-oszlopos, szimmetrikus kártyában:
+    - Bal oldal: a kitűzött célérték lezárt, formázott dobozban (pl. `KITŰZÖTT ÖSSZEG:` `200 000 Ft`, vagy `KITŰZÖTT DARABSZÁM:` `10 db`).
+    - Jobb oldal: a dolgozó vagy vezető által rögzítendő elért eredmény beviteli mezője közvetlenül mellette, kizárólag a releváns mértékegységgel (pl. `ELÉRT ÖSSZEG:` `[ 200 000 ] Ft`).
+    - A `getMetricFieldLabels()` segédfüggvény dinamikusan a céltípusnak megfelelő, pontos feliratokat biztosítja (`osszeg` esetén `Kitűzött összeg` / `Elért összeg`, `szam` esetén `Kitűzött darabszám` / `Elért darabszám`, `szazalek` esetén `Kitűzött célérték` / `Elért százalék`, `skala` esetén `Kitűzött pontszám` / `Elért pontszám`).
+  - Eltávolításra került a felesleges `Összes kibontása` gomb a felső sávból a felhasználói kérésnek megfelelően.
+- **Közvetlen Vezetői Műveletek (`src/components/hr/performance-list.tsx`):**
+  - A korábbi hibát dobó 3-pöttyös menü helyett közvetlen, azonnal elérhető `Szerkesztés` és `Törlés` gombok találhatók a KPI sorok végén.
+- **Kontextus-érzékeny Üres Állapotok a Teljesítményértékelésben (`src/components/hr/performance-list.tsx`):**
+  - Megszűnt a megtévesztő, hibás üres állapot („Nincs találat a megadott szűrésre / állítsd alaphelyzetbe a szűrőket”), amely akkor is megjelent, amikor a rendszerben egyszerűen még nem voltak célok felvéve.
+  - Helyette 4-szintű, pontos és intelligens állapotkezelés:
+    1. **Még nincsenek rögzített célok:** Tiszta tájékoztató üzenet + beágyazott `+ Új KPI Hozzáadása` gomb azonnali célkitűzéshez.
+    2. **Valódi szűrési/keresési feltétel miatti üresség:** Csak akkor jelenik meg a „Nincs találat a megadott szűrésre” és a „Szűrők törlése” gomb, ha a felhasználó ténylegesen gépelt a keresőbe vagy bepipált egy szűrőt.
+    3. **Lezárt fül üressége:** „Még nincsenek lezárt célkitűzések” + közvetlen gomb az „Ugrás az aktuális célkitűzésekhez”.
+    4. **Aktuális fül üressége (minden lezárva):** „Nincsenek folyamatban lévő célkitűzések” + gomb a „Lezárt célkitűzések megtekintése” nézetre.
+- **Rendszerszintű Zero-Emoji és No-Decorative-Icons Szabály Rögzítése (`.agents/AGENTS.md` & `AGENTS.md`):**
+  - Eltávolításra került az üres állapot kártyák felesleges kör alakú dekoratív célkereszt ikonbuborékja (`performance-list.tsx`, `employee-kpi-card.tsx`).
+  - Eltávolításra kerültek az indokolatlan ikonok a felső gombokról: „Riportok” (`BarChart3` ikon törölve) és „Ciklusok kezelése” (`Settings` ikon törölve).
+  - A projekt vezérelvei közé (`.agents/AGENTS.md`) és a gyökér `AGENTS.md`-be szigorú szabályként rögzítésre került a felesleges dekoratív ikonok és az emojik teljes tiltása a felületeken és a kódban.
+- **Értékelési Ciklusok Életciklusának Radikális Egyszerűsítése (`src/components/hr/manage-cycles-dialog.tsx`, `actions.ts`):**
+  - Megszűnt a mesterséges, bürokratikus 4-státuszos ciklusállapot-gép (`tervezes` → `nyitott` → `ertekeles` → `lezart`), ami felesleges gombnyomogatásokra kényszerítette a felhasználót.
+  - Helyette a tiszta **2-állapotú modell** lépett életbe: **Felvétel (azonnal Aktív) → Lezárás ha vége** (opcionális újranyitási lehetőséggel).
+  - Új ciklus rögzítésekor a ciklus azonnal `nyitott` (Aktív) státuszba kerül, nincs szükség külön „Megnyitás” gombra.
+  - Aktív ciklus esetén egyetlen tiszta művelet érhető el: **„Ciklus lezárása”** (`Lock` ikonnal), lezárt ciklusnál pedig az **„Újranyitás”** gomb.
+  - A modál fejléce elől eltávolításra került a felesleges naptár ikon, és a pop-up szélessége kényelmes, görgetésmentes `sm:max-w-4xl` méretre növekedett.
+- **Számszerű Célok és Minőségi Mérföldkövek Támogatása (`src/components/hr/add-kpi-dialog.tsx`, `edit-kpi-dialog.tsx`, `actions.ts`):**
+  - Rugalmas választó a célérték típusára (`Minőségi mérföldkő` vs `Számszerű metrika`), mértékegységekkel (`db`, `Ft`, `%`, `1-10 pont`), dinamikus pontszám újraszámítással.
+
 ### 🎯 eaisyHR: 5-Lépéses Emberközpontú Teljesítményértékelési Workflow és Dolgozói Célok Portál (A-079 / P-103)
 - **Százalékmentes, Emberi Munkafolyamat Modell (`src/components/hr/kpi-workflow-stepper.tsx`):**
   - Mesterséges matematikai százalékok (`0%`, `75%`), csúszkák és bináris `[Nem] / [Igen]` kapcsolók teljes megszüntetése.

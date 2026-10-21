@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Target, ArrowRight, CheckCircle2, Lock, Clock, User, CalendarCheck } from "lucide-react"
-import { deriveWorkflowPhase } from "@/components/hr/kpi-workflow-stepper"
+import { deriveWorkflowPhase, formatKpiTargetBadge } from "@/components/hr/kpi-workflow-stepper"
 import { cn } from "@/lib/utils"
 
 export interface EmployeeKpiWidgetProps {
@@ -34,7 +34,7 @@ function getWidgetStepBadge(phase: string) {
     case "megbeszeles":
       return (
         <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-primary/10 text-primary border-primary/30 font-medium shrink-0">
-          4. 1-on-1 Megbeszélés
+          4. Megbeszélés
         </Badge>
       )
     case "lezart":
@@ -60,9 +60,7 @@ export function EmployeeKpiWidget({ kpis = [] }: EmployeeKpiWidgetProps) {
         <CardHeader className="pb-3 border-b bg-muted/20">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <div className="w-7 h-7 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
-                <Target className="w-3.5 h-3.5" />
-              </div>
+              <Target className="w-4 h-4 text-primary" />
               Aktuális Célkitűzéseim
             </CardTitle>
             {kpis.length > 0 && (
@@ -90,6 +88,7 @@ export function EmployeeKpiWidget({ kpis = [] }: EmployeeKpiWidgetProps) {
                 const phase = deriveWorkflowPhase(kpi)
                 const title = kpi.celkituzes || kpi.megnevezes || "Célkitűzés"
                 const cycle = kpi.hr_teljesitmeny_ciklus?.megnevezes || kpi.ertekelt_idoszak || "Aktuális ciklus"
+                const targetBadge = formatKpiTargetBadge(kpi)
 
                 return (
                   <div key={kpi.id} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3">
@@ -101,6 +100,12 @@ export function EmployeeKpiWidget({ kpis = [] }: EmployeeKpiWidgetProps) {
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
                         <span className="truncate">{cycle}</span>
+                        {targetBadge && (
+                          <>
+                            <span>•</span>
+                            <span className="text-primary font-medium tabular-nums">{targetBadge}</span>
+                          </>
+                        )}
                       </div>
                     </div>
 

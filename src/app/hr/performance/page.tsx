@@ -1,7 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
-import { BarChart3 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { AddKpiDialog } from "@/components/hr/add-kpi-dialog"
@@ -121,8 +120,8 @@ export default async function PerformancePage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link href="/hr/performance/dashboard">
-            <Button variant="outline" className="gap-2">
-              <BarChart3 className="w-4 h-4" /> Riportok
+            <Button variant="outline">
+              Riportok
             </Button>
           </Link>
           <ManageCyclesDialog cycles={cycles || []} />

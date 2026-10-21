@@ -57,8 +57,10 @@ Ezek a szabályok a `design/` mappa és az `eaisyDocs_szoftverterv.md` alapján 
 - **Statisztikai Kártyák (Linear Flat KPI Grid & Kanonikus `KpiCard`):**
   - Minden statisztikai és dashboard sávban kötelezően a központi `KpiCard` (`src/components/kpi-card.tsx`) komponens használandó.
   - **Struktúra:** Felső kisméretű uppercase felirat (`text-xs font-medium text-muted-foreground uppercase tracking-wider`), alatta a kiemelt számérték (`text-2xl font-semibold tabular-nums text-foreground`), alatta az opcionális diszkrét kontextus felirat (`text-[11px] text-muted-foreground`).
-  - **SZIGORÚAN TILTOTT ELEMEK:**
-    - **Dekoratív ikonok, emojik és kerekített ikondobozok használata a kártyákon szigorúan tilos.** A kártyák kizárólag a tiszta adatokra és feliratokra fókuszálnak.
+  - **SZIGORÚAN TILTOTT ELEMEK (Zero-Emoji és No-Decorative-Icons Irányelv):**
+    - **Mindenféle emoji (pl. 📊, 🎯, ⚙️, 👥, stb.) használata szigorúan tilos a felületen és a kódban.**
+    - **Felesleges dekoratív ikonok és kerekített ikondobozok / buborékok használata szigorúan tilos** a statisztikai kártyákon, az üres állapotoknál (empty states) és a tájékoztató felületeken. Az üres állapotok legyenek tiszta, professzionális, szövegközpontú elrendezések (cím, magyarázó szöveg, közvetlen cselekvési gomb).
+    - **Gombok és menüpontok feliratai elé felesleges dekoratív ikonokat rakni tilos** (pl. másodlagos vagy navigációs gomboknál, mint a „Riportok”, „Ciklusok kezelése” tiszta szöveges gombok használandók; ikon csak egyértelmű funkcionális műveleteknél, mint a keresés `Search`, bezárás `X`, szerkesztés `Edit`, törlés `Trash2` indokolt).
     - **Vastag bal oldali színes szegélyek (`border-l-4`, `borderLeftWidth: 3`) és aszimmetrikus bal csíkok szigorúan tiltottak.**
     - A hover shadow használata tilos, kizárólag finom keretszín-átmenet (`hover:border-primary/40 transition-colors`) engedélyezett.
 - **Státuszok és Badge-ek:**

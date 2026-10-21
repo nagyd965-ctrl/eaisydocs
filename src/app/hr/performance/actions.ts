@@ -237,7 +237,7 @@ export async function addCycle(formData: FormData) {
       megnevezes,
       kezdo_datum: kezdoDatum,
       befejezo_datum: befejezoDatum,
-      statusz: "tervezes",
+      statusz: "nyitott",
       company_id: activeCompanyId
     }])
 
@@ -332,7 +332,7 @@ export async function deleteCycle(cycleId: string) {
   return { success: true }
 }
 
-export async function addKpiSelfEvaluation(kpiId: string, ertekelesSzovege: string) {
+export async function addKpiSelfEvaluation(kpiId: string, ertekelesSzovege: string, aktualisErtek?: number) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -343,12 +343,32 @@ export async function addKpiSelfEvaluation(kpiId: string, ertekelesSzovege: stri
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  const updatePayload: any = { 
+    onertekeles_szovege: ertekelesSzovege,
+    workflow_fazis: "onertekeles"
+  }
+
+  if (aktualisErtek !== undefined && !isNaN(aktualisErtek)) {
+    const { data: kpiData } = await adminClient
+      .from("hr_teljesitmeny")
+      .select("meroszam_tipusa, cel_ertek")
+      .eq("id", kpiId)
+      .single()
+
+    let pontszam = 0
+    if (kpiData?.meroszam_tipusa === "igen_nem") {
+      pontszam = aktualisErtek > 0 ? 100 : 0
+    } else if (kpiData?.cel_ertek && kpiData.cel_ertek > 0) {
+      pontszam = Math.min(100, Math.round((aktualisErtek / kpiData.cel_ertek) * 100))
+    }
+
+    updatePayload.aktualis_ertek = aktualisErtek
+    updatePayload.pontszam = pontszam
+  }
+
   const { error } = await adminClient
     .from("hr_teljesitmeny")
-    .update({ 
-      onertekeles_szovege: ertekelesSzovege,
-      workflow_fazis: "onertekeles"
-    })
+    .update(updatePayload)
     .eq("id", kpiId)
 
   if (error) {
@@ -362,7 +382,7 @@ export async function addKpiSelfEvaluation(kpiId: string, ertekelesSzovege: stri
     esemeny_tipus: "kpi_onertekeles", 
     entitas_tipus: "hr_teljesitmeny",
     entitas_id: kpiId,
-    megjegyzes: `Önértékelés rögzítve: "${ertekelesSzovege.substring(0, 50)}${ertekelesSzovege.length > 50 ? '...' : ''}"`
+    megjegyzes: `Önértékelés rögzítve: "${ertekelesSzovege.substring(0, 50)}${ertekelesSzovege.length > 50 ? '...' : ''}"${aktualisErtek !== undefined && !isNaN(aktualisErtek) ? ` (Elért eredmény: ${aktualisErtek})` : ''}`
   })
 
   revalidatePath("/hr/performance")
@@ -371,7 +391,7 @@ export async function addKpiSelfEvaluation(kpiId: string, ertekelesSzovege: stri
   return { success: true }
 }
 
-export async function addKpiManagerEvaluation(kpiId: string, ertekelesSzovege: string) {
+export async function addKpiManagerEvaluation(kpiId: string, ertekelesSzovege: string, aktualisErtek?: number) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -382,12 +402,32 @@ export async function addKpiManagerEvaluation(kpiId: string, ertekelesSzovege: s
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  const updatePayload: any = { 
+    ertekeles_szovege: ertekelesSzovege,
+    workflow_fazis: "vezetoi_ertekeles"
+  }
+
+  if (aktualisErtek !== undefined && !isNaN(aktualisErtek)) {
+    const { data: kpiData } = await adminClient
+      .from("hr_teljesitmeny")
+      .select("meroszam_tipusa, cel_ertek")
+      .eq("id", kpiId)
+      .single()
+
+    let pontszam = 0
+    if (kpiData?.meroszam_tipusa === "igen_nem") {
+      pontszam = aktualisErtek > 0 ? 100 : 0
+    } else if (kpiData?.cel_ertek && kpiData.cel_ertek > 0) {
+      pontszam = Math.min(100, Math.round((aktualisErtek / kpiData.cel_ertek) * 100))
+    }
+
+    updatePayload.aktualis_ertek = aktualisErtek
+    updatePayload.pontszam = pontszam
+  }
+
   const { error } = await adminClient
     .from("hr_teljesitmeny")
-    .update({ 
-      ertekeles_szovege: ertekelesSzovege,
-      workflow_fazis: "vezetoi_ertekeles"
-    })
+    .update(updatePayload)
     .eq("id", kpiId)
 
   if (error) {
@@ -401,7 +441,7 @@ export async function addKpiManagerEvaluation(kpiId: string, ertekelesSzovege: s
     esemeny_tipus: "kpi_vezetoi_ertekeles", 
     entitas_tipus: "hr_teljesitmeny",
     entitas_id: kpiId,
-    megjegyzes: `Vezetői értékelés rögzítve: "${ertekelesSzovege.substring(0, 50)}${ertekelesSzovege.length > 50 ? '...' : ''}"`
+    megjegyzes: `Vezetői értékelés rögzítve: "${ertekelesSzovege.substring(0, 50)}${ertekelesSzovege.length > 50 ? '...' : ''}"${aktualisErtek !== undefined && !isNaN(aktualisErtek) ? ` (Elért eredmény: ${aktualisErtek})` : ''}`
   })
 
   revalidatePath("/hr/performance")
@@ -409,6 +449,7 @@ export async function addKpiManagerEvaluation(kpiId: string, ertekelesSzovege: s
   revalidatePath("/hr/self-service/goals")
   return { success: true }
 }
+
 
 export async function confirmMeeting(kpiId: string, megjegyzes?: string) {
   const supabase = await createClient()
@@ -538,6 +579,20 @@ export async function editKpi(kpiId: string, formData: FormData) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  const { data: currKpi } = await adminClient
+    .from("hr_teljesitmeny")
+    .select("aktualis_ertek")
+    .eq("id", kpiId)
+    .single()
+
+  let pontszam = 0
+  const currentVal = currKpi?.aktualis_ertek ? Number(currKpi.aktualis_ertek) : 0
+  if (meroszamTipusa === "igen_nem") {
+    pontszam = currentVal > 0 ? 100 : 0
+  } else if (celErtek > 0) {
+    pontszam = Math.min(100, Math.round((currentVal / celErtek) * 100))
+  }
+
   const { error } = await adminClient
     .from("hr_teljesitmeny")
     .update({
@@ -546,7 +601,8 @@ export async function editKpi(kpiId: string, formData: FormData) {
       szulo_kpi_id: szuloKpiId,
       meroszam_tipusa: meroszamTipusa,
       cel_ertek: celErtek,
-      sulyozas: sulyozas
+      sulyozas: sulyozas,
+      pontszam: pontszam
     })
     .eq("id", kpiId)
 
@@ -564,6 +620,8 @@ export async function editKpi(kpiId: string, formData: FormData) {
   })
 
   revalidatePath("/hr/performance")
+  revalidatePath("/hr/self-service")
+  revalidatePath("/hr/self-service/goals")
   return { success: true }
 }
 

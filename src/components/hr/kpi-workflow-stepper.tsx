@@ -2,21 +2,9 @@
 
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { WORKFLOW_STEPS, getStepIndex } from "@/lib/kpi-helpers"
 
-export const WORKFLOW_STEPS = [
-  { key: "celkituzes", label: "Célkitűzés", shortLabel: "Cél", description: "Rögzítve" },
-  { key: "onertekeles", label: "Önértékelés", shortLabel: "Önért.", description: "Dolgozói Portál" },
-  { key: "vezetoi_ertekeles", label: "Vezetői értékelés", shortLabel: "Vez. ért.", description: "Vezetői visszajelzés" },
-  { key: "megbeszeles", label: "1-on-1 Megbeszélés", shortLabel: "Megbesz.", description: "Személyes egyeztetés" },
-  { key: "lezart", label: "Lezárva", shortLabel: "Lezárt", description: "Hitelesített lezárás" },
-] as const
-
-export type WorkflowPhase = typeof WORKFLOW_STEPS[number]["key"]
-
-export function getStepIndex(phase: string): number {
-  const idx = WORKFLOW_STEPS.findIndex(s => s.key === phase)
-  return idx >= 0 ? idx : 0
-}
+export * from "@/lib/kpi-helpers"
 
 export function KpiWorkflowStepper({ 
   currentPhase, 
@@ -90,21 +78,4 @@ export function KpiWorkflowStepper({
       </div>
     </div>
   )
-}
-
-/** Utility: derive the workflow phase from existing data if the DB field is missing */
-export function deriveWorkflowPhase(kpi: {
-  workflow_fazis?: string | null
-  onertekeles_szovege?: string | null
-  ertekeles_szovege?: string | null
-  ertekeles_lezarva_datum?: string | null
-  megbeszeles_datum?: string | null
-}): WorkflowPhase {
-  if (kpi.workflow_fazis) return kpi.workflow_fazis as WorkflowPhase
-  
-  if (kpi.ertekeles_lezarva_datum) return "lezart"
-  if (kpi.megbeszeles_datum) return "megbeszeles"
-  if (kpi.ertekeles_szovege) return "vezetoi_ertekeles"
-  if (kpi.onertekeles_szovege) return "onertekeles"
-  return "celkituzes"
 }

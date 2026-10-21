@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
-import { Settings, Plus, Play, Lock, FileEdit, Trash2, Calendar, CheckCircle2 } from "lucide-react"
+import { Plus, Play, Lock, Trash2 } from "lucide-react"
 import { addCycle, updateCycleStatus, deleteCycle } from "@/app/hr/performance/actions"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -85,16 +85,15 @@ export function ManageCyclesDialog({ cycles }: { cycles: PerformanceCycle[] }) {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "tervezes":
-        return <Badge variant="outline" className="bg-muted/50 text-muted-foreground">Tervezés alatt</Badge>
       case "nyitott":
       case "aktiv":
-        return <Badge variant="outline" className="bg-success/10 text-success border-success/30 font-medium">Aktív (Nyitott)</Badge>
       case "ertekeles":
-        return <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 font-medium">Értékelési szakasz</Badge>
+        return <Badge variant="outline" className="bg-success/10 text-success border-success/30 font-medium">Aktív</Badge>
       case "lezart":
       case "lezarva":
-        return <Badge variant="outline" className="bg-muted text-muted-foreground">Lezárt</Badge>
+        return <Badge variant="outline" className="bg-muted text-muted-foreground border-border font-medium">Lezárt</Badge>
+      case "tervezes":
+        return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-medium">Tervezés alatt</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
     }
@@ -102,15 +101,13 @@ export function ManageCyclesDialog({ cycles }: { cycles: PerformanceCycle[] }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" className="gap-2" />}>
-        <Settings className="w-4 h-4" />
+      <DialogTrigger render={<Button variant="outline" />}>
         Ciklusok kezelése
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between pr-6">
-            <DialogTitle className="flex items-center gap-2 text-xl font-semibold">
-              <Calendar className="w-5 h-5 text-primary" />
+            <DialogTitle className="text-xl font-semibold">
               Értékelési Ciklusok Menedzsmentje
             </DialogTitle>
             <Button
@@ -134,7 +131,7 @@ export function ManageCyclesDialog({ cycles }: { cycles: PerformanceCycle[] }) {
                 <h3 className="font-semibold text-sm flex items-center gap-2">
                   <Plus className="w-4 h-4 text-primary" /> Új Értékelési Ciklus Rögzítése
                 </h3>
-                <span className="text-xs text-muted-foreground">Létrehozáskor Tervezés állapotba kerül</span>
+                <span className="text-xs text-muted-foreground">Létrehozáskor azonnal aktívvá válik</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1.5 sm:col-span-1">
@@ -181,18 +178,14 @@ export function ManageCyclesDialog({ cycles }: { cycles: PerformanceCycle[] }) {
                   </TableRow>
                 ) : (
                   cycles?.map((cycle) => {
-                    const isNyitott = cycle.statusz === "nyitott" || cycle.statusz === "aktiv"
+                    const isLezart = cycle.statusz === "lezart" || cycle.statusz === "lezarva"
+                    const isTervezes = cycle.statusz === "tervezes"
+                    const isAktiv = !isLezart && !isTervezes
+
                     return (
                       <TableRow key={cycle.id} className="hover:bg-muted/30">
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm">{cycle.megnevezes}</span>
-                            {isNyitott && (
-                              <Badge className="bg-primary/10 text-primary border-0 text-[10px] uppercase font-medium">
-                                Aktív
-                              </Badge>
-                            )}
-                          </div>
+                          <span className="font-semibold text-sm text-foreground">{cycle.megnevezes}</span>
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm tabular-nums">
                           {cycle.kezdo_datum} – {cycle.befejezo_datum}
@@ -200,40 +193,35 @@ export function ManageCyclesDialog({ cycles }: { cycles: PerformanceCycle[] }) {
                         <TableCell>{getStatusBadge(cycle.statusz)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {cycle.statusz === "tervezes" && (
+                            {isTervezes && (
                               <Button 
                                 size="sm" 
                                 variant="outline" 
-                                className="h-8 text-xs gap-1.5 border-success/40 text-success hover:bg-success/10"
-                                onClick={() => handleStatusUpdate(cycle.id, "nyitott", "Nyitott")}
+                                className="h-8 text-xs gap-1.5 border-success/40 text-success hover:bg-success/10 cursor-pointer"
+                                onClick={() => handleStatusUpdate(cycle.id, "nyitott", "Aktív")}
                               >
                                 <Play className="w-3.5 h-3.5" /> Megnyitás
                               </Button>
                             )}
-                            {isNyitott && (
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                className="h-8 text-xs gap-1.5 border-warning/40 text-warning hover:bg-warning/10"
-                                onClick={() => handleStatusUpdate(cycle.id, "ertekeles", "Értékelés")}
-                              >
-                                <FileEdit className="w-3.5 h-3.5" /> Értékelés Indítása
-                              </Button>
-                            )}
-                            {cycle.statusz === "ertekeles" && (
+                            {isAktiv && (
                               <Button 
                                 size="sm" 
                                 variant="outline" 
-                                className="h-8 text-xs gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
+                                className="h-8 text-xs gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 cursor-pointer"
                                 onClick={() => handleStatusUpdate(cycle.id, "lezart", "Lezárt")}
                               >
-                                <Lock className="w-3.5 h-3.5" /> Ciklus Lezárása
+                                <Lock className="w-3.5 h-3.5" /> Ciklus lezárása
                               </Button>
                             )}
-                            {cycle.statusz === "lezart" && (
-                              <Badge variant="outline" className="text-xs text-muted-foreground border-muted">
-                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Véglegesítve
-                              </Badge>
+                            {isLezart && (
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="h-8 text-xs gap-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                                onClick={() => handleStatusUpdate(cycle.id, "nyitott", "Aktív")}
+                              >
+                                <Play className="w-3.5 h-3.5" /> Újranyitás
+                              </Button>
                             )}
 
                             {/* Törlés modál */}

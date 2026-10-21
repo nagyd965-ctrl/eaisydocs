@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { EmployeeKpiCard } from "@/components/hr/employee-kpi-card"
 import { KpiCard } from "@/components/kpi-card"
+import { deriveWorkflowPhase } from "@/lib/kpi-helpers"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Calendar } from "lucide-react"
@@ -55,15 +56,16 @@ export default async function SelfServiceGoalsPage() {
   const totalGoals = kpis.length
   const totalWeight = kpis.reduce((acc: number, curr: any) => acc + (Number(curr.sulyozas) || 1), 0)
 
+  // Önértékelésre vár: ahol még a dolgozónak kell kitöltenie az űrlapot
   const pendingSelfEvalCount = kpis.filter((k: any) => {
-    const phase = k.workflow_fazis || (k.ertekeles_lezarva_datum ? "lezart" : k.ertekeles_szovege ? "vezetoi_ertekeles" : k.onertekeles_szovege ? "onertekeles" : "celkituzes")
-    return !k.onertekeles_szovege && phase === "celkituzes"
+    const phase = deriveWorkflowPhase(k)
+    return phase === "celkituzes" || (phase === "onertekeles" && !k.onertekeles_szovege)
   }).length
 
-  const allClosed = totalGoals > 0 && kpis.every((k: any) => {
-    const phase = k.workflow_fazis || (k.ertekeles_lezarva_datum ? "lezart" : "celkituzes")
-    return phase === "lezart"
-  })
+  // Lezárt célok száma
+  const closedCount = kpis.filter((k: any) => {
+    return deriveWorkflowPhase(k) === "lezart"
+  }).length
 
   return (
     <div className="space-y-6 pb-12 w-full">
@@ -92,7 +94,7 @@ export default async function SelfServiceGoalsPage() {
         </div>
       </div>
 
-      {/* Kanonikus Linear-flat KPI sáv (ADR A-029) - 100% folyamatorientált, %-mentes */}
+      {/* Kanonikus Linear-flat KPI sáv (ADR A-029) - Valós összesített mutatók */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Aktív Értékelési Ciklus"
@@ -105,22 +107,18 @@ export default async function SelfServiceGoalsPage() {
           sub={totalGoals > 0 ? `Összesített súlyozás: ${totalWeight.toFixed(1)}x` : "Nincs még rögzített cél"}
         />
         <KpiCard
-          label="Folyamat Állapota"
-          value={
-            allClosed 
-              ? "5. Minden cél lezárva" 
-              : pendingSelfEvalCount > 0 
-                ? "2. Önértékelésre vár" 
-                : totalGoals > 0 
-                  ? "3. Vezetői értékelés alatt" 
-                  : "Nincs kitűzött cél"
-          }
-          sub="Az 5 lépéses folyamat szerint"
+          label="Önértékelési Teendő"
+          value={pendingSelfEvalCount > 0 ? `${pendingSelfEvalCount} kitöltendő` : "Minden leadva"}
+          sub={pendingSelfEvalCount > 0 ? "Önértékelésedre vár a vezetőd" : "Nincs elmaradt önértékelésed"}
         />
         <KpiCard
-          label="Önértékelés Teendő"
-          value={pendingSelfEvalCount > 0 ? `${pendingSelfEvalCount} kitöltendő` : "Minden leadva"}
-          sub={pendingSelfEvalCount > 0 ? "Önértékelésedre vár a vezetőd" : "Vezetői értékelésre / megbeszélésre vár"}
+          label="Lezárt Célkitűzések"
+          value={`${closedCount} / ${totalGoals} lezárva`}
+          sub={
+            closedCount === totalGoals && totalGoals > 0
+              ? "Minden cél sikeresen lezárult"
+              : `${totalGoals - closedCount} db cél folyamatban van`
+          }
         />
       </div>
 
