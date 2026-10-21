@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,7 @@ export function AttendanceCorrectionDialog({
   trigger,
   onSuccess,
 }: AttendanceCorrectionDialogProps) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -97,6 +99,7 @@ export function AttendanceCorrectionDialog({
       setOpen(false)
       setReason("")
       if (onSuccess) onSuccess()
+      router.refresh()
     }
   }
 

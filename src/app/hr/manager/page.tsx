@@ -1,14 +1,8 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Clock, Users, CalendarX } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/utils/supabase/server"
-import { TeamCalendar } from "@/components/hr/team-calendar"
-import { redirect } from "next/navigation"
-import Link from "next/link"
 import { SubstituteAlertBanner } from "@/components/hr/substitute-alert-banner"
-import { UnifiedApprovalsPanel, type UnifiedApprovalItem } from "@/components/hr/unified-approvals-panel"
-
+import { ManagerTeamTabs, type ManagerTeamMember, type DailyAttendanceStatus } from "@/components/hr/manager-team-tabs"
+import { type UnifiedApprovalItem } from "@/components/hr/unified-approvals-panel"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 import { Shield } from "lucide-react"
 
@@ -51,60 +45,64 @@ export default async function ManagerPage() {
     .map((p: any) => p.id)
     .filter((id: string) => !activeCompanyId || companyUserSet.has(id))
 
-  // 2. Jóváhagyásra váró távolléti kérelmek (direkt szignált VAGY beosztott kérelme, az aktív cégnél)
-  let pendingLeavesQuery = supabase
+  // 2. Távolléti kérelmek (elbírálásra váró, jóváhagyott, elutasított - direkt szignált VAGY beosztott kérelme, az aktív cégnél)
+  let leavesQuery = supabase
     .from("hr_tavollet")
     .select("*, hr_dolgozo_adatlap(felhasznalo_profil(nev))")
-    .eq("statusz", "jovahagyasra_var")
+    .in("statusz", ["jovahagyasra_var", "jovahagyva", "elutasitva"])
     .order("created_at", { ascending: false })
+    .limit(150)
 
   if (activeCompanyId) {
-    pendingLeavesQuery = pendingLeavesQuery.eq("company_id", activeCompanyId)
+    leavesQuery = leavesQuery.eq("company_id", activeCompanyId)
   }
 
-  const { data: pendingLeaves } = teamMemberIds.length > 0
-    ? await pendingLeavesQuery.or(
+  const { data: leaves } = teamMemberIds.length > 0
+    ? await leavesQuery.or(
         `aktualis_jovahagyo_id.eq.${user.id},dolgozo_id.in.(${teamMemberIds.join(",")})`
       )
-    : await pendingLeavesQuery.eq("aktualis_jovahagyo_id", user.id)
+    : await leavesQuery.eq("aktualis_jovahagyo_id", user.id)
 
-  // 3. Jóváhagyásra váró munkaidő korrekciók (vezető jóváhagyása vagy beosztott kérelme, az aktív cégnél)
-  let pendingCorrectionsQuery = supabase
+  // 3. Munkaidő korrekciók (vezető jóváhagyása vagy beosztott kérelme, az aktív cégnél)
+  let correctionsQuery = supabase
     .from("hr_jelenlet_korrekcio")
     .select("*, felhasznalo_profil:dolgozo_id(nev)")
-    .eq("statusz", "jovahagyasra_var")
+    .in("statusz", ["jovahagyasra_var", "jovahagyva", "elutasitva"])
     .order("created_at", { ascending: false })
+    .limit(150)
 
   if (activeCompanyId) {
-    pendingCorrectionsQuery = pendingCorrectionsQuery.eq("company_id", activeCompanyId)
+    correctionsQuery = correctionsQuery.eq("company_id", activeCompanyId)
   }
 
-  const { data: pendingCorrections } = teamMemberIds.length > 0
-    ? await pendingCorrectionsQuery.or(
+  const { data: corrections } = teamMemberIds.length > 0
+    ? await correctionsQuery.or(
         `jovahagyo_id.eq.${user.id},dolgozo_id.in.(${teamMemberIds.join(",")})`
       )
-    : await pendingCorrectionsQuery.eq("jovahagyo_id", user.id)
+    : await correctionsQuery.eq("jovahagyo_id", user.id)
 
-  // 4. Jóváhagyásra váró túlóra kérelmek
-  let pendingOvertimesQuery = supabase
+  // 4. Túlóra kérelmek
+  let overtimesQuery = supabase
     .from("hr_tulora_felhasznalás")
     .select("*, felhasznalo_profil:dolgozo_id(nev)")
-    .eq("statusz", "jovahagyasra_var")
+    .in("statusz", ["jovahagyasra_var", "jovahagyva", "elutasitva"])
     .order("created_at", { ascending: false })
+    .limit(150)
 
   if (activeCompanyId) {
-    pendingOvertimesQuery = pendingOvertimesQuery.eq("company_id", activeCompanyId)
+    overtimesQuery = overtimesQuery.eq("company_id", activeCompanyId)
   }
 
-  const { data: pendingOvertimes } = teamMemberIds.length > 0
-    ? await pendingOvertimesQuery.in("dolgozo_id", teamMemberIds)
+  const { data: overtimes } = teamMemberIds.length > 0
+    ? await overtimesQuery.in("dolgozo_id", teamMemberIds)
     : { data: [] }
 
-  // 5. Egységes kérelmi lista összeállítása
+  // 5. Egységes kérelmi lista összeállítása (státuszokkal)
   const unifiedItems: UnifiedApprovalItem[] = [
-    ...(pendingLeaves || []).map((l: any) => ({
+    ...(leaves || []).map((l: any) => ({
       id: l.id,
       category: "tavollet" as const,
+      statusz: l.statusz || "jovahagyasra_var",
       dolgozoId: l.dolgozo_id,
       dolgozoNev: l.hr_dolgozo_adatlap?.felhasznalo_profil?.nev || "Ismeretlen",
       createdAt: l.created_at,
@@ -113,10 +111,12 @@ export default async function ManagerPage() {
       vegDatuma: l.veg_datuma,
       munkanapokSzama: l.munkanapok_szama,
       indoklas: l.indoklas,
+      elutasitasOka: l.elutasitas_oka || l.elutasitas_indoklas || null,
     })),
-    ...(pendingCorrections || []).map((c: any) => ({
+    ...(corrections || []).map((c: any) => ({
       id: c.id,
       category: "korrekcio" as const,
+      statusz: c.statusz || "jovahagyasra_var",
       dolgozoId: c.dolgozo_id,
       dolgozoNev: c.felhasznalo_profil?.nev || "Ismeretlen",
       createdAt: c.created_at,
@@ -126,20 +126,23 @@ export default async function ManagerPage() {
       ujBecsekkolas: c.uj_becsekkolas,
       ujKicsekkolas: c.uj_kicsekkolas,
       indoklas: c.indoklas,
+      elutasitasOka: c.elutasitas_oka || null,
     })),
-    ...(pendingOvertimes || []).map((o: any) => ({
+    ...(overtimes || []).map((o: any) => ({
       id: o.id,
       category: "tulora" as const,
+      statusz: o.statusz || "jovahagyasra_var",
       dolgozoId: o.dolgozo_id,
       dolgozoNev: o.felhasznalo_profil?.nev || "Ismeretlen",
       createdAt: o.created_at,
       tuloraTipus: o.tipus,
       tuloraPerc: o.perc,
       indoklas: o.megjegyzes,
+      elutasitasOka: o.elutasitas_oka || null,
     }))
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-  const totalPendingCount = unifiedItems.length
+  const totalPendingCount = unifiedItems.filter(i => (i.statusz || "jovahagyasra_var") === "jovahagyasra_var").length
 
   // 6. Mai távollétek a valós státuszhoz (aktív cégre szűrve)
   let todayLeavesQuery = supabase
@@ -180,7 +183,7 @@ export default async function ManagerPage() {
     .from("hr_jogviszony")
     .select(`
       dolgozo_id,
-      hr_dolgozo_adatlap!inner(id, felhasznalo_profil!inner(nev, kozvetlen_vezeto_id)),
+      hr_dolgozo_adatlap!inner(id, felhasznalo_profil!inner(nev, email, avatar_url, kozvetlen_vezeto_id)),
       hr_beosztas(hr_munkakor(megnevezes))
     `)
     .eq("hr_dolgozo_adatlap.felhasznalo_profil.kozvetlen_vezeto_id", user.id)
@@ -191,140 +194,128 @@ export default async function ManagerPage() {
 
   const { data: rawTeamMembers } = await rawTeamQuery
 
-  const teamMemberMap = new Map<string, any>()
+  const allTeamIds = Array.from(
+    new Set([
+      ...teamMemberIds,
+      ...((rawTeamMembers as any[]) || []).map((j: any) => j.dolgozo_id).filter(Boolean),
+    ])
+  )
+
+  // 8b. Mai jelenlét (becsekkolás / kicsekkolás) adatok lekérése a csapattagokhoz
+  let todayAttendances: any[] = []
+  if (allTeamIds.length > 0) {
+    const { data: attData } = await supabase
+      .from("hr_jelenlet")
+      .select("dolgozo_id, datum, becsekkolas_ideje, kicsekkolas_ideje")
+      .eq("datum", todayStr)
+      .in("dolgozo_id", allTeamIds)
+
+    todayAttendances = attData || []
+  }
+
+  const attendanceMap = new Map<string, { becsekkolas_ideje?: string | null; kicsekkolas_ideje?: string | null }>()
+  for (const att of todayAttendances) {
+    attendanceMap.set(att.dolgozo_id, {
+      becsekkolas_ideje: att.becsekkolas_ideje,
+      kicsekkolas_ideje: att.kicsekkolas_ideje,
+    })
+  }
+
+  const teamMemberMap = new Map<string, ManagerTeamMember & { felhasznalo_profil: any }>()
   for (const j of (rawTeamMembers as any[]) || []) {
     if (!j.dolgozo_id || teamMemberMap.has(j.dolgozo_id)) continue
+    const profil = j.hr_dolgozo_adatlap?.felhasznalo_profil
+    const nev = profil?.nev || "Ismeretlen"
+    const avatar_url = profil?.avatar_url || null
+    const email = profil?.email || undefined
+    const munkakor = j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beosztás"
+    const isAbsent = todayAbsentIds.has(j.dolgozo_id)
+    const hasPending = todayPendingIds.has(j.dolgozo_id)
+
+    const att = attendanceMap.get(j.dolgozo_id)
+    const isCheckedIn = !!(att?.becsekkolas_ideje && !att?.kicsekkolas_ideje)
+    const isCheckedOut = !!(att?.becsekkolas_ideje && att?.kicsekkolas_ideje)
+
+    let attendanceStatus: DailyAttendanceStatus = "nincs_becsekkolva"
+    if (isCheckedIn) {
+      attendanceStatus = "becsekkolva"
+    } else if (isCheckedOut) {
+      attendanceStatus = "kicsekkolt"
+    } else if (isAbsent) {
+      attendanceStatus = "tavol"
+    } else if (hasPending) {
+      attendanceStatus = "fuggoben"
+    } else {
+      attendanceStatus = "nincs_becsekkolva"
+    }
+
+    let checkInTime: string | null = null
+    if (att?.becsekkolas_ideje) {
+      try {
+        const d = new Date(att.becsekkolas_ideje)
+        checkInTime = d.toLocaleTimeString("hu-HU", { hour: "2-digit", minute: "2-digit" })
+      } catch {
+        // ignore
+      }
+    }
+
+    let checkOutTime: string | null = null
+    if (att?.kicsekkolas_ideje) {
+      try {
+        const d = new Date(att.kicsekkolas_ideje)
+        checkOutTime = d.toLocaleTimeString("hu-HU", { hour: "2-digit", minute: "2-digit" })
+      } catch {
+        // ignore
+      }
+    }
+
     teamMemberMap.set(j.dolgozo_id, {
       id: j.dolgozo_id,
-      felhasznalo_profil: j.hr_dolgozo_adatlap?.felhasznalo_profil,
-      munkakor: j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beosztás",
+      nev,
+      avatar_url,
+      email,
+      munkakor,
+      isAbsent,
+      hasPending,
+      attendanceStatus,
+      checkInTime,
+      checkOutTime,
+      felhasznalo_profil: profil,
     })
   }
   const teamMembers = Array.from(teamMemberMap.values())
-
-  const todayAbsentCount = teamMembers.filter(m => todayAbsentIds.has(m.id)).length
+  const todayAbsentCount = teamMembers.filter((m) => m.isAbsent).length
 
   return (
     <div key={activeCompanyId || "default"} className="space-y-6 pb-10">
 
-      {/* Fejléc */}
-      <div className="flex items-end justify-between">
+      {/* Tiszta, lényegretörő fejléc (felesleges KPI dobozok nélkül) */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Vezetői Nézet</h1>
-          <p className="text-muted-foreground mt-1">Csapat áttekintés és jóváhagyások.</p>
+          <p className="text-muted-foreground mt-1">
+            Csapat áttekintés, kérelmek elbírálása és jelenlét.
+          </p>
         </div>
 
-        {/* Kompakt stat-chipek */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-card text-sm">
-            <Users className="w-3.5 h-3.5 text-primary" />
-            <span className="font-medium tabular-nums">{teamMembers.length}</span>
-            <span className="text-muted-foreground">beosztott</span>
-          </div>
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm ${
-            totalPendingCount > 0
-              ? "border-warning/40 bg-warning-subtle"
-              : "bg-card"
-          }`}>
-            <Clock className={`w-3.5 h-3.5 ${totalPendingCount > 0 ? "text-warning" : "text-muted-foreground"}`} />
-            <span className={`font-medium tabular-nums ${totalPendingCount > 0 ? "text-warning" : ""}`}>
-              {totalPendingCount}
-            </span>
-            <span className="text-muted-foreground">függő kérelem</span>
-          </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-card text-sm">
-            <CalendarX className="w-3.5 h-3.5 text-info" />
-            <span className="font-medium tabular-nums">{todayAbsentCount}</span>
-            <span className="text-muted-foreground">ma távol</span>
-          </div>
-        </div>
+        {totalPendingCount > 0 && (
+          <Badge variant="outline" className="text-xs px-3 py-1.5 bg-warning/10 text-warning border-warning/30 font-medium self-start sm:self-auto">
+            {totalPendingCount} elbírálásra váró kérelem
+          </Badge>
+        )}
       </div>
 
       {/* Helyettesítési figyelmeztető banner */}
       <SubstituteAlertBanner managerId={user.id} pendingApprovalsCount={totalPendingCount} />
 
-      <div className="grid gap-6 md:grid-cols-3">
+      {/* Fókuszált, teljes szélességű fül-rendszer (KPI kártyák és nyomorgás nélkül) */}
+      <ManagerTeamTabs
+        unifiedItems={unifiedItems}
+        teamMembers={teamMembers}
+        allLeaves={allLeaves || []}
+        todayAbsentCount={todayAbsentCount}
+      />
 
-        {/* Bal oszlop: Egységes Jóváhagyási Hub + Csapatnaptár */}
-        <div className="md:col-span-2 space-y-6">
-
-          {/* Egységes Kérelmi Panel (Szabadság + Munkaidő Korrekció + Túlóra) */}
-          <UnifiedApprovalsPanel initialItems={unifiedItems} />
-
-          {/* Csapatnaptár */}
-          <TeamCalendar teamMembers={teamMembers || []} leaves={allLeaves || []} />
-        </div>
-
-        {/* Jobb oszlop: Csapatlista */}
-        <div>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold flex items-center justify-between">
-                <span>Közvetlen Beosztottak</span>
-                <span className="text-xs text-muted-foreground font-normal">
-                  {teamMembers.length} fő
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {teamMembers.length > 0 ? (
-                <div className="divide-y divide-border">
-                  {teamMembers.map(member => {
-                    const nev = (member.felhasznalo_profil as any)?.nev || "Ismeretlen"
-                    const initials = nev.split(" ").map((w: string) => w[0]).join("").substring(0, 2).toUpperCase()
-                    const isAbsent = todayAbsentIds.has(member.id)
-                    const hasPending = todayPendingIds.has(member.id)
-
-                    return (
-                      <div key={member.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                        <Avatar className="h-8 w-8 shrink-0">
-                          <AvatarFallback className={`text-xs font-semibold ${
-                            isAbsent
-                              ? "bg-destructive/10 text-destructive"
-                              : "bg-muted text-muted-foreground"
-                          }`}>
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium leading-none truncate">{nev}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{member.munkakor}</p>
-                        </div>
-                        {isAbsent ? (
-                          <span className="px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-[10px] font-semibold shrink-0">
-                            Távol
-                          </span>
-                        ) : hasPending ? (
-                          <span className="px-2 py-0.5 rounded-full bg-warning-subtle text-warning text-[10px] font-semibold shrink-0">
-                            Függőben
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-success-subtle text-success text-[10px] font-semibold shrink-0">
-                            Irodában
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  Nincs megjeleníthető beosztott.
-                </p>
-              )}
-
-              <div className="mt-4 pt-3 border-t border-border">
-                <Link href="/hr/admin">
-                  <Button variant="outline" className="w-full text-xs h-8">
-                    Minden beosztott megtekintése
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-      </div>
     </div>
   )
 }

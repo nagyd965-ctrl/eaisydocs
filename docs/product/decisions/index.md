@@ -111,11 +111,13 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-101](./P-101-searchable-dossier-selector-inbox-filing.md) | 2026-10-21 | Kereshető Ügyirat-Kiválasztó és Intelligens Csatolás Felhasználói Élmény (UX) | `[Docs]` | `Inbox / Filing Split-View & Dossier Picker UX` | [A-077](../../architecture/decisions/A-077-searchable-dossier-selector-inbox-filing.md), `dossier-search-selector.tsx`, `filing-panel-client.tsx`, `inbox/[id]/page.tsx` |
 | [P-102](./P-102-performance-management-module-overhaul-and-kpi-catalogue-ux.md) | 2026-10-21 | Teljesítményértékelés Modul Megújítása és Vállalati Sablontár UX | `[HR]` | `HR / Performance Management & KPI Catalogue UX` | [A-078](../../architecture/decisions/A-078-performance-management-module-overhaul-and-kpi-catalogue.md), `performance/page.tsx`, `performance-list.tsx`, `add-kpi-dialog.tsx`, `manage-cycles-dialog.tsx`, `performance/dashboard/page.tsx` |
 | [P-103](./P-103-human-centric-performance-workflow-and-goals-self-service-ux.md) | 2026-10-21 | 5-Lépéses Teljesítményértékelési Munkaterület és Dolgozói Célkezelő UX | `[HR]` | `HR / Performance Workflow & Employee Goals Self-Service UX` | [A-079](../../architecture/decisions/A-079-human-centric-performance-workflow-and-simplification.md), `kpi-workflow-stepper.tsx`, `performance-list.tsx`, `employee-kpi-card.tsx`, `self-service/goals/page.tsx`, `add-kpi-dialog.tsx` |
+| [P-104](./P-104-manager-workspace-revamp-and-comprehensive-self-service-requests-ux.md) | 2026-10-21 | eaisyHR Vezetői Csapatkezelő Lapok és Önkiszolgáló Kérelmi Előzmények UX Megújítása | `[HR]` | `HR / Manager Team Workspace & Self-Service Requests UX` | [A-080](../../architecture/decisions/A-080-manager-workspace-revamp-and-comprehensive-self-service-requests-architecture.md), `hr/manager/page.tsx`, `manager-team-tabs.tsx`, `hr/self-service/time/page.tsx`, `leave-history-list.tsx`, `attendance-correction-dialog.tsx` |
+| [P-105](./P-105-unified-approval-status-tabs-and-in-place-pdf-actions.md) | 2026-10-21 | Egységes Kérelemkezelési Státusz Fülválasztó és In-Place PDF Műveletek | `[HR]` | `HR / Approvals & Self-Service PDF Actions UX` | [A-081](../../architecture/decisions/A-081-attendance-correction-pdf-generation-and-manager-clearance.md), `unified-approvals-panel.tsx`, `leave-history-list.tsx`, `attendance-correction-pdf/route.ts`, `leave-pdf/route.ts` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-104`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-106`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

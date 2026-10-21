@@ -4,6 +4,20 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-21)
 
+### ⏱️ eaisyHR: Saját Kérelmek Egységesítése a Jelenlét és Szabadság Oldalon
+- **Teljes körű Saját Kérelmek Lista (`src/app/hr/self-service/time/page.tsx` & `src/components/hr/leave-history-list.tsx`):**
+  - Korábban a „Saját kérelmeim” kártyán kizárólag a szabadságkérelmek (`hr_tavollet`) kerültek lekérdezésre, így az időkorrekciós kérelmek (`hr_jelenlet_korrekcio`) és a túlóra felhasználási igények (`hr_tulora_felhasznalás`) nem jelentek meg a listában.
+  - A szerveroldali lekérdezés kiegészült a felhasználó saját `hr_jelenlet_korrekcio` és `hr_tulora_felhasznalás` rekordjaival.
+  - A `LeaveHistoryList` egységesített struktúrában, időrendben (legújabb elöl) jeleníti meg az összes kérelmet:
+    - **Szabadság / Távollét:** Típus (pl. `SZABADSÁG`), dátumtartomány, munkanapok száma, jóváhagyott esetben igazolás megtekintése/letöltése.
+    - **Munkaidő korrekció:** `MUNKAIDŐ KORREKCIÓ` felirat és `IDŐKORREKCIÓ` jelvény, érintett dátum, kért idősáv (valamint az eredeti idő, ha volt korábban csekkolás), megadott indoklás és esetleges elutasítási indoklás.
+    - **Túlóra igény:** Típus (`Csúsztatás` vagy `Kifizetés`), időtartam órában/percben, indoklás.
+  - **Zero-Emoji és No-Decorative-Icons szabályzat teljesítése:** Megszűnt a felesleges kerekített dekoratív ikondoboz (`rounded-full bg-primary/10`), a megjelenítés letisztult, tipográfiailag strukturált Linear-flat stílust követ.
+  - **Státusz fülválasztó a Saját Kérelmeknél (`src/components/hr/leave-history-list.tsx`):**
+    - A vezetői felülethez hasonlóan a dolgozói oldalon is beépítésre került a szegmentált státusz szűrő: **`Összes`**, **`Folyamatban`**, **`Jóváhagyott`** és **`Elutasított`** állapotgombok dinamikus számláló jelvényekkel.
+    - Ha egy adott státuszban nincsenek elemek, tiszta és informatív szöveges állapotüzenet tájékoztatja a felhasználót az üresség okáról.
+  - **Azonnali szinkronizáció (`src/components/hr/attendance-correction-dialog.tsx`):** Időkorrekciós kérelem beküldésekor a felület a `router.refresh()` segítségével azonnal frissíti a szerveroldali adatokat és a Saját kérelmeim listát.
+
 ### 🎯 eaisyHR: Dolgozói Célkitűzések Lista Nézet és Összesített KPI Sáv Refaktorálás (A-080 / P-104)
 - **Kanonikus Lista Nézet és In-Place Kibontás (`src/components/hr/employee-kpi-card.tsx`):**
   - Megszűnt a vízszintes tab/pill gombos célkiválasztó, amely rossz élményt nyújtott több cél esetén.
@@ -28,6 +42,36 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
     2. **Valódi szűrési/keresési feltétel miatti üresség:** Csak akkor jelenik meg a „Nincs találat a megadott szűrésre” és a „Szűrők törlése” gomb, ha a felhasználó ténylegesen gépelt a keresőbe vagy bepipált egy szűrőt.
     3. **Lezárt fül üressége:** „Még nincsenek lezárt célkitűzések” + közvetlen gomb az „Ugrás az aktuális célkitűzésekhez”.
     4. **Aktuális fül üressége (minden lezárva):** „Nincsenek folyamatban lévő célkitűzések” + gomb a „Lezárt célkitűzések megtekintése” nézetre.
+- **Vezetői Nézet (Csapat áttekintés) Teljes Refaktorálása és KPI-mentesítése (`src/app/hr/manager/page.tsx`, `manager-team-tabs.tsx`):**
+  - Megszűnt az aszimmetrikus, zsúfolt 2-hasábos rács (`2/3` bal oszlop kérelmekkel és naptárral, `1/3` jobb oszlop beosztottakkal és üres fehér térrel).
+  - Törlésre kerültek a felesleges, helypazarló statisztikai chipek a fejlécből; helyette tiszta, azonnal átlátható fejléc és diszkrét függő kérelem számláló jelvény került kialakításra.
+  - Új, kanonikus **`ManagerTeamTabs`** komponens bevezetése 3 teljes képernyőszélességű, fókuszált munkaterülettel:
+    1. **`Jóváhagyások`:** Teljes szélességű kérelmi kezelőfelület (szabadság, munkaidő korrekció, túlóra), kényelmes jóváhagyási és elutasítási gombokkal, dekoratív ikonoktól mentes, tiszta szöveges üres állapottal.
+    2. **`Csapatnaptár`:** A korábbi összenyomott állapot helyett teljes képernyőszélességet kapott, így a havi/heti nézet cellái tágasak, jól olvashatók.
+    3. **`Közvetlen beosztottak`:** Letisztult lista és kártyás csapatnézet azonnali keresővel, kanonikus `TableToolbar`-ral, jelenléti státusz szűrővel és közvetlen elérhetőséggel.
+  - **Valós idejű `hr_jelenlet` becsekkolás integráció:**
+    - Megszűnt a korábbi mesterséges „Irodában” feltételezés. A rendszer a `hr_jelenlet` táblát ellenőrzi a mai napra:
+    - Ha a munkatárs ma becsekkolt (és még nem csekkolt ki), a státusza dinamikusan **`Becsekkolva`** (zöld jelvénnyel és az időponttal: pl. `Becsekkolva (08:42)`).
+    - Ha még nem csekkolt be, diszkrét semleges **`Nincs becsekkolva`** felirat jelenik meg.
+    - Ha kicsekkolt, **`Kicsekkolt`** állapotot lát a vezető.
+    - Jóváhagyott szabadság esetén **`Távol`**, függő kérelem esetén **`Függő kérelem`** jelenik meg.
+  - **Dolgozói Szintű Csoportosítás és Keresés a Kérelmeknél (`src/components/hr/unified-approvals-panel.tsx`):**
+    - Megszűnt az ömlesztett, időrendi lista, amelyben a különböző munkatársak kérelmei összekeveredve jelentek meg.
+    - Helyette a kérelmek **dolgozói szinten csoportosítva** jelennek meg: minden kolléga egy dedikált dobozt kap fejléccel (Avatar, név, kérelmek darabszáma), és az ő kérelmei szépen, strukturáltan egymás alatt sorakoznak.
+    - **Azonnali dolgozói kereső:** Új magas kontrasztú keresőmező (`Search`), amellyel a vezető azonnal rászűrhet egy adott kolléga (pl. Kelemen Roberta vagy HR vezető) kérelmeire.
+    - **Tömeges jóváhagyás dolgozónként:** Ha egy munkatársnak több függő kérelme is van, a fejlécben megjelenik az `Összes jóváhagyása (db)` gyorsgomb, miközben az egyedi elbírálás lehetősége is megmarad.
+    - **Átfogó Státusz Fülválasztó (Elbírálásra váró / Jóváhagyott / Elutasított):**
+      - A felhasználói igény alapján a vezető nemcsak a függőben lévő kérelmeket, hanem a korábbi döntések előzményeit is áttekintheti.
+      - A `UnifiedApprovalsPanel` fejlett belső szegmentált fülválasztót kapott (`Elbírálásra váró [X]`, `Jóváhagyott [Y]`, `Elutasított [Z]`), dinamikus számláló jelvényekkel.
+      - A szerveroldali lekérdezések (`src/app/hr/manager/page.tsx`) kibővültek mindhárom státusz (`jovahagyasra_var`, `jovahagyva`, `elutasitva`) betöltésére, miközben a fejléc számlálója pontosan a függő teendőket jelzi.
+      - Az elbírálásra váró fülön a funkcionális `Elutasít` és `Jóváhagy` akciógombok jelennek meg; a jóváhagyott kérelmeknél zöld `Jóváhagyva` jelvény, az elutasítottaknál piros `Elutasítva` jelvény és az elutasítás rögzített indoklása látható.
+      - Jóváhagyás vagy elutasítás esetén a tétel állapota helyben frissül, így azonnal átkerül a megfelelő fül alá és visszakereshető marad.
+    - **Jóváhagyott Kérelmek Megtekintése és Letöltése (PDF Generálás & In-Place Megtekintő):**
+      - **Új Munkaidő Korrekciós PDF Végpont (`src/app/api/hr/attendance-correction-pdf/route.ts`):** A szabadságokhoz hasonlóan mostantól a jóváhagyott jelenléti/munkaidő korrekciós kérelmekhez is hivatalos, A4 formátumú, professzionális PDF igazolás készül (dolgozó adatai, érintett nap, eredeti és kért idősáv, indoklás, jóváhagyó vezető neve, dátum és digitális aláírási blokkok).
+      - **Jogosultság kiterjesztés a vezetők számára (`src/app/api/hr/leave-pdf/route.ts` & `attendance-correction-pdf`):** A saját jog és a HR/Admin szerepkör mellett a közvetlen vezetők (`kozvetlen_vezeto_id` vagy `jovahagyo_id`) is jogosultak a jóváhagyott igazolások letöltésére és megtekintésére.
+      - **Megtekintés és Letöltés a Saját Kérelmekben (`src/components/hr/leave-history-list.tsx`):** A dolgozó a „Jelenlét és szabadság” lapon a jóváhagyott szabadságai mellett mostantól a jóváhagyott munkaidő korrekcióit is azonnal megtekintheti beépített modálban (`PdfViewerDialog`), illetve egyetlen kattintással letöltheti PDF-ként.
+      - **Megtekintés és Letöltés a Vezetői Nézetben (`src/components/hr/unified-approvals-panel.tsx`):** A vezető a „Jóváhagyott” fül alatt a beosztottak szabadságaihoz és munkaidő korrekcióihoz is közvetlenül eléri a `Megtekintés` (`Eye`) és `Letöltés` (`Download`) műveleteket.
+  - Intelligens alapértelmezés: ha van elbírálásra váró kérelem, a nézet automatikusan a `Jóváhagyások` füllel nyílik meg a gyors elintézés érdekében, egyébként közvetlenül a `Csapatnaptár` jelenik meg.
 - **Rendszerszintű Zero-Emoji és No-Decorative-Icons Szabály Rögzítése (`.agents/AGENTS.md` & `AGENTS.md`):**
   - Eltávolításra került az üres állapot kártyák felesleges kör alakú dekoratív célkereszt ikonbuborékja (`performance-list.tsx`, `employee-kpi-card.tsx`).
   - Eltávolításra kerültek az indokolatlan ikonok a felső gombokról: „Riportok” (`BarChart3` ikon törölve) és „Ciklusok kezelése” (`Settings` ikon törölve).

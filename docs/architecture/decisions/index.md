@@ -92,11 +92,13 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-077](./A-077-searchable-dossier-selector-inbox-filing.md) | 2026-10-21 | Kereshető Ügyirat-Kiválasztó és Intelligens Iktatási Csatolás Architektúra | `[Docs]` | `Decided` | [P-101](../../product/decisions/P-101-searchable-dossier-selector-inbox-filing.md), `dossier-search-selector.tsx`, `filing-panel-client.tsx`, `inbox/[id]/page.tsx` |
 | [A-078](./A-078-performance-management-module-overhaul-and-kpi-catalogue.md) | 2026-10-21 | Teljesítményértékelés Modul Modernizáció, Sablontár és Linear-Flat Architektúra | `[HR]` | `Decided` | [P-102](../../product/decisions/P-102-performance-management-module-overhaul-and-kpi-catalogue-ux.md), `performance/page.tsx`, `performance-list.tsx`, `add-kpi-dialog.tsx`, `manage-cycles-dialog.tsx`, `performance/dashboard/page.tsx` |
 | [A-079](./A-079-human-centric-performance-workflow-and-simplification.md) | 2026-10-21 | 5-Lépéses Emberközpontú Teljesítményértékelési Workflow és Százalékmentes Modell | `[HR]` | `Decided` | [P-103](../../product/decisions/P-103-human-centric-performance-workflow-and-goals-self-service-ux.md), `kpi-workflow-stepper.tsx`, `performance-list.tsx`, `employee-kpi-card.tsx`, `self-service/goals/page.tsx`, `add-kpi-dialog.tsx` |
+| [A-080](./A-080-manager-workspace-revamp-and-comprehensive-self-service-requests-architecture.md) | 2026-10-21 | eaisyHR Vezetői Munkaterület Újraszervezése és Teljes Körű Önkiszolgáló Kérelemkezelési Architektúra | `[HR]` | `Decided` | [P-104](../../product/decisions/P-104-manager-workspace-revamp-and-comprehensive-self-service-requests-ux.md), `hr/manager/page.tsx`, `manager-team-tabs.tsx`, `hr/self-service/time/page.tsx`, `leave-history-list.tsx`, `attendance-correction-dialog.tsx` |
+| [A-081](./A-081-attendance-correction-pdf-generation-and-manager-clearance.md) | 2026-10-21 | Munkaidő Korrekciós PDF Generálás és Vezetői Jogosultság Kiterjesztés az Igazolásokhoz | `[HR]` | `Decided` | [P-105](../../product/decisions/P-105-unified-approval-status-tabs-and-in-place-pdf-actions.md), `attendance-correction-pdf/route.ts`, `leave-pdf/route.ts`, `leave-history-list.tsx`, `unified-approvals-panel.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-080`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-082`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

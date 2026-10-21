@@ -98,7 +98,7 @@ export function TableToolbar({
           value={searchValue}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={searchPlaceholder}
-          className="pl-8 pr-8 bg-background border-input h-9 text-sm rounded-md transition-colors"
+          className="pl-8 pr-8 bg-background border-border shadow-2xs h-9 text-sm rounded-md transition-colors"
         />
         {searchValue && (
           <button

@@ -24,6 +24,20 @@ export default async function SelfServiceTimePage() {
     .eq("dolgozo_id", user.id)
     .order("created_at", { ascending: false })
 
+  // Munkaidő korrekciók lekérése
+  const { data: korrekciok } = await supabase
+    .from("hr_jelenlet_korrekcio")
+    .select("*")
+    .eq("dolgozo_id", user.id)
+    .order("created_at", { ascending: false })
+
+  // Túlóra elszámolási / felhasználási kérelmek lekérése
+  const { data: tulorak } = await supabase
+    .from("hr_tulora_felhasznalás")
+    .select("*")
+    .eq("dolgozo_id", user.id)
+    .order("created_at", { ascending: false })
+
   // Munkaszüneti napok lekérése a munkanapok pontos Mt. szerinti kalkulációjához
   const currentYear = new Date().getFullYear()
   const { data: holidaysData } = await supabase
@@ -137,7 +151,12 @@ export default async function SelfServiceTimePage() {
       <EmployeeTimesheet employeeId={user.id} />
 
       {/* Saját Kérelmeim */}
-      <LeaveHistoryList leaves={tavolletek || []} holidays={holidays} />
+      <LeaveHistoryList
+        leaves={tavolletek || []}
+        corrections={korrekciok || []}
+        overtimes={tulorak || []}
+        holidays={holidays}
+      />
 
       {/* Helyettesítés – csak vezető/admin szerepkörnek */}
       {isManagerOrAdmin && (

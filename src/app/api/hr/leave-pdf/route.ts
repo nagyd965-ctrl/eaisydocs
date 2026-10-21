@@ -56,10 +56,25 @@ export async function GET(request: NextRequest) {
     .single()
 
   const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin"].includes(profile?.hr_szerepkor || "")
-  // dolgozo_id az hr_dolgozo_adatlap.id-re mutat, ami = felhasznalo_profil.id
   const isOwn = tavollet.dolgozo_id === user.id
 
+  let isManager = false
   if (!isOwn && !isHrOrAdmin) {
+    if (tavollet.jovahagyo_id === user.id) {
+      isManager = true
+    } else {
+      const { data: sub } = await supabase
+        .from("felhasznalo_profil")
+        .select("kozvetlen_vezeto_id")
+        .eq("id", tavollet.dolgozo_id)
+        .single()
+      if (sub?.kozvetlen_vezeto_id === user.id) {
+        isManager = true
+      }
+    }
+  }
+
+  if (!isOwn && !isHrOrAdmin && !isManager) {
     return new NextResponse("Nincs jogosultságod", { status: 403 })
   }
 
