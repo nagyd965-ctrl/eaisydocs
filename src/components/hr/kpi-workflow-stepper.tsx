@@ -41,7 +41,7 @@ export function KpiWorkflowStepper({
               {idx < WORKFLOW_STEPS.length - 1 && (
                 <div
                   className={cn(
-                    "absolute top-3.5 left-1/2 w-full h-0.5 -z-0 transition-colors",
+                    "absolute top-3.5 left-1/2 w-full h-0.5 z-0 transition-colors",
                     idx < currentIdx ? "bg-primary" : "bg-muted"
                   )}
                 />

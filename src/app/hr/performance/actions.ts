@@ -151,6 +151,7 @@ export async function updateKpiProgress(kpiId: string, newValue: number) {
 
   revalidatePath("/hr/performance")
   revalidatePath("/hr/self-service")
+  revalidatePath("/hr/self-service/goals")
   return { success: true }
 }
 
@@ -196,6 +197,7 @@ export async function deleteKpi(kpiId: string) {
 
   revalidatePath("/hr/performance")
   revalidatePath("/hr/self-service")
+  revalidatePath("/hr/self-service/goals")
   return { success: true }
 }
 
@@ -365,6 +367,7 @@ export async function addKpiSelfEvaluation(kpiId: string, ertekelesSzovege: stri
 
   revalidatePath("/hr/performance")
   revalidatePath("/hr/self-service")
+  revalidatePath("/hr/self-service/goals")
   return { success: true }
 }
 
@@ -403,6 +406,7 @@ export async function addKpiManagerEvaluation(kpiId: string, ertekelesSzovege: s
 
   revalidatePath("/hr/performance")
   revalidatePath("/hr/self-service")
+  revalidatePath("/hr/self-service/goals")
   return { success: true }
 }
 
@@ -451,6 +455,7 @@ export async function confirmMeeting(kpiId: string, megjegyzes?: string) {
 
   revalidatePath("/hr/performance")
   revalidatePath("/hr/self-service")
+  revalidatePath("/hr/self-service/goals")
   return { success: true }
 }
 
@@ -498,6 +503,7 @@ export async function finalCloseKpi(kpiId: string) {
 
   revalidatePath("/hr/performance")
   revalidatePath("/hr/self-service")
+  revalidatePath("/hr/self-service/goals")
   return { success: true }
 }
 
@@ -587,5 +593,6 @@ export async function addKpiActivity(kpiId: string, megjegyzes: string) {
 
   revalidatePath("/hr/performance")
   revalidatePath("/hr/self-service")
+  revalidatePath("/hr/self-service/goals")
   return { success: true }
 }
