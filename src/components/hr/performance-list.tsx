@@ -436,33 +436,31 @@ export function PerformanceList({
                         </div>
 
                         {/* Részletes Munkaterület (Expanded State) - Egységesített, tiszta 5-lépéses folyamat */}
-                        <AccordionContent className="p-0 border-t bg-muted/5">
-                          <div className="p-4 sm:p-6 space-y-4">
-
-                            {/* 1. FELSŐ FOLYAMATSÁV (Linear Stepper az 5 mérföldkővel) */}
-                            <div className="p-4 sm:p-5 rounded-xl border bg-card shadow-2xs space-y-2">
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b">
-                                <div className="flex items-center gap-2">
-                                  <Workflow className="w-4 h-4 text-primary" />
-                                  <span className="text-xs font-semibold uppercase tracking-wider text-foreground">
-                                    Értékelési Folyamat Lépései
-                                  </span>
-                                </div>
-                                <span className="text-xs text-muted-foreground font-medium">
-                                  {phase === "celkituzes" && "1 / 5 Lépés: Célkitűzés rögzítve — Várakozás a dolgozói önértékelésre"}
-                                  {phase === "onertekeles" && "2 / 5 Lépés: Dolgozói önértékelés leadva — Vezetői értékelés szükséges"}
-                                  {phase === "vezetoi_ertekeles" && "3 / 5 Lépés: Vezetői értékelés rögzítve — 1-on-1 megbeszélés következik"}
-                                  {phase === "megbeszeles" && "4 / 5 Lépés: 1-on-1 megbeszélés megtörtént — Cél lezárásra kész"}
-                                  {phase === "lezart" && "5 / 5 Lépés: Célkitűzés lezárva és hitelesítve"}
+                        <AccordionContent className="p-0 border-t bg-card divide-y divide-border/60">
+                          {/* 1. FELSŐ FOLYAMATSÁV (Linear Stepper az 5 mérföldkővel) */}
+                          <div className="p-4 sm:p-6 bg-muted/10 space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/40">
+                              <div className="flex items-center gap-2">
+                                <Workflow className="w-4 h-4 text-primary" />
+                                <span className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                                  Értékelési Folyamat Lépései
                                 </span>
                               </div>
-                              <div className="pt-2 pb-1">
-                                <KpiWorkflowStepper currentPhase={phase} />
-                              </div>
+                              <span className="text-xs text-muted-foreground font-medium">
+                                {phase === "celkituzes" && "1 / 5 Lépés: Célkitűzés rögzítve — Várakozás a dolgozói önértékelésre"}
+                                {phase === "onertekeles" && "2 / 5 Lépés: Dolgozói önértékelés leadva — Vezetői értékelés szükséges"}
+                                {phase === "vezetoi_ertekeles" && "3 / 5 Lépés: Vezetői értékelés rögzítve — 1-on-1 megbeszélés következik"}
+                                {phase === "megbeszeles" && "4 / 5 Lépés: 1-on-1 megbeszélés megtörtént — Cél lezárásra kész"}
+                                {phase === "lezart" && "5 / 5 Lépés: Célkitűzés lezárva és hitelesítve"}
+                              </span>
                             </div>
+                            <div className="pt-1 pb-1">
+                              <KpiWorkflowStepper currentPhase={phase} />
+                            </div>
+                          </div>
 
-                            {/* 2. AKTUÁLIS TEENDŐ ÉS ÉRTÉKELÉSI MUNKATERÜLET (Egyetlen fókuszált kártya!) */}
-                            <div className="p-5 sm:p-6 rounded-xl border bg-card shadow-2xs space-y-4">
+                          {/* 2. AKTUÁLIS TEENDŐ ÉS ÉRTÉKELÉSI MUNKATERÜLET (Egyetlen fókuszált munkaterület) */}
+                          <div className="p-5 sm:p-6 space-y-4 bg-card">
                               
                               {/* 1. FÁZIS: CELKITUZES */}
                               {phase === "celkituzes" && (
@@ -726,41 +724,39 @@ export function PerformanceList({
                                 </div>
                               )}
 
+                          </div>
+
+                          {/* 3. DISZKRÉT ELŐZMÉNYEK ÉS MEGJEGYZÉS SÁV */}
+                          <div className="px-4 py-3 sm:px-6 bg-muted/15 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <History className="w-3.5 h-3.5 text-muted-foreground" />
+                              <span>Cél rögzítve: {kpi.created_at ? new Date(kpi.created_at).toLocaleDateString("hu-HU") : "Kezdetkor"}</span>
                             </div>
 
-                            {/* 3. DISZKRÉT ELŐZMÉNYEK ÉS MEGJEGYZÉS SÁV */}
-                            <div className="p-3.5 rounded-xl border bg-card/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-                              <div className="flex items-center gap-2">
-                                <History className="w-3.5 h-3.5 text-muted-foreground" />
-                                <span>Cél rögzítve: {kpi.created_at ? new Date(kpi.created_at).toLocaleDateString("hu-HU") : "Kezdetkor"}</span>
-                              </div>
-
-                              {phase !== "lezart" && (
-                                <form
-                                  className="flex items-center gap-2 w-full sm:w-auto"
-                                  action={async (formData) => {
-                                    const msg = formData.get("megjegyzes") as string
-                                    if (!msg) return
-                                    const { addKpiActivity } = await import("@/app/hr/performance/actions")
-                                    const res = await addKpiActivity(kpi.id, msg)
-                                    if (res?.error) toast.error(res.error)
-                                    else toast.success("Megjegyzés sikeresen rögzítve!")
-                                  }}
-                                >
-                                  <Input
-                                    type="text"
-                                    name="megjegyzes"
-                                    placeholder="Rövid megjegyzés fűzése a haladáshoz..."
-                                    required
-                                    className="h-8 text-xs w-full sm:w-72 bg-background"
-                                  />
-                                  <Button type="submit" size="sm" variant="outline" className="h-8 text-xs shrink-0 cursor-pointer">
-                                    Küldés
-                                  </Button>
-                                </form>
-                              )}
-                            </div>
-
+                            {phase !== "lezart" && (
+                              <form
+                                className="flex items-center gap-2 w-full sm:w-auto"
+                                action={async (formData) => {
+                                  const msg = formData.get("megjegyzes") as string
+                                  if (!msg) return
+                                  const { addKpiActivity } = await import("@/app/hr/performance/actions")
+                                  const res = await addKpiActivity(kpi.id, msg)
+                                  if (res?.error) toast.error(res.error)
+                                  else toast.success("Megjegyzés sikeresen rögzítve!")
+                                }}
+                              >
+                                <Input
+                                  type="text"
+                                  name="megjegyzes"
+                                  placeholder="Rövid megjegyzés fűzése a haladáshoz..."
+                                  required
+                                  className="h-8 text-xs w-full sm:w-72 bg-background"
+                                />
+                                <Button type="submit" size="sm" variant="outline" className="h-8 text-xs shrink-0 cursor-pointer">
+                                  Küldés
+                                </Button>
+                              </form>
+                            )}
                           </div>
                         </AccordionContent>
                       </AccordionItem>

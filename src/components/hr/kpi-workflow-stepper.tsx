@@ -8,7 +8,7 @@ export const WORKFLOW_STEPS = [
   { key: "onertekeles", label: "Önértékelés", shortLabel: "Önért.", description: "Dolgozói Portál" },
   { key: "vezetoi_ertekeles", label: "Vezetői értékelés", shortLabel: "Vez. ért.", description: "Vezetői visszajelzés" },
   { key: "megbeszeles", label: "1-on-1 Megbeszélés", shortLabel: "Megbesz.", description: "Személyes egyeztetés" },
-  { key: "lezart", label: "Lezárva", shortLabel: "Lezárt", description: "Hitelesített bónusz" },
+  { key: "lezart", label: "Lezárva", shortLabel: "Lezárt", description: "Hitelesített lezárás" },
 ] as const
 
 export type WorkflowPhase = typeof WORKFLOW_STEPS[number]["key"]
