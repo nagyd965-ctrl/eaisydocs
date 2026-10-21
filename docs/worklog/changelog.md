@@ -4,6 +4,23 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-21)
 
+### 🎯 eaisyHR: 5-Lépéses Emberközpontú Teljesítményértékelési Workflow és Dolgozói Célok Portál (A-079 / P-103)
+- **Százalékmentes, Emberi Munkafolyamat Modell (`src/components/hr/kpi-workflow-stepper.tsx`):**
+  - Mesterséges matematikai százalékok (`0%`, `75%`), csúszkák és bináris `[Nem] / [Igen]` kapcsolók teljes megszüntetése.
+  - A rendszer kizárólag a **5 mérföldköves emberi folyamatra** épül: *1. Célkitűzés (rögzítve)* → *2. Önértékelés (dolgozói portálról)* → *3. Vezetői értékelés (visszajelzés)* → *4. 1-on-1 Megbeszélés (személyes egyeztetés)* → *5. Lezárva (hitelesített lezárás)*.
+  - Kanonikus `KpiWorkflowStepper` komponens számozott csomópontokkal és tiszta állapotjelzéssel.
+- **Egyetlen, Seamless `divide-y` Vezetői Munkaterület (`src/components/hr/performance-list.tsx`):**
+  - Megszűnt a korábbi 3 külön keretezett doboz egymásra halmozása.
+  - Helyette 3 letisztult elválasztott szakasz: Felső folyamatsáv az 5 mérföldkővel; Középső fókuszált munkaterület, amely csak az adott lépés teendőjét mutatja (pl. önértékelésre várás és közvetlen `Értékelés azonnal` gomb, szöveges vezetői értékelés, vagy 1-on-1 megbeszélés jóváhagyó form); Alsó diszkrét előzménysor kényelmes, széles megjegyzésmezővel (`Megjegyzés hozzáfűzése...`).
+  - Dolgozói fejlécben százalékok helyett: `0/1 cél lezárva • Összesen 1 kitűzött KPI`, valamint folyamatjelvény.
+- **Dedikált Dolgozói Önkiszolgáló Célkezelő Oldal (`src/app/hr/self-service/goals/page.tsx` & `src/components/hr/employee-kpi-card.tsx`):**
+  - A célok interaktív kezelésének leválasztása a személyes profilról külön dedikált oldalra a felhasználói kérésnek megfelelően.
+  - Kanonikus `KpiCard` összegzők: *Aktív Értékelési Ciklus*, *Kitűzött Céljaim*, *Folyamat Állapota* és *Önértékelés Teendő*.
+  - `SingleGoalWorkspace` kártya: cél címe, ciklusa, prioritás súlyozása, folyamatsáv, önértékelés űrlap gondolatébresztő kérdésekkel és szerkesztési lehetőséggel.
+- **Célkitűzés Modálok Radikális Egyszerűsítése (`add-kpi-dialog.tsx` & `edit-kpi-dialog.tsx`):**
+  - Törlésre kerültek a felesleges mértékegység-választók, cél- és kezdeti érték mezők.
+  - Egy új cél rögzítése mindössze: Munkatárs + Megnevezés + Ciklus + Prioritás súlyozás (`Normál 1x`, `Kiemelt 1.5x`, `Stratégiai 2x`).
+
 ### 🎯 eaisyHR: Vezetői Teljesítményértékelés Modul Teljes Megújítása (A-078 / P-102)
 - **Kanonikus KPI Mérőszámcsík (`src/app/hr/performance/page.tsx`):**
   - 4 db Linear-flat `KpiCard` a fejléc alatt: *Aktív Ciklus*, *Érintett Dolgozók* (részvételi arány), *Kitűzött Célok (KPI)* (átlag/fő) és *Vezetői Értékelésre Vár* (önértékelés után pontozandó célok).
