@@ -4,6 +4,23 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-23)
 
+### eaisyHR: Munkakör Adatlap UI/UX Átdolgozás és Szervezeti Egység Nézettel Való Harmonizáció (P-113)
+- **Teljes Szélességű Layout és Morzsamenü (`src/app/hr/job/[id]/page.tsx`):**
+  - A szűk `max-w-5xl` konténer helyett a Szervezeti Egység (`/hr/orgunit/[id]`) oldalhoz hasonló, teljes szélességű `space-y-6 pb-10` elrendezés került bevezetésre.
+  - Kanonikus morzsamenü: `Szervezeti felépítés > Munkakör-katalógus > [Munkakör neve]`.
+- **Harmonizált Fejléc és Műveletek:**
+  - Kerekített vissza navigációs gomb, elegáns kártyaikon doboz (`Briefcase`, `bg-primary/10 border-primary/20`), kiemelt munkakörnév és besorolási szint, közvetlen hivatkozás a hozzárendelt szervezeti egységre és FEOR-08 azonosító.
+  - A fejléc jobb szélére költöztek a műveleti gombok: „Munkakör szerkesztése” (`JobEditDialog`) és a zöld „Dolgozó Hozzárendelése” (`AssignEmployeeDialog`).
+- **Linear Flat KPI Grid (`KpiCard`):**
+  - 4 oszlopos statisztikai kártyasor: **Hozzárendelt dolgozó**, **Szervezeti egység**, **FEOR-08 Foglalkozás**, **Besorolási szint**.
+- **Strukturált Négyfülös Tab Rendszer:**
+  - **Dolgozók (X):** Teljes értékű táblázat monogramos Avatarokkal, dolgozói profillinkkel, kanonikus `roleLabel` szerepkör jelvénnyel, formázott belépési dátummal és megerősítést kérő piros `X` eltávolítási művelettel (`RemoveEmployeeButton`).
+  - **Munkaköri Profil & Feladatok:** Kiegyensúlyozott 2 oszlopos kártyarács a feladatok/hatáskörök felsorolásával és az elvárt kompetenciák jelvényeivel.
+  - **Munkavédelem & Egészségügy:** 2 oszlopos kártyák a bejelentett munkavédelmi kockázatokkal, egyéni védőeszközökkel és a kötelező foglalkozás-egészségügyi vizsgálatokkal/gyakorisággal.
+  - **Hivatalos Munkaköri Leírás (Y):** Önálló fül a verzionált hivatalos dokumentumokhoz és feltöltéshez (`JobDescriptionUpload`).
+- **Zero-Emoji és No-Decorative-Icons Megfelelőség:**
+  - Nincsenek emojik és dekoratív buborékok; letisztult szövegközpontú üres állapotok.
+
 ### eaisyHR: Szervezeti Felépítés Fül- és Gombszintű Ikoneltávolítás (Zero-Emoji & No-Decorative-Icons)
 - **Tiszta Szöveges Tabok (`src/components/hr/organization-tabs-view.tsx`):**
   - Eltávolításra kerültek a tabok feliratai elől a felesleges dekoratív ikonok (`Network`, `Building2`, `Briefcase`). A fülek tiszta szöveges címkékkel és darabszám jelvénnyel jelennek meg: **Szervezeti Ábra**, **Szervezeti Egységek (X)**, **Munkakör-katalógus (Y)**.

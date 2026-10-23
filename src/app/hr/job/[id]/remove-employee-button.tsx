@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { buttonVariants } from "@/components/ui/button"
-import { UserMinus } from "lucide-react"
+import { X } from "lucide-react"
 import { removeEmployeeFromJob } from "./actions"
 import { toast } from "sonner"
 import {
@@ -33,8 +33,8 @@ export function RemoveEmployeeButton({ jobId, employeeId, employeeName }: { jobI
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger className={buttonVariants({ variant: "ghost", size: "sm", className: "text-destructive h-8 w-8 p-0" })} title="Kivétel a munkakörből">
-        <UserMinus className="h-4 w-4" />
+      <AlertDialogTrigger className={buttonVariants({ variant: "ghost", size: "sm", className: "text-destructive hover:bg-destructive/10 h-8 w-8 p-0" })} title="Kivétel a munkakörből">
+        <X className="h-4 w-4" />
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
