@@ -2,6 +2,9 @@
 
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
+import { generateJobDescriptionPdfBuffer } from "@/utils/hr/job-description-pdf-generator"
+import type { JobDescriptionPdfData } from "@/utils/hr/job-description-constants"
+import { getActiveCompanyServer } from "@/utils/company-server"
 
 export async function assignEmployeeToJob(jobId: string, employeeId: string) {
   const supabase = await createClient()
@@ -239,5 +242,151 @@ export async function removeJobCompetencyAction(jobId: string, compIndex: number
 
   revalidatePath(`/hr/job/${jobId}`)
   return { success: true }
+}
+
+export async function generateJobDescriptionVersionAction(
+  jobId: string,
+  options?: { megjegyzes?: string }
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  // 1. Munkakör adatok lekérése a legfrissebb állapotból
+  const { data: job, error: jobErr } = await supabase
+    .from("hr_munkakor")
+    .select("*, hr_szervezeti_egyseg(id, nev)")
+    .eq("id", jobId)
+    .single()
+
+  if (jobErr || !job) {
+    return { error: "Munkakör nem található: " + (jobErr?.message || "") }
+  }
+
+  // 2. Aktív cég lekérése fejléc adatokhoz
+  const activeCompany = await getActiveCompanyServer()
+
+  // 3. Legutolsó verziószám lekérdezése
+  const { data: existing } = await supabase
+    .from("hr_munkakor_leiras_verzio")
+    .select("verzio_szam")
+    .eq("munkakor_id", jobId)
+    .order("verzio_szam", { ascending: false })
+    .limit(1)
+
+  const nextVersion = existing && existing.length > 0 ? (existing[0].verzio_szam || 0) + 1 : 1
+
+  // 4. Tisztított fájlnév generálása: Munkakori_Leiras_{megnevezes}_v{verzio}.pdf
+  const cleanName = (job.megnevezes || "Munkakor")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "")
+
+  const fileName = `Munkakori_Leiras_${cleanName}_v${nextVersion}.pdf`
+  const storagePath = `munkakor-leirasok/${jobId}/v${nextVersion}_${Date.now()}.pdf`
+
+  // 5. Feladatok és kompetenciák feldolgozása
+  let tasks: string[] = []
+  if (Array.isArray(job.feladatok_es_hataskorok)) {
+    tasks = job.feladatok_es_hataskorok
+  } else if (typeof job.feladatok_es_hataskorok === "string") {
+    try {
+      const parsed = JSON.parse(job.feladatok_es_hataskorok)
+      if (Array.isArray(parsed)) tasks = parsed
+    } catch {
+      tasks = job.feladatok_es_hataskorok.split("\n").map((s: string) => s.trim()).filter(Boolean)
+    }
+  }
+
+  let competencies: string[] = []
+  if (Array.isArray(job.elvart_kompetenciak)) {
+    competencies = job.elvart_kompetenciak
+  } else if (typeof job.elvart_kompetenciak === "string") {
+    try {
+      const parsed = JSON.parse(job.elvart_kompetenciak)
+      if (Array.isArray(parsed)) competencies = parsed
+    } catch {
+      competencies = job.elvart_kompetenciak.split("\n").map((s: string) => s.trim()).filter(Boolean)
+    }
+  }
+
+  // 6. Munkavédelem és orvosi vizsgálat szövegezés
+  const orvosiVizsgalat = job.orvosi_vizsgalat_tipus
+    ? `${job.orvosi_vizsgalat_tipus}${job.orvosi_vizsgalat_gyakorisag_ho ? ` (Időszakos felülvizsgálat: minden ${job.orvosi_vizsgalat_gyakorisag_ho} hónapban)` : ""}`
+    : null
+
+  let vedoeszkoz = job.vedoeszkoz_igeny || null
+  if (job.kockazat_tipusa) {
+    vedoeszkoz = vedoeszkoz 
+      ? `${vedoeszkoz} • Munkaköri kockázati besorolás: ${job.kockazat_tipusa}`
+      : `Munkaköri kockázati besorolás: ${job.kockazat_tipusa}`
+  }
+
+  const orgUnitNev = job.hr_szervezeti_egyseg?.nev || "Központi állomány"
+
+  // 7. PDF adatstruktúra összeállítása
+  const pdfData: JobDescriptionPdfData = {
+    employeeName: "Munkakörben foglalkoztatott munkavállaló",
+    munkakor: job.megnevezes,
+    feorKod: job.feor_kod || null,
+    reszleg: orgUnitNev,
+    vezetoNev: "Közvetlen szakmai vezető",
+    leiras: job.leiras || null,
+    feladatok: tasks.length > 0 ? tasks : undefined,
+    kompetenciak: competencies.length > 0 ? competencies : undefined,
+    orvosiVizsgalat: orvosiVizsgalat,
+    vedoeszkoz: vedoeszkoz,
+    cegNev: activeCompany?.name || "eaisyDocs Zrt.",
+    cegCim: activeCompany?.address || "1111 Budapest, Példa utca 1.",
+    cegAdoszam: activeCompany?.tax_number || "12345678-2-41",
+    kelt: new Date().toISOString().split("T")[0]
+  }
+
+  // 8. PDF Buffer generálása Puppeteerrel
+  let pdfBuffer: Buffer
+  try {
+    pdfBuffer = await generateJobDescriptionPdfBuffer(pdfData)
+  } catch (pdfErr: any) {
+    console.error("Hiba a PDF generálásakor:", pdfErr)
+    return { error: "Nem sikerült legenerálni a PDF dokumentumot: " + (pdfErr.message || "") }
+  }
+
+  // 9. Feltöltés a Supabase Storage irat_files vödörbe
+  const { error: uploadErr } = await supabase.storage
+    .from("irat_files")
+    .upload(storagePath, pdfBuffer, {
+      contentType: "application/pdf",
+      upsert: false
+    })
+
+  if (uploadErr) {
+    console.error("Storage upload hiba:", uploadErr)
+    return { error: "Fájl feltöltése sikertelen: " + uploadErr.message }
+  }
+
+  // 10. Új verzió rekord beszúrása a hr_munkakor_leiras_verzio táblába
+  const megjegyzes = options?.megjegyzes?.trim() || `Automatikusan generált v${nextVersion} (Rendszeradatokból)`
+
+  const { error: dbError } = await supabase
+    .from("hr_munkakor_leiras_verzio")
+    .insert({
+      munkakor_id: jobId,
+      verzio_szam: nextVersion,
+      fajl_path: storagePath,
+      fajl_nev: fileName,
+      feltolto_id: user.id,
+      megjegyzes: megjegyzes
+    })
+
+  if (dbError) {
+    console.error("Adatbázis hiba:", dbError)
+    return { error: "Hiba a verzió rögzítésekor: " + dbError.message }
+  }
+
+  revalidatePath(`/hr/job/${jobId}`)
+  revalidatePath("/hr/organization")
+  return { success: true, verzio: nextVersion, fileName }
 }
 

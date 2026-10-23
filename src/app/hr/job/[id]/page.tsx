@@ -592,6 +592,8 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
             <CardContent className="pt-6">
               <JobDescriptionUpload
                 munkakorId={job.id}
+                job={job}
+                orgUnitNev={orgUnitNev}
                 versions={leirasVerziok || []}
                 isHrOrAdmin={isHrOrAdmin}
               />

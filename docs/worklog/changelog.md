@@ -4,6 +4,18 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-23)
 
+### eaisyHR: Hivatalos Munkaköri Leírás Generátor és Automatikus Verziószám-növelés (v1 -> v2) (P-113 Kiegészítés)
+- **Dinamikus A4 PDF Generáló Motor (`generateJobDescriptionVersionAction` in `src/app/hr/job/[id]/actions.ts`):**
+  - A munkakör aktuálisan rögzített adataiból (megnevezés, FEOR-08 kód, szervezeti egység, feladatok, elvárt kompetenciák, orvosi vizsgálatok, egyéni védőeszközök) és az aktív cég profiljából (`getActiveCompanyServer`) a Puppeteer segítségével szabványos, Munka Törvénykönyve (Mt. 45. § (4)) szerinti hivatalos munkaköri leírást generál.
+  - Automatikus sorszámozás: meglévő verziók alapján kiszámítja a következő sorszámot (`v{nextVersion}`). Amennyiben a felhasználó bármilyen adatot módosít (pl. inline feladat vagy FEOR kód) és újra generál, a fájl és a nyilvántartás automatikusan a következő verziót kapja (`_v1` helyett `_v2`, majd `_v3`, stb.).
+  - Szabványos, ékezetmentes fájlnév: `Munkakori_Leiras_{cleanName}_v{nextVersion}.pdf` (pl. `Munkakori_Leiras_Junior_Fejleszto_v2.pdf`).
+  - Feltöltés és bejegyzés: a PDF automatikusan felkerül az `irat_files` tárolóba (`munkakor-leirasok/{jobId}/v{nextVersion}_{timestamp}.pdf`), és bekerül a `hr_munkakor_leiras_verzio` táblába.
+- **Generátor Dialógus és UI Integráció (`src/components/hr/job-description-upload.tsx`, `src/app/hr/job/[id]/page.tsx`):**
+  - A „Hivatalos Munkaköri Leírás” fülön közvetlen elsődleges gombként elérhető a „Munkaköri leírás generálása (v{nextVersion})”.
+  - Generálás előtt előnézeti dialógus jeleníti meg a következő verziószámot, a generált fájlnevet, az összes dokumentumba kerülő adatot (feladatok száma, kompetenciák, munkavédelem), valamint opcionális verzió megjegyzést enged rögzíteni.
+  - A verziólistában a legfrissebb hatályos verzió külön kiemelt „Legfrissebb hatályos” jelvényt kap.
+  - A korábbi verziók megtekintése böngészőben (`PdfViewerDialog`), letöltése és szükség esetén törlése változatlanul biztosított.
+
 ### eaisyHR: Munkakör Adatlap UI/UX Átdolgozás és Szervezeti Egység Nézettel Való Harmonizáció (P-113)
 - **Teljes Szélességű Layout és Morzsamenü (`src/app/hr/job/[id]/page.tsx`):**
   - A szűk `max-w-5xl` konténer helyett a Szervezeti Egység (`/hr/orgunit/[id]`) oldalhoz hasonló, teljes szélességű `space-y-6 pb-10` elrendezés került bevezetésre.

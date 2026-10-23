@@ -48,3 +48,10 @@
 
 6. **Zero-Emoji és No-Decorative-Icons Megfelelőség:**
    - Nincsenek emojik és dekoratív buborékok; az üres állapotok letisztult szöveges blokkokként jelennek meg.
+
+7. **Automatizált Munkaköri Leírás Generátor és Verziószám-növelés (v1 -> v2 -> v3):**
+   - **Dinamikus A4 PDF generálás:** A `generateJobDescriptionVersionAction` szerver akció Puppeteer segítségével az adatbázis aktuális munkakör adataiból (megnevezés, FEOR-08, szervezeti egység, feladatok, elvárt kompetenciák, orvosi vizsgálatok, egyéni védőeszközök) és a bejelentkezett felhasználó aktív cégadataiból (`getActiveCompanyServer`) azonnal legenerálja a Munka Törvénykönyve szerinti hivatalos munkaköri leírást.
+   - **Automatikus verziószám-léptetés:** A meglévő verziók alapján kiszámítja a következő sorszámot (`v{nextVersion}`). Bármilyen munkaköri adat módosítása (pl. feladat hozzáadása, FEOR változtatás) után indított újragenerálás automatikusan inkrementálja a verziót (pl. `v1` helyett `v2`, majd `v3`).
+   - **Szabványosított fájlnévadás:** A fájlnév ékezetmentesített és tisztított módon automatikusan felveszi a formátumot: `Munkakori_Leiras_{cleanName}_v{nextVersion}.pdf` (pl. `Munkakori_Leiras_Junior_Fejleszto_v2.pdf`).
+   - **Tárhely és Adatbázis Integráció:** A PDF felkerül az `irat_files` Supabase tárolóba (`munkakor-leirasok/{jobId}/v{nextVersion}_{timestamp}.pdf`), és bejegyzésre kerül a `hr_munkakor_leiras_verzio` táblába, ahonnan a dolgozói 360 profil (`OfficialDocumentsTab`, `EmploymentTab`) azonnal érzékeli az új hatályos verziót.
+   - **Előnézet és Megjegyzés Dialog:** A felületen a „Munkaköri leírás generálása (v{nextVersion})” gombra kattintva dialógus jeleníti meg az összefoglalót a dokumentumba kerülő adatokról, a javasolt fájlnévről és opcionális megjegyzés megadását teszi lehetővé.
