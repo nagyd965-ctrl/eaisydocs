@@ -93,8 +93,18 @@ export function DocumentViewer({
       getDocumentSignedUrl(targetStoragePath || "", targetIratId, selectedFile.id)
         .then(res => {
           if (!isMounted) return;
-          if (res.error) setError(res.error)
-          else setUrl(res.signedUrl || null)
+          if (res.error) {
+            const directUrl = (selectedFile.displayUrl && selectedFile.displayUrl.startsWith("http"))
+              ? selectedFile.displayUrl
+              : (selectedFile.url && selectedFile.url.startsWith("http") ? selectedFile.url : null)
+            if (directUrl) {
+              setUrl(directUrl)
+            } else {
+              setError(res.error)
+            }
+          } else {
+            setUrl(res.signedUrl || null)
+          }
         })
         .finally(() => {
           if (isMounted) setLoading(false);

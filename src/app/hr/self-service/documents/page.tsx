@@ -21,6 +21,31 @@ export default async function EmployeeDocumentsPage() {
     console.error("Hiba a dolgozói dokumentumok lekérésekor:", error)
   }
 
+  // Aláírt URL-ek generálása a letöltéshez és közvetlen megjelenítéshez
+  const hrDocuments = await Promise.all(
+    (documents || []).map(async (doc) => {
+      let signedUrl = doc.url
+      let alairtSignedUrl: string | null = null
+
+      if (doc.url && !doc.url.startsWith("http")) {
+        const { data } = await supabase.storage.from("irat_files").createSignedUrl(doc.url, 3600)
+        signedUrl = data?.signedUrl || doc.url
+      }
+
+      if (doc.alairt_fajl_url && !doc.alairt_fajl_url.startsWith("http")) {
+        const { data: aData } = await supabase.storage.from("irat_files").createSignedUrl(doc.alairt_fajl_url, 3600)
+        alairtSignedUrl = aData?.signedUrl || doc.alairt_fajl_url
+      }
+
+      return {
+        ...doc,
+        signedUrl,
+        alairtSignedUrl,
+        displayUrl: alairtSignedUrl || signedUrl,
+      }
+    })
+  )
+
   return (
     <div className="space-y-6 pb-12">
       {/* Fejléc */}
@@ -32,7 +57,7 @@ export default async function EmployeeDocumentsPage() {
       </div>
 
       {/* Részletes dokumentum lista szűrőkkel és előnézettel */}
-      <EmployeeDocumentsView documents={(documents as HrDocument[]) || []} />
+      <EmployeeDocumentsView documents={(hrDocuments as HrDocument[]) || []} />
     </div>
   )
 }

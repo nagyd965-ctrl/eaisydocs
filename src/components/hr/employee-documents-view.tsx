@@ -34,6 +34,8 @@ export type HrDocument = {
   alairas_statusz?: string | null
   alairo_neve?: string | null
   company_id?: string | null
+  displayUrl?: string | null
+  signedUrl?: string | null
 }
 
 interface EmployeeDocumentsViewProps {
@@ -159,6 +161,8 @@ export function EmployeeDocumentsView({ documents }: EmployeeDocumentsViewProps)
   ], [categories, documents, onlyFiled, onlySigned, selectedCategories])
 
   const getDownloadUrl = (doc: HrDocument) => {
+    if (doc.displayUrl) return doc.displayUrl
+    if (doc.signedUrl) return doc.signedUrl
     const rawPath = doc.alairt_fajl_url || doc.url
     if (!rawPath) return null
     if (rawPath.startsWith("http://") || rawPath.startsWith("https://")) {
@@ -358,12 +362,13 @@ export function EmployeeDocumentsView({ documents }: EmployeeDocumentsViewProps)
         open={viewerOpen}
         setOpen={setViewerOpen}
         fajl={selectedDoc ? {
-          id: selectedDoc.id,
+          id: undefined,
           eredeti_fajlnev: selectedDoc.nev,
           nev: selectedDoc.nev,
           kategoria: selectedDoc.kategoria,
           storage_path: selectedDoc.alairt_fajl_url || selectedDoc.url,
-          url: selectedDoc.alairt_fajl_url || selectedDoc.url,
+          url: selectedDoc.displayUrl || selectedDoc.alairt_fajl_url || selectedDoc.url,
+          displayUrl: selectedDoc.displayUrl,
           irat_id: selectedDoc.irat_id,
           ugyirat_id: selectedDoc.ugyirat_id,
           iktatoszam: selectedDoc.iktatoszam

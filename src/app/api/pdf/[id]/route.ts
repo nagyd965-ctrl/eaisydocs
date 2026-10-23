@@ -54,10 +54,20 @@ export async function GET(
   const docLevel = minositesHierarchy[irat.minosites || 'nyilt'] || 1
 
   if (!isAdmin && userLevel < docLevel) {
-    return new NextResponse(
-      `Hozzáférés megtagadva: A dokumentum megtekintéséhez legalább '${irat.minosites}' biztonsági minősítés szükséges (Az Ön szintje: ${profile?.max_minosites || 'nyilt'}).`,
-      { status: 403 }
-    )
+    // Ellenőrizzük, hogy a felhasználó a saját HR dokumentumát tekinti-e meg
+    const { data: hrDocOwner } = await supabase
+      .from("hr_dokumentum")
+      .select("id")
+      .eq("irat_id", iratId)
+      .eq("dolgozo_id", user.id)
+      .maybeSingle()
+
+    if (!hrDocOwner) {
+      return new NextResponse(
+        `Hozzáférés megtagadva: A dokumentum megtekintéséhez legalább '${irat.minosites}' biztonsági minősítés szükséges (Az Ön szintje: ${profile?.max_minosites || 'nyilt'}).`,
+        { status: 403 }
+      )
+    }
   }
 
   // 2.2 Szervezeti egység / explicit hozzáférés ellenőrzése iktatott iratoknál
@@ -76,7 +86,21 @@ export async function GET(
       .eq("user_id", user.id)
       .maybeSingle()
 
+    // HR dolgozói hozzáférés: a munkavállaló megtekintheti a saját iktatott HR iratait
+    let isEmployeeOwner = false
     if (!inDepartment && !explicitAccess) {
+      const { data: hrDocOwner } = await supabase
+        .from("hr_dokumentum")
+        .select("id")
+        .eq("irat_id", iratId)
+        .eq("dolgozo_id", user.id)
+        .maybeSingle()
+      if (hrDocOwner) {
+        isEmployeeOwner = true
+      }
+    }
+
+    if (!inDepartment && !explicitAccess && !isEmployeeOwner) {
       return new NextResponse("Hozzáférés megtagadva: Nincs jogosultsága ehhez az ügyirathoz.", { status: 403 })
     }
   }
@@ -86,16 +110,57 @@ export async function GET(
   const isPdfaRequested = searchParams.get('pdfa') === 'true'
 
   // 3. Fetch file details
-  let fileQuery = supabase
-    .from("irat_fajl")
-    .select("storage_path, pdfa_path, mime_type, kulso_fajl_url, eredeti_fajlnev")
-    .eq("irat_id", iratId)
+  let fajl: any = null
 
   if (fileId) {
-    fileQuery = fileQuery.eq("id", fileId)
+    // 3.1 Próbáljuk lekérni a megadott konkrét irat_fajl ID alapján
+    const { data: specificFile } = await supabase
+      .from("irat_fajl")
+      .select("storage_path, pdfa_path, mime_type, kulso_fajl_url, eredeti_fajlnev")
+      .eq("irat_id", iratId)
+      .eq("id", fileId)
+      .maybeSingle()
+
+    if (specificFile) {
+      fajl = specificFile
+    }
   }
 
-  const { data: fajl } = await fileQuery.limit(1).single()
+  // 3.2 Ha nincs megadva fileId, vagy a megadott fileId nem egy irat_fajl rekord (pl. hr_dokumentum id volt):
+  if (!fajl) {
+    const { data: fallbackFile } = await supabase
+      .from("irat_fajl")
+      .select("storage_path, pdfa_path, mime_type, kulso_fajl_url, eredeti_fajlnev")
+      .eq("irat_id", iratId)
+      .order("verzio", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (fallbackFile) {
+      fajl = fallbackFile
+    }
+  }
+
+  // 3.3 Végső tartalék: ha az irat_fajl táblában nincs bejegyzés, ellenőrizzük a hr_dokumentum tárolt útvonalát
+  if (!fajl) {
+    const { data: hrDoc } = await supabase
+      .from("hr_dokumentum")
+      .select("url, alairt_fajl_url, nev")
+      .or(`irat_id.eq.${iratId}${fileId ? `,id.eq.${fileId}` : ""}`)
+      .limit(1)
+      .maybeSingle()
+
+    if (hrDoc && (hrDoc.alairt_fajl_url || hrDoc.url)) {
+      const chosenPath = hrDoc.alairt_fajl_url || hrDoc.url
+      fajl = {
+        storage_path: chosenPath,
+        pdfa_path: null,
+        mime_type: "application/pdf",
+        kulso_fajl_url: null,
+        eredeti_fajlnev: hrDoc.nev,
+      }
+    }
+  }
 
   if (!fajl || (!fajl.storage_path && !fajl.kulso_fajl_url && !fajl.pdfa_path)) {
     return new NextResponse("Fájl nem található az irathoz", { status: 404 })

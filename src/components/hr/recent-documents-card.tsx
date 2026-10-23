@@ -130,7 +130,7 @@ export function RecentDocumentsCard({ documents }: { documents: Document[] }) {
         open={viewerOpen}
         setOpen={setViewerOpen}
         fajl={selectedDoc ? {
-          id: selectedDoc.id,
+          id: undefined,
           eredeti_fajlnev: selectedDoc.nev,
           nev: selectedDoc.nev,
           kategoria: selectedDoc.kategoria,

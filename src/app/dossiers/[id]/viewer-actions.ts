@@ -33,8 +33,18 @@ export async function getDocumentSignedUrl(filePath: string, iratId: string, fil
   const docLevel = minositesHierarchy[irat?.minosites || 'nyilt'] || 1
 
   if (profile?.docs_szerepkor !== 'admin' && userLevel < docLevel) {
-    return { 
-      error: `Hozzáférés megtagadva: A dokumentum megtekintéséhez legalább '${irat?.minosites || 'bizalmas'}' biztonsági minősítés szükséges (Az Ön szintje: ${profile?.max_minosites || 'nyilt'}).` 
+    // Ellenőrizzük, hogy a felhasználó a saját HR dokumentumát tekinti-e meg
+    const { data: hrDocOwner } = await supabase
+      .from("hr_dokumentum")
+      .select("id")
+      .eq("irat_id", iratId)
+      .eq("dolgozo_id", user.id)
+      .maybeSingle()
+
+    if (!hrDocOwner) {
+      return { 
+        error: `Hozzáférés megtagadva: A dokumentum megtekintéséhez legalább '${irat?.minosites || 'bizalmas'}' biztonsági minősítés szükséges (Az Ön szintje: ${profile?.max_minosites || 'nyilt'}).` 
+      }
     }
   }
 
