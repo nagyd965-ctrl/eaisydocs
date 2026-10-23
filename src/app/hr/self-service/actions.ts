@@ -125,9 +125,29 @@ export async function submitLeaveRequest(formData: FormData) {
     }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  // Ellenőrizzük, hogy nincs-e átfedő, nem elutasított távollét ugyanebben az időszakban
+  const { data: overlapping } = await supabase
+    .from("hr_tavollet")
+    .select("id, kezdet_datuma, veg_datuma, tipus")
+    .eq("dolgozo_id", user.id)
+    .neq("statusz", "elutasitva")
+    .lte("kezdet_datuma", endDate)
+    .gte("veg_datuma", startDate)
+    .limit(1)
+    .maybeSingle()
+
+  if (overlapping) {
+    return {
+      error: `Erre az időszakra (${overlapping.kezdet_datuma} - ${overlapping.veg_datuma}) már van rögzített vagy elbírálás alatt álló távolléted!`
+    }
+  }
+
   const { data: tavolletRow, error } = await supabase
     .from("hr_tavollet")
     .insert({
+      company_id: activeCompanyId || undefined,
       dolgozo_id: user.id,
       kezdet_datuma: startDate,
       veg_datuma: endDate,
@@ -334,9 +354,11 @@ export async function submitOvertimeRequest(data: {
       return { error: "Kérjük válassz dátumot a csúsztatáshoz!" }
     }
 
+    const activeCompanyId = await getActiveCompanyIdServer()
     const { data: tavolletRow, error: tavolletErr } = await supabase
       .from("hr_tavollet")
       .insert({
+        company_id: activeCompanyId || undefined,
         dolgozo_id: user.id,
         kezdet_datuma: data.datum,
         veg_datuma: data.datum,

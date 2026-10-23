@@ -295,37 +295,21 @@ export async function saveAttendanceRecord(
       throw new Error("Ez a hónap már le van zárva vagy jóváhagyásra vár, nem szerkeszthető!")
     }
 
-    const { data: existing } = await supabase
+    const activeCompanyId = await getActiveCompanyIdServer()
+    const { error } = await supabase
       .from("hr_jelenlet")
-      .select("id")
-      .eq("dolgozo_id", employeeId)
-      .eq("datum", datum)
-      .single()
-
-    if (existing) {
-      const { error } = await supabase
-        .from("hr_jelenlet")
-        .update({
-          becsekkolas_ideje,
-          kicsekkolas_ideje
-        })
-        .eq("id", existing.id)
-
-      if (error) throw new Error(error.message)
-    } else {
-      const activeCompanyId = await getActiveCompanyIdServer()
-      const { error } = await supabase
-        .from("hr_jelenlet")
-        .insert({
+      .upsert(
+        {
           company_id: activeCompanyId || undefined,
           dolgozo_id: employeeId,
           datum,
           becsekkolas_ideje,
-          kicsekkolas_ideje
-        })
+          kicsekkolas_ideje,
+        },
+        { onConflict: "dolgozo_id,datum" }
+      )
 
-      if (error) throw new Error(error.message)
-    }
+    if (error) throw new Error(error.message)
 
     revalidatePath("/hr")
     return { error: null }

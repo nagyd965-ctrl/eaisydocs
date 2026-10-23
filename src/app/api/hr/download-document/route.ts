@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     // 2. Dokumentum jogosultság ellenőrzése
     // Ellenőrizzük, hogy a fájl munkaköri leírás-e (publikus a cégen belül minden munkavállalónak)
     const { data: jobDoc } = await supabase
-      .from("hr_munkakor_verzio")
+      .from("hr_munkakor_leiras_verzio")
       .select("id")
       .eq("fajl_path", filePath)
       .maybeSingle()

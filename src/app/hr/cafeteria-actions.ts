@@ -32,16 +32,44 @@ export async function submitCafeteriaDeclaration(
     return { error: "Nincs bejelentkezve" }
   }
 
-  // Check if they already closed it
-  const { data: keretData } = await supabase
-    .from("hr_cafeteria_keret")
-    .select("nyilatkozat_lezarva")
-    .eq("dolgozo_id", employeeId)
-    .eq("ev", year)
+  // Szerepkör és azonosító ellenőrzése (saját maga vagy HR/admin)
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor, docs_szerepkor")
+    .eq("id", user.id)
     .single()
 
-  if (keretData?.nyilatkozat_lezarva) {
+  const isHrOrAdmin = ["admin", "hr_vezeto", "hr_munkatars"].includes(profile?.hr_szerepkor || "") ||
+                      ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "")
+
+  if (user.id !== employeeId && !isHrOrAdmin) {
+    return { error: "Nincs jogosultságod más dolgozó nevében nyilatkozatot leadni!" }
+  }
+
+  // Check keret and if they already closed it
+  const { data: keretData } = await supabase
+    .from("hr_cafeteria_keret")
+    .select("nyilatkozat_lezarva, osszeg")
+    .eq("dolgozo_id", employeeId)
+    .eq("ev", year)
+    .maybeSingle()
+
+  if (!keretData) {
+    return { error: "Nincs érvényes cafeteria keret megállapítva erre az évre!" }
+  }
+
+  if (keretData.nyilatkozat_lezarva) {
     return { error: "A nyilatkozat már le van zárva, nem módosítható!" }
+  }
+
+  // Keretösszeg túllépés szerveroldali ellenőrzése
+  const totalRequestedKeret = choices.reduce((sum, c) => sum + (Number(c.levont_keret_osszeg) || 0), 0)
+  const keretLimit = Number(keretData.osszeg) || 0
+
+  if (totalRequestedKeret > keretLimit) {
+    return {
+      error: `A választott elemek összege (${totalRequestedKeret.toLocaleString("hu-HU")} Ft) meghaladja az éves keretet (${keretLimit.toLocaleString("hu-HU")} Ft)!`
+    }
   }
 
   // Delete previous choices for this year
@@ -91,7 +119,7 @@ export async function submitCafeteriaDeclaration(
     felhasznalo_id: user.id,
     esemeny_tipus: "adat_letrehozas",
     entitas_tipus: "hr_cafeteria_keret",
-    megjegyzes: `Cafeteria nyilatkozat (${year}) sikeresen leadva és lezárva a dolgozó által.`
+    megjegyzes: `Cafeteria nyilatkozat (${year}) sikeresen leadva és lezárva.`
   })
 
   revalidatePath("/hr")
@@ -105,6 +133,21 @@ export async function submitCafeteriaDeclaration(
 // 3. For HR: Set budget
 export async function setCafeteriaBudget(employeeId: string, year: number, amount: number) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isHrOrAdmin = ["admin", "hr_vezeto", "hr_munkatars"].includes(profile?.hr_szerepkor || "") ||
+                      ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "")
+
+  if (!isHrOrAdmin) {
+    return { error: "Csak HR munkatárs vagy adminisztrátor állíthat be cafeteria keretet!" }
+  }
   
   // Upsert the budget
   const { error } = await supabase
@@ -131,6 +174,19 @@ export async function reopenCafeteriaDeclaration(employeeId: string, year: numbe
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("hr_szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const isHrOrAdmin = ["admin", "hr_vezeto", "hr_munkatars"].includes(profile?.hr_szerepkor || "") ||
+                      ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "")
+
+  if (!isHrOrAdmin) {
+    return { error: "Csak HR munkatárs vagy adminisztrátor nyithatja újra a nyilatkozatot!" }
+  }
 
   // Ellenőrizzük a korábbi iktatási állapotot
   const { data: keret } = await supabase

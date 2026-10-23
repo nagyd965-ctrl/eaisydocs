@@ -4,6 +4,23 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-23)
 
+### eaisyHR: Párhuzamossági (Concurrency), Biztonsági és Adatintegritási Megerősítés (ADR A-083)
+- **Letöltési API Végpont Javítása (`src/app/api/hr/download-document/route.ts`):**
+  - Javítva a hibás táblanév hivatkozás: `hr_munkakor_verzio` helyett a létező `hr_munkakor_leiras_verzio` táblát kérdezi le a route, megszüntetve a normál munkavállalók 403 Forbidden hibáját a hivatalos munkaköri leírások letöltésekor.
+- **Szabadságkérelmek Vállalati Kötése és Átfedés-szűrés (`src/app/hr/self-service/actions.ts`):**
+  - A `submitLeaveRequest` és `submitOvertimeRequest` során a `hr_tavollet` táblába bekerül az aktív `company_id`, így a havi bérszámfejtési motor (`payroll/actions.ts`) pontosan figyelembe veszi a szabadságokat.
+  - Beépítésre került a meglévő, nem elutasított távollétekkel való átfedés-ellenőrzés.
+- **Atomi Jelenlét (Munkaidő) Rögzítés (`src/app/hr/attendance-actions.ts`):**
+  - A `saveAttendanceRecord` select-then-insert versenyhelyzete helyett atomi PostgreSQL `upsert` (`onConflict: "dolgozo_id,datum"`) került bevezetésre, kizárva a duplikált kérésekből fakadó `23505 unique_violation` és PGRST116 hibákat.
+- **Szerveroldali Jogosultsági Megerősítés (`manager/actions.ts`, `cafeteria-actions.ts`):**
+  - A távollét jóváhagyása és elutasítása szerver oldalon ellenőrzi az aktuális jóváhagyó kilétét, a vezetői hierarchiát (`get_hr_subordinates`), illetve a HR/admin szerepkört, megakadályozva a jogosulatlan és ön-jóváhagyásokat.
+  - A `submitCafeteriaDeclaration` ellenőrzi az éves keretösszeg túllépését, a `setCafeteriaBudget` és `reopenCafeteriaDeclaration` műveleteket pedig kizárólag HR és admin szerepkörű felhasználók hajthatják végre.
+- **Adatbázis RLS Megerősítés (`supabase/migrations/20261023000004_fix_hr_audit_security_and_rls.sql`):**
+  - A `hr_tavollet` UPDATE szabály felkészítésre került a kijelölt helyettes (`aktualis_jovahagyo_id`) jóváhagyására és a `hr_szerepkor` mező vizsgálatára.
+  - Megszűntek a nyílt RLS szabályok az `hr_orvosi_vizsgalat`, `hr_fegyelmi` és `hr_elozo_munkahely` táblákon (GDPR megfelelőség: dolgozó csak a sajátját látja, módosítani csak HR jogosult).
+- **eaisyDocs Függetlenség Garancia:**
+  - A módosítások kizárólag a `hr_` táblákat és eaisyHR szerver akciókat érintik, az eaisyDocs iratkezelő rendszer adatmodellje és működése teljes mértékben változatlan és védett maradt.
+
 ### eaisyHR: Munkakör Adatlap Fejléc Tisztítás, Dolgozói Kereső/Szűrő és Valós Avatar Betöltés (P-113 Kiegészítés)
 - **Fejléc Tisztítás & Zero-Emoji Megfelelőség (`src/app/hr/job/[id]/page.tsx`):**
   - Eltávolításra került a munkakör címe melletti dekoratív `Briefcase` ikondoboz, elegáns, tiszta szöveges elrendezést adva a fejlécnek.
