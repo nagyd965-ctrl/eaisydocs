@@ -58,7 +58,8 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
       .select("*")
       .eq("dolgozo_id", employeeId)
       .eq("statusz", "jovahagyva")
-      .or(`kezdet_datuma.lte.${endDate},veg_datuma.gte.${startDate}`)
+      .lte("kezdet_datuma", endDate)
+      .gte("veg_datuma", startDate)
 
     if (tavolletError) throw new Error(tavolletError.message)
 

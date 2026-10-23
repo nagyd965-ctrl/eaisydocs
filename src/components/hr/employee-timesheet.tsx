@@ -113,14 +113,17 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
         <KpiCard
           label="Ledolgozott Órák"
           value={loading ? "..." : `${totalHours.toFixed(1)} h`}
+          sub="Ebben a hónapban"
         />
         <KpiCard
           label="Munkanapok"
           value={loading ? "..." : `${totalDaysWorked} nap`}
+          sub="Ebben a hónapban"
         />
         <KpiCard
           label="Távollét"
           value={loading ? "..." : `${totalLeaveDays} nap`}
+          sub="Ebben a hónapban"
         />
         <div onClick={() => setOvertimeDialogOpen(true)} className="cursor-pointer">
           <KpiCard
