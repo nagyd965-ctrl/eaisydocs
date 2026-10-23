@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Edit, Trash2, FileText } from "lucide-react"
+import { Edit, Trash2 } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -85,8 +85,7 @@ export function OrgUnitActionMenu({ unit, allUnits }: OrgUnitActionMenuProps) {
     <>
       <div className="flex items-center justify-end gap-1">
         <Link href={`/hr/orgunit/${unit.id}`}>
-          <Button variant="ghost" size="sm" className="h-8 text-xs text-primary hover:text-primary gap-1 px-2.5">
-            <FileText className="w-3.5 h-3.5" />
+          <Button variant="ghost" size="sm" className="h-8 text-xs text-primary hover:text-primary px-2.5">
             Adatlap
           </Button>
         </Link>

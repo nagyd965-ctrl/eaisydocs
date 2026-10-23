@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Network, Building2, Briefcase, Search, Plus, Users } from "lucide-react"
+import { Search, Plus } from "lucide-react"
 import Link from "next/link"
 import { OrgChartTree } from "@/components/hr/org-chart-tree"
 import { type OrgUnitNode } from "@/lib/org-chart-utils"
@@ -69,16 +69,14 @@ export function OrganizationTabsView({
         <TabsList className="bg-transparent border-b rounded-none w-full justify-start h-auto p-0 mb-6">
           <TabsTrigger
             value="orgchart"
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3 gap-2"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
           >
-            <Network className="w-4 h-4" />
             Szervezeti Ábra
           </TabsTrigger>
           <TabsTrigger
             value="orgunits"
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3 gap-2"
           >
-            <Building2 className="w-4 h-4" />
             Szervezeti Egységek
             <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground tabular-nums">
               {orgUnits.length}
@@ -88,7 +86,6 @@ export function OrganizationTabsView({
             value="jobs"
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3 gap-2"
           >
-            <Briefcase className="w-4 h-4" />
             Munkakör-katalógus
             <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground tabular-nums">
               {dbJobs.length}
@@ -167,11 +164,11 @@ export function OrganizationTabsView({
                             </TableCell>
                             <TableCell className="text-center">
                               {employeeCount > 0 ? (
-                                <Badge variant="outline" className="gap-1 bg-primary/10 text-primary border-primary/20">
-                                  <Users className="w-3 h-3" /> <span className="tabular-nums font-semibold">{employeeCount} fő</span>
+                                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                                  <span className="tabular-nums font-semibold">{employeeCount} fő</span>
                                 </Badge>
                               ) : (
-                                <Badge variant="secondary" className="gap-1 text-muted-foreground font-normal">
+                                <Badge variant="secondary" className="text-muted-foreground font-normal">
                                   Nincs dolgozó
                                 </Badge>
                               )}
@@ -268,11 +265,11 @@ export function OrganizationTabsView({
                             </TableCell>
                             <TableCell className="text-center">
                               {employeeCount > 0 ? (
-                                <Badge variant="outline" className="gap-1 bg-success-subtle text-success border-success/30 font-semibold">
-                                  <Users className="w-3 h-3" /> <span className="tabular-nums">{employeeCount} fő</span>
+                                <Badge variant="outline" className="bg-success-subtle text-success border-success/30 font-semibold">
+                                  <span className="tabular-nums">{employeeCount} fő</span>
                                 </Badge>
                               ) : (
-                                <Badge variant="secondary" className="gap-1 text-muted-foreground font-normal">
+                                <Badge variant="secondary" className="text-muted-foreground font-normal">
                                   Betöltetlen
                                 </Badge>
                               )}

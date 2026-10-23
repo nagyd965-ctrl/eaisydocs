@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Edit, Trash2, FileText } from "lucide-react"
+import { Edit, Trash2 } from "lucide-react"
 import { deleteMunkakor } from "@/app/hr/settings/actions"
 import { toast } from "sonner"
 import Link from "next/link"
@@ -40,8 +40,7 @@ export function JobActionMenu({ job, orgUnits = [] }: JobActionMenuProps) {
     <>
       <div className="flex items-center justify-end gap-1">
         <Link href={`/hr/job/${job.id}`}>
-          <Button variant="ghost" size="sm" className="h-8 text-xs text-primary hover:text-primary gap-1 px-2.5">
-            <FileText className="w-3.5 h-3.5" />
+          <Button variant="ghost" size="sm" className="h-8 text-xs text-primary hover:text-primary px-2.5">
             Adatlap
           </Button>
         </Link>

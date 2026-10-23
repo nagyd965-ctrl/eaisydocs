@@ -1,7 +1,7 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
-import { Users, Building2, UserCircle2, ChevronDown, ChevronRight } from "lucide-react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useState } from "react"
 
@@ -57,8 +57,7 @@ function OrgUnitCard({ unit, depth }: { unit: OrgUnitNode; depth: number }) {
           onClick={() => hasChildren && setCollapsed(c => !c)}
           className={`w-full flex items-center justify-between px-3 py-2.5 ${hasChildren ? "cursor-pointer" : "cursor-default"}`}
         >
-          <div className="flex items-center gap-2 min-w-0">
-            <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          <div className="flex items-center min-w-0">
             <span className="font-semibold text-sm text-foreground truncate">{unit.nev}</span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0 ml-1">
@@ -84,8 +83,7 @@ function OrgUnitCard({ unit, depth }: { unit: OrgUnitNode; depth: number }) {
 
         {/* Üres állapot */}
         {unit.dolgozok.length === 0 && (
-          <div className="px-3 pb-2.5 flex items-center gap-1.5 text-[11px] text-muted-foreground border-t border-border/50 pt-1.5">
-            <UserCircle2 className="w-3 h-3" />
+          <div className="px-3 pb-2.5 text-[11px] text-muted-foreground border-t border-border/50 pt-1.5">
             Nincs hozzárendelt dolgozó
           </div>
         )}
@@ -135,12 +133,9 @@ function countHeadcount(unit: OrgUnitNode): number {
 export function OrgChartTree({ rootUnits }: { rootUnits: OrgUnitNode[] }) {
   if (!rootUnits || rootUnits.length === 0) {
     return (
-      <div className="text-center p-12 border-2 border-dashed rounded-xl text-muted-foreground flex flex-col items-center gap-3">
-        <Building2 className="w-10 h-10 text-muted-foreground/40" />
-        <div>
-          <p className="font-medium">Nincs szervezeti egység</p>
-          <p className="text-sm mt-1">Hozzon létre szervezeti egységeket a &quot;Szervezeti egységek&quot; fülön.</p>
-        </div>
+      <div className="text-center p-12 border-2 border-dashed rounded-xl text-muted-foreground flex flex-col items-center gap-2">
+        <p className="font-medium text-foreground">Nincs szervezeti egység</p>
+        <p className="text-sm">Hozzon létre szervezeti egységeket a &quot;Szervezeti egységek&quot; fülön.</p>
       </div>
     )
   }
@@ -162,8 +157,8 @@ export function OrgChartTree({ rootUnits }: { rootUnits: OrgUnitNode[] }) {
         <span className="text-xs text-muted-foreground flex items-center gap-1">
           <span className="inline-block w-3 h-3 rounded border-2 border-success/40 bg-success/10" /> 3. szint
         </span>
-        <span className="text-xs text-muted-foreground flex items-center gap-1.5 ml-auto">
-          <Users className="w-3 h-3" /> Kattintson egy egységre a összecsukáshoz
+        <span className="text-xs text-muted-foreground ml-auto">
+          Kattintson egy egységre az összecsukáshoz
         </span>
       </div>
     </div>

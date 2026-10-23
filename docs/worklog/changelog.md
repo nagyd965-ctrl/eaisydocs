@@ -4,6 +4,16 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-23)
 
+### eaisyHR: Szervezeti Felépítés Fül- és Gombszintű Ikoneltávolítás (Zero-Emoji & No-Decorative-Icons)
+- **Tiszta Szöveges Tabok (`src/components/hr/organization-tabs-view.tsx`):**
+  - Eltávolításra kerültek a tabok feliratai elől a felesleges dekoratív ikonok (`Network`, `Building2`, `Briefcase`). A fülek tiszta szöveges címkékkel és darabszám jelvénnyel jelennek meg: **Szervezeti Ábra**, **Szervezeti Egységek (X)**, **Munkakör-katalógus (Y)**.
+- **Táblázati Fejlécek és Jelvények Tisztítása:**
+  - A szervezeti egységek és munkakörök táblázatában a betöltött létszám jelvényből (`Badge`) eltávolításra került a dekoratív `Users` ikon, kizárólag a letisztult `X fő` szöveges érték jelenik meg.
+- **Műveleti Gombok Letisztítása (`src/components/hr/job-action-menu.tsx`, `src/components/hr/org-unit-action-menu.tsx`):**
+  - Az „Adatlap” navigációs gombok elől eltávolításra került a dekoratív `FileText` ikon, illeszkedve a tiszta szöveges műveleti gombok irányelvéhez.
+- **Fanapló és Üres Állapotok Tisztítása (`src/components/hr/org-chart-tree.tsx`):**
+  - Az üres állapotból és a fanapló kártyafejlécekből eltávolításra kerültek a dekoratív `Building2`, `Users` és `UserCircle2` ikonok, szövegközpontú, professzionális elrendezést biztosítva.
+
 ### eaisyHR: Titoktartási Nyilatkozat Tanúk és Nyomtatási Nézet Hibajavítás (P-112 Kiegészítés)
 - **Tanúk és Alsó Blokk Elérhetősége és Megjelenése (`src/components/hr/contract-generator-dialog.tsx`):**
   - Megszüntettük az előnézeti modál alsó levágási hibáját: a dokumentum-konténert egy bőséges (`pb-20 pt-1`) görgetési térközzel rendelkező burkolóelembe helyeztük, így a modál aljára görgetve a teljes lap és az összes tanúmező teljesen, kényelmes margóval láthatóvá válik.
