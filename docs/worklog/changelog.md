@@ -18,6 +18,11 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
   - **Munkaköri Profil & Feladatok:** Kiegyensúlyozott 2 oszlopos kártyarács a feladatok/hatáskörök felsorolásával és az elvárt kompetenciák jelvényeivel.
   - **Munkavédelem & Egészségügy:** 2 oszlopos kártyák a bejelentett munkavédelmi kockázatokkal, egyéni védőeszközökkel és a kötelező foglalkozás-egészségügyi vizsgálatokkal/gyakorisággal.
   - **Hivatalos Munkaköri Leírás (Y):** Önálló fül a verzionált hivatalos dokumentumokhoz és feltöltéshez (`JobDescriptionUpload`).
+- **Közvetlen Kártyaszintű és Soron Belüli (Inline) Mezőkitöltés:**
+  - **Dolgozó hozzárendelése helyben:** A Dolgozók kártyafejlécében közvetlenül elérhető az `AssignEmployeeDialog`, valamint üres állomány esetén közvetlen hozzárendelési gomb jelenik meg a táblázatban.
+  - **Kattintható KPI kártyák:** A felső KPI sáv kártyáira kattintva a hozzárendelt dolgozó dialógus, illetve az Alapadatok fül azonnal megnyílik.
+  - **Azonnali inline feladat- és kompetenciarögzítés (`JobProfileTasksSection`):** Közvetlenül a kártyákon található beviteli mező Enter leütéssel vagy hozzáadás gombbal aszinkron szerver akcióval (`addJobTaskAction`, `addJobCompetencyAction`) azonnal elmenti az új elemet, a törlés pedig tételenként azonnal végrehajtható.
+  - **Dedikált kártyafejléc szerkesztőgombok:** A Munkavédelem, Foglalkozás-egészségügy és Alapadatok kártyák mind rendelkeznek önálló „Szerkesztés” gombbal, amelyek a `JobEditDialog` megfelelő fülét nyitják meg célzottan (`initialTab="safety"` / `"general"` / `"tasks"`).
 - **Zero-Emoji és No-Decorative-Icons Megfelelőség:**
   - Nincsenek emojik és dekoratív buborékok; letisztult szövegközpontú üres állapotok.
 

@@ -94,3 +94,150 @@ export async function removeEmployeeFromJob(jobId: string, employeeId: string) {
   revalidatePath("/hr/admin")
   return { success: true }
 }
+
+export async function addJobTaskAction(jobId: string, task: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const trimmed = task.trim()
+  if (!trimmed) return { error: "A feladat nem lehet üres!" }
+
+  const { data: job, error: fetchErr } = await supabase
+    .from("hr_munkakor")
+    .select("feladatok_es_hataskorok")
+    .eq("id", jobId)
+    .single()
+
+  if (fetchErr || !job) return { error: "Munkakör nem található" }
+
+  let currentTasks: string[] = []
+  if (Array.isArray(job.feladatok_es_hataskorok)) {
+    currentTasks = [...job.feladatok_es_hataskorok]
+  } else if (typeof job.feladatok_es_hataskorok === "string") {
+    try {
+      const parsed = JSON.parse(job.feladatok_es_hataskorok)
+      if (Array.isArray(parsed)) currentTasks = parsed
+    } catch {
+      currentTasks = job.feladatok_es_hataskorok.split("\n").map((s: string) => s.trim()).filter(Boolean)
+    }
+  }
+
+  currentTasks.push(trimmed)
+
+  const { error: updateErr } = await supabase
+    .from("hr_munkakor")
+    .update({ feladatok_es_hataskorok: currentTasks })
+    .eq("id", jobId)
+
+  if (updateErr) return { error: updateErr.message }
+
+  revalidatePath(`/hr/job/${jobId}`)
+  return { success: true }
+}
+
+export async function removeJobTaskAction(jobId: string, taskIndex: number) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: job, error: fetchErr } = await supabase
+    .from("hr_munkakor")
+    .select("feladatok_es_hataskorok")
+    .eq("id", jobId)
+    .single()
+
+  if (fetchErr || !job) return { error: "Munkakör nem található" }
+
+  let currentTasks: string[] = []
+  if (Array.isArray(job.feladatok_es_hataskorok)) {
+    currentTasks = [...job.feladatok_es_hataskorok]
+  }
+
+  const updatedTasks = currentTasks.filter((_, idx) => idx !== taskIndex)
+
+  const { error: updateErr } = await supabase
+    .from("hr_munkakor")
+    .update({ feladatok_es_hataskorok: updatedTasks })
+    .eq("id", jobId)
+
+  if (updateErr) return { error: updateErr.message }
+
+  revalidatePath(`/hr/job/${jobId}`)
+  return { success: true }
+}
+
+export async function addJobCompetencyAction(jobId: string, competency: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const trimmed = competency.trim()
+  if (!trimmed) return { error: "A kompetencia nem lehet üres!" }
+
+  const { data: job, error: fetchErr } = await supabase
+    .from("hr_munkakor")
+    .select("elvart_kompetenciak")
+    .eq("id", jobId)
+    .single()
+
+  if (fetchErr || !job) return { error: "Munkakör nem található" }
+
+  let currentComp: string[] = []
+  if (Array.isArray(job.elvart_kompetenciak)) {
+    currentComp = [...job.elvart_kompetenciak]
+  } else if (typeof job.elvart_kompetenciak === "string") {
+    try {
+      const parsed = JSON.parse(job.elvart_kompetenciak)
+      if (Array.isArray(parsed)) currentComp = parsed
+    } catch {
+      currentComp = job.elvart_kompetenciak.split("\n").map((s: string) => s.trim()).filter(Boolean)
+    }
+  }
+
+  if (!currentComp.includes(trimmed)) {
+    currentComp.push(trimmed)
+  }
+
+  const { error: updateErr } = await supabase
+    .from("hr_munkakor")
+    .update({ elvart_kompetenciak: currentComp })
+    .eq("id", jobId)
+
+  if (updateErr) return { error: updateErr.message }
+
+  revalidatePath(`/hr/job/${jobId}`)
+  return { success: true }
+}
+
+export async function removeJobCompetencyAction(jobId: string, compIndex: number) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: job, error: fetchErr } = await supabase
+    .from("hr_munkakor")
+    .select("elvart_kompetenciak")
+    .eq("id", jobId)
+    .single()
+
+  if (fetchErr || !job) return { error: "Munkakör nem található" }
+
+  let currentComp: string[] = []
+  if (Array.isArray(job.elvart_kompetenciak)) {
+    currentComp = [...job.elvart_kompetenciak]
+  }
+
+  const updatedComp = currentComp.filter((_, idx) => idx !== compIndex)
+
+  const { error: updateErr } = await supabase
+    .from("hr_munkakor")
+    .update({ elvart_kompetenciak: updatedComp })
+    .eq("id", jobId)
+
+  if (updateErr) return { error: updateErr.message }
+
+  revalidatePath(`/hr/job/${jobId}`)
+  return { success: true }
+}
+

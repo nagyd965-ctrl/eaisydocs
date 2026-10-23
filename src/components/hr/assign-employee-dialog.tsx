@@ -19,9 +19,10 @@ interface Employee {
 interface AssignEmployeeDialogProps {
   jobId: string
   availableEmployees: Employee[]
+  trigger?: React.ReactNode
 }
 
-export function AssignEmployeeDialog({ jobId, availableEmployees }: AssignEmployeeDialogProps) {
+export function AssignEmployeeDialog({ jobId, availableEmployees, trigger }: AssignEmployeeDialogProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("")
@@ -47,10 +48,16 @@ export function AssignEmployeeDialog({ jobId, availableEmployees }: AssignEmploy
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className={buttonVariants({ className: "gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" })}>
-        <UserPlus className="w-4 h-4" />
-        Dolgozó Hozzárendelése
-      </DialogTrigger>
+      {trigger ? (
+        <div onClick={() => setOpen(true)} className="cursor-pointer">
+          {trigger}
+        </div>
+      ) : (
+        <DialogTrigger className={buttonVariants({ className: "gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" })}>
+          <UserPlus className="w-4 h-4" />
+          Dolgozó Hozzárendelése
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Dolgozó Hozzárendelése</DialogTitle>

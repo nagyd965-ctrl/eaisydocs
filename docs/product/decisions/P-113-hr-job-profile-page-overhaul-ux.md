@@ -36,9 +36,15 @@
 
 4. **Négyfülös, Letisztult Tab Architektúra:**
    - **Dolgozók (X):** Avatar monogrammal, dolgozói profillinkkel, kanonikus `roleLabel` szerepkör jelvénnyel, formázott belépési dátummal és megerősítést kérő piros `X` eltávolítási művelettel.
-   - **Munkaköri Profil & Feladatok:** 2 oszlopos kártyaelrendezés a feladatok és hatáskörök felsorolásával, valamint az elvárt kompetenciák jelvényeivel.
+   - **Munkaköri Profil & Feladatok:** Munkaköri Törzs- és Minősítési Adatok kártya, valamint 2 oszlopos kártyaelrendezés a feladatok és hatáskörök felsorolásával, és az elvárt kompetenciák jelvényeivel.
    - **Munkavédelem & Egészségügy:** 2 oszlopos kártyák a bejelentett munkavédelmi kockázatokkal, egyéni védőeszköz igénnyel és a kötelező foglalkozás-egészségügyi vizsgálat típusával / gyakoriságával.
    - **Hivatalos Munkaköri Leírás (Y):** Önálló fül a verzionált hivatalos munkaköri leírások megtekintéséhez, letöltéséhez és új verzió feltöltéséhez (`JobDescriptionUpload`).
 
-5. **Zero-Emoji és No-Decorative-Icons Megfelelőség:**
+5. **Közvetlen Kártyaszintű és Soron Belüli (Inline) Mezőkitöltés:**
+   - **Dolgozó hozzárendelése helyben:** A Dolgozók kártyafejlécében közvetlenül megtalálható az `AssignEmployeeDialog`, valamint üres állomány esetén közvetlen hozzárendelési gomb jelenik meg a táblázatban.
+   - **Kattintható KPI kártyák:** A felső KPI sáv kártyáira kattintva a hozzárendelt dolgozó dialógus, illetve az Alapadatok fül azonnal megnyílik.
+   - **Azonnali inline feladat- és kompetenciarögzítés (`JobProfileTasksSection`):** Közvetlenül a kártyákon található beviteli mező Enter leütéssel vagy hozzáadás gombbal aszinkron szerver akcióval azonnal elmenti az új elemet, a törlés pedig tételenként azonnal végrehajtható.
+   - **Dedikált kártyafejléc szerkesztőgombok:** A Munkavédelem, Foglalkozás-egészségügy és Alapadatok kártyák mind rendelkeznek önálló „Szerkesztés” gombbal, amelyek a `JobEditDialog` megfelelő fülét nyitják meg célzottan (`initialTab`).
+
+6. **Zero-Emoji és No-Decorative-Icons Megfelelőség:**
    - Nincsenek emojik és dekoratív buborékok; az üres állapotok letisztult szöveges blokkokként jelennek meg.

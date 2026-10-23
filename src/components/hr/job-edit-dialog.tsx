@@ -63,6 +63,7 @@ interface JobEditDialogProps {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onSuccess?: () => void
+  initialTab?: "general" | "tasks" | "safety"
 }
 
 export function JobEditDialog({
@@ -72,6 +73,7 @@ export function JobEditDialog({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
   onSuccess,
+  initialTab = "general",
 }: JobEditDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlled = controlledOpen !== undefined
@@ -118,7 +120,7 @@ export function JobEditDialog({
   )
 
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<"general" | "tasks" | "safety">("general")
+  const [activeTab, setActiveTab] = useState<"general" | "tasks" | "safety">(initialTab)
 
   // Reset state when dialog opens
   const handleOpenChange = (isOpen: boolean) => {
@@ -135,7 +137,7 @@ export function JobEditDialog({
       setOrvosiGyakorisagHo(job.orvosi_vizsgalat_gyakorisag_ho ? String(job.orvosi_vizsgalat_gyakorisag_ho) : "")
       setNewTaskInput("")
       setNewCompetencyInput("")
-      setActiveTab("general")
+      setActiveTab(initialTab)
     }
     setOpen(isOpen)
   }
@@ -218,7 +220,7 @@ export function JobEditDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {trigger ? (
-        <div onClick={() => handleOpenChange(true)} className="inline-flex cursor-pointer">
+        <div onClick={() => handleOpenChange(true)} className="w-full h-full cursor-pointer">
           {trigger}
         </div>
       ) : null}

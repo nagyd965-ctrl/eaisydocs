@@ -14,6 +14,7 @@ import { AssignEmployeeDialog } from "@/components/hr/assign-employee-dialog"
 import { RemoveEmployeeButton } from "./remove-employee-button"
 import { JobDescriptionUpload } from "@/components/hr/job-description-upload"
 import { JobEditDialog } from "@/components/hr/job-edit-dialog"
+import { JobProfileTasksSection } from "./job-profile-tasks-section"
 
 function roleLabel(role: string | null | undefined): { label: string; className: string } {
   switch (role) {
@@ -196,6 +197,7 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
             <JobEditDialog
               job={job}
               orgUnits={orgUnits || []}
+              initialTab="general"
               trigger={
                 <Button variant="outline" size="sm">
                   Munkakör szerkesztése
@@ -207,24 +209,88 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
         )}
       </div>
 
-      {/* ── Statisztikai Kártyák (Linear Flat KPI Grid) ── */}
+      {/* ── Statisztikai Kártyák (Linear Flat KPI Grid – Kattintható gyorsszerkesztéssel) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          label="Hozzárendelt dolgozó"
-          value={employees.length}
-        />
-        <KpiCard
-          label="Szervezeti egység"
-          value={orgUnitNev || "Nincs rendelve"}
-        />
-        <KpiCard
-          label="FEOR-08 Foglalkozás"
-          value={job.feor_kod || "—"}
-        />
-        <KpiCard
-          label="Besorolási szint"
-          value={job.besorolasi_szint || "Általános"}
-        />
+        {isHrOrAdmin ? (
+          <AssignEmployeeDialog
+            jobId={job.id}
+            availableEmployees={availableEmployees}
+            trigger={
+              <div className="h-full cursor-pointer group">
+                <KpiCard
+                  label="Hozzárendelt dolgozó"
+                  value={employees.length}
+                  className="group-hover:border-primary/40 transition-colors"
+                />
+              </div>
+            }
+          />
+        ) : (
+          <KpiCard
+            label="Hozzárendelt dolgozó"
+            value={employees.length}
+          />
+        )}
+
+        {isHrOrAdmin ? (
+          <JobEditDialog
+            job={job}
+            orgUnits={orgUnits || []}
+            initialTab="general"
+            trigger={
+              <KpiCard
+                label="Szervezeti egység"
+                value={orgUnitNev || "Nincs rendelve"}
+                className="hover:border-primary/40 transition-colors"
+              />
+            }
+          />
+        ) : (
+          <KpiCard
+            label="Szervezeti egység"
+            value={orgUnitNev || "Nincs rendelve"}
+          />
+        )}
+
+        {isHrOrAdmin ? (
+          <JobEditDialog
+            job={job}
+            orgUnits={orgUnits || []}
+            initialTab="general"
+            trigger={
+              <KpiCard
+                label="FEOR-08 Foglalkozás"
+                value={job.feor_kod || "—"}
+                className="hover:border-primary/40 transition-colors"
+              />
+            }
+          />
+        ) : (
+          <KpiCard
+            label="FEOR-08 Foglalkozás"
+            value={job.feor_kod || "—"}
+          />
+        )}
+
+        {isHrOrAdmin ? (
+          <JobEditDialog
+            job={job}
+            orgUnits={orgUnits || []}
+            initialTab="general"
+            trigger={
+              <KpiCard
+                label="Besorolási szint"
+                value={job.besorolasi_szint || "Általános"}
+                className="hover:border-primary/40 transition-colors"
+              />
+            }
+          />
+        ) : (
+          <KpiCard
+            label="Besorolási szint"
+            value={job.besorolasi_szint || "Általános"}
+          />
+        )}
       </div>
 
       {/* ── Fő tartalom – Tabs ── */}
@@ -261,11 +327,14 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
         {/* ── 1. Dolgozók Tab ── */}
         <TabsContent value="dolgozok" className="outline-none">
           <Card className="border-border">
-            <CardHeader className="pb-4 border-b flex flex-row items-center justify-between">
+            <CardHeader className="pb-4 border-b flex flex-row items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-base font-semibold">Hozzárendelt Dolgozók</CardTitle>
                 <CardDescription>A munkakörben jelenleg dolgozó munkatársak és szerepköreik.</CardDescription>
               </div>
+              {isHrOrAdmin && (
+                <AssignEmployeeDialog jobId={job.id} availableEmployees={availableEmployees} />
+              )}
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -314,7 +383,20 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
                     }) : (
                       <TableRow>
                         <TableCell colSpan={isHrOrAdmin ? 4 : 3} className="text-center py-12 text-muted-foreground">
-                          Jelenleg nincs dolgozó hozzárendelve ehhez a munkakörhöz.
+                          <p>Jelenleg nincs dolgozó hozzárendelve ehhez a munkakörhöz.</p>
+                          {isHrOrAdmin && (
+                            <div className="mt-3">
+                              <AssignEmployeeDialog
+                                jobId={job.id}
+                                availableEmployees={availableEmployees}
+                                trigger={
+                                  <Button variant="outline" size="sm">
+                                    Dolgozó hozzárendelése
+                                  </Button>
+                                }
+                              />
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     )}
@@ -327,60 +409,70 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
 
         {/* ── 2. Munkaköri Profil & Feladatok Tab ── */}
         <TabsContent value="profil" className="space-y-6 outline-none">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Feladatok és Hatáskörök */}
-            <Card className="border-border">
-              <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-base font-semibold">Feladatok és Hatáskörök</CardTitle>
-                  <CardDescription className="text-xs">A munkakörhöz tartozó felelősségek és napi feladatok.</CardDescription>
+          {/* Munkaköri Alapadatok Card */}
+          <Card className="border-border">
+            <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-semibold">Munkaköri Törzs- és Minősítési Adatok</CardTitle>
+                <CardDescription className="text-xs">
+                  Szervezeti hovatartozás, hivatalos megnevezés, KSH FEOR besorolás és karrierszint.
+                </CardDescription>
+              </div>
+              {isHrOrAdmin && (
+                <JobEditDialog
+                  job={job}
+                  orgUnits={orgUnits || []}
+                  initialTab="general"
+                  trigger={
+                    <Button variant="outline" size="sm" className="h-8 text-xs shrink-0">
+                      Alapadatok szerkesztése
+                    </Button>
+                  }
+                />
+              )}
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                <div className="space-y-1">
+                  <span className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">Munkakör Neve</span>
+                  <p className="font-medium text-sm text-foreground">{job.megnevezes}</p>
                 </div>
-                <Badge variant="secondary" className="text-xs">{feladatok.length}</Badge>
-              </CardHeader>
-              <CardContent className="pt-4">
-                {feladatok.length > 0 ? (
-                  <ul className="space-y-2.5">
-                    {feladatok.map((f, i) => (
-                      <li key={i} className="flex items-start gap-2.5 text-sm leading-relaxed">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                        <span className="text-foreground/90">{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="text-center py-8 text-sm text-muted-foreground">
-                    Nincs rögzített feladat vagy hatáskör.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">Szervezeti Egység</span>
+                  <p className="font-medium text-sm text-foreground">
+                    {orgUnitNev ? (
+                      <Link href={`/hr/orgunit/${job.hr_szervezeti_egyseg?.id}`} className="text-primary hover:underline">
+                        {orgUnitNev}
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">— Nincs hozzárendelve —</span>
+                    )}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">FEOR-08 Foglalkozás</span>
+                  <p className="font-medium text-sm text-foreground tabular-nums">
+                    {job.feor_kod ? job.feor_kod : <span className="text-muted-foreground">— Nincs megadva —</span>}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">Besorolási Szint</span>
+                  <p className="font-medium text-sm text-foreground">
+                    {job.besorolasi_szint ? job.besorolasi_szint : <span className="text-muted-foreground">— Nincs szint —</span>}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-            {/* Elvárt Kompetenciák és Végzettség */}
-            <Card className="border-border">
-              <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-base font-semibold">Elvárt Kompetenciák és Végzettség</CardTitle>
-                  <CardDescription className="text-xs">Szükséges képesítések, készségek és szakmai tapasztalat.</CardDescription>
-                </div>
-                <Badge variant="secondary" className="text-xs">{kompetenciak.length}</Badge>
-              </CardHeader>
-              <CardContent className="pt-4">
-                {kompetenciak.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {kompetenciak.map((k, i) => (
-                      <Badge key={i} variant="secondary" className="font-normal text-xs px-2.5 py-1">
-                        {k}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-sm text-muted-foreground">
-                    Nincs rögzített kompetencia vagy végzettségi elvárás.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+          {/* Dinamikus Feladatok és Kompetenciák (Közvetlen inline hozzáadás & törlés + kezelés) */}
+          <JobProfileTasksSection
+            job={job}
+            orgUnits={orgUnits || []}
+            isHrOrAdmin={isHrOrAdmin}
+            initialTasks={feladatok}
+            initialCompetencies={kompetenciak}
+          />
         </TabsContent>
 
         {/* ── 3. Munkavédelem & Egészségügy Tab ── */}
@@ -388,9 +480,23 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Kockázatértékelés (Munkavédelem) */}
             <Card className="border-border">
-              <CardHeader className="pb-3 border-b">
-                <CardTitle className="text-base font-semibold">Munkavédelem és Kockázatértékelés</CardTitle>
-                <CardDescription className="text-xs">Munkaköri kockázatok és kötelező védőfelszerelések.</CardDescription>
+              <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-semibold">Munkavédelem és Kockázatértékelés</CardTitle>
+                  <CardDescription className="text-xs">Munkaköri kockázatok és kötelező védőfelszerelések.</CardDescription>
+                </div>
+                {isHrOrAdmin && (
+                  <JobEditDialog
+                    job={job}
+                    orgUnits={orgUnits || []}
+                    initialTab="safety"
+                    trigger={
+                      <Button variant="outline" size="sm" className="h-8 text-xs shrink-0">
+                        Munkavédelem szerkesztése
+                      </Button>
+                    }
+                  />
+                )}
               </CardHeader>
               <CardContent className="pt-4 space-y-4">
                 <div className="space-y-1">
@@ -405,14 +511,42 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
                     {job.vedoeszkoz_igeny || "Nem igényel speciális egyéni védőeszközt."}
                   </p>
                 </div>
+                {isHrOrAdmin && !job.kockazat_tipusa && !job.vedoeszkoz_igeny && (
+                  <div className="pt-2">
+                    <JobEditDialog
+                      job={job}
+                      orgUnits={orgUnits || []}
+                      initialTab="safety"
+                      trigger={
+                        <Button variant="outline" size="sm" className="text-xs">
+                          + Kockázat és védőeszköz megadása
+                        </Button>
+                      }
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
             {/* Kötelező Orvosi Vizsgálat */}
             <Card className="border-border">
-              <CardHeader className="pb-3 border-b">
-                <CardTitle className="text-base font-semibold">Foglalkozás-egészségügyi Alkalmasság</CardTitle>
-                <CardDescription className="text-xs">Előírt orvosi vizsgálatok és gyakoriság.</CardDescription>
+              <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-semibold">Foglalkozás-egészségügyi Alkalmasság</CardTitle>
+                  <CardDescription className="text-xs">Előírt orvosi vizsgálatok és gyakoriság.</CardDescription>
+                </div>
+                {isHrOrAdmin && (
+                  <JobEditDialog
+                    job={job}
+                    orgUnits={orgUnits || []}
+                    initialTab="safety"
+                    trigger={
+                      <Button variant="outline" size="sm" className="h-8 text-xs shrink-0">
+                        Orvosi előírás szerkesztése
+                      </Button>
+                    }
+                  />
+                )}
               </CardHeader>
               <CardContent className="pt-4 space-y-4">
                 <div className="flex items-center justify-between">
@@ -427,6 +561,20 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
                     {job.orvosi_vizsgalat_gyakorisag_ho ? `Minden ${job.orvosi_vizsgalat_gyakorisag_ho} hónapban` : "Időszakos felülvizsgálat szerint"}
                   </span>
                 </div>
+                {isHrOrAdmin && !job.orvosi_vizsgalat_tipus && !job.orvosi_vizsgalat_gyakorisag_ho && (
+                  <div className="pt-2">
+                    <JobEditDialog
+                      job={job}
+                      orgUnits={orgUnits || []}
+                      initialTab="safety"
+                      trigger={
+                        <Button variant="outline" size="sm" className="text-xs">
+                          + Orvosi vizsgálat beállítása
+                        </Button>
+                      }
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
