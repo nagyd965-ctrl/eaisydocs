@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { LeaveHistoryList } from "@/components/hr/leave-history-list"
 import { EmployeeTimesheet } from "@/components/hr/employee-timesheet"
-import { SubstituteSettingsCard } from "@/components/hr/substitute-settings-card"
+import { SubstituteDialog } from "@/components/hr/substitute-dialog"
 import { LeaveRequestDialog } from "@/components/hr/leave-request-dialog"
 import { redirect } from "next/navigation"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
@@ -140,14 +140,22 @@ export default async function SelfServiceTimePage() {
     <div className="space-y-6 pb-10">
 
       {/* Fejléc */}
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Jelenlét és Szabadság</h1>
           <p className="text-muted-foreground mt-1">
             Munkaidő nyilvántartás, szabadságok és helyettesítések.
           </p>
         </div>
-        <LeaveRequestDialog />
+        <div className="flex items-center gap-2.5">
+          {isManagerOrAdmin && (
+            <SubstituteDialog
+              availableUsers={availableUsers}
+              currentSubstitute={currentSubstitute}
+            />
+          )}
+          <LeaveRequestDialog />
+        </div>
       </div>
 
       {/* Jelenléti Ív + Stat kártyák (a komponensen belül, szinkronban a hónapváltással) */}
@@ -160,15 +168,6 @@ export default async function SelfServiceTimePage() {
         overtimes={tulorak || []}
         holidays={holidays}
       />
-
-      {/* Helyettesítés – csak vezető/admin szerepkörnek */}
-      {isManagerOrAdmin && (
-        <SubstituteSettingsCard
-          availableUsers={availableUsers}
-          currentSubstitute={currentSubstitute}
-        />
-      )}
-
     </div>
   )
 }
