@@ -121,11 +121,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-111](./P-111-hr-unified-official-employment-contract-generator-ux.md) | 2026-10-23 | Egységes Hivatalos Munkaszerződés Generálás (Mt. 42–45. §) a 360° Dolgozói Profilban UX | `[HR]` | `HR / Employee 360 Documents & Contract Generation UX` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), [P-043](./P-043-global-ui-consistency-and-unified-components.md), `src/components/hr/contract-generator-dialog.tsx`, `src/components/hr/employment-contract-panel.tsx` |
 | [P-112](./P-112-hr-document-templates-overhaul-and-auto-fill-ux.md) | 2026-10-23 | eaisyHR Munkaügyi Sablonok Teljes Körű Átdolgozása és Automatikus Adat-előtöltés UX | `[HR]` | `HR / Document Templates & Auto-Fill UX` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), [P-043](./P-043-global-ui-consistency-and-unified-components.md), [P-111](./P-111-hr-unified-official-employment-contract-generator-ux.md), `contract-generator-dialog.tsx`, `employment-contract-panel.tsx`, `contract-actions.ts`, `employment-contract-actions.ts` |
 | [P-113](./P-113-hr-job-profile-page-overhaul-ux.md) | 2026-10-23 | eaisyHR Munkakör Adatlap UI/UX Átdolgozás és Szervezeti Egység Nézettel Való Harmonizáció | `[HR]` | `HR / Job Profile Page UI/UX Harmonization` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), [P-043](./P-043-global-ui-consistency-and-unified-components.md), [P-071](./P-071-hr-job-catalog-specification-and-omnipresent-integration.md), `src/app/hr/job/[id]/page.tsx`, `src/app/hr/job/[id]/actions.ts`, `job-assigned-employees-table.tsx`, `job-description-upload.tsx` |
+| [P-114](./P-114-hr-header-substitute-dialog-and-monthly-timesheet-context-ux.md) | 2026-10-24 | Helyettesítés Felugró Modál (SubstituteDialog) a Fejlécben és Jelenléti Ív Havi Kontextus UX | `[HR]` | `HR / Self-Service Time & Substitution UX` | [A-084](../../architecture/decisions/A-084-hr-substitution-routing-and-automatic-expiration-reconciliation.md), `src/components/hr/substitute-dialog.tsx`, `src/app/hr/self-service/time/page.tsx`, `src/components/hr/employee-timesheet.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-114`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-115`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

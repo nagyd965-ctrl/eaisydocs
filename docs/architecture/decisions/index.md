@@ -96,11 +96,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-081](./A-081-attendance-correction-pdf-generation-and-manager-clearance.md) | 2026-10-21 | Munkaidő Korrekciós PDF Generálás és Vezetői Jogosultság Kiterjesztés az Igazolásokhoz | `[HR]` | `Decided` | [P-105](../../product/decisions/P-105-unified-approval-status-tabs-and-in-place-pdf-actions.md), `attendance-correction-pdf/route.ts`, `leave-pdf/route.ts`, `leave-history-list.tsx`, `unified-approvals-panel.tsx` |
 | [A-082](./A-082-hr-idp-individual-development-plan-revamp.md) | 2026-10-23 | Egyéni Fejlesztési Terv (IDP) Architektúra és Tanúsítvány-igazolási Életciklus | `[HR]` | `Decided` | [P-106](../../product/decisions/P-106-hr-idp-individual-development-plan-revamp-ux.md), `hr_fejlesztesi_cel`, `idp-actions.ts`, `idp-dialog.tsx`, `idp-certificate-upload-dialog.tsx`, `idp-certificate-viewer-dialog.tsx`, `idp-list-card.tsx`, `employee-idp-view.tsx` |
 | [A-083](./A-083-hr-concurrency-security-and-data-integrity-hardening.md) | 2026-10-23 | eaisyHR Párhuzamossági (Concurrency), Biztonsági és Adatintegritási Megerősítés | `[HR]` | `Decided` | `download-document/route.ts`, `attendance-actions.ts`, `cafeteria-actions.ts`, `manager/actions.ts`, `self-service/actions.ts`, `20261023000004_fix_hr_audit_security_and_rls.sql` |
+| [A-084](./A-084-hr-substitution-routing-and-automatic-expiration-reconciliation.md) | 2026-10-24 | eaisyHR Helyettesítési Útvonalválasztás, Kérelem Átszignálás és Automatikus Lejárati Reconciliáció | `[HR]` | `Decided` | [P-114](../../product/decisions/P-114-hr-header-substitute-dialog-and-monthly-timesheet-context-ux.md), `substitute-sync.ts`, `self-service/actions.ts`, `hr/manager/page.tsx`, `hr/self-service/time/page.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-084`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-085`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

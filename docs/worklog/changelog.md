@@ -2,6 +2,29 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
+## [Unreleased] – Fejlesztés alatt (2026-10-24)
+
+### eaisyHR: Helyettesítési Rendszer Korszerűsítése, Automatikus Reconciliáció és Fejléc Modál (ADR A-084, PRD P-114)
+- **Fejléc Integrált Helyettesítés Modál (`src/components/hr/substitute-dialog.tsx`, `src/app/hr/self-service/time/page.tsx`):**
+  - Eltávolításra került a lap alján elterülő széles kártya (`SubstituteSettingsCard`), letisztítva a dolgozói Jelenlét és Szabadság oldalt.
+  - Létrejött az új `SubstituteDialog` komponens, amely közvetlenül az „Új Távollét Kérelem” akciógomb mellé került a fejlécben.
+  - Inaktív állapotban tiszta körvonalas gombként jelenik meg, aktív helyettesítéskor elegáns zöld/teal státusz jelvénnyel mutatja a kijelölt helyettes nevét (pl. `Helyettesítés [Kovács Anna]`).
+  - Kattintásra kompakt felugró ablak nyílik meg, ahol beállítható az új helyettes és az időszak, illetve aktív helyettesítésnél azonnal megszüntethető a megbízás.
+- **Közvetlen, Időtartam-alapú Útvonalválasztás (`src/app/hr/self-service/actions.ts`):**
+  - A `submitLeaveRequest` és `submitTimeCorrection` új kérelmeknél elsődlegesen a `hr_helyettesites` tábla aktív dátumablakát (`kezdet_datuma <= ma <= veg_datuma`) ellenőrzi.
+  - Megszűnt az a hibás korlátozás, hogy a helyettesítés csak akkor élt, ha a vezetőnek már volt előzetesen jóváhagyott saját szabadsága rögzítve.
+- **Automatikus Kérelem-átszignálás és Munkaidő Korrekció Támogatás (`actions.ts`):**
+  - Helyettesítés mentésekor (`saveSubstitute`) a vezetőnél lévő összes függőben lévő kérelem (`hr_tavollet` és `hr_jelenlet_korrekcio`) automatikusan átkerül a helyetteshez.
+  - Kézi törléskor (`deleteSubstitute`) a függő kérelmek azonnal visszaszállnak az eredeti vezetőre.
+- **Automatikus Lejárati Reconciliáció (`src/utils/hr/substitute-sync.ts`):**
+  - Létrejött a `syncExpiredSubstitutions()` központi ellenőrző mechanizmus, amely a vezetői felület (`/hr/manager`) és a dolgozói jelenléti ív (`/hr/self-service/time`) betöltésekor automatikusan lefut.
+  - Ha a helyettesítés végdátuma lejárt (`veg_datuma < ma`), a rendszer lezárja a helyettesítést (`aktiv: false`), és a helyettesnél el nem bírált összes függő kérelmet automatikusan visszaszignálja az eredeti vezető asztalára.
+- **Felesleges Teszt Gomb Kivezetése (`src/components/hr/hr-tasks-and-alerts-table.tsx`):**
+  - Véglegesen törlésre került a felesleges és zavaró „Függő Kérelmek Átszignálása” (`ReassignLeavesButton`) gomb.
+- **Jelenléti Ív Havi Kontextus Tisztázás (`src/components/hr/employee-timesheet.tsx`, `src/app/hr/attendance-actions.ts`):**
+  - A havi statisztikai sávban a kártyák (`Ledolgozott Órák`, `Munkanapok`, `Távollét`) megkapták a `sub="Ebben a hónapban"` jelölést, egyértelművé téve, hogy az értékek a kiválasztott naptári hónap adatait mutatják.
+  - Javítva a havi távollétek lekérdezése `getMonthlyTimesheet`-ben valós intervallum-átfedésre (`lte(kezdet_datuma, endDate)` és `gte(veg_datuma, startDate)`).
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-23)
 
 ### eaisyHR & eaisyDocs: Dolgozói Portál Hivatalos Dokumentum Előnézet és Jogosultság Javítás
