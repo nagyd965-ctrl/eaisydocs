@@ -4,7 +4,27 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-23)
 
-### eaisyHR: Egységes Hivatalos Munkaszerződés Generálás (Mt. 42–45. §) a 360° Dolgozói Profilban UX (P-111)
+### eaisyHR: Titoktartási Nyilatkozat Tanúk és Nyomtatási Nézet Hibajavítás (P-112 Kiegészítés)
+- **Tanúk és Alsó Blokk Elérhetősége és Megjelenése (`src/components/hr/contract-generator-dialog.tsx`):**
+  - Megszüntettük az előnézeti modál alsó levágási hibáját: a dokumentum-konténert egy bőséges (`pb-20 pt-1`) görgetési térközzel rendelkező burkolóelembe helyeztük, így a modál aljára görgetve a teljes lap és az összes tanúmező teljesen, kényelmes margóval láthatóvá válik.
+  - A Titoktartási Nyilatkozat tipográfiáját és sorközeit arányosítottuk (`space-y-3.5`, `leading-normal`), így a teljes nyilatkozat a fejléccel, jogi szakaszokkal és a két tanú blokkjával együtt tökéletesen ráfér egy szabványos A4-es lapra.
+  - A tanúzási blokk struktúráját professzionálisá tettük: külön 1. és 2. Tanú felirat, dedikált aláírási vonal „Aláírás” felirattal, valamint pontozott mezők a Név, Lakcím és Személyi igazolvány szám számára.
+- **Izolált, Tiszta Nyomtatás Iframe Segítségével (`handlePrint`):**
+  - A `window.print()` direkt hívását leváltottuk egy rejtett `<iframe>` alapú nyomtatási motorra, amely kizárólag a dokumentum tartalmát és nyomtatási stíluslapjait tölti be.
+  - Ezzel elhárultak a korábbi nyomtatási hibák: nem jelenik meg a modál fekete háttere (`DialogOverlay`), nem vágja le a tartalom végét a `max-h-[90vh]` és nem látszik a háttérben lévő dolgozói adatlap sem.
+- **Globális Dialógus Nyomtatási Szabályok (`src/app/globals.css`):**
+  - A billentyűzetről indított natív `Ctrl+P` nyomtatás esetére is hozzáadtuk a szabályokat: `body:has([data-slot="dialog-content"]) main { display: none !important; }`, a dialógus sötét háttere és bezárás gombja elrejtésre kerül, maga a tartalom pedig statikus, görgetősáv nélküli nyomtatási konténerré alakul.
+
+### eaisyHR: Munkaügyi Sablonok Teljes Körű Átdolgozása és Automatikus Adat-előtöltés UX (P-112)
+- **100%-os Automatikus Adat-előtöltés Minden Sablonban:**
+  - `hr_dolgozo_adatlap` kibővítve `szuletesi_hely` oszloppal (SQL migráció `20261023000003_add_szuletesi_hely_to_hr_dolgozo_adatlap.sql`), és integrálva a személyes adatok szerkesztésébe.
+  - Létrejött a `getEmployeeContractFillData` szerver akció, amely automatikusan feloldja a dolgozó összes személyes, titkosított (TAJ, adójel, bankszámla, alapbér) és munkaköri adatát.
+  - Az `EmploymentContractPanel` ezt azonnal kezdeti állapotként (`initialPersonalData`) betölti, így a szerződéskészítő mezői automatikusan kitöltve jelennek meg.
+- **Bérmódosítás (Mt. 58. §) Interaktív Vezérléssel és Hivatalos Fejléccel:**
+  - Interaktív vezérlősávval ellátva: az új bruttó havi alapbér és a hatálybalépés dátuma valós időben beépül a dokumentum szövegébe.
+  - Jogilag precíz Mt. 58. § szerinti kétoldalú megállapodás céges fejléccel és felek azonosítóival.
+- **Titoktartási és Adatvédelmi Nyilatkozat (NDA):**
+  - Kibővítve a 2018. évi LIV. törvény, az Mt. 8. § és a Btk. 418. § szerinti jogkövetkezményekkel és hivatalos tanúzási záradékkal.
 - **Kanonikus Szerződésgenerátor Integrálása (`src/components/hr/contract-generator-dialog.tsx`):**
   - Az elavult, hiányos pontozott vonalakat tartalmazó „Alap Munkaszerződés” mockup sablon teljesen lecserélésre került a hivatalos, onboardingban már alkalmazott `EmploymentContractPanel` és `employment-contract-pdf-generator.ts` motorra.
   - A sablonválasztóban a tétel megnevezése: **`Hivatalos Munkaszerződés (Mt. 42–45. §)`**, amely alapértelmezett választásként azonnal megjelenik.

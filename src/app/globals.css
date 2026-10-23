@@ -247,6 +247,33 @@ body[data-scroll-locked] {
     max-width: 100% !important;
     overflow: visible !important;
   }
+
+  /* If a dialog is open during print, hide the underlying main page content and overlay backdrop */
+  body:has([data-slot="dialog-content"]) main {
+    display: none !important;
+  }
+
+  [data-slot="dialog-overlay"] {
+    display: none !important;
+  }
+
+  [data-slot="dialog-close"] {
+    display: none !important;
+  }
+
+  [data-slot="dialog-content"] {
+    position: static !important;
+    transform: none !important;
+    max-height: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
   
   /* Ensure backgrounds are printed if needed */
   * {

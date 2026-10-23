@@ -103,7 +103,99 @@ export function ContractGeneratorDialog({
   const displayAlapber = fillData?.alapber || adatlap?.alapber || 650000
 
   const handlePrint = () => {
-    window.print()
+    if (!contentRef.current) return
+
+    const htmlToPrint = contentRef.current.innerHTML
+
+    const iframe = document.createElement("iframe")
+    iframe.style.position = "fixed"
+    iframe.style.right = "0"
+    iframe.style.bottom = "0"
+    iframe.style.width = "0"
+    iframe.style.height = "0"
+    iframe.style.border = "0"
+    document.body.appendChild(iframe)
+
+    const doc = iframe.contentWindow?.document
+    if (!doc) {
+      window.print()
+      return
+    }
+
+    const styleSheets = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
+      .map((el) => el.outerHTML)
+      .join("\n")
+
+    const documentTitle =
+      template === "titoktartasi"
+        ? `Titoktartasi_Nyilatkozat_${displayEmployeeName}`
+        : template === "bermodositas"
+        ? `Bermodositas_${displayEmployeeName}`
+        : `Munkakori_Leiras_${displayEmployeeName}`
+
+    doc.open()
+    doc.write(`
+      <!DOCTYPE html>
+      <html lang="hu">
+        <head>
+          <meta charset="utf-8" />
+          <title>${documentTitle}</title>
+          ${styleSheets}
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 12mm 15mm 15mm 15mm;
+            }
+            *, *::before, *::after {
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            html, body {
+              background: #ffffff !important;
+              color: #000000 !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            }
+            .print-document-root {
+              width: 100% !important;
+              max-width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              border: none !important;
+              box-shadow: none !important;
+            }
+            .page-break-avoid {
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-document-root">
+            ${htmlToPrint}
+          </div>
+        </body>
+      </html>
+    `)
+    doc.close()
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+      } catch (err) {
+        console.error("Print error:", err)
+        window.print()
+      } finally {
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe)
+          }
+        }, 1500)
+      }
+    }, 350)
   }
 
   const handleSaveToSystem = async () => {
@@ -146,7 +238,7 @@ export function ContractGeneratorDialog({
         <ChevronDown className="w-3 h-3 ml-1 opacity-50" />
       </DialogTrigger>
       
-      <DialogContent className="sm:max-w-[850px] w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden print:max-w-none print:w-full print:m-0 print:p-0 print:border-none print:shadow-none">
+      <DialogContent className="sm:max-w-[880px] w-[95vw] max-h-[92vh] overflow-y-auto overflow-x-hidden p-6 pb-12 print:max-w-none print:w-full print:m-0 print:p-0 print:border-none print:shadow-none">
         <div className="print:hidden">
           <DialogHeader>
             <DialogTitle>Szerződés & Dokumentum Generátor</DialogTitle>
@@ -220,7 +312,7 @@ export function ContractGeneratorDialog({
 
         {/* Munkaszerződés esetén a hivatalos, onboardinggal azonos motor */}
         {template === "munkaszerzodes" ? (
-          <div className="pt-1">
+          <div className="pt-1 pb-12">
             <EmploymentContractPanel
               employeeName={displayEmployeeName}
               dolgozoId={employee?.id}
@@ -235,8 +327,12 @@ export function ContractGeneratorDialog({
             />
           </div>
         ) : (
-          /* Egyéb nyomtatható A4-es nézet */
-          <div ref={contentRef} className="print:block bg-white text-black p-6 sm:p-12 min-h-0 sm:min-h-[297mm] w-full max-w-[210mm] mx-auto border print:border-none print:shadow-none">
+          /* Egyéb nyomtatható A4-es nézet bőséges alsó görgetési térközzel */
+          <div className="w-full pb-20 pt-1">
+            <div
+              ref={contentRef}
+              className="print:block bg-white text-black p-6 sm:p-10 min-h-0 sm:min-h-[297mm] w-full max-w-[210mm] mx-auto border shadow-sm print:border-none print:shadow-none"
+            >
 
           {template === "munkakori_leiras" && (
             <div className="space-y-6">
@@ -334,13 +430,13 @@ export function ContractGeneratorDialog({
               </div>
 
               {/* Aláírások */}
-              <div className="mt-12 pt-6 flex justify-between">
+              <div className="mt-8 pt-4 flex justify-between page-break-avoid">
                 <div className="text-center">
-                  <div className="w-48 border-b border-black mb-2"></div>
+                  <div className="w-48 border-b border-black mb-2 mx-auto"></div>
                   <p className="text-xs font-medium">Munkáltató (Kiadó)</p>
                 </div>
                 <div className="text-center">
-                  <div className="w-48 border-b border-black mb-2"></div>
+                  <div className="w-48 border-b border-black mb-2 mx-auto"></div>
                   <p className="text-xs font-medium">Munkavállaló (Átvevő)</p>
                 </div>
               </div>
@@ -348,24 +444,24 @@ export function ContractGeneratorDialog({
           )}
 
           {template === "bermodositas" && (
-            <div className="space-y-6 text-sm text-gray-900 leading-relaxed">
+            <div className="space-y-3.5 text-xs text-gray-900 leading-normal">
               {/* Fejléc */}
-              <div className="border-b pb-4 text-center">
-                <h2 className="text-xs font-semibold tracking-wider uppercase text-gray-500">
+              <div className="border-b pb-2.5 text-center">
+                <h2 className="text-[11px] font-semibold tracking-wider uppercase text-gray-500">
                   {DEFAULT_COMPANY_DETAILS.nev} • Munkaügyi Nyilvántartás
                 </h2>
-                <h1 className="text-xl font-bold uppercase tracking-wider mt-1.5">
+                <h1 className="text-lg font-bold uppercase tracking-wider mt-1">
                   Munkaszerződés-Módosítás (Bérmódosítás)
                 </h1>
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="text-[11px] text-gray-600 mt-0.5">
                   A Munka Törvénykönyvéről szóló 2012. évi I. törvény (Mt.) 58. §-a alapján
                 </p>
               </div>
 
               {/* Felek adatai két oszlopban */}
-              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded border text-xs">
-                <div className="space-y-1.5">
-                  <p className="font-bold text-gray-700 uppercase tracking-wider border-b pb-1">Munkáltató adatai</p>
+              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-3 rounded border text-[11px]">
+                <div className="space-y-1">
+                  <p className="font-bold text-gray-700 uppercase tracking-wider border-b pb-1 text-[10px]">Munkáltató adatai</p>
                   <div><span className="text-gray-500">Cégnév:</span> <strong className="font-medium">{DEFAULT_COMPANY_DETAILS.nev}</strong></div>
                   <div><span className="text-gray-500">Székhely:</span> {DEFAULT_COMPANY_DETAILS.szekhely}</div>
                   <div><span className="text-gray-500">Cégjegyzékszám:</span> {DEFAULT_COMPANY_DETAILS.cegjegyzekszam}</div>
@@ -373,8 +469,8 @@ export function ContractGeneratorDialog({
                   <div><span className="text-gray-500">Képviselő:</span> {DEFAULT_COMPANY_DETAILS.kepviselo}</div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <p className="font-bold text-gray-700 uppercase tracking-wider border-b pb-1">Munkavállaló adatai</p>
+                <div className="space-y-1">
+                  <p className="font-bold text-gray-700 uppercase tracking-wider border-b pb-1 text-[10px]">Munkavállaló adatai</p>
                   <div><span className="text-gray-500">Név:</span> <strong className="font-medium">{displayEmployeeName}</strong></div>
                   <div><span className="text-gray-500">Születési hely, idő:</span> {displaySzuletesiHely}, {displaySzuletesiDatum}</div>
                   <div><span className="text-gray-500">Anyja születési neve:</span> {displayAnyjaNeve}</div>
@@ -385,7 +481,7 @@ export function ContractGeneratorDialog({
               </div>
 
               {/* Bevezetés */}
-              <div className="text-justify text-xs space-y-2">
+              <div className="text-justify text-xs space-y-1.5">
                 <p>
                   amely létrejött egyrészről a fentiekben megnevezett <strong>{DEFAULT_COMPANY_DETAILS.nev}</strong>, mint Munkáltató,
                   másrészről a fent azonosított <strong>{displayEmployeeName}</strong>, mint Munkavállaló (a továbbiakban együtt: <em>Felek</em>) között,
@@ -399,8 +495,8 @@ export function ContractGeneratorDialog({
 
               {/* 1. Módosított alapbér */}
               <div>
-                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-1 mb-2">1. Az új alapbér megállapítása</h3>
-                <p className="text-justify text-xs leading-relaxed">
+                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-1 mb-1">1. Az új alapbér megállapítása</h3>
+                <p className="text-justify text-xs leading-normal">
                   A Munkavállaló havi személyi alapbére <strong>{formatDateHu(hatalyDatum)}</strong> napjától kezdődően bruttó <strong>{ujAlapber.toLocaleString("hu-HU")} Ft/hó</strong> összegre módosul.
                   {displayAlapber && displayAlapber !== ujAlapber && (
                     <span className="text-gray-600"> (A módosítást megelőző alapbér: bruttó {displayAlapber.toLocaleString("hu-HU")} Ft/hó).</span>
@@ -410,8 +506,8 @@ export function ContractGeneratorDialog({
 
               {/* 2. Kifizetés módja */}
               <div>
-                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-1 mb-2">2. A munkabér elszámolása és kifizetése</h3>
-                <p className="text-justify text-xs leading-relaxed">
+                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-1 mb-1">2. A munkabér elszámolása és kifizetése</h3>
+                <p className="text-justify text-xs leading-normal">
                   A munkabér elszámolása és kifizetése havonta utólag, a tárgyhónapot követő hónap 10. napjáig történik.
                   A Munkáltató a munkabért banki átutalással teljesíti a Munkavállaló által megadott <strong>{displayBankszamlaszam}</strong> fizetési számlaszámra (Mt. 157–158. §).
                 </p>
@@ -419,31 +515,31 @@ export function ContractGeneratorDialog({
 
               {/* 3. Változatlan feltételek */}
               <div>
-                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-1 mb-2">3. Változatlan szerződéses feltételek</h3>
-                <p className="text-justify text-xs leading-relaxed">
+                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-1 mb-1">3. Változatlan szerződéses feltételek</h3>
+                <p className="text-justify text-xs leading-normal">
                   Felek rögzítik, hogy a felek között létrejött munkaszerződés és annak korábbi módosításai egyéb rendelkezései – különösen a munkakör megnevezése, a munkaidő mértéke, a munkavégzés szokásos helye, valamint az egyéb juttatások rendszere – változatlan tartalommal maradnak érvényben és hatályban.
                 </p>
               </div>
 
               {/* 4. Záró rendelkezések */}
-              <div className="border-t pt-3">
-                <p className="text-justify text-[11px] text-gray-600 leading-relaxed">
+              <div className="border-t pt-2">
+                <p className="text-justify text-[11px] text-gray-600 leading-normal">
                   Jelen munkaszerződés-módosítás 2 (kettő) eredeti, egymással mindenben megegyező példányban készült, amelyből 1 (egy) példány a Munkáltatót, 1 (egy) példány a Munkavállalót illeti meg. Felek a jelen megállapodást elolvasás és közös értelmezés után, mint akaratukkal mindenben megegyezőt, jóváhagyólag aláírják.
                 </p>
               </div>
 
               {/* Aláírások */}
-              <div className="mt-8 pt-4 flex justify-between text-xs">
+              <div className="pt-4 flex justify-between text-xs page-break-avoid">
                 <div className="text-center">
-                  <p className="text-gray-500 mb-6">Budapest, {new Date().toLocaleDateString("hu-HU")}</p>
+                  <p className="text-gray-500 mb-6 text-xs">Budapest, {new Date().toLocaleDateString("hu-HU")}</p>
                   <div className="w-48 border-b border-black mb-1 mx-auto"></div>
-                  <p className="font-medium">Munkáltató (Képviselő)</p>
+                  <p className="font-medium text-xs">Munkáltató (Képviselő)</p>
                   <p className="text-[11px] text-gray-500">{DEFAULT_COMPANY_DETAILS.kepviselo}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-gray-500 mb-6">Budapest, {new Date().toLocaleDateString("hu-HU")}</p>
+                  <p className="text-gray-500 mb-6 text-xs">Budapest, {new Date().toLocaleDateString("hu-HU")}</p>
                   <div className="w-48 border-b border-black mb-1 mx-auto"></div>
-                  <p className="font-medium">Munkavállaló</p>
+                  <p className="font-medium text-xs">Munkavállaló</p>
                   <p className="text-[11px] text-gray-500">{displayEmployeeName}</p>
                 </div>
               </div>
@@ -451,25 +547,25 @@ export function ContractGeneratorDialog({
           )}
 
           {template === "titoktartasi" && (
-            <div className="space-y-6 text-sm text-gray-900 leading-relaxed">
+            <div className="space-y-3.5 text-xs text-gray-900 leading-normal">
               {/* Fejléc */}
-              <div className="border-b pb-4 text-center">
-                <h2 className="text-xs font-semibold tracking-wider uppercase text-gray-500">
+              <div className="border-b pb-2 text-center">
+                <h2 className="text-[11px] font-semibold tracking-wider uppercase text-gray-500">
                   {DEFAULT_COMPANY_DETAILS.nev} • Információbiztonság & Jog
                 </h2>
-                <h1 className="text-xl font-bold uppercase tracking-wider mt-1.5">
+                <h1 className="text-lg font-bold uppercase tracking-wider mt-1">
                   Titoktartási és Adatvédelmi Nyilatkozat
                 </h1>
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="text-[11px] text-gray-600 mt-0.5">
                   A Munka Törvénykönyvéről szóló 2012. évi I. törvény (Mt.) 8. § (4) bekezdése és az üzleti titok védelméről szóló 2018. évi LIV. törvény alapján
                 </p>
               </div>
 
               {/* Nyilatkozó adatai */}
-              <div className="bg-gray-50 p-4 rounded border text-xs space-y-2">
-                <p className="font-bold text-gray-700 uppercase tracking-wider border-b pb-1">Nyilatkozó Munkavállaló adatai</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div><span className="text-gray-500">Név:</span> <strong className="font-medium">{displayEmployeeName}</strong></div>
+              <div className="bg-gray-50 p-2.5 rounded border text-[11px] space-y-1">
+                <p className="font-bold text-gray-700 uppercase tracking-wider border-b pb-0.5 text-[10px]">Nyilatkozó Munkavállaló adatai</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div><span className="text-gray-500">Név:</span> <strong className="font-medium text-black">{displayEmployeeName}</strong></div>
                   <div><span className="text-gray-500">Születési hely, idő:</span> {displaySzuletesiHely}, {displaySzuletesiDatum}</div>
                   <div><span className="text-gray-500">Anyja születési neve:</span> {displayAnyjaNeve}</div>
                   <div><span className="text-gray-500">Állandó lakcím:</span> {displayLakcim}</div>
@@ -482,91 +578,96 @@ export function ContractGeneratorDialog({
 
               {/* 1. Üzleti titok fogalma */}
               <div>
-                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-1 mb-2">1. Az üzleti titok és bizalmas információ meghatározása</h3>
-                <p className="text-justify text-xs leading-relaxed">
+                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-0.5 mb-1">1. Az üzleti titok és bizalmas információ meghatározása</h3>
+                <p className="text-justify text-xs leading-normal">
                   Alulírott Munkavállaló kijelentem és tudomásul veszem, hogy a Munkáltató gazdasági tevékenységéhez kapcsolódó minden olyan nem közismert vagy nem könnyen hozzáférhető tény, tájékoztatás, egyéb adat és az azokból készült összeállítás üzleti titoknak minősül, amelynek illetéktelenek által történő megszerzése, hasznosítása, mással való közlése vagy nyilvánosságra hozatala a Munkáltató jogos pénzügyi, gazdasági vagy piaci érdekét sértené vagy veszélyeztetné (2018. évi LIV. tv. 1. §).
                 </p>
-                <p className="text-justify text-xs leading-relaxed mt-1">
+                <p className="text-justify text-xs leading-normal mt-0.5">
                   Különösen üzleti titoknak és szigorúan bizalmas információnak minősülnek a Munkáltató szoftvereinek forráskódjai, fejlesztési dokumentációi, rendszerarchitektúrái, ügyfél- és partnerlistái, árképzési és béradatai, üzleti és marketing tervei, valamint az általa kezelt személyes adatállományok.
                 </p>
               </div>
 
               {/* 2. Titoktartási kötelezettség terjedelme */}
               <div>
-                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-1 mb-2">2. A titoktartási kötelezettség terjedelme és időtartama</h3>
-                <p className="text-justify text-xs leading-relaxed">
+                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-0.5 mb-1">2. A titoktartási kötelezettség terjedelme és időtartama</h3>
+                <p className="text-justify text-xs leading-normal">
                   Munkavállalóként kötelezettséget vállalok arra, hogy a munkaviszonyom fennállása alatt, valamint annak bármely okból történő megszűnését követően is:
                 </p>
-                <ul className="list-disc pl-5 space-y-1 text-xs text-justify mt-1">
+                <ul className="list-disc pl-5 space-y-0.5 text-xs text-justify mt-0.5">
                   <li>a tudomásomra jutott valamennyi üzleti titkot és bizalmas információt időbeli korlátozás nélkül szigorúan megőrzöm;</li>
-                  <li>az üzleti titkot illetéktelen harmadik személy (ideértve a Munkáltató olyan munkatársait is, akiknek a feladatköréhez az adott adat megismerése nem szükséges) részére sem közvetlenül, sem közvetve hozzáférhetővé nem teszem;</li>
-                  <li>a birtokomba került bizalmas információkat kizárólag a munkaköri kötelezettségeim szakszerű és hűséges ellátása céljából használom fel;</li>
+                  <li>az üzleti titkot illetéktelen harmadik személy (ideértve a Munkáltató egyéb munkatársait is) részére sem közvetlenül, sem közvetve nem teszem hozzáférhetővé;</li>
+                  <li>a birtokomba került bizalmas információkat kizárólag a munkaköri kötelezettségeim szakszerű ellátása céljából használom fel;</li>
                   <li>a bizalmas adatokat saját vagy harmadik személy javára jogosulatlan előny szerzésére, vagy a Munkáltató hátrányára semmilyen formában nem hasznosítom (Mt. 8. § (4)).</li>
                 </ul>
               </div>
 
               {/* 3. Információbiztonsági előírások */}
               <div>
-                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-1 mb-2">3. Biztonsági előírások és elszámolás</h3>
-                <p className="text-justify text-xs leading-relaxed">
+                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-0.5 mb-1">3. Biztonsági előírások és elszámolás</h3>
+                <p className="text-justify text-xs leading-normal">
                   Vállalom a Munkáltató információbiztonsági, jelszókezelési és eszközhasználati szabályainak maradéktalan betartását. A digitális hozzáférési jelszavakat, tokeneket és titkosítási kulcsokat más személlyel nem osztom meg. A munkaviszony megszűnésekor köteles vagyok a Munkáltató részére hiánytalanul átadni valamennyi birtokomban lévő munkaeszközt, adathordozót, dokumentációt és másolatot.
                 </p>
               </div>
 
               {/* 4. Jogi felelősség és szankciók */}
               <div>
-                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-1 mb-2">4. A kötelezettségszegés jogkövetkezményei és felelősség</h3>
-                <p className="text-justify text-xs leading-relaxed">
-                  Tudomásul veszem, hogy a titoktartási kötelezettség megszegése súlyos kötelezettségszegésnek minősül, amely a munkaviszony azonnali hatályú felmondását (Mt. 78. §), valamint a Munkáltatónak okozott teljes kár (ideértve az elmaradt hasznot és sérelemdíjat is) megtérítésének kötelezettségét vonja maga után (Mt. 179. §).
+                <h3 className="font-bold text-xs uppercase tracking-wider border-b pb-0.5 mb-1">4. A kötelezettségszegés jogkövetkezményei és felelősség</h3>
+                <p className="text-justify text-xs leading-normal">
+                  Tudomásul veszem, hogy a titoktartási kötelezettség megszegése súlyos kötelezettségszegésnek minősül, amely azonnali hatályú felmondást (Mt. 78. §), valamint a Munkáltatónak okozott teljes kár megtérítésének kötelezettségét vonja maga után (Mt. 179. §).
                 </p>
-                <p className="text-justify text-xs leading-relaxed mt-1">
-                  Kifejezetten tudomásul veszem, hogy a Büntető Törvénykönyvről szóló 2012. évi C. törvény 418. §-a szerint az üzleti titok jogtalan megszerzése, hasznosítása vagy nyilvánosságra hozatala bűncselekményt valósít meg, amely 3 évig terjedő szabadságvesztéssel büntetendő.
+                <p className="text-justify text-xs leading-normal mt-0.5">
+                  Kifejezetten tudomásul veszem, hogy a Büntető Törvénykönyvről szóló 2012. évi C. törvény 418. §-a szerint az üzleti titok jogtalan megszerzése, hasznosítása vagy nyilvánosságra hozatala bűncselekmény, amely 3 évig terjedő szabadságvesztéssel büntetendő.
                 </p>
               </div>
 
               {/* 5. Záró nyilatkozat */}
-              <div className="border-t pt-3">
-                <p className="text-justify text-[11px] text-gray-600 leading-relaxed">
+              <div className="border-t pt-1.5">
+                <p className="text-justify text-[11px] text-gray-600 leading-normal">
                   Kijelentem, hogy jelen nyilatkozatot elolvastam, tartalmát megértettem, a jogkövetkezményekkel tisztában vagyok, és a nyilatkozatot mint akaratommal mindenben megegyezőt, önként, felelősségem tudatában írom alá.
                 </p>
               </div>
 
               {/* Aláírások és Tanúk */}
-              <div className="mt-8 pt-4 space-y-6 text-xs">
-                <div className="flex justify-between">
+              <div className="pt-2 space-y-3.5 text-xs page-break-avoid">
+                <div className="flex justify-between items-end">
                   <div>
-                    <p className="text-gray-500 mb-6">Kelt: Budapest, {new Date().toLocaleDateString("hu-HU")}</p>
+                    <p className="text-gray-600 text-xs">Kelt: Budapest, {new Date().toLocaleDateString("hu-HU")}</p>
                   </div>
                   <div className="text-center">
                     <div className="w-56 border-b border-black mb-1 mx-auto"></div>
-                    <p className="font-medium">Munkavállaló (Nyilatkozattevő)</p>
+                    <p className="font-medium text-xs">Munkavállaló (Nyilatkozattevő)</p>
                     <p className="text-[11px] text-gray-500">{displayEmployeeName}</p>
                   </div>
                 </div>
 
                 {/* Tanúk blokk */}
                 <div className="pt-2 border-t text-[11px]">
-                  <p className="font-semibold text-gray-600 uppercase tracking-wider mb-3">Előttünk, mint tanúk előtt:</p>
+                  <p className="font-semibold text-gray-700 uppercase tracking-wider mb-2">Előttünk, mint tanúk előtt:</p>
                   <div className="grid grid-cols-2 gap-8">
-                    <div>
-                      <div className="w-full border-b border-black mb-1"></div>
-                      <p>1. Tanú aláírása</p>
-                      <p className="text-gray-500">Név: ..............................................................</p>
-                      <p className="text-gray-500">Lakcím: .........................................................</p>
+                    <div className="space-y-1">
+                      <p className="font-medium text-gray-800">1. Tanú:</p>
+                      <div className="pt-5 border-b border-black w-full mb-0.5"></div>
+                      <p className="text-[10px] text-gray-500 text-center mb-1">Aláírás</p>
+                      <p className="text-gray-600">Név: ..............................................................</p>
+                      <p className="text-gray-600">Lakcím: .........................................................</p>
+                      <p className="text-gray-600">Szem. ig. szám: ...........................................</p>
                     </div>
-                    <div>
-                      <div className="w-full border-b border-black mb-1"></div>
-                      <p>2. Tanú aláírása</p>
-                      <p className="text-gray-500">Név: ..............................................................</p>
-                      <p className="text-gray-500">Lakcím: .........................................................</p>
+                    <div className="space-y-1">
+                      <p className="font-medium text-gray-800">2. Tanú:</p>
+                      <div className="pt-5 border-b border-black w-full mb-0.5"></div>
+                      <p className="text-[10px] text-gray-500 text-center mb-1">Aláírás</p>
+                      <p className="text-gray-600">Név: ..............................................................</p>
+                      <p className="text-gray-600">Lakcím: .........................................................</p>
+                      <p className="text-gray-600">Szem. ig. szám: ...........................................</p>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           )}
-        </div>
-      )}
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

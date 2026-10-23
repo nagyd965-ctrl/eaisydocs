@@ -208,6 +208,8 @@ export async function generateAndSaveContract(
             .text-lg { font-size: 1.125rem; }
             .text-xl { font-size: 1.25rem; }
             .text-2xl { font-size: 1.5rem; }
+            .text-\[10px\] { font-size: 10px; }
+            .text-\[11px\] { font-size: 11px; }
             .font-medium { font-weight: 500; }
             .font-semibold { font-weight: 600; }
             .font-bold { font-weight: 700; }
@@ -217,7 +219,26 @@ export async function generateAndSaveContract(
             .text-gray-500, .text-slate-500 { color: #64748b; }
             .text-gray-600, .text-slate-600 { color: #475569; }
             .text-gray-700, .text-slate-700 { color: #334155; }
+            .text-gray-800, .text-slate-800 { color: #1e293b; }
+            .text-gray-900, .text-slate-900 { color: #0f172a; }
             .leading-relaxed { line-height: 1.625; }
+            .leading-normal { line-height: 1.4; }
+            .leading-snug { line-height: 1.3; }
+
+            /* Additional utilities */
+            .gap-8 { gap: 2rem; }
+            .gap-x-4 { column-gap: 1rem; }
+            .gap-y-1 { row-gap: 0.25rem; }
+            .items-end { align-items: flex-end; }
+            .mx-auto { margin-left: auto; margin-right: auto; }
+            .space-y-0\.5 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.125rem; }
+            .space-y-1 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.25rem; }
+            .space-y-1\.5 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.375rem; }
+            .space-y-2 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.5rem; }
+            .space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.75rem; }
+            .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem; }
+            .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.5rem; }
+            .page-break-avoid { break-inside: avoid; page-break-inside: avoid; }
             
             /* Print specifics */
             @media print {
