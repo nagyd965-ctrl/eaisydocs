@@ -4,6 +4,15 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-23)
 
+### eaisyHR & eaisyDocs: Dolgozói Portál Hivatalos Dokumentum Előnézet és Jogosultság Javítás
+- **Fájlfeloldási és Routing Robusztusítás (`src/app/api/pdf/[id]/route.ts`):**
+  - Megszűnt a 404-es „Fájl nem található az irathoz” hiba, amikor a dolgozói felület az `hr_dokumentum` azonosítóját adta át az `irat_fajl` azonosítója helyett.
+  - A route mostantól prioritási láncot használ: (1) konkrét `irat_fajl` id egyezés, (2) legfrissebb csatolt fájl az adott `irat_id`-hoz, (3) közvetlen `hr_dokumentum` tárolási útvonal feloldása.
+  - A szervezeti egység és biztonsági minősítés ellenőrzése kibővült a dolgozói tulajdonjog vizsgálatával (`isEmployeeOwner`), így a munkavállaló minden esetben biztonságosan megtekintheti a saját iktatott iratait.
+- **Kliensoldali Előnézet és Letöltés Megerősítés (`employee-documents-view.tsx`, `recent-documents-card.tsx`, `DocumentViewer`):**
+  - A `DocumentViewer` a hibás id helyett az irat közvetlen azonosítóját és storage/signed URL-jét használja, hiba esetén azonnali direct signed URL fallback-kel.
+  - A dolgozói dokumentumok szerveroldali lekérésekor (`self-service/documents/page.tsx`) generálásra kerülnek az érvényes aláírt URL-ek, biztosítva a megbízható közvetlen letöltést és gyorsmegtekintést.
+
 ### eaisyHR: Párhuzamossági (Concurrency), Biztonsági és Adatintegritási Megerősítés (ADR A-083)
 - **Letöltési API Végpont Javítása (`src/app/api/hr/download-document/route.ts`):**
   - Javítva a hibás táblanév hivatkozás: `hr_munkakor_verzio` helyett a létező `hr_munkakor_leiras_verzio` táblát kérdezi le a route, megszüntetve a normál munkavállalók 403 Forbidden hibáját a hivatalos munkaköri leírások letöltésekor.
