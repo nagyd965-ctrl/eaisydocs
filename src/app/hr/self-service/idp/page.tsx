@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import { EmployeeIdpView } from "@/components/hr/idp/employee-idp-view"
-import { TrendingUp } from "lucide-react"
+import { getDevelopmentPlansByEmployee } from "@/app/hr/actions/idp-actions"
 
 export default async function SelfServiceIdpPage() {
   const supabase = await createClient()
@@ -9,35 +9,22 @@ export default async function SelfServiceIdpPage() {
 
   if (!user) redirect("/login")
 
-  const { data: tervek } = await supabase
-    .from("hr_fejlesztesi_terv")
-    .select(`
-      *,
-      celok:hr_fejlesztesi_cel(
-        *,
-        megjegyzesek:hr_idp_megjegyzes(*, iro:felhasznalo_profil(nev))
-      )
-    `)
-    .eq("dolgozo_id", user.id)
-    .order("created_at", { ascending: false })
+  const tervek = await getDevelopmentPlansByEmployee(user.id)
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Fejlődési Tervem</h1>
         <p className="text-muted-foreground mt-1">
-          Egyéni fejlesztési céljaid, képzési terveid és kompetenciafejlesztési feladataid.
+          Egyéni fejlesztési céljaid, képzési terveid, kompetenciafejlesztési feladataid és igazolásaid.
         </p>
       </div>
 
       {(!tervek || tervek.length === 0) ? (
-        <div className="flex flex-col items-center justify-center border border-dashed rounded-xl py-16 text-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <TrendingUp className="w-6 h-6 text-primary" />
-          </div>
-          <h3 className="font-semibold text-lg">Nincs aktív fejlesztési terved</h3>
-          <p className="text-muted-foreground text-sm max-w-sm">
-            A HR vagy a vezetőd fog fejlesztési célokat hozzárendelni hozzád. Addig türelmet kérünk!
+        <div className="flex flex-col items-center justify-center border border-dashed rounded-xl py-16 text-center gap-2">
+          <h3 className="font-semibold text-base">Nincs aktív fejlesztési terved</h3>
+          <p className="text-muted-foreground text-sm max-w-md">
+            A HR vagy a közvetlen vezetőd még nem rendelt hozzád fejlesztési tervet vagy képzési célt. Amint új célt kapsz, itt fogod látni a feladatokat és feltöltheted az elvégzést igazoló tanúsítványokat.
           </p>
         </div>
       ) : (
@@ -46,3 +33,4 @@ export default async function SelfServiceIdpPage() {
     </div>
   )
 }
+

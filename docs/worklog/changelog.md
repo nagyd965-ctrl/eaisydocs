@@ -2,6 +2,43 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
+## [Unreleased] – Fejlesztés alatt (2026-10-23)
+
+### eaisyHR: Egyéni Fejlesztési Terv (IDP) Teljes Átdolgozása és Tanúsítvány-igazolási Munkamenet (A-082 / P-106)
+- **Adatbázis séma bővítés (`hr_fejlesztesi_cel`):**
+  - Hozzáadva: `mentor_id`, `intezmeny`, `koltseg`, `finanszirozas`, `tanusitvany_url`, `tanusitvany_nev`, `tanusitvany_feltoltve_at`, `elutasitas_indoklas`.
+- **Dinamikus mentor és szerződés-választás (`src/components/hr/idp/idp-dialog.tsx`):**
+  - Céges munkatársak dinamikus legördülő kiválasztása (`getCompanyMentorsAction`).
+  - Képző intézmény, finanszírozási típus és képzési díj rögzítése.
+  - Mt. 229. § tanulmányi szerződések dinamikus hozzákapcsolása (`getEmployeeStudyContractsAction`).
+- **Munkavállalói önkiszolgáló életciklus (`src/components/hr/idp/employee-idp-view.tsx` & `src/app/hr/self-service/idp/page.tsx`):**
+  - Linear-flat KPI statisztikai sáv: Összes cél, Folyamatban, Jóváhagyásra vár, Sikeresen teljesítve.
+  - "Elkezdtem a felkészülést" gomb nyitott céloknál.
+  - "Tanúsítvány feltöltése és leadás" folyamatban lévő céloknál (`IdpCertificateUploadDialog`, PDF/kép, max 10MB).
+  - Feltöltött tanúsítvány biztonságos időkorlátos megtekintése (`IdpCertificateViewerDialog`).
+  - Vezetői visszajelzés és javításkérés kezelése azonnali javítási lehetőséggel.
+  - Kör alakú dekoratív ikondobozok eltávolítása az üres állapotból (Zero-Emoji és No-Decorative-Icons megfelelőség).
+- **Vezetői jóváhagyási panel és automatizmusok (`src/components/hr/idp/idp-list-card.tsx` & `src/app/hr/actions/idp-actions.ts`):**
+  - In-place tanúsítvány előnézet, egykattintásos jóváhagyás és kötelező indoklásos visszaküldés (`IdpRejectionDialog`).
+  - Jóváhagyáskor automatikus beemelés a munkavállaló képzettségei közé (`hr_kepzettseg`) és a dokumentumtárba (`hr_dokumentum`).
+  - Részletes dolgozói adatlapi KPI fejléc (`src/app/hr/employee/[id]/tabs/IDPTab.tsx`).
+
+### eaisyHR: HR Teendők és Figyelmeztetések Dolgozói Csoportosítás, Valódi Avatarok és Kanonikus TableToolbar (P-107)
+- **Dolgozónként csoportosított lista nézet (`src/components/hr/hr-tasks-and-alerts-table.tsx`):**
+  - Accordion-szerű dolgozói kártyák a vezetői jóváhagyási mintához hasonlóan.
+  - Alapértelmezett állapot: minden kártya összecsukva (bezárva) nyílik meg (`expandedEmployees = new Set()`), célzott egyedi lenyitási lehetőséggel.
+  - Sürgősségi rendezés: a lista élén a kritikus határidejű vagy feladatú dolgozók foglalnak helyet.
+  - Fejléc információk: Munkavállaló neve, munkaköre, feladatok száma (`X teendő`), legmagasabb súlyosságú jelvény (`kritikus`, `figyelmeztetés`), és közvetlen „Adatlap” link a dolgozó profiljára.
+- **Valódi Profilkép / Avatar Integráció (`src/app/hr/admin/page.tsx`):**
+  - A szerveroldali teendő-lekérdezések kiegészültek a `felhasznalo_profil ( id, nev, avatar_url )` kiválasztásával.
+  - Az `employeeAvatarMap` és `employeeNameAvatarMap` feloldásnak köszönhetően a dolgozói kártyákon a munkavállaló valódi profilképe jelenik meg, monogramos fallbackkel.
+- **Kanonikus TableToolbar Integráció és Letisztult Vezérlősáv:**
+  - Eltávolításra került a korábbi felesleges „Mind kinyitása · Mind összecsukása” gomppár és a redundáns `X teendő • Y érintett dolgozó` felirat.
+  - A kétállású nézetváltó (`Dolgozói nézet` és `Táblázat`) közvetlenül a `TableToolbar` `actions` blokkjába integrálódott a függő kérelmek átszignálása gomb mellé.
+  - A kártyafejléc alsó térköze (`pb-2`, `pt-0`) optimalizálásra került, így a keresősáv szorosan és kompakt módon a főcím alá került.
+  - A kártya címe egyszerűsítve: „Teendők és figyelmeztetések”.
+- **Zero-Emoji és No-Decorative-Icons Irányelv:** 100%-os megfelelőség, nincsenek emojik és nincsenek díszítő buborékok.
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-21)
 
 ### ⏱️ eaisyHR: Saját Kérelmek Egységesítése a Jelenlét és Szabadság Oldalon

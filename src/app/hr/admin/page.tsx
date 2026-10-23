@@ -133,7 +133,7 @@ export default async function HrAdminPage() {
     supabase.from("hr_tavollet")
       .select(`
         id, dolgozo_id, kezdet_datuma, veg_datuma, tipus, statusz,
-        hr_dolgozo_adatlap ( id, felhasznalo_profil ( id, nev ) )
+        hr_dolgozo_adatlap ( id, felhasznalo_profil ( id, nev, avatar_url ) )
       `)
       .eq("company_id", companyScope)
       .eq("statusz", "jovahagyasra_var")
@@ -143,7 +143,7 @@ export default async function HrAdminPage() {
     supabase.from("hr_jelenlet_korrekcio")
       .select(`
         id, dolgozo_id, datum, uj_becsekkolas, uj_kicsekkolas, indoklas, statusz,
-        dolgozo:felhasznalo_profil!dolgozo_id ( id, nev )
+        dolgozo:felhasznalo_profil!dolgozo_id ( id, nev, avatar_url )
       `)
       .in("dolgozo_id", safeMemberIds)
       .eq("statusz", "jovahagyasra_var")
@@ -159,7 +159,7 @@ export default async function HrAdminPage() {
         statusz,
         munkakor,
         reszleg,
-        felhasznalo_profil ( id, nev ),
+        felhasznalo_profil ( id, nev, avatar_url ),
         hr_offboarding_feladat ( id, cim, statusz )
       `)
       .eq("company_id", companyScope)
@@ -239,6 +239,20 @@ export default async function HrAdminPage() {
   // ─── Összesített HR Teendők & Figyelmeztetések generálása ───
   const allHrTasks: HrTaskItem[] = []
 
+  // Avatár gyorskereső térképek (ID és név alapján)
+  const employeeAvatarMap = new Map<string, string>()
+  const employeeNameAvatarMap = new Map<string, string>()
+  employees.forEach((emp: any) => {
+    if (emp.id && emp.avatar_url) employeeAvatarMap.set(emp.id, emp.avatar_url)
+    if (emp.nev && emp.avatar_url) employeeNameAvatarMap.set(emp.nev.trim().toLowerCase(), emp.avatar_url)
+  })
+
+  const getAvatarFor = (empId?: string | null, name?: string | null): string | null => {
+    if (empId && employeeAvatarMap.has(empId)) return employeeAvatarMap.get(empId)!
+    if (name && employeeNameAvatarMap.has(name.trim().toLowerCase())) return employeeNameAvatarMap.get(name.trim().toLowerCase())!
+    return null
+  }
+
   // 1. Orvosi vizsgálatok, próbaidők, szerződések ellenőrzése
   activeEmployees.forEach((emp: any) => {
     const adatlap = Array.isArray(emp.hr_dolgozo_adatlap) ? emp.hr_dolgozo_adatlap[0] : emp.hr_dolgozo_adatlap
@@ -246,6 +260,7 @@ export default async function HrAdminPage() {
     const jogviszony = Array.isArray(adatlap?.hr_jogviszony) ? adatlap.hr_jogviszony[0] : adatlap?.hr_jogviszony
     const beosztas = Array.isArray(jogviszony?.hr_beosztas) ? jogviszony.hr_beosztas[0] : jogviszony?.hr_beosztas
     const munkakor = Array.isArray(beosztas?.hr_munkakor) ? beosztas.hr_munkakor[0]?.megnevezes : beosztas?.hr_munkakor?.megnevezes
+    const empAvatar = emp.avatar_url || getAvatarFor(emp.id, emp.nev)
 
     // Orvosi vizsgálat
     if (orvosi) {
@@ -258,6 +273,7 @@ export default async function HrAdminPage() {
           description: "Mvt. 49. § szerinti beosztási és csekkolási tiltás van érvényben.",
           employeeName: emp.nev,
           employeeId: emp.id,
+          avatarUrl: empAvatar,
           position: munkakor || null,
           dateInfo: `Lejárt: ${orvosi}`,
           daysRemaining: daysUntil(orvosi),
@@ -274,6 +290,7 @@ export default async function HrAdminPage() {
           description: "Időszakos foglalkozás-egészségügyi vizsgálat beütemezése javasolt.",
           employeeName: emp.nev,
           employeeId: emp.id,
+          avatarUrl: empAvatar,
           position: munkakor || null,
           dateInfo: `${days} nap van hátra (${orvosi})`,
           daysRemaining: days,
@@ -295,6 +312,7 @@ export default async function HrAdminPage() {
         description: "Munkavállaló véglegesítésének vagy próbaidős értékelésének elbírálása.",
         employeeName: emp.nev,
         employeeId: emp.id,
+        avatarUrl: empAvatar,
         position: munkakor || null,
         dateInfo: `${days} nap van hátra (${probaido})`,
         daysRemaining: days,
@@ -315,6 +333,7 @@ export default async function HrAdminPage() {
         description: "Szerződéshosszabbítás vagy jogviszony rendezése esedékes.",
         employeeName: emp.nev,
         employeeId: emp.id,
+        avatarUrl: empAvatar,
         position: munkakor || null,
         dateInfo: `${days} nap van hátra (${szerzodesVeg})`,
         daysRemaining: days,
@@ -328,6 +347,8 @@ export default async function HrAdminPage() {
   pendingLeaves.forEach((leave: any) => {
     const adatlap = Array.isArray(leave.hr_dolgozo_adatlap) ? leave.hr_dolgozo_adatlap[0] : leave.hr_dolgozo_adatlap
     const profil = Array.isArray(adatlap?.felhasznalo_profil) ? adatlap.felhasznalo_profil[0] : adatlap?.felhasznalo_profil
+    const empId = profil?.id || leave.dolgozo_id
+    const empName = profil?.nev || "Munkatárs"
 
     allHrTasks.push({
       id: `leave-${leave.id}`,
@@ -335,8 +356,9 @@ export default async function HrAdminPage() {
       severity: "warning",
       title: "Jóváhagyásra váró szabadságkérelem",
       description: `${leave.kezdet_datuma} – ${leave.veg_datuma}`,
-      employeeName: profil?.nev || "Munkatárs",
-      employeeId: profil?.id,
+      employeeName: empName,
+      employeeId: empId,
+      avatarUrl: profil?.avatar_url || getAvatarFor(empId, empName),
       dateInfo: `${leave.kezdet_datuma} – ${leave.veg_datuma}`,
       href: "/hr/manager",
       actionLabel: "Jóváhagyás",
@@ -346,6 +368,8 @@ export default async function HrAdminPage() {
   // 3. Függőben lévő munkaidő korrekciók
   pendingCorrections.forEach((corr: any) => {
     const dolgozo = Array.isArray(corr.dolgozo) ? corr.dolgozo[0] : corr.dolgozo
+    const empId = corr.dolgozo_id
+    const empName = dolgozo?.nev || "Munkatárs"
 
     allHrTasks.push({
       id: `corr-${corr.id}`,
@@ -353,8 +377,9 @@ export default async function HrAdminPage() {
       severity: "info",
       title: "Munkaidő korrekciós kérelem",
       description: corr.indoklas ? `${corr.datum}: ${corr.indoklas.slice(0, 50)}...` : corr.datum,
-      employeeName: dolgozo?.nev || "Munkatárs",
-      employeeId: corr.dolgozo_id,
+      employeeName: empName,
+      employeeId: empId,
+      avatarUrl: dolgozo?.avatar_url || getAvatarFor(empId, empName),
       dateInfo: "Döntésre vár",
       href: "/hr/manager",
       actionLabel: "Bírálat",
@@ -403,14 +428,18 @@ export default async function HrAdminPage() {
       dateInfo = belepes || "Hamarosan"
     }
 
+    const onbEmpId = o.dolgozo_id || undefined
+    const onbEmpName = o.nev || "Új munkatárs"
+
     allHrTasks.push({
       id: `onb-${o.id}`,
       category: "onboarding",
       severity,
       title,
       description,
-      employeeName: o.nev || "Új munkatárs",
-      employeeId: o.dolgozo_id || undefined,
+      employeeName: onbEmpName,
+      employeeId: onbEmpId,
+      avatarUrl: getAvatarFor(onbEmpId, onbEmpName),
       position: o.munkakor || null,
       dateInfo,
       daysRemaining: days,
@@ -462,6 +491,7 @@ export default async function HrAdminPage() {
     }
 
     const employeeName = off.felhasznalo_profil?.nev || "Munkatárs"
+    const offEmpId = off.dolgozo_id
 
     allHrTasks.push({
       id: `off-${off.id}`,
@@ -470,7 +500,8 @@ export default async function HrAdminPage() {
       title,
       description,
       employeeName,
-      employeeId: off.dolgozo_id,
+      employeeId: offEmpId,
+      avatarUrl: off.felhasznalo_profil?.avatar_url || getAvatarFor(offEmpId, employeeName),
       position: off.munkakor || null,
       dateInfo,
       daysRemaining: days,
@@ -556,10 +587,10 @@ export default async function HrAdminPage() {
 
       {/* HR Teendők & Figyelmeztetések (Kereshető, szűrhető táblázat TableToolbarral) */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-4">
+        <CardHeader className="flex flex-row items-center justify-between pt-5 px-6 pb-2">
           <div>
             <CardTitle className="text-base font-semibold flex items-center gap-2">
-              HR Teendők & Figyelmeztetések
+              Teendők és figyelmeztetések
               {allHrTasks.length > 0 && (
                 <Badge
                   variant="outline"
