@@ -4,6 +4,62 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-23)
 
+### eaisyHR: Egységes Hivatalos Munkaszerződés Generálás (Mt. 42–45. §) a 360° Dolgozói Profilban UX (P-111)
+- **Kanonikus Szerződésgenerátor Integrálása (`src/components/hr/contract-generator-dialog.tsx`):**
+  - Az elavult, hiányos pontozott vonalakat tartalmazó „Alap Munkaszerződés” mockup sablon teljesen lecserélésre került a hivatalos, onboardingban már alkalmazott `EmploymentContractPanel` és `employment-contract-pdf-generator.ts` motorra.
+  - A sablonválasztóban a tétel megnevezése: **`Hivatalos Munkaszerződés (Mt. 42–45. §)`**, amely alapértelmezett választásként azonnal megjelenik.
+- **Teljes Munkaügyi Életciklus a Dolgozói Adatlapról:**
+  - A dolgozó adatai (személyes adatok, munkakör, bér, szervezeti egység) automatikusan előtöltődnek.
+  - Generáláskor pontosan ugyanaz a prémium, 8 fejezetes A4-es jogi PDF munkaszerződés jön létre, mint az onboardingban.
+  - Támogatott az in-place PDF megtekintés (`PdfViewerDialog`), közvetlen letöltés, eaisyDocs iktatás, aláírt példány kezelés, valamint a kötelező **Mt. 46. § Írásbeli Munkáltatói Tájékoztató** kiállítása.
+- **Egyéb Sablonok Megtartása:**
+  - A Hivatalos Munkaköri Leírás, Bérmódosítási Tájékoztató és Titoktartási Nyilatkozat (NDA) továbbra is elérhető a sablonválasztóból.
+
+### eaisyHR: 360° Dolgozói Profil Hivatalos Dokumentumok Kereső és Szűrősáv UX (P-110)
+- **Önálló `OfficialDocumentsTab` Kliens Komponens (`src/app/hr/employee/[id]/tabs/OfficialDocumentsTab.tsx`):**
+  - A korábban `page.tsx`-ben inline renderelt hivatalos iratlista kiváltásra került egy tiszta, típusbiztos kliens tab komponensbe, illeszkedve a tabkönyvtár struktúrájához.
+- **Kanonikus `TableToolbar` Integrálása (ADR A-029 & PRD P-043):**
+  - **Élő keresőmező:** Azonnali szűrés a dokumentum neve (`nev`), iktatószáma (`iktatoszam`) és kategóriája (`kategoria`) alapján, egykattintásos `X` törlő gombbal.
+  - **Szűrés Popover (Tematikus szűrőcsoportok):**
+    - *Iktatási státusz:* Iktatva (eaisyDocs) / Belső HR vázlat.
+    - *Aláírási állapot:* Aláírt példány / Tervezet (nem aláírt).
+    - *Dokumentum kategória:* Dinamikusan előállított kategórialista az adatlapon lévő iratokból.
+  - **Találati információ:** Számláló jelvény a toolbar jobb szélén (`Találatok: X / Y` vagy `Összesen: Y dokumentum`).
+  - **Szűrők egykattintásos törlése:** Teljes szűrési és keresési állapot azonnali visszaállítása.
+- **Szövegközpontú Üres Állapotok:**
+  - Keresési eredmény hiánya esetén tiszta, professzionális üres állapot közvetlen szűrőtörlési gombbal (Zero-Emoji és No-Decorative-Icons szabályzat).
+- **Munkaköri Leírás Felső Sáv Redundanciájának Megszüntetése (`JobDescriptionBadgeAction`):**
+  - Ha a munkaköri leírás már hozzá van rendelve a dolgozóhoz (vagy le van iktatva), a felső különálló fix sáv elrejtésre kerül, mivel az irat a dokumentumlistában a többi irathoz hasonlóan már jelen van.
+  - A sáv kizárólag akkor bukkan fel HR-es felhasználók számára, ha a központi katalógusból újabb verzió érhető el átvételre. Eltávolításra került a dekoratív kerekített ikonbox is.
+- **`src/app/hr/employee/[id]/page.tsx` Karcsúsítása:**
+  - Az inline JSX blokk és a felesleges dialógus importok eltávolítva, átadva a helyét a szabványos `<OfficialDocumentsTab ... />` meghívásnak.
+
+### eaisyHR: 360° Dolgozói Profil Munkaviszony Fül Letisztítása és Munkavédelmi Oktatások Áthelyezése (P-109)
+- **Munkavédelmi és Tűzvédelmi Oktatások Áthelyezése a Bizalmas Fülre (`src/app/hr/employee/[id]/page.tsx`):**
+  - A `SafetyTrainingEmployeeCard` komponens átkerült a `Munkaviszony` fülről a **`Bizalmas HR adatok`** (`bizalmas`) fülre, közvetlenül a foglalkozás-egészségügyi Orvosi Alkalmassági Vizsgálatok (`MedicalTab`) alá.
+  - Így az összes munkavédelmi & egészségügyi megfelelőségi adat (EHS compliance) egyetlen dedikált, biztonságosan auditált helyen érhető el.
+  - A `munkavedelmi` szerepkörű felhasználók jogosultak az oktatások és vizsgálatok megtekintésére és új jegyzőkönyv rögzítésére ezen a fülön.
+- **Munkaviszony Fül Letisztítása:**
+  - A Munkaviszony fül fókusza kizárólag a szerződéses és beosztási jogviszonyra korlátozódik:
+    - *Jogviszony és Munkarend* (`EmploymentTab`): beosztás, munkakör, munkaidő (FTE), munkarend, vezető, bérkategória, és beosztás-idővonal (Timeline).
+    - *Tanulmányi Szerződések* (`StudyContractTab`) változatlanul megtartva.
+- **Zero-Emoji és No-Decorative-Icons Megfelelőség (`src/components/hr/safety-training-employee-card.tsx`):**
+  - Eltávolításra került a dekoratív `HardHat` védősisak ikon a kártya címsorából és az üres állapotból (empty state).
+  - Tisztított, professzionális szekciócímek (`border-b pb-2`) piros `text-destructive` színezés nélkül.
+
+### eaisyHR: Munkavédelmi Oktatás Kiemelése a Dolgozói Profilban és Főoldali Cafeteria Integráció (P-108)
+- **Munkavédelmi Oktatás Kiemelése a Dolgozói Profilban (`src/app/hr/self-service/profile/page.tsx`):**
+  - A profil Hero fejlécében az Orvosi vizsgálat mellett kiemelt chipként megjelenik a `Munkavédelem` érvényessége és figyelmeztető állapota (zöld érvényes a hátralévő napokkal, sárga 30 napon belül lejáró, piros lejárt vagy hiányzó).
+  - Az Alapadatok kártya kiegészült a Munkavédelmi Oktatás sorral, feltüntetve az oktatás típusát (Munkavédelmi / Tűzvédelmi), érvényességi idejét, az oktató nevét és a megtartás napját.
+  - A számítás a központi `@/utils/hr/safety-compliance-calculator` modulra épül.
+- **Dolgozói Főoldali Cafeteria Közvetlen Kezelés (`src/app/hr/page.tsx`):**
+  - A cafeteria doboz közvetlenül a dolgozói irányítópulton helyezkedik el, biztosítva a gyors és egykattintásos nyilatkozattételt.
+  - A szerveroldali adatelőkészítés párhuzamosított `Promise.all` hívásokkal fut, felkészítve a hitelesített `iktatoszam` megjelenítésére.
+  - Eltávolításra került a korábbi dekoratív `Coffee` ikon a Zero-Emoji & No-Decorative-Icons irányelvnek megfelelően.
+- **Oldalsáv Letisztultság (`src/components/hr-sidebar.tsx`):**
+  - Nem került be feleslegesen különálló Juttatások aloldal link az oldalsávba, megőrizve a 8 pontos kompakt Dolgozói Portál struktúrát.
+- **Zero-Emoji & No-Decorative-Icons:** 100%-os megfelelőség betartva.
+
 ### eaisyHR: Egyéni Fejlesztési Terv (IDP) Teljes Átdolgozása és Tanúsítvány-igazolási Munkamenet (A-082 / P-106)
 - **Adatbázis séma bővítés (`hr_fejlesztesi_cel`):**
   - Hozzáadva: `mentor_id`, `intezmeny`, `koltseg`, `finanszirozas`, `tanusitvany_url`, `tanusitvany_nev`, `tanusitvany_feltoltve_at`, `elutasitas_indoklas`.

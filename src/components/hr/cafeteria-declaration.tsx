@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Coffee, CheckCircle2, AlertCircle, Trash2, Plus, Eye, Download } from "lucide-react"
+import { CheckCircle2, AlertCircle, Trash2, Plus, Eye, Download } from "lucide-react"
 import { submitCafeteriaDeclaration } from "@/app/hr/cafeteria-actions"
 import { toast } from "sonner"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
@@ -51,7 +51,9 @@ export function CafeteriaDeclaration({
   isClosed, 
   catalog,
   existingChoices,
-  iktatoszam
+  iktatoszam,
+  inDialog,
+  onSuccess,
 }: { 
   employeeId: string, 
   year: number, 
@@ -59,7 +61,9 @@ export function CafeteriaDeclaration({
   isClosed: boolean,
   catalog: CatalogItem[],
   existingChoices: ExistingCafeteriaChoice[],
-  iktatoszam?: string | null
+  iktatoszam?: string | null,
+  inDialog?: boolean,
+  onSuccess?: () => void,
 }) {
   const [choices, setChoices] = useState<DeclarationChoice[]>(
     existingChoices.map(c => ({
@@ -133,6 +137,7 @@ export function CafeteriaDeclaration({
       toast.error(result.error)
     } else {
       toast.success("Nyilatkozat sikeresen véglegesítve!")
+      onSuccess?.()
     }
   }
 
@@ -141,6 +146,73 @@ export function CafeteriaDeclaration({
   }
 
   if (isClosed) {
+    if (inDialog) {
+      return (
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between p-4 rounded-md bg-success/5 border border-success/20">
+            <div>
+              <div className="font-semibold text-foreground flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-success" />
+                <span>Nyilatkozat ({year}) – Leadva</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Erre az évre már leadtad és véglegesítetted a nyilatkozatodat.
+              </p>
+              {iktatoszam && (
+                <div className="mt-2">
+                  <Badge variant="outline" className="bg-success/10 text-success border-success/30 font-mono text-xs">
+                    Iktatva: {iktatoszam}
+                  </Badge>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <PdfViewerDialog
+                url={`/api/hr/cafeteria-pdf?employeeId=${employeeId}&year=${year}&preview=true`}
+                title={`Cafeteria Nyilatkozat (${year})`}
+                trigger={
+                  <Button variant="outline" size="sm" className="gap-1.5 text-primary border-primary/30 hover:bg-primary/10 h-8">
+                    <Eye className="w-4 h-4" />
+                    <span>Megtekintés</span>
+                  </Button>
+                }
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-8 text-muted-foreground hover:text-foreground"
+                onClick={() => window.open(`/api/hr/cafeteria-pdf?employeeId=${employeeId}&year=${year}&download=true`, '_blank')}
+                title="Nyilatkozat letöltése (PDF)"
+              >
+                <Download className="w-4 h-4" />
+                <span>Letöltés</span>
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Kiválasztott elemek</span>
+            <div className="space-y-2">
+              {existingChoices.map((c, index) => {
+                const item = catalog.find(k => k.id === c.katalogus_elem_id)
+                return (
+                  <div key={String(c.katalogus_elem_id || index)} className="flex justify-between p-3 bg-muted/30 rounded-md border text-sm">
+                    <span className="font-medium">{item?.nev || "Ismeretlen elem"}</span>
+                    <span className="text-muted-foreground tabular-nums">{formatFt(c.kert_osszeg)}</span>
+                  </div>
+                )
+              })}
+              <div className="flex justify-between p-3 bg-muted rounded-md font-semibold text-sm">
+                <span>Felhasznált keret összesen:</span>
+                <span className="text-primary tabular-nums">{formatFt(existingChoices.reduce((s, c) => s + c.levont_keret_osszeg, 0))}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <Card className="border-success/30 bg-success/5">
         <CardHeader>
@@ -207,11 +279,135 @@ export function CafeteriaDeclaration({
     )
   }
 
+  if (inDialog) {
+    return (
+      <div className="space-y-5">
+        {/* Keret vizualizáció */}
+        <div className="bg-muted/30 p-4 rounded-lg border">
+          <div className="flex justify-between items-end mb-2">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Felhasználható keret</p>
+              <p className="text-2xl font-bold tabular-nums text-primary">{formatFt(remaining)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Éves keretösszeg</p>
+              <p className="font-semibold tabular-nums">{formatFt(budget)}</p>
+            </div>
+          </div>
+          <Progress value={(totalUsed / budget) * 100} className="h-2 mt-3" />
+          <p className="text-xs text-muted-foreground text-right mt-1.5 tabular-nums">Felhasznált: {formatFt(totalUsed)}</p>
+        </div>
+
+        {/* Hozzáadás form */}
+        <div className="grid gap-3 md:grid-cols-12 items-end bg-background p-3 border rounded-lg">
+          <div className="md:col-span-5 space-y-1.5">
+            <Label htmlFor="dialog-item" className="text-xs">Juttatási elem</Label>
+            <select 
+              id="dialog-item"
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              value={selectedItem}
+              onChange={(e) => setSelectedItem(e.target.value)}
+            >
+              <option value="" disabled>Válassz a katalógusból...</option>
+              {catalog.map(c => (
+                <option key={c.id} value={c.id}>{c.nev} (Szorzó: {c.szorzo}x)</option>
+              ))}
+            </select>
+          </div>
+          <div className="md:col-span-4 space-y-1.5">
+            <Label htmlFor="dialog-amount" className="text-xs">Kért nettó összeg (Ft)</Label>
+            <Input 
+              id="dialog-amount" 
+              type="number" 
+              placeholder="pl. 100000" 
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              min="0"
+              step="1000"
+              className="h-9 text-sm"
+            />
+          </div>
+          <div className="md:col-span-3">
+            <Button type="button" onClick={handleAdd} className="w-full gap-1.5 h-9" variant="secondary" size="sm">
+              <Plus className="w-4 h-4" /> Hozzáad
+            </Button>
+          </div>
+        </div>
+
+        {/* Kiválasztott elemek listája */}
+        {choices.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Kiválasztott elemek</h4>
+            <div className="rounded-md border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b">
+                  <tr>
+                    <th className="h-8 px-3 text-left font-medium text-xs text-muted-foreground">Elem</th>
+                    <th className="h-8 px-3 text-right font-medium text-xs text-muted-foreground">Kért összeg</th>
+                    <th className="h-8 px-3 text-right font-medium text-xs text-muted-foreground">Levont keret</th>
+                    <th className="h-8 px-2 text-right font-medium text-xs text-muted-foreground"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {choices.map((c) => {
+                    const item = catalog.find(k => k.id === c.katalogus_elem_id)
+                    return (
+                      <tr key={c.katalogus_elem_id} className="border-b last:border-0 hover:bg-muted/20">
+                        <td className="p-3 font-medium">{item?.nev}</td>
+                        <td className="p-3 text-right tabular-nums">{formatFt(c.kert_osszeg)}</td>
+                        <td className="p-3 text-right text-muted-foreground font-medium tabular-nums">{formatFt(c.levont_keret_osszeg)}</td>
+                        <td className="p-3 text-right">
+                          <Button variant="ghost" size="icon" onClick={() => handleRemove(c.katalogus_elem_id)} className="h-7 w-7 text-destructive hover:bg-destructive/10">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <div className="pt-3 border-t flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 text-warning" /> A nyilatkozat leadás után nem módosítható.
+          </div>
+          
+          <AlertDialog>
+            <AlertDialogTrigger 
+              disabled={loading || choices.length === 0}
+              className={buttonVariants()}
+            >
+              {loading ? "Mentés..." : "Nyilatkozat Véglegesítése"}
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Biztosan véglegesíted a nyilatkozatot?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Utána már nem tudod módosítani a választott cafeteria elemeket. 
+                  Gondold át, mert az adatok véglegesek lesznek erre az évre.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={loading}>Mégse</AlertDialogCancel>
+                <AlertDialogAction onClick={handleSubmit} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  Igen, véglegesítem
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <Card>
       <CardHeader className="pb-4">
-        <CardTitle className="flex items-center gap-2">
-          <Coffee className="w-5 h-5 text-primary" /> Cafeteria Nyilatkozat ({year})
+        <CardTitle className="text-xl font-semibold">
+          Cafeteria Nyilatkozat ({year})
         </CardTitle>
         <CardDescription>Állítsd össze a saját juttatási csomagodat a megadott keretből!</CardDescription>
       </CardHeader>

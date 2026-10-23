@@ -12,8 +12,10 @@ import {
   Briefcase, 
   UserCircle, 
   Eye, 
-  Download 
+  Download,
+  ShieldAlert,
 } from "lucide-react"
+import { calculateSafetyTrainingStatus } from "@/utils/hr/safety-compliance-calculator"
 
 export default async function SelfServiceProfilePage() {
   const supabase = await createClient()
@@ -23,7 +25,7 @@ export default async function SelfServiceProfilePage() {
     redirect("/login")
   }
 
-  const [adatlapRes, jogviszonyRes, orvosiRes] = await Promise.all([
+  const [adatlapRes, jogviszonyRes, orvosiRes, safetyTrainingRes] = await Promise.all([
     supabase
       .from("hr_dolgozo_adatlap")
       .select("*, felhasznalo_profil(nev, hr_szerepkor, avatar_url)")
@@ -41,12 +43,21 @@ export default async function SelfServiceProfilePage() {
       .eq("dolgozo_id", user.id)
       .order("ervenyesseg_datuma", { ascending: false })
       .limit(1)
-      .maybeSingle()
+      .maybeSingle(),
+    supabase
+      .from("hr_munkavedelmi_oktatas")
+      .select("id, oktatas_tipusa, oktatas_datuma, ervenyesseg_vege, oktato_neve, oktato_beosztasa")
+      .eq("dolgozo_id", user.id)
+      .order("oktatas_datuma", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   const adatlap = adatlapRes.data
   const jogviszonyInfo = jogviszonyRes.data
   const orvosi = orvosiRes.data
+  const safetyTraining = safetyTrainingRes.data
+  const safetyStatus = calculateSafetyTrainingStatus(safetyTraining?.ervenyesseg_vege)
 
   const activeMunkakor = jogviszonyInfo?.hr_beosztas?.[0]?.hr_munkakor
   const munkakorMegnevezes = activeMunkakor?.megnevezes || null
@@ -232,6 +243,40 @@ export default async function SelfServiceProfilePage() {
                   </div>
                 </div>
               )}
+              {/* Munkavédelmi oktatás chip */}
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ${
+                safetyStatus.status === "lejart"
+                  ? "border-destructive/40 bg-destructive/10 text-destructive"
+                  : safetyStatus.status === "hamarosan_lejar"
+                  ? "border-warning/40 bg-warning-subtle text-warning"
+                  : safetyStatus.status === "hianyzik"
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                  : "border bg-muted/40"
+              }`}>
+                <ShieldAlert className={`w-4 h-4 shrink-0 ${
+                  safetyStatus.status === "lejart"
+                    ? "text-destructive"
+                    : safetyStatus.status === "hamarosan_lejar"
+                    ? "text-warning"
+                    : "text-primary"
+                }`} />
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-medium opacity-80">
+                    Munkavédelem {safetyStatus.status === "lejart" ? "(Lejárt!)" : safetyStatus.status === "hamarosan_lejar" ? "(Hamarosan lejár)" : safetyStatus.status === "hianyzik" ? "(Hiányzik)" : ""}
+                  </p>
+                  <p className={`font-medium text-xs ${
+                    safetyStatus.status === "lejart"
+                      ? "text-destructive font-semibold"
+                      : safetyStatus.status === "hamarosan_lejar"
+                      ? "text-warning font-semibold"
+                      : ""
+                  }`}>
+                    {safetyTraining?.ervenyesseg_vege
+                      ? new Date(safetyTraining.ervenyesseg_vege).toLocaleDateString("hu-HU", { year: "numeric", month: "short", day: "numeric" })
+                      : "Nincs oktatás"}
+                  </p>
+                </div>
+              </div>
               {munkakorMegnevezes && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/40 text-sm">
                   <Briefcase className="w-4 h-4 text-primary shrink-0" />
@@ -272,7 +317,7 @@ export default async function SelfServiceProfilePage() {
                   : <span className="text-muted-foreground italic">Nincs megadva</span>}
               </p>
             </div>
-            <div className="py-3">
+            <div className="py-3 border-b border-border">
               <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Orvosi Érvényesség</p>
               <div className="flex items-center gap-2 mt-1">
                 {orvosiErvenyesseg && !isNaN(new Date(orvosiErvenyesseg).getTime()) ? (
@@ -302,6 +347,51 @@ export default async function SelfServiceProfilePage() {
                   <span className="text-muted-foreground italic text-sm">Nincs megadva</span>
                 )}
               </div>
+            </div>
+            <div className="py-3">
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Munkavédelmi Oktatás</p>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {safetyTraining?.ervenyesseg_vege && !isNaN(new Date(safetyTraining.ervenyesseg_vege).getTime()) ? (
+                  <>
+                    <span className={`font-medium text-sm tabular-nums ${
+                      safetyStatus.status === "lejart"
+                        ? "text-destructive font-semibold"
+                        : safetyStatus.status === "hamarosan_lejar"
+                        ? "text-warning font-semibold"
+                        : ""
+                    }`}>
+                      {new Date(safetyTraining.ervenyesseg_vege).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })}
+                    </span>
+                    {safetyStatus.status === "lejart" && (
+                      <span className="text-[11px] font-semibold text-destructive bg-destructive/10 border border-destructive/30 px-1.5 py-0.5 rounded">
+                        Lejárt!
+                      </span>
+                    )}
+                    {safetyStatus.status === "hamarosan_lejar" && (
+                      <span className="text-[11px] font-semibold text-warning bg-warning-subtle border border-warning/30 px-1.5 py-0.5 rounded">
+                        Hamarosan lejár
+                      </span>
+                    )}
+                    {safetyStatus.status === "ervenyess" && (
+                      <span className="text-[11px] font-semibold text-success bg-success/10 border border-success/20 px-1.5 py-0.5 rounded">
+                        Érvényes
+                      </span>
+                    )}
+                    {safetyTraining.oktatas_tipusa && (
+                      <span className="text-xs text-muted-foreground">
+                        ({safetyTraining.oktatas_tipusa === "munkavedelmi" ? "Munkavédelmi" : safetyTraining.oktatas_tipusa === "tuzvedelmi" ? "Tűzvédelmi" : safetyTraining.oktatas_tipusa})
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-muted-foreground italic text-sm">Nincs oktatás rögzítve</span>
+                )}
+              </div>
+              {safetyTraining?.oktato_neve && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Oktató: {safetyTraining.oktato_neve} · Dátum: {new Date(safetyTraining.oktatas_datuma).toLocaleDateString("hu-HU")}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

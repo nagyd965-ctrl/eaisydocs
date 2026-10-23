@@ -15,7 +15,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  HardHat,
   ShieldCheck,
   AlertTriangle,
   Calendar,
@@ -91,8 +90,7 @@ export function SafetyTrainingEmployeeCard({
     <Card className="border border-border/80 shadow-none">
       <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
         <div className="space-y-1">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <HardHat className="w-5 h-5 text-primary" />
+          <CardTitle className="text-lg font-semibold">
             Munkavédelmi és Tűzvédelmi Oktatások
           </CardTitle>
           <p className="text-xs text-muted-foreground">
@@ -208,8 +206,7 @@ export function SafetyTrainingEmployeeCard({
 
         {/* Oktatási Előzmények Táblázat */}
         {trainings.length === 0 ? (
-          <div className="text-center py-10 border border-dashed rounded-lg bg-muted/10 space-y-2">
-            <HardHat className="w-8 h-8 text-muted-foreground/40 mx-auto" />
+          <div className="text-center py-10 border border-dashed rounded-lg bg-muted/10 space-y-1.5">
             <h4 className="text-sm font-medium text-foreground">Nincsenek rögzített oktatási előzmények</h4>
             <p className="text-xs text-muted-foreground max-w-sm mx-auto">
               Ehhez a munkatárshoz még nem lett rögzítve munkavédelmi vagy tűzvédelmi oktatási jegyzőkönyv.

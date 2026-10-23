@@ -1411,6 +1411,7 @@ export async function updateGeneralPersonalInfo(employeeId: string, formData: Fo
   if (!user) return { error: "Nincs bejelentkezve" }
 
   const szuletesi_datum = formData.get("szuletesi_datum") as string
+  const szuletesi_hely = formData.get("szuletesi_hely") as string
   const anyja_neve = formData.get("anyja_neve") as string
   const lakcim = formData.get("lakcim") as string
   const telefonszam = formData.get("telefonszam") as string
@@ -1420,12 +1421,13 @@ export async function updateGeneralPersonalInfo(employeeId: string, formData: Fo
   // 1. Régi adatok lekérése a naplózáshoz
   const { data: oldData } = await supabase
     .from("hr_dolgozo_adatlap")
-    .select("szuletesi_datum, anyja_neve, lakcim, telefonszam, gyermekek_szama, megvaltozott_munkakepessegu")
+    .select("szuletesi_datum, szuletesi_hely, anyja_neve, lakcim, telefonszam, gyermekek_szama, megvaltozott_munkakepessegu")
     .eq("id", employeeId)
     .single()
 
   const uj_adatok = {
     szuletesi_datum: szuletesi_datum || null,
+    szuletesi_hely: szuletesi_hely || null,
     anyja_neve: anyja_neve || null,
     lakcim: lakcim || null,
     telefonszam: telefonszam || null,

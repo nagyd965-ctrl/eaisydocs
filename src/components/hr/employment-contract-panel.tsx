@@ -40,6 +40,17 @@ export interface EmploymentContractPanelProps {
   munkakor?: string | null
   reszleg?: string | null
   belepesDatuma?: string | null
+  adatlap?: any
+  initialPersonalData?: {
+    szuletesiHely?: string | null
+    szuletesiDatum?: string | null
+    anyjaNeve?: string | null
+    lakcim?: string | null
+    adoazonositoJel?: string | null
+    tajSzam?: string | null
+    bankszamlaszam?: string | null
+    alapber?: number | null
+  }
   orgUnits?: OrgUnitOption[]
   jobs?: JobOption[]
   onSuccess?: () => void
@@ -53,6 +64,8 @@ export function EmploymentContractPanel({
   munkakor: initialMunkakor,
   reszleg: initialReszleg,
   belepesDatuma,
+  adatlap,
+  initialPersonalData,
   orgUnits,
   jobs,
   onSuccess,
@@ -75,18 +88,34 @@ export function EmploymentContractPanel({
   const [munkaidoTipus, setMunkaidoTipus] = useState<"teljes" | "reszmunkaido">("teljes")
   const [napiMunkaidoOra, setNapiMunkaidoOra] = useState(8)
   const [probaidoHonap, setProbaidoHonap] = useState(3)
-  const [alapber, setAlapber] = useState(650000)
+  const [alapber, setAlapber] = useState(
+    initialPersonalData?.alapber || (adatlap?.alapber ? Number(adatlap.alapber) : 650000)
+  )
   const [munkavegzesHelye, setMunkavegzesHelye] = useState("A Munkáltató mindenkori székhelye és telephelyei")
   const [tavmunkaMegallapodas, setTavmunkaMegallapodas] = useState(false)
 
-  // Munkavállaló azonosító adatai
-  const [szuletesiHely, setSzuletesiHely] = useState("")
-  const [szuletesiDatum, setSzuletesiDatum] = useState("")
-  const [anyjaNeve, setAnyjaNeve] = useState("")
-  const [lakcim, setLakcim] = useState("")
-  const [adoazonositoJel, setAdoazonositoJel] = useState("")
-  const [tajSzam, setTajSzam] = useState("")
-  const [bankszamlaszam, setBankszamlaszam] = useState("")
+  // Munkavállaló azonosító adatai automatikusan előtöltve
+  const [szuletesiHely, setSzuletesiHely] = useState(
+    initialPersonalData?.szuletesiHely || adatlap?.szuletesi_hely || "Budapest"
+  )
+  const [szuletesiDatum, setSzuletesiDatum] = useState(
+    initialPersonalData?.szuletesiDatum || adatlap?.szuletesi_datum || adatlap?.szuletesi_ido || ""
+  )
+  const [anyjaNeve, setAnyjaNeve] = useState(
+    initialPersonalData?.anyjaNeve || adatlap?.anyja_neve || ""
+  )
+  const [lakcim, setLakcim] = useState(
+    initialPersonalData?.lakcim || adatlap?.lakcim || ""
+  )
+  const [adoazonositoJel, setAdoazonositoJel] = useState(
+    initialPersonalData?.adoazonositoJel || ""
+  )
+  const [tajSzam, setTajSzam] = useState(
+    initialPersonalData?.tajSzam || ""
+  )
+  const [bankszamlaszam, setBankszamlaszam] = useState(
+    initialPersonalData?.bankszamlaszam || ""
+  )
 
   const loadData = async () => {
     setLoading(true)
@@ -95,17 +124,17 @@ export function EmploymentContractPanel({
 
     if (res.data) {
       setExistingRecord(res.data)
-      setMunkakor(res.data.munkakor || munkakor)
+      if (res.data.munkakor) setMunkakor(res.data.munkakor)
       if (res.data.reszleg) setReszleg(res.data.reszleg)
-      setKezdesDatuma(res.data.kezdes_datuma || kezdesDatuma)
-      setSzerzodesTipusa(res.data.szerzodes_tipusa || "hatarozatlan")
+      if (res.data.kezdes_datuma) setKezdesDatuma(res.data.kezdes_datuma)
+      if (res.data.szerzodes_tipusa) setSzerzodesTipusa(res.data.szerzodes_tipusa)
       if (res.data.hatarozott_lejarat) setHatarozottLejarat(res.data.hatarozott_lejarat)
-      setMunkaidoTipus(res.data.munkaido_tipus || "teljes")
-      setNapiMunkaidoOra(Number(res.data.napi_munkaido_ora) || 8)
-      setProbaidoHonap(Number(res.data.probaido_honap ?? 3))
-      setAlapber(Number(res.data.alapber) || alapber)
-      setMunkavegzesHelye(res.data.munkavegzes_helye || munkavegzesHelye)
-      setTavmunkaMegallapodas(Boolean(res.data.tavmunka_megallapodas))
+      if (res.data.munkaido_tipus) setMunkaidoTipus(res.data.munkaido_tipus)
+      if (res.data.napi_munkaido_ora) setNapiMunkaidoOra(Number(res.data.napi_munkaido_ora))
+      if (res.data.probaido_honap != null) setProbaidoHonap(Number(res.data.probaido_honap))
+      if (res.data.alapber) setAlapber(Number(res.data.alapber))
+      if (res.data.munkavegzes_helye) setMunkavegzesHelye(res.data.munkavegzes_helye)
+      if (res.data.tavmunka_megallapodas != null) setTavmunkaMegallapodas(Boolean(res.data.tavmunka_megallapodas))
 
       if (res.data.szuletesi_hely) setSzuletesiHely(res.data.szuletesi_hely)
       if (res.data.szuletesi_datum) setSzuletesiDatum(res.data.szuletesi_datum)

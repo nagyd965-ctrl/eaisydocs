@@ -19,19 +19,12 @@ import { LeaveTab } from "./tabs/LeaveTab"
 import { CafeteriaTab } from "./tabs/CafeteriaTab"
 import { AttendanceTab } from "./tabs/AttendanceTab"
 import { AuditLogTab } from "./tabs/AuditLogTab"
-import { ContractGeneratorDialog } from "@/components/hr/contract-generator-dialog"
-import { ManualUploadDialog } from "@/components/hr/manual-upload-dialog"
-import { DeleteContractButton } from "@/components/hr/delete-contract-button"
-import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
-import { FileHrDocumentDialog } from "@/components/hr/file-hr-document-dialog"
-import { BatchFileHrDocumentsDialog } from "@/components/hr/batch-file-hr-documents-dialog"
-import { UploadSignedDocumentDialog } from "@/components/hr/upload-signed-document-dialog"
-import { JobDescriptionBadgeAction } from "@/components/hr/job-description-badge-action"
 import { AddOffboardingDialog } from "@/components/hr/add-offboarding-dialog"
-import { ExternalLink, FileCheck, Lock, CheckCircle2, Download, UserMinus } from "lucide-react"
+import { UserMinus } from "lucide-react"
 import { IDPTab } from "./tabs/IDPTab"
 import { SafetyTrainingEmployeeCard } from "@/components/hr/safety-training-employee-card"
 import { PayslipsTab } from "./tabs/PayslipsTab"
+import { OfficialDocumentsTab } from "./tabs/OfficialDocumentsTab"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -480,18 +473,6 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               />
             </div>
 
-            {/* Munkavédelmi és Tűzvédelmi Oktatások */}
-            <div className="space-y-4">
-              <SafetyTrainingEmployeeCard
-                employeeId={profile.id}
-                employeeName={profile.nev}
-                munkakor={activeMunkakor?.megnevezes || null}
-                reszleg={(profile as any)?.hr_szervezeti_egyseg?.nev || null}
-                isHrOrAdmin={isHrOrAdmin}
-                trainings={(safetyTrainingsData as any) || []}
-              />
-            </div>
-
             {/* Tanulmányi Szerződés */}
             <div className="space-y-4">
               <h2 className="text-xl font-semibold tracking-tight border-b pb-2">Tanulmányi Szerződések</h2>
@@ -515,23 +496,37 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           {(isHrOrAdmin || isPayroll || ["auditor", "munkavedelmi"].includes(currentHrRole)) && (
             <TabsContent value="bizalmas" className="mt-0 outline-none space-y-12">
               {(isHrOrAdmin || ["auditor", "munkavedelmi"].includes(currentHrRole)) && (
-                <div className="space-y-4">
-                  <h2 className="text-xl font-semibold tracking-tight text-destructive border-b pb-2">
-                    Orvosi Alkalmassági Vizsgálatok
-                  </h2>
-                  <MedicalTab 
-                    employeeId={profile.id} 
-                    employeeName={profile.nev}
-                    isHrOrAdmin={isHrOrAdmin || currentHrRole === "munkavedelmi"} 
-                    currentUserRole={currentHrRole}
-                    initialData={adatlap?.hr_orvosi_vizsgalat || []} 
-                  />
-                </div>
+                <>
+                  <div className="space-y-4">
+                    <h2 className="text-xl font-semibold tracking-tight border-b pb-2">
+                      Orvosi Alkalmassági Vizsgálatok
+                    </h2>
+                    <MedicalTab 
+                      employeeId={profile.id} 
+                      employeeName={profile.nev}
+                      isHrOrAdmin={isHrOrAdmin || currentHrRole === "munkavedelmi"} 
+                      currentUserRole={currentHrRole}
+                      initialData={adatlap?.hr_orvosi_vizsgalat || []} 
+                    />
+                  </div>
+
+                  {/* Munkavédelmi és Tűzvédelmi Oktatások */}
+                  <div className="space-y-4">
+                    <SafetyTrainingEmployeeCard
+                      employeeId={profile.id}
+                      employeeName={profile.nev}
+                      munkakor={activeMunkakor?.megnevezes || null}
+                      reszleg={(profile as any)?.hr_szervezeti_egyseg?.nev || null}
+                      isHrOrAdmin={isHrOrAdmin || currentHrRole === "munkavedelmi"}
+                      trainings={(safetyTrainingsData as any) || []}
+                    />
+                  </div>
+                </>
               )}
 
               {(isHrOrAdmin || ["auditor"].includes(currentHrRole)) && (
                 <div className="space-y-4">
-                  <h2 className="text-xl font-semibold tracking-tight text-destructive border-b pb-2">
+                  <h2 className="text-xl font-semibold tracking-tight border-b pb-2">
                     Fegyelmi és Károkozási Ügyek (Mt. 56. §, 179. §)
                   </h2>
                   <DisciplinaryTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} initialData={adatlap?.hr_fegyelmi || []} />
@@ -541,157 +536,17 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           )}
 
           {/* Hivatalos Dokumentumok */}
-          <TabsContent value="dokumentumok" className="mt-0 outline-none space-y-6">
-            <div className="flex justify-between items-center border-b pb-2">
-              <div>
-                <h2 className="text-xl font-semibold tracking-tight">Hivatalos Dokumentumok</h2>
-                <p className="text-sm text-muted-foreground mt-1">Szerződések, nyilatkozatok és jogi iratok idővonala és generálása.</p>
-              </div>
-              {isHrOrAdmin && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {(() => {
-                    const unfiled = (hrDocuments || []).filter((d: any) => !d.iktatoszam)
-                    return unfiled.length > 0 ? (
-                      <BatchFileHrDocumentsDialog
-                        employeeId={profile.id}
-                        employeeName={profile.nev}
-                        unfiledDocs={unfiled}
-                      />
-                    ) : null
-                  })()}
-                  <ManualUploadDialog employeeId={profile.id} />
-                  <ContractGeneratorDialog 
-                    employee={profile} 
-                    adatlap={adatlap} 
-                    munkakor={activeMunkakor}
-                    vezetoNev={vezetoNev}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Munkaköri leírás verziójelző / átvételi akciókártya */}
-            {activeMunkakor && (
-              <JobDescriptionBadgeAction
-                employeeId={profile.id}
-                employeeName={profile.nev}
-                munkakor={activeMunkakor}
-                latestJobVersion={latestJobVersion}
-                existingDoc={existingJobDoc}
-                isHrOrAdmin={isHrOrAdmin}
-              />
-            )}
-
-            <div className="border rounded-lg relative overflow-hidden bg-card">
-              <div className="absolute left-8 top-0 bottom-0 w-px bg-border"></div>
-              <div className="p-6 space-y-8">
-                {hrDocuments && hrDocuments.length > 0 ? hrDocuments.map((doc: any) => (
-                  <div key={doc.id} className="flex gap-6 relative">
-                    <div className={`w-4 h-4 rounded-full ${doc.iktatoszam ? "bg-success" : "bg-primary"} mt-1 relative z-10 outline outline-4 outline-background`}></div>
-                    <div className="flex-1 border rounded-lg p-4 bg-background hover:bg-muted/50 transition-colors">
-                      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-medium text-foreground">{doc.nev}</h4>
-                            {doc.iktatoszam ? (
-                              <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs font-mono gap-1">
-                                <FileCheck className="w-3 h-3" />
-                                Iktatva: {doc.iktatoszam}
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/40">
-                                Belső HR vázlat
-                              </Badge>
-                            )}
-                            {doc.alairt_fajl_url || doc.alairas_statusz === "alairva" ? (
-                              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs gap-1 font-medium">
-                                <CheckCircle2 className="w-3 h-3 text-primary" />
-                                Aláírt példány
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/20 font-normal">
-                                Tervezet
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">Kategória: {doc.kategoria || "Egyéb"}</p>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                            <span>Létrehozva: {new Date(doc.created_at).toLocaleString("hu-HU")}</span>
-                            {doc.iktatva_ekor && (
-                              <span>• Iktatás ideje: {new Date(doc.iktatva_ekor).toLocaleString("hu-HU")}</span>
-                            )}
-                            {doc.alairva_ekor && (
-                              <span className="text-success font-medium tabular-nums">
-                                • Aláírva: {new Date(doc.alairva_ekor).toLocaleString("hu-HU")}
-                              </span>
-                            )}
-                            {doc.ugyirat_id && (
-                              <Link 
-                                href={`/dossiers/${doc.ugyirat_id}`} 
-                                className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
-                                target="_blank"
-                              >
-                                <ExternalLink className="w-3 h-3" /> Megtekintés dossziéban
-                              </Link>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 self-end sm:self-center">
-                          {/* 1. Aláírt példány feltöltése / cseréje */}
-                          {isHrOrAdmin && (
-                            <UploadSignedDocumentDialog
-                              document={doc}
-                              employeeId={profile.id}
-                              employeeName={profile.nev}
-                            />
-                          )}
-
-                          {/* 2. In-browser Megtekintés (ha van aláírt példány, azt nyitja meg!) */}
-                          {(doc.displayUrl || doc.signedUrl || doc.url) && (
-                            <PdfViewerDialog 
-                              url={doc.displayUrl || doc.signedUrl || doc.url} 
-                              title={doc.alairt_fajl_url ? `${doc.nev} (Aláírt példány)` : doc.nev} 
-                            />
-                          )}
-
-                          {/* 3. Közvetlen Letöltés */}
-                          {(doc.displayUrl || doc.signedUrl || doc.url) && (
-                            <a
-                              href={doc.displayUrl || doc.signedUrl || doc.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              download
-                              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors inline-flex items-center justify-center"
-                              title="Letöltés"
-                            >
-                              <Download className="w-4 h-4" />
-                            </a>
-                          )}
-
-                          {/* 4. Iktatás (ha még nincs iktatva) */}
-                          {isHrOrAdmin && !doc.iktatoszam && (
-                            <FileHrDocumentDialog 
-                              document={doc} 
-                              employeeId={profile.id} 
-                              employeeName={profile.nev} 
-                            />
-                          )}
-                          {isHrOrAdmin && !doc.iktatoszam ? (
-                            <DeleteContractButton documentId={doc.id} fileUrl={doc.url} dolgozoId={profile.id} />
-                          ) : isHrOrAdmin && (
-                            <div className="p-1 text-muted-foreground" title="Hivatalosan iktatott irat az irattári szabályok szerint nem törölhető">
-                              <Lock className="w-4 h-4 opacity-50" />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="pl-12 text-muted-foreground py-4">Még nincsenek generált vagy feltöltött dokumentumok.</div>
-                )}
-              </div>
-            </div>
+          <TabsContent value="dokumentumok" className="mt-0 outline-none">
+            <OfficialDocumentsTab
+              employee={profile}
+              adatlap={adatlap}
+              activeMunkakor={activeMunkakor}
+              vezetoNev={vezetoNev}
+              isHrOrAdmin={isHrOrAdmin}
+              initialDocuments={(hrDocuments as any) || []}
+              latestJobVersion={latestJobVersion}
+              existingJobDoc={existingJobDoc}
+            />
           </TabsContent>
 
         </div>

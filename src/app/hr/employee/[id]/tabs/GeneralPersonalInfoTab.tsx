@@ -62,14 +62,25 @@ export function GeneralPersonalInfoTab({
               </DialogHeader>
               <form action={handleUpdate}>
                 <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="szuletesi_datum">Születési Dátum</Label>
-                    <Input 
-                      id="szuletesi_datum" 
-                      name="szuletesi_datum" 
-                      type="date" 
-                      defaultValue={adatlap?.szuletesi_datum || ""} 
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="grid gap-2">
+                      <Label htmlFor="szuletesi_hely">Születési Hely</Label>
+                      <Input 
+                        id="szuletesi_hely" 
+                        name="szuletesi_hely" 
+                        placeholder="Pl. Budapest"
+                        defaultValue={adatlap?.szuletesi_hely || ""} 
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="szuletesi_datum">Születési Dátum</Label>
+                      <Input 
+                        id="szuletesi_datum" 
+                        name="szuletesi_datum" 
+                        type="date" 
+                        defaultValue={adatlap?.szuletesi_datum || ""} 
+                      />
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="anyja_neve">Anyja neve</Label>
@@ -131,8 +142,11 @@ export function GeneralPersonalInfoTab({
       <CardContent className="grid gap-6 md:grid-cols-2">
         <div className="space-y-4">
           <div>
-            <p className="text-sm text-muted-foreground">Születési Dátum</p>
-            <p className="font-medium">{formatDate(adatlap?.szuletesi_datum)}</p>
+            <p className="text-sm text-muted-foreground">Születési Hely és Dátum</p>
+            <p className="font-medium">
+              {adatlap?.szuletesi_hely ? `${adatlap.szuletesi_hely}, ` : ""}
+              {formatDate(adatlap?.szuletesi_datum)}
+            </p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Anyja neve</p>

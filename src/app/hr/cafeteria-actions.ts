@@ -94,6 +94,7 @@ export async function submitCafeteriaDeclaration(
     megjegyzes: `Cafeteria nyilatkozat (${year}) sikeresen leadva és lezárva a dolgozó által.`
   })
 
+  revalidatePath("/hr")
   revalidatePath("/hr/self-service")
   revalidatePath("/hr/self-service/benefits")
   revalidatePath(`/hr/employee/${employeeId}`)

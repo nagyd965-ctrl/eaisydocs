@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { FileText, Eye, FilePlus, CheckCircle2, Loader2, Info } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { assignJobDescriptionToEmployee } from "@/app/hr/actions/contract-actions"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
@@ -29,6 +29,7 @@ interface JobDescriptionBadgeActionProps {
     id: string
     nev: string
     iktatoszam?: string | null
+    kategoria?: string | null
   } | null
   isHrOrAdmin?: boolean
 }
@@ -43,7 +44,29 @@ export function JobDescriptionBadgeAction({
 }: JobDescriptionBadgeActionProps) {
   const [loading, setLoading] = useState(false)
 
-  if (!munkakor) {
+  // Ha nincs munkakör vagy nincs hozzá központi verzió a katalógusban:
+  if (!munkakor || !latestJobVersion) {
+    return null
+  }
+
+  // Ha a munkaköri leírás már át van véve / hozzá van rendelve a dolgozóhoz (vagy le van iktatva),
+  // akkor felül egyáltalán nem jelenítünk meg kártyát, mert a dokumentumlistában már pontosan úgy szerepel,
+  // mint az összes többi hivatalos irat.
+  // Csak akkor jelenik meg a sáv, ha a katalógusban újabb hivatalos verzió jött ki, amit még nem rendeltek hozzá.
+  const hasCurrentVersion = Boolean(
+    existingDoc && (
+      !latestJobVersion.verzio_szam ||
+      existingDoc.nev?.includes(`v${latestJobVersion.verzio_szam}`) ||
+      (!existingDoc.nev?.includes(" v") && existingDoc.kategoria === "Munkaköri leírás")
+    )
+  )
+
+  if (hasCurrentVersion) {
+    return null
+  }
+
+  // Csak HR/Admin számára jelenítjük meg az átvételi akciót, ha még nincs hozzárendelve
+  if (!isHrOrAdmin) {
     return null
   }
 
@@ -69,73 +92,52 @@ export function JobDescriptionBadgeAction({
     }
   }
 
-  const previewUrl = latestJobVersion?.signedUrl || (latestJobVersion ? `/api/hr/download-document?path=${encodeURIComponent(latestJobVersion.fajl_path)}&bucket=irat_files` : "")
+  const previewUrl = latestJobVersion.signedUrl || `/api/hr/download-document?path=${encodeURIComponent(latestJobVersion.fajl_path)}&bucket=irat_files`
+  const isUpgrade = Boolean(existingDoc && !hasCurrentVersion)
 
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-primary/20 bg-primary/5 transition-all">
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-md bg-primary/10 text-primary shrink-0">
-          <FileText className="w-5 h-5" />
+      <div className="space-y-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-semibold text-sm text-foreground">
+            Munkaköri leírás: {munkakor.megnevezes}
+          </span>
+          <Badge variant="secondary" className="text-xs font-mono">
+            v{latestJobVersion.verzio_szam}
+          </Badge>
+          <Badge variant="outline" className="text-xs text-warning border-warning/30 bg-warning/10">
+            {isUpgrade ? "Újabb verzió elérhető a katalógusból" : "Még nincs hozzárendelve a dolgozóhoz"}
+          </Badge>
         </div>
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-sm text-foreground">
-              Munkaköri leírás: {munkakor.megnevezes}
-            </span>
-            {latestJobVersion && (
-              <Badge variant="secondary" className="text-xs font-mono">
-                v{latestJobVersion.verzio_szam}
-              </Badge>
-            )}
-            {existingDoc ? (
-              <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs gap-1">
-                <CheckCircle2 className="w-3 h-3" />
-                {existingDoc.iktatoszam ? `Iktatva: ${existingDoc.iktatoszam}` : "Hozzáadva a vázlatokhoz"}
-              </Badge>
-            ) : latestJobVersion ? (
-              <Badge variant="outline" className="text-xs text-warning border-warning/30 bg-warning/10">
-                Új verzió elérhető a katalógusból
-              </Badge>
-            ) : null}
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {latestJobVersion ? (
-              <>Központi fájl: <span className="font-medium text-foreground">{latestJobVersion.fajl_nev}</span> (Kiadva: {new Date(latestJobVersion.kiadas_datum).toLocaleDateString("hu-HU")})</>
-            ) : (
-              <>A munkakör katalógusban még nincs feltöltött sablon — használhatod a dinamikus generátort.</>
-            )}
-          </p>
-        </div>
+        <p className="text-xs text-muted-foreground">
+          Központi fájl: <span className="font-medium text-foreground">{latestJobVersion.fajl_nev}</span> (Kiadva: {new Date(latestJobVersion.kiadas_datum).toLocaleDateString("hu-HU")})
+        </p>
       </div>
 
       <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-        {latestJobVersion && (
-          <PdfViewerDialog
-            url={previewUrl}
-            title={`Munkaköri leírás - ${munkakor.megnevezes} (v${latestJobVersion.verzio_szam})`}
-            trigger={
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs h-8 text-foreground hover:text-primary hover:bg-primary/10"
-              >
-                <Eye className="w-3.5 h-3.5 text-primary" /> Megtekintés
-              </Button>
-            }
-          />
-        )}
+        <PdfViewerDialog
+          url={previewUrl}
+          title={`Munkaköri leírás - ${munkakor.megnevezes} (v${latestJobVersion.verzio_szam})`}
+          trigger={
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-8 text-foreground hover:text-primary hover:bg-primary/10"
+            >
+              Előnézet
+            </Button>
+          }
+        />
 
-        {isHrOrAdmin && latestJobVersion && !existingDoc && (
-          <Button
-            size="sm"
-            className="gap-1.5 text-xs h-8 bg-primary text-primary-foreground hover:bg-primary/90"
-            disabled={loading}
-            onClick={handleAssign}
-          >
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FilePlus className="w-3.5 h-3.5" />}
-            Hozzáadás a Dolgozóhoz
-          </Button>
-        )}
+        <Button
+          size="sm"
+          className="text-xs h-8 bg-primary text-primary-foreground hover:bg-primary/90"
+          disabled={loading}
+          onClick={handleAssign}
+        >
+          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+          {isUpgrade ? "Új verzió átvétele" : "Hozzáadás a Dolgozóhoz"}
+        </Button>
       </div>
     </div>
   )

@@ -1,11 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { CalendarDays, ArrowRight, Coffee, Clock, AlertCircle, Wallet } from "lucide-react"
+import { CalendarDays, ArrowRight, Clock, AlertCircle } from "lucide-react"
 import { createClient } from "@/utils/supabase/server"
 import { TimeTrackingCard } from "@/components/hr/time-tracking-card"
-import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
 import { EmployeeKpiWidget } from "@/components/hr/employee-kpi-widget"
+import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { calculateAnnualLeave, calculateWorkingDays } from "@/utils/hr/leave-calculator"
@@ -122,25 +122,28 @@ export default async function SelfServicePage() {
 
 
   // Cafeteria
-
-  const { data: cafeteriaKeret } = await supabase
-    .from("hr_cafeteria_keret")
-    .select("ev, osszeg, nyilatkozat_lezarva")
-    .eq("dolgozo_id", user.id)
-    .eq("ev", currentYear)
-    .maybeSingle()
-
-  const { data: cafeteriaKatalogus } = await supabase
-    .from("hr_cafeteria_katalogus")
-    .select("*")
-    .eq("aktiv", true)
-    .order("nev")
-
-  const { data: cafeteriaValasztasok } = await supabase
-    .from("hr_cafeteria_valasztas")
-    .select("*")
-    .eq("dolgozo_id", user.id)
-    .eq("ev", currentYear)
+  const [
+    { data: cafeteriaKeret },
+    { data: cafeteriaKatalogus },
+    { data: cafeteriaValasztasok },
+  ] = await Promise.all([
+    supabase
+      .from("hr_cafeteria_keret")
+      .select("ev, osszeg, nyilatkozat_lezarva, iktatoszam")
+      .eq("dolgozo_id", user.id)
+      .eq("ev", currentYear)
+      .maybeSingle(),
+    supabase
+      .from("hr_cafeteria_katalogus")
+      .select("id, nev, leiras, szorzo, kategoria")
+      .eq("aktiv", true)
+      .order("nev"),
+    supabase
+      .from("hr_cafeteria_valasztas")
+      .select("katalogus_elem_id, kert_osszeg, levont_keret_osszeg")
+      .eq("dolgozo_id", user.id)
+      .eq("ev", currentYear),
+  ])
 
   const { createClient: createAdminClient } = await import("@supabase/supabase-js")
   const supabaseAdmin = createAdminClient(
@@ -328,9 +331,8 @@ export default async function SelfServicePage() {
         </Card>
       </div>
 
-      {/* Juttatások + Céljaim – valós komponensek, közvetlenül betöltve */}
+      {/* Juttatások + Céljaim */}
       <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
-
         {cafeteriaKeret ? (
           <CafeteriaDeclaration
             employeeId={user.id}
@@ -339,12 +341,13 @@ export default async function SelfServicePage() {
             isClosed={cafeteriaKeret.nyilatkozat_lezarva}
             catalog={cafeteriaKatalogus || []}
             existingChoices={cafeteriaValasztasok || []}
+            iktatoszam={cafeteriaKeret.iktatoszam}
           />
         ) : (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Coffee className="w-4 h-4 text-primary" /> Juttatások
+              <CardTitle className="text-base font-semibold">
+                Juttatások
               </CardTitle>
             </CardHeader>
             <CardContent>

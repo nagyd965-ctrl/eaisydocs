@@ -87,7 +87,89 @@ export async function getEmploymentContractRecord({ dolgozoId, onboardingId }: G
       mt46Document = { ...mtDoc, displayUrl: mUrl, url: mUrl }
     }
 
-    return { data: record, existingDocument, mt46Document }
+    // Dolgozói alapadatok és titkos adatok automatikus feloldása és összefésülése
+    let resolvedDolgozoId = dolgozoId
+    if (!resolvedDolgozoId && onboardingId) {
+      const { data: ob } = await adminClient
+        .from("hr_onboarding")
+        .select("dolgozo_id")
+        .eq("id", onboardingId)
+        .maybeSingle()
+      if (ob?.dolgozo_id) resolvedDolgozoId = ob.dolgozo_id
+    }
+
+    let adatlapData: any = null
+    let secretData: any = null
+    if (resolvedDolgozoId) {
+      const { data: aData } = await adminClient
+        .from("hr_dolgozo_adatlap")
+        .select(`
+          *,
+          felhasznalo_profil (
+            nev,
+            pozicio,
+            hr_szervezeti_egyseg ( nev )
+          ),
+          hr_jogviszony (
+            tipus,
+            belepes_datuma,
+            kilepes_datuma,
+            hr_beosztas (
+              ervenyes_ig,
+              hr_munkakor ( megnevezes, feor_kod )
+            )
+          )
+        `)
+        .eq("id", resolvedDolgozoId)
+        .maybeSingle()
+      adatlapData = aData
+
+      try {
+        const { data: sData } = await adminClient.rpc("get_decrypted_hr_data", {
+          p_dolgozo_id: resolvedDolgozoId,
+        })
+        secretData = sData
+      } catch (secErr) {
+        console.warn("Nem sikerült a titkos HR adatok dekódolása a szerződéshez:", secErr)
+      }
+    }
+
+    // Aktív munkakör kinyerése
+    let activeMunkakorMegnevezes = ""
+    if (adatlapData?.hr_jogviszony && Array.isArray(adatlapData.hr_jogviszony)) {
+      const activeJog = adatlapData.hr_jogviszony.find((j: any) => !j.kilepes_datuma) || adatlapData.hr_jogviszony[0]
+      const beosztasok = activeJog?.hr_beosztas || []
+      const activeBeosztas = beosztasok.find((b: any) => !b.ervenyes_ig || new Date(b.ervenyes_ig) >= new Date()) || beosztasok[0]
+      if (activeBeosztas?.hr_munkakor?.megnevezes) {
+        activeMunkakorMegnevezes = activeBeosztas.hr_munkakor.megnevezes
+        if (activeBeosztas.hr_munkakor.feor_kod) {
+          activeMunkakorMegnevezes += ` (FEOR: ${activeBeosztas.hr_munkakor.feor_kod})`
+        }
+      }
+    }
+
+    const reszlegNev = (Array.isArray(adatlapData?.felhasznalo_profil?.hr_szervezeti_egyseg) ? adatlapData?.felhasznalo_profil?.hr_szervezeti_egyseg[0]?.nev : (adatlapData?.felhasznalo_profil?.hr_szervezeti_egyseg as any)?.nev) || null
+
+    // Összefésüljük a szerződést a dolgozó ismert adataival
+    const mergedData = (record || resolvedDolgozoId) ? {
+      ...(record || {}),
+      munkakor: record?.munkakor || activeMunkakorMegnevezes || adatlapData?.felhasznalo_profil?.pozicio || null,
+      reszleg: record?.reszleg || reszlegNev,
+      kezdes_datuma: record?.kezdes_datuma || adatlapData?.hr_jogviszony?.[0]?.belepes_datuma || new Date().toISOString().split("T")[0],
+      szerzodes_tipusa: record?.szerzodes_tipusa || (adatlapData?.szerzodes_tipusa === "határozott" ? "hatarozott" : "hatarozatlan"),
+      alapber: Number(record?.alapber || (secretData?.brutto_ber ? Number(secretData.brutto_ber) : null) || 650000),
+
+      // Munkavállaló személyes azonosító adatai automatikus kitöltéssel
+      szuletesi_hely: record?.szuletesi_hely || adatlapData?.szuletesi_hely || "Budapest",
+      szuletesi_datum: record?.szuletesi_datum || adatlapData?.szuletesi_datum || adatlapData?.szuletesi_ido || null,
+      anyja_neve: record?.anyja_neve || adatlapData?.anyja_neve || null,
+      lakcim: record?.lakcim || adatlapData?.lakcim || null,
+      adoazonosito_jel: record?.adoazonosito_jel || secretData?.adoazonosito || null,
+      taj_szam: record?.taj_szam || secretData?.taj_szam || null,
+      bankszamlaszam: record?.bankszamlaszam || secretData?.bankszamla || null,
+    } : null
+
+    return { data: mergedData, existingDocument, mt46Document }
   } catch (err: any) {
     console.error("getEmploymentContractRecord exception:", err)
     return { data: null, existingDocument: null, mt46Document: null, error: err.message }
@@ -250,6 +332,7 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
           .from("hr_dolgozo_adatlap")
           .update({
             lakcim: params.lakcim || undefined,
+            szuletesi_hely: params.szuletesiHely || undefined,
             szuletesi_datum: params.szuletesiDatum || undefined,
             anyja_neve: params.anyjaNeve || undefined
           })
