@@ -787,6 +787,31 @@ export async function saveSubstitute(formData: FormData) {
     })
 
   if (error) return { error: error.message }
+
+  // Automatikusan átszignáljuk az adott vezetőnél lévő függőben lévő kérelmeket a helyettesre
+  try {
+    const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    let pendingQuery = supabaseAdmin
+      .from("hr_tavollet")
+      .update({ aktualis_jovahagyo_id: helyettesId })
+      .eq("aktualis_jovahagyo_id", user.id)
+      .eq("statusz", "jovahagyasra_var")
+
+    if (activeCompanyId) {
+      pendingQuery = pendingQuery.eq("company_id", activeCompanyId)
+    }
+    await pendingQuery
+  } catch (err) {
+    console.error("Hiba a kérelmek automatikus átszignálásakor:", err)
+  }
+
+  revalidatePath("/hr")
+  revalidatePath("/hr/manager")
   revalidatePath("/hr/self-service")
   revalidatePath("/hr/self-service/time")
   return { success: true }
@@ -797,6 +822,14 @@ export async function deleteSubstitute(id: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  // Lekérjük a törlendő rekord adatait a visszaszignáláshoz
+  const { data: sub } = await supabase
+    .from("hr_helyettesites")
+    .select("helyettes_id, company_id")
+    .eq("id", id)
+    .eq("vezeto_id", user.id)
+    .maybeSingle()
+
   const { error } = await supabase
     .from("hr_helyettesites")
     .delete()
@@ -804,6 +837,32 @@ export async function deleteSubstitute(id: string) {
     .eq("vezeto_id", user.id)
 
   if (error) return { error: error.message }
+
+  // Visszaszignáljuk a helyetteshez került függő kérelmeket az eredeti vezetőre
+  if (sub?.helyettes_id) {
+    try {
+      const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+      const supabaseAdmin = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+      let revertQuery = supabaseAdmin
+        .from("hr_tavollet")
+        .update({ aktualis_jovahagyo_id: user.id })
+        .eq("aktualis_jovahagyo_id", sub.helyettes_id)
+        .eq("statusz", "jovahagyasra_var")
+
+      if (sub.company_id) {
+        revertQuery = revertQuery.eq("company_id", sub.company_id)
+      }
+      await revertQuery
+    } catch (err) {
+      console.error("Hiba a kérelmek visszaszignálásakor:", err)
+    }
+  }
+
+  revalidatePath("/hr")
+  revalidatePath("/hr/manager")
   revalidatePath("/hr/self-service")
   revalidatePath("/hr/self-service/time")
   return { success: true }

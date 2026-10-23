@@ -22,7 +22,6 @@ import {
   type TableColumnOption,
   type FilterGroup,
 } from "@/components/table-toolbar/table-toolbar"
-import { ReassignLeavesButton } from "@/components/hr/reassign-leaves-button"
 import { cn } from "@/lib/utils"
 
 export type HrTaskCategory =
@@ -269,7 +268,6 @@ export function HrTasksAndAlertsTable({ tasks }: { tasks: HrTaskItem[] }) {
           onClearFilters={clearAllFilters}
           actions={
             <div className="flex items-center gap-2 flex-wrap">
-              <ReassignLeavesButton />
               {/* Nézetváltó gombok */}
               <div className="flex items-center p-0.5 bg-muted/40 rounded-lg border border-border/60">
                 <button
