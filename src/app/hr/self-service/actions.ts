@@ -35,38 +35,38 @@ export async function submitLeaveRequest(formData: FormData) {
   let currentManagerId = profile?.kozvetlen_vezeto_id;
 
   if (currentManagerId) {
-    // 2. Megnézzük, hogy a vezető elérhető-e MA
-    const { data: managerLeave } = await supabase
-      .from("hr_tavollet")
-      .select("id")
-      .eq("dolgozo_id", currentManagerId)
-      .eq("statusz", "jovahagyva")
+    // 2. Van-e érvényes aktív helyettesítés beállítva a vezetőre a mai napra?
+    const { data: substitute } = await supabase
+      .from("hr_helyettesites")
+      .select("helyettes_id")
+      .eq("vezeto_id", currentManagerId)
+      .eq("aktiv", true)
       .lte("kezdet_datuma", today)
       .gte("veg_datuma", today)
       .limit(1)
-      .maybeSingle()
+      .maybeSingle();
 
-    if (managerLeave) {
-      // A vezető távol van! 3. Van-e helyettes?
-      const { data: substitute } = await supabase
-        .from("hr_helyettesites")
-        .select("helyettes_id")
-        .eq("vezeto_id", currentManagerId)
-        .eq("aktiv", true)
+    if (substitute) {
+      aktualisJovahagyoId = substitute.helyettes_id;
+    } else {
+      // 3. Ha nincs közvetlen helyettes, ellenőrizzük, hogy a vezető távol van-e jóváhagyott szabadságon
+      const { data: managerLeave } = await supabase
+        .from("hr_tavollet")
+        .select("id")
+        .eq("dolgozo_id", currentManagerId)
+        .eq("statusz", "jovahagyva")
         .lte("kezdet_datuma", today)
         .gte("veg_datuma", today)
         .limit(1)
-        .maybeSingle()
-      
-      if (substitute) {
-        aktualisJovahagyoId = substitute.helyettes_id;
-      } else {
-        // Nincs helyettes, eszkaláljuk HR-re (később lehetne Grand-manager)
+        .maybeSingle();
+
+      if (managerLeave) {
+        // A vezető távol van és nincs helyettes -> eszkaláció HR/Adminra
         currentManagerId = null;
+      } else {
+        // A vezető elérhető
+        aktualisJovahagyoId = currentManagerId;
       }
-    } else {
-      // A vezető elérhető
-      aktualisJovahagyoId = currentManagerId;
     }
   }
 
@@ -300,32 +300,35 @@ export async function submitOvertimeRequest(data: {
   const currentManagerId = profile?.kozvetlen_vezeto_id
 
   if (currentManagerId) {
-    const { data: managerLeave } = await supabase
-      .from("hr_tavollet")
-      .select("id")
-      .eq("dolgozo_id", currentManagerId)
-      .eq("statusz", "jovahagyva")
+    // 1. Van-e érvényes aktív helyettesítés beállítva a vezetőre a mai napra?
+    const { data: substitute } = await supabase
+      .from("hr_helyettesites")
+      .select("helyettes_id")
+      .eq("vezeto_id", currentManagerId)
+      .eq("aktiv", true)
       .lte("kezdet_datuma", today)
       .gte("veg_datuma", today)
       .limit(1)
       .maybeSingle()
 
-    if (managerLeave) {
-      const { data: substitute } = await supabase
-        .from("hr_helyettesites")
-        .select("helyettes_id")
-        .eq("vezeto_id", currentManagerId)
-        .eq("aktiv", true)
+    if (substitute) {
+      aktualisJovahagyoId = substitute.helyettes_id
+    } else {
+      // 2. Ha nincs helyettes, ellenőrizzük, hogy a vezető elérhető-e (nincs jóváhagyott távolléten)
+      const { data: managerLeave } = await supabase
+        .from("hr_tavollet")
+        .select("id")
+        .eq("dolgozo_id", currentManagerId)
+        .eq("statusz", "jovahagyva")
         .lte("kezdet_datuma", today)
         .gte("veg_datuma", today)
         .limit(1)
         .maybeSingle()
 
-      if (substitute) {
-        aktualisJovahagyoId = substitute.helyettes_id
+      if (!managerLeave) {
+        aktualisJovahagyoId = currentManagerId
       }
-    } else {
-      aktualisJovahagyoId = currentManagerId
+      // Ha távol van és nincs helyettes, aktualisJovahagyoId null marad, és lent HR-re fut
     }
   }
 
@@ -806,6 +809,17 @@ export async function saveSubstitute(formData: FormData) {
       pendingQuery = pendingQuery.eq("company_id", activeCompanyId)
     }
     await pendingQuery
+
+    let pendingKorrekcioQuery = supabaseAdmin
+      .from("hr_jelenlet_korrekcio")
+      .update({ jovahagyo_id: helyettesId })
+      .eq("jovahagyo_id", user.id)
+      .eq("statusz", "jovahagyasra_var")
+
+    if (activeCompanyId) {
+      pendingKorrekcioQuery = pendingKorrekcioQuery.eq("company_id", activeCompanyId)
+    }
+    await pendingKorrekcioQuery
   } catch (err) {
     console.error("Hiba a kérelmek automatikus átszignálásakor:", err)
   }
@@ -856,6 +870,17 @@ export async function deleteSubstitute(id: string) {
         revertQuery = revertQuery.eq("company_id", sub.company_id)
       }
       await revertQuery
+
+      let revertKorrekcioQuery = supabaseAdmin
+        .from("hr_jelenlet_korrekcio")
+        .update({ jovahagyo_id: user.id })
+        .eq("jovahagyo_id", sub.helyettes_id)
+        .eq("statusz", "jovahagyasra_var")
+
+      if (sub.company_id) {
+        revertKorrekcioQuery = revertKorrekcioQuery.eq("company_id", sub.company_id)
+      }
+      await revertKorrekcioQuery
     } catch (err) {
       console.error("Hiba a kérelmek visszaszignálásakor:", err)
     }

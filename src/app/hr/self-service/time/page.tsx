@@ -5,8 +5,11 @@ import { SubstituteSettingsCard } from "@/components/hr/substitute-settings-card
 import { LeaveRequestDialog } from "@/components/hr/leave-request-dialog"
 import { redirect } from "next/navigation"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { syncExpiredSubstitutions } from "@/utils/hr/substitute-sync"
 
 export default async function SelfServiceTimePage() {
+  await syncExpiredSubstitutions()
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 

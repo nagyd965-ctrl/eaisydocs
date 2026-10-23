@@ -4,6 +4,7 @@ import { SubstituteAlertBanner } from "@/components/hr/substitute-alert-banner"
 import { ManagerTeamTabs, type ManagerTeamMember, type DailyAttendanceStatus } from "@/components/hr/manager-team-tabs"
 import { type UnifiedApprovalItem } from "@/components/hr/unified-approvals-panel"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { syncExpiredSubstitutions } from "@/utils/hr/substitute-sync"
 import { Shield } from "lucide-react"
 
 export default async function ManagerPage() {
@@ -19,6 +20,9 @@ export default async function ManagerPage() {
       </div>
     )
   }
+
+  // Automatikus szinkronizáció: Lejárt helyettesítések függő kérelmeinek visszaszállítása a vezetőre
+  await syncExpiredSubstitutions()
 
   const supabase = await createClient()
   const user = auth.user
