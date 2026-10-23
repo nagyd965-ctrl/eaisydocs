@@ -5,7 +5,6 @@ import { buttonVariants } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { UserPlus } from "lucide-react"
 import { assignEmployeeToJob } from "@/app/hr/job/[id]/actions"
 import { toast } from "sonner"
 
@@ -53,9 +52,8 @@ export function AssignEmployeeDialog({ jobId, availableEmployees, trigger }: Ass
           {trigger}
         </div>
       ) : (
-        <DialogTrigger className={buttonVariants({ className: "gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" })}>
-          <UserPlus className="w-4 h-4" />
-          Dolgozó Hozzárendelése
+        <DialogTrigger className={buttonVariants({ className: "bg-primary hover:bg-primary/90 text-primary-foreground" })}>
+          Dolgozó hozzárendelése
         </DialogTrigger>
       )}
       <DialogContent className="sm:max-w-[425px]">

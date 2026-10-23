@@ -5,31 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { KpiCard } from "@/components/kpi-card"
-import { ChevronLeft, ChevronRight, Briefcase } from "lucide-react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { AssignEmployeeDialog } from "@/components/hr/assign-employee-dialog"
-import { RemoveEmployeeButton } from "./remove-employee-button"
 import { JobDescriptionUpload } from "@/components/hr/job-description-upload"
 import { JobEditDialog } from "@/components/hr/job-edit-dialog"
 import { JobProfileTasksSection } from "./job-profile-tasks-section"
-
-function roleLabel(role: string | null | undefined): { label: string; className: string } {
-  switch (role) {
-    case "admin":          return { label: "Admin",                className: "bg-destructive/10 text-destructive border-destructive/20 border" }
-    case "rendszergazda":  return { label: "Rendszergazda (IT)",   className: "bg-destructive/10 text-destructive border-destructive/20 border" }
-    case "hr_vezeto":      return { label: "HR Vezető",            className: "bg-primary/10 text-primary border-primary/20 border" }
-    case "hr_munkatars":   return { label: "HR Munkatárs",         className: "bg-primary/10 text-primary border-primary/20 border" }
-    case "vezeto":         return { label: "Vezető",               className: "bg-success/10 text-success border-success/20 border" }
-    case "berugyi":        return { label: "Bérügyi",              className: "bg-info/10 text-info border-info/20 border" }
-    case "toborzo":        return { label: "Toborzó (ATS)",        className: "bg-warning/10 text-warning border-warning/20 border" }
-    case "munkavedelmi":   return { label: "Munkavédelmi",         className: "bg-warning/10 text-warning border-warning/20 border" }
-    case "auditor":        return { label: "Auditor",              className: "bg-primary/10 text-primary border-primary/20 border" }
-    default:               return { label: "Munkavállaló",         className: "bg-secondary text-secondary-foreground" }
-  }
-}
+import { JobAssignedEmployeesTable } from "@/components/hr/job-assigned-employees-table"
 
 export default async function JobProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -71,7 +54,6 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
   if (jobError || !job) {
     return (
       <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
-        <Briefcase className="w-12 h-12 text-muted-foreground/30" />
         <h2 className="text-xl font-semibold text-muted-foreground">Munkakör nem található</h2>
         <Link href="/hr/organization?tab=jobs">
           <Button variant="outline" size="sm">Vissza a munkakör-katalógushoz</Button>
@@ -80,7 +62,7 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
     )
   }
 
-  // Jelenleg ebben a munkakörben dolgozók lekérése
+  // Jelenleg ebben a munkakörben dolgozók lekérése profil avatarral
   const { data: beosztasok } = await admin
     .from("hr_beosztas")
     .select(`
@@ -88,7 +70,7 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
         belepes_datuma,
         hr_dolgozo_adatlap (
           id,
-          felhasznalo_profil (id, nev, hr_szerepkor)
+          felhasznalo_profil (id, nev, hr_szerepkor, avatar_url)
         )
       )
     `)
@@ -103,6 +85,7 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
       id: dolgozo?.id || "",
       profilId: profil?.id || dolgozo?.id || "",
       nev: profil?.nev || "Névtelen",
+      avatarUrl: profil?.avatar_url || null,
       hr_szerepkor: profil?.hr_szerepkor || null,
       belepes_datuma: jogviszony?.belepes_datuma || null
     }
@@ -155,39 +138,34 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
 
       {/* ── Fejléc ── */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Link href="/hr/organization?tab=jobs">
             <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 shrink-0">
               <ChevronLeft className="w-4 h-4" />
             </Button>
           </Link>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 shrink-0">
-              <Briefcase className="w-5 h-5 text-primary" />
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl font-semibold tracking-tight">{job.megnevezes}</h1>
+              {job.besorolasi_szint && (
+                <Badge variant="outline" className="text-xs font-normal">
+                  {job.besorolasi_szint}
+                </Badge>
+              )}
+              {orgUnitNev && (
+                <Badge variant="secondary" className="text-xs font-normal bg-muted">
+                  {orgUnitNev}
+                </Badge>
+              )}
             </div>
-            <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-2xl font-semibold tracking-tight">{job.megnevezes}</h1>
-                {job.besorolasi_szint && (
-                  <Badge variant="outline" className="text-xs font-normal">
-                    {job.besorolasi_szint}
-                  </Badge>
-                )}
-                {orgUnitNev && (
-                  <Badge variant="secondary" className="text-xs font-normal bg-muted">
-                    {orgUnitNev}
-                  </Badge>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {orgUnitNev && job.hr_szervezeti_egyseg?.id ? (
-                  <>Szervezeti egység: <Link href={`/hr/orgunit/${job.hr_szervezeti_egyseg.id}`} className="text-primary hover:underline">{orgUnitNev}</Link></>
-                ) : (
-                  "Nincs szervezeti egységhez rendelve"
-                )}
-                {job.feor_kod ? ` • FEOR-08: ${job.feor_kod}` : ""}
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {orgUnitNev && job.hr_szervezeti_egyseg?.id ? (
+                <>Szervezeti egység: <Link href={`/hr/orgunit/${job.hr_szervezeti_egyseg.id}`} className="text-primary hover:underline">{orgUnitNev}</Link></>
+              ) : (
+                "Nincs szervezeti egységhez rendelve"
+              )}
+              {job.feor_kod ? ` • FEOR-08: ${job.feor_kod}` : ""}
+            </p>
           </div>
         </div>
 
@@ -326,85 +304,12 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
 
         {/* ── 1. Dolgozók Tab ── */}
         <TabsContent value="dolgozok" className="outline-none">
-          <Card className="border-border">
-            <CardHeader className="pb-4 border-b flex flex-row items-center justify-between gap-4">
-              <div>
-                <CardTitle className="text-base font-semibold">Hozzárendelt Dolgozók</CardTitle>
-                <CardDescription>A munkakörben jelenleg dolgozó munkatársak és szerepköreik.</CardDescription>
-              </div>
-              {isHrOrAdmin && (
-                <AssignEmployeeDialog jobId={job.id} availableEmployees={availableEmployees} />
-              )}
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table className="compact-table min-w-max w-full">
-                  <TableHeader>
-                    <TableRow className="bg-muted/30">
-                      <TableHead className="pl-6 w-[260px]">Neve</TableHead>
-                      <TableHead className="w-[180px]">Szerepkör</TableHead>
-                      <TableHead className="w-[200px]">Belépés Dátuma</TableHead>
-                      {isHrOrAdmin && <TableHead className="text-right pr-6 w-[100px]">Műveletek</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {employees.length > 0 ? employees.map((emp) => {
-                      const role = roleLabel(emp.hr_szerepkor)
-                      const initials = (emp.nev || "?").substring(0, 2).toUpperCase()
-                      return (
-                        <TableRow key={emp.id} className="hover:bg-muted/20 transition-colors">
-                          <TableCell className="pl-6">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="w-8 h-8 shrink-0">
-                                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                                  {initials}
-                                </AvatarFallback>
-                              </Avatar>
-                              <Link href={`/hr/employee/${emp.id}`} className="font-medium hover:underline text-primary leading-tight">
-                                {emp.nev}
-                              </Link>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className={`font-normal text-xs ${role.className}`}>
-                              {role.label}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm tabular-nums">
-                            {emp.belepes_datuma ? new Date(emp.belepes_datuma).toLocaleDateString('hu-HU') : "—"}
-                          </TableCell>
-                          {isHrOrAdmin && (
-                            <TableCell className="text-right pr-6">
-                              <RemoveEmployeeButton jobId={job.id} employeeId={emp.id} employeeName={emp.nev} />
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      )
-                    }) : (
-                      <TableRow>
-                        <TableCell colSpan={isHrOrAdmin ? 4 : 3} className="text-center py-12 text-muted-foreground">
-                          <p>Jelenleg nincs dolgozó hozzárendelve ehhez a munkakörhöz.</p>
-                          {isHrOrAdmin && (
-                            <div className="mt-3">
-                              <AssignEmployeeDialog
-                                jobId={job.id}
-                                availableEmployees={availableEmployees}
-                                trigger={
-                                  <Button variant="outline" size="sm">
-                                    Dolgozó hozzárendelése
-                                  </Button>
-                                }
-                              />
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+          <JobAssignedEmployeesTable
+            jobId={job.id}
+            employees={employees}
+            isHrOrAdmin={isHrOrAdmin}
+            availableEmployees={availableEmployees}
+          />
         </TabsContent>
 
         {/* ── 2. Munkaköri Profil & Feladatok Tab ── */}

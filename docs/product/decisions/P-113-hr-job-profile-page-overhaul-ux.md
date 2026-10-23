@@ -48,6 +48,8 @@
 
 6. **Zero-Emoji és No-Decorative-Icons Megfelelőség:**
    - Nincsenek emojik és dekoratív buborékok; az üres állapotok letisztult szöveges blokkokként jelennek meg.
+   - A fejlécből eltávolításra került a dekoratív `Briefcase` ikondoboz, a cím tiszta és rendezett elrendezést kapott.
+   - A „Dolgozó hozzárendelése” gombok elől eltávolításra került a dekoratív `UserPlus` ikon, tiszta szöveges műveleti gombként működnek.
 
 7. **Automatizált Munkaköri Leírás Generátor és Verziószám-növelés (v1 -> v2 -> v3):**
    - **Dinamikus A4 PDF generálás:** A `generateJobDescriptionVersionAction` szerver akció Puppeteer segítségével az adatbázis aktuális munkakör adataiból (megnevezés, FEOR-08, szervezeti egység, feladatok, elvárt kompetenciák, orvosi vizsgálatok, egyéni védőeszközök) és a bejelentkezett felhasználó aktív cégadataiból (`getActiveCompanyServer`) azonnal legenerálja a Munka Törvénykönyve szerinti hivatalos munkaköri leírást.
@@ -55,3 +57,7 @@
    - **Szabványosított fájlnévadás:** A fájlnév ékezetmentesített és tisztított módon automatikusan felveszi a formátumot: `Munkakori_Leiras_{cleanName}_v{nextVersion}.pdf` (pl. `Munkakori_Leiras_Junior_Fejleszto_v2.pdf`).
    - **Tárhely és Adatbázis Integráció:** A PDF felkerül az `irat_files` Supabase tárolóba (`munkakor-leirasok/{jobId}/v{nextVersion}_{timestamp}.pdf`), és bejegyzésre kerül a `hr_munkakor_leiras_verzio` táblába, ahonnan a dolgozói 360 profil (`OfficialDocumentsTab`, `EmploymentTab`) azonnal érzékeli az új hatályos verziót.
    - **Előnézet és Megjegyzés Dialog:** A felületen a „Munkaköri leírás generálása (v{nextVersion})” gombra kattintva dialógus jeleníti meg az összefoglalót a dokumentumba kerülő adatokról, a javasolt fájlnévről és opcionális megjegyzés megadását teszi lehetővé.
+
+8. **Kanonikus Keresés és Szűrés a Hozzárendelt Dolgozóknál & Valós Avatar Megjelenítés (`JobAssignedEmployeesTable`):**
+   - **TableToolbar integráció:** A hozzárendelt dolgozók táblázata felett helyet kapott a kanonikus `TableToolbar`, instant név/szerepkör keresővel, dinamikus szerepkör szűrőcsoporttal (`filterGroups`), aktív szűrő darabszám jelvénnyel és szűrőtörlési lehetőséggel.
+   - **Valós Dolgozói Avatar Betöltés:** A `beosztasok` lekérdezés mostantól beemeli a `felhasznalo_profil.avatar_url` mezőt, a komponens pedig `<AvatarImage src={emp.avatarUrl} alt={emp.nev} className="object-cover" />` segítségével közvetlenül megjeleníti a dolgozó valódi feltöltött profilképét, monogramos fallback-kel támogatva.

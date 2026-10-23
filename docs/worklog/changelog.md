@@ -4,6 +4,15 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-23)
 
+### eaisyHR: Munkakör Adatlap Fejléc Tisztítás, Dolgozói Kereső/Szűrő és Valós Avatar Betöltés (P-113 Kiegészítés)
+- **Fejléc Tisztítás & Zero-Emoji Megfelelőség (`src/app/hr/job/[id]/page.tsx`):**
+  - Eltávolításra került a munkakör címe melletti dekoratív `Briefcase` ikondoboz, elegáns, tiszta szöveges elrendezést adva a fejlécnek.
+  - A „Dolgozó hozzárendelése” gombokból eltávolításra került a dekoratív `UserPlus` ikon (`AssignEmployeeDialog`).
+- **Kanonikus Keresés és Szűrés a Hozzárendelt Dolgozóknál (`src/components/hr/job-assigned-employees-table.tsx`):**
+  - A Dolgozók fül táblázata felé beépítésre került a kanonikus `TableToolbar`, instant név és szerepkör szerinti kereséssel, szerepkör szerinti dinamikus szűrővel és találati számlálóval.
+- **Valós Dolgozói Avatar Betöltés (`AvatarImage`):**
+  - A beosztások lekérdezése kiegészítésre került a `felhasznalo_profil.avatar_url` mezővel, a táblázat pedig `<AvatarImage src={emp.avatarUrl} alt={emp.nev} className="object-cover" />` segítségével jeleníti meg a valódi profilképet, megbízható monogramos tartalékkal.
+
 ### eaisyHR: Hivatalos Munkaköri Leírás Generátor és Automatikus Verziószám-növelés (v1 -> v2) (P-113 Kiegészítés)
 - **Dinamikus A4 PDF Generáló Motor (`generateJobDescriptionVersionAction` in `src/app/hr/job/[id]/actions.ts`):**
   - A munkakör aktuálisan rögzített adataiból (megnevezés, FEOR-08 kód, szervezeti egység, feladatok, elvárt kompetenciák, orvosi vizsgálatok, egyéni védőeszközök) és az aktív cég profiljából (`getActiveCompanyServer`) a Puppeteer segítségével szabványos, Munka Törvénykönyve (Mt. 45. § (4)) szerinti hivatalos munkaköri leírást generál.
