@@ -382,6 +382,8 @@ export async function generateJobDescriptionVersionAction(
 
   if (dbError) {
     console.error("Adatbázis hiba:", dbError)
+    // Töröljük a feltöltött PDF-et a tárhelyről, hogy ne maradjon árva fájl
+    await supabase.storage.from("irat_files").remove([storagePath])
     return { error: "Hiba a verzió rögzítésekor: " + dbError.message }
   }
 

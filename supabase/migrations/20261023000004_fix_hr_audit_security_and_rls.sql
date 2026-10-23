@@ -87,3 +87,62 @@ WITH CHECK (
   dolgozo_id IN (SELECT id FROM hr_dolgozo_adatlap WHERE id = auth.uid()) OR
   (SELECT hr_szerepkor::text FROM felhasznalo_profil WHERE id = auth.uid()) IN ('hr_munkatars', 'hr_vezeto', 'admin', 'rendszergazda')
 );
+
+-- 5. hr_munkakor_leiras_verzio egyedi verzioszám kényszer (Párhuzamos duplikáció megelőzése)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'hr_munkakor_leiras_verzio_munkakor_id_verzio_szam_key'
+  ) THEN
+    ALTER TABLE hr_munkakor_leiras_verzio ADD CONSTRAINT hr_munkakor_leiras_verzio_munkakor_id_verzio_szam_key UNIQUE (munkakor_id, verzio_szam);
+  END IF;
+END $$;
+
+-- 6. Túlóra egyenleg negatívba futásának megakadályozása a jóváhagyási triggerben
+CREATE OR REPLACE FUNCTION handle_tulora_felhasznalas_approval()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Jóváhagyás esetén: egyenleg levonása (nem mehet 0 alá)
+  IF OLD.statusz = 'jovahagyasra_var' AND NEW.statusz = 'jovahagyva' THEN
+    UPDATE hr_tulora_egyenleg
+    SET perc = GREATEST(0, hr_tulora_egyenleg.perc - NEW.perc),
+        updated_at = NOW()
+    WHERE dolgozo_id = NEW.dolgozo_id;
+
+    -- Ha van kapcsolt távollét, annak jóváhagyása
+    IF NEW.tavollet_id IS NOT NULL THEN
+      UPDATE hr_tavollet
+      SET statusz = 'jovahagyva',
+          jovahagyo_id = COALESCE(NEW.jovahagyo_id, jovahagyo_id)
+      WHERE id = NEW.tavollet_id AND statusz != 'jovahagyva';
+    END IF;
+  END IF;
+
+  -- Elutasítás esetén: kapcsolt távollét elutasítása
+  IF OLD.statusz = 'jovahagyasra_var' AND NEW.statusz = 'elutasitva' THEN
+    IF NEW.tavollet_id IS NOT NULL THEN
+      UPDATE hr_tavollet
+      SET statusz = 'elutasitva',
+          jovahagyo_id = COALESCE(NEW.jovahagyo_id, jovahagyo_id)
+      WHERE id = NEW.tavollet_id AND statusz != 'elutasitva';
+    END IF;
+  END IF;
+
+  -- Korábban jóváhagyott kérelem visszavonása/elutasítása esetén: percek visszaadása
+  IF OLD.statusz = 'jovahagyva' AND NEW.statusz = 'elutasitva' THEN
+    UPDATE hr_tulora_egyenleg
+    SET perc = hr_tulora_egyenleg.perc + NEW.perc,
+        updated_at = NOW()
+    WHERE dolgozo_id = NEW.dolgozo_id;
+
+    IF NEW.tavollet_id IS NOT NULL THEN
+      UPDATE hr_tavollet
+      SET statusz = 'elutasitva',
+          jovahagyo_id = COALESCE(NEW.jovahagyo_id, jovahagyo_id)
+      WHERE id = NEW.tavollet_id AND statusz != 'elutasitva';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
