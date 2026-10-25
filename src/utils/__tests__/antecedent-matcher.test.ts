@@ -129,4 +129,4 @@ assert.strictEqual(res4.recommendation_type, "uj_ugy_nyitasa")
 assert.strictEqual(res4.ugyirat_id, null)
 assert.ok(res4.confidence_score < 40)
 
-console.log("\nALL 4 ANTECEDENT MATCHER TESTS PASSED SUCCESSFULLY! ✅")
+console.log("\nALL 4 ANTECEDENT MATCHER TESTS PASSED SUCCESSFULLY!")

@@ -257,7 +257,7 @@ export function MedicalTab({
                     </div>
                   ) : (
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      💡 <strong>Nincs külön szkennelt leleted?</strong> Nem probléma! Ha nem választasz ki fájlt, a rendszer a mentéskor <strong>automatikusan kiállítja</strong> a hatályos <strong>33/1998. (VI. 24.) NM rendelet</strong> szerinti, A4-es hivatalos alkalmassági véleményt a dolgozó adataival és munkakörével.
+                      <strong>Nincs külön szkennelt leleted?</strong> Nem probléma! Ha nem választasz ki fájlt, a rendszer a mentéskor <strong>automatikusan kiállítja</strong> a hatályos <strong>33/1998. (VI. 24.) NM rendelet</strong> szerinti, A4-es hivatalos alkalmassági véleményt a dolgozó adataival és munkakörével.
                     </p>
                   )}
                 </div>

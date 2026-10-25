@@ -390,7 +390,7 @@ export function ExitCertificatePanel({
               className="text-primary focus:ring-primary h-3.5 w-3.5"
             />
             <span className="font-medium text-foreground">
-              ✓ Teljesen levonásmentes (nem terheli bírósági letiltás, gyermektartásdíj)
+              Teljesen levonásmentes (nem terheli bírósági letiltás, gyermektartásdíj)
             </span>
           </label>
 
@@ -403,7 +403,7 @@ export function ExitCertificatePanel({
               className="text-primary focus:ring-primary h-3.5 w-3.5"
             />
             <span className="font-medium text-destructive">
-              ⚠ Levonási kötelezettség áll fenn
+              Levonási kötelezettség áll fenn
             </span>
           </label>
         </div>

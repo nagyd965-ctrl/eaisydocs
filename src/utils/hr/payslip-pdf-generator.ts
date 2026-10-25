@@ -484,7 +484,7 @@ export function generatePayslipHtml(data: PayslipPdfData): string {
   <!-- Elektronikus Átvételi Nyugta Záradék -->
   <div class="receipt-box">
     <div class="receipt-title">
-      ${isAtveve ? "✓ ELEKTRONIKUSAN ÁTVÉVE ÉS NYUGTÁZVA (Mt. 155. §)" : "⏳ MUNKAVÁLLALÓI ÁTVÉTELRE VÁR"}
+      ${isAtveve ? "ELEKTRONIKUSAN ÁTVÉVE ÉS NYUGTÁZVA (Mt. 155. §)" : "MUNKAVÁLLALÓI ÁTVÉTELRE VÁR"}
     </div>
     <div class="receipt-text">
       ${isAtveve ? `

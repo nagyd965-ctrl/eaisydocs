@@ -26,8 +26,8 @@ export default async function HrPayrollPage() {
     <div key={companyScope} className="space-y-6 pb-12">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Bérszámfejtés & Bérpapírok (Mt. 155. §)
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Bérszámfejtés
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
             Havi kötelező törvényes munkabér elszámolások kötegelt előállítása, adókedvezmények kezelése és dolgozói digitális átvételi nyugtázás.

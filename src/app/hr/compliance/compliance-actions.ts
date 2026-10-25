@@ -116,8 +116,11 @@ export async function getCompanyLeaveComplianceData(
 
     processedEmployeeIds.add(j.dolgozo_id)
 
-    const adatlap = j.hr_dolgozo_adatlap
-    const profil = adatlap?.felhasznalo_profil
+    const adatlap = Array.isArray(j.hr_dolgozo_adatlap)
+      ? j.hr_dolgozo_adatlap[0]
+      : j.hr_dolgozo_adatlap
+    const rawProfil = adatlap?.felhasznalo_profil
+    const profil = Array.isArray(rawProfil) ? rawProfil[0] : rawProfil
     if (!profil) continue
 
     const empLeaves = leavesByEmployee.get(j.dolgozo_id) || []
@@ -194,7 +197,7 @@ export async function getCompanyLeaveComplianceData(
       szervezetiEgysegId: profil.hr_szervezeti_egyseg_id,
       szervezetiEgysegNev: orgUnit?.nev || "Nincs részleg",
       munkakorMegnevezes: munkakor || "Nincs megadva",
-      avatarUrl: profil.avatarUrl,
+      avatarUrl: profil.avatar_url || profil.avatarUrl || null,
       hasWaiver,
       totalLeave,
       usedLeave,
@@ -345,12 +348,20 @@ export async function getCompanySafetyComplianceData(): Promise<CompanySafetyOve
 
     processedEmployeeIds.add(j.dolgozo_id)
 
-    const adatlap = j.hr_dolgozo_adatlap
-    const profil = adatlap?.felhasznalo_profil
+    const adatlap = Array.isArray(j.hr_dolgozo_adatlap)
+      ? j.hr_dolgozo_adatlap[0]
+      : j.hr_dolgozo_adatlap
+    const rawProfil = adatlap?.felhasznalo_profil
+    const profil = Array.isArray(rawProfil) ? rawProfil[0] : rawProfil
     const nev = profil?.nev || "Névtelen munkatárs"
-    const avatarUrl = profil?.avatar_url || null
-    const reszlegNev = profil?.hr_szervezeti_egyseg?.nev || "Nincs részleg"
-    const munkakor = j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs megadva"
+    const avatarUrl = profil?.avatar_url || profil?.avatarUrl || null
+    const orgUnit = Array.isArray(profil?.hr_szervezeti_egyseg)
+      ? profil.hr_szervezeti_egyseg[0]
+      : profil?.hr_szervezeti_egyseg
+    const reszlegNev = orgUnit?.nev || "Nincs részleg"
+    const munkakor = Array.isArray(j.hr_beosztas)
+      ? j.hr_beosztas[0]?.hr_munkakor?.megnevezes || "Nincs megadva"
+      : (j.hr_beosztas as any)?.hr_munkakor?.megnevezes || "Nincs megadva"
 
     const training = trainingsByEmployee.get(j.dolgozo_id)
     const doc = training?.hr_dokumentum
@@ -533,10 +544,14 @@ export async function getCompanyOvertimeComplianceData(
       ? j.hr_dolgozo_adatlap[0]
       : j.hr_dolgozo_adatlap
 
-    const profil = adatlap?.felhasznalo_profil
+    const rawProfil = adatlap?.felhasznalo_profil
+    const profil = Array.isArray(rawProfil) ? rawProfil[0] : rawProfil
     const nev = profil?.nev || "Névtelen munkatárs"
-    const avatarUrl = profil?.avatar_url || null
-    const reszlegNev = profil?.hr_szervezeti_egyseg?.nev || "Nincs részleg"
+    const avatarUrl = profil?.avatar_url || profil?.avatarUrl || null
+    const orgUnit = Array.isArray(profil?.hr_szervezeti_egyseg)
+      ? profil.hr_szervezeti_egyseg[0]
+      : profil?.hr_szervezeti_egyseg
+    const reszlegNev = orgUnit?.nev || "Nincs részleg"
     const munkakor = j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs megadva"
 
     const hasVoluntary = !!adatlap?.onkent_vallalt_tulora_400h

@@ -2,6 +2,29 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
+## [Unreleased] – Fejlesztés alatt (2026-10-25)
+
+### eaisyHR: Compliance Hub Dolgozói Avatar Egységesítés és eaisyHR Menü / Cím Letisztítás (PRD P-115)
+- **Compliance Hub Avatar Adatillesztési Hiba Javítása (`src/app/hr/compliance/compliance-actions.ts`):**
+  - A szabadságkiadási összesítőben (`getCompanyLeaveComplianceData`) javításra került az `avatarUrl` feloldása: a korábbi téves `profil.avatarUrl` mezőlekérés helyett az adatbázisból érkező `profil.avatar_url || profil.avatarUrl || null` került bevezetésre.
+  - Bevezetésre került a robusztus tömb/objektum kibontás a `felhasznalo_profil` és `hr_szervezeti_egyseg` relációknál mindhárom lekérdezésben (`getCompanyLeaveComplianceData`, `getCompanySafetyComplianceData`, `getCompanyOvertimeComplianceData`).
+- **Avatar és Monogram Megjelenítés Egységesítése (`leave-compliance-table.tsx`, `safety-training-table.tsx`):**
+  - A *Szabadságkiadás* és *Munkavédelem & Tűzvédelem* táblázatok avatar elemei átálltak a *Munkaidő és túlórakeret* kanonikus megjelenésére: `Avatar` konténer `h-8 w-8 border border-border`.
+  - A fallback monogram jelvény a tompa szürke `bg-muted` helyett egységesen a brand türkiz `bg-primary/10 text-primary text-xs font-semibold` stílust kapta, nagybetűs kétkarakteres formázással (`toUpperCase()`).
+- **Zero-„&” és Egyszavas Letisztult Címrendszer:**
+  - **Bérpapírjaim:** A `/hr/self-service/payroll` oldal fejléce és címe letisztítva `Bérpapírjaim`-ra.
+  - **Célkitűzések:** A `/hr/self-service/goals` oldal fejléce átnevezve `Célkitűzések`-re, és a felesleges "Vissza az áttekintéshez" navigációs gomb eltávolítva. A menüben is frissítve.
+  - **Jelenlét:** A `/hr/self-service/time` fejléc és menüpont átnevezve `Jelenlét`-re (a korábbi összetett `Jelenlét & Szabadság` helyett).
+  - **Bérszámfejtés:** A `/hr/payroll` fejléc átnevezve a tiszta `Bérszámfejtés` névre.
+  - **Műszakbeosztás:** A `/hr/time` fejléc és a bal oldali menüpont `Naptár & Távollét` helyett átnevezve a tiszta `Műszakbeosztás` névre.
+  - **Szervezeti naptár:** A műszakbeosztás modul második füle és a kártya címe (`time-tabs-view.tsx`, `team-calendar.tsx`) a korábbi félrevezető `Távollétek & Csapatnaptár` helyett **„Szervezeti naptár”** lett (mivel vállalati/szervezeti egység szintű távolléteket összesít), míg a közvetlen vezetői nézetben megmaradt a csapathoz illeszkedő „Csapatnaptár”.
+- **Kódminőségi Audit & 100% Zero-Emoji Megfelelőség (`thinkai-code-review`):**
+  - Eltávolításra került mind a 19 darab felületi és naplózási emoji (`leave-compliance-table.tsx`, `overtime-compliance-table.tsx`, `safety-training-table.tsx`, `onboarding-profile-modal.tsx`, `MedicalTab.tsx`, `contract-generator-dialog.tsx`, `referral-dialog.tsx`, `imap-service.ts`, `employee-referral.test.ts`).
+  - A szűrők opciói tiszta, professzionális szöveges elrendezést kaptak a színezett körök és ikonok helyett.
+  - Második körös mélységi audit során az összes rejtett Unicode szimbólum (pipák, figyelmeztető jelek, homokórák) is kigyomlálásra került a felületről és a generált PDF-ekből (`CafeteriaTab.tsx`, `payslip-pdf-generator.ts`, `exit-certificate-panel.tsx`, `payroll-table.tsx`, `asset-return-panel.tsx`, `dossier-search-selector.tsx`, `contract-generator-dialog.tsx`, `tasks-tab.tsx`, `antecedent-matcher.test.ts`).
+  - `src/components/polymorphic-links-tab.tsx`: Defenzív `avatar_url` mezőfeloldás hozzáadva (`g.entity?.avatarUrl || (g.entity as any)?.avatar_url`).
+  - `npx tsc --noEmit` szigorú típusellenőrzés 0 hibával és valamennyi üzleti motor egységtesztje (Mt. 99. §, Mt. 135. §, szabadság és oktatás) 100% zöld eredménnyel megerősítve.
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-24)
 
 ### eaisyHR: Helyettesítési Rendszer Korszerűsítése, Automatikus Reconciliáció és Fejléc Modál (ADR A-084, PRD P-114)

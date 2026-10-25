@@ -475,7 +475,7 @@ export function DossierSearchSelector({
       {/* Diszkrét, letisztult megerősítő felirat a választó alatt */}
       {selectedDossier ? (
         <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-          ✓ Alszámként csatolva ide: <span className="font-mono font-semibold">{selectedDossier.iktatoszam}</span>
+          Alszámként csatolva ide: <span className="font-mono font-semibold">{selectedDossier.iktatoszam}</span>
         </p>
       ) : (
         <p className="text-[11px] text-muted-foreground">

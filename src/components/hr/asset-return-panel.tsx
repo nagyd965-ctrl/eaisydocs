@@ -385,10 +385,10 @@ export function AssetReturnPanel({
                     onChange={(e) => handleUpdateItem(idx, "visszavetel_allapot", e.target.value)}
                     className="h-8 px-2 rounded-md border border-input bg-background text-xs font-medium"
                   >
-                    <option value="ep">✓ Ép / Hibátlan</option>
+                    <option value="ep">Ép / Hibátlan</option>
                     <option value="normal_kopas">Rendeltetésszerű kopás</option>
-                    <option value="serult">⚠ Sérült / Hibás</option>
-                    <option value="hianyzik">✕ Hiányzik</option>
+                    <option value="serult">Sérült / Hibás</option>
+                    <option value="hianyzik">Hiányzik</option>
                   </select>
 
                   <Button

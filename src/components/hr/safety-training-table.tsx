@@ -89,10 +89,10 @@ export function SafetyTrainingTable({ initialData }: SafetyTrainingTableProps) {
       title: "Megfelelőségi státusz",
       options: [
         { id: "all", label: "Összes státusz", checked: selectedStatus === "all" },
-        { id: "ervenyess", label: "🟢 Érvényes (> 30 nap)", checked: selectedStatus === "ervenyess" },
-        { id: "hamarosan_lejar", label: "🟡 Hamarosan lejár (30 napon belül)", checked: selectedStatus === "hamarosan_lejar" },
-        { id: "lejart", label: "🔴 Lejárt oktatás", checked: selectedStatus === "lejart" },
-        { id: "hianyzik", label: "⚠️ Hiányzik (nincs adat)", checked: selectedStatus === "hianyzik" },
+        { id: "ervenyess", label: "Érvényes (> 30 nap)", checked: selectedStatus === "ervenyess" },
+        { id: "hamarosan_lejar", label: "Hamarosan lejár (30 napon belül)", checked: selectedStatus === "hamarosan_lejar" },
+        { id: "lejart", label: "Lejárt oktatás", checked: selectedStatus === "lejart" },
+        { id: "hianyzik", label: "Hiányzik (nincs adat)", checked: selectedStatus === "hianyzik" },
       ],
       onToggle: (optId: string) => setSelectedStatus(optId),
     },
@@ -382,6 +382,7 @@ export function SafetyTrainingTable({ initialData }: SafetyTrainingTableProps) {
                   .map((n) => n[0])
                   .slice(0, 2)
                   .join("")
+                  .toUpperCase()
 
                 return (
                   <TableRow
@@ -391,12 +392,12 @@ export function SafetyTrainingTable({ initialData }: SafetyTrainingTableProps) {
                     {/* Munkatárs */}
                     {isColVisible("dolgozo") && (
                       <TableCell className="font-medium">
-                        <div className="flex items-center gap-2.5">
-                          <Avatar className="h-8 w-8 rounded-full border border-border/60">
-                            {emp.avatarUrl ? (
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8 border border-border">
+                            {emp.avatarUrl && (
                               <AvatarImage src={emp.avatarUrl} alt={emp.nev} />
-                            ) : null}
-                            <AvatarFallback className="text-[11px] font-semibold bg-muted text-foreground">
+                            )}
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                               {initials}
                             </AvatarFallback>
                           </Avatar>

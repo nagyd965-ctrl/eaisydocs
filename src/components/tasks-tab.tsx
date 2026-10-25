@@ -1540,7 +1540,7 @@ export function TasksTab({
                             : "hover:bg-primary hover:text-primary-foreground"
                         }`}
                       >
-                        <span>{selectedTemplateId === null ? "Kiválasztva ✓" : "Használat"}</span>
+                        <span>{selectedTemplateId === null ? "Kiválasztva" : "Használat"}</span>
                         <ArrowRight className="h-3 w-3" />
                       </Button>
                     </div>
@@ -1610,7 +1610,7 @@ export function TasksTab({
                                 : "hover:bg-primary hover:text-primary-foreground"
                             }`}
                           >
-                            <span>{isSelected ? "Kiválasztva ✓" : "Használat"}</span>
+                            <span>{isSelected ? "Kiválasztva" : "Használat"}</span>
                             <ArrowRight className="h-3 w-3" />
                           </Button>
                         </div>

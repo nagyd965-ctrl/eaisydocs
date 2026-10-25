@@ -86,10 +86,10 @@ export function LeaveComplianceTable({ initialData }: LeaveComplianceTableProps)
       title: "14 napos kötelezettség",
       options: [
         { id: "all", label: "Összes státusz", checked: selectedStatus14 === "all" },
-        { id: "teljesitve", label: "✅ Teljesítve", checked: selectedStatus14 === "teljesitve" },
-        { id: "betervezve", label: "⏳ Betervezve (Jóváhagyásra vár)", checked: selectedStatus14 === "betervezve" },
-        { id: "megallapodas_alapjan_mentes", label: "📄 Megállapodással mentes", checked: selectedStatus14 === "megallapodas_alapjan_mentes" },
-        { id: "nem_teljesult", label: "⚠️ Hiányzik (Nincs betervezve)", checked: selectedStatus14 === "nem_teljesult" },
+        { id: "teljesitve", label: "Teljesítve", checked: selectedStatus14 === "teljesitve" },
+        { id: "betervezve", label: "Betervezve (Jóváhagyásra vár)", checked: selectedStatus14 === "betervezve" },
+        { id: "megallapodas_alapjan_mentes", label: "Megállapodással mentes", checked: selectedStatus14 === "megallapodas_alapjan_mentes" },
+        { id: "nem_teljesult", label: "Hiányzik (Nincs betervezve)", checked: selectedStatus14 === "nem_teljesult" },
       ],
       onToggle: (optId: string) => setSelectedStatus14(optId),
     },
@@ -98,9 +98,9 @@ export function LeaveComplianceTable({ initialData }: LeaveComplianceTableProps)
       title: "Év végi kiadhatósági kockázat",
       options: [
         { id: "all", label: "Összes szint", checked: selectedRisk === "all" },
-        { id: "kritikus", label: "🔴 Kritikus (Több maradvány mint munkanap)", checked: selectedRisk === "kritikus" },
-        { id: "figyelmeztetes", label: "🟡 Figyelmeztetés (Novemberi riasztás)", checked: selectedRisk === "figyelmeztetes" },
-        { id: "rendben", label: "🟢 Rendben", checked: selectedRisk === "rendben" },
+        { id: "kritikus", label: "Kritikus (Több maradvány mint munkanap)", checked: selectedRisk === "kritikus" },
+        { id: "figyelmeztetes", label: "Figyelmeztetés (Novemberi riasztás)", checked: selectedRisk === "figyelmeztetes" },
+        { id: "rendben", label: "Rendben", checked: selectedRisk === "rendben" },
       ],
       onToggle: (optId: string) => setSelectedRisk(optId),
     },
@@ -356,14 +356,14 @@ export function LeaveComplianceTable({ initialData }: LeaveComplianceTableProps)
                     {isColVisible("dolgozo") && (
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8 rounded-full border border-border/60">
+                          <Avatar className="h-8 w-8 border border-border">
                             {emp.avatarUrl && <AvatarImage src={emp.avatarUrl} alt={emp.nev} />}
-                            <AvatarFallback className="text-xs font-medium bg-muted">
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                               {emp.nev
                                 .split(" ")
                                 .map((n) => n[0])
-                                .join("")
                                 .slice(0, 2)
+                                .join("")
                                 .toUpperCase()}
                             </AvatarFallback>
                           </Avatar>

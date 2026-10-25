@@ -184,7 +184,7 @@ export function ReferralDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="general" className="text-xs font-medium">
-                  🎯 Általános ajánlás (Talent pool / Nincs konkrét kiírás)
+                  Általános ajánlás (Talent pool / Nincs konkrét kiírás)
                 </SelectItem>
                 {postings.map((job) => (
                   <SelectItem key={job.id} value={job.id} className="text-xs">

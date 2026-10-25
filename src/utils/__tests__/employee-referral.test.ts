@@ -25,7 +25,7 @@ async function runTests() {
   const bonus = company.referral_bonus_amount ?? 150000
   assert.strictEqual(typeof bonus, "number", "A bónusz számnak kell lennie")
   assert(bonus >= 0, "A bónusz nem lehet negatív")
-  console.log("✅ 1. TESZT SIKERES: referral_bonus_amount megfelelően létezik a cég táblában.")
+  console.log("1. TESZT SIKERES: referral_bonus_amount megfelelően létezik a cég táblában.")
 
   // 2. Teszt: E-mail validációs szabályok
   console.log("\n--- 2. TESZT: Jelölt e-mail validáció ---")
@@ -34,7 +34,7 @@ async function runTests() {
   assert.strictEqual(emailRegex.test("invalid-email"), false)
   assert.strictEqual(emailRegex.test("@no-local.com"), false)
   assert.strictEqual(emailRegex.test("no-domain@"), false)
-  console.log("✅ 2. TESZT SIKERES: E-mail regex szabályok helyesen szűrnek.")
+  console.log("2. TESZT SIKERES: E-mail regex szabályok helyesen szűrnek.")
 
   // 3. Teszt: hr_dolgozoi_ajanlas tábla integritása és RLS
   console.log("\n--- 3. TESZT: hr_dolgozoi_ajanlas tábla struktúra és beszúrás ---")
@@ -69,7 +69,7 @@ async function runTests() {
   assert.strictEqual(insertedReferral.jelolt_nev, testCandidateName)
   assert.strictEqual(insertedReferral.bonusz_statusz, "fuggoben")
   assert.strictEqual(insertedReferral.bonusz_osszeg, bonus)
-  console.log("✅ 3. TESZT SIKERES: hr_dolgozoi_ajanlas rekord létrejött.")
+  console.log("3. TESZT SIKERES: hr_dolgozoi_ajanlas rekord létrejött.")
 
   // 4. Teszt: Bónusz státusz életciklus validáció
   console.log("\n--- 4. TESZT: Bónusz státusz átmenetek ---")
@@ -82,7 +82,7 @@ async function runTests() {
 
     assert.strictEqual(res.error, null, `Nem lehet hiba a(z) ${status} státuszra váltáskor`)
   }
-  console.log("✅ 4. TESZT SIKERES: Minden megengedett bónusz státusz átmenet érvényes.")
+  console.log("4. TESZT SIKERES: Minden megengedett bónusz státusz átmenet érvényes.")
 
   // 5. Teszt: Takarítás (teszt adat törlése)
   console.log("\n--- 5. TESZT: Teszt rekord törlése ---")
@@ -92,9 +92,9 @@ async function runTests() {
     .eq("id", insertedReferral.id)
 
   assert.strictEqual(delErr, null, "Nem lehet hiba a teszt adat törlésekor")
-  console.log("✅ 5. TESZT SIKERES: Teszt adat tisztázva.")
+  console.log("5. TESZT SIKERES: Teszt adat tisztázva.")
 
-  console.log("\n🎉 MINDEN DOLGOZÓI AJÁNLÁS ÉS BÓNUSZ TESZT SIKERESEN LEFUTOTT!")
+  console.log("\nMINDEN DOLGOZÓI AJÁNLÁS ÉS BÓNUSZ TESZT SIKERESEN LEFUTOTT!")
 }
 
 runTests().catch((err) => {

@@ -3,9 +3,7 @@ import { EmployeeKpiCard } from "@/components/hr/employee-kpi-card"
 import { KpiCard } from "@/components/kpi-card"
 import { deriveWorkflowPhase } from "@/lib/kpi-helpers"
 import { redirect } from "next/navigation"
-import Link from "next/link"
-import { ArrowLeft, Calendar } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Calendar } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 export default async function SelfServiceGoalsPage() {
@@ -73,25 +71,20 @@ export default async function SelfServiceGoalsPage() {
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-foreground font-heading">
-            Céljaim & Értékelésem
+            Célkitűzések
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
             Személyes célkitűzések követése és dolgozói önértékelés leadása a vezető felé.
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <Link href="/hr">
-            <Button variant="outline" size="sm" className="gap-2 text-xs cursor-pointer">
-              <ArrowLeft className="w-3.5 h-3.5" /> Vissza az áttekintéshez
-            </Button>
-          </Link>
-          {activeCycle && (
+        {activeCycle && (
+          <div className="flex items-center gap-2.5">
             <Badge variant="outline" className="text-xs py-1.5 px-3 bg-muted/30 border-primary/20 text-foreground font-medium">
               <Calendar className="w-3.5 h-3.5 mr-1.5 text-primary" />
               {activeCycle.megnevezes}
             </Badge>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Kanonikus Linear-flat KPI sáv (ADR A-029) - Valós összesített mutatók */}

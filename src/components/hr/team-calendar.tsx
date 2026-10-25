@@ -67,10 +67,12 @@ export function TeamCalendar({
   teamMembers,
   leaves,
   orgUnits = [],
+  title = "Szervezeti naptár",
 }: {
   teamMembers: TeamMember[]
   leaves: LeaveRecord[]
   orgUnits?: { id: string; nev: string }[]
+  title?: string
 }) {
   const [viewMode, setViewMode] = useState<ViewMode>("havi")
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -437,7 +439,7 @@ export function TeamCalendar({
       <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b bg-muted/10 pb-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <CardTitle className="text-lg font-semibold">
-            Csapatnaptár
+            {title}
           </CardTitle>
           <div className="flex bg-muted p-1 rounded-md">
             <button 

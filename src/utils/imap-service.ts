@@ -80,7 +80,7 @@ export async function processIncomingEmails() {
         });
 
         if (!classification.isRelevant) {
-          console.log(`[IMAP] 🚫 Kiszűrt e-mail (${classification.category}): "${subject}" Feladó: ${sender}. Indok: ${classification.reason}`);
+          console.log(`[IMAP] Kiszűrt e-mail (${classification.category}): "${subject}" Feladó: ${sender}. Indok: ${classification.reason}`);
           processedSeqs.push(message.seq);
           skippedSpamCount++;
           continue;

@@ -460,7 +460,7 @@ export function PolymorphicLinksTab({
     return (
       <div className="flex items-center gap-2.5 min-w-0">
         {g.type === "munkavallalo" ? (
-          <UserAvatar name={g.name} src={g.entity?.avatarUrl} className="size-7" />
+          <UserAvatar name={g.name} src={g.entity?.avatarUrl || (g.entity as any)?.avatar_url} className="size-7" />
         ) : (
           <div className="h-7 w-7 rounded-md bg-muted text-muted-foreground flex items-center justify-center shrink-0">
             <Icon className="h-4 w-4" />

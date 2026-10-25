@@ -30,7 +30,7 @@ export function TimeTabsView({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            Munkaidő & Műszakbeosztás
+            Műszakbeosztás
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
             Központi heti műszaktervező, távollét- és szabadságkezelés, valamint munkarend-sablonok.
@@ -58,7 +58,7 @@ export function TimeTabsView({
               value="leaves"
               className="px-3 py-2 text-xs sm:text-sm font-medium data-active:border-primary data-active:text-primary rounded-none border-b-2 border-transparent transition-all cursor-pointer"
             >
-              Távollétek & Csapatnaptár
+              Szervezeti naptár
             </TabsTrigger>
 
             <TabsTrigger

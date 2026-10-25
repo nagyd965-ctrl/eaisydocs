@@ -189,7 +189,7 @@ export function ManagerTeamTabs({
       {/* 2. FÜL: CSAPATNAPTÁR (Teljes szélességben) */}
       {activeTab === "naptar" && (
         <div className="space-y-4">
-          <TeamCalendar teamMembers={teamMembers} leaves={allLeaves} />
+          <TeamCalendar teamMembers={teamMembers} leaves={allLeaves} title="Csapatnaptár" />
         </div>
       )}
 

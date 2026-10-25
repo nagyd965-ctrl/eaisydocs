@@ -259,7 +259,7 @@ export function CafeteriaTab({
                           </div>
                           {iktatoszam && (
                             <div className="p-3 bg-muted/60 border rounded-md text-xs text-foreground font-medium">
-                              ⚠️ <strong>Levéltári figyelem:</strong> Ez a nyilatkozat már hivatalosan be lett iktatva a személyi dossziéba (<strong>{iktatoszam}</strong>). A korábbi iktatott irat megőrzött archívumként megmarad, és az új nyilatkozat leadásakor új iratként iktatható.
+                              <strong>Levéltári figyelem:</strong> Ez a nyilatkozat már hivatalosan be lett iktatva a személyi dossziéba (<strong>{iktatoszam}</strong>). A korábbi iktatott irat megőrzött archívumként megmarad, és az új nyilatkozat leadásakor új iratként iktatható.
                             </div>
                           )}
                         </AlertDialogDescription>

@@ -323,8 +323,8 @@ export function PayrollTable({ initialData }: PayrollTableProps) {
             title: "Bérpapír Státusz",
             options: [
               { id: "all", label: "Mindegyik", checked: statusFilter === "all" },
-              { id: "atveve", label: "✓ Átvéve (Nyugtázva)", checked: statusFilter === "atveve" },
-              { id: "kikuldve", label: "⏳ Átvételre vár", checked: statusFilter === "kikuldve" },
+              { id: "atveve", label: "Átvéve (Nyugtázva)", checked: statusFilter === "atveve" },
+              { id: "kikuldve", label: "Átvételre vár", checked: statusFilter === "kikuldve" },
               { id: "nem_generalt", label: "Generálásra vár", checked: statusFilter === "nem_generalt" }
             ],
             onToggle: (id) => setStatusFilter(id)

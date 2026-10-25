@@ -547,7 +547,7 @@ export function ContractGeneratorDialog({
                 disabled={!draft || templateViewMode === "create"}
                 className="text-xs data-[state=active]:bg-background"
               >
-                2. Tervezet Előnézet {draft && "✓"}
+                2. Tervezet Előnézet
               </TabsTrigger>
               <TabsTrigger
                 value="filing"
@@ -596,7 +596,7 @@ export function ContractGeneratorDialog({
                 <div className="flex justify-between items-center py-1">
                   <span className="text-muted-foreground">Expedíció / E-mail:</span>
                   <span className={cn("font-medium", finalizedResult.emailed ? "text-emerald-500" : "text-muted-foreground")}>
-                    {finalizedResult.emailed ? "Azonnal elküldve a partnernek ✓" : "Nem lett elküldve"}
+                    {finalizedResult.emailed ? "Azonnal elküldve a partnernek" : "Nem lett elküldve"}
                   </span>
                 </div>
               </div>
@@ -1001,7 +1001,7 @@ export function ContractGeneratorDialog({
                                       : "border-border/50 bg-card hover:border-primary/40 hover:bg-primary/5 text-muted-foreground hover:text-foreground"
                                   )}
                                 >
-                                  💡 &quot;{example}&quot;
+                                  &quot;{example}&quot;
                                 </button>
                               )
                             })}

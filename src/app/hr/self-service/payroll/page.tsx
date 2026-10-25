@@ -1,6 +1,6 @@
 import { getMyPayslipsAction } from "@/app/hr/self-service/payroll/actions"
 import { MyPayslipsView } from "@/components/hr/my-payslips-view"
-import { Receipt, ShieldCheck } from "lucide-react"
+import { ShieldCheck } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
@@ -11,8 +11,8 @@ export default async function MyPayrollSelfServicePage() {
     <div className="space-y-6 pb-12">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Bérpapírjaim & Havi Elszámolások
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Bérpapírjaim
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
             Hivatalos havi munkabér elszámolások (Mt. 155. §), nettó kifizetés részletezése és digitális átvételi nyugtázás.

@@ -454,7 +454,7 @@ export function OnboardingProfileModal({
                       </p>
                       <div className="p-2.5 bg-warning/10 border border-warning/30 rounded-lg text-xs text-warning space-y-1">
                         <p className="font-semibold flex items-center gap-1.5">
-                          🛡️ Fiók- és Jogosultságvédelmi Garancia:
+                          Fiók- és Jogosultságvédelmi Garancia:
                         </p>
                         <p>
                           Ha a(z) <strong>{candidateEmail || "megadott"}</strong> cím már egy létező felhasználóhoz (pl. Adminisztrátorhoz) tartozik, a rendszer <strong>SOHA nem írja felül a jelszavadat</strong>, és <strong>nem fokozza le az admin jogosultságaidat</strong>, hanem biztonságosan összeköti a belépési dokumentációt a fiókkal.

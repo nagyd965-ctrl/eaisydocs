@@ -45,11 +45,11 @@ const items = [
         url: "/hr/self-service/documents",
       },
       {
-        title: "Jelenlét & Szabadság",
+        title: "Jelenlét",
         url: "/hr/self-service/time",
       },
       {
-        title: "Céljaim & Értékelésem",
+        title: "Célkitűzések",
         url: "/hr/self-service/goals",
       },
       {
@@ -95,11 +95,11 @@ const items = [
         url: "/hr/organization",
       },
       {
-        title: "Naptár & Távollét",
+        title: "Műszakbeosztás",
         url: "/hr/time",
       },
       {
-        title: "Bérszámfejtés & Bérpapírok",
+        title: "Bérszámfejtés",
         url: "/hr/payroll",
       },
       {
