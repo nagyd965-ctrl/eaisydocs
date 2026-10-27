@@ -2,6 +2,14 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
+## [Unreleased] – Fejlesztés alatt (2026-10-27)
+
+### eaisyHR: Compliance Hub Szabadságkiadás (Mt. 122. §) Lekérdezés Javítás és Deep Analysis Feladatlista
+- **Compliance Hub Szabadságkiadás Lekérdezés Javítása (`src/app/hr/compliance/compliance-actions.ts`):**
+  - A `getCompanyLeaveComplianceData` függvényben a `hr_tavollet` tábla `.select(...)` mezőlistájából eltávolításra került a nem létező `indoklas` oszlop, amely korábban PostgREST hibát okozott és lenullázta a kivett/tervezett szabadságnapok és a 14 napos egybefüggő pihenőidő kalkulációját.
+- **Teljes Körű Deep Analysis és Hibajavítási Feladatlista (`docs/eaisyhr-deep-analysis-javitasi-terv.md`):**
+  - Elkészült az eaisyHR modul 22 pontos, prioritások szerint (`P0`, `P1`, `P2`) strukturált mélyelemzési és javítási terve.
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-25)
 
 ### eaisyHR: Compliance Hub Dolgozói Avatar Egységesítés és eaisyHR Menü / Cím Letisztítás (PRD P-115)

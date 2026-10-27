@@ -73,7 +73,7 @@ export async function getCompanyLeaveComplianceData(
   // 3. Távollétek lekérése az évre
   const { data: rawLeaves } = await supabase
     .from("hr_tavollet")
-    .select("id, dolgozo_id, kezdet_datuma, veg_datuma, tipus, statusz, indoklas")
+    .select("id, dolgozo_id, kezdet_datuma, veg_datuma, tipus, statusz")
     .eq("company_id", companyScope)
     .gte("veg_datuma", `${year}-01-01`)
     .lte("kezdet_datuma", `${year}-12-31`)
