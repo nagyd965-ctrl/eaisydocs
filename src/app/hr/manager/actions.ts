@@ -17,7 +17,7 @@ export async function approveLeaveRequest(id: string) {
   // 1. Kérelem lekérése
   const { data: req } = await supabase
     .from("hr_tavollet")
-    .select("company_id, dolgozo_id, aktualis_jovahagyo_id")
+    .select("company_id, dolgozo_id, aktualis_jovahagyo_id, kezdet_datuma, veg_datuma")
     .eq("id", id)
     .maybeSingle()
 
@@ -71,7 +71,7 @@ export async function approveLeaveRequest(id: string) {
   return { success: true }
 }
 
-export async function rejectLeaveRequest(id: string) {
+export async function rejectLeaveRequest(id: string, rejectReason?: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -84,7 +84,7 @@ export async function rejectLeaveRequest(id: string) {
   // 1. Kérelem lekérése
   const { data: req } = await supabase
     .from("hr_tavollet")
-    .select("company_id, dolgozo_id, aktualis_jovahagyo_id")
+    .select("company_id, dolgozo_id, aktualis_jovahagyo_id, kezdet_datuma, veg_datuma")
     .eq("id", id)
     .maybeSingle()
 
@@ -128,6 +128,25 @@ export async function rejectLeaveRequest(id: string) {
     console.error("Reject leave error:", error)
     return { error: "Nem sikerült elutasítani a kérelmet." }
   }
+
+  const targetCompanyId = req.company_id || activeCompanyId
+  if (rejectReason?.trim()) {
+    await supabase.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      entitas_tipus: "hr_tavollet",
+      entitas_id: id,
+      esemeny_tipus: "tavollet_elutasitas",
+      megjegyzes: `Szabadság kérelem (${req.kezdet_datuma} – ${req.veg_datuma}) elutasítva. Indoklás: ${rejectReason.trim()}`,
+      ...(targetCompanyId ? { company_id: targetCompanyId } : {})
+    })
+  }
+
+  await supabase.from("alkalmazas_ertesites").insert({
+    user_id: req.dolgozo_id,
+    cim: "Szabadság kérelem elutasítva",
+    szoveg: `A(z) ${req.kezdet_datuma} – ${req.veg_datuma} időszakra benyújtott szabadság kérelmedet elutasították.${rejectReason?.trim() ? ` Indoklás: ${rejectReason.trim()}` : ""}`,
+    link_url: "/hr/self-service/leave"
+  })
 
   revalidatePath("/hr", "layout")
   return { success: true }

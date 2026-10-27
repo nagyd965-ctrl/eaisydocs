@@ -62,7 +62,7 @@ export default async function SelfServiceProfilePage() {
   const activeMunkakor = jogviszonyInfo?.hr_beosztas?.[0]?.hr_munkakor
   const munkakorMegnevezes = activeMunkakor?.megnevezes || null
   const belepesDatuma = jogviszonyInfo?.belepes_datuma || null
-  const orvosiErvenyesseg = orvosi?.ervenyesseg_datuma || null
+  const orvosiErvenyesseg = orvosi?.ervenyesseg_datuma || adatlap?.orvosi_alkalmassag_ervenyesseg || null
   const nev = adatlap?.felhasznalo_profil?.nev || "Dolgozó"
   const szerepkor = adatlap?.felhasznalo_profil?.hr_szerepkor || null
   const avatarUrl = adatlap?.felhasznalo_profil?.avatar_url || null

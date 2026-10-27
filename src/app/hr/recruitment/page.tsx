@@ -28,7 +28,7 @@ export default async function RecruitmentPage() {
   const [{ data: candidates }, { data: postings }, { data: jobs }] = await Promise.all([
     supabaseAdmin
       .from("hr_toborzas")
-      .select("*, hr_munkakor (megnevezes)")
+      .select("*, hr_munkakor (megnevezes), hr_allashirdetes (cim)")
       .eq("company_id", activeCompanyId)
       .order("created_at", { ascending: false }),
     supabaseAdmin

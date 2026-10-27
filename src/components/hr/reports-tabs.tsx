@@ -642,17 +642,21 @@ export function ReportsTabs() {
           />
           <KpiCard
             label="NAV T1041 Nyugták"
-            value={archiveRecords.filter((r) => r.type?.includes("T1041")).length}
+            value={archiveRecords.filter((r) => (r.tipus || r.type || "").includes("T1041")).length}
             sub="Biztosítotti bejelentések"
           />
           <KpiCard
             label="Havi Bevallások (08)"
-            value={archiveRecords.filter((r) => r.type?.includes("08")).length}
+            value={archiveRecords.filter((r) => (r.tipus || r.type || "").includes("08")).length}
             sub="NAV járulékbevallások"
           />
           <KpiCard
             label="KSH & Egyéb Kimutatások"
-            value={archiveRecords.filter((r) => !r.type?.includes("T1041") && !r.type?.includes("08")).length}
+            value={
+              archiveRecords.filter(
+                (r) => !(r.tipus || r.type || "").includes("T1041") && !(r.tipus || r.type || "").includes("08")
+              ).length
+            }
             sub="Statisztika és igazolások"
           />
         </div>

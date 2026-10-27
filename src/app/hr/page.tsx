@@ -58,27 +58,36 @@ export default async function SelfServicePage() {
 
   const holidayDates = (holidaysData || []).map((h: any) => h.datum as string)
 
+  const yearStart = `${currentYear}-01-01`
+  const yearEnd = `${currentYear}-12-31`
+
   const getLeaveWorkingDays = (t: any) => {
+    if (!t.kezdet_datuma || !t.veg_datuma) return 0
+    if (t.veg_datuma < yearStart || t.kezdet_datuma > yearEnd) return 0
     if (typeof t.munkanapok_szama === "number" && t.munkanapok_szama > 0) {
       return t.munkanapok_szama
     }
-    if (!t.kezdet_datuma || !t.veg_datuma) return 0
-    return calculateWorkingDays(t.kezdet_datuma, t.veg_datuma, holidayDates)
+    const startStr = t.kezdet_datuma > yearStart ? t.kezdet_datuma : yearStart
+    const endStr = t.veg_datuma < yearEnd ? t.veg_datuma : yearEnd
+    return calculateWorkingDays(startStr, endStr, holidayDates)
   }
 
+  const isPaidLeaveType = (tipus: string | undefined) =>
+    ["szabadsag", "alapszabadsag", "fizetett"].includes((tipus || "").toLowerCase())
+
   const totalLeave = calculateAnnualLeave(
-    adatlap?.szuletesi_datum, 
+    adatlap?.szuletesi_datum || adatlap?.szuletesi_ido, 
     adatlap?.gyermekek_szama, 
     adatlap?.megvaltozott_munkakepessegu, 
     currentYear
   )
 
   const usedLeave = (tavolletek || [])
-    .filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyva")
+    .filter(t => isPaidLeaveType(t.tipus) && t.statusz === "jovahagyva")
     .reduce((sum, t) => sum + getLeaveWorkingDays(t), 0)
 
   const plannedLeave = (tavolletek || [])
-    .filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyasra_var")
+    .filter(t => isPaidLeaveType(t.tipus) && t.statusz === "jovahagyasra_var")
     .reduce((sum, t) => sum + getLeaveWorkingDays(t), 0)
 
   const pendingLeavesCount = tavolletek?.filter(t => t.statusz === "jovahagyasra_var").length || 0

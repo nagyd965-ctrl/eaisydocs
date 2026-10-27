@@ -8,7 +8,27 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 - **Compliance Hub Szabadságkiadás Lekérdezés Javítása (`src/app/hr/compliance/compliance-actions.ts`):**
   - A `getCompanyLeaveComplianceData` függvényben a `hr_tavollet` tábla `.select(...)` mezőlistájából eltávolításra került a nem létező `indoklas` oszlop, amely korábban PostgREST hibát okozott és lenullázta a kivett/tervezett szabadságnapok és a 14 napos egybefüggő pihenőidő kalkulációját.
 - **Teljes Körű Deep Analysis és Hibajavítási Feladatlista (`docs/eaisyhr-deep-analysis-javitasi-terv.md`):**
-  - Elkészült az eaisyHR modul 22 pontos, prioritások szerint (`P0`, `P1`, `P2`) strukturált mélyelemzési és javítási terve.
+  - Elkészült az eaisyHR modul 22 pontos, prioritások szerint (`P0`, `P1`, `P2`) strukturált mélyelemzési és javítási terve, amelyből 20 feladat teljes körűen javításra és típusellenőrzésre (`npx tsc --noEmit`) került (ADR [A-085](../architecture/decisions/A-085-eaisyhr-multi-company-persistence-and-schema-hardening.md), PRD [P-116](../product/decisions/P-116-eaisyhr-deep-analysis-ux-and-workflow-hardening.md)).
+- **Többcéges (`company_id`) Mentések és Onboarding / Karrier / Audit Konzisztencia (`onboarding/actions.ts`, `karrier/[id]/actions.ts`, `manage-posting-dialog.tsx`, `recruitment/actions.ts`):**
+  - A `createManualOnboarding` elmenti az aktív `company_id`-t és e-mail cím megadásakor létrehoz egy háttér `hr_toborzas` (`statusz: "elfogadva"`) rekordot (`toborzas_id`), így a `Fiók aktiválása` gomb manuális beléptetésnél is hibamentesen működik.
+  - A publikus karrieroldali jelentkezés (`submitApplication`) és az új álláshirdetés-rögzítés (`ManagePostingDialog`) explicit módon elmenti a cél-vállalat `company_id` értékét.
+  - A napi becsekkolás (`toggleCheckIn`), jelenlét-korrekció (`handleAttendanceCorrectionApproval`), HR szabadságrögzítés (`hrSubmitLeaveRequest`), T1041 mentés (`saveT1041Record`), Cafeteria nyilatkozat (`submitCafeteriaDeclaration`) és a központi HR audit napló (`hr_esemeny_naplo`) beszúrásai mindenhol megkapták az aktív `company_id`-t.
+- **Offboarding Ön-kitiltás Védelem (Self-Ban Guard), Betegszabadság és Személyi Dosszié Archiválás (`src/app/hr/offboarding/actions.ts`):**
+  - A `closeOffboarding` megakadályozza, hogy a tesztelő saját felhasználói fiókján (`offboarding.dolgozo_id === user.id`) végrehajtott lezárás inaktiválja a szerepkörét vagy 100 évre letiltsa a Supabase Auth fiókját.
+  - A kilépő igazolás (`Mt. 80. §`) betegszabadság-lekérdezése a valós `kezdet_datuma`, `veg_datuma` és munkanap-számítást (`countWorkdaysInYear`) használja; a személyi dosszié archiválása (`irattarban`) és újranyitása (`iktatva`) pedig a `findEmployeeDossier` (`irat_kapcsolat`) segédfüggvényen keresztül történik.
+- **Bérszámfejtés (`/hr/payroll`) és Riportok (`/hr/reports`) Adataggregáció (`payroll/actions.ts`, `reports/actions.ts`, `reports-tabs.tsx`):**
+  - Mind a `hr_szervezeti_egyseg`, mind a `szervezeti_egyseg` tábla betöltésre kerül az `orgMap`-be; a `hr_jogviszony` lekérdezések aktív-első rendezést és `dolgozo_id` szerinti deduplikációt kaptak; a `downloadPayslipPdfAction` pedig dinamikusan feloldja a dolgozó munkakörét, FEOR kódját és részlegét.
+  - A KSH túlóra lekérdezés a valós `hr_tulora_felhasznalás` táblát és a cég tagjait (`memberUserIds`) kérdezi le; a `Bevallás Archívum` KPI kártyák pedig a `r.tipus || r.type` mezőt olvassák.
+- **Adatbázis-séma Szinkron PDF Generátorokban, T1041-ben és IDP-ben (`t1041-actions.ts`, `onboarding-job-actions.ts`, `idp-actions.ts`, `src/utils/hr/*-pdf-generator.ts`):**
+  - A nem létező `felhasznalo_profil(munkakor, reszleg)` lekérdezések átállítva a valós `hr_jogviszony -> hr_beosztas -> hr_munkakor` és `hr_szervezeti_egyseg` feloldásra.
+  - Az `approveDevelopmentGoal` a `hr_dokumentum` valós oszlopaival (`dolgozo_id, nev, kategoria, url, company_id`) menti a tanúsítványokat.
+  - A `szuletesi_datum` és `szuletesi_ido` mezők egységes fallbacket és szinkronizált mentést kaptak.
+- **UI/UX és Nézet-konzisztencia Javítások (`unified-approvals-panel.tsx`, `talent-pool-list.tsx`, `LeaveTab.tsx`, `orgunit/[id]/page.tsx`, `job/[id]/page.tsx`, `leave-request-dialog.tsx`, `employee-kpi-widget.tsx`, `self-service/profile/page.tsx`):**
+  - Vezetői elutasításkor a `rejectReason` indoklás bekerül a dolgozói értesítésbe és az audit naplóba szabadság és túlóra esetén is.
+  - A Talent Pool oldalsáv törlés/frissítés műveletei (`deleteCandidate` + `router.refresh()`) és a pozíciónév megjelenítés bekötésre került.
+  - A `LeaveTab.tsx` a kérelmek száma helyett a munkanapok összegét (`calculateWorkingDays`) számolja, az iktatott HR dokumentumok jelvényei pedig közvetlenül a `/dossiers/[id]` oldalra mutatnak.
+  - A `/hr/orgunit/[id]` és `/hr/job/[id]` részletoldalak dolgozó- és egység-hozzárendelő listái az adott cégre (`company_id`) szűrnek.
+  - A `LeaveRequestDialog` alapértelmezett típusa `"szabadsag"` lett, az `EmployeeKpiWidget` megkülönbözteti a `"2. Önértékelés leadva"` állapotot, a `Profilom` oldal pedig fallbackként a `hr_dolgozo_adatlap.orvosi_alkalmassag_ervenyesseg` dátumot is figyelembe veszi.
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-25)
 

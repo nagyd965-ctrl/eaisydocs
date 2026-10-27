@@ -93,8 +93,16 @@ export async function fetchMedicalExaminationData(
 
   const { data: adatlap } = await supabase
     .from("hr_dolgozo_adatlap")
-    .select("szuletesi_ido, anyja_neve, lakcim")
+    .select("szuletesi_datum, szuletesi_ido, anyja_neve, lakcim")
     .eq("id", employeeId)
+    .maybeSingle()
+
+  const { data: munkaszerzodes } = await supabase
+    .from("hr_munkaszerzodes")
+    .select("szuletesi_datum, anyja_neve, lakcim")
+    .eq("dolgozo_id", employeeId)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle()
 
   // Jogviszony és munkakör adatok
@@ -112,6 +120,7 @@ export async function fetchMedicalExaminationData(
       )
     `)
     .eq("dolgozo_id", employeeId)
+    .order("kilepes_datuma", { ascending: false, nullsFirst: true })
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -136,11 +145,12 @@ export async function fetchMedicalExaminationData(
   }
 
   const employeeName = profileData?.nev || "Munkavállaló"
-  const szuletesiDatum = adatlap?.szuletesi_ido
-    ? new Date(adatlap.szuletesi_ido).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })
+  const rawBirthDate = adatlap?.szuletesi_datum || adatlap?.szuletesi_ido || munkaszerzodes?.szuletesi_datum
+  const szuletesiDatum = rawBirthDate
+    ? new Date(rawBirthDate).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })
     : "Nyilvántartásban rögzítve"
-  const anyjaNeve = adatlap?.anyja_neve || "Nyilvántartásban rögzítve"
-  const lakcim = adatlap?.lakcim || "Nyilvántartásban rögzítve"
+  const anyjaNeve = adatlap?.anyja_neve || munkaszerzodes?.anyja_neve || "Nyilvántartásban rögzítve"
+  const lakcim = adatlap?.lakcim || munkaszerzodes?.lakcim || "Nyilvántartásban rögzítve"
 
   const munkakor = munkakorData?.megnevezes || "Irodai munkatárs"
   const feorKod = munkakorData?.feor_kod || "2141"

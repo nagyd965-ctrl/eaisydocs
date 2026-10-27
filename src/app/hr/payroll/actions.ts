@@ -151,20 +151,27 @@ export async function getPayrollDashboardData(
     }
   }
 
-  // 2. Profilok és szervezeti egységek (csak az aktív cég tagjai)
+  // 2. Profilok és szervezeti egységek (csak az aktív cég tagjai, mind a Docs-os, mind a HR-es táblából)
   const { data: profiles } = await adminClient
     .from("felhasznalo_profil")
-    .select("id, nev, szervezeti_egyseg_id, hr_szervezeti_egyseg_id")
+    .select("id, nev, pozicio, szervezeti_egyseg_id, hr_szervezeti_egyseg_id")
     .in("id", memberUserIds)
-  const profMap = new Map<string, { nev: string; orgId: string | null }>()
-  profiles?.forEach((p: any) => profMap.set(p.id, { nev: p.nev, orgId: p.hr_szervezeti_egyseg_id || p.szervezeti_egyseg_id }))
+  const profMap = new Map<string, { nev: string; pozicio: string | null; orgId: string | null }>()
+  profiles?.forEach((p: any) =>
+    profMap.set(p.id, {
+      nev: p.nev,
+      pozicio: p.pozicio || null,
+      orgId: p.hr_szervezeti_egyseg_id || p.szervezeti_egyseg_id,
+    })
+  )
 
-  const { data: orgUnits } = await adminClient
-    .from("szervezeti_egyseg")
-    .select("id, nev")
-    .eq("company_id", activeCompanyId)
+  const [{ data: orgUnits }, { data: hrOrgUnits }] = await Promise.all([
+    adminClient.from("szervezeti_egyseg").select("id, nev").eq("company_id", activeCompanyId),
+    adminClient.from("hr_szervezeti_egyseg").select("id, nev").eq("company_id", activeCompanyId),
+  ])
   const orgMap = new Map<string, string>()
   orgUnits?.forEach((o: any) => orgMap.set(o.id, o.nev))
+  hrOrgUnits?.forEach((o: any) => orgMap.set(o.id, o.nev))
 
   // 3. Munkakörök és beosztások
   const { data: munkakorok } = await adminClient
@@ -188,12 +195,14 @@ export async function getPayrollDashboardData(
     })
   })
 
-  // 4. Jogviszonyok az adott hónapban (csak az aktív céghez)
+  // 4. Jogviszonyok az adott hónapban (csak az aktív céghez, aktív jogviszonyok elöl a deduplikációhoz)
   const { data: jogviszonyok } = await adminClient
     .from("hr_jogviszony")
     .select("id, dolgozo_id, belepes_datuma, kilepes_datuma")
     .eq("company_id", activeCompanyId)
     .in("dolgozo_id", memberUserIds)
+    .order("kilepes_datuma", { ascending: false, nullsFirst: true })
+    .order("belepes_datuma", { ascending: false })
   
   // 5. Titkos béradatok (csak az aktív cég tagjai)
   const { data: secretData } = await adminClient
@@ -321,7 +330,7 @@ export async function getPayrollDashboardData(
     const bruttoAlapber = sec?.brutto || 500000
 
     const b = beosztasMap.get(j.id)
-    const munkakor = b?.munkakor || "-"
+    const munkakor = (b?.munkakor && b.munkakor !== "-" ? b.munkakor : prof?.pozicio) || "-"
     const oId = b?.orgId || prof?.orgId
     const reszleg = (oId && orgMap.get(oId)) || "Központi Osztály"
 
@@ -819,18 +828,63 @@ export async function downloadPayslipPdfAction(
       if (!isHr) return { error: "Nincs jogosultságod a bérpapír letöltéséhez" }
     }
 
-    const { data: prof } = await adminClient.from("felhasznalo_profil").select("nev, szervezeti_egyseg_id, hr_szervezeti_egyseg_id").eq("id", p.dolgozo_id).single()
+    const { data: prof } = await adminClient
+      .from("felhasznalo_profil")
+      .select("nev, pozicio, szervezeti_egyseg_id, hr_szervezeti_egyseg_id")
+      .eq("id", p.dolgozo_id)
+      .single()
     const { data: secret } = await adminClient.from("hr_dolgozo_titkos_adat").select("*").eq("dolgozo_id", p.dolgozo_id).maybeSingle()
     
     const taj = hexToAscii(secret?.taj_szam_titkositott) || "-"
     const ado = hexToAscii(secret?.adoazonosito_titkositott) || "-"
     const employeeName = prof?.nev || "Munkavállaló"
 
-    // Cégadatok dinamikus betöltése az aktív vagy a bérpapírhoz rendelt cég alapján
+    // Cégadatok és szervezeti/munkaköri adatok dinamikus betöltése az aktív vagy a bérpapírhoz rendelt cég alapján
     const companyToLookup = p.company_id || activeCompanyId
     let employerName = "eaisyDocs & eaisyHR Rendszer"
     let employerAddress = "1054 Budapest, Szabadság tér 7."
     let employerTaxNumber = "12345678-2-41"
+
+    let resolvedMunkakor = prof?.pozicio || "Munkatárs"
+    let resolvedFeor: string | undefined = undefined
+    let resolvedOrgId: string | null = prof?.hr_szervezeti_egyseg_id || prof?.szervezeti_egyseg_id || null
+
+    const { data: activeJogv } = await adminClient
+      .from("hr_jogviszony")
+      .select(`
+        id,
+        kilepes_datuma,
+        hr_beosztas (
+          hr_munkakor ( megnevezes, feor_kod, szervezeti_egyseg_id )
+        )
+      `)
+      .eq("dolgozo_id", p.dolgozo_id)
+      .order("kilepes_datuma", { ascending: false, nullsFirst: true })
+      .order("belepes_datuma", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (activeJogv) {
+      const beosztas = Array.isArray((activeJogv as any).hr_beosztas)
+        ? (activeJogv as any).hr_beosztas[0]
+        : (activeJogv as any).hr_beosztas
+      const mk = Array.isArray(beosztas?.hr_munkakor)
+        ? beosztas.hr_munkakor[0]
+        : beosztas?.hr_munkakor
+      if (mk?.megnevezes) resolvedMunkakor = mk.megnevezes
+      if (mk?.feor_kod) resolvedFeor = mk.feor_kod
+      if (mk?.szervezeti_egyseg_id) resolvedOrgId = mk.szervezeti_egyseg_id
+    }
+
+    let resolvedReszleg = "Központi Osztály"
+    if (resolvedOrgId) {
+      const [{ data: hrOrg }, { data: docsOrg }] = await Promise.all([
+        adminClient.from("hr_szervezeti_egyseg").select("nev").eq("id", resolvedOrgId).maybeSingle(),
+        adminClient.from("szervezeti_egyseg").select("nev").eq("id", resolvedOrgId).maybeSingle(),
+      ])
+      if (hrOrg?.nev) resolvedReszleg = hrOrg.nev
+      else if (docsOrg?.nev) resolvedReszleg = docsOrg.nev
+    }
 
     if (companyToLookup) {
       const { data: comp } = await adminClient
@@ -855,8 +909,9 @@ export async function downloadPayslipPdfAction(
       dolgozoNev: employeeName,
       adoazonosito: ado,
       tajSzam: taj,
-      munkakor: "Munkatárs",
-      reszleg: "Központi Osztály",
+      munkakor: resolvedMunkakor,
+      feorKod: resolvedFeor,
+      reszleg: resolvedReszleg,
       bankszamlaszam: p.bankszamlaszam || "-",
       tervezettMunkanap: p.tervezett_munkanap,
       ledolgozottMunkanap: p.ledolgozott_munkanap,

@@ -65,14 +65,17 @@ async function loadHrMasterData(adminClient: any, targetCompanyId?: string | nul
     profMap.set(p.id, { nev: p.nev, orgId: p.hr_szervezeti_egyseg_id || p.szervezeti_egyseg_id })
   )
 
-  // 2. Szervezeti egységek (csak az aktív cég)
+  // 2. Szervezeti egységek (csak az aktív cég, mind a Docs-os, mind a HR-es táblából)
   let orgQuery = adminClient.from("szervezeti_egyseg").select("id, nev")
+  let hrOrgQuery = adminClient.from("hr_szervezeti_egyseg").select("id, nev")
   if (activeCompanyId) {
     orgQuery = orgQuery.eq("company_id", activeCompanyId)
+    hrOrgQuery = hrOrgQuery.eq("company_id", activeCompanyId)
   }
-  const { data: orgUnits } = await orgQuery
+  const [{ data: orgUnits }, { data: hrOrgUnits }] = await Promise.all([orgQuery, hrOrgQuery])
   const orgMap = new Map<string, string>()
   orgUnits?.forEach((o: any) => orgMap.set(o.id, o.nev))
+  hrOrgUnits?.forEach((o: any) => orgMap.set(o.id, o.nev))
 
   // 3. Munkakörök (csak az aktív cég)
   let mkQuery = adminClient
@@ -118,10 +121,12 @@ async function loadHrMasterData(adminClient: any, targetCompanyId?: string | nul
     })
   })
 
-  // 6. Jogviszonyok (csak az aktív cég)
+  // 6. Jogviszonyok (csak az aktív cég, aktív jogviszonyok elöl)
   let jogvQuery = adminClient
     .from("hr_jogviszony")
     .select("id, dolgozo_id, belepes_datuma, kilepes_datuma, tipus")
+    .order("kilepes_datuma", { ascending: false, nullsFirst: true })
+    .order("belepes_datuma", { ascending: false })
   if (activeCompanyId) {
     jogvQuery = jogvQuery.eq("company_id", activeCompanyId)
   }
@@ -361,7 +366,7 @@ export async function getKshReportData(yearMonth: string): Promise<KshReportData
   const lastDay = `${yearMonth}-${String(lastDayNum).padStart(2, "0")}`
 
   // 1. Törzsadatok betöltése
-  const { profMap, orgMap, beosztasMap, jogviszonyok } = await loadHrMasterData(adminClient, activeCompanyId)
+  const { memberUserIds, profMap, orgMap, beosztasMap, jogviszonyok } = await loadHrMasterData(adminClient, activeCompanyId)
 
   let zaroLetszam = 0
   let atlagosFte = 0
@@ -391,7 +396,7 @@ export async function getKshReportData(yearMonth: string): Promise<KshReportData
       j.belepes_datuma <= lastDay &&
       (!j.kilepes_datuma || j.kilepes_datuma >= lastDay)
 
-    if (isActiveAtEnd) {
+    if (isActiveAtEnd && (!j.dolgozo_id || !activeEmployeeIds.has(j.dolgozo_id))) {
       zaroLetszam++
       const b = beosztasMap.get(j.id)
       const p = profMap.get(j.dolgozo_id)
@@ -457,12 +462,16 @@ export async function getKshReportData(yearMonth: string): Promise<KshReportData
     }
   }
 
-  // 4. Túlórák (cégre szűrve)
+  // 4. Túlórák (aktív cég dolgozóira és a tárgyhónapra szűrve)
   let tuloraOra = 0
   try {
-    let tuloraQuery = adminClient.from("hr_tulora_felhasznalas").select("perc, statusz")
-    if (activeCompanyId) {
-      tuloraQuery = tuloraQuery.eq("company_id", activeCompanyId)
+    let tuloraQuery = adminClient
+      .from("hr_tulora_felhasznalás")
+      .select("perc, statusz, datum, dolgozo_id")
+      .gte("datum", firstDay)
+      .lte("datum", lastDay)
+    if (activeCompanyId && memberUserIds.length > 0) {
+      tuloraQuery = tuloraQuery.in("dolgozo_id", memberUserIds)
     }
     const { data: tuloraData } = await tuloraQuery
     for (const t of tuloraData || []) {
@@ -814,6 +823,7 @@ export async function uploadT1041ReceiptFromReport(formData: FormData) {
       return { error: "Nem sikerült feltölteni a nyugtát a tárolóba." }
     }
 
+    const activeCompanyId = await getActiveCompanyIdServer()
     const docName = `${employeeName} - Hivatalos NAV T1041 Befogadási Nyugta`
 
     const { data: newDoc, error: docErr } = await adminClient
@@ -822,6 +832,7 @@ export async function uploadT1041ReceiptFromReport(formData: FormData) {
         nev: docName,
         kategoria: "Hatósági bejelentés",
         url: storagePath,
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
       })
       .select()
       .single()
@@ -850,6 +861,7 @@ export async function uploadT1041ReceiptFromReport(formData: FormData) {
       entitas_tipus: "hr_t1041_bejelentes",
       entitas_id: newDoc.id,
       megjegyzes: `NAV T1041 befogadási nyugta feltöltve a riport felületről: ${employeeName}`,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
     })
 
     revalidatePath("/hr/reports")

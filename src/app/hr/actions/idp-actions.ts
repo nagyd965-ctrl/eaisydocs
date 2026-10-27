@@ -448,7 +448,8 @@ export async function approveDevelopmentGoal(celId: string, megjegyzes?: string)
         tipus: cel.tipus === 'kepzes' ? 'tanfolyam' : 'nyelvvizsga',
         megnevezes: cel.megnevezes,
         intezmeny: cel.intezmeny || 'Egyéni fejlesztési terv',
-        megszerzes_datuma: today
+        megszerzes_datuma: today,
+        dokumentum_url: cel.tanusitvany_url || null
       }])
       .select()
       .single();
@@ -458,21 +459,18 @@ export async function approveDevelopmentGoal(celId: string, megjegyzes?: string)
     }
   }
 
-  // 2. Ha van feltöltött tanúsítvány, automatikusan rögzítjük a hr_dokumentum táblában is
+  // 2. Ha van feltöltött tanúsítvány, automatikusan rögzítjük a hr_dokumentum táblában is (valós oszlopnevekkel)
   if (cel.tanusitvany_url) {
     try {
-      const companyId = cel.company_id || cel.hr_fejlesztesi_terv?.company_id || null;
+      const companyId = cel.company_id || cel.hr_fejlesztesi_terv?.company_id || (await getActiveCompanyIdServer()) || null;
       await adminClient
         .from('hr_dokumentum')
         .insert([{
           dolgozo_id: cel.dolgozo_id,
           nev: `${cel.megnevezes} - Képzési tanúsítvány`,
-          dokumentum_tipus: 'kepzesi_igazolas',
-          kategoria: 'szakmai',
+          kategoria: 'Képzés / Tanúsítvány',
           url: cel.tanusitvany_url,
-          fajl_nev: cel.tanusitvany_nev || 'tanusitvany.pdf',
-          feltoltes_ideje: new Date().toISOString(),
-          company_id: companyId
+          ...(companyId ? { company_id: companyId } : {})
         }]);
     } catch (docErr) {
       console.warn('Nem sikerült a hr_dokumentum bejegyzés rögzítése:', docErr);
@@ -594,24 +592,27 @@ export async function getCompanyMentorsAction(companyId?: string) {
   const map = new Map<string, { id: string; nev: string; munkakor?: string }>();
 
   if (activeCompanyId) {
-    // 1. Céghez tartozó dolgozói adatlapok
-    const { data: adatlapok } = await adminClient
-      .from('hr_dolgozo_adatlap')
+    // 1. Céghez tartozó jogviszonyok és munkakörök lekérése
+    const { data: jogviszonyok } = await adminClient
+      .from('hr_jogviszony')
       .select(`
-        id,
-        felhasznalo_profil(id, nev),
+        dolgozo_id,
+        kilepes_datuma,
+        felhasznalo_profil(id, nev, pozicio),
         hr_beosztas(
           hr_munkakor(megnevezes)
         )
       `)
-      .eq('company_id', activeCompanyId);
+      .eq('company_id', activeCompanyId)
+      .order('kilepes_datuma', { ascending: false, nullsFirst: true });
 
-    if (adatlapok) {
-      for (const a of adatlapok as any[]) {
-        const p = Array.isArray(a.felhasznalo_profil) ? a.felhasznalo_profil[0] : a.felhasznalo_profil;
-        if (p?.id && p?.nev) {
-          const beosztas = Array.isArray(a.hr_beosztas) ? a.hr_beosztas[0] : a.hr_beosztas;
-          const munkakor = beosztas?.hr_munkakor?.megnevezes;
+    if (jogviszonyok) {
+      for (const j of jogviszonyok as any[]) {
+        const p = Array.isArray(j.felhasznalo_profil) ? j.felhasznalo_profil[0] : j.felhasznalo_profil;
+        if (p?.id && p?.nev && !map.has(p.id)) {
+          const beosztas = Array.isArray(j.hr_beosztas) ? j.hr_beosztas[0] : j.hr_beosztas;
+          const mkObj = Array.isArray(beosztas?.hr_munkakor) ? beosztas.hr_munkakor[0] : beosztas?.hr_munkakor;
+          const munkakor = mkObj?.megnevezes || p.pozicio || undefined;
           map.set(p.id, { id: p.id, nev: p.nev, munkakor });
         }
       }
@@ -627,13 +628,13 @@ export async function getCompanyMentorsAction(companyId?: string) {
     if (userIds.length > 0) {
       const { data: profs } = await adminClient
         .from('felhasznalo_profil')
-        .select('id, nev')
+        .select('id, nev, pozicio')
         .in('id', userIds);
 
       if (profs) {
-        for (const p of profs) {
+        for (const p of profs as any[]) {
           if (!map.has(p.id) && p.nev) {
-            map.set(p.id, { id: p.id, nev: p.nev });
+            map.set(p.id, { id: p.id, nev: p.nev, munkakor: p.pozicio || undefined });
           }
         }
       }
@@ -645,10 +646,10 @@ export async function getCompanyMentorsAction(companyId?: string) {
     const supabase = await createClient();
     const { data: allProfs } = await supabase
       .from('felhasznalo_profil')
-      .select('id, nev')
+      .select('id, nev, pozicio')
       .order('nev');
-    for (const p of (allProfs || [])) {
-      if (p.nev) map.set(p.id, { id: p.id, nev: p.nev });
+    for (const p of (allProfs as any[] || [])) {
+      if (p.nev) map.set(p.id, { id: p.id, nev: p.nev, munkakor: p.pozicio || undefined });
     }
   }
 

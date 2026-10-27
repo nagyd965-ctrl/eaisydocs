@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { onboardEmployee } from "@/app/hr/admin/actions"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 
 function getAdminClient() {
   return createAdminClient(
@@ -40,13 +41,15 @@ export async function toggleTaskStatus(taskId: string, currentStatus: string) {
 
   // Audit napló írása
   if (taskData) {
+    const activeCompanyId = await getActiveCompanyIdServer()
     const statusText = newStatus === 'done' ? 'Elvégezve' : 'Folyamatban'
     await supabase.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
       esemeny_tipus: "adat_megtekintes", 
       entitas_tipus: "hr_onboarding_feladat",
       entitas_id: taskId,
-      megjegyzes: `Onboarding feladat (${taskData.cim}) státusza átállítva: ${statusText} - ${(taskData.hr_onboarding as any)?.nev} profilján`
+      megjegyzes: `Onboarding feladat (${taskData.cim}) státusza átállítva: ${statusText} - ${(taskData.hr_onboarding as any)?.nev} profilján`,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
     })
   }
 
@@ -71,12 +74,14 @@ export async function updateOnboardingDate(onboardingId: string, newDate: string
   }
 
   // Logolás
+  const activeCompanyId = await getActiveCompanyIdServer()
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "munkatars_felvetel", 
     entitas_tipus: "hr_onboarding",
     entitas_id: onboardingId,
-    megjegyzes: `Belépési dátum frissítve erre: ${newDate}`
+    megjegyzes: `Belépési dátum frissítve erre: ${newDate}`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/onboarding")
@@ -104,12 +109,14 @@ export async function addOnboardingTask(onboardingId: string, cim: string, felel
   }
 
   // Logolás
+  const activeCompanyId = await getActiveCompanyIdServer()
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "adat_modositas", 
     entitas_tipus: "hr_onboarding",
     entitas_id: onboardingId,
-    megjegyzes: `Új feladat hozzáadva: ${cim} (${felelos_reszleg})`
+    megjegyzes: `Új feladat hozzáadva: ${cim} (${felelos_reszleg})`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/onboarding")
@@ -139,12 +146,14 @@ export async function deleteOnboardingTask(taskId: string) {
   }
 
   if (taskData) {
+    const activeCompanyId = await getActiveCompanyIdServer()
     await supabase.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
       esemeny_tipus: "adat_torles", 
       entitas_tipus: "hr_onboarding",
       entitas_id: taskData.onboarding_id,
-      megjegyzes: `Feladat törölve: ${taskData.cim}`
+      megjegyzes: `Feladat törölve: ${taskData.cim}`,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
     })
   }
 
@@ -161,13 +170,16 @@ export async function activateOnboardingAccount(onboardingId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("hr_szerepkor")
-    .eq("id", user.id)
-    .single()
+  const [{ data: profile }, companyRoles] = await Promise.all([
+    supabase.from("felhasznalo_profil").select("hr_szerepkor").eq("id", user.id).single(),
+    getActiveCompanyMemberRolesServer(user.id),
+  ])
 
-  if (!profile || !["admin", "hr_vezeto", "hr_munkatars"].includes(profile.hr_szerepkor)) {
+  const effectiveHrRole = companyRoles?.hrRole && companyRoles.hrRole !== "none"
+    ? companyRoles.hrRole
+    : profile?.hr_szerepkor
+
+  if (!companyRoles?.isCompanyAdmin && !["admin", "hr_vezeto", "hr_munkatars"].includes(effectiveHrRole || "")) {
     return { error: "Nincs jogosultságod a munkavállalói fiók aktiválásához." }
   }
 
@@ -363,6 +375,8 @@ export async function activateOnboardingAccount(onboardingId: string) {
         .update({
           lakcim: latestContract.lakcim || undefined,
           szuletesi_datum: latestContract.szuletesi_datum || undefined,
+          szuletesi_ido: latestContract.szuletesi_datum || undefined,
+          szuletesi_hely: latestContract.szuletesi_hely || undefined,
           anyja_neve: latestContract.anyja_neve || undefined
         })
         .eq("id", finalUserId)
@@ -504,12 +518,14 @@ export async function activateOnboardingAccount(onboardingId: string) {
   }
 
   // Audit napló
+  const activeCompanyId = onboarding.company_id || (await getActiveCompanyIdServer())
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "munkatars_felvetel",
     entitas_tipus: "hr_onboarding",
     entitas_id: onboardingId,
-    megjegyzes: `Munkavállalói eaisyHR fiók sikeresen aktiválva és belépési adatok kiküldve: ${onboarding.nev}`
+    megjegyzes: `Munkavállalói eaisyHR fiók sikeresen aktiválva és belépési adatok kiküldve: ${onboarding.nev}`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/onboarding")
@@ -553,12 +569,14 @@ export async function closeOnboarding(onboardingId: string) {
   }
 
   // Audit log
+  const activeCompanyId = await getActiveCompanyIdServer()
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "adat_modositas",
     entitas_tipus: "hr_onboarding",
     entitas_id: onboardingId,
-    megjegyzes: `Beléptetési (Onboarding) folyamat sikeresen lezárva és archiválva.`
+    megjegyzes: `Beléptetési (Onboarding) folyamat sikeresen lezárva és archiválva.`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/onboarding")
@@ -588,12 +606,14 @@ export async function reopenOnboarding(onboardingId: string) {
     return { error: error.message }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "adat_modositas",
     entitas_tipus: "hr_onboarding",
     entitas_id: onboardingId,
-    megjegyzes: `Beléptetési folyamat újranyitva.`
+    megjegyzes: `Beléptetési folyamat újranyitva.`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/onboarding")
@@ -619,12 +639,14 @@ export async function deleteOnboarding(onboardingId: string) {
     return { error: error.message }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "adat_torles",
     entitas_tipus: "hr_onboarding",
     entitas_id: onboardingId,
-    megjegyzes: `Onboarding folyamat törölve.`
+    megjegyzes: `Onboarding folyamat törölve.`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/onboarding")
@@ -646,20 +668,58 @@ export async function createManualOnboarding(formData: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("hr_szerepkor")
-    .eq("id", user.id)
-    .single()
+  const [{ data: profile }, companyRoles, activeCompanyId] = await Promise.all([
+    supabase.from("felhasznalo_profil").select("hr_szerepkor").eq("id", user.id).single(),
+    getActiveCompanyMemberRolesServer(user.id),
+    getActiveCompanyIdServer(),
+  ])
 
-  if (!profile || !["admin", "hr_vezeto", "hr_munkatars"].includes(profile.hr_szerepkor)) {
+  const effectiveHrRole = companyRoles?.hrRole && companyRoles.hrRole !== "none"
+    ? companyRoles.hrRole
+    : profile?.hr_szerepkor
+
+  if (!companyRoles?.isCompanyAdmin && !["admin", "hr_vezeto", "hr_munkatars"].includes(effectiveHrRole || "")) {
     return { error: "Nincs jogosultságod új beléptetési folyamat indításához." }
   }
 
   const adminClient = getAdminClient()
   const sablonType = formData.sablon || "altalanos"
 
-  // 1. Beszúrjuk az Onboarding rekordot
+  // 0. Ha megadtak e-mail címet, létrehozunk egy elfogadott hr_toborzas rekordot,
+  // hogy az e-mail cím és a megpályázott munkakör megmaradjon a fiókaktiváláshoz (activateOnboardingAccount)
+  let toborzasId: string | null = null
+  if (formData.email?.trim()) {
+    let matchedJobId: string | null = null
+    if (formData.munkakor?.trim()) {
+      let jobQuery = adminClient
+        .from("hr_munkakor")
+        .select("id")
+        .eq("megnevezes", formData.munkakor.trim())
+      if (activeCompanyId) {
+        jobQuery = jobQuery.eq("company_id", activeCompanyId)
+      }
+      const { data: matchedJob } = await jobQuery.limit(1).maybeSingle()
+      matchedJobId = matchedJob?.id || null
+    }
+
+    const { data: newCandidate } = await adminClient
+      .from("hr_toborzas")
+      .insert({
+        nev: formData.nev.trim(),
+        email: formData.email.trim(),
+        megpalyazott_munkakor_id: matchedJobId,
+        statusz: "elfogadva",
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {})
+      })
+      .select("id")
+      .maybeSingle()
+
+    if (newCandidate?.id) {
+      toborzasId = newCandidate.id
+    }
+  }
+
+  // 1. Beszúrjuk az Onboarding rekordot az aktív céghez és a toborzási rekordhoz kötve
   const { data: newOnboarding, error: onbError } = await adminClient
     .from("hr_onboarding")
     .insert({
@@ -668,7 +728,9 @@ export async function createManualOnboarding(formData: {
       belepes_datuma: formData.belepes_datuma || "Hamarosan",
       statusz: "folyamatban",
       fiok_allapot: "varakozik",
-      reszleg: formData.reszleg || null
+      reszleg: formData.reszleg || null,
+      toborzas_id: toborzasId,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
     })
     .select()
     .single()
@@ -730,7 +792,8 @@ export async function createManualOnboarding(formData: {
     esemeny_tipus: "munkatars_felvetel",
     entitas_tipus: "hr_onboarding",
     entitas_id: newOnboarding.id,
-    megjegyzes: `Új Onboarding folyamat indítva manuálisan (${sablonType} sablonnal): ${formData.nev}`
+    megjegyzes: `Új Onboarding folyamat indítva manuálisan (${sablonType} sablonnal): ${formData.nev}`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/onboarding")

@@ -37,7 +37,7 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/auth/login")
+  if (!user) redirect("/login")
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
@@ -113,10 +113,14 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
 
   const jobs = jobsRaw || []
 
-  // 5. Hozzárendeléshez elérhető dolgozók
-  const { data: allEmployeesData } = await admin
+  // 5. Hozzárendeléshez elérhető dolgozók (aktív cégre / az egység cégére szűrve)
+  let allEmpQuery = admin
     .from("hr_dolgozo_adatlap")
     .select("id, felhasznalo_profil!inner(id, nev)")
+  if (orgUnit.company_id) {
+    allEmpQuery = allEmpQuery.eq("company_id", orgUnit.company_id)
+  }
+  const { data: allEmployeesData } = await allEmpQuery
 
   const assignedIds = employees.map(e => e.id)
   const availableEmployees = allEmployeesData?.map(emp => {

@@ -332,7 +332,7 @@ export function StudyContractTab({
                     <TableCell>
                       {item.iktatoszam ? (
                         <Link
-                          href={item.ugyirat_id ? `/dossiers?open=${item.ugyirat_id}` : "#"}
+                          href={item.ugyirat_id ? `/dossiers/${item.ugyirat_id}` : "#"}
                           className="inline-flex items-center gap-1.5"
                           title="Megtekintés a személyi dossziéban"
                         >

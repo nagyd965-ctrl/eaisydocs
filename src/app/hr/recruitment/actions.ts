@@ -124,7 +124,8 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
             esemeny_tipus: "rendszer_inditas", 
             entitas_tipus: "hr_onboarding",
             entitas_id: newOnboarding.id,
-            megjegyzes: `Onboarding előkészület indítva (fiók aktiválásra vár): ${candidate.nev}`
+            megjegyzes: `Onboarding előkészület indítva (fiók aktiválásra vár): ${candidate.nev}`,
+            company_id: auth.activeCompanyId
           })
         }
       }
@@ -166,7 +167,8 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
     esemeny_tipus: "munkatars_felvetel", 
     entitas_tipus: "hr_toborzas",
     entitas_id: candidateId,
-    megjegyzes: `Jelölt státusza módosítva erre: ${newStatus}`
+    megjegyzes: `Jelölt státusza módosítva erre: ${newStatus}`,
+    company_id: auth.activeCompanyId
   })
 
   revalidatePath("/hr/recruitment")
@@ -224,7 +226,8 @@ export async function scheduleInterview(candidateId: string, idopont: string, he
   const supabase = await createClient()
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: auth.user.id, esemeny_tipus: "munkatars_felvetel", entitas_tipus: "hr_toborzas", entitas_id: candidateId,
-    megjegyzes: `Interjú egyeztetve: ${new Date(idopont).toLocaleString('hu-HU')}`
+    megjegyzes: `Interjú egyeztetve: ${new Date(idopont).toLocaleString('hu-HU')}`,
+    company_id: auth.activeCompanyId
   })
 
   revalidatePath("/hr/recruitment")
@@ -265,7 +268,8 @@ export async function addCandidate(formData: FormData) {
     felhasznalo_id: auth.user.id,
     esemeny_tipus: "munkatars_felvetel", 
     entitas_tipus: "hr_toborzas",
-    megjegyzes: `Új jelölt rögzítve a toborzásba: ${nev}`
+    megjegyzes: `Új jelölt rögzítve a toborzásba: ${nev}`,
+    company_id: auth.activeCompanyId
   })
 
   revalidatePath("/hr/recruitment")
@@ -379,7 +383,8 @@ export async function updateCandidateNote(candidateId: string, note: string) {
     esemeny_tipus: "munkatars_felvetel", 
     entitas_tipus: "hr_toborzas",
     entitas_id: candidateId,
-    megjegyzes: "Jelölt jegyzete frissítve"
+    megjegyzes: "Jelölt jegyzete frissítve",
+    company_id: auth.activeCompanyId
   })
 
   revalidatePath("/hr/recruitment")

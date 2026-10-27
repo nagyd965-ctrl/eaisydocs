@@ -23,7 +23,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { Switch } from "@/components/ui/switch"
 import { HrLeaveRequestDialog } from "@/components/hr/hr-leave-request-dialog"
-import { calculateAnnualLeave } from "@/utils/hr/leave-calculator"
+import { calculateAnnualLeave, calculateWorkingDays } from "@/utils/hr/leave-calculator"
 import { calculate14DayConsecutiveLeave, calculateYearEndLeaveRisk } from "@/utils/hr/leave-compliance-calculator"
 import { toggle14DayWaiverAction } from "@/app/hr/compliance/compliance-actions"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
@@ -70,14 +70,36 @@ export function LeaveTab({
   }
 
   const totalLeave = calculateAnnualLeave(
-    adatlap?.szuletesi_datum,
+    adatlap?.szuletesi_datum || adatlap?.szuletesi_ido,
     adatlap?.gyermekek_szama,
     adatlap?.megvaltozott_munkakepessegu,
     currentYear
   )
-  const usedLeave = leaves?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyva").length || 0
-  const plannedLeave = leaves?.filter(t => t.tipus === "szabadsag" && t.statusz === "jovahagyasra_var").length || 0
-  const remainingLeave = totalLeave - usedLeave
+
+  const getLeaveWorkdaysInYear = (t: any) => {
+    if (!t?.kezdet_datuma || !t?.veg_datuma) return 0
+    const yearStart = `${currentYear}-01-01`
+    const yearEnd = `${currentYear}-12-31`
+    if (t.veg_datuma < yearStart || t.kezdet_datuma > yearEnd) return 0
+    const startStr = t.kezdet_datuma > yearStart ? t.kezdet_datuma : yearStart
+    const endStr = t.veg_datuma < yearEnd ? t.veg_datuma : yearEnd
+    return calculateWorkingDays(startStr, endStr)
+  }
+
+  const isPaidLeaveType = (tipus: string | undefined) =>
+    ["szabadsag", "alapszabadsag", "fizetett"].includes((tipus || "").toLowerCase())
+
+  const usedLeave =
+    leaves
+      ?.filter(t => isPaidLeaveType(t.tipus) && t.statusz === "jovahagyva")
+      .reduce((sum, t) => sum + getLeaveWorkdaysInYear(t), 0) || 0
+
+  const plannedLeave =
+    leaves
+      ?.filter(t => isPaidLeaveType(t.tipus) && t.statusz === "jovahagyasra_var")
+      .reduce((sum, t) => sum + getLeaveWorkdaysInYear(t), 0) || 0
+
+  const remainingLeave = Math.max(0, totalLeave - usedLeave)
 
   const [hasWaiver, setHasWaiver] = useState<boolean>(Boolean(adatlap?.eltero_megallapodas_14_nap))
   const [waiverLoading, setWaiverLoading] = useState<boolean>(false)
@@ -416,8 +438,7 @@ export function LeaveTab({
                   {leaves.map((leave) => {
                     const startDate = new Date(leave.kezdet_datuma)
                     const endDate = new Date(leave.veg_datuma)
-                    const durationMs = endDate.getTime() - startDate.getTime()
-                    const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24)) + 1
+                    const durationDays = calculateWorkingDays(leave.kezdet_datuma, leave.veg_datuma)
                     
                     return (
                       <tr key={leave.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">

@@ -11,7 +11,7 @@ export interface EmployeeKpiWidgetProps {
   kpis: any[]
 }
 
-function getWidgetStepBadge(phase: string) {
+function getWidgetStepBadge(phase: string, hasSelfEval?: boolean) {
   switch (phase) {
     case "celkituzes":
       return (
@@ -22,7 +22,7 @@ function getWidgetStepBadge(phase: string) {
     case "onertekeles":
       return (
         <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold shrink-0">
-          2. Te jössz!
+          {hasSelfEval ? "2. Önértékelés leadva" : "2. Te jössz!"}
         </Badge>
       )
     case "vezetoi_ertekeles":
@@ -110,7 +110,7 @@ export function EmployeeKpiWidget({ kpis = [] }: EmployeeKpiWidgetProps) {
                     </div>
 
                     <div className="shrink-0">
-                      {getWidgetStepBadge(phase)}
+                      {getWidgetStepBadge(phase, Boolean(kpi.onertekeles_szovege))}
                     </div>
                   </div>
                 )

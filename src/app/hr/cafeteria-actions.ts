@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 // 1. Get the catalog
 export async function getCafeteriaCatalog() {
@@ -81,12 +82,14 @@ export async function submitCafeteriaDeclaration(
 
   // Insert new choices
   if (choices.length > 0) {
+    const activeCompanyId = await getActiveCompanyIdServer()
     const records = choices.map(c => ({
       dolgozo_id: employeeId,
       ev: year,
       katalogus_elem_id: c.katalogus_elem_id,
       kert_osszeg: c.kert_osszeg,
-      levont_keret_osszeg: c.levont_keret_osszeg
+      levont_keret_osszeg: c.levont_keret_osszeg,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
     }))
 
     const { error: insertError } = await supabase

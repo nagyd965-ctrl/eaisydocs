@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { generateT1041PdfBuffer } from "@/utils/hr/t1041-pdf-generator"
 import { type T1041PdfData } from "@/utils/hr/t1041-constants"
 import { DEFAULT_COMPANY_DETAILS } from "@/utils/hr/employment-contract-constants"
@@ -147,23 +148,45 @@ export async function getT1041Data(params: {
   if (offboardingId) {
     const { data: offb } = await adminClient
       .from("hr_offboarding")
-      .select("*, felhasznalo_profil(id, nev, munkakor, reszleg)")
+      .select("*, felhasznalo_profil(id, nev, pozicio, hr_szervezeti_egyseg:hr_szervezeti_egyseg_id(nev))")
       .eq("id", offboardingId)
       .single()
     if (offb) {
-      empName = offb.felhasznalo_profil?.nev || empName
-      munkakor = offb.munkakor || offb.felhasznalo_profil?.munkakor || munkakor
-      reszleg = offb.reszleg || offb.felhasznalo_profil?.reszleg || reszleg
-      vege = offb.utolso_munkanap || offb.kilepes_datuma || ""
-      const offbDolgozoId = offb.dolgozo_id || offb.felhasznalo_profil?.id
+      const prof = Array.isArray(offb.felhasznalo_profil) ? offb.felhasznalo_profil[0] : offb.felhasznalo_profil
+      const profOrg = Array.isArray(prof?.hr_szervezeti_egyseg) ? prof?.hr_szervezeti_egyseg[0] : prof?.hr_szervezeti_egyseg
+      empName = prof?.nev || empName
+      munkakor = offb.munkakor || prof?.pozicio || munkakor
+      reszleg = offb.reszleg || profOrg?.nev || reszleg
+      vege = offb.utolso_munkaban_toltott_nap || offb.utolso_munkanap || offb.kilepes_datuma || ""
+      const offbDolgozoId = offb.dolgozo_id || prof?.id
       if (offbDolgozoId) {
+        const { data: jogv } = await adminClient
+          .from("hr_jogviszony")
+          .select("belepes_datuma, heti_munkaido_ora, hr_beosztas(hr_munkakor(megnevezes, feor_kod, hr_szervezeti_egyseg:szervezeti_egyseg_id(nev)))")
+          .eq("dolgozo_id", offbDolgozoId)
+          .order("kilepes_datuma", { ascending: false, nullsFirst: true })
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (jogv) {
+          if (jogv.belepes_datuma) kezdes = jogv.belepes_datuma
+          if (jogv.heti_munkaido_ora) hetiOra = Number(jogv.heti_munkaido_ora)
+          const beo: any = Array.isArray(jogv.hr_beosztas) ? jogv.hr_beosztas[0] : jogv.hr_beosztas
+          const mk: any = Array.isArray(beo?.hr_munkakor) ? beo?.hr_munkakor[0] : beo?.hr_munkakor
+          const mkOrg: any = Array.isArray(mk?.hr_szervezeti_egyseg) ? mk?.hr_szervezeti_egyseg[0] : mk?.hr_szervezeti_egyseg
+          if (mk?.megnevezes && !munkakor) munkakor = mk.megnevezes
+          if (mk?.feor_kod && !feorKod) feorKod = mk.feor_kod
+          if (mkOrg?.nev && !reszleg) reszleg = mkOrg.nev
+        }
+
         const { data: dAdatlap } = await adminClient
           .from("hr_dolgozo_adatlap")
-          .select("szuletesi_ido, anyja_neve, lakcim")
+          .select("szuletesi_datum, szuletesi_ido, szuletesi_hely, anyja_neve, lakcim")
           .eq("id", offbDolgozoId)
           .maybeSingle()
         if (dAdatlap) {
-          szulDatum = dAdatlap.szuletesi_ido || szulDatum
+          szulDatum = dAdatlap.szuletesi_datum || dAdatlap.szuletesi_ido || szulDatum
+          szulHely = dAdatlap.szuletesi_hely || szulHely
           anyja = dAdatlap.anyja_neve || anyja
           lakcim = dAdatlap.lakcim || lakcim
         }
@@ -182,6 +205,15 @@ export async function getT1041Data(params: {
           szulDatum = cData.szuletesi_datum || szulDatum
           anyja = cData.anyja_neve || anyja
           lakcim = cData.lakcim || lakcim
+        }
+        if (munkakor && !feorKod) {
+          const { data: job } = await adminClient
+            .from("hr_munkakor")
+            .select("feor_kod")
+            .eq("megnevezes", munkakor)
+            .limit(1)
+            .maybeSingle()
+          if (job?.feor_kod) feorKod = job.feor_kod
         }
       }
     }
@@ -237,21 +269,41 @@ export async function getT1041Data(params: {
   } else if (dolgozoId) {
     const { data: prof } = await adminClient
       .from("felhasznalo_profil")
-      .select("nev, munkakor, reszleg")
+      .select("id, nev, pozicio, hr_szervezeti_egyseg:hr_szervezeti_egyseg_id(nev)")
       .eq("id", dolgozoId)
-      .single()
+      .maybeSingle()
     if (prof) {
+      const profOrg: any = Array.isArray(prof.hr_szervezeti_egyseg) ? prof.hr_szervezeti_egyseg[0] : prof.hr_szervezeti_egyseg
       empName = prof.nev || empName
-      munkakor = prof.munkakor || munkakor
-      reszleg = prof.reszleg || reszleg
+      munkakor = prof.pozicio || munkakor
+      reszleg = profOrg?.nev || reszleg
+    }
+    const { data: jogv } = await adminClient
+      .from("hr_jogviszony")
+      .select("belepes_datuma, heti_munkaido_ora, hr_beosztas(hr_munkakor(megnevezes, feor_kod, hr_szervezeti_egyseg:szervezeti_egyseg_id(nev)))")
+      .eq("dolgozo_id", dolgozoId)
+      .order("kilepes_datuma", { ascending: false, nullsFirst: true })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (jogv) {
+      if (jogv.belepes_datuma) kezdes = jogv.belepes_datuma
+      if (jogv.heti_munkaido_ora) hetiOra = Number(jogv.heti_munkaido_ora)
+      const beo: any = Array.isArray(jogv.hr_beosztas) ? jogv.hr_beosztas[0] : jogv.hr_beosztas
+      const mk: any = Array.isArray(beo?.hr_munkakor) ? beo?.hr_munkakor[0] : beo?.hr_munkakor
+      const mkOrg: any = Array.isArray(mk?.hr_szervezeti_egyseg) ? mk?.hr_szervezeti_egyseg[0] : mk?.hr_szervezeti_egyseg
+      if (mk?.megnevezes) munkakor = mk.megnevezes
+      if (mk?.feor_kod) feorKod = mk.feor_kod
+      if (mkOrg?.nev && !reszleg) reszleg = mkOrg.nev
     }
     const { data: dAdatlap } = await adminClient
       .from("hr_dolgozo_adatlap")
-      .select("szuletesi_ido, anyja_neve, lakcim")
+      .select("szuletesi_datum, szuletesi_ido, szuletesi_hely, anyja_neve, lakcim")
       .eq("id", dolgozoId)
       .maybeSingle()
     if (dAdatlap) {
-      szulDatum = dAdatlap.szuletesi_ido || szulDatum
+      szulDatum = dAdatlap.szuletesi_datum || dAdatlap.szuletesi_ido || szulDatum
+      szulHely = dAdatlap.szuletesi_hely || szulHely
       anyja = dAdatlap.anyja_neve || anyja
       lakcim = dAdatlap.lakcim || lakcim
     }
@@ -270,6 +322,15 @@ export async function getT1041Data(params: {
       szulDatum = cData.szuletesi_datum || szulDatum
       anyja = cData.anyja_neve || anyja
       lakcim = cData.lakcim || lakcim
+    }
+    if (munkakor && !feorKod) {
+      const { data: job } = await adminClient
+        .from("hr_munkakor")
+        .select("feor_kod")
+        .eq("megnevezes", munkakor)
+        .limit(1)
+        .maybeSingle()
+      if (job?.feor_kod) feorKod = job.feor_kod
     }
   }
 
@@ -339,6 +400,8 @@ export async function saveT1041Record(data: {
   const { data: existing } = await query.limit(1)
   const existingId = existing?.[0]?.id
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   const payload: any = {
     onboarding_id: data.onboardingId || null,
     offboarding_id: data.offboardingId || null,
@@ -356,7 +419,8 @@ export async function saveT1041Record(data: {
     heti_munkaido_ora: data.hetiMunkaidoOra || 40.0,
     bekuldes_datuma: data.bekuldesDatuma || null,
     megjegyzes: data.megjegyzes || null,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   }
 
   let recordId = existingId

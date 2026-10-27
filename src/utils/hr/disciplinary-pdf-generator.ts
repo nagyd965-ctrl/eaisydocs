@@ -103,7 +103,7 @@ export async function fetchDisciplinaryPdfData(
   // 2. Dolgozó személyes adatai
   const { data: adatlap } = await supabase
     .from("hr_dolgozo_adatlap")
-    .select("szuletesi_ido, anyja_neve, lakcim")
+    .select("szuletesi_datum, szuletesi_ido, szuletesi_hely, anyja_neve, lakcim")
     .eq("id", employeeId)
     .maybeSingle()
 
@@ -175,9 +175,9 @@ export async function fetchDisciplinaryPdfData(
     decisionNumber,
     employeeId,
     employeeName,
-    szuletesiHely: munkaszerzodes?.szuletesi_hely || "Budapest",
+    szuletesiHely: adatlap?.szuletesi_hely || munkaszerzodes?.szuletesi_hely || "Budapest",
     szuletesiDatum: (() => {
-      const d = adatlap?.szuletesi_ido || munkaszerzodes?.szuletesi_datum
+      const d = adatlap?.szuletesi_datum || adatlap?.szuletesi_ido || munkaszerzodes?.szuletesi_datum
       return d ? new Date(d).toLocaleDateString("hu-HU") : "–"
     })(),
     anyjaNeve: adatlap?.anyja_neve || munkaszerzodes?.anyja_neve || "–",

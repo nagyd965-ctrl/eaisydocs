@@ -9,7 +9,27 @@ import { type TerminationPdfData, type TerminationType, DEFAULT_COMPANY_DETAILS,
 import { generateAssetReturnPdfBuffer, type AssetReturnItem, type AssetReturnPdfData } from "@/utils/hr/asset-return-pdf-generator"
 import { generateExitCertificatePdfBuffer } from "@/utils/hr/exit-certificate-pdf-generator"
 import { type ExitCertificatePdfData, DEFAULT_EXIT_DOCUMENTS } from "@/utils/hr/exit-certificate-constants"
-import { executeHrDocumentFiling } from "@/utils/hr-filing-bridge"
+import { executeHrDocumentFiling, findEmployeeDossier } from "@/utils/hr-filing-bridge"
+
+function countWorkdaysInYear(kezdetDatuma: string, vegDatuma: string, year: number): number {
+  if (!kezdetDatuma || !vegDatuma) return 0
+  const yearStart = new Date(`${year}-01-01T00:00:00`)
+  const yearEnd = new Date(`${year}-12-31T00:00:00`)
+  const start = new Date(Math.max(new Date(`${kezdetDatuma}T00:00:00`).getTime(), yearStart.getTime()))
+  const end = new Date(Math.min(new Date(`${vegDatuma}T00:00:00`).getTime(), yearEnd.getTime()))
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return 0
+
+  let workDays = 0
+  const cur = new Date(start)
+  while (cur <= end) {
+    const day = cur.getDay()
+    if (day !== 0 && day !== 6) {
+      workDays++
+    }
+    cur.setDate(cur.getDate() + 1)
+  }
+  return Math.max(1, workDays)
+}
 
 function getAdminClient() {
   return createAdminClient(
@@ -47,13 +67,15 @@ export async function toggleOffboardingTaskStatus(taskId: string, currentStatus:
   }
 
   if (taskData) {
+    const activeCompanyId = await getActiveCompanyIdServer()
     const statusText = newStatus === 'done' ? 'Elvégezve' : 'Folyamatban'
     await supabase.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
       esemeny_tipus: "adat_megtekintes", 
       entitas_tipus: "hr_offboarding_feladat",
       entitas_id: taskId,
-      megjegyzes: `Offboarding feladat (${taskData.cim}) státusza átállítva: ${statusText}`
+      megjegyzes: `Offboarding feladat (${taskData.cim}) státusza átállítva: ${statusText}`,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
     })
   }
 
@@ -77,12 +99,14 @@ export async function updateOffboardingDate(offboardingId: string, newDate: stri
     return { error: error.message }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "munkatars_modositas", 
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
-    megjegyzes: `Kilépési dátum frissítve erre: ${newDate}`
+    megjegyzes: `Kilépési dátum frissítve erre: ${newDate}`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/offboarding")
@@ -109,12 +133,14 @@ export async function addOffboardingTask(offboardingId: string, cim: string, fel
     return { error: error.message }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "munkatars_modositas", 
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
-    megjegyzes: `Új offboarding feladat rögzítve: ${cim} (${felelos_reszleg})`
+    megjegyzes: `Új offboarding feladat rögzítve: ${cim} (${felelos_reszleg})`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/offboarding")
@@ -301,7 +327,8 @@ export async function createOffboarding(
     esemeny_tipus: "munkatars_modositas",
     entitas_tipus: "hr_offboarding",
     entitas_id: newOffboarding.id,
-    megjegyzes: `Kiléptetési folyamat indítva (${resolvedMunkakor || "Dolgozó"} - ${kilepesDatuma})`
+    megjegyzes: `Kiléptetési folyamat indítva (${resolvedMunkakor || "Dolgozó"} - ${kilepesDatuma})`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/offboarding")
@@ -457,34 +484,36 @@ export async function closeOffboarding(
 
   // 4b. Dolgozó adatlapján a munkaviszony végének beállítása
   const exitDate = offboarding.kilepes_datuma || offboarding.utolso_munkanap || new Date().toISOString().split("T")[0]
+  const isSelfOffboarding = offboarding.dolgozo_id === user.id
+
   if (offboarding.dolgozo_id) {
     await adminClient
       .from("hr_dolgozo_adatlap")
       .update({ munkaviszony_vege: exitDate })
       .eq("id", offboarding.dolgozo_id)
 
-    // 4c. Jogosultságok azonnali megvonása (eaisyHR szerepkör inaktiválása)
-    await adminClient
-      .from("felhasznalo_profil")
-      .update({ hr_szerepkor: "inaktiv" })
-      .eq("id", offboarding.dolgozo_id)
+    if (!isSelfOffboarding) {
+      // 4c. Jogosultságok azonnali megvonása (eaisyHR szerepkör inaktiválása)
+      await adminClient
+        .from("felhasznalo_profil")
+        .update({ hr_szerepkor: "inaktiv" })
+        .eq("id", offboarding.dolgozo_id)
 
-    // 4d. Automatikus Supabase Auth fiókletiltás (100 év ban)
-    try {
-      await adminClient.auth.admin.updateUserById(offboarding.dolgozo_id, {
-        ban_duration: '876000h'
-      })
-    } catch (authBanErr) {
-      console.error("Nem sikerült letiltani az auth fiókot:", authBanErr)
+      // 4d. Automatikus Supabase Auth fiókletiltás (100 év ban)
+      try {
+        await adminClient.auth.admin.updateUserById(offboarding.dolgozo_id, {
+          ban_duration: '876000h'
+        })
+      } catch (authBanErr) {
+        console.error("Nem sikerült letiltani az auth fiókot:", authBanErr)
+      }
     }
   }
 
-  // 5. Személyi dosszié archivált állapotba helyezése (irattarban)
-  const { data: existingDossier } = await adminClient
-    .from("ugyirat")
-    .select("id, statusz")
-    .eq("munkavallalo_id", offboarding.dolgozo_id)
-    .maybeSingle()
+  // 5. Személyi dosszié archivált állapotba helyezése (irattarban) az irat_kapcsolat táblán keresztül
+  const existingDossier = offboarding.dolgozo_id
+    ? await findEmployeeDossier(adminClient, offboarding.dolgozo_id)
+    : null
 
   if (existingDossier && existingDossier.statusz !== "irattarban") {
     await adminClient
@@ -503,12 +532,17 @@ export async function closeOffboarding(
     ? `FIGYELEM: Kivételes lezárás ${pendingTasks.length} befejezetlen feladattal! (Indoklás: ${options?.forceReason || "Kivételes jóváhagyás"}).`
     : "Minden kiléptetési feladat maradéktalanul elvégezve."
 
+  const authBanNote = isSelfOffboarding
+    ? "Saját fiók védelme miatt az Auth fiók letiltása és a jogosultságok visszavonása kihagyva."
+    : "Fiók letiltva (Auth ban) és jogosultságok visszavonva."
+
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "munkatars_modositas", 
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
-    megjegyzes: `Kiléptetés lezárva (${employeeName}). ${taskAuditNote} Fiók letiltva (Auth ban) és jogosultságok visszavonva. ${filingNote}`
+    megjegyzes: `Kiléptetés lezárva (${employeeName}). ${taskAuditNote} ${authBanNote} ${filingNote}`,
+    ...(offboarding.company_id ? { company_id: offboarding.company_id } : {})
   })
 
   revalidatePath("/hr/offboarding")
@@ -559,13 +593,9 @@ export async function reopenOffboarding(
       .eq("offboarding_id", offboardingId)
   }
 
-  // Személyi dosszié újranyitása iktatva státuszra, hogy lehessen módosítani / új iratot felvenni
+  // Személyi dosszié újranyitása iktatva státuszra az irat_kapcsolat táblán keresztül, hogy lehessen módosítani / új iratot felvenni
   if (offboarding?.dolgozo_id) {
-    const { data: existingDossier } = await adminClient
-      .from("ugyirat")
-      .select("id, statusz")
-      .eq("munkavallalo_id", offboarding.dolgozo_id)
-      .maybeSingle()
+    const existingDossier = await findEmployeeDossier(adminClient, offboarding.dolgozo_id)
 
     if (existingDossier && existingDossier.statusz === "irattarban") {
       await adminClient
@@ -600,12 +630,14 @@ export async function reopenOffboarding(
   const employeeName = (profil as any)?.nev || "Munkatárs"
   const taskResetNote = options?.resetTasks ? " és a kiléptetési feladatok visszaállítva nyitott (folyamatban) állapotra" : ""
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "munkatars_modositas",
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
-    megjegyzes: `Kiléptetés újranyitva (${employeeName})${taskResetNote}. Fiók és jogosultságok újra aktívak.`
+    megjegyzes: `Kiléptetés újranyitva (${employeeName})${taskResetNote}. Fiók és jogosultságok újra aktívak.`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/offboarding")
@@ -633,12 +665,14 @@ export async function resetOffboardingTasks(offboardingId: string) {
     return { error: error.message }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "munkatars_modositas",
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
-    megjegyzes: "Offboarding feladatok kézzel visszaállítva folyamatban (pending) státuszra."
+    megjegyzes: "Offboarding feladatok kézzel visszaállítva folyamatban (pending) státuszra.",
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/offboarding")
@@ -670,12 +704,14 @@ export async function fileSingleOffboardingDocument({
     return { error: filingResult.error || "Nem sikerült beiktatni a dokumentumot." }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "irat_letrehozas",
     entitas_tipus: "hr_dokumentum",
     entitas_id: documentId,
-    megjegyzes: `Kilépő dokumentum egyedileg beiktatva a személyi dossziéba (${filingResult.iktatoszam})`
+    megjegyzes: `Kilépő dokumentum egyedileg beiktatva a személyi dossziéba (${filingResult.iktatoszam})`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/offboarding")
@@ -707,12 +743,14 @@ export async function deleteOffboardingProcess(offboardingId: string) {
     return { error: error.message }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "adat_torles", 
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
-    megjegyzes: `Kiléptetési folyamat véglegesen törölve`
+    megjegyzes: `Kiléptetési folyamat véglegesen törölve`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/offboarding")
@@ -769,13 +807,17 @@ export async function getOffboardingDetailData(offboardingId: string) {
     const currentYear = new Date().getFullYear()
     const { data: sickLeaves } = await adminClient
       .from("hr_tavollet")
-      .select("napok_szama")
+      .select("kezdet_datuma, veg_datuma, tipus")
       .eq("dolgozo_id", offboarding.dolgozo_id)
-      .eq("tipus", "betegszabadsag")
+      .in("tipus", ["beteg", "betegszabadsag"])
       .eq("statusz", "jovahagyva")
-      .gte("kezdet", `${currentYear}-01-01`)
+      .lte("kezdet_datuma", `${currentYear}-12-31`)
+      .gte("veg_datuma", `${currentYear}-01-01`)
 
-    const targyeviBetegszabadsagNapok = (sickLeaves || []).reduce((acc: number, curr: any) => acc + (Number(curr.napok_szama) || 0), 0)
+    const targyeviBetegszabadsagNapok = (sickLeaves || []).reduce(
+      (acc: number, curr: any) => acc + countWorkdaysInYear(curr.kezdet_datuma, curr.veg_datuma, currentYear),
+      0
+    )
 
     // Kapcsolódó dokumentumok lekérése a hr_dokumentum táblából (iktatási metaadatokkal)
     const { data: hrDocs } = await adminClient
@@ -1070,7 +1112,8 @@ export async function generateTerminationAgreementAction(
     esemeny_tipus: "irat_letoltes",
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
-    megjegyzes: `Munkaviszony megszüntetési megállapodás legenerálva és mentve (${docName}). Iktatás a kiléptetés lezárásakor.`
+    megjegyzes: `Munkaviszony megszüntetési megállapodás legenerálva és mentve (${docName}). Iktatás a kiléptetés lezárásakor.`,
+    ...(offboarding.company_id ? { company_id: offboarding.company_id } : {})
   })
 
   revalidatePath("/hr/offboarding")
@@ -1230,7 +1273,8 @@ export async function generateAssetReturnSheetAction(
     esemeny_tipus: "adat_letrehozas",
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
-    megjegyzes: `Eszköz visszavételi lap legenerálva és mentve (${docName}). Iktatás a kiléptetés lezárásakor.`
+    megjegyzes: `Eszköz visszavételi lap legenerálva és mentve (${docName}). Iktatás a kiléptetés lezárásakor.`,
+    ...(offboarding.company_id ? { company_id: offboarding.company_id } : {})
   })
 
   revalidatePath("/hr/offboarding")
@@ -1331,12 +1375,14 @@ export async function saveExitInterview(offboardingId: string, formData: {
       .eq("id", interviewTask.id)
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "munkatars_modositas",
     entitas_tipus: "hr_kilepes_interju",
     entitas_id: offboardingId,
-    megjegyzes: `Kilépési interjú rögzítve az offboarding folyamathoz`
+    megjegyzes: `Kilépési interjú rögzítve az offboarding folyamathoz`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr/offboarding")
@@ -1390,13 +1436,17 @@ export async function generateExitCertificateAction(
     const currentYear = new Date().getFullYear()
     const { data: sickLeaves } = await adminClient
       .from("hr_tavollet")
-      .select("napok_szama")
+      .select("kezdet_datuma, veg_datuma, tipus")
       .eq("dolgozo_id", offboarding.dolgozo_id)
-      .eq("tipus", "betegszabadsag")
+      .in("tipus", ["beteg", "betegszabadsag"])
       .eq("statusz", "jovahagyva")
-      .gte("kezdet", `${currentYear}-01-01`)
+      .lte("kezdet_datuma", `${currentYear}-12-31`)
+      .gte("veg_datuma", `${currentYear}-01-01`)
 
-    resolvedBetegszabi = (sickLeaves || []).reduce((acc: number, curr: any) => acc + (Number(curr.napok_szama) || 0), 0)
+    resolvedBetegszabi = (sickLeaves || []).reduce(
+      (acc: number, curr: any) => acc + countWorkdaysInYear(curr.kezdet_datuma, curr.veg_datuma, currentYear),
+      0
+    )
   }
 
   // 1. PDF Adatok összeállítása
@@ -1408,7 +1458,7 @@ export async function generateExitCertificateAction(
     feorKod: payload.feorKod || null,
     reszleg: payload.reszleg || offboarding.reszleg || contractData?.reszleg || null,
     szuletesiHely: payload.szuletesiHely || contractData?.szuletesi_hely || null,
-    szuletesiDatum: payload.szuletesiDatum || adatlap?.szuletesi_datum || contractData?.szuletesi_datum || null,
+    szuletesiDatum: payload.szuletesiDatum || adatlap?.szuletesi_datum || adatlap?.szuletesi_ido || contractData?.szuletesi_datum || null,
     anyjaNeve: payload.anyjaNeve || adatlap?.anyja_neve || contractData?.anyja_neve || null,
     lakcim: payload.lakcim || adatlap?.lakcim || contractData?.lakcim || null,
     adoazonosito: payload.adoazonosito || contractData?.adoazonosito_jel || null,
@@ -1516,7 +1566,8 @@ export async function generateExitCertificateAction(
     esemeny_tipus: "irat_letrehozas",
     entitas_tipus: "hr_dokumentum",
     entitas_id: newDoc.id,
-    megjegyzes: `Törvényes kilépő igazolások PDF legenerálva és mentve (Mt. 80. §)`
+    megjegyzes: `Törvényes kilépő igazolások PDF legenerálva és mentve (Mt. 80. §)`,
+    ...(offboarding.company_id ? { company_id: offboarding.company_id } : {})
   })
 
   revalidatePath("/hr/offboarding")

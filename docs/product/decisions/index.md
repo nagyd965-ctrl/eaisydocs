@@ -123,11 +123,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-113](./P-113-hr-job-profile-page-overhaul-ux.md) | 2026-10-23 | eaisyHR Munkakör Adatlap UI/UX Átdolgozás és Szervezeti Egység Nézettel Való Harmonizáció | `[HR]` | `HR / Job Profile Page UI/UX Harmonization` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), [P-043](./P-043-global-ui-consistency-and-unified-components.md), [P-071](./P-071-hr-job-catalog-specification-and-omnipresent-integration.md), `src/app/hr/job/[id]/page.tsx`, `src/app/hr/job/[id]/actions.ts`, `job-assigned-employees-table.tsx`, `job-description-upload.tsx` |
 | [P-114](./P-114-hr-header-substitute-dialog-and-monthly-timesheet-context-ux.md) | 2026-10-24 | Helyettesítés Felugró Modál (SubstituteDialog) a Fejlécben és Jelenléti Ív Havi Kontextus UX | `[HR]` | `HR / Self-Service Time & Substitution UX` | [A-084](../../architecture/decisions/A-084-hr-substitution-routing-and-automatic-expiration-reconciliation.md), `src/components/hr/substitute-dialog.tsx`, `src/app/hr/self-service/time/page.tsx`, `src/components/hr/employee-timesheet.tsx` |
 | [P-115](./P-115-hr-compliance-avatar-consistency-and-ui-naming-cleanup.md) | 2026-10-25 | Compliance Hub Dolgozói Avatar Egységesítés és eaisyHR Menü / Cím Letisztítás UX | `[HR]` | `HR / Compliance & UI Naming UX` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), [P-043](./P-043-global-ui-consistency-and-unified-components.md), `compliance-actions.ts`, `leave-compliance-table.tsx`, `safety-training-table.tsx`, `hr-sidebar.tsx`, `time-tabs-view.tsx`, `team-calendar.tsx` |
+| [P-116](./P-116-eaisyhr-deep-analysis-ux-and-workflow-hardening.md) | 2026-10-27 | eaisyHR Deep Analysis UX, Folyamat-integritás és Nézet-konzisztencia Megerősítés | `[HR]` | `HR / Lifecycle, Compliance, Reports & ESS UX` | [A-085](../../architecture/decisions/A-085-eaisyhr-multi-company-persistence-and-schema-hardening.md), `unified-approvals-panel.tsx`, `talent-pool-list.tsx`, `leave-request-dialog.tsx`, `employee-kpi-widget.tsx`, `reports-tabs.tsx`, `LeaveTab.tsx`, `self-service/profile/page.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-116`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-117`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

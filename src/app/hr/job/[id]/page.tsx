@@ -24,7 +24,7 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
 
   // Biztonsági ellenőrzés (HR modul hozzáférés)
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/auth/login")
+  if (!user) redirect("/login")
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
@@ -39,17 +39,20 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
   const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)
 
   // Munkakör és szervezeti egységek lekérése
-  const [{ data: job, error: jobError }, { data: orgUnits }] = await Promise.all([
-    supabase
-      .from("hr_munkakor")
-      .select("*, hr_szervezeti_egyseg(id, nev)")
-      .eq("id", id)
-      .single(),
-    supabase
-      .from("hr_szervezeti_egyseg")
-      .select("id, nev")
-      .order("nev")
-  ])
+  const { data: job, error: jobError } = await supabase
+    .from("hr_munkakor")
+    .select("*, hr_szervezeti_egyseg(id, nev)")
+    .eq("id", id)
+    .single()
+
+  let orgUnitsQuery = supabase
+    .from("hr_szervezeti_egyseg")
+    .select("id, nev")
+    .order("nev")
+  if (job?.company_id) {
+    orgUnitsQuery = orgUnitsQuery.eq("company_id", job.company_id)
+  }
+  const { data: orgUnits } = await orgUnitsQuery
 
   if (jobError || !job) {
     return (
@@ -91,13 +94,17 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
     }
   }).filter(e => e.id).filter((e, i, arr) => arr.findIndex(x => x.id === e.id) === i) || []
 
-  // Elérhető dolgozók a hozzárendeléshez
-  const { data: allEmployees } = await admin
+  // Elérhető dolgozók a hozzárendeléshez (a munkakör cégére szűrve)
+  let allEmpQuery = admin
     .from("hr_dolgozo_adatlap")
     .select(`
       id,
       felhasznalo_profil (id, nev)
     `)
+  if (job.company_id) {
+    allEmpQuery = allEmpQuery.eq("company_id", job.company_id)
+  }
+  const { data: allEmployees } = await allEmpQuery
 
   const assignedEmployeeIds = employees.map(e => e.id)
   const availableEmployees = allEmployees

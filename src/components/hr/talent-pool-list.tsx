@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import {
   Table,
   TableBody,
@@ -17,11 +18,37 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { differenceInDays } from "date-fns"
 import { type Candidate } from "@/types/hr"
 import { TableToolbar, type TableColumnOption, type FilterGroup } from "@/components/table-toolbar/table-toolbar"
+import { deleteCandidate } from "@/app/hr/recruitment/actions"
+import { toast } from "sonner"
 
 export function TalentPoolList({ candidates }: { candidates: Candidate[] }) {
+  const router = useRouter()
+  const [candidatesList, setCandidatesList] = useState<Candidate[]>(candidates)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+
+  useEffect(() => {
+    setCandidatesList(candidates)
+  }, [candidates])
+
+  const handleUpdateCandidate = (updatedCandidate: Partial<Candidate> & { id: string; [key: string]: unknown }) => {
+    setCandidatesList(prev => prev.map(c => c.id === updatedCandidate.id ? { ...c, ...updatedCandidate } as Candidate : c))
+    setSelectedCandidate(prev => prev?.id === updatedCandidate.id ? { ...prev, ...updatedCandidate } as Candidate : prev)
+    router.refresh()
+  }
+
+  const handleDeleteCandidate = async (id: string) => {
+    const res = await deleteCandidate(id)
+    if (res?.error) {
+      toast.error(res.error)
+      return
+    }
+    toast.success("Jelölt sikeresen törölve!")
+    setCandidatesList(prev => prev.filter(c => c.id !== id))
+    setSelectedCandidate(null)
+    router.refresh()
+  }
 
   const [columns, setColumns] = useState<TableColumnOption[]>([
     { id: "nev", label: "Név", isVisible: true },
@@ -65,11 +92,12 @@ export function TalentPoolList({ candidates }: { candidates: Candidate[] }) {
 
   const filteredCandidates = useMemo(() => {
     const term = searchTerm.toLowerCase().trim()
-    return candidates.filter(c => {
+    return candidatesList.filter(c => {
+      const posTitle = c.hr_allashirdetes?.cim || (c as any).hr_munkakor?.megnevezes || (c as any).pozicio || ""
       const matchesSearch = !term || (
         c.nev.toLowerCase().includes(term) ||
         (c.email || "").toLowerCase().includes(term) ||
-        (c.hr_allashirdetes?.cim || "").toLowerCase().includes(term) ||
+        posTitle.toLowerCase().includes(term) ||
         (c.ai_skills && c.ai_skills.some((s: string) => s.toLowerCase().includes(term)))
       )
 
@@ -77,7 +105,7 @@ export function TalentPoolList({ candidates }: { candidates: Candidate[] }) {
 
       return matchesSearch && matchesStatus
     })
-  }, [candidates, searchTerm, selectedStatuses])
+  }, [candidatesList, searchTerm, selectedStatuses])
 
   return (
     <div className="space-y-4 h-full flex flex-col">
@@ -163,7 +191,12 @@ export function TalentPoolList({ candidates }: { candidates: Candidate[] }) {
                           </TableCell>
                         )}
                         {isColVisible("pozicio") && (
-                          <TableCell>{candidate.hr_allashirdetes?.cim || "Általános jelentkezés"}</TableCell>
+                          <TableCell>
+                            {candidate.hr_allashirdetes?.cim ||
+                              (candidate as any).hr_munkakor?.megnevezes ||
+                              (candidate as any).pozicio ||
+                              "Általános jelentkezés"}
+                          </TableCell>
                         )}
                         {isColVisible("allapot") && (
                           <TableCell>
@@ -214,7 +247,8 @@ export function TalentPoolList({ candidates }: { candidates: Candidate[] }) {
           candidate={selectedCandidate}
           isOpen={!!selectedCandidate}
           onClose={() => setSelectedCandidate(null)}
-          onUpdate={() => {}}
+          onUpdate={handleUpdateCandidate}
+          onDelete={handleDeleteCandidate}
         />
       )}
     </div>

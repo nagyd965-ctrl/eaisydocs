@@ -55,13 +55,30 @@ export async function getOnboardingJobData(params: {
   } else if (dolgozoId) {
     const { data: prof } = await adminClient
       .from("felhasznalo_profil")
-      .select("nev, munkakor, reszleg")
+      .select("id, nev, pozicio, hr_szervezeti_egyseg:hr_szervezeti_egyseg_id(nev)")
       .eq("id", dolgozoId)
-      .single()
+      .maybeSingle()
     if (prof) {
+      const profOrg: any = Array.isArray(prof.hr_szervezeti_egyseg) ? prof.hr_szervezeti_egyseg[0] : prof.hr_szervezeti_egyseg
       candidateName = prof.nev || candidateName
-      munkakorMegnevezes = prof.munkakor || munkakorMegnevezes
-      reszleg = prof.reszleg || reszleg
+      munkakorMegnevezes = prof.pozicio || munkakorMegnevezes
+      reszleg = profOrg?.nev || reszleg
+    }
+    const { data: jogv } = await adminClient
+      .from("hr_jogviszony")
+      .select("belepes_datuma, hr_beosztas(hr_munkakor(megnevezes, hr_szervezeti_egyseg:szervezeti_egyseg_id(nev)))")
+      .eq("dolgozo_id", dolgozoId)
+      .order("kilepes_datuma", { ascending: false, nullsFirst: true })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (jogv) {
+      if (jogv.belepes_datuma && !belepesDatuma) belepesDatuma = jogv.belepes_datuma
+      const beo: any = Array.isArray(jogv.hr_beosztas) ? jogv.hr_beosztas[0] : jogv.hr_beosztas
+      const mk: any = Array.isArray(beo?.hr_munkakor) ? beo?.hr_munkakor[0] : beo?.hr_munkakor
+      const mkOrg: any = Array.isArray(mk?.hr_szervezeti_egyseg) ? mk?.hr_szervezeti_egyseg[0] : mk?.hr_szervezeti_egyseg
+      if (mk?.megnevezes) munkakorMegnevezes = mk.megnevezes
+      if (mkOrg?.nev && !reszleg) reszleg = mkOrg.nev
     }
   }
 

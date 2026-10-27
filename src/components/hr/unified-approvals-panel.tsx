@@ -263,7 +263,7 @@ export function UnifiedApprovalsPanel({ initialItems }: UnifiedApprovalsPanelPro
 
     try {
       if (item.category === "tavollet") {
-        const res = await rejectLeaveRequest(item.id)
+        const res = await rejectLeaveRequest(item.id, rejectReason.trim() || undefined)
         if (res.error) {
           toast.error("Hiba az elutasítás során: " + res.error)
           return
@@ -277,7 +277,7 @@ export function UnifiedApprovalsPanel({ initialItems }: UnifiedApprovalsPanelPro
         }
         toast.info(`Munkaidő korrekció elutasítva: ${item.dolgozoNev}`)
       } else if (item.category === "tulora") {
-        const res = await handleOvertimeApproval(item.id, "elutasitva")
+        const res = await handleOvertimeApproval(item.id, "elutasitva", rejectReason.trim() || undefined)
         if (res.error) {
           toast.error("Hiba az elutasítás során: " + res.error)
           return

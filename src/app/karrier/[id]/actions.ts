@@ -69,6 +69,25 @@ export async function submitApplication(formData: FormData) {
       return { error: "Nem sikerült feltölteni az önéletrajzot. Kérjük, próbálja újra később." }
     }
 
+    // 3.5. Cégazonosító (company_id) feloldása az álláshirdetésből vagy munkakörből
+    let targetCompanyId: string | null = null
+    if (allashirdetesId) {
+      const { data: posting } = await supabaseAdmin
+        .from("hr_allashirdetes")
+        .select("company_id")
+        .eq("id", allashirdetesId)
+        .maybeSingle()
+      if (posting?.company_id) targetCompanyId = posting.company_id
+    }
+    if (!targetCompanyId && munkakorId) {
+      const { data: jobRow } = await supabaseAdmin
+        .from("hr_munkakor")
+        .select("company_id")
+        .eq("id", munkakorId)
+        .maybeSingle()
+      if (jobRow?.company_id) targetCompanyId = jobRow.company_id
+    }
+
     // 4. Adatbázis bejegyzés létrehozása
     const { error: dbError } = await supabaseAdmin
       .from("hr_toborzas")
@@ -80,7 +99,8 @@ export async function submitApplication(formData: FormData) {
         telefon: telefon?.trim() || null,
         uzenet: uzenet?.trim() || null,
         cv_storage_path: uploadData.path,
-        statusz: "uj"
+        statusz: "uj",
+        ...(targetCompanyId ? { company_id: targetCompanyId } : {})
       })
 
     if (dbError) {
@@ -95,7 +115,8 @@ export async function submitApplication(formData: FormData) {
       leiras: `Új jelentkezés érkezett a karrieroldalról: ${nev}`,
       celpont_id: munkakorId,
       entitas_tipus: "hr_munkakor",
-      felhasznalo_id: null // Nincs bejelentkezett felhasználó
+      felhasznalo_id: null, // Nincs bejelentkezett felhasználó
+      ...(targetCompanyId ? { company_id: targetCompanyId } : {})
     })
 
     // Lekérjük a pozíció nevét az emailhez

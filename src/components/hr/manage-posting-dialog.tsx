@@ -131,12 +131,13 @@ export function ManagePostingDialog({
     e.preventDefault()
     setLoading(true)
 
-    const data = {
+    const data: Record<string, unknown> = {
       cim: cim.trim(),
       munkakor_id: munkakorId,
       rovid_leiras: rovidLeiras.trim(),
       reszletes_leiras: reszletesLeiras.trim(),
       is_internal: isInternal,
+      ...(selectedCompany?.id ? { company_id: selectedCompany.id } : {}),
     }
 
     if (!data.cim || !data.munkakor_id) {

@@ -567,14 +567,17 @@ export async function toggleCheckIn() {
 
   if (!todayRecord) {
     // Check-in (Create record)
+    const activeCompanyId = await getActiveCompanyIdServer()
     const { error: insertError } = await supabase
       .from("hr_jelenlet")
       .insert({
         dolgozo_id: user.id,
-        becsekkolas_ideje: new Date().toISOString()
+        becsekkolas_ideje: new Date().toISOString(),
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {})
       })
     
     if (insertError) return { error: "Sikertelen becsekkolás." }
+    revalidatePath("/hr")
     return { success: true, status: "checked_in" }
   } else if (!todayRecord.kicsekkolas_ideje) {
     // Check-out (Update record)

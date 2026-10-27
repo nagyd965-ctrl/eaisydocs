@@ -9,6 +9,7 @@ import {
   formatDossierSubject,
 } from "@/utils/hr-filing-bridge"
 import { getClientInfo } from "@/utils/client-info"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { generateAnnualLeavePdfBuffer } from "@/utils/hr/annual-leave-pdf-generator"
 
 // -----------------------------------------------------------------------------
@@ -1427,6 +1428,7 @@ export async function updateGeneralPersonalInfo(employeeId: string, formData: Fo
 
   const uj_adatok = {
     szuletesi_datum: szuletesi_datum || null,
+    szuletesi_ido: szuletesi_datum || null,
     szuletesi_hely: szuletesi_hely || null,
     anyja_neve: anyja_neve || null,
     lakcim: lakcim || null,
@@ -1623,6 +1625,8 @@ export async function hrSubmitLeaveRequest(employeeId: string, formData: FormDat
     return { error: "A kezdet dátuma nem lehet később, mint a vég dátuma!" }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   const { error } = await supabase
     .from("hr_tavollet")
     .insert({
@@ -1631,7 +1635,8 @@ export async function hrSubmitLeaveRequest(employeeId: string, formData: FormDat
       kezdet_datuma: startDate,
       veg_datuma: endDate,
       statusz: "jovahagyva", // HR automatikusan jóváhagyottan hozza létre
-      jovahagyo_id: user.id
+      jovahagyo_id: user.id,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
     })
 
   if (error) {
@@ -1640,6 +1645,8 @@ export async function hrSubmitLeaveRequest(employeeId: string, formData: FormDat
   }
 
   revalidatePath(`/hr/employee/${employeeId}`)
+  revalidatePath("/hr/manager")
+  revalidatePath("/hr/compliance")
   return { success: true }
 }
 

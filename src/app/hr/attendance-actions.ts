@@ -569,7 +569,11 @@ export async function fileMonthlyTimesheet(employeeId: string, year: number, mon
 }
 
 // 7. Túlóra kérelem jóváhagyása vagy elutasítása (Vezető / HR)
-export async function handleOvertimeApproval(requestId: string, action: "jovahagyva" | "elutasitva") {
+export async function handleOvertimeApproval(
+  requestId: string,
+  action: "jovahagyva" | "elutasitva",
+  rejectReason?: string
+) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -611,7 +615,19 @@ export async function handleOvertimeApproval(requestId: string, action: "jovahag
 
   const szoveg = action === "jovahagyva"
     ? `A vezetőd jóváhagyta a ${tipusNev} kérelmedet (${durationStr}).`
-    : `A vezetőd elutasította a ${tipusNev} kérelmedet (${durationStr}).`
+    : `A vezetőd elutasította a ${tipusNev} kérelmedet (${durationStr}).${rejectReason?.trim() ? ` Indoklás: ${rejectReason.trim()}` : ""}`
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (action === "elutasitva") {
+    await supabase.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      entitas_tipus: "hr_tulora_felhasznalás",
+      entitas_id: requestId,
+      esemeny_tipus: "elutasitas",
+      megjegyzes: `Túlóra (${tipusNev}, ${durationStr}) kérelem elutasítva.${rejectReason?.trim() ? ` Indoklás: ${rejectReason.trim()}` : ""}`,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
+    })
+  }
 
   await supabase.from("alkalmazas_ertesites").insert({
     user_id: req.dolgozo_id,
@@ -681,13 +697,15 @@ export async function handleAttendanceCorrectionApproval(
         return { error: "Hiba a jelenlét rekord frissítésekor: " + jelenletUpdateErr.message }
       }
     } else {
+      const resolvedCompanyId = request.company_id || (await getActiveCompanyIdServer())
       const { error: jelenletInsertErr } = await adminClient
         .from("hr_jelenlet")
         .insert({
           dolgozo_id: request.dolgozo_id,
           datum: request.datum,
           becsekkolas_ideje: request.uj_becsekkolas,
-          kicsekkolas_ideje: request.uj_kicsekkolas
+          kicsekkolas_ideje: request.uj_kicsekkolas,
+          ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {})
         })
 
       if (jelenletInsertErr) {

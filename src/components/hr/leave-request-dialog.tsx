@@ -32,7 +32,7 @@ function formatMins(perc: number): string {
 export function LeaveRequestDialog() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [leaveType, setLeaveType] = useState<string>("")
+  const [leaveType, setLeaveType] = useState<string>("szabadsag")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [balance, setBalance] = useState<number | null>(null)
@@ -99,7 +99,7 @@ export function LeaveRequestDialog() {
       )
       setOpen(false)
       formRef.current?.reset()
-      setLeaveType("")
+      setLeaveType("szabadsag")
       setStartDate("")
       setEndDate("")
     }
