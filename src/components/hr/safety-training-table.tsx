@@ -50,6 +50,10 @@ export function SafetyTrainingTable({ initialData }: SafetyTrainingTableProps) {
   const [selectedType, setSelectedType] = useState<string>("all")
   const [selectedDept, setSelectedDept] = useState<string>("all")
 
+  React.useEffect(() => {
+    setData(initialData)
+  }, [initialData])
+
   // Oszlopok definíciója a TableToolbar számára
   const [columns, setColumns] = useState<TableColumnOption[]>([
     { id: "dolgozo", label: "Munkatárs", isVisible: true },

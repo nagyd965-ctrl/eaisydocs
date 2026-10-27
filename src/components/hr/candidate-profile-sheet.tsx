@@ -175,7 +175,8 @@ export function CandidateProfileSheet({
 
   if (!candidate) return null
 
-  const munkakorNev = candidate.hr_munkakor?.megnevezes || candidate.pozicio || "Nincs megadva"
+  const anyCand = candidate as any
+  const munkakorNev = anyCand.hr_allashirdetes?.cim || candidate.hr_munkakor?.megnevezes || (anyCand.megpalyazott_terulet ? `Talent Pool (${anyCand.megpalyazott_terulet})` : candidate.pozicio || "Nyitott jelentkezés")
   
   let parsedNotes: { date?: string | null; author?: string | null; text?: string | null; [key: string]: unknown }[] = []
   if (candidate.naptar_jegyzet) {
@@ -344,6 +345,18 @@ export function CandidateProfileSheet({
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-muted-foreground mb-0.5">Jelentkezés ideje</p>
                   <span className="text-sm font-medium tabular-nums">{candidate.created_at ? new Date(candidate.created_at).toLocaleDateString("hu-HU") : "-"}</span>
+                  {anyCand.palyazati_kod && (
+                    <span className="ml-2 text-xs font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">{anyCand.palyazati_kod}</span>
+                  )}
+                  {anyCand.berigeny && (
+                    <p className="text-xs text-foreground mt-1 tabular-nums">Bruttó bérigény: <strong>{new Intl.NumberFormat("hu-HU").format(anyCand.berigeny)} Ft / hó</strong></p>
+                  )}
+                  {anyCand.kezdesi_ido && (
+                    <p className="text-xs text-muted-foreground mt-0.5">Kezdés / Felmondási idő: <strong className="text-foreground">{anyCand.kezdesi_ido}</strong></p>
+                  )}
+                  {anyCand.linkedin_url && (
+                    <p className="text-xs mt-1"><a href={anyCand.linkedin_url} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium">LinkedIn / Portfólió megnyitása</a></p>
+                  )}
                 </div>
               </div>
             </div>

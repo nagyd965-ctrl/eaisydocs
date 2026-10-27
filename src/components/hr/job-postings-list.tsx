@@ -1,19 +1,23 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { createClient } from "@/utils/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { Card, CardContent } from "@/components/ui/card"
 import { KpiCard } from "@/components/kpi-card"
 import {
-  ExternalLink, Edit, Trash2, Briefcase, CheckCircle,
-  Users, Search, Clock, Plus
+  ExternalLink, Edit, Trash2, Briefcase,
+  Users, Search, Clock, Plus, MapPin
 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 import { ManagePostingDialog } from "./manage-posting-dialog"
+import {
+  WORK_MODE_SHORT_LABELS,
+  SENIORITY_LABELS,
+  formatSalaryBand,
+} from "@/utils/hr/career-constants"
 
 function daysSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24))
@@ -35,6 +39,14 @@ export interface JobPostingItem {
   aktiv?: boolean
   publikus?: boolean
   created_at?: string
+  munkavegzes_modja?: string | null
+  helyszin?: string | null
+  foglalkoztatas_tipusa?: string | null
+  tapasztalati_szint?: string | null
+  reszleg_nev?: string | null
+  bersav_min?: number | null
+  bersav_max?: number | null
+  bersav_publikus?: boolean
   hr_munkakor?: { megnevezes?: string } | null
   [key: string]: any
 }
@@ -47,6 +59,7 @@ export interface JobItem {
 
 export interface CandidateItem {
   id: string
+  allashirdetes_id?: string | null
   megpalyazott_munkakor_id?: string | null
   [key: string]: any
 }
@@ -69,6 +82,10 @@ export function JobPostingsList({
   const [filter, setFilter]     = useState<FilterKey>("all")
   const supabase = createClient()
 
+  useEffect(() => {
+    setPostings(initialPostings || propPostings || [])
+  }, [initialPostings, propPostings])
+
   /* ───── Stats ───── */
   const activePublicCount = postings.filter(p => p.aktiv && p.publikus).length
 
@@ -79,7 +96,8 @@ export function JobPostingsList({
       const q = search.toLowerCase()
       result = result.filter(p =>
         p.cim?.toLowerCase().includes(q) ||
-        p.hr_munkakor?.megnevezes?.toLowerCase().includes(q)
+        p.hr_munkakor?.megnevezes?.toLowerCase().includes(q) ||
+        p.helyszin?.toLowerCase().includes(q)
       )
     }
     if (filter === "aktiv")    result = result.filter(p => p.aktiv)
@@ -90,12 +108,19 @@ export function JobPostingsList({
 
   /* ───── Helpers ───── */
   function getApplicantCount(posting: JobPostingItem): number {
-    return candidates.filter(c => c.megpalyazott_munkakor_id === posting.munkakor_id).length
+    return candidates.filter(
+      c =>
+        c.allashirdetes_id === posting.id ||
+        (!c.allashirdetes_id && c.megpalyazott_munkakor_id === posting.munkakor_id)
+    ).length
   }
 
   function addOrUpdate(savedPosting: any) {
     const job = jobs.find(j => j.id === savedPosting.munkakor_id)
-    const full: JobPostingItem = { ...savedPosting, hr_munkakor: { megnevezes: job?.megnevezes } }
+    const full: JobPostingItem = {
+      ...savedPosting,
+      hr_munkakor: savedPosting.hr_munkakor || { megnevezes: job?.megnevezes },
+    }
     setPostings(prev => {
       const exists = prev.find(p => p.id === savedPosting.id)
       return exists ? prev.map(p => p.id === savedPosting.id ? full : p) : [full, ...prev]
@@ -189,7 +214,6 @@ export function JobPostingsList({
       {filtered.length === 0 ? (
         /* Üres állapot */
         <div className="border-2 border-dashed border-border rounded-lg p-12 text-center">
-          <Briefcase className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
           <h3 className="text-base font-semibold text-foreground mb-1">
             {search || filter !== "all" ? "Nincs találat" : "Még nincsenek álláshirdetések"}
           </h3>
@@ -212,6 +236,7 @@ export function JobPostingsList({
           {filtered.map(posting => {
             const applicantCount = getApplicantCount(posting)
             const days = daysSince(posting.created_at || "")
+            const salaryLabel = formatSalaryBand(posting.bersav_min, posting.bersav_max)
 
             return (
               <div
@@ -221,7 +246,10 @@ export function JobPostingsList({
                 {/* Bal: Cím + Munkakör + Badge-ek */}
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-base text-foreground truncate">{posting.cim}</h3>
-                  <p className="text-sm text-muted-foreground mt-0.5">{posting.hr_munkakor?.megnevezes || "–"}</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {posting.hr_munkakor?.megnevezes || "–"}
+                    {posting.reszleg_nev ? ` • ${posting.reszleg_nev}` : ""}
+                  </p>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {posting.aktiv && posting.publikus ? (
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-success-subtle text-success">
@@ -239,9 +267,30 @@ export function JobPostingsList({
                         Inaktív
                       </span>
                     )}
-                    {posting.aktiv && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border border-success/40 text-success">
-                        Aktív
+
+                    {posting.munkavegzes_modja && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border border-border bg-muted/40 text-foreground">
+                        {WORK_MODE_SHORT_LABELS[posting.munkavegzes_modja] || posting.munkavegzes_modja}
+                      </span>
+                    )}
+
+                    {posting.tapasztalati_szint && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border border-border bg-muted/40 text-foreground">
+                        {SENIORITY_LABELS[posting.tapasztalati_szint] || posting.tapasztalati_szint}
+                      </span>
+                    )}
+
+                    {posting.helyszin && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-muted-foreground border border-border/60">
+                        <MapPin className="w-3 h-3" />
+                        {posting.helyszin.split(",")[0]}
+                      </span>
+                    )}
+
+                    {salaryLabel && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium tabular-nums border border-primary/30 bg-primary/5 text-primary">
+                        {salaryLabel}
+                        {!posting.bersav_publikus ? " (belső)" : ""}
                       </span>
                     )}
                   </div>
@@ -249,11 +298,11 @@ export function JobPostingsList({
 
                 {/* Közép: Metrikák */}
                 <div className="hidden md:flex flex-col gap-1.5 shrink-0 w-36">
-                  <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-2 text-sm text-muted-foreground tabular-nums">
                     <Users className="h-4 w-4 shrink-0 text-muted-foreground/70" />
                     {applicantCount} db jelentkező
                   </span>
-                  <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-2 text-sm text-muted-foreground tabular-nums">
                     <Clock className="h-4 w-4 shrink-0 text-muted-foreground/70" />
                     {days === 0 ? "Ma feladva" : `${days} napja feladva`}
                   </span>
@@ -281,35 +330,29 @@ export function JobPostingsList({
 
                   {/* Akció gombok */}
                   <div className="flex items-center gap-1">
-                    <ManagePostingDialog jobs={jobs} existingData={posting as any} onSaved={posting2 => {
-                      const job = jobs.find(j => j.id === posting2.munkakor_id)
-                      setPostings(prev => prev.map(p => p.id === posting2.id
-                        ? { ...posting2, id: posting2.id || p.id, hr_munkakor: { megnevezes: job?.megnevezes } }
-                        : p
-                      ))
-                    }}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Edit className="h-4 w-4" />
+                    <ManagePostingDialog jobs={jobs} existingData={posting as any} onSaved={addOrUpdate}>
+                      <Button variant="ghost" size="icon" title="Szerkesztés">
+                        <Edit className="h-4 w-4 text-muted-foreground" />
                       </Button>
                     </ManagePostingDialog>
+
+                    {posting.publikus && (
+                      <Link href={`/karrier/${posting.id}`} target="_blank">
+                        <Button variant="ghost" size="icon" title="Megtekintés karrieroldalon">
+                          <ExternalLink className="h-4 w-4 text-primary" />
+                        </Button>
+                      </Link>
+                    )}
 
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      title="Törlés"
                       onClick={() => handleDelete(posting.id)}
+                      className="text-muted-foreground hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
-
-                    {posting.publikus && posting.aktiv && (
-                      <Link href={`/karrier/${posting.id}`} target="_blank">
-                        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs ml-1">
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          Karrieroldal
-                        </Button>
-                      </Link>
-                    )}
                   </div>
                 </div>
               </div>

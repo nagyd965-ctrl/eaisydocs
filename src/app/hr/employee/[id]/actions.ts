@@ -401,6 +401,7 @@ export async function fileStudyContractAction(contractId: string, employeeId: st
   revalidatePath(`/hr/employee/${employeeId}`)
   revalidatePath("/hr")
   revalidatePath("/dossiers")
+  revalidatePath("/hr/compliance")
 
   return {
     success: true,
@@ -556,6 +557,7 @@ export async function addOrvosiVizsgalat(employeeId: string, formData: FormData)
   revalidatePath(`/hr/employee/${employeeId}`)
   revalidatePath("/hr/self-service/profile")
   revalidatePath("/hr")
+  revalidatePath("/hr/compliance")
   return { success: true, id: insertedOrvosi.id }
 }
 
@@ -750,6 +752,7 @@ export async function fileMedicalExaminationAction(orvosiId: string, employeeId:
   revalidatePath(`/hr/employee/${employeeId}`)
   revalidatePath("/hr")
   revalidatePath("/dossiers")
+  revalidatePath("/hr/compliance")
 
   return {
     success: true,
@@ -1048,6 +1051,7 @@ export async function fileDisciplinaryAction(disciplinaryId: string, employeeId:
   revalidatePath(`/hr/employee/${employeeId}`)
   revalidatePath("/hr")
   revalidatePath("/dossiers")
+  revalidatePath("/hr/compliance")
 
   return {
     success: true,
@@ -1320,6 +1324,7 @@ export async function fileKituntetesAction(awardId: string, employeeId: string) 
   revalidatePath(`/hr/employee/${employeeId}`)
   revalidatePath("/hr")
   revalidatePath("/dossiers")
+  revalidatePath("/hr/compliance")
 
   return {
     success: true,
@@ -1785,6 +1790,7 @@ export async function fileHrDocumentAction(
 
   revalidatePath(`/hr/employee/${employeeId}`)
   revalidatePath("/dossiers")
+  revalidatePath("/hr/compliance")
   if (result.ugyirat_id) {
     revalidatePath(`/dossiers/${result.ugyirat_id}`)
   }
@@ -1838,6 +1844,7 @@ export async function fileAllHrDocumentsAction(employeeId: string) {
 
   revalidatePath(`/hr/employee/${employeeId}`)
   revalidatePath("/dossiers")
+  revalidatePath("/hr/compliance")
   if (result.ugyirat_id) {
     revalidatePath(`/dossiers/${result.ugyirat_id}`)
   }
@@ -1988,6 +1995,7 @@ export async function fileAnnualLeaveSheet(employeeId: string, year: number) {
     revalidatePath(`/hr/employee/${employeeId}`)
     revalidatePath("/hr")
     revalidatePath("/dossiers")
+  revalidatePath("/hr/compliance")
 
     return {
       success: true,
@@ -2166,6 +2174,7 @@ export async function uploadSignedDocumentAction(
     revalidatePath(`/hr/employee/${employeeId}`)
     revalidatePath("/hr")
     revalidatePath("/dossiers")
+  revalidatePath("/hr/compliance")
 
     return { 
       success: true, 

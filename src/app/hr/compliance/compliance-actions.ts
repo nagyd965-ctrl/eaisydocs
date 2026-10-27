@@ -14,6 +14,11 @@ import {
   CompanySafetyOverview,
   EmployeeSafetyRecord,
 } from "@/utils/hr/safety-compliance-calculator"
+import {
+  calculateCompanyMedicalOverview,
+  CompanyMedicalOverview,
+  EmployeeMedicalRecord,
+} from "@/utils/hr/medical-compliance-calculator"
 import { calculateAnnualLeave } from "@/utils/hr/leave-calculator"
 import { startOfWeek, endOfWeek, format } from "date-fns"
 import {
@@ -657,4 +662,186 @@ export async function toggleVoluntaryOvertimeAgreementAction(
   revalidatePath("/hr/time")
   return { success: true }
 }
+
+/**
+ * Lekéri az aktív cég összes munkavállalójának foglalkozás-egészségügyi (orvosi alkalmassági) adatait
+ * (Mvt. 49. § (1) és 33/1998. NM rendelet), és kiszámítja a hatósági lejárati státuszokat és cégszintű KPI mutatókat.
+ */
+export async function getCompanyMedicalComplianceData(): Promise<CompanyMedicalOverview> {
+  const supabase = await createClient()
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+
+  // 1. Dolgozók lekérése az aktív cégből
+  const { data: rawEmployees } = await supabase
+    .from("hr_jogviszony")
+    .select(`
+      id,
+      dolgozo_id,
+      kilepes_datuma,
+      hr_dolgozo_adatlap (
+        id,
+        orvosi_alkalmassag_ervenyesseg,
+        felhasznalo_profil (
+          id,
+          nev,
+          avatar_url,
+          hr_szervezeti_egyseg:hr_szervezeti_egyseg_id ( id, nev )
+        )
+      ),
+      hr_beosztas (
+        hr_munkakor ( megnevezes )
+      )
+    `)
+    .eq("company_id", companyScope)
+    .order("created_at", { ascending: false })
+
+  // 2. Orvosi vizsgálatok lekérése (legfrissebb elöl)
+  const { data: rawExams } = await supabase
+    .from("hr_orvosi_vizsgalat")
+    .select(`
+      id,
+      dolgozo_id,
+      tipus,
+      vizsgalat_datuma,
+      ervenyesseg_datuma,
+      eredmeny,
+      megjegyzes,
+      orvos_neve,
+      szakrendeles,
+      fajl_url,
+      dokumentum_id,
+      iktatoszam,
+      ugyirat_id
+    `)
+    .order("vizsgalat_datuma", { ascending: false })
+    .order("created_at", { ascending: false })
+
+  // Csoportosítás dolgozónként (legfrissebb vizsgálat kiválasztása)
+  const examsByEmployee = new Map<string, any>()
+  for (const ex of rawExams || []) {
+    if (!ex.dolgozo_id) continue
+    if (!examsByEmployee.has(ex.dolgozo_id)) {
+      examsByEmployee.set(ex.dolgozo_id, ex)
+    }
+  }
+
+  // Dolgozók feldolgozása
+  const processedEmployeeIds = new Set<string>()
+  const employeeRecords: EmployeeMedicalRecord[] = []
+  const todayStr = new Date().toISOString().split("T")[0]
+
+  for (const j of (rawEmployees as any[]) || []) {
+    if (!j.dolgozo_id || processedEmployeeIds.has(j.dolgozo_id)) continue
+    // Csak aktív vagy jövőben kilépő dolgozók
+    if (j.kilepes_datuma && j.kilepes_datuma < todayStr) continue
+
+    processedEmployeeIds.add(j.dolgozo_id)
+
+    const adatlap = Array.isArray(j.hr_dolgozo_adatlap)
+      ? j.hr_dolgozo_adatlap[0]
+      : j.hr_dolgozo_adatlap
+    const rawProfil = adatlap?.felhasznalo_profil
+    const profil = Array.isArray(rawProfil) ? rawProfil[0] : rawProfil
+    const nev = profil?.nev || "Névtelen munkatárs"
+    const avatarUrl = profil?.avatar_url || profil?.avatarUrl || null
+    const orgUnit = Array.isArray(profil?.hr_szervezeti_egyseg)
+      ? profil.hr_szervezeti_egyseg[0]
+      : profil?.hr_szervezeti_egyseg
+    const reszlegNev = orgUnit?.nev || "Nincs részleg"
+    const munkakor = Array.isArray(j.hr_beosztas)
+      ? j.hr_beosztas[0]?.hr_munkakor?.megnevezes || "Nincs megadva"
+      : (j.hr_beosztas as any)?.hr_munkakor?.megnevezes || "Nincs megadva"
+
+    const exam = examsByEmployee.get(j.dolgozo_id)
+    const fallbackExpiry = adatlap?.orvosi_alkalmassag_ervenyesseg || null
+
+    if (exam) {
+      employeeRecords.push({
+        dolgozoId: j.dolgozo_id,
+        nev,
+        avatarUrl,
+        szervezetiEgysegNev: reszlegNev,
+        munkakorMegnevezes: munkakor,
+        vizsgalatId: exam.id,
+        vizsgalatTipusa: exam.tipus,
+        vizsgalatDatuma: exam.vizsgalat_datuma,
+        ervenyessegDatuma: exam.ervenyesseg_datuma || fallbackExpiry,
+        eredmeny: exam.eredmeny,
+        orvosNeve: exam.orvos_neve || null,
+        szakrendeles: exam.szakrendeles || null,
+        megjegyzes: exam.megjegyzes || null,
+        dokumentumId: exam.dokumentum_id || null,
+        iktatoszam: exam.iktatoszam || null,
+        ugyiratId: exam.ugyirat_id || null,
+        fajlUrl: exam.fajl_url || null,
+      })
+    } else if (fallbackExpiry) {
+      employeeRecords.push({
+        dolgozoId: j.dolgozo_id,
+        nev,
+        avatarUrl,
+        szervezetiEgysegNev: reszlegNev,
+        munkakorMegnevezes: munkakor,
+        vizsgalatId: null,
+        vizsgalatTipusa: "alapadat",
+        vizsgalatDatuma: null,
+        ervenyessegDatuma: fallbackExpiry,
+        eredmeny: "alkalmas",
+        orvosNeve: null,
+        szakrendeles: null,
+        megjegyzes: null,
+        dokumentumId: null,
+        iktatoszam: null,
+        ugyiratId: null,
+        fajlUrl: null,
+      })
+    } else {
+      employeeRecords.push({
+        dolgozoId: j.dolgozo_id,
+        nev,
+        avatarUrl,
+        szervezetiEgysegNev: reszlegNev,
+        munkakorMegnevezes: munkakor,
+        vizsgalatId: null,
+        vizsgalatTipusa: null,
+        vizsgalatDatuma: null,
+        ervenyessegDatuma: null,
+        eredmeny: null,
+        orvosNeve: null,
+        szakrendeles: null,
+        megjegyzes: null,
+        dokumentumId: null,
+        iktatoszam: null,
+        ugyiratId: null,
+        fajlUrl: null,
+      })
+    }
+  }
+
+  // Kalkuláció a tiszta motorral
+  const overview = calculateCompanyMedicalOverview(employeeRecords, new Date())
+
+  // Rendezés: Nem alkalmas, hiányzó és lejárt elöl, majd hamarosan lejáró, majd érvényes, végül név szerint
+  overview.items.sort((a, b) => {
+    const statusWeight: Record<string, number> = {
+      nem_alkalmas: 5,
+      hianyzik: 4,
+      lejart: 3,
+      hamarosan_lejar: 2,
+      ervenyes: 1,
+    }
+    const weightDiff = (statusWeight[b.status] || 0) - (statusWeight[a.status] || 0)
+    if (weightDiff !== 0) return weightDiff
+
+    if (a.daysRemaining !== null && b.daysRemaining !== null) {
+      return a.daysRemaining - b.daysRemaining
+    }
+
+    return a.nev.localeCompare(b.nev, "hu")
+  })
+
+  return overview
+}
+
 

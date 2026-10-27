@@ -118,8 +118,9 @@ Fokozott biztonságú, Security Definer RPC rétegen keresztül kezelt (`get_dec
 
 ## 6. Toborzás (ATS) és Karrierportál
 
-- `hr_allashirdetes`: `id`, `pozicio`, `osztaly`, `leiras`, `kovetelmenyek`, `bersav`, `statusz`, `felelos_toborzo_id`.
-- `hr_toborzas`: `id`, `nev`, `email`, `megpalyazott_munkakor_id`, `statusz` (`uj`, `szures`, `interju`, `ajanlat`, `felvetel`, `elutasitva`), `cv_storage_path`.
+- `hr_allashirdetes`: `id`, `company_id`, `munkakor_id`, `cim`, `rovid_leiras`, `reszletes_leiras`, `munkavegzes_modja` (`irodai`, `hibrid`, `remote`), `helyszin`, `foglalkoztatas_tipusa` (`teljes_munkaido`, `reszmunkaido`, `megbizasi`, `gyakornok`), `tapasztalati_szint` (`junior`, `medior`, `senior`, `lead`), `reszleg_nev`, `bersav_min`, `bersav_max`, `bersav_publikus`, `nyitva_tol`, `jelentkezesi_hatarido`, `aktiv`, `publikus`, `is_internal`.
+- `hr_toborzas`: `id`, `company_id`, `nev`, `email`, `telefonszam`, `megpalyazott_munkakor_id`, `allashirdetes_id`, `palyazati_kod` (`KAR-YYYY-XXXXXX`), `linkedin_url`, `berigeny`, `kezdesi_ido`, `forras`, `megpalyazott_terulet`, `statusz` (`uj`, `szures`, `interju`, `ajanlat`, `elfogadva`, `elutasitva`, `talent_pool`), `cv_url`.
+- `companies.career_presentation`: `jsonb` oszlop a `public.companies` táblán a többcéges, 5 fejezetes AI „Cégünkről” (Employer Branding) prezentáció tárolására (`briefing`, `heroSlide`, `cultureSlide`, `environmentSlide`, `perksSlide`, `closingSlide`).
 
 ---
 

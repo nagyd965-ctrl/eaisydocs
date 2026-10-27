@@ -7,25 +7,37 @@ import { AddCandidateDialog } from "@/components/hr/add-candidate-dialog"
 import { JobPostingsList } from "@/components/hr/job-postings-list"
 import { TalentPoolList } from "@/components/hr/talent-pool-list"
 import { RecruitmentAnalytics } from "@/components/hr/recruitment-analytics"
+import { CompanyPresentationEditor } from "@/components/hr/company-presentation-editor"
+import { CompanyCareerPresentation } from "@/utils/hr/career-presentation-types"
 
 export function RecruitmentTabs({
   candidates,
   postings,
   jobs,
+  activeCompany,
   isReadOnly,
 }: {
   candidates: any[]
   postings: any[]
   jobs: any[]
+  activeCompany: {
+    id: string
+    name: string
+    address?: string | null
+    careerPresentation?: CompanyCareerPresentation | null
+  }
   isReadOnly: boolean
 }) {
   const [tab, setTab] = useState("postings")
 
   return (
-    <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex justify-between items-center shrink-0 mb-4">
+    <Tabs value={tab} onValueChange={setTab} className="w-full flex flex-col">
+      <div className="flex justify-between items-center shrink-0 mb-5 flex-wrap gap-2">
         <TabsList>
           <TabsTrigger value="postings">Álláshirdetések</TabsTrigger>
+          <TabsTrigger value="company-presentation">
+            Cégünkről (AI Prezentáció)
+          </TabsTrigger>
           <TabsTrigger value="kanban">Kanban Tábla</TabsTrigger>
           <TabsTrigger value="talent-pool">Talent Pool</TabsTrigger>
           <TabsTrigger value="analytics">Analitika</TabsTrigger>
@@ -39,7 +51,7 @@ export function RecruitmentTabs({
         )}
       </div>
 
-      <TabsContent value="postings" className="flex-1 overflow-auto m-0 p-0">
+      <TabsContent value="postings" className="w-full m-0 p-0">
         <JobPostingsList
           initialPostings={postings}
           jobs={jobs}
@@ -47,15 +59,25 @@ export function RecruitmentTabs({
         />
       </TabsContent>
 
-      <TabsContent value="kanban" className="flex-1 overflow-hidden m-0 p-0">
+      <TabsContent value="company-presentation" className="w-full m-0 p-0">
+        <CompanyPresentationEditor
+          companyId={activeCompany.id}
+          companyName={activeCompany.name}
+          companyAddress={activeCompany.address}
+          initialPresentation={activeCompany.careerPresentation}
+          isReadOnly={isReadOnly}
+        />
+      </TabsContent>
+
+      <TabsContent value="kanban" className="w-full h-[calc(100vh-14rem)] overflow-hidden m-0 p-0">
         <KanbanBoard initialCandidates={candidates} />
       </TabsContent>
 
-      <TabsContent value="talent-pool" className="flex-1 overflow-hidden m-0 p-0">
+      <TabsContent value="talent-pool" className="w-full m-0 p-0">
         <TalentPoolList candidates={candidates} />
       </TabsContent>
 
-      <TabsContent value="analytics" className="flex-1 overflow-y-auto m-0 p-0 pr-4">
+      <TabsContent value="analytics" className="w-full m-0 p-0">
         <RecruitmentAnalytics candidates={candidates} jobs={jobs} />
       </TabsContent>
     </Tabs>

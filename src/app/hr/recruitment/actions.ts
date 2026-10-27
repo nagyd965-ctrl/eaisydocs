@@ -390,3 +390,104 @@ export async function updateCandidateNote(candidateId: string, note: string) {
   revalidatePath("/hr/recruitment")
   return { success: true, newNotesString }
 }
+
+export interface SaveJobPostingPayload {
+  id?: string
+  cim: string
+  munkakor_id: string
+  rovid_leiras?: string | null
+  reszletes_leiras?: string | null
+  is_internal?: boolean
+  munkavegzes_modja?: string | null
+  helyszin?: string | null
+  foglalkoztatas_tipusa?: string | null
+  tapasztalati_szint?: string | null
+  reszleg_nev?: string | null
+  bersav_min?: number | null
+  bersav_max?: number | null
+  bersav_publikus?: boolean
+  jelentkezesi_hatarido?: string | null
+  company_id?: string | null
+}
+
+export async function saveJobPostingAction(payload: SaveJobPostingPayload) {
+  const auth = await verifyRecruitmentAccess()
+  if (!auth.allowed || !auth.activeCompanyId || !auth.user) {
+    return { error: auth.error || "Hozzáférés megtagadva" }
+  }
+
+  const adminClient = getAdminClient()
+
+  // Garantált cég-hozzárendelés: az aktív cégből (vagy a munkakör cégéből)
+  let targetCompanyId = auth.activeCompanyId || payload.company_id || null
+  if (payload.munkakor_id) {
+    const { data: jobRow } = await adminClient
+      .from("hr_munkakor")
+      .select("company_id, hr_szervezeti_egyseg:szervezeti_egyseg_id(nev)")
+      .eq("id", payload.munkakor_id)
+      .maybeSingle()
+    if (jobRow?.company_id) {
+      targetCompanyId = jobRow.company_id
+    }
+    if (!payload.reszleg_nev) {
+      const org = Array.isArray((jobRow as any)?.hr_szervezeti_egyseg)
+        ? (jobRow as any).hr_szervezeti_egyseg[0]
+        : (jobRow as any)?.hr_szervezeti_egyseg
+      if (org?.nev) {
+        payload.reszleg_nev = org.nev
+      }
+    }
+  }
+
+  const recordData: Record<string, unknown> = {
+    cim: payload.cim.trim(),
+    munkakor_id: payload.munkakor_id,
+    rovid_leiras: payload.rovid_leiras?.trim() || null,
+    reszletes_leiras: payload.reszletes_leiras?.trim() || null,
+    is_internal: !!payload.is_internal,
+    munkavegzes_modja: payload.munkavegzes_modja || "hibrid",
+    helyszin: payload.helyszin?.trim() || null,
+    foglalkoztatas_tipusa: payload.foglalkoztatas_tipusa || "teljes_munkaido",
+    tapasztalati_szint: payload.tapasztalati_szint || "medior",
+    reszleg_nev: payload.reszleg_nev?.trim() || null,
+    bersav_min: payload.bersav_min || null,
+    bersav_max: payload.bersav_max || null,
+    bersav_publikus: !!payload.bersav_publikus,
+    jelentkezesi_hatarido: payload.jelentkezesi_hatarido || null,
+    company_id: targetCompanyId,
+  }
+
+  if (payload.id) {
+    const { data: updated, error } = await adminClient
+      .from("hr_allashirdetes")
+      .update(recordData)
+      .eq("id", payload.id)
+      .select("*, hr_munkakor (megnevezes)")
+      .single()
+
+    if (error) {
+      console.error("Hiba álláshirdetés frissítésekor:", error)
+      return { error: error.message }
+    }
+
+    revalidatePath("/hr/recruitment")
+    revalidatePath("/karrier")
+    revalidatePath(`/karrier/${payload.id}`)
+    return { success: true, data: updated }
+  } else {
+    const { data: inserted, error } = await adminClient
+      .from("hr_allashirdetes")
+      .insert(recordData)
+      .select("*, hr_munkakor (megnevezes)")
+      .single()
+
+    if (error) {
+      console.error("Hiba álláshirdetés létrehozásakor:", error)
+      return { error: error.message }
+    }
+
+    revalidatePath("/hr/recruitment")
+    revalidatePath("/karrier")
+    return { success: true, data: inserted }
+  }
+}

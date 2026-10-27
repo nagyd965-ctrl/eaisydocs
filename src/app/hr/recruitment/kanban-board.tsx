@@ -78,7 +78,12 @@ function SortableItem({ id, candidate, onClick }: { id: string, candidate: any, 
             </span>
           )}
         </div>
-        <div className="text-xs text-muted-foreground">{candidate.hr_munkakor?.megnevezes || candidate.pozicio || "Nincs megadva"}</div>
+        <div className="text-xs text-muted-foreground">{candidate.hr_allashirdetes?.cim || candidate.hr_munkakor?.megnevezes || (candidate.megpalyazott_terulet ? `Talent Pool (${candidate.megpalyazott_terulet})` : candidate.pozicio || "Nyitott jelentkezés")}</div>
+        {candidate.berigeny && (
+          <div className="text-[11px] font-medium text-primary tabular-nums">
+            Bérigény: {new Intl.NumberFormat("hu-HU").format(candidate.berigeny)} Ft/hó
+          </div>
+        )}
         <div className="flex items-center justify-between pt-2">
           <span className="text-[10px] text-muted-foreground tabular-nums">{new Date(candidate.created_at).toLocaleDateString("hu-HU")}</span>
           <div className="h-6 w-6 bg-primary/10 text-primary rounded flex items-center justify-center text-[10px] font-semibold">

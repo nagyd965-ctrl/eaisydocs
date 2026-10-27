@@ -4,6 +4,18 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-27)
 
+### eaisyHR: Többcéges Karrierportál, 5-Lépéses AI „Cégünkről” Prezentáció Varázsló és Pályázatkövető Rendszer (ADR A-086, PRD P-118)
+- **Adatbázis Migrációk (`20261027000001_career_portal_pro_upgrade.sql`, `20261027000002_add_career_presentation_to_companies.sql`):**
+  - A `hr_allashirdetes` tábla strukturált álláshirdetés-metaadatokkal (`munkavegzes_modja`, `helyszin`, `foglalkoztatas_tipusa`, `tapasztalati_szint`, `reszleg_nev`) és EU Bértranszparencia szerinti bérsáv mezőkkel (`bersav_min`, `bersav_max`, `bersav_publikus`) bővült.
+  - A `hr_toborzas` tábla egyedi pályázatkövető azonosítóval (`palyazati_kod`, pl. `KAR-2026-XXXXXX`), valamint `linkedin_url`, `berigeny`, `kezdesi_ido`, `forras` és `megpalyazott_terulet` oszlopokkal egészült ki.
+  - A `companies` tábla megkapta a `career_presentation jsonb` oszlopot a többcéges, 5 fejezetes AI vállalati prezentáció tárolására, kezdő adatokkal a `Think AI Kft.`, `SANDBOX` és `Teszt Kft.` vállalatokhoz.
+- **Teljes Szélességű, 5 Lépéses AI „Cégünkről” Prezentáció Varázsló (`src/components/hr/company-presentation-editor.tsx`, `src/app/hr/recruitment/company-presentation-actions.ts`, `src/app/hr/recruitment/recruitment-tabs.tsx`):**
+  - A `/hr/recruitment` oldalon új **`Cégünkről (AI Prezentáció)`** fül érhető el teljes képernyőszélességben (`w-full`), 5 lépéses vízszintes Stepper vezérlővel (`01. Alapadatok & Küldetés`, `02. Kultúra & Juttatások`, `03. Fotóvilág & Saját képek`, `04. AI Generálás & Szövegek`, `05. Előnézet & Publikálás`).
+  - A `Google Gemini 2.5 Flash` modell a megadott vállalati adatokból 5 fejezetes magyar nyelvű prezentációt generál, a HR-es pedig 4 kurált fotóvilág sablon közül választhat vagy saját irodai/csapatfotókat tölthet fel.
+- **Belépő Vállalatválasztó Képernyő, Egycéges Karrieroldal és Interaktív „Cégünkről” Prezentáció (`src/components/hr/career-portal-client.tsx`, `src/components/hr/company-presentation-viewer.tsx`, `src/app/karrier/page.tsx`, `src/app/karrier/[id]/page.tsx`):**
+  - A `/karrier` nyitóoldalon a pályázó először kiválasztja a vállalatot (`Think AI Kft.`, `SANDBOX`, `Teszt Kft.`), majd a kiválasztás után a teljes karrieroldal kizárólag az adott vállalat nyitott pozícióit és `Cégünkről — Vállalati Prezentáció` anyagát jeleníti meg (redundáns belső cégválasztók és duplikált menügombok nélkül).
+  - Az állásrészletező oldal (`/karrier/[id]`) strukturált pozíció-névjegyet, EU bérsáv-jelvényt, „Cégünkről” előnézeti kártyát, az űrlap (`application-form.tsx`) pedig egyedi `KAR-2026-...` pályázati azonosító visszaigazolást és státuszlekérdező modált kapott.
+
 ### eaisyHR: Compliance Hub Szabadságkiadás (Mt. 122. §) Lekérdezés Javítás és Deep Analysis Feladatlista
 - **Compliance Hub Szabadságkiadás Lekérdezés Javítása (`src/app/hr/compliance/compliance-actions.ts`):**
   - A `getCompanyLeaveComplianceData` függvényben a `hr_tavollet` tábla `.select(...)` mezőlistájából eltávolításra került a nem létező `indoklas` oszlop, amely korábban PostgREST hibát okozott és lenullázta a kivett/tervezett szabadságnapok és a 14 napos egybefüggő pihenőidő kalkulációját.
@@ -28,6 +40,8 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
   - A Talent Pool oldalsáv törlés/frissítés műveletei (`deleteCandidate` + `router.refresh()`) és a pozíciónév megjelenítés bekötésre került.
   - A `LeaveTab.tsx` a kérelmek száma helyett a munkanapok összegét (`calculateWorkingDays`) számolja, az iktatott HR dokumentumok jelvényei pedig közvetlenül a `/dossiers/[id]` oldalra mutatnak.
   - A `/hr/orgunit/[id]` és `/hr/job/[id]` részletoldalak dolgozó- és egység-hozzárendelő listái az adott cégre (`company_id`) szűrnek.
+- **Munkaügyi és Munkavédelmi Megfelelőség – Orvosi Alkalmasság Fül és Fejléc Letisztítás (`src/app/hr/compliance/page.tsx`, `src/app/hr/compliance/compliance-actions.ts`, `src/utils/hr/medical-compliance-calculator.ts`, `src/components/hr/medical-compliance-table.tsx`, PRD [P-117](../product/decisions/P-117-hr-compliance-medical-suitability-tab-ux.md)):**
+  - A Munkaügyi és Munkavédelmi Megfelelőség (`/hr/compliance`) oldal 4. füllel (**`Orvosi alkalmasság`**, Mvt. 49. § (1) és 33/1998. NM rendelet) bővült, amely céges szinten összesíti az aktív munkavállalók foglalkozás-egészségügyi alkalmassági állapotát (`hr_orvosi_vizsgalat` + `hr_dolgozo_adatlap.orvosi_alkalmassag_ervenyesseg` fallback), 4 kanonikus `KpiCard` mutatóval, `TableToolbar` szűrőkkel, CSV exporttal, `PdfViewerDialog` előnézettel, közvetlen személyi dosszié iktatással és helyi vizsgálat-rögzítő modállal, továbbá a főcímről eltávolításra került a `(Compliance Hub)` zárójeles toldalék.
   - A `LeaveRequestDialog` alapértelmezett típusa `"szabadsag"` lett, az `EmployeeKpiWidget` megkülönbözteti a `"2. Önértékelés leadva"` állapotot, a `Profilom` oldal pedig fallbackként a `hr_dolgozo_adatlap.orvosi_alkalmassag_ervenyesseg` dátumot is figyelembe veszi.
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-25)

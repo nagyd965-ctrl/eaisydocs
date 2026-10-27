@@ -37,6 +37,8 @@ Az eaisyHR modul 22 pontos mélyelemzése ([docs/eaisyhr-deep-analysis-javitasi-
    - A `LeaveRequestDialog` alapértelmezett típusa `"szabadsag"` (Rendes szabadság).
    - Az `EmployeeKpiWidget` az önértékelés szövegének meglétekor `"2. Önértékelés leadva"` jelvényt jelenít meg.
    - A `/hr/self-service/profile` oldalon az orvosi alkalmasság érvényessége `orvosi?.ervenyesseg_datuma || adatlap?.orvosi_alkalmassag_ervenyesseg || null` fallbackkel töltődik be.
+6. **Cégszintű Orvosi alkalmasság fül a Munkaügyi Megfelelőség (`/hr/compliance`) oldalon:**
+   - A `/hr/compliance` oldal kiegészült egy 4. füllel (**`Orvosi alkalmasság`**, Mvt. 49. § (1) és 33/1998. NM rendelet), amely céges szinten összesíti az összes aktív munkavállaló foglalkozás-egészségügyi alkalmassági állapotát (4 kanonikus `KpiCard`, `TableToolbar` szűrőkkel és CSV exporttal, `PdfViewerDialog` előnézettel, közvetlen eaisyDocs személyi dosszié iktatással és helyi vizsgálat-rögzítő modállal).
 
 ---
 

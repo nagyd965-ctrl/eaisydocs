@@ -5,10 +5,12 @@ import {
   getCompanyLeaveComplianceData,
   getCompanySafetyComplianceData,
   getCompanyOvertimeComplianceData,
+  getCompanyMedicalComplianceData,
 } from "./compliance-actions"
 import { LeaveComplianceTable } from "@/components/hr/leave-compliance-table"
 import { SafetyTrainingTable } from "@/components/hr/safety-training-table"
 import { OvertimeComplianceTable } from "@/components/hr/overtime-compliance-table"
+import { MedicalComplianceTable } from "@/components/hr/medical-compliance-table"
 import { KpiCard } from "@/components/kpi-card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
@@ -33,10 +35,11 @@ export default async function CompliancePage() {
   const companyScope = auth.companyScope
   const currentYear = new Date().getFullYear()
 
-  const [leaveData, safetyData, overtimeData] = await Promise.all([
+  const [leaveData, safetyData, overtimeData, medicalData] = await Promise.all([
     getCompanyLeaveComplianceData(currentYear),
     getCompanySafetyComplianceData(),
     getCompanyOvertimeComplianceData(currentYear),
+    getCompanyMedicalComplianceData(),
   ])
 
   const leaveCompliancePercent =
@@ -54,15 +57,15 @@ export default async function CompliancePage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Munkaügyi és Munkavédelmi Megfelelőség (Compliance Hub)
+            Munkaügyi és Munkavédelmi Megfelelőség
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Az Mt. 122–123. § szabadságkiadás, az Mt. 99. és 135. § munkaidő- és túlórakeretek, valamint az Mvt. 55. § / Ttv. 22. § oktatások központi felügyelete.
+            Az Mt. 122–123. § szabadságkiadás, az Mt. 99. és 135. § munkaidő- és túlórakeretek, az Mvt. 55. § / Ttv. 22. § oktatások, valamint az Mvt. 49. § / 33/1998. NM rendelet szerinti orvosi alkalmassági vizsgálatok központi felügyelete.
           </p>
         </div>
       </div>
 
-      {/* ── 2. TABS RENDSZER (Szabadság vs Munkaidő és túlórakeret vs Munkavédelem és Tűzvédelem) ── */}
+      {/* ── 2. TABS RENDSZER ── */}
       <Tabs defaultValue="leave" className="space-y-6">
         <TabsList className="bg-muted/60 p-1">
           <TabsTrigger value="leave" className="text-xs font-medium">
@@ -73,6 +76,9 @@ export default async function CompliancePage() {
           </TabsTrigger>
           <TabsTrigger value="safety" className="text-xs font-medium">
             Munkavédelem és Tűzvédelem
+          </TabsTrigger>
+          <TabsTrigger value="medical" className="text-xs font-medium">
+            Orvosi alkalmasság
           </TabsTrigger>
         </TabsList>
 
@@ -187,6 +193,45 @@ export default async function CompliancePage() {
 
           {/* Munkavédelmi Táblázat */}
           <SafetyTrainingTable initialData={safetyData} />
+        </TabsContent>
+
+        {/* ── FÜL 4: ORVOSI ALKALMASSÁG (Mvt. 49. §, 33/1998. NM rendelet) ── */}
+        <TabsContent value="medical" className="space-y-6">
+          {/* KPI Kártyák */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard
+              label="Orvosi alkalmassági lefedettség"
+              value={`${medicalData.validCount + medicalData.expiringSoonCount} / ${medicalData.totalEmployees} fő`}
+              sub={`${medicalData.compliancePercent}% céges megfelelőség`}
+            />
+            <KpiCard
+              label="Érvényes alkalmassági"
+              value={`${medicalData.validCount} fő`}
+              sub="Munkavégzésre és műszakbeosztásra alkalmas (> 30 nap)"
+            />
+            <KpiCard
+              label="Hamarosan lejáró (30 nap)"
+              value={`${medicalData.expiringSoonCount} fő`}
+              sub="Időszakos vizsgálat szervezése szükséges"
+              highlight={medicalData.expiringSoonCount > 0}
+            />
+            <KpiCard
+              label="Lejárt vagy hiányzik"
+              value={`${medicalData.expiredOrMissingCount} fő`}
+              sub={
+                medicalData.expiredOrMissingCount > 0
+                  ? "Mvt. 49. §: műszakbeosztás és munkavégzés blokkolva!"
+                  : "Minden munkatárs érvényes vizsgálattal rendelkezik"
+              }
+              highlight={medicalData.expiredOrMissingCount > 0}
+            />
+          </div>
+
+          {/* Orvosi Alkalmassági Táblázat */}
+          <MedicalComplianceTable
+            initialData={medicalData}
+            userRole={auth.isCompanyAdmin ? "admin" : auth.hrRole}
+          />
         </TabsContent>
       </Tabs>
     </div>
