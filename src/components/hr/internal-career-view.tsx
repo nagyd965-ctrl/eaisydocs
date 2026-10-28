@@ -6,8 +6,20 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { KpiCard } from "@/components/kpi-card"
-import { TableToolbar, FilterGroup } from "@/components/table-toolbar/table-toolbar"
+import {
+  TableToolbar,
+  FilterGroup,
+  TableColumnOption,
+} from "@/components/table-toolbar/table-toolbar"
 import {
   Briefcase,
   ArrowRight,
@@ -21,6 +33,8 @@ import {
   XCircle,
   Loader2,
   Trash2,
+  LayoutGrid,
+  List,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -31,6 +45,10 @@ import {
   withdrawInternalApplicationAction,
   type InternalJobApplication,
 } from "@/app/hr/self-service/career/referral-actions"
+import {
+  WORK_MODE_LABELS,
+  SENIORITY_LABELS,
+} from "@/utils/hr/career-constants"
 import type { EmployeeReferral } from "@/types/hr"
 
 export interface InternalJobPosting {
@@ -42,6 +60,14 @@ export interface InternalJobPosting {
   nyitva_ig?: string | null
   is_internal?: boolean | null
   publikus?: boolean | null
+  munkavegzes_modja?: string | null
+  foglalkoztatas_tipusa?: string | null
+  tapasztalati_szint?: string | null
+  helyszin?: string | null
+  reszleg_nev?: string | null
+  bersav_min?: number | null
+  bersav_max?: number | null
+  bersav_publikus?: boolean | null
   created_at?: string
   hr_munkakor?: {
     id?: string
@@ -90,8 +116,32 @@ export function InternalCareerView({
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([])
-  const [onlyInternal, setOnlyInternal] = useState(false)
-  const [onlyPublic, setOnlyPublic] = useState(false)
+  const [selectedWorkModes, setSelectedWorkModes] = useState<string[]>([])
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards")
+
+  const [columns, setColumns] = useState<TableColumnOption[]>([
+    { id: "cim", label: "Pozíció megnevezése", isVisible: true },
+    { id: "reszleg", label: "Részleg", isVisible: true },
+    { id: "munkakor", label: "Munkakör és szint", isVisible: true },
+    { id: "munkavegzes", label: "Munkavégzés módja", isVisible: true },
+    { id: "kozzeteve", label: "Közzétéve", isVisible: true },
+    { id: "bonusz", label: "Ajánlási sikerdíj", isVisible: true },
+  ])
+
+  const isColVisible = (colId: string) =>
+    columns.find((c) => c.id === colId)?.isVisible ?? true
+
+  const handleToggleColumn = (colId: string) => {
+    setColumns((prev) =>
+      prev.map((c) => (c.id === colId ? { ...c, isVisible: !c.isVisible } : c))
+    )
+  }
+
+  // A Belső Állások nézetben kizárólag a valóban belsőnek meghirdetett (is_internal = true) állásokat listázzuk
+  const internalPostings = useMemo(
+    () => postings.filter((job) => Boolean(job.is_internal)),
+    [postings]
+  )
 
   // Bónusz formázó
   const formattedBonus = new Intl.NumberFormat("hu-HU", {
@@ -102,6 +152,7 @@ export function InternalCareerView({
 
   // Részleg kinyerése segédfüggvény
   const getJobDepartment = (job: InternalJobPosting): string => {
+    if (job.reszleg_nev?.trim()) return job.reszleg_nev.trim()
     const unit = job.hr_munkakor?.hr_szervezeti_egyseg
     if (Array.isArray(unit)) {
       return unit[0]?.nev || "Általános / Egyéb"
@@ -109,21 +160,21 @@ export function InternalCareerView({
     return unit?.nev || "Általános / Egyéb"
   }
 
-  // Összes elérhető részleg és darabszámaik
+  // Összes elérhető részleg és darabszámaik (belső állásokra)
   const departmentsWithCounts = useMemo(() => {
     const counts = new Map<string, number>()
-    postings.forEach((job) => {
+    internalPostings.forEach((job) => {
       const dept = getJobDepartment(job)
       counts.set(dept, (counts.get(dept) || 0) + 1)
     })
     return Array.from(counts.entries())
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => a.name.localeCompare(b.name, "hu"))
-  }, [postings])
+  }, [internalPostings])
 
-  // Szűrt pozíciók
+  // Szűrt belső pozíciók
   const filteredPostings = useMemo(() => {
-    return postings.filter((job) => {
+    return internalPostings.filter((job) => {
       // 1. Szöveges keresés (cím, leírás, munkakör, részleg)
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase()
@@ -145,40 +196,21 @@ export function InternalCareerView({
         }
       }
 
-      // 3. Kizárólag belső
-      if (onlyInternal && !job.is_internal) {
-        return false
-      }
-
-      // 4. Publikus
-      if (onlyPublic && !job.publikus) {
-        return false
+      // 3. Munkavégzés módja szűrő
+      if (selectedWorkModes.length > 0) {
+        const wm = job.munkavegzes_modja || "hibrid"
+        if (!selectedWorkModes.includes(wm)) {
+          return false
+        }
       }
 
       return true
     })
-  }, [postings, searchTerm, selectedDepartments, onlyInternal, onlyPublic])
+  }, [internalPostings, searchTerm, selectedDepartments, selectedWorkModes])
 
-  // KPI statisztikák az állásokhoz
-  const totalCount = postings.length
-  const internalCount = postings.filter((j) => j.is_internal).length
+  // KPI statisztikák a belső állásokhoz
+  const internalCount = internalPostings.length
   const departmentsCount = departmentsWithCounts.length
-
-  const latestJob = useMemo(() => {
-    if (postings.length === 0) return null
-    return [...postings].sort((a, b) => {
-      const dateA = new Date(a.nyitva_tol || a.created_at || 0).getTime()
-      const dateB = new Date(b.nyitva_tol || b.created_at || 0).getTime()
-      return dateB - dateA
-    })[0]
-  }, [postings])
-
-  const latestJobDateStr = latestJob?.nyitva_tol || latestJob?.created_at
-    ? new Date(latestJob.nyitva_tol || latestJob.created_at!).toLocaleDateString("hu-HU", {
-        month: "short",
-        day: "numeric",
-      })
-    : "-"
 
   // Szűrőcsoportok a TableToolbar-hoz
   const filterGroups: FilterGroup[] = [
@@ -197,40 +229,28 @@ export function InternalCareerView({
       },
     },
     {
-      id: "scope",
-      title: "Állás Jellege",
-      options: [
-        {
-          id: "only_internal",
-          label: `Kizárólag belső pályázat (${internalCount})`,
-          checked: onlyInternal,
-        },
-        {
-          id: "only_public",
-          label: `Külsőleg is nyitott (${postings.filter((j) => j.publikus).length})`,
-          checked: onlyPublic,
-        },
-      ],
-      onToggle: (optId) => {
-        if (optId === "only_internal") {
-          setOnlyInternal((prev) => !prev)
-        } else if (optId === "only_public") {
-          setOnlyPublic((prev) => !prev)
-        }
+      id: "work_mode",
+      title: "Munkavégzés módja",
+      options: Object.entries(WORK_MODE_LABELS).map(([key, label]) => ({
+        id: key,
+        label,
+        checked: selectedWorkModes.includes(key),
+      })),
+      onToggle: (wmKey) => {
+        setSelectedWorkModes((prev) =>
+          prev.includes(wmKey) ? prev.filter((k) => k !== wmKey) : [...prev, wmKey]
+        )
       },
     },
   ]
 
   const activeFiltersCount =
-    selectedDepartments.length +
-    (onlyInternal ? 1 : 0) +
-    (onlyPublic ? 1 : 0)
+    selectedDepartments.length + selectedWorkModes.length
 
   const handleClearFilters = () => {
     setSearchTerm("")
     setSelectedDepartments([])
-    setOnlyInternal(false)
-    setOnlyPublic(false)
+    setSelectedWorkModes([])
   }
 
   // Ajánlás frissítése sikeres beküldés után
@@ -310,16 +330,16 @@ export function InternalCareerView({
         </div>
       </div>
 
-      {/* Fülek: Álláshirdetések vs Saját ajánlásaim (Option "A") */}
+      {/* Fülek: Belső álláshirdetések, Saját pályázataim, Saját ajánlásaim */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent gap-2">
           <TabsTrigger
             value="jobs"
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-4 py-2.5 text-xs font-medium gap-2"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-4 py-2.5 text-xs font-medium gap-2 cursor-pointer"
           >
-            <span>Álláshirdetések</span>
+            <span>Belső álláshirdetések</span>
             <span className="inline-flex items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {postings.length}
+              {internalCount}
             </span>
           </TabsTrigger>
 
@@ -348,25 +368,25 @@ export function InternalCareerView({
           </TabsTrigger>
         </TabsList>
 
-        {/* 1. FÜL: ÁLLÁSHIRDETÉSEK */}
+        {/* 1. FÜL: BELSŐ ÁLLÁSHIRDETÉSEK */}
         <TabsContent value="jobs" className="space-y-6 m-0 outline-none">
           {/* KPI Kártyák (Linear Flat Grid – ADR A-029) */}
           <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
             <KpiCard
-              label="Nyitott Pozíciók"
-              value={`${totalCount} állás`}
-              sub="Jelenleg elérhető lehetőségek"
-            />
-            <KpiCard
-              label="Belső Pályázatok"
-              value={`${internalCount} pozíció`}
-              sub="Kizárólag munkatársaknak"
+              label="Nyitott Belső Pozíciók"
+              value={`${internalCount} állás`}
+              sub="Kizárólag munkatársaknak meghirdetve"
               highlight={internalCount > 0}
             />
             <KpiCard
               label="Érintett Területek"
               value={`${departmentsCount} részleg`}
               sub="Különböző szervezeti egységek"
+            />
+            <KpiCard
+              label="Saját Pályázataim"
+              value={`${applications.length} pályázat`}
+              sub="Eddig benyújtott belső jelentkezéseid"
             />
             <KpiCard
               label="Ajánlási Sikerdíj"
@@ -376,140 +396,350 @@ export function InternalCareerView({
             />
           </div>
 
-          {/* Kanonikus TableToolbar (ADR A-029 & PRD P-043) */}
+          {/* Kanonikus TableToolbar (ADR A-029 & PRD P-043) + Kártya/Lista nézetváltó */}
           <TableToolbar
             searchValue={searchTerm}
             onSearchChange={setSearchTerm}
-            searchPlaceholder="Keresés pozíció, leírás vagy munkakör alapján..."
+            searchPlaceholder="Keresés belső pozíció, leírás vagy munkakör alapján..."
+            columns={viewMode === "list" ? columns : undefined}
+            onToggleColumn={viewMode === "list" ? handleToggleColumn : undefined}
             filterGroups={filterGroups}
             activeFiltersCount={activeFiltersCount}
             onClearFilters={handleClearFilters}
+            actions={
+              <div className="inline-flex items-center rounded-md border border-border bg-muted/30 p-0.5 h-9">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("cards")}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-2.5 h-7 rounded-sm text-xs font-medium transition-colors",
+                    viewMode === "cards"
+                      ? "bg-background text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  title="Kártyás nézet"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>Kártyák</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-2.5 h-7 rounded-sm text-xs font-medium transition-colors",
+                    viewMode === "list"
+                      ? "bg-background text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  title="Lista nézet"
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>Lista</span>
+                </button>
+              </div>
+            }
           />
 
-          {/* Pozíciók kártyarácsa */}
+          {/* Pozíciók megjelenítése: Kártyás vagy Lista nézet */}
           {filteredPostings.length > 0 ? (
-            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {filteredPostings.map((hirdetes) => {
-                const dept = getJobDepartment(hirdetes)
-                const dateStr = hirdetes.nyitva_tol || hirdetes.created_at
-                  ? new Date(hirdetes.nyitva_tol || hirdetes.created_at!).toLocaleDateString("hu-HU", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })
-                  : null
+            viewMode === "cards" ? (
+              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                {filteredPostings.map((hirdetes) => {
+                  const dept = getJobDepartment(hirdetes)
+                  const dateStr =
+                    hirdetes.nyitva_tol || hirdetes.created_at
+                      ? new Date(
+                          hirdetes.nyitva_tol || hirdetes.created_at!
+                        ).toLocaleDateString("hu-HU", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })
+                      : null
 
-                return (
-                  <Card
-                    key={hirdetes.id}
-                    className={cn(
-                      "flex flex-col border border-border hover:border-primary/40 transition-colors shadow-none",
-                      hirdetes.is_internal ? "bg-primary/[0.02]" : "bg-card"
-                    )}
-                  >
-                    <CardHeader className="space-y-3 pb-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <CardTitle className="text-lg font-semibold tracking-tight text-foreground line-clamp-1">
-                          {hirdetes.cim}
-                        </CardTitle>
-                        {hirdetes.is_internal && (
+                  return (
+                    <Card
+                      key={hirdetes.id}
+                      className="flex flex-col border border-border hover:border-primary/40 transition-colors shadow-none bg-card"
+                    >
+                      <CardHeader className="space-y-3 pb-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle className="text-lg font-semibold tracking-tight text-foreground line-clamp-1">
+                            {hirdetes.cim}
+                          </CardTitle>
                           <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold bg-primary/10 text-primary border-primary/20 shrink-0">
                             <Lock className="w-3 h-3" />
                             Belső
                           </span>
-                        )}
-                      </div>
+                        </div>
 
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <Badge variant="outline" className="font-normal gap-1 text-muted-foreground border-border/70">
-                          <Building2 className="w-3 h-3 text-primary" />
-                          {dept}
-                        </Badge>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Briefcase className="w-3 h-3 text-muted-foreground/80" />
-                          <span className="truncate max-w-[160px]">
-                            {hirdetes.hr_munkakor?.megnevezes || hirdetes.cim}
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <Badge
+                            variant="outline"
+                            className="font-normal gap-1 text-muted-foreground border-border/70"
+                          >
+                            <Building2 className="w-3 h-3 text-primary" />
+                            {dept}
+                          </Badge>
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Briefcase className="w-3 h-3 text-muted-foreground/80" />
+                            <span className="truncate max-w-[160px]">
+                              {hirdetes.hr_munkakor?.megnevezes || hirdetes.cim}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/30">
+                          {dateStr ? (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-muted-foreground/70" />
+                              <span>Közzétéve: {dateStr}</span>
+                            </div>
+                          ) : (
+                            <div />
+                          )}
+
+                          <span className="inline-flex items-center gap-1 text-primary font-medium text-[11px] tabular-nums">
+                            <Gift className="w-3 h-3" />
+                            {formattedBonus} bónusz
                           </span>
                         </div>
-                      </div>
+                      </CardHeader>
 
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/30">
-                        {dateStr ? (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-muted-foreground/70" />
-                            <span>Közzétéve: {dateStr}</span>
-                          </div>
-                        ) : <div />}
+                      <CardContent className="flex-1 pb-4">
+                        <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
+                          {hirdetes.rovid_leiras ||
+                            "Nincs részletes leírás megadva ehhez a pozícióhoz."}
+                        </p>
+                      </CardContent>
 
-                        <span className="inline-flex items-center gap-1 text-primary font-medium text-[11px]">
-                          <Gift className="w-3 h-3" />
-                          {formattedBonus} bónusz
-                        </span>
-                      </div>
-                    </CardHeader>
-
-                    <CardContent className="flex-1 pb-4">
-                      <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
-                        {hirdetes.rovid_leiras || "Nincs részletes leírás megadva ehhez a pozícióhoz."}
-                      </p>
-                    </CardContent>
-
-                    <div className="p-4 pt-0 mt-auto border-t border-border/40 pt-4 grid grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenReferralForJob(hirdetes.id)}
-                        className="text-xs font-medium gap-1.5"
-                      >
-                        <UserPlus className="w-3.5 h-3.5 text-primary" />
-                        <span>Ajánlás</span>
-                      </Button>
-
-                      {appliedJobIds.has(hirdetes.id) ? (
+                      <div className="p-4 pt-0 mt-auto border-t border-border/40 pt-4 grid grid-cols-2 gap-2">
                         <Button
                           type="button"
-                          variant="secondary"
+                          variant="outline"
                           size="sm"
-                          onClick={() => setActiveTab("applications")}
-                          className="text-xs font-medium gap-1.5 cursor-pointer"
+                          onClick={() => handleOpenReferralForJob(hirdetes.id)}
+                          className="text-xs font-medium gap-1.5"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-success" />
-                          <span>Már pályáztál</span>
+                          <UserPlus className="w-3.5 h-3.5 text-primary" />
+                          <span>Ajánlás</span>
                         </Button>
-                      ) : (
-                        <Link
-                          href={`/karrier/${hirdetes.id}?scope=internal`}
-                          className={cn(
-                            buttonVariants({
-                              variant: hirdetes.is_internal ? "default" : "secondary",
-                              size: "sm",
-                            }),
-                            "text-xs font-medium gap-1.5"
-                          )}
-                        >
-                          <span>Pályázás</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
+
+                        {appliedJobIds.has(hirdetes.id) ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setActiveTab("applications")}
+                            className="text-xs font-medium gap-1.5 cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                            <span>Már pályáztál</span>
+                          </Button>
+                        ) : (
+                          <Link
+                            href={`/karrier/${hirdetes.id}?scope=internal`}
+                            className={cn(
+                              buttonVariants({
+                                variant: "default",
+                                size: "sm",
+                              }),
+                              "text-xs font-medium gap-1.5"
+                            )}
+                          >
+                            <span>Pályázás</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                        )}
+                      </div>
+                    </Card>
+                  )
+                })}
+              </div>
+            ) : (
+              /* LISTA NÉZET (TÁBLÁZAT) */
+              <div className="rounded-lg border border-border bg-card overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      {isColVisible("cim") && (
+                        <TableHead className="text-xs font-semibold">
+                          Pozíció megnevezése
+                        </TableHead>
                       )}
-                    </div>
-                  </Card>
-                )
-              })}
-            </div>
+                      {isColVisible("reszleg") && (
+                        <TableHead className="text-xs font-semibold">
+                          Részleg
+                        </TableHead>
+                      )}
+                      {isColVisible("munkakor") && (
+                        <TableHead className="text-xs font-semibold">
+                          Munkakör és szint
+                        </TableHead>
+                      )}
+                      {isColVisible("munkavegzes") && (
+                        <TableHead className="text-xs font-semibold">
+                          Munkavégzés módja
+                        </TableHead>
+                      )}
+                      {isColVisible("kozzeteve") && (
+                        <TableHead className="text-xs font-semibold">
+                          Közzétéve
+                        </TableHead>
+                      )}
+                      {isColVisible("bonusz") && (
+                        <TableHead className="text-xs font-semibold text-right">
+                          Ajánlási sikerdíj
+                        </TableHead>
+                      )}
+                      <TableHead className="text-xs font-semibold text-right">
+                        Műveletek
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPostings.map((hirdetes) => {
+                      const dept = getJobDepartment(hirdetes)
+                      const dateStr =
+                        hirdetes.nyitva_tol || hirdetes.created_at
+                          ? new Date(
+                              hirdetes.nyitva_tol || hirdetes.created_at!
+                            ).toLocaleDateString("hu-HU", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "–"
+                      const workModeLabel =
+                        WORK_MODE_LABELS[hirdetes.munkavegzes_modja || "hibrid"] ||
+                        "Hibrid munkavégzés"
+                      const seniorityLabel =
+                        SENIORITY_LABELS[hirdetes.tapasztalati_szint || "medior"] ||
+                        "Medior"
+
+                      return (
+                        <TableRow
+                          key={hirdetes.id}
+                          className="hover:bg-muted/30 transition-colors"
+                        >
+                          {isColVisible("cim") && (
+                            <TableCell className="py-3 max-w-[280px]">
+                              <div className="space-y-0.5">
+                                <Link
+                                  href={`/karrier/${hirdetes.id}?scope=internal`}
+                                  className="text-sm font-semibold text-foreground hover:text-primary transition-colors block truncate"
+                                >
+                                  {hirdetes.cim}
+                                </Link>
+                                {hirdetes.rovid_leiras && (
+                                  <p className="text-xs text-muted-foreground line-clamp-1">
+                                    {hirdetes.rovid_leiras}
+                                  </p>
+                                )}
+                              </div>
+                            </TableCell>
+                          )}
+                          {isColVisible("reszleg") && (
+                            <TableCell className="py-3">
+                              <Badge
+                                variant="outline"
+                                className="font-normal text-xs text-muted-foreground"
+                              >
+                                {dept}
+                              </Badge>
+                            </TableCell>
+                          )}
+                          {isColVisible("munkakor") && (
+                            <TableCell className="py-3 text-xs">
+                              <div className="font-medium text-foreground">
+                                {hirdetes.hr_munkakor?.megnevezes || hirdetes.cim}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {seniorityLabel} szint
+                              </div>
+                            </TableCell>
+                          )}
+                          {isColVisible("munkavegzes") && (
+                            <TableCell className="py-3 text-xs text-muted-foreground">
+                              <div>{workModeLabel}</div>
+                              {hirdetes.helyszin && (
+                                <div className="text-[11px] text-muted-foreground/80 truncate max-w-[180px]">
+                                  {hirdetes.helyszin}
+                                </div>
+                              )}
+                            </TableCell>
+                          )}
+                          {isColVisible("kozzeteve") && (
+                            <TableCell className="py-3 text-xs text-muted-foreground tabular-nums">
+                              {dateStr}
+                            </TableCell>
+                          )}
+                          {isColVisible("bonusz") && (
+                            <TableCell className="py-3 text-xs font-medium text-primary text-right tabular-nums">
+                              {formattedBonus}
+                            </TableCell>
+                          )}
+                          <TableCell className="py-3 text-right">
+                            <div className="inline-flex items-center justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenReferralForJob(hirdetes.id)}
+                                className="h-7 px-2.5 text-xs font-medium gap-1"
+                              >
+                                <UserPlus className="w-3 h-3 text-primary" />
+                                <span>Ajánlás</span>
+                              </Button>
+
+                              {appliedJobIds.has(hirdetes.id) ? (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => setActiveTab("applications")}
+                                  className="h-7 w-[116px] justify-center px-2.5 text-xs font-medium gap-1 cursor-pointer"
+                                >
+                                  <CheckCircle2 className="w-3 h-3 text-success shrink-0" />
+                                  <span>Már pályáztál</span>
+                                </Button>
+                              ) : (
+                                <Link
+                                  href={`/karrier/${hirdetes.id}?scope=internal`}
+                                  className={cn(
+                                    buttonVariants({
+                                      variant: "default",
+                                      size: "sm",
+                                    }),
+                                    "h-7 w-[116px] justify-center px-2.5 text-xs font-medium gap-1"
+                                  )}
+                                >
+                                  <span>Pályázás</span>
+                                  <ArrowRight className="w-3 h-3 shrink-0" />
+                                </Link>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )
           ) : (
             /* Üres állapot (Empty State) */
             <div className="flex flex-col items-center justify-center py-16 px-4 text-center border border-dashed rounded-lg bg-muted/10 space-y-2">
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-foreground">
-                  {postings.length === 0
+                  {internalPostings.length === 0
                     ? "Jelenleg nincsenek nyitott belső pozíciók."
-                    : "Nincs a szűrésnek megfelelő nyitott pozíció."}
+                    : "Nincs a szűrésnek megfelelő nyitott belső pozíció."}
                 </p>
                 <p className="text-xs text-muted-foreground max-w-sm">
-                  {postings.length === 0
+                  {internalPostings.length === 0
                     ? "Kérjük, nézz vissza később, vagy ajánlj ismerőst a cég általános tehetségbázisába a fenti gombra kattintva!"
-                    : "Próbáld meg módosítani a keresőszót, vagy töröld a beállított részleg/jelleg szűrőket."}
+                    : "Próbáld meg módosítani a keresőszót, vagy töröld a beállított szűrőket."}
                 </p>
               </div>
               {activeFiltersCount > 0 || searchTerm ? (

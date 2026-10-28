@@ -74,7 +74,7 @@ export function ApplicationForm({
   companies = [],
   onSuccessCallback,
 }: ApplicationFormProps) {
-  const isInternalEmployee = Boolean(initialEmployeeData)
+  const isInternalEmployee = Boolean(isInternalPosting && initialEmployeeData)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submittedData, setSubmittedData] = useState<{
     palyazatiKod: string
@@ -82,16 +82,18 @@ export function ApplicationForm({
     positionName: string
   } | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
-  const [gdprConsent, setGdprConsent] = useState(Boolean(initialEmployeeData))
+  const [gdprConsent, setGdprConsent] = useState(
+    Boolean(isInternalPosting && initialEmployeeData)
+  )
 
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(
     companyId || companies[0]?.id || ""
   )
   const [kezdesiIdo, setKezdesiIdo] = useState<string>(
-    initialEmployeeData ? "azonnal" : "1_honap"
+    isInternalPosting && initialEmployeeData ? "azonnal" : "1_honap"
   )
   const [forras, setForras] = useState<string>(
-    initialEmployeeData ? "belso_palyazat" : "karrieroldal"
+    isInternalPosting && initialEmployeeData ? "belso_palyazat" : "karrieroldal"
   )
   const [megpalyazottTerulet, setMegpalyazottTerulet] = useState<string>(
     "Szoftverfejlesztés & IT"
@@ -443,21 +445,25 @@ export function ApplicationForm({
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium">Honnan hallottál rólunk?</Label>
-        <Select value={forras} onValueChange={(val) => val && setForras(val)}>
-          <SelectTrigger className="w-full">
-            <SelectValue>{SOURCE_LABELS[forras]}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(SOURCE_LABELS).map(([k, label]) => (
-              <SelectItem key={k} value={k}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {!isInternalEmployee && (
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium">Honnan hallottál rólunk?</Label>
+          <Select value={forras} onValueChange={(val) => val && setForras(val)}>
+            <SelectTrigger className="w-full">
+              <SelectValue>{SOURCE_LABELS[forras] || "Válassz forrást..."}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(SOURCE_LABELS)
+                .filter(([k]) => k !== "belso_palyazat")
+                .map(([k, label]) => (
+                  <SelectItem key={k} value={k} label={label}>
+                    {label}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* 3. Önéletrajz feltöltése (Drag & Drop zóna) */}
       <div className="space-y-1.5">

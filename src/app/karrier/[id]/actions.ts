@@ -34,7 +34,7 @@ export async function submitApplication(formData: FormData) {
 
     const empCtx = isInternalFlag
       ? await resolveCareerEmployeeContext()
-      : { isAuthenticated: false, employeeCompanyIds: [], employeeData: null }
+      : { isAuthenticated: false, employeeCompanyIds: [] as string[], employeeData: null }
     const isVerifiedInternalEmployee = Boolean(empCtx.isAuthenticated)
     const hasCvFile = Boolean(cvFile && cvFile.size > 0)
 
@@ -107,11 +107,12 @@ export async function submitApplication(formData: FormData) {
     let targetCompanyId: string | null = explicitCompanyId
     let resolvedMunkakorId: string | null = munkakorId
     let postingTitle: string | null = null
+    let isPostingInternal = false
 
     if (allashirdetesId) {
       const { data: posting } = await supabaseAdmin
         .from("hr_allashirdetes")
-        .select("cim, company_id, munkakor_id")
+        .select("cim, company_id, munkakor_id, is_internal")
         .eq("id", allashirdetesId)
         .maybeSingle()
       if (posting?.company_id) targetCompanyId = posting.company_id
@@ -119,6 +120,37 @@ export async function submitApplication(formData: FormData) {
         resolvedMunkakorId = posting.munkakor_id
       }
       if (posting?.cim) postingTitle = posting.cim
+      isPostingInternal = Boolean(posting?.is_internal)
+    }
+
+    const isStrictlyInternalApplication = Boolean(
+      isPostingInternal &&
+        isVerifiedInternalEmployee &&
+        (!targetCompanyId || empCtx.employeeCompanyIds.includes(targetCompanyId))
+    )
+
+    if (!isStrictlyInternalApplication && !hasCvFile) {
+      return { error: "Kérjük, csatolja a szakmai önéletrajzát!" }
+    }
+
+    // Duplikált jelentkezés megakadályozása ugyanarra az álláshirdetésre ugyanazzal az e-mail címmel
+    if (allashirdetesId) {
+      const { data: existingApp } = await supabaseAdmin
+        .from("hr_toborzas")
+        .select("id, palyazati_kod")
+        .eq("allashirdetes_id", allashirdetesId)
+        .ilike("email", email.trim())
+        .neq("statusz", "elutasitva")
+        .limit(1)
+        .maybeSingle()
+
+      if (existingApp) {
+        return {
+          error: `Ezzel az e-mail címmel már van aktív jelentkezés erre a pozícióra (Azonosító: ${
+            existingApp.palyazati_kod || "rögzítve"
+          }).`,
+        }
+      }
     }
 
     if (!targetCompanyId && resolvedMunkakorId) {
@@ -172,7 +204,7 @@ export async function submitApplication(formData: FormData) {
       linkedin_url: linkedinUrl?.trim() || null,
       berigeny: berigenyNum,
       kezdesi_ido: kezdesiIdo || null,
-      forras: isVerifiedInternalEmployee ? "belso_palyazat" : forras || "karrieroldal",
+      forras: isStrictlyInternalApplication ? "belso_palyazat" : forras || "karrieroldal",
       megpalyazott_terulet: megpalyazottTerulet?.trim() || null,
       palyazati_kod: palyazatiKod,
       cv_storage_path: uploadedCvPath,

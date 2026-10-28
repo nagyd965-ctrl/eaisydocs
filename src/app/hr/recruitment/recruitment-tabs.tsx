@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { KanbanBoard } from "./kanban-board"
 import { AddCandidateDialog } from "@/components/hr/add-candidate-dialog"
@@ -28,7 +29,19 @@ export function RecruitmentTabs({
   }
   isReadOnly: boolean
 }) {
-  const [tab, setTab] = useState("postings")
+  const searchParams = useSearchParams()
+  const initialTab = searchParams.get("tab")
+  const validTabs = ["postings", "company-presentation", "kanban", "talent-pool", "analytics"]
+  const [tab, setTab] = useState(
+    initialTab && validTabs.includes(initialTab) ? initialTab : "postings"
+  )
+
+  useEffect(() => {
+    const paramTab = searchParams.get("tab")
+    if (paramTab && validTabs.includes(paramTab)) {
+      setTab(paramTab)
+    }
+  }, [searchParams])
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="w-full flex flex-col">

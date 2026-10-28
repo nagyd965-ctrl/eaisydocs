@@ -3,13 +3,13 @@
  */
 
 export const WORK_MODE_LABELS: Record<string, string> = {
-  remote: "Távmunka (Remote)",
+  remote: "Távmunka",
   hibrid: "Hibrid munkavégzés",
-  irodai: "Helyszíni (On-site)",
+  irodai: "Helyszíni munkavégzés",
 }
 
 export const WORK_MODE_SHORT_LABELS: Record<string, string> = {
-  remote: "Remote",
+  remote: "Távmunka",
   hibrid: "Hibrid",
   irodai: "Helyszíni",
 }
@@ -17,7 +17,7 @@ export const WORK_MODE_SHORT_LABELS: Record<string, string> = {
 export const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   teljes_munkaido: "Teljes munkaidő",
   reszmunkaido: "Részmunkaidő",
-  vallalkozoi: "Contractor (B2B)",
+  vallalkozoi: "Vállalkozói jogviszony",
   gyakornok: "Gyakornoki program",
 }
 
@@ -25,7 +25,7 @@ export const SENIORITY_LABELS: Record<string, string> = {
   junior: "Junior",
   medior: "Medior",
   senior: "Senior",
-  lead: "Lead / Principal",
+  lead: "Vezető",
 }
 
 export const AVAILABILITY_LABELS: Record<string, string> = {
@@ -37,6 +37,7 @@ export const AVAILABILITY_LABELS: Record<string, string> = {
 }
 
 export const SOURCE_LABELS: Record<string, string> = {
+  belso_palyazat: "Belső pályázat",
   karrieroldal: "Közvetlen karrieroldal",
   linkedin: "LinkedIn",
   profession: "Profession.hu",

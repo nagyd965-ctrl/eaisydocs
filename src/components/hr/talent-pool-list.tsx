@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import {
   Table,
   TableBody,
@@ -13,42 +14,36 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { AlertTriangle } from "lucide-react"
-import { CandidateProfileSheet } from "./candidate-profile-sheet"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { differenceInDays } from "date-fns"
 import { type Candidate } from "@/types/hr"
 import { TableToolbar, type TableColumnOption, type FilterGroup } from "@/components/table-toolbar/table-toolbar"
-import { deleteCandidate } from "@/app/hr/recruitment/actions"
-import { toast } from "sonner"
+
+const CANDIDATE_STATUS_LABELS: Record<string, { label: string; className: string }> = {
+  uj: { label: "Új jelentkező", className: "bg-info/10 text-info border-info/30" },
+  eloszurt: { label: "Előszűrt", className: "bg-warning/10 text-warning border-warning/30" },
+  szures: { label: "Előszűrt", className: "bg-warning/10 text-warning border-warning/30" },
+  interju: { label: "Interjú", className: "bg-primary/10 text-primary border-primary/30" },
+  ajanlat: { label: "Ajánlat", className: "bg-success/10 text-success border-success/30" },
+  elfogadva: { label: "Elfogadva", className: "bg-success/15 text-success border-success/30" },
+  elutasitva: { label: "Elutasítva", className: "bg-destructive/10 text-destructive border-destructive/30" },
+  talent_pool: { label: "Tehetségbázis", className: "bg-muted text-muted-foreground border-border" },
+}
+
+interface DeduplicatedCandidate extends Candidate {
+  uniquePositions: string[]
+  applicationCount: number
+}
 
 export function TalentPoolList({ candidates }: { candidates: Candidate[] }) {
   const router = useRouter()
   const [candidatesList, setCandidatesList] = useState<Candidate[]>(candidates)
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
 
   useEffect(() => {
     setCandidatesList(candidates)
   }, [candidates])
-
-  const handleUpdateCandidate = (updatedCandidate: Partial<Candidate> & { id: string; [key: string]: unknown }) => {
-    setCandidatesList(prev => prev.map(c => c.id === updatedCandidate.id ? { ...c, ...updatedCandidate } as Candidate : c))
-    setSelectedCandidate(prev => prev?.id === updatedCandidate.id ? { ...prev, ...updatedCandidate } as Candidate : prev)
-    router.refresh()
-  }
-
-  const handleDeleteCandidate = async (id: string) => {
-    const res = await deleteCandidate(id)
-    if (res?.error) {
-      toast.error(res.error)
-      return
-    }
-    toast.success("Jelölt sikeresen törölve!")
-    setCandidatesList(prev => prev.filter(c => c.id !== id))
-    setSelectedCandidate(null)
-    router.refresh()
-  }
 
   const [columns, setColumns] = useState<TableColumnOption[]>([
     { id: "nev", label: "Név", isVisible: true },
@@ -90,22 +85,78 @@ export function TalentPoolList({ candidates }: { candidates: Candidate[] }) {
     }
   ], [selectedStatuses])
 
+  // Deduplikálás e-mail cím (vagy név + pozíció) alapján, hogy egy jelölt csak egyszer szerepeljen a Talent Pool-ban
+  const deduplicatedCandidates = useMemo<DeduplicatedCandidate[]>(() => {
+    const grouped = new Map<string, DeduplicatedCandidate>()
+
+    // Időrendben csökkenő sorrend, hogy mindig a legfrissebb jelentkezés legyen az elsődleges rekord
+    const sorted = [...candidatesList].sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
+      return dateB - dateA
+    })
+
+    for (const c of sorted) {
+      const emailKey = (c.email || "").toLowerCase().trim()
+      const nameKey = (c.nev || "").toLowerCase().trim()
+      const key = emailKey || nameKey || c.id
+
+      const posTitle =
+        c.hr_allashirdetes?.cim ||
+        (c as any).hr_munkakor?.megnevezes ||
+        (c as any).pozicio ||
+        "Általános jelentkezés"
+
+      const existing = grouped.get(key)
+      if (!existing) {
+        grouped.set(key, {
+          ...c,
+          ai_skills: c.ai_skills ? Array.from(new Set(c.ai_skills)) : [],
+          uniquePositions: [posTitle],
+          applicationCount: 1,
+        })
+      } else {
+        existing.applicationCount += 1
+        if (!existing.uniquePositions.includes(posTitle)) {
+          existing.uniquePositions.push(posTitle)
+        }
+        if (c.ai_skills && c.ai_skills.length > 0) {
+          const mergedSkills = new Set([
+            ...(existing.ai_skills || []),
+            ...c.ai_skills,
+          ])
+          existing.ai_skills = Array.from(mergedSkills)
+        }
+        if (!existing.telefonszam && !(existing as any).telefon) {
+          const fallbackPhone = c.telefonszam || (c as any).telefon
+          if (fallbackPhone) {
+            existing.telefonszam = fallbackPhone
+          }
+        }
+      }
+    }
+
+    return Array.from(grouped.values())
+  }, [candidatesList])
+
   const filteredCandidates = useMemo(() => {
     const term = searchTerm.toLowerCase().trim()
-    return candidatesList.filter(c => {
-      const posTitle = c.hr_allashirdetes?.cim || (c as any).hr_munkakor?.megnevezes || (c as any).pozicio || ""
-      const matchesSearch = !term || (
+    return deduplicatedCandidates.filter((c) => {
+      const allPositionsStr = c.uniquePositions.join(" ").toLowerCase()
+      const matchesSearch =
+        !term ||
         c.nev.toLowerCase().includes(term) ||
         (c.email || "").toLowerCase().includes(term) ||
-        posTitle.toLowerCase().includes(term) ||
-        (c.ai_skills && c.ai_skills.some((s: string) => s.toLowerCase().includes(term)))
-      )
+        allPositionsStr.includes(term) ||
+        (c.ai_skills &&
+          c.ai_skills.some((s: string) => s.toLowerCase().includes(term)))
 
-      const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(c.statusz)
+      const matchesStatus =
+        selectedStatuses.length === 0 || selectedStatuses.includes(c.statusz)
 
       return matchesSearch && matchesStatus
     })
-  }, [candidatesList, searchTerm, selectedStatuses])
+  }, [deduplicatedCandidates, searchTerm, selectedStatuses])
 
   return (
     <div className="space-y-4 h-full flex flex-col">
@@ -152,12 +203,18 @@ export function TalentPoolList({ candidates }: { candidates: Candidate[] }) {
                       <TableRow 
                         key={candidate.id} 
                         className="hover:bg-muted/40 cursor-pointer transition-colors" 
-                        onClick={() => setSelectedCandidate(candidate)}
+                        onClick={() => router.push(`/hr/recruitment/candidate/${candidate.id}`)}
                       >
                         {isColVisible("nev") && (
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                              {candidate.nev}
+                              <Link
+                                href={`/hr/recruitment/candidate/${candidate.id}`}
+                                className="hover:text-primary transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {candidate.nev}
+                              </Link>
                               {isGdprWarning && (
                                 <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-[10px]" title="1 hónapon belül törölni kell (GDPR)">
                                   <AlertTriangle className="w-3 h-3 mr-1" />
@@ -192,16 +249,30 @@ export function TalentPoolList({ candidates }: { candidates: Candidate[] }) {
                         )}
                         {isColVisible("pozicio") && (
                           <TableCell>
-                            {candidate.hr_allashirdetes?.cim ||
-                              (candidate as any).hr_munkakor?.megnevezes ||
-                              (candidate as any).pozicio ||
-                              "Általános jelentkezés"}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span>{candidate.uniquePositions[0]}</span>
+                              {candidate.uniquePositions.length > 1 && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] px-1.5 py-0 font-normal text-muted-foreground"
+                                  title={candidate.uniquePositions.join(", ")}
+                                >
+                                  +{candidate.uniquePositions.length - 1} pozíció
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
                         )}
                         {isColVisible("allapot") && (
                           <TableCell>
-                            <Badge variant="outline" className="capitalize text-xs">
-                              {candidate.statusz}
+                            <Badge
+                              variant="outline"
+                              className={`text-xs font-medium ${
+                                CANDIDATE_STATUS_LABELS[candidate.statusz]?.className || ""
+                              }`}
+                            >
+                              {CANDIDATE_STATUS_LABELS[candidate.statusz]?.label ||
+                                candidate.statusz}
                             </Badge>
                           </TableCell>
                         )}
@@ -219,17 +290,18 @@ export function TalentPoolList({ candidates }: { candidates: Candidate[] }) {
                         )}
                         {isColVisible("muveletek") && (
                           <TableCell className="text-right">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-7 text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedCandidate(candidate);
-                              }}
+                            <Link
+                              href={`/hr/recruitment/candidate/${candidate.id}`}
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              Megtekintés
-                            </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                              >
+                                Profil megnyitása
+                              </Button>
+                            </Link>
                           </TableCell>
                         )}
                       </TableRow>
@@ -241,16 +313,6 @@ export function TalentPoolList({ candidates }: { candidates: Candidate[] }) {
           </div>
         </ScrollArea>
       </div>
-
-      {selectedCandidate && (
-        <CandidateProfileSheet
-          candidate={selectedCandidate}
-          isOpen={!!selectedCandidate}
-          onClose={() => setSelectedCandidate(null)}
-          onUpdate={handleUpdateCandidate}
-          onDelete={handleDeleteCandidate}
-        />
-      )}
     </div>
   )
 }

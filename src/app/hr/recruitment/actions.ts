@@ -542,3 +542,151 @@ export async function updateJobPostingFlagsAction(
   revalidatePath("/hr/self-service/career")
   return { success: true }
 }
+
+/**
+ * Jelölt behívása / hozzárendelése a Talent Pool-ból egy kiválasztott aktív álláshirdetéshez
+ */
+export async function assignCandidateToPostingAction(
+  candidateId: string,
+  targetPostingId: string
+) {
+  const auth = await verifyRecruitmentAccess()
+  if (!auth.allowed || !auth.activeCompanyId || !auth.user) {
+    return { error: auth.error || "Hozzáférés megtagadva" }
+  }
+
+  const adminClient = getAdminClient()
+
+  const [{ data: candidate }, { data: posting }] = await Promise.all([
+    adminClient.from("hr_toborzas").select("*").eq("id", candidateId).single(),
+    adminClient
+      .from("hr_allashirdetes")
+      .select("id, cim, munkakor_id, company_id")
+      .eq("id", targetPostingId)
+      .single(),
+  ])
+
+  if (!candidate || !posting) {
+    return { error: "A kiválasztott jelölt vagy álláshirdetés nem található." }
+  }
+
+  // Ellenőrizzük, hogy van-e már pályázata erre az álláshirdetésre
+  const { data: existingForPosting } = await adminClient
+    .from("hr_toborzas")
+    .select("id, statusz")
+    .eq("allashirdetes_id", targetPostingId)
+    .ilike("email", (candidate.email || "").trim())
+    .maybeSingle()
+
+  if (existingForPosting) {
+    const { data: updated, error: updateErr } = await adminClient
+      .from("hr_toborzas")
+      .update({
+        statusz:
+          existingForPosting.statusz === "elutasitva" ||
+          existingForPosting.statusz === "uj"
+            ? "eloszurt"
+            : existingForPosting.statusz,
+        megpalyazott_munkakor_id: posting.munkakor_id,
+      })
+      .eq("id", existingForPosting.id)
+      .select("*, hr_munkakor (megnevezes), hr_allashirdetes (cim)")
+      .single()
+
+    if (updateErr) {
+      return { error: "Nem sikerült frissíteni a jelölt pályázatát." }
+    }
+
+    await adminClient.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: auth.user.id,
+      esemeny_tipus: "statusz_valtozas",
+      entitas_tipus: "hr_toborzas",
+      entitas_id: existingForPosting.id,
+      megjegyzes: `Jelölt behívva a Talent Pool-ból a(z) "${posting.cim}" pozíció kiválasztási folyamatába.`,
+      company_id: auth.activeCompanyId,
+    })
+
+    revalidatePath("/hr/recruitment")
+    revalidatePath(`/hr/recruitment/candidate/${candidateId}`)
+    return { success: true, record: updated, mode: "updated" as const }
+  }
+
+  // Ha a jelölt eredeti rekordja általános jelentkezés volt (nincs allashirdetes_id), rendeljük hozzá közvetlenül
+  if (!candidate.allashirdetes_id) {
+    const { data: updated, error: updateErr } = await adminClient
+      .from("hr_toborzas")
+      .update({
+        allashirdetes_id: posting.id,
+        megpalyazott_munkakor_id: posting.munkakor_id,
+        statusz: "eloszurt",
+      })
+      .eq("id", candidate.id)
+      .select("*, hr_munkakor (megnevezes), hr_allashirdetes (cim)")
+      .single()
+
+    if (updateErr) {
+      return { error: "Nem sikerült hozzárendelni a jelöltet a pozícióhoz." }
+    }
+
+    await adminClient.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: auth.user.id,
+      esemeny_tipus: "statusz_valtozas",
+      entitas_tipus: "hr_toborzas",
+      entitas_id: candidate.id,
+      megjegyzes: `Nyitott jelentkező behívva a Talent Pool-ból a(z) "${posting.cim}" pozícióra.`,
+      company_id: auth.activeCompanyId,
+    })
+
+    revalidatePath("/hr/recruitment")
+    revalidatePath(`/hr/recruitment/candidate/${candidateId}`)
+    return { success: true, record: updated, mode: "updated" as const }
+  }
+
+  // Egyébként hozzunk létre egy új előszűrt pályázatot a kiválasztott pozícióra a jelölt meglévő profiljából és CV-jéből
+  const year = new Date().getFullYear()
+  const suffix = Math.random().toString(36).substring(2, 8).toUpperCase()
+  const palyazatiKod = `KAR-${year}-${suffix}`
+
+  const { data: inserted, error: insertErr } = await adminClient
+    .from("hr_toborzas")
+    .insert({
+      company_id: auth.activeCompanyId,
+      allashirdetes_id: posting.id,
+      megpalyazott_munkakor_id: posting.munkakor_id,
+      nev: candidate.nev,
+      email: candidate.email,
+      telefon: candidate.telefon,
+      linkedin_url: candidate.linkedin_url,
+      berigeny: candidate.berigeny,
+      kezdesi_ido: candidate.kezdesi_ido,
+      forras: "karrieroldal",
+      palyazati_kod: palyazatiKod,
+      cv_storage_path: candidate.cv_storage_path,
+      ai_status: candidate.ai_status,
+      ai_summary: candidate.ai_summary,
+      ai_skills: candidate.ai_skills,
+      ai_relevance_score: candidate.ai_relevance_score,
+      uzenet: `[Talent Pool-ból behívva a(z) "${posting.cim}" pozícióra] ${candidate.uzenet || ""}`.trim(),
+      statusz: "eloszurt",
+    })
+    .select("*, hr_munkakor (megnevezes), hr_allashirdetes (cim)")
+    .single()
+
+  if (insertErr) {
+    console.error("Hiba a jelölt behívásakor:", insertErr)
+    return { error: "Nem sikerült létrehozni a pályázatot a kiválasztott pozícióra." }
+  }
+
+  await adminClient.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: auth.user.id,
+    esemeny_tipus: "munkatars_felvetel",
+    entitas_tipus: "hr_toborzas",
+    entitas_id: inserted.id,
+    megjegyzes: `Jelölt (${candidate.nev}) behívva a Talent Pool-ból a(z) "${posting.cim}" pozícióra [${palyazatiKod}].`,
+    company_id: auth.activeCompanyId,
+  })
+
+  revalidatePath("/hr/recruitment")
+  revalidatePath(`/hr/recruitment/candidate/${candidateId}`)
+  return { success: true, record: inserted, mode: "inserted" as const }
+}

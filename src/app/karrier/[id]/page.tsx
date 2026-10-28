@@ -6,11 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import {
   ArrowLeft,
-  Briefcase,
-  Calendar,
-  MapPin,
   Building2,
-  Clock,
   ArrowRight,
   Lock,
 } from "lucide-react"
@@ -176,8 +172,8 @@ export default async function HirdetesReszletekPage({
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* ── 1. FELSŐ NAVIGÁCIÓS SÁV ── */}
       <div className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 min-h-14 py-2 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href={
                 resolvedCompanyId
@@ -198,37 +194,6 @@ export default async function HirdetesReszletekPage({
                   : `Vissza a nyitott pozíciókhoz (${companyName})`}
               </span>
             </Link>
-
-            {isEmployeeOfCompany && resolvedCompanyId && (
-              <div className="hidden md:flex items-center gap-1.5 pl-2 border-l border-border/60">
-                <Link
-                  href={`/karrier?company=${resolvedCompanyId}&scope=internal`}
-                  className={cn(
-                    buttonVariants({
-                      variant: isInternalContext ? "default" : "outline",
-                      size: "sm",
-                    }),
-                    "h-7 px-2.5 text-xs gap-1.5"
-                  )}
-                >
-                  <Lock className="w-3 h-3" />
-                  <span>Belső hirdetések</span>
-                </Link>
-                <Link
-                  href={`/karrier?company=${resolvedCompanyId}`}
-                  className={cn(
-                    buttonVariants({
-                      variant: !isInternalContext ? "default" : "outline",
-                      size: "sm",
-                    }),
-                    "h-7 px-2.5 text-xs gap-1.5"
-                  )}
-                >
-                  <Briefcase className="w-3 h-3" />
-                  <span>Publikus hirdetések</span>
-                </Link>
-              </div>
-            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -260,71 +225,35 @@ export default async function HirdetesReszletekPage({
       </div>
 
       {/* ── 2. POZÍCIÓ FEJLÉC ── */}
-      <header className="bg-primary text-primary-foreground py-10 sm:py-14 px-4 border-b border-border/60">
-        <div className="max-w-6xl mx-auto space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            {hirdetes.is_internal && (
+      <header className="bg-primary text-primary-foreground py-8 sm:py-10 px-4 border-b border-border/60">
+        <div className="max-w-6xl mx-auto space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {hirdetes.is_internal && (
+                <Badge
+                  variant="outline"
+                  className="border-white bg-white text-primary text-xs font-semibold gap-1.5 px-2.5 py-0.5"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Belső álláspályázat (Munkatársaknak)</span>
+                </Badge>
+              )}
               <Badge
                 variant="outline"
-                className="border-white bg-white text-primary text-xs font-semibold gap-1.5 px-2.5 py-0.5"
+                className="border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground text-xs font-medium gap-1.5 px-2.5 py-0.5"
               >
-                <Lock className="w-3.5 h-3.5" />
-                <span>Belső álláspályázat (Munkatársaknak)</span>
+                <Building2 className="w-3.5 h-3.5" />
+                <span>{companyName}</span>
               </Badge>
-            )}
-            <Badge
-              variant="outline"
-              className="border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground text-xs font-medium gap-1.5 px-2.5 py-0.5"
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>{companyName}</span>
-            </Badge>
-            <Badge
-              variant="outline"
-              className="border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground text-xs font-medium px-2.5 py-0.5"
-            >
-              {departmentName} részleg
-            </Badge>
-            <Badge
-              variant="outline"
-              className="border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground text-xs font-medium px-2.5 py-0.5"
-            >
-              {seniorityLabel} szint
-            </Badge>
-            {salaryBand && (
-              <Badge
-                variant="outline"
-                className="border-white bg-white text-primary text-xs font-semibold tabular-nums px-2.5 py-0.5"
-              >
-                {salaryBand}
-              </Badge>
-            )}
+            </div>
+            <span className="text-xs text-primary-foreground/80">
+              Közzétéve: {dateStr}
+            </span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
             {hirdetes.cim}
           </h1>
-
-          <div className="flex flex-wrap gap-x-5 gap-y-2 text-primary-foreground/90 text-xs sm:text-sm pt-1">
-            <div className="flex items-center gap-1.5">
-              <Briefcase className="w-4 h-4 shrink-0" />
-              <span>{munkakorNev}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-4 h-4 shrink-0" />
-              <span>
-                {workModeLabel} • {empTypeLabel}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <MapPin className="w-4 h-4 shrink-0" />
-              <span>{locationLabel}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 shrink-0" />
-              <span>Közzétéve: {dateStr}</span>
-            </div>
-          </div>
         </div>
       </header>
 
@@ -363,18 +292,19 @@ export default async function HirdetesReszletekPage({
                 <p className="text-sm font-semibold text-foreground">{empTypeLabel}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-[11px] text-muted-foreground">
-                  {salaryBand ? "Meghirdetett bérsáv" : "Munkavégzés helye"}
-                </p>
-                <p
-                  className={cn(
-                    "text-sm font-semibold",
-                    salaryBand ? "text-success tabular-nums" : "text-foreground"
-                  )}
-                >
-                  {salaryBand || locationLabel}
-                </p>
+                <p className="text-[11px] text-muted-foreground">Munkavégzés helye</p>
+                <p className="text-sm font-semibold text-foreground">{locationLabel}</p>
               </div>
+              {salaryBand && (
+                <div className="space-y-1 sm:col-span-3 pt-2 border-t border-border/50">
+                  <p className="text-[11px] text-muted-foreground">
+                    Meghirdetett bruttó havi bérsáv
+                  </p>
+                  <p className="text-sm font-semibold text-success tabular-nums">
+                    {salaryBand}
+                  </p>
+                </div>
+              )}
             </div>
             {deadlineStr && (
               <div className="pt-3 border-t border-border/50 text-xs text-muted-foreground">
@@ -484,7 +414,11 @@ export default async function HirdetesReszletekPage({
             companyName={companyName}
             positionTitle={hirdetes.cim}
             isInternalPosting={Boolean(hirdetes.is_internal)}
-            initialEmployeeData={isEmployeeOfCompany ? empCtx.employeeData : null}
+            initialEmployeeData={
+              hirdetes.is_internal && isEmployeeOfCompany
+                ? empCtx.employeeData
+                : null
+            }
           />
         </div>
       </main>
