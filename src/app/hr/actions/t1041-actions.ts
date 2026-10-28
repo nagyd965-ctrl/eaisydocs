@@ -3,10 +3,10 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
-import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { getActiveCompanyIdServer, resolveCompanyDetailsServer } from "@/utils/company-server"
 import { generateT1041PdfBuffer } from "@/utils/hr/t1041-pdf-generator"
 import { type T1041PdfData } from "@/utils/hr/t1041-constants"
-import { DEFAULT_COMPANY_DETAILS } from "@/utils/hr/employment-contract-constants"
+import { DEFAULT_COMPANY_DETAILS, type CompanyDetails } from "@/utils/hr/employment-contract-constants"
 import { executeHrDocumentFiling } from "@/utils/hr-filing-bridge"
 
 function getAdminClient() {
@@ -18,6 +18,7 @@ function getAdminClient() {
 
 export interface GetT1041Result {
   record: any | null
+  companyDetails?: CompanyDetails
   prefilled: {
     bejelentesTipus: "U" | "V" | "T"
     employeeName: string
@@ -105,8 +106,10 @@ export async function getT1041Data(params: {
 
   // Ha van már rögzített adat
   if (existingRecord) {
+    const companyDetails = await resolveCompanyDetailsServer(existingRecord.company_id, adminClient)
     return {
       record: existingRecord,
+      companyDetails,
       prefilled: {
         bejelentesTipus: existingRecord.bejelentes_tipus as any,
         employeeName: existingRecord.biztositott_neve,
@@ -334,8 +337,11 @@ export async function getT1041Data(params: {
     }
   }
 
+  const companyDetails = await resolveCompanyDetailsServer(null, adminClient)
+
   return {
     record: null,
+    companyDetails,
     prefilled: {
       bejelentesTipus: offboardingId ? "T" : "U",
       employeeName: empName,
@@ -461,12 +467,13 @@ export async function generateT1041PdfAction(params: {
     const adminClient = getAdminClient()
     const { onboardingId, offboardingId, dolgozoId, data } = params
 
-    // 1. Cégadatok kiegészítése alapértelmezésekkel
+    // 1. Cégadatok feloldása az aktív vállalatból (vagy fallback)
+    const companyDetails = await resolveCompanyDetailsServer(null, adminClient)
     const effectiveData: T1041PdfData = {
       ...data,
-      cegNev: data.cegNev || DEFAULT_COMPANY_DETAILS.nev,
-      cegAdoszam: data.cegAdoszam || DEFAULT_COMPANY_DETAILS.adoszam,
-      cegCim: data.cegCim || DEFAULT_COMPANY_DETAILS.szekhely,
+      cegNev: (data.cegNev && data.cegNev !== DEFAULT_COMPANY_DETAILS.nev) ? data.cegNev : companyDetails.nev,
+      cegAdoszam: (data.cegAdoszam && data.cegAdoszam !== DEFAULT_COMPANY_DETAILS.adoszam) ? data.cegAdoszam : companyDetails.adoszam,
+      cegCim: (data.cegCim && data.cegCim !== DEFAULT_COMPANY_DETAILS.szekhely) ? data.cegCim : companyDetails.szekhely,
     }
 
     // 2. PDF Buffer előállítása

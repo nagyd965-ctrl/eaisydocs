@@ -2,6 +2,37 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
+## [Unreleased] – Fejlesztés alatt (2026-10-28)
+
+### eaisyHR: 3 Alapszerepkör + Modul-hozzáférési Mátrix (`/hr/organization?tab=permissions`), Modul-Érettségi Audit és P0 Kritikus Javítások (ADR A-087, PRD P-120)
+- **3 Alapszerepkör (`Munkavállaló`, `Vezető`, `Admin`) és 10 Modulos Jogosultsági Mátrix (`supabase/migrations/20261028000002_hr_simplified_roles_and_module_permissions.sql`, `src/utils/hr/company-role-resolver.ts`, `src/utils/hr/hr-auth-guard.ts`, `src/components/hr/permissions-matrix-view.tsx`, `src/app/hr/permissions/actions.ts`):**
+  - A dolgozó felvételi (`add-employee-dialog.tsx`) és szerkesztési (`employee-edit-dialog.tsx`) űrlapokon a korábbi 10 szerepkör helyett 3 tiszta alapszerepkör (`Munkavállaló`, `Vezető`, `Admin`) választható.
+  - A `company_members` és `felhasznalo_profil` táblák `hr_modulok text[]` tömboszloppal bővültek a 10 szakmai HR munkaasztal modul (`admin`, `organization`, `time`, `payroll`, `compliance`, `reports`, `recruitment`, `onboarding`, `offboarding`, `audit`) egyedi engedélyezéséhez.
+  - A **Szervezeti felépítés** (`/hr/organization`) oldal 4. füleként (`Jogosultságkezelő` — `/hr/organization?tab=permissions`) elkészült a **kizárólag `admin` szerepkörrel látható és szerkeszthető** Jogosultságkezelő Mátrix, ahol 1 kattintással ki-be kapcsolhatók a dolgozói modul-hozzáférések.
+- **Teljes Körű eaisyHR Modul-Érettségi Audit (`docs/eaisyhr-modul-erettsegi-es-fejlesztesi-terv.md`) és P0 Kritikus Javítások (1., 3., 4., 5., 6., 7., 8. P0):**
+  - **1. P0 — Szerveroldali RBAC védelem:** Minden `SUPABASE_SERVICE_ROLE_KEY`-t használó HR Server Action (`admin/actions.ts`, `orgunit/[id]/actions.ts`, `idp-actions.ts`, `payroll/actions.ts`, `reports/actions.ts`, `offboarding/actions.ts`, `onboarding/actions.ts`) megkapta a központi `requireHrAuthServer` szerepkör- és modul-ellenőrzést.
+  - **3. P0 — Ebédszünet adatbázis-perzisztencia (`20261028000001_add_break_tracking_to_hr_jelenlet.sql`):** A `hr_jelenlet` tábla `szunet_perc`, `szunet_ms` és `szunet_kezdete` oszlopokkal bővült; a `toggleBreak` és a kicsekkolás utáni „Munka folytatása” (`checkoutGapMs`) levonja a szünetidőt a jelenléti íven, a PDF-ben, a bérszámfejtésben és a KSH riportban.
+  - **4. P0 — Szabadságigénylés keret- és ünnepnap-ellenőrzés (`20261028000003_add_munkanapok_szama_to_hr_tavollet.sql`, `leave-calculator.ts`, `leave-request-dialog.tsx`):** A `calculateWorkingDays` külön kezeli a munkaszüneti napokat és az áthelyezett szombati munkanapokat, a `submitLeaveRequest` ellenőrzi a maradék éves szabadságkeretet (`calculateAnnualLeave`) és menti a `munkanapok_szama` értéket.
+  - **5. P0 — Csapatnaptár és Túlóra Compliance szűrések (`team-calendar.tsx`, `hr/time/page.tsx`, `compliance-actions.ts`):** Kiszűrésre kerültek az `elutasitva` / `visszavonva` státuszú távollétek és a kilépett (`kilepes_datuma < todayStr`) dolgozók.
+  - **6. P0 — Bérszámfejtési számítások (`payslip-calculator.ts`, `payroll/actions.ts`, `my-payslips-view.tsx`):** Beépült a `munkaido_fte` részmunkaidő-arányosítás, a SZÉP-kártya (`cafeteriaBrutto`) leválasztása az egyéni SZJA/TB alapról (28% munkáltatói közteherrel), a szabadságos/betegszabadságos napok duplázódásmentes levonása a ledolgozott napokból, valamint a pontos HUF összegek megjelenítése a dolgozói bérpapír-nézetben.
+  - **7. P0 — KSH riport valós részleg-órák (`reports/actions.ts`, `reports-tabs.tsx`):** A `getKshReportData` a részlegenkénti ledolgozott és távolléti órákat közvetlenül a valós `hr_jelenlet` és `hr_tavollet` adatokból összegzi, a KSH fülről pedig eltávolításra került a duplikált keresőmező.
+  - **8. P0 — Valós vállalati adatok bekötése a PDF generátorokba (`company-server.ts`, `t1041-actions.ts`, `t1041-panel.tsx`, `offboarding/actions.ts`, `employment-contract-actions.ts`):** A `resolveCompanyDetailsServer` az aktív vállalat `companies` rekordjából tölti be a nevet, székhelyet, adószámot és képviselőt a T1041, az Offboarding és a Munkaszerződés PDF-ekbe.
+
+### eaisyHR: Toborzási Analitika Vezetői Split Cockpit (Terv C), Teljesítmény Kalibrációs Haranggörbe (Terv B), Összecsukható „Cégünkről” Prezentáció Kártya és Karrieroldal Finomhangolás (PRD P-119)
+- **Personio-stílusú Vezetői Split Cockpit Toborzási Analitika (`src/components/hr/recruitment-analytics.tsx`, `src/app/hr/recruitment/recruitment-tabs.tsx`):**
+  - Felső vezérlősáv (`Időszak`, `Részleg`, `Exportálás`) és 4 KPI kártya inline pilula-jelvényekkel (`Nyitott pozíciók`, `Aktív jelöltek`, `Átlagos Time-to-Hire`, `SLA Figyelmeztetés`).
+  - Bal oldali 8 oszlopos BI szekció: **Toborzási Csatornák Hatékonysága & Konverzió** (harmonikus Fintech Teal Recharts fánkdiagram + csoportosított oszlopdiagram: Jelentkezések vs. Interjúk csatornánként) és **Pozíciónkénti Bérigény vs. Meghirdetett Bérsáv** (`Range Bar` bérkeret-tartománysávok + jelölti átlagos bérigény `Marker Dot` pozíciójelölő pontok).
+  - Jobb oldali 4 oszlopos Operatív Akcióközpont: **Pozíciók Betöltöttségi Állapota** részlegenkénti progress sávokkal, **Sürgős Beavatkozás (7+ napja várakozó jelöltek)** borostyánsárga várakozási jelvényekkel és **Kiemelt AI Relevanciájú Jelöltek (>85%)** teal `AI: X%` jelvényekkel.
+- **Vezetői Teljesítmény Riportok — Lattice / Leapsome stílusú Kalibrációs Haranggörbe és Prémium Mátrix (`src/app/hr/performance/dashboard/page.tsx`, `src/app/hr/performance/dashboard/components/performance-calibration-dashboard.tsx`):**
+  - Teljes szélességű (`w-full`) elrendezés interaktív **Ciklusválasztóval** (`Összes ciklus` / adott ciklus), **Részlegszűrővel** (`Minden részleg` / konkrét szervezeti egység) és **CSV Exportálás** gombbal.
+  - 4 kanonikus `KpiCard` (`Aktív célkitűzések`, `Átlagos teljesülés`, `Bónuszra jogosult`, `Lezárt értékelések`).
+  - 5 sávos interaktív **Teljesítmény Kalibrációs Eloszlás (Haranggörbe)** (`0–40% Alulteljesít`, `41–59% Fejlesztendő`, `60–74% Megfelelő`, `75–89% Magas`, `90–100% Kimagasló`) tényleges és elvárt (`Cél: X%`) arányokkal, kattintásra táblázatszűréssel, mellette **Ciklusonkénti Vállalati Teljesítmény Trend** Recharts `AreaChart` (`2025 Q4` – `2026 Q4`).
+  - Alsó teljes szélességű **Bérszámfejtési és Prémium Kalibrációs Táblázat** kanonikus `TableToolbar` keresővel, oszlopválasztóval és szűrő popoverrel.
+- **Kattintásra Lenyíló „Cégünkről” Prezentáció Kártya (`src/components/hr/company-presentation-editor.tsx`):**
+  - Ha a vállalatnak már van elmentett prezentációja, a `Cégünkről (AI Prezentáció)` fül alapból az összecsukott, kattintható prezentációkártyát jeleníti meg hover visszajelzéssel (`Kattints a prezentáció megtekintéséhez`), és csak a `Prezentáció szerkesztése` gombra kattintva nyitja meg az 5 lépéses varázslót.
+- **Publikus Karrieroldal Finomhangolások (`src/components/hr/career-portal-client.tsx`, `src/app/karrier/[id]/page.tsx`, `src/utils/hr/career-constants.ts`):**
+  - A `Másik vállalat választása` gomb átkerült a fejléc jobb oldali műveleti sávjába, kikerült a duplikált „Cégünkről” szöveges link és a pozíció-részletező alján lévő teaser kártya, a foglalkoztatás típusokból pedig eltávolításra került a `(40h)` jelölés.
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-27)
 
 ### eaisyHR: Többcéges Karrierportál, 5-Lépéses AI „Cégünkről” Prezentáció Varázsló és Pályázatkövető Rendszer (ADR A-086, PRD P-118)

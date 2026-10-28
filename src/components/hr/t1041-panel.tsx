@@ -126,11 +126,12 @@ export function T1041Panel({
   }, [onboardingId, dolgozoId, offboardingId])
 
   const handleCopyAll = () => {
+    const cegAdatok = t1041Data?.companyDetails || DEFAULT_COMPANY_DETAILS
     const text = [
       `--- NAV T1041 BEJELENTÉSI ADATOK ---`,
-      `Foglalkoztató neve: ${DEFAULT_COMPANY_DETAILS.nev}`,
-      `Foglalkoztató adószáma: ${DEFAULT_COMPANY_DETAILS.adoszam}`,
-      `Foglalkoztató székhelye: ${DEFAULT_COMPANY_DETAILS.szekhely}`,
+      `Foglalkoztató neve: ${cegAdatok.nev}`,
+      `Foglalkoztató adószáma: ${cegAdatok.adoszam}`,
+      `Foglalkoztató székhelye: ${cegAdatok.szekhely}`,
       `Bejelentés típusa: ${T1041_TYPE_LABELS[bejelentesTipus] || bejelentesTipus}`,
       `Biztosított neve: ${formName}`,
       `Adóazonosító jel: ${adoazonositoJel}`,
@@ -166,12 +167,14 @@ export function T1041Panel({
       return
     }
 
+    const cegAdatok = t1041Data?.companyDetails || DEFAULT_COMPANY_DETAILS
+
     const payload: T1041PdfData = {
       bejelentesTipus,
       employeeName: formName.trim(),
-      cegNev: DEFAULT_COMPANY_DETAILS.nev,
-      cegCim: DEFAULT_COMPANY_DETAILS.szekhely,
-      cegAdoszam: DEFAULT_COMPANY_DETAILS.adoszam,
+      cegNev: cegAdatok.nev,
+      cegCim: cegAdatok.szekhely,
+      cegAdoszam: cegAdatok.adoszam,
       tajSzam: tajSzam.trim() || undefined,
       adoazonositoJel: adoazonositoJel.trim() || undefined,
       munkakor: formMunkakor.trim() || undefined,

@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
+import { resolveCompanyDetailsServer } from "@/utils/company-server"
 import { 
   type EmploymentContractPdfData, 
   DEFAULT_COMPANY_DETAILS 
@@ -213,6 +214,7 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
     const contractNumber = `MSZ-${now.getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`
 
     // 1. PDF Buffer előállítása
+    const cegAdatok = await resolveCompanyDetailsServer(null, adminClient)
     const pdfData: EmploymentContractPdfData = {
       contractNumber,
       employeeName: params.employeeName,
@@ -234,7 +236,7 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
       alapber: Number(params.alapber || 500000),
       munkavegzesHelye: params.munkavegzesHelye || "A Munkáltató mindenkori székhelye és telephelyei",
       tavmunkaMegallapodas: Boolean(params.tavmunkaMegallapodas),
-      cegAdatok: DEFAULT_COMPANY_DETAILS,
+      cegAdatok,
       isDraft: !params.dolgozoId
     }
 
@@ -506,6 +508,7 @@ export async function generateMt46NoticeAction(params: GenerateEmploymentContrac
 
     const adminClient = getAdminClient()
     const { generateMt46NoticePdfBuffer } = await import("@/utils/hr/mt46-notice-generator")
+    const cegAdatok = await resolveCompanyDetailsServer(null, adminClient)
 
     const pdfData: EmploymentContractPdfData = {
       contractNumber: "Mt. 46 Tájékoztató",
@@ -528,7 +531,7 @@ export async function generateMt46NoticeAction(params: GenerateEmploymentContrac
       alapber: Number(params.alapber || 500000),
       munkavegzesHelye: params.munkavegzesHelye || "A Munkáltató mindenkori székhelye és telephelyei",
       tavmunkaMegallapodas: Boolean(params.tavmunkaMegallapodas),
-      cegAdatok: DEFAULT_COMPANY_DETAILS,
+      cegAdatok,
       isDraft: !params.dolgozoId
     }
 

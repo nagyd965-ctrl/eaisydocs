@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
-import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { getActiveCompanyIdServer, resolveCompanyDetailsServer } from "@/utils/company-server"
 import { generateTerminationPdfBuffer } from "@/utils/hr/termination-pdf-generator"
 import { type TerminationPdfData, type TerminationType, DEFAULT_COMPANY_DETAILS, TERMINATION_TYPE_LABELS } from "@/utils/hr/termination-constants"
 import { generateAssetReturnPdfBuffer, type AssetReturnItem, type AssetReturnPdfData } from "@/utils/hr/asset-return-pdf-generator"
@@ -187,13 +187,15 @@ export async function createOffboarding(
   kilepesDatuma: string, 
   extraParams?: Partial<CreateOffboardingParams>
 ) {
-  const supabase = await createClient()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod kiléptetési folyamat indításához." }
+  }
+  const user = auth.user
   const adminClient = getAdminClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
-  const activeCompanyId = extraParams?.companyId || (await getActiveCompanyIdServer())
+  const activeCompanyId = extraParams?.companyId || auth.activeCompanyId || (await getActiveCompanyIdServer())
 
   // Check if active offboarding already exists
   const { data: existing } = await adminClient
@@ -342,11 +344,13 @@ export async function closeOffboarding(
   offboardingId: string,
   options?: { force?: boolean; forceReason?: string }
 ) {
-  const supabase = await createClient()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod kiléptetési folyamat lezárásához." }
+  }
+  const user = auth.user
   const adminClient = getAdminClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
 
   const { data: offboarding, error: fetchErr } = await adminClient
     .from("hr_offboarding")
@@ -563,11 +567,13 @@ export async function reopenOffboarding(
   offboardingId: string,
   options?: { resetTasks?: boolean }
 ) {
-  const supabase = await createClient()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod a kiléptetési folyamat újranyitásához." }
+  }
+  const user = auth.user
   const adminClient = getAdminClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
 
   const { data: offboarding } = await adminClient
     .from("hr_offboarding")
@@ -728,10 +734,13 @@ export const reopenOffboardingProcess = reopenOffboarding
 export const resetOffboardingTasksProcess = resetOffboardingTasks
 
 export async function deleteOffboardingProcess(offboardingId: string) {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod a kiléptetési folyamat törléséhez." }
+  }
+  const user = auth.user
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
 
   const { error } = await supabase
     .from("hr_offboarding")
@@ -762,6 +771,11 @@ export async function deleteOffboardingProcess(offboardingId: string) {
 // ---------------------------------------------------------------------------
 
 export async function getOffboardingDetailData(offboardingId: string) {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "auditor"], null)
+  if (!auth.authorized) {
+    return { error: "Nincs jogosultságod a kiléptetési adatok megtekintéséhez." }
+  }
   const adminClient = getAdminClient()
 
   try {
@@ -977,11 +991,13 @@ export async function generateTerminationAgreementAction(
   offboardingId: string, 
   payload: Partial<TerminationPdfData>
 ) {
-  const supabase = await createClient()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod munkaviszony megszüntetési dokumentum generálásához." }
+  }
+  const user = auth.user
   const adminClient = getAdminClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
 
   const { data: offboarding, error: offErr } = await adminClient
     .from("hr_offboarding")
@@ -1013,6 +1029,7 @@ export async function generateTerminationAgreementAction(
     .eq("id", offboardingId)
 
   // 2. PDF Generálás
+  const cegAdatok = await resolveCompanyDetailsServer(offboarding.company_id, adminClient)
   const pdfData: TerminationPdfData = {
     employeeName,
     employeeId: offboarding.dolgozo_id,
@@ -1033,7 +1050,7 @@ export async function generateTerminationAgreementAction(
     vegkielegitesOsszeg: Number(payload.vegkielegitesOsszeg || 0),
     indoklas: payload.indoklas,
     egyediZaradek: payload.egyediZaradek,
-    cegAdatok: DEFAULT_COMPANY_DETAILS,
+    cegAdatok,
     kelt: new Date().toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })
   }
 
@@ -1142,11 +1159,13 @@ export async function generateAssetReturnSheetAction(
     vagyoniElszamolasNyilatkozat?: string | null
   }
 ) {
-  const supabase = await createClient()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod eszköz visszavételi lap generálásához." }
+  }
+  const user = auth.user
   const adminClient = getAdminClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
 
   const { data: offboarding, error: offErr } = await adminClient
     .from("hr_offboarding")
@@ -1179,6 +1198,7 @@ export async function generateAssetReturnSheetAction(
   }
 
   // 2. PDF Generálás
+  const cegAdatok = await resolveCompanyDetailsServer(offboarding.company_id, adminClient)
   const pdfData: AssetReturnPdfData = {
     employeeName,
     employeeId: offboarding.dolgozo_id,
@@ -1186,7 +1206,7 @@ export async function generateAssetReturnSheetAction(
     munkakor: offboarding.munkakor || "Munkavállaló",
     reszleg: offboarding.reszleg,
     visszavetelDatuma: payload.visszavetelDatuma || new Date().toISOString().split("T")[0],
-    cegAdatok: DEFAULT_COMPANY_DETAILS,
+    cegAdatok,
     items: payload.items || [],
     fizetendoKarteritesOsszeg: Number(payload.fizetendoKarteritesOsszeg || 0),
     vagyoniElszamolasNyilatkozat: payload.vagyoniElszamolasNyilatkozat,
@@ -1342,11 +1362,13 @@ export async function saveExitInterview(offboardingId: string, formData: {
   ajanlana: boolean | null
   kovetkezo_allomashely: string
 }) {
-  const supabase = await createClient()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod kilépési interjú mentéséhez." }
+  }
+  const user = auth.user
   const adminClient = getAdminClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
 
   const { error } = await adminClient
     .from("hr_kilepes_interju")
@@ -1397,11 +1419,13 @@ export async function generateExitCertificateAction(
   offboardingId: string,
   payload: Partial<ExitCertificatePdfData>
 ) {
-  const supabase = await createClient()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod kilépő igazolások generálásához." }
+  }
+  const user = auth.user
   const adminClient = getAdminClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
 
   const { data: offboarding, error: offErr } = await adminClient
     .from("hr_offboarding")
@@ -1450,6 +1474,7 @@ export async function generateExitCertificateAction(
   }
 
   // 1. PDF Adatok összeállítása
+  const cegAdatok = await resolveCompanyDetailsServer(offboarding.company_id, adminClient)
   const pdfData: ExitCertificatePdfData = {
     employeeName,
     employeeId: offboarding.dolgozo_id,
@@ -1475,7 +1500,7 @@ export async function generateExitCertificateAction(
     atvetelModja: payload.atvetelModja || "szemelyes",
     postaiAzonosito: payload.postaiAzonosito || null,
     kiadottIratok: payload.kiadottIratok && payload.kiadottIratok.length > 0 ? payload.kiadottIratok : DEFAULT_EXIT_DOCUMENTS,
-    cegAdatok: DEFAULT_COMPANY_DETAILS,
+    cegAdatok,
     kelt: new Date().toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })
   }
 

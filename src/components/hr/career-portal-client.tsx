@@ -330,22 +330,21 @@ export function CareerPortalClient({
                 </span>
               </div>
             </button>
-
-            {activeCompanyObj && companies.length > 1 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => handleSelectCompany(null)}
-                className="h-8 px-2.5 text-xs gap-1.5 text-muted-foreground hover:text-foreground ml-1"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Másik vállalat választása</span>
-              </Button>
-            )}
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {activeCompanyObj && companies.length > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleSelectCompany(null)}
+                className="h-8 text-xs font-medium"
+              >
+                Másik vállalat választása
+              </Button>
+            )}
+
             {/* Pályázatstátusz lekérdezése modál */}
             <Dialog open={trackerOpen} onOpenChange={setTrackerOpen}>
               <DialogTrigger
@@ -763,19 +762,6 @@ export function CareerPortalClient({
                   <span>Cégünkről — Vállalati Prezentáció</span>
                 </button>
               </div>
-
-              {portalSection === "positions" && (
-                <button
-                  type="button"
-                  onClick={() => handleSwitchSection("about")}
-                  className="text-xs font-medium text-primary hover:underline flex items-center gap-1.5 self-start sm:self-center"
-                >
-                  <span>
-                    Ismerd meg a(z) {activeCompanyObj.name} kultúráját és irodáit 5 fejezetben
-                  </span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              )}
             </div>
 
             {portalSection === "about" && activePresentation ? (

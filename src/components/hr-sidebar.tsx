@@ -1,9 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { Home, Users, Calendar, Briefcase, FileText, UserPlus, Presentation, Target, FileBarChart2, ShieldAlert, ChevronDown, UserMinus } from "lucide-react"
+import { Users, Briefcase, FileText, Target, ShieldAlert, ShieldCheck, ChevronDown } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
+import { normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
 
 import {
   Sidebar,
@@ -25,186 +26,133 @@ import { SidebarFooterContent } from "@/components/sidebar-footer-content"
 import { ModuleSwitcher } from "@/components/module-switcher"
 import { CompanySelector } from "@/components/company-selector"
 
-const items = [
+interface HrNavSubItem {
+  title: string
+  url: string
+  moduleKey?: string
+}
 
+interface HrNavItem {
+  title: string
+  url: string
+  icon: any
+  moduleKey?: string
+  adminOnly?: boolean
+  items?: HrNavSubItem[]
+}
+
+const items: HrNavItem[] = [
   {
     title: "Dolgozói Portál",
     url: "/hr",
     icon: Users,
     items: [
-      {
-        title: "Áttekintés",
-        url: "/hr",
-      },
-      {
-        title: "Profilom",
-        url: "/hr/self-service/profile",
-      },
-      {
-        title: "Dokumentumaim",
-        url: "/hr/self-service/documents",
-      },
-      {
-        title: "Jelenlét",
-        url: "/hr/self-service/time",
-      },
-      {
-        title: "Célkitűzések",
-        url: "/hr/self-service/goals",
-      },
-      {
-        title: "Fejlődési Tervem",
-        url: "/hr/self-service/idp",
-      },
-      {
-        title: "Bérpapírjaim",
-        url: "/hr/self-service/payroll",
-      },
-      {
-        title: "Belső Állások",
-        url: "/hr/self-service/career",
-      },
-    ]
+      { title: "Áttekintés", url: "/hr" },
+      { title: "Profilom", url: "/hr/self-service/profile" },
+      { title: "Dokumentumaim", url: "/hr/self-service/documents" },
+      { title: "Jelenlét", url: "/hr/self-service/time" },
+      { title: "Célkitűzések", url: "/hr/self-service/goals" },
+      { title: "Fejlődési Tervem", url: "/hr/self-service/idp" },
+      { title: "Bérpapírjaim", url: "/hr/self-service/payroll" },
+      { title: "Belső Állások", url: "/hr/self-service/career" },
+    ],
   },
   {
     title: "Vezetői nézet",
     url: "/hr/manager",
     icon: Briefcase,
     items: [
-      {
-        title: "Csapat áttekintés",
-        url: "/hr/manager",
-      },
-      {
-        title: "Teljesítményértékelés",
-        url: "/hr/performance",
-      }
-    ]
+      { title: "Csapat áttekintés", url: "/hr/manager" },
+      { title: "Teljesítményértékelés", url: "/hr/performance" },
+    ],
   },
   {
     title: "HR Munkaasztal",
     url: "/hr/admin",
     icon: FileText,
     items: [
-      {
-        title: "Állomány áttekintés",
-        url: "/hr/admin",
-      },
-      {
-        title: "Szervezeti Felépítés",
-        url: "/hr/organization",
-      },
-      {
-        title: "Műszakbeosztás",
-        url: "/hr/time",
-      },
-      {
-        title: "Bérszámfejtés",
-        url: "/hr/payroll",
-      },
-      {
-        title: "Munkaügyi Megfelelőség",
-        url: "/hr/compliance",
-      },
-      {
-        title: "Riportok",
-        url: "/hr/reports",
-      }
-    ]
+      { title: "Állomány áttekintés", url: "/hr/admin", moduleKey: "admin" },
+      { title: "Szervezeti Felépítés", url: "/hr/organization", moduleKey: "organization" },
+      { title: "Műszakbeosztás", url: "/hr/time", moduleKey: "time" },
+      { title: "Bérszámfejtés", url: "/hr/payroll", moduleKey: "payroll" },
+      { title: "Munkaügyi Megfelelőség", url: "/hr/compliance", moduleKey: "compliance" },
+      { title: "Riportok", url: "/hr/reports", moduleKey: "reports" },
+    ],
   },
   {
     title: "Dolgozói Életút",
     url: "/hr/recruitment",
     icon: Target,
     items: [
-      {
-        title: "Toborzás",
-        url: "/hr/recruitment",
-      },
-      {
-        title: "Onboarding",
-        url: "/hr/onboarding",
-      },
-      {
-        title: "Offboarding",
-        url: "/hr/offboarding",
-      }
-    ]
+      { title: "Toborzás", url: "/hr/recruitment", moduleKey: "recruitment" },
+      { title: "Onboarding", url: "/hr/onboarding", moduleKey: "onboarding" },
+      { title: "Offboarding", url: "/hr/offboarding", moduleKey: "offboarding" },
+    ],
   },
   {
     title: "Eseménynapló",
     url: "/hr/audit",
     icon: ShieldAlert,
-  }
+    moduleKey: "audit",
+  },
 ]
 
-export function HrSidebar({ hrRole = "munkavallalo" }: { hrRole?: string }) {
+export function HrSidebar({
+  hrRole = "munkavallalo",
+  hrModules = [],
+}: {
+  hrRole?: string
+  hrModules?: string[]
+}) {
   const pathname = usePathname()
 
-  // Szerepkör alapú menüszűrés és almenü-testreszabás
+  const normalized = normalizeHrRoleAndModules(hrRole, hrModules)
+  const role = normalized.role
+  const activeModuleSet = new Set<string>(normalized.modules)
+
   const filteredItems = items
-    .map(item => {
-      // 1. Admin, HR vezető, HR munkatárs, rendszergazda, auditor mindent lát
-      if (["admin", "hr_vezeto", "hr_munkatars", "rendszergazda", "auditor"].includes(hrRole)) {
+    .map((item): HrNavItem | null => {
+      // 1. Dolgozói Portál mindenkinek elérhető
+      if (item.title === "Dolgozói Portál") {
         return item
       }
 
-      // 2. Vezető csak a Dolgozói Portált és a Vezetői nézetet látja
-      if (hrRole === "vezeto") {
-        if (item.title === "Dolgozói Portál" || item.title === "Vezetői nézet") {
+      // 2. Jogosultságkezelő kizárólag Adminnak
+      if (item.adminOnly) {
+        return role === "admin" ? item : null
+      }
+
+      // 3. Vezetői nézet: Vezetőnek, Adminnak, vagy akinek be van kapcsolva az Állomány ('admin') modul
+      if (item.title === "Vezetői nézet") {
+        if (role === "admin" || role === "vezeto" || activeModuleSet.has("admin")) {
           return item
         }
         return null
       }
 
-      // 3. Bérügyi munkatárs: Dolgozói Portál + Bérügyi releváns HR Munkaasztal modulok
-      if (hrRole === "berugyi") {
-        if (item.title === "Dolgozói Portál") return item
-        if (item.title === "HR Munkaasztal") {
-          return {
-            ...item,
-            items: item.items?.filter(sub => 
-              ["/hr/admin", "/hr/payroll", "/hr/time", "/hr/reports", "/hr/organization"].includes(sub.url)
-            )
-          }
+      // 4. HR Munkaasztal és Dolgozói Életút: almenük szűrése az engedélyezett modulok alapján
+      if (item.items && item.items.length > 0) {
+        const allowedSubs = item.items.filter((sub) => {
+          if (role === "admin") return true
+          if (!sub.moduleKey) return true
+          return activeModuleSet.has(sub.moduleKey)
+        })
+        if (allowedSubs.length === 0) return null
+        return {
+          ...item,
+          url: allowedSubs[0].url,
+          items: allowedSubs,
         }
-        return null
       }
 
-      // 4. Munkavédelmi felelős: Dolgozói Portál + Munkaügyi/Munkavédelmi Megfelelőség és Állomány
-      if (hrRole === "munkavedelmi") {
-        if (item.title === "Dolgozói Portál") return item
-        if (item.title === "HR Munkaasztal") {
-          return {
-            ...item,
-            items: item.items?.filter(sub => 
-              ["/hr/admin", "/hr/compliance"].includes(sub.url)
-            )
-          }
-        }
-        return null
-      }
-
-      // 5. Toborzó (ATS): Dolgozói Portál + csak Toborzás (a zárt Onboarding/Offboarding nélkül)
-      if (hrRole === "toborzo") {
-        if (item.title === "Dolgozói Portál") return item
-        if (item.title === "Dolgozói Életút") {
-          return {
-            ...item,
-            items: item.items?.filter(sub => sub.url === "/hr/recruitment")
-          }
-        }
-        return null
-      }
-
-      // 6. Munkavállaló és fallback: kizárólag Dolgozói Portál
-      if (item.title === "Dolgozói Portál") {
-        return item
+      // 5. Önálló modul-oldal (pl. Eseménynapló)
+      if (item.moduleKey) {
+        return role === "admin" || activeModuleSet.has(item.moduleKey) ? item : null
       }
 
       return null
     })
-    .filter((item): item is (typeof items)[0] => item !== null)
+    .filter((item): item is HrNavItem => item !== null)
 
   return (
     <Sidebar>
@@ -220,7 +168,11 @@ export function HrSidebar({ hrRole = "munkavallalo" }: { hrRole?: string }) {
               {filteredItems.map((item) => {
                 const isActive = pathname === item.url || (item.url !== "/hr" && pathname.startsWith(item.url + "/"))
                 if (item.items && item.items.length > 0) {
-                  const isGroupActive = isActive || item.items.some(sub => pathname === sub.url || (sub.url !== "/hr" && pathname.startsWith(sub.url + "/")))
+                  const isGroupActive =
+                    isActive ||
+                    item.items.some(
+                      (sub) => pathname === sub.url || (sub.url !== "/hr" && pathname.startsWith(sub.url + "/"))
+                    )
                   return (
                     <Collapsible key={item.title} defaultOpen={isGroupActive} className="group/collapsible">
                       <SidebarMenuItem>
@@ -233,13 +185,21 @@ export function HrSidebar({ hrRole = "munkavallalo" }: { hrRole?: string }) {
                         </CollapsibleTrigger>
                         <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                           <SidebarMenuSub className="pr-0 mr-0 mt-1">
-                            {item.items.map(subItem => {
-                              const isSubActive = pathname === subItem.url || (subItem.url !== "/hr" && subItem.url !== "/hr/admin" && pathname.startsWith(subItem.url + "/"))
+                            {item.items.map((subItem) => {
+                              const isSubActive =
+                                pathname === subItem.url ||
+                                (subItem.url !== "/hr" &&
+                                  subItem.url !== "/hr/admin" &&
+                                  pathname.startsWith(subItem.url + "/"))
                               return (
                                 <SidebarMenuSubItem key={subItem.title} className="relative">
-                                  {isSubActive && <div className="absolute -left-4 top-1.5 bottom-1.5 w-[3px] bg-primary rounded-r-md z-10" />}
+                                  {isSubActive && (
+                                    <div className="absolute -left-4 top-1.5 bottom-1.5 w-[3px] bg-primary rounded-r-md z-10" />
+                                  )}
                                   <SidebarMenuSubButton render={<Link href={subItem.url} />} isActive={isSubActive}>
-                                    <span className={isSubActive ? "font-semibold text-primary" : ""}>{subItem.title}</span>
+                                    <span className={isSubActive ? "font-semibold text-primary" : ""}>
+                                      {subItem.title}
+                                    </span>
                                   </SidebarMenuSubButton>
                                 </SidebarMenuSubItem>
                               )
@@ -263,8 +223,6 @@ export function HrSidebar({ hrRole = "munkavallalo" }: { hrRole?: string }) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-
       </SidebarContent>
       <SidebarFooter className="p-0">
         <SidebarFooterContent />

@@ -531,7 +531,17 @@ export async function getCompanyOvertimeComplianceData(
     annualOvertimeByEmployee.set(a.dolgozo_id, currentOt + ot.overtimeHours)
   }
 
-  // 6. Dolgozók rekordjainak felépítése
+  // 6. Dolgozók rekordjainak felépítése (csak aktív, nem kilépett dolgozók)
+  const todayStr = format(now, "yyyy-MM-dd")
+  const activeEmploymentByEmployee = new Map<string, any>()
+  for (const j of (rawEmployees as any[]) || []) {
+    if (!j.dolgozo_id) continue
+    const existing = activeEmploymentByEmployee.get(j.dolgozo_id)
+    if (!existing || (!j.kilepes_datuma && existing.kilepes_datuma)) {
+      activeEmploymentByEmployee.set(j.dolgozo_id, j)
+    }
+  }
+
   const processedEmployeeIds = new Set<string>()
   const records: EmployeeOvertimeComplianceRecord[] = []
 
@@ -541,8 +551,9 @@ export async function getCompanyOvertimeComplianceData(
   let voluntaryAgreementCount = 0
   let totalCompanyOvertimeHours = 0
 
-  for (const j of (rawEmployees as any[]) || []) {
+  for (const j of Array.from(activeEmploymentByEmployee.values())) {
     if (!j.dolgozo_id || processedEmployeeIds.has(j.dolgozo_id)) continue
+    if (j.kilepes_datuma && j.kilepes_datuma < todayStr) continue
     processedEmployeeIds.add(j.dolgozo_id)
 
     const adatlap = Array.isArray(j.hr_dolgozo_adatlap)

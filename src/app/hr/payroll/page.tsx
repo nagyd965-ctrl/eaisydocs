@@ -6,7 +6,7 @@ import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 export const dynamic = "force-dynamic"
 
 export default async function HrPayrollPage() {
-  const { companyScope } = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi", "auditor"])
+  const { companyScope } = await requireHrAuthServer(["payroll"])
 
   const now = new Date()
   const year = now.getFullYear()

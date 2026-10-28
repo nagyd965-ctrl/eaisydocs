@@ -86,9 +86,12 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
     return new Date(isoString).toLocaleTimeString("hu-HU", { hour: "2-digit", minute: "2-digit" })
   }
 
-  const calculateHours = (start: string | null, end: string | null) => {
+  const calculateHours = (start: string | null, end: string | null, szunetMs?: number, szunetPerc?: number) => {
     if (!start || !end) return 0
-    return (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60)
+    const rawDiffMs = new Date(end).getTime() - new Date(start).getTime()
+    const breakMs = Number(szunetMs || 0) || (Number(szunetPerc || 0) * 60000)
+    const netMs = Math.max(0, rawDiffMs - breakMs)
+    return netMs / (1000 * 60 * 60)
   }
 
   const formatHours = (hours: number) => {
@@ -97,7 +100,7 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
   }
 
   const totalHours = timesheet.reduce((sum, entry) => {
-    if (entry.type === "munka") return sum + calculateHours(entry.becsekkolas_ideje, entry.kicsekkolas_ideje)
+    if (entry.type === "munka") return sum + calculateHours(entry.becsekkolas_ideje, entry.kicsekkolas_ideje, entry.szunet_ms, entry.szunet_perc)
     return sum
   }, 0)
 
@@ -211,7 +214,7 @@ export function EmployeeTimesheet({ employeeId }: { employeeId: string }) {
                 ) : (
                   timesheet.map((entry) => {
                     const hours = entry.type === "munka"
-                      ? calculateHours(entry.becsekkolas_ideje, entry.kicsekkolas_ideje)
+                      ? calculateHours(entry.becsekkolas_ideje, entry.kicsekkolas_ideje, entry.szunet_ms, entry.szunet_perc)
                       : 0
 
                     return (

@@ -53,6 +53,7 @@ import { type TeamMember, type LeaveRecord } from "@/types/hr"
 type ViewMode = "heti" | "havi" | "eves"
 
 function isLeaveActive(l: LeaveRecord, day: Date): boolean {
+  if (l.statusz === "elutasitva" || l.statusz === "visszavonva") return false
   const startStr = l.kezdet_datuma || l.kezdete
   const endStr = l.veg_datuma || l.vege
   if (!startStr || !endStr) return false

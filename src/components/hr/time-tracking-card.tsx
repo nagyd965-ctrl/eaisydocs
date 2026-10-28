@@ -5,48 +5,66 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Coffee, Play, CheckCircle2, RotateCcw, Edit3 } from "lucide-react"
-import { toggleCheckIn } from "@/app/hr/self-service/actions"
+import { toggleCheckIn, toggleBreak } from "@/app/hr/self-service/actions"
 import { AttendanceCorrectionDialog } from "@/components/hr/attendance-correction-dialog"
 import { toast } from "sonner"
 
 export function TimeTrackingCard({ 
   initialStatus, 
   checkInTime, 
-  checkOutTime 
+  checkOutTime,
+  initialAccumulatedBreakMs = 0,
+  initialBreakStart = null,
 }: { 
   initialStatus: "none" | "checked_in" | "checked_out",
   checkInTime: string | null,
-  checkOutTime: string | null
+  checkOutTime: string | null,
+  initialAccumulatedBreakMs?: number,
+  initialBreakStart?: string | null,
 }) {
   const [status, setStatus] = useState(initialStatus)
   const [loading, setLoading] = useState(false)
   const [elapsedTime, setElapsedTime] = useState("-- : --")
   const [breakElapsedTime, setBreakElapsedTime] = useState("")
 
-  // Break / ebéd state (naphoz kötött localStorage)
-  const [onBreak, setOnBreak] = useState(false)
-  const [breakStart, setBreakStart] = useState<number | null>(null)
-  const [accumulatedBreakMs, setAccumulatedBreakMs] = useState(0)
+  // Break / ebéd state (adatbázisból inicializálva + localStorage szinkron)
+  const [onBreak, setOnBreak] = useState(Boolean(initialBreakStart))
+  const [breakStart, setBreakStart] = useState<number | null>(
+    initialBreakStart ? new Date(initialBreakStart).getTime() : null
+  )
+  const [accumulatedBreakMs, setAccumulatedBreakMs] = useState(Number(initialAccumulatedBreakMs || 0))
   
   // Update internal timestamps in case they check in/out without refresh
   const [internalCheckIn, setInternalCheckIn] = useState(checkInTime)
   const [internalCheckOut, setInternalCheckOut] = useState(checkOutTime)
 
-  // LocalStorage szünet adatok betöltése
+  // LocalStorage szünet adatok összevetése az adatbázissal (visszafelé kompatibilitás)
   useEffect(() => {
     try {
       const todayStr = new Date().toISOString().split("T")[0]
+      const dbAccum = Number(initialAccumulatedBreakMs || 0)
+      const dbStart = initialBreakStart ? new Date(initialBreakStart).getTime() : null
+
       const saved = localStorage.getItem(`hr_break_${todayStr}`)
       if (saved) {
         const parsed = JSON.parse(saved)
-        setOnBreak(Boolean(parsed.onBreak))
-        setBreakStart(parsed.breakStart ? Number(parsed.breakStart) : null)
-        setAccumulatedBreakMs(Number(parsed.accumulatedBreakMs) || 0)
+        const localAccum = Number(parsed.accumulatedBreakMs) || 0
+        const mergedAccum = Math.max(dbAccum, localAccum)
+        const isCurrentlyOnBreak = dbStart !== null ? true : Boolean(parsed.onBreak) && status === "checked_in"
+        const effectiveStart = dbStart ?? (isCurrentlyOnBreak && parsed.breakStart ? Number(parsed.breakStart) : null)
+
+        setOnBreak(Boolean(effectiveStart))
+        setBreakStart(effectiveStart)
+        setAccumulatedBreakMs(mergedAccum)
+      } else {
+        setOnBreak(Boolean(dbStart))
+        setBreakStart(dbStart)
+        setAccumulatedBreakMs(dbAccum)
       }
     } catch {
-      // Hiba esetén alapértelmezett állapot
+      // Hiba esetén alapértelmezett adatbázis állapot
     }
-  }, [])
+  }, [initialAccumulatedBreakMs, initialBreakStart, status])
 
   // Szünet állapot mentése
   const saveBreakState = (isOnBreak: boolean, start: number | null, accum: number) => {
@@ -65,19 +83,32 @@ export function TimeTrackingCard({
     }
   }
 
-  // Szünet indítása / befejezése
-  const handleToggleBreak = () => {
+  // Szünet indítása / befejezése (szerveroldali adatbázis perzisztenciával)
+  const handleToggleBreak = async () => {
     const now = Date.now()
     if (!onBreak) {
-      // Szünet kezdése
+      // Optimista frissítés + DB mentés
       saveBreakState(true, now, accumulatedBreakMs)
-      toast.info("Ebédszünet elindítva. A munkaidő számláló szünetel.")
+      const res = await toggleBreak()
+      if (res.error) {
+        toast.error(res.error)
+      } else {
+        const serverStart = res.breakStart ? new Date(res.breakStart).getTime() : now
+        saveBreakState(true, serverStart, res.accumulatedBreakMs ?? accumulatedBreakMs)
+        toast.info("Ebédszünet elindítva. A munkaidő számláló szünetel.")
+      }
     } else {
       // Szünet befejezése
-      const duration = breakStart ? now - breakStart : 0
-      const newAccum = accumulatedBreakMs + duration
-      saveBreakState(false, null, newAccum)
-      toast.success("Szünet lezárva. Munkaidő számlálás folytatódik!")
+      const duration = breakStart ? Math.max(0, now - breakStart) : 0
+      const optimisticAccum = accumulatedBreakMs + duration
+      saveBreakState(false, null, optimisticAccum)
+      const res = await toggleBreak()
+      if (res.error) {
+        toast.error(res.error)
+      } else {
+        saveBreakState(false, null, res.accumulatedBreakMs ?? optimisticAccum)
+        toast.success("Szünet lezárva. Munkaidő számlálás folytatódik!")
+      }
     }
   }
 
@@ -136,7 +167,7 @@ export function TimeTrackingCard({
 
   const handleToggle = async () => {
     setLoading(true)
-    const result = await toggleCheckIn()
+    const result = await toggleCheckIn(accumulatedBreakMs)
     setLoading(false)
 
     if (result.error) {
@@ -146,20 +177,23 @@ export function TimeTrackingCard({
       setStatus(newStatus)
       if (newStatus === "checked_in") {
         if (!internalCheckIn) {
-          setInternalCheckIn(new Date().toISOString())
+          setInternalCheckIn((result as any).checkInTime || new Date().toISOString())
         }
         setInternalCheckOut(null)
-        if (result.resumed) {
+        if (typeof (result as any).accumulatedBreakMs === "number") {
+          saveBreakState(false, null, (result as any).accumulatedBreakMs)
+        }
+        if ((result as any).resumed) {
           toast.success("Munka sikeresen folytatva!")
         } else {
           toast.success("Sikeres becsekkolás! Jó munkát!")
         }
       } else {
-        setInternalCheckOut(new Date().toISOString())
-        // Ha szünet közben csekkol ki, zárjuk le a szünetet
-        if (onBreak && breakStart) {
-          saveBreakState(false, null, accumulatedBreakMs + (Date.now() - breakStart))
-        }
+        setInternalCheckOut((result as any).checkOutTime || new Date().toISOString())
+        const nextAccum = typeof (result as any).accumulatedBreakMs === "number"
+          ? (result as any).accumulatedBreakMs
+          : (onBreak && breakStart ? accumulatedBreakMs + (Date.now() - breakStart) : accumulatedBreakMs)
+        saveBreakState(false, null, nextAccum)
         toast.success("Sikeres kicsekkolás! Jó pihenést!")
       }
     }

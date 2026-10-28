@@ -6,7 +6,7 @@ import { getWeeklyShiftRoster, getCompanyShiftTemplates } from "@/app/hr/time/sh
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export default async function TimeAndAttendancePage() {
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi", "rendszergazda", "auditor"])
+  const auth = await requireHrAuthServer(["time"])
   if (!auth.authorized || !auth.activeCompanyId) {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">
@@ -87,7 +87,10 @@ export default async function TimeAndAttendancePage() {
       })
     }
   }
-  const allEmployees = Array.from(employeeMap.values())
+  const todayStr = new Date().toISOString().split("T")[0]
+  const allEmployees = Array.from(employeeMap.values()).filter(
+    (emp) => !emp.kilepes_datuma || emp.kilepes_datuma >= todayStr
+  )
 
   return (
     <TimeTabsView

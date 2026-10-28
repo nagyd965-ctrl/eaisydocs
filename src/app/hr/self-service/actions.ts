@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { checkMedicalValidityForDate } from "@/utils/hr/medical-compliance-checker"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { calculateAnnualLeave, calculateWorkingDays } from "@/utils/hr/leave-calculator"
 
 export async function submitLeaveRequest(formData: FormData) {
   const supabase = await createClient()
@@ -92,20 +93,79 @@ export async function submitLeaveRequest(formData: FormData) {
 
   const note = (formData.get("note") as string) || null
 
+  // Munkaszüneti napok és áthelyezett szombati munkanapok lekérése az érintett év(ek)re
+  const requestYear = new Date(startDate).getFullYear() || new Date().getFullYear()
+  const { data: holidaysData } = await supabase
+    .from("hr_munkaszuneti_nap")
+    .select("datum, athelye_munkanap")
+    .gte("datum", `${requestYear - 1}-01-01`)
+    .lte("datum", `${requestYear + 1}-12-31`)
+
+  const unnepnapok = (holidaysData || [])
+    .filter((h: any) => !h.athelye_munkanap)
+    .map((h: any) => h.datum as string)
+  const athelyezettMunkanapok = (holidaysData || [])
+    .filter((h: any) => Boolean(h.athelye_munkanap))
+    .map((h: any) => h.datum as string)
+
+  const workDays = calculateWorkingDays(startDate, endDate, unnepnapok, athelyezettMunkanapok)
+
+  if (workDays <= 0) {
+    return {
+      error: "A kiválasztott időszakban nincs egyetlen munkanap sem (hétvége vagy munkaszüneti nap)."
+    }
+  }
+
+  // Ha rendes szabadság, ellenőrizzük a maradék éves szabadságkeretet
+  const isPaidLeaveRequest = ["szabadsag", "alapszabadsag", "fizetett"].includes(type.toLowerCase())
+  if (isPaidLeaveRequest) {
+    const yearStart = `${requestYear}-01-01`
+    const yearEnd = `${requestYear}-12-31`
+
+    const [{ data: adatlap }, { data: existingLeaves }] = await Promise.all([
+      supabase
+        .from("hr_dolgozo_adatlap")
+        .select("szuletesi_datum, szuletesi_ido, gyermekek_szama, megvaltozott_munkakepessegu")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("hr_tavollet")
+        .select("kezdet_datuma, veg_datuma, tipus, statusz, munkanapok_szama")
+        .eq("dolgozo_id", user.id)
+        .in("statusz", ["jovahagyva", "jovahagyasra_var"])
+        .lte("kezdet_datuma", yearEnd)
+        .gte("veg_datuma", yearStart),
+    ])
+
+    const totalLeaveQuota = calculateAnnualLeave(
+      (adatlap as any)?.szuletesi_datum || (adatlap as any)?.szuletesi_ido,
+      (adatlap as any)?.gyermekek_szama ?? 0,
+      Boolean((adatlap as any)?.megvaltozott_munkakepessegu),
+      requestYear
+    )
+
+    const usedOrPendingDays = (existingLeaves || [])
+      .filter((t: any) => ["szabadsag", "alapszabadsag", "fizetett"].includes((t.tipus || "").toLowerCase()))
+      .reduce((sum: number, t: any) => {
+        if (typeof t.munkanapok_szama === "number" && t.munkanapok_szama > 0 && t.kezdet_datuma >= yearStart && t.veg_datuma <= yearEnd) {
+          return sum + t.munkanapok_szama
+        }
+        const s = t.kezdet_datuma > yearStart ? t.kezdet_datuma : yearStart
+        const e = t.veg_datuma < yearEnd ? t.veg_datuma : yearEnd
+        return sum + calculateWorkingDays(s, e, unnepnapok, athelyezettMunkanapok)
+      }, 0)
+
+    const remainingQuota = Math.max(0, totalLeaveQuota - usedOrPendingDays)
+    if (workDays > remainingQuota) {
+      return {
+        error: `Az igényelt szabadság (${workDays} munkanap) meghaladja a rendelkezésre álló éves szabadságkeretedet! Elérhető keret: ${remainingQuota} munkanap (éves keret: ${totalLeaveQuota} nap, már felhasznált/függőben lévő: ${usedOrPendingDays} nap).`
+      }
+    }
+  }
+
   // Ha a kérelem csúsztatás (túlóra terhére kért szabadnap), ellenőrizzük a túlóra egyenleget
   let requiredMinutes = 0
   if (type === "csusztatas") {
-    let workDays = 0
-    const cur = new Date(startDate)
-    const end = new Date(endDate)
-    while (cur <= end) {
-      const day = cur.getDay()
-      if (day !== 0 && day !== 6) {
-        workDays++
-      }
-      cur.setDate(cur.getDate() + 1)
-    }
-    workDays = Math.max(1, workDays)
     requiredMinutes = workDays * 480 // 8 óra / munkanap
 
     const { data: balanceData } = await supabase
@@ -144,7 +204,7 @@ export async function submitLeaveRequest(formData: FormData) {
     }
   }
 
-  const { data: tavolletRow, error } = await supabase
+  let { data: tavolletRow, error } = await supabase
     .from("hr_tavollet")
     .insert({
       company_id: activeCompanyId || undefined,
@@ -153,10 +213,30 @@ export async function submitLeaveRequest(formData: FormData) {
       veg_datuma: endDate,
       tipus: type,
       statusz: "jovahagyasra_var",
-      aktualis_jovahagyo_id: aktualisJovahagyoId
+      aktualis_jovahagyo_id: aktualisJovahagyoId,
+      munkanapok_szama: workDays,
     })
     .select("id")
     .single()
+
+  // Ha a táblán még nem futott le a munkanapok_szama migráció, fallback beszúrás
+  if (error && (error.message?.includes("munkanapok_szama") || error.code === "PGRST204")) {
+    const fallbackRes = await supabase
+      .from("hr_tavollet")
+      .insert({
+        company_id: activeCompanyId || undefined,
+        dolgozo_id: user.id,
+        kezdet_datuma: startDate,
+        veg_datuma: endDate,
+        tipus: type,
+        statusz: "jovahagyasra_var",
+        aktualis_jovahagyo_id: aktualisJovahagyoId,
+      })
+      .select("id")
+      .single()
+    tavolletRow = fallbackRes.data
+    error = fallbackRes.error
+  }
 
   if (error) {
     console.error("Leave request error:", error)
@@ -522,7 +602,7 @@ export async function updateSecretData(formData: FormData) {
   return { success: true }
 }
 
-export async function toggleCheckIn() {
+export async function toggleCheckIn(clientAccumulatedBreakMs?: number) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -530,12 +610,14 @@ export async function toggleCheckIn() {
     return { error: "Nincs bejelentkezve" }
   }
 
+  const todayStr = new Date().toISOString().split('T')[0]
+
   // Get current date's record
   const { data: todayRecord, error: fetchError } = await supabase
     .from("hr_jelenlet")
     .select("*")
     .eq("dolgozo_id", user.id)
-    .eq("datum", new Date().toISOString().split('T')[0])
+    .eq("datum", todayStr)
     .single()
 
   if (fetchError && fetchError.code !== "PGRST116") {
@@ -546,7 +628,6 @@ export async function toggleCheckIn() {
   // Orvosi alkalmasság ellenőrzése becsekkolás előtt (HR-TASK-05, Mvt. 49. §)
   // Csak becsekkoláskor (új munkakezdés vagy folytatás) ellenőrizzük, a kicsekkolást soha nem blokkoljuk!
   if (!todayRecord || todayRecord.kicsekkolas_ideje) {
-    const todayStr = new Date().toISOString().split("T")[0]
     const { data: adatlap } = await supabase
       .from("hr_dolgozo_adatlap")
       .select("orvosi_alkalmassag_ervenyesseg")
@@ -565,6 +646,9 @@ export async function toggleCheckIn() {
     }
   }
 
+  const nowMs = Date.now()
+  const nowIso = new Date(nowMs).toISOString()
+
   if (!todayRecord) {
     // Check-in (Create record)
     const activeCompanyId = await getActiveCompanyIdServer()
@@ -572,33 +656,138 @@ export async function toggleCheckIn() {
       .from("hr_jelenlet")
       .insert({
         dolgozo_id: user.id,
-        becsekkolas_ideje: new Date().toISOString(),
+        datum: todayStr,
+        becsekkolas_ideje: nowIso,
+        szunet_perc: 0,
+        szunet_ms: 0,
+        szunet_kezdete: null,
         ...(activeCompanyId ? { company_id: activeCompanyId } : {})
       })
     
     if (insertError) return { error: "Sikertelen becsekkolás." }
     revalidatePath("/hr")
-    return { success: true, status: "checked_in" }
+    return { success: true, status: "checked_in" as const, checkInTime: nowIso, accumulatedBreakMs: 0 }
   } else if (!todayRecord.kicsekkolas_ideje) {
     // Check-out (Update record)
+    const baseBreakMs = Math.max(Number(todayRecord.szunet_ms || 0), Number(clientAccumulatedBreakMs || 0))
+    const activeBreakMs = todayRecord.szunet_kezdete
+      ? Math.max(0, nowMs - new Date(todayRecord.szunet_kezdete).getTime())
+      : 0
+    const finalBreakMs = baseBreakMs + activeBreakMs
+    const finalBreakPerc = Math.round(finalBreakMs / 60000)
+
     const { error: updateError } = await supabase
       .from("hr_jelenlet")
-      .update({ kicsekkolas_ideje: new Date().toISOString() })
+      .update({
+        kicsekkolas_ideje: nowIso,
+        szunet_kezdete: null,
+        szunet_ms: finalBreakMs,
+        szunet_perc: finalBreakPerc,
+      })
       .eq("id", todayRecord.id)
     
     if (updateError) return { error: "Sikertelen kicsekkolás." }
     revalidatePath("/hr")
-    return { success: true, status: "checked_out" }
+    return {
+      success: true,
+      status: "checked_out" as const,
+      checkOutTime: nowIso,
+      accumulatedBreakMs: finalBreakMs,
+    }
   } else {
     // Already checked out today -> Allow resuming work!
+    // A korábbi kicsekkolás és a mostani folytatás közötti időt (gap) szünetként rögzítjük
+    const baseBreakMs = Math.max(Number(todayRecord.szunet_ms || 0), Number(clientAccumulatedBreakMs || 0))
+    const checkoutGapMs = Math.max(0, nowMs - new Date(todayRecord.kicsekkolas_ideje).getTime())
+    const newBreakMs = baseBreakMs + checkoutGapMs
+    const newBreakPerc = Math.round(newBreakMs / 60000)
+
     const { error: resumeError } = await supabase
       .from("hr_jelenlet")
-      .update({ kicsekkolas_ideje: null })
+      .update({
+        kicsekkolas_ideje: null,
+        szunet_kezdete: null,
+        szunet_ms: newBreakMs,
+        szunet_perc: newBreakPerc,
+      })
       .eq("id", todayRecord.id)
 
     if (resumeError) return { error: "Nem sikerült folytatni a munkát." }
     revalidatePath("/hr")
-    return { success: true, status: "checked_in", resumed: true }
+    return {
+      success: true,
+      status: "checked_in" as const,
+      resumed: true,
+      accumulatedBreakMs: newBreakMs,
+    }
+  }
+}
+
+export async function toggleBreak() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "Nincs bejelentkezve" }
+  }
+
+  const todayStr = new Date().toISOString().split('T')[0]
+  const { data: todayRecord, error: fetchError } = await supabase
+    .from("hr_jelenlet")
+    .select("*")
+    .eq("dolgozo_id", user.id)
+    .eq("datum", todayStr)
+    .single()
+
+  if (fetchError || !todayRecord) {
+    return { error: "Nincs aktív mai jelenléti rekord." }
+  }
+
+  if (todayRecord.kicsekkolas_ideje) {
+    return { error: "Lezárt munkanapon nem indítható szünet." }
+  }
+
+  const nowMs = Date.now()
+  const nowIso = new Date(nowMs).toISOString()
+
+  if (!todayRecord.szunet_kezdete) {
+    // Ebédszünet indítása
+    const { error: updateErr } = await supabase
+      .from("hr_jelenlet")
+      .update({ szunet_kezdete: nowIso })
+      .eq("id", todayRecord.id)
+
+    if (updateErr) return { error: "Nem sikerült elindítani az ebédszünetet." }
+    revalidatePath("/hr")
+    return {
+      success: true,
+      onBreak: true,
+      breakStart: nowIso,
+      accumulatedBreakMs: Number(todayRecord.szunet_ms || 0),
+    }
+  } else {
+    // Ebédszünet befejezése
+    const elapsedMs = Math.max(0, nowMs - new Date(todayRecord.szunet_kezdete).getTime())
+    const newBreakMs = Number(todayRecord.szunet_ms || 0) + elapsedMs
+    const newBreakPerc = Math.round(newBreakMs / 60000)
+
+    const { error: updateErr } = await supabase
+      .from("hr_jelenlet")
+      .update({
+        szunet_kezdete: null,
+        szunet_ms: newBreakMs,
+        szunet_perc: newBreakPerc,
+      })
+      .eq("id", todayRecord.id)
+
+    if (updateErr) return { error: "Nem sikerült lezárni az ebédszünetet." }
+    revalidatePath("/hr")
+    return {
+      success: true,
+      onBreak: false,
+      breakStart: null,
+      accumulatedBreakMs: newBreakMs,
+    }
   }
 }
 

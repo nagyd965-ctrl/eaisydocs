@@ -66,19 +66,22 @@ export function calculateAnnualLeave(
 
 /**
  * Kiszámítja a munkanapokon eltöltött napok számát két dátum között,
- * figyelembe véve a hétvégéket ÉS a magyar munkaszüneti napokat.
+ * figyelembe véve a hétvégéket, a magyar munkaszüneti napokat ÉS az áthelyezett szombati munkanapokat.
  *
  * @param startDate - Kezdő dátum (ISO string vagy Date)
  * @param endDate   - Záró dátum (ISO string vagy Date), inkluzív
- * @param unnepnapok - A hr_munkaszuneti_nap táblából lekért dátumok tömbje ('YYYY-MM-DD' formátumban)
+ * @param unnepnapok - A hr_munkaszuneti_nap táblából lekért ünnepnapok tömbje ('YYYY-MM-DD' formátumban, athelye_munkanap = false)
+ * @param athelyezettMunkanapok - Áthelyezett szombati munkanapok ('YYYY-MM-DD' formátumban, athelye_munkanap = true)
  * @returns A munkanapok száma
  */
 export function calculateWorkingDays(
   startDate: string | Date,
   endDate: string | Date,
-  unnepnapok: string[] = []
+  unnepnapok: string[] = [],
+  athelyezettMunkanapok: string[] = []
 ): number {
   const unnepSet = new Set(unnepnapok)
+  const athelyezettSet = new Set(athelyezettMunkanapok)
   let count = 0
 
   let cur: Date
@@ -111,8 +114,10 @@ export function calculateWorkingDays(
     const d = String(cur.getDate()).padStart(2, "0")
     const dateStr = `${y}-${m}-${d}`
 
-    // Munkanap: nem hétvége ÉS nem munkaszüneti nap
-    if (dow !== 0 && dow !== 6 && !unnepSet.has(dateStr)) {
+    const isWeekend = dow === 0 || dow === 6
+    if (!isWeekend && !unnepSet.has(dateStr)) {
+      count++
+    } else if (isWeekend && athelyezettSet.has(dateStr)) {
       count++
     }
     cur.setDate(cur.getDate() + 1)
@@ -120,4 +125,3 @@ export function calculateWorkingDays(
 
   return count
 }
-

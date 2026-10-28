@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { sendNotificationEmail } from "@/utils/mailer"
 import { getBaseUrl } from "@/utils/url"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export async function onboardEmployee(data: {
   mode: string
@@ -18,12 +19,17 @@ export async function onboardEmployee(data: {
   munkakorId: string
   belepes_datuma: string
 }) {
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod új munkavállaló beléptetéséhez." }
+  }
+
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
 
   let finalUserId = data.userId
   let isNewAccountCreated = false
@@ -40,7 +46,7 @@ export async function onboardEmployee(data: {
       return { error: "Nem található a kiválasztott jelentkező." }
     }
 
-    const generatedPassword = "Welcome2026!"
+    const generatedPassword = `Eaisy${Math.random().toString(36).slice(-6)}!26`
 
     // 2. Létrehozzuk a fiókot az e-mailjével
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -126,7 +132,6 @@ export async function onboardEmployee(data: {
       finalUserId = authData.user.id
     }
 
-    // Várjunk egy pillanatot, hogy lefusson a trigger, ami létrehozza a felhasznalo_profilt
     await new Promise(resolve => setTimeout(resolve, 500))
 
     if (!isExistingUser) {
@@ -143,7 +148,7 @@ export async function onboardEmployee(data: {
   }
 
   // 0.5. Határozzuk meg a szervezeti egységet a munkakör alapján
-  let orgUnitId = null;
+  let orgUnitId = null
   if (data.munkakorId && data.munkakorId !== "none") {
     const { data: jobData } = await supabaseAdmin
       .from("hr_munkakor")
@@ -170,8 +175,6 @@ export async function onboardEmployee(data: {
     updateData.hr_szerepkor = data.role
   }
 
-  // Modulok: ha teljesen új fiók jött létre eaisyHR-ből, KIZÁRÓLAG az eaisyHR modul érhető el számára!
-  // Csak akkor uniózzuk a meglévő modulokkal (pl. docs), ha egy már létező eaisyDocs fiókot kapcsoltunk be!
   if (isNewAccountCreated) {
     updateData.elerheto_modulok = ["hr"]
     updateData.docs_szerepkor = "betekinto"
@@ -182,6 +185,7 @@ export async function onboardEmployee(data: {
 
   if (orgUnitId) {
     updateData.hr_szervezeti_egyseg_id = orgUnitId
+    updateData.szervezeti_egyseg_id = orgUnitId
   }
   if (data.telefon !== undefined && data.telefon !== "") {
     updateData.telefon = data.telefon
@@ -215,8 +219,7 @@ export async function onboardEmployee(data: {
     .insert([adatlapPayload])
 
   if (adatlapError) {
-    // Ha az adatlap már létezik (mert duplán kattintottak), azt elnyeljük
-    if (adatlapError.code !== '23505') {
+    if (adatlapError.code !== "23505") {
       return { error: "Hiba az adatlap létrehozásakor: " + adatlapError.message }
     }
   }

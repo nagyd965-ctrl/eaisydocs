@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
-import { acknowledgePayslipReceipt } from "@/utils/hr/payslip-calculator"
+import { acknowledgePayslipReceipt, calculatePayslipDetails } from "@/utils/hr/payslip-calculator"
 import { downloadPayslipPdfAction } from "@/app/hr/payroll/actions"
 
 function getAdminClient() {
@@ -19,6 +19,11 @@ export interface MyPayslipItem {
   honap: number
   statusz: "kikuldve" | "atveve"
   bruttoAlapber: number
+  tervezettMunkanap: number
+  alapberReszlet: number
+  szabadsagDij: number
+  betegszabadsagDij: number
+  tuloraPotlek: number
   bruttoOsszesen: number
   ledolgozottMunkanap: number
   szabadsagNap: number
@@ -71,33 +76,56 @@ export async function getMyPayslipsAction(): Promise<{ data: MyPayslipItem[] | n
     return { data: null, error: error.message }
   }
 
-  const items: MyPayslipItem[] = (data || []).map((p: any) => ({
-    id: p.id,
-    ev: p.ev,
-    honap: p.honap,
-    statusz: p.statusz,
-    bruttoAlapber: Number(p.brutto_alapber || 0),
-    bruttoOsszesen: Number(p.brutto_osszesen || 0),
-    ledolgozottMunkanap: p.ledolgozott_munkanap || 0,
-    szabadsagNap: p.szabadsag_nap || 0,
-    betegszabadsagNap: p.betegszabadsag_nap || 0,
-    tuloraOra: Number(p.tulora_ora || 0),
-    bonuszJutalom: Number(p.bonusz_jutalom || 0),
-    cafeteriaBrutto: Number(p.cafeteria_brutto || 0),
-    kedvezmeny25EvAlatti: Boolean(p.kedvezmeny_25_ev_alatti),
-    csaladiKedvezmenyOsszeg: Number(p.csaladi_kedvezmeny_osszeg || 0),
-    adokedvezmenyekOsszesen: Number(p.adokedvezmenyek_osszesen || 0),
-    szjaLevonas: Number(p.szja_levonas || 0),
-    tbJarulekLevonas: Number(p.tb_jarulek_levonas || 0),
-    letiltasEgyebLevonas: Number(p.letiltas_egyeb_levonas || 0),
-    levonasokOsszesen: Number(p.levonasok_osszesen || 0),
-    nettoKifizetendo: Number(p.netto_kifizetendo || 0),
-    szochoMunkaltatoi: Number(p.szocho_munkaltatoi || 0),
-    bankszamlaszam: p.bankszamlaszam || "",
-    kifizetesHatarido: p.kifizetes_hatarido || "",
-    kikuldesDatuma: p.kikuldes_datuma,
-    atvetelDatuma: p.atvetel_datuma
-  }))
+  const items: MyPayslipItem[] = (data || []).map((p: any) => {
+    const bruttoAlapber = Number(p.brutto_alapber || 0)
+    const tervezettMunkanap = Number(p.tervezett_munkanap || 20)
+    const ledolgozottMunkanap = Number(p.ledolgozott_munkanap || 0)
+    const szabadsagNap = Number(p.szabadsag_nap || 0)
+    const betegszabadsagNap = Number(p.betegszabadsag_nap || 0)
+    const tuloraOra = Number(p.tulora_ora || 0)
+
+    const fallbackCalc = calculatePayslipDetails({
+      bruttoAlapber,
+      tervezettMunkanap,
+      ledolgozottMunkanap,
+      szabadsagNap,
+      betegszabadsagNap,
+      tuloraOra,
+    })
+
+    return {
+      id: p.id,
+      ev: p.ev,
+      honap: p.honap,
+      statusz: p.statusz,
+      bruttoAlapber,
+      tervezettMunkanap,
+      alapberReszlet: p.alapber_reszlet !== null && p.alapber_reszlet !== undefined ? Number(p.alapber_reszlet) : fallbackCalc.alapberReszlet,
+      szabadsagDij: p.szabadsag_dij !== null && p.szabadsag_dij !== undefined ? Number(p.szabadsag_dij) : fallbackCalc.szabadsagDij,
+      betegszabadsagDij: p.betegszabadsag_dij !== null && p.betegszabadsag_dij !== undefined ? Number(p.betegszabadsag_dij) : fallbackCalc.betegszabadsagDij,
+      tuloraPotlek: p.tulora_potlek !== null && p.tulora_potlek !== undefined ? Number(p.tulora_potlek) : fallbackCalc.tuloraOsszeg,
+      bruttoOsszesen: Number(p.brutto_osszesen || 0),
+      ledolgozottMunkanap,
+      szabadsagNap,
+      betegszabadsagNap,
+      tuloraOra,
+      bonuszJutalom: Number(p.bonusz_jutalom || 0),
+      cafeteriaBrutto: Number(p.cafeteria_brutto || 0),
+      kedvezmeny25EvAlatti: Boolean(p.kedvezmeny_25_ev_alatti),
+      csaladiKedvezmenyOsszeg: Number(p.csaladi_kedvezmeny_osszeg || 0),
+      adokedvezmenyekOsszesen: Number(p.adokedvezmenyek_osszesen || 0),
+      szjaLevonas: Number(p.szja_levonas || 0),
+      tbJarulekLevonas: Number(p.tb_jarulek_levonas || 0),
+      letiltasEgyebLevonas: Number(p.letiltas_egyeb_levonas || 0),
+      levonasokOsszesen: Number(p.levonasok_osszesen || 0),
+      nettoKifizetendo: Number(p.netto_kifizetendo || 0),
+      szochoMunkaltatoi: Number(p.szocho_munkaltatoi || 0),
+      bankszamlaszam: p.bankszamlaszam || "",
+      kifizetesHatarido: p.kifizetes_hatarido || "",
+      kikuldesDatuma: p.kikuldes_datuma,
+      atvetelDatuma: p.atvetel_datuma,
+    }
+  })
 
   return { data: items }
 }

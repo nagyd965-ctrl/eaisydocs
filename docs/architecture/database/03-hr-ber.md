@@ -1,4 +1,4 @@
-# 👥 03. HR és Munkaügyi Adatbázis Séma (eaisyHR)
+# 03. HR és Munkaügyi Adatbázis Séma (eaisyHR)
 
 Ez a dokumentum rögzíti az eaisyHR modul adatbázis tábláit, pontos oszlopait és típusait a tényleges PostgreSQL migrációk alapján.
 
@@ -69,6 +69,9 @@ Fokozott biztonságú, Security Definer RPC rétegen keresztül kezelt (`get_dec
 | `datum` | date | — | Munkanap dátuma (alap: `CURRENT_DATE`) |
 | `becsekkolas_ideje` | timestamptz | ✓ | Munkaidő kezdete |
 | `kicsekkolas_ideje` | timestamptz | ✓ | Munkaidő vége |
+| `szunet_perc` | integer | — | Napi összesített ebédszünet / megszakítás percekben (`DEFAULT 0`) |
+| `szunet_ms` | bigint | — | Napi összesített ebédszünet ezredmásodpercben (`DEFAULT 0`) |
+| `szunet_kezdete` | timestamptz | ✓ | Aktív szünet kezdetének időbélyege (`NULL`, ha nem tart szünetet) |
 | `tervezett_kezdes`, `tervezett_veges` | time | ✓ | Műszakbeosztás tervezett ideje |
 | `created_at` | timestamptz | — | Rögzítés ideje |
 
@@ -93,7 +96,8 @@ Fokozott biztonságú, Security Definer RPC rétegen keresztül kezelt (`get_dec
 
 ## 3. Távollét és Helyettesítés
 
-- `hr_tavollet`: `id`, `dolgozo_id` (FK → `hr_dolgozo_adatlap.id`), `kezdet_datuma`, `veg_datuma`, `tipus` (`fizetett_szabadsag`, `betegszabadsag`, `fizetes_nelkuli`, `egyeb`), `statusz` (`tervezet`, `jovahagyva`, `elutasitva`), `jovahagyo_id`.
+- `hr_tavollet`: `id`, `dolgozo_id` (FK → `hr_dolgozo_adatlap.id`), `kezdet_datuma`, `veg_datuma`, `munkanapok_szama` (integer, ünnepnapokkal és áthelyezett munkanapokkal korrigált munkanapok), `tipus` (`fizetett_szabadsag`, `betegszabadsag`, `fizetes_nelkuli`, `egyeb`), `statusz` (`tervezet`, `jovahagyva`, `elutasitva`), `jovahagyo_id`.
+- `company_members.hr_modulok` & `felhasznalo_profil.hr_modulok`: `text[]` (`DEFAULT '{}'`), a felhasználó számára engedélyezett szakmai HR modulok kulcsai (`admin`, `organization`, `time`, `payroll`, `compliance`, `reports`, `recruitment`, `onboarding`, `offboarding`, `audit`).
 - `hr_helyettesites`: `id`, `tavollet_id` (FK → `hr_tavollet.id`), `helyettesito_id` (FK → `felhasznalo_profil.id`), `statusz` (`aktiv`, `inaktiv`).
 
 ---

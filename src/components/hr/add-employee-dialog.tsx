@@ -58,16 +58,9 @@ export function AddEmployeeDialog({
   const router = useRouter()
 
   const roleMap: Record<string, string> = {
-    "munkavallalo": "Munkavállaló (Alap)",
-    "vezeto": "Vezető (Közvetlen)",
-    "hr_munkatars": "HR Munkatárs",
-    "hr_vezeto": "HR Vezető (Igazgató)",
-    "berugyi": "Bérügyi / Bérszámfejtő",
+    "munkavallalo": "Munkavállaló",
+    "vezeto": "Vezető",
     "admin": "Admin",
-    "toborzo": "Toborzó (ATS)",
-    "munkavedelmi": "Munkavédelmi Felelős",
-    "rendszergazda": "Rendszergazda (IT)",
-    "auditor": "Auditor (Könyvvizsgáló)"
   }
 
   const [formData, setFormData] = useState({
@@ -239,18 +232,14 @@ export function AddEmployeeDialog({
                 <span>{roleMap[formData.role] || "Válassz szerepkört..."}</span>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="munkavallalo">Munkavállaló (Alap)</SelectItem>
-                <SelectItem value="vezeto">Vezető (Közvetlen)</SelectItem>
-                <SelectItem value="hr_munkatars">HR Munkatárs</SelectItem>
-                <SelectItem value="hr_vezeto">HR Vezető (Igazgató)</SelectItem>
-                <SelectItem value="berugyi">Bérügyi / Bérszámfejtő</SelectItem>
+                <SelectItem value="munkavallalo">Munkavállaló</SelectItem>
+                <SelectItem value="vezeto">Vezető</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="toborzo">Toborzó (ATS)</SelectItem>
-                <SelectItem value="munkavedelmi">Munkavédelmi Felelős</SelectItem>
-                <SelectItem value="rendszergazda">Rendszergazda (IT)</SelectItem>
-                <SelectItem value="auditor">Auditor (Könyvvizsgáló)</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Az egyedi modul-hozzáféréseket (pl. Toborzás, Bérszámfejtés) a Jogosultságkezelő mátrixban kapcsolhatod be.
+            </p>
           </div>
 
           <div className="space-y-2">

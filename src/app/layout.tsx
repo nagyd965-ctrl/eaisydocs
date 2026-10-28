@@ -29,6 +29,7 @@ export default async function RootLayout({
   const supabase = await createClient();
   let docsRole = "ugyintezo";
   let hrRole = "munkavallalo";
+  let hrModules: string[] = [];
   let elerhetoModulok: string[] = [];
   let companies: Company[] = [];
   let activeCompanyId: string | null = null;
@@ -39,10 +40,11 @@ export default async function RootLayout({
       companies = await getUserCompaniesServer();
       activeCompanyId = await getActiveCompanyIdServer();
 
-      // Scoped (aktív cégre vonatkozó) szerepkörök feloldása (GDPR / béradat védelem)
+      // Scoped (aktív cégre vonatkozó) szerepkörök és modul-engedélyek feloldása
       const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId);
       docsRole = scopedRoles.docsRole;
       hrRole = scopedRoles.hrRole;
+      hrModules = scopedRoles.hrModules;
 
       const { data: profile } = await supabase
         .from("felhasznalo_profil")
@@ -72,7 +74,12 @@ export default async function RootLayout({
         >
           <TooltipProvider>
             <CompanyProvider initialCompanies={companies} initialCompanyId={activeCompanyId}>
-              <LayoutWrapper docsRole={docsRole} hrRole={hrRole} elerhetoModulok={elerhetoModulok}>
+              <LayoutWrapper
+                docsRole={docsRole}
+                hrRole={hrRole}
+                hrModules={hrModules}
+                elerhetoModulok={elerhetoModulok}
+              >
                 {children}
               </LayoutWrapper>
             </CompanyProvider>

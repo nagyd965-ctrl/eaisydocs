@@ -363,6 +363,17 @@ export async function uploadIDPCertificateAction(formData: FormData) {
     return { success: false, error: 'A fejlesztési cél nem található' };
   }
 
+  if (!user) {
+    return { success: false, error: 'Nincs bejelentkezve' };
+  }
+  if (cel.dolgozo_id !== user.id) {
+    const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
+    const auth = await requireHrAuthServer(['hr_munkatars', 'hr_vezeto', 'admin', 'vezeto'], null);
+    if (!auth.authorized) {
+      return { success: false, error: 'Nincs jogosultságod más dolgozó tanúsítványának feltöltéséhez.' };
+    }
+  }
+
   const companyId = cel.company_id || cel.hr_fejlesztesi_terv?.company_id || 'general';
   const timestamp = Date.now();
   const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -417,8 +428,12 @@ export async function uploadIDPCertificateAction(formData: FormData) {
 }
 
 export async function approveDevelopmentGoal(celId: string, megjegyzes?: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
+  const auth = await requireHrAuthServer(['hr_munkatars', 'hr_vezeto', 'admin', 'vezeto'], null);
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: 'Nincs jogosultságod a fejlesztési cél jóváhagyásához.' };
+  }
+  const user = auth.user;
 
   const { createClient: createAdminClient } = await import('@supabase/supabase-js');
   const adminClient = createAdminClient(
@@ -511,8 +526,12 @@ export async function approveDevelopmentGoal(celId: string, megjegyzes?: string)
 }
 
 export async function rejectDevelopmentGoal(celId: string, indoklas: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
+  const auth = await requireHrAuthServer(['hr_munkatars', 'hr_vezeto', 'admin', 'vezeto'], null);
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: 'Nincs jogosultságod a fejlesztési cél elutasításához.' };
+  }
+  const user = auth.user;
 
   const { createClient: createAdminClient } = await import('@supabase/supabase-js');
   const adminClient = createAdminClient(

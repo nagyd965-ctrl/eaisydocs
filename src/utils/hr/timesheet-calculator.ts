@@ -3,6 +3,8 @@ export interface DailyTimesheetInput {
   type: "munka" | "szabadsag" | "betegseg" | "hetvege" | "unnep" | "csusztatas";
   checkIn: string | null;
   checkOut: string | null;
+  szunetMs?: number | null;
+  szunetPerc?: number | null;
   shiftPlannedHours?: number | null;
   shiftCode?: string | null;
   shiftName?: string | null;
@@ -54,7 +56,8 @@ export function calculateMonthlyTimesheet(
     if ((day.type === "munka" || day.isWeekendShift) && day.checkIn && day.checkOut) {
       const inTime = new Date(day.checkIn);
       const outTime = new Date(day.checkOut);
-      const diffMs = outTime.getTime() - inTime.getTime();
+      const breakMs = Number(day.szunetMs || 0) || (Number(day.szunetPerc || 0) * 60000);
+      const diffMs = Math.max(0, outTime.getTime() - inTime.getTime() - breakMs);
       actualHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100; // 2 decimal places
     } else if (day.type === "szabadsag" || day.type === "betegseg" || day.type === "csusztatas") {
       // Szabadság, betegség és csúsztatás esetén a ledolgozott óra megegyezik a tervezettel

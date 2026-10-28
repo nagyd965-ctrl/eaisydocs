@@ -12,16 +12,11 @@ import { cn } from "@/lib/utils"
 import { EmployeeEditDialog, type EmployeeJobOption, type EmployeeOrgUnitOption } from "@/components/hr/employee-edit-dialog"
 import { EmployeeDeleteDialog } from "@/components/hr/employee-delete-dialog"
 
-/* ─── Szerepkör dictionary ─── */
+/* ─── Szerepkör dictionary (3 kanonikus alapszerepkör) ─── */
 const szerepkorLabel: Record<string, string> = {
-  hr_munkatars:  "HR Munkatárs",
-  hr_vezeto:     "HR Vezető",
-  vezeto:        "Vezető",
-  admin:         "Admin",
-  munkavallalo:  "Munkavállaló",
-  rendszergazda: "Rendszergazda",
-  auditor:       "Auditor",
-  toborzo:       "Toborzó",
+  munkavallalo: "Munkavállaló",
+  vezeto:       "Vezető",
+  admin:        "Admin",
 }
 const SZEREPKOR_OPTIONS = Object.entries(szerepkorLabel).map(([v, l]) => ({ value: v, label: l }))
 

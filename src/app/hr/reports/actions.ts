@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache"
 import { executeHrDocumentFiling } from "@/utils/hr-filing-bridge"
 import type { T1041ReportRow, KshReportData, PayrollReportRow } from "@/utils/hr/reports-export"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { calculateWorkingDays } from "@/utils/hr/leave-calculator"
 
 function getAdminClient() {
   return createAdminClient(
@@ -41,7 +42,21 @@ export interface T1041ReportResponse {
  * Biztosítja a hibamentes, gyors adatösszekapcsolást PostgREST kapcsolat-hibák nélkül.
  */
 async function loadHrMasterData(adminClient: any, targetCompanyId?: string | null) {
-  const activeCompanyId = targetCompanyId !== undefined ? targetCompanyId : (await getActiveCompanyIdServer())
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi", "auditor"], null)
+  if (!auth.authorized) {
+    return {
+      activeCompanyId: null,
+      memberUserIds: [] as string[],
+      profMap: new Map(),
+      orgMap: new Map(),
+      mkMap: new Map(),
+      beosztasMap: new Map(),
+      secretMap: new Map(),
+      jogviszonyok: [] as any[],
+    }
+  }
+  const activeCompanyId = targetCompanyId !== undefined ? targetCompanyId : (auth.activeCompanyId || (await getActiveCompanyIdServer()))
 
   let memberUserIds: string[] = []
   if (activeCompanyId) {
@@ -377,6 +392,7 @@ export async function getKshReportData(yearMonth: string): Promise<KshReportData
     string,
     { reszlegNev: string; aktivLetszam: number; fteSum: number; ledolgozottOra: number; tavolletOra: number }
   >()
+  const employeeDeptMap = new Map<string, { deptName: string; fte: number }>()
 
   const activeEmployeeIds = new Set<string>()
 
@@ -406,6 +422,9 @@ export async function getKshReportData(yearMonth: string): Promise<KshReportData
 
       const oId = b?.orgId || p?.orgId
       const deptName = (oId && orgMap.get(oId)) || "Központi Osztály"
+      if (j.dolgozo_id) {
+        employeeDeptMap.set(j.dolgozo_id, { deptName, fte })
+      }
 
       if (!deptMap.has(deptName)) {
         deptMap.set(deptName, {
@@ -422,23 +441,29 @@ export async function getKshReportData(yearMonth: string): Promise<KshReportData
     }
   }
 
-  // 2. Tervezett havi munkanapok száma
-  let plannedWorkdays = 0
-  for (let day = 1; day <= lastDayNum; day++) {
-    const dateObj = new Date(year, month - 1, day)
-    const dayOfWeek = dateObj.getDay()
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      plannedWorkdays++
-    }
-  }
+  // 2. Tervezett havi munkanapok száma (ünnepnapok és áthelyezett munkanapok figyelembevételével)
+  const { data: holidaysData } = await adminClient
+    .from("hr_munkaszuneti_nap")
+    .select("datum, athelye_munkanap")
+    .gte("datum", firstDay)
+    .lte("datum", lastDay)
+
+  const monthHolidays = (holidaysData || [])
+    .filter((h: any) => !h.athelye_munkanap)
+    .map((h: any) => h.datum as string)
+  const monthTransferredWorkdays = (holidaysData || [])
+    .filter((h: any) => Boolean(h.athelye_munkanap))
+    .map((h: any) => h.datum as string)
+
+  const plannedWorkdays = calculateWorkingDays(firstDay, lastDay, monthHolidays, monthTransferredWorkdays)
 
   // Törvényes havi norma munkaidő-alap (Terv órák)
   const normaMunkaora = Number((atlagosFte * plannedWorkdays * 8.0).toFixed(1))
 
-  // 3. Ténylegesen ledolgozott órák a hr_jelenlet alapján (Tény órák, cégre szűrve)
+  // 3. Ténylegesen ledolgozott órák a hr_jelenlet alapján (Tény órák, cégre szűrve, részlegenként aggregálva)
   let jelenletQuery = adminClient
     .from("hr_jelenlet")
-    .select("datum, becsekkolas_ideje, kicsekkolas_ideje, dolgozo_id")
+    .select("datum, becsekkolas_ideje, kicsekkolas_ideje, szunet_perc, szunet_ms, dolgozo_id")
     .gte("datum", firstDay)
     .lte("datum", lastDay)
 
@@ -449,16 +474,23 @@ export async function getKshReportData(yearMonth: string): Promise<KshReportData
   const { data: jelenletek } = await jelenletQuery
 
   let osszesLedolgozottOra = 0
-  for (const row of jelenletek || []) {
+  for (const row of (jelenletek as any[]) || []) {
+    const empInfo = row.dolgozo_id ? employeeDeptMap.get(row.dolgozo_id) : undefined
+    let rowHours = 0
     if (row.becsekkolas_ideje && row.kicsekkolas_ideje) {
       const inTime = new Date(row.becsekkolas_ideje).getTime()
       const outTime = new Date(row.kicsekkolas_ideje).getTime()
+      const breakMs = Number(row.szunet_ms || 0) || (Number(row.szunet_perc || 0) * 60000)
       if (outTime > inTime) {
-        const diffHours = (outTime - inTime) / (1000 * 60 * 60)
-        osszesLedolgozottOra += diffHours
+        rowHours = Math.max(0, outTime - inTime - breakMs) / (1000 * 60 * 60)
       }
     } else if (row.becsekkolas_ideje) {
-      osszesLedolgozottOra += 8.0
+      rowHours = 8.0 * (empInfo?.fte ?? 1.0)
+    }
+
+    osszesLedolgozottOra += rowHours
+    if (empInfo && deptMap.has(empInfo.deptName)) {
+      deptMap.get(empInfo.deptName)!.ledolgozottOra += rowHours
     }
   }
 
@@ -486,7 +518,7 @@ export async function getKshReportData(yearMonth: string): Promise<KshReportData
   const rendesMunkaora = Math.max(0, osszesLedolgozottOra - tuloraOra)
   const teljesitesiArany = normaMunkaora > 0 ? Number(((osszesLedolgozottOra / normaMunkaora) * 100).toFixed(1)) : 0
 
-  // 5. Távollétek összesítése (cégre szűrve)
+  // 5. Távollétek összesítése (cégre szűrve, részlegenként is aggregálva)
   let tavolletQuery = adminClient
     .from("hr_tavollet")
     .select("kezdet_datuma, veg_datuma, tipus, statusz, dolgozo_id")
@@ -507,38 +539,50 @@ export async function getKshReportData(yearMonth: string): Promise<KshReportData
   for (const row of tavolletek || []) {
     if (row.statusz !== "jovahagyva") continue
 
-    const kDate = new Date(Math.max(new Date(row.kezdet_datuma).getTime(), new Date(firstDay).getTime()))
-    const vDate = new Date(Math.min(new Date(row.veg_datuma).getTime(), new Date(lastDay).getTime()))
-    const days = Math.max(1, Math.round((vDate.getTime() - kDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+    const startClipped = row.kezdet_datuma > firstDay ? row.kezdet_datuma : firstDay
+    const endClipped = row.veg_datuma < lastDay ? row.veg_datuma : lastDay
+    const days = calculateWorkingDays(startClipped, endClipped, monthHolidays, monthTransferredWorkdays)
+    if (days <= 0) continue
+
+    const empInfo = row.dolgozo_id ? employeeDeptMap.get(row.dolgozo_id) : undefined
+    const empDailyHours = 8.0 * (empInfo?.fte ?? 1.0)
 
     const tType = (row.tipus || "").toLowerCase()
     if (tType.includes("szabad") || tType.includes("fizetett")) {
       szabadsagNap += days
+      if (empInfo && deptMap.has(empInfo.deptName)) {
+        deptMap.get(empInfo.deptName)!.tavolletOra += days * empDailyHours
+      }
     } else if (tType.includes("beteg")) {
       betegszabadsagNap += days
+      if (empInfo && deptMap.has(empInfo.deptName)) {
+        deptMap.get(empInfo.deptName)!.tavolletOra += days * empDailyHours
+      }
     } else if (tType.includes("tappenz") || tType.includes("táppénz")) {
       tappenzNap += days
+      if (empInfo && deptMap.has(empInfo.deptName)) {
+        deptMap.get(empInfo.deptName)!.tavolletOra += days * empDailyHours
+      }
     } else {
       egyebTavolletNap += days
+      if (empInfo && deptMap.has(empInfo.deptName)) {
+        deptMap.get(empInfo.deptName)!.tavolletOra += days * empDailyHours
+      }
     }
   }
 
   const szabadsagOra = szabadsagNap * 8.0
   const betegszabadsagOra = betegszabadsagNap * 8.0
 
-  // Részlegenkénti óraarányosítás
-  const totalFteAll = atlagosFte > 0 ? atlagosFte : 1
-  const reszlegek = Array.from(deptMap.values()).map((d) => {
-    const fteRatio = d.fteSum / totalFteAll
-    return {
-      reszlegNev: d.reszlegNev,
-      aktivLetszam: d.aktivLetszam,
-      atlagosFte: Number(d.fteSum.toFixed(2)),
-      normaOra: Number((d.fteSum * plannedWorkdays * 8.0).toFixed(1)),
-      ledolgozottOra: Number((osszesLedolgozottOra * fteRatio).toFixed(1)),
-      tavolletOra: Number(((szabadsagOra + betegszabadsagOra) * fteRatio).toFixed(1)),
-    }
-  })
+  // Részlegenkénti valós óramegoszlás (a részleg dolgozóinak tényleges jelenlétéből és távollétéből)
+  const reszlegek = Array.from(deptMap.values()).map((d) => ({
+    reszlegNev: d.reszlegNev,
+    aktivLetszam: d.aktivLetszam,
+    atlagosFte: Number(d.fteSum.toFixed(2)),
+    normaOra: Number((d.fteSum * plannedWorkdays * 8.0).toFixed(1)),
+    ledolgozottOra: Number(d.ledolgozottOra.toFixed(1)),
+    tavolletOra: Number(d.tavolletOra.toFixed(1)),
+  }))
 
   return {
     yearMonth,
@@ -882,8 +926,14 @@ export async function saveArchiveRecord(
   fajl_utvonal: string,
   feltolto_id: string
 ) {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi"], null)
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: "Nincs jogosultságod bevallás archiválásához." }
+  }
+
   const adminClient = getAdminClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   const { data, error } = await adminClient
     .from("hr_bevallas_archivum")
     .insert([{ 
@@ -891,7 +941,7 @@ export async function saveArchiveRecord(
       idoszak, 
       fajl_nev, 
       fajl_utvonal, 
-      feltolto_id,
+      feltolto_id: auth.user.id || feltolto_id,
       company_id: activeCompanyId 
     }])
     .select()
@@ -908,12 +958,18 @@ export async function saveArchiveRecord(
  * Új bevallás feltöltése az archívumba
  */
 export async function uploadArchiveFileAdmin(formData: FormData) {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi"], null)
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: "Nincs jogosultságod bevallás feltöltéséhez." }
+  }
+
   const adminClient = getAdminClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   const file = formData.get("file") as File
   const type = formData.get("type") as string
   const month = formData.get("month") as string
-  const userId = formData.get("userId") as string
+  const userId = auth.user.id || (formData.get("userId") as string)
   const ugyszam = formData.get("ugyszam") as string
 
   if (!file) return { success: false, error: "Nincs fájl kiválasztva!" }
@@ -961,8 +1017,14 @@ export async function uploadArchiveFileAdmin(formData: FormData) {
  * Archívum rekordok listázása (cégre szűrve)
  */
 export async function getArchiveRecords() {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi", "auditor"], null)
+  if (!auth.authorized) {
+    return []
+  }
+
   const adminClient = getAdminClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   let query = adminClient
     .from("hr_bevallas_archivum")
     .select("*")
@@ -986,6 +1048,12 @@ export async function getArchiveRecords() {
  * Archív rekord törlése
  */
 export async function deleteArchiveRecordAdmin(id: string, filePath: string) {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi"], null)
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: "Nincs jogosultságod bevallás törléséhez." }
+  }
+
   const adminClient = getAdminClient()
   const { error: storageError } = await adminClient.storage.from("hr_reports").remove([filePath])
 

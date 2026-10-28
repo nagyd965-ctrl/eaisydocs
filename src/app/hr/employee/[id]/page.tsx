@@ -45,8 +45,9 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     .single()
 
   const currentHrRole = scopedRoles.hrRole || currentUserProfile?.hr_szerepkor || "munkavallalo"
-  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda"].includes(currentHrRole)
-  const isPayroll = currentHrRole === "berugyi"
+  const currentHrModules = scopedRoles.hrModules || []
+  const isHrOrAdmin = currentHrRole === "admin" || currentHrModules.includes("admin")
+  const isPayroll = currentHrRole === "admin" || currentHrModules.includes("payroll")
 
   // 2. Lekérjük a profil adatokat
   const { data: profile, error } = await supabase

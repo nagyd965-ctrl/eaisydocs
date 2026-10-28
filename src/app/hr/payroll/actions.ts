@@ -13,6 +13,7 @@ import {
   type PayslipPdfData 
 } from "@/utils/hr/payslip-pdf-generator"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { calculateWorkingDays } from "@/utils/hr/leave-calculator"
 
 function getAdminClient() {
   return createAdminClient(
@@ -100,11 +101,13 @@ export async function getPayrollDashboardData(
   month: number,
   targetCompanyId?: string
 ): Promise<{ data: PayrollDashboardData | null; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { data: null, error: "Nincs bejelentkezve" }
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi", "auditor"], null)
+  if (!auth.authorized || !auth.user) {
+    return { data: null, error: "Nincs jogosultságod a bérszámfejtési adatok megtekintéséhez." }
+  }
 
-  const activeCompanyId = targetCompanyId || (await getActiveCompanyIdServer())
+  const activeCompanyId = targetCompanyId || auth.activeCompanyId || (await getActiveCompanyIdServer())
   if (!activeCompanyId) {
     return { data: null, error: "Nincs kiválasztott cég." }
   }
@@ -223,36 +226,51 @@ export async function getPayrollDashboardData(
   // 6. Jelenlétek az adott hónapban (csak az aktív céghez)
   const { data: jelenletek } = await adminClient
     .from("hr_jelenlet")
-    .select("dolgozo_id, datum, becsekkolas_ideje, kicsekkolas_ideje")
+    .select("dolgozo_id, datum, becsekkolas_ideje, kicsekkolas_ideje, szunet_perc, szunet_ms")
     .eq("company_id", activeCompanyId)
     .in("dolgozo_id", memberUserIds)
     .gte("datum", firstDay)
     .lte("datum", lastDay)
 
   const attendanceMap = new Map<string, { days: number; hours: number }>()
-  jelenletek?.forEach((j) => {
+  jelenletek?.forEach((j: any) => {
     if (!attendanceMap.has(j.dolgozo_id)) {
       attendanceMap.set(j.dolgozo_id, { days: 0, hours: 0 })
     }
     const cur = attendanceMap.get(j.dolgozo_id)!
     cur.days += 1
     if (j.becsekkolas_ideje && j.kicsekkolas_ideje) {
-      const diff = (new Date(j.kicsekkolas_ideje).getTime() - new Date(j.becsekkolas_ideje).getTime()) / (1000 * 60 * 60)
+      const breakMs = Number(j.szunet_ms || 0) || (Number(j.szunet_perc || 0) * 60000)
+      const diff = (new Date(j.kicsekkolas_ideje).getTime() - new Date(j.becsekkolas_ideje).getTime() - breakMs) / (1000 * 60 * 60)
       cur.hours += Math.max(0, diff)
     } else {
       cur.hours += 8.0
     }
   })
 
-  // 7. Távollétek az adott hónapban (csak az aktív céghez)
-  const { data: tavolletek } = await adminClient
-    .from("hr_tavollet")
-    .select("dolgozo_id, kezdet_datuma, veg_datuma, tipus, statusz")
-    .eq("company_id", activeCompanyId)
-    .in("dolgozo_id", memberUserIds)
-    .lte("kezdet_datuma", lastDay)
-    .gte("veg_datuma", firstDay)
-    .eq("statusz", "jovahagyva")
+  // 7. Távollétek és munkaszüneti napok az adott hónapban (csak az aktív céghez)
+  const [{ data: tavolletek }, { data: holidaysData }] = await Promise.all([
+    adminClient
+      .from("hr_tavollet")
+      .select("dolgozo_id, kezdet_datuma, veg_datuma, tipus, statusz")
+      .eq("company_id", activeCompanyId)
+      .in("dolgozo_id", memberUserIds)
+      .lte("kezdet_datuma", lastDay)
+      .gte("veg_datuma", firstDay)
+      .eq("statusz", "jovahagyva"),
+    adminClient
+      .from("hr_munkaszuneti_nap")
+      .select("datum, athelye_munkanap")
+      .gte("datum", firstDay)
+      .lte("datum", lastDay),
+  ])
+
+  const monthHolidays = (holidaysData || [])
+    .filter((h: any) => !h.athelye_munkanap)
+    .map((h: any) => h.datum as string)
+  const monthTransferredWorkdays = (holidaysData || [])
+    .filter((h: any) => Boolean(h.athelye_munkanap))
+    .map((h: any) => h.datum as string)
 
   const leaveMap = new Map<string, { szabadsag: number; beteg: number }>()
   tavolletek?.forEach((t) => {
@@ -260,9 +278,9 @@ export async function getPayrollDashboardData(
       leaveMap.set(t.dolgozo_id, { szabadsag: 0, beteg: 0 })
     }
     const cur = leaveMap.get(t.dolgozo_id)!
-    const kDate = new Date(Math.max(new Date(t.kezdet_datuma).getTime(), new Date(firstDay).getTime()))
-    const vDate = new Date(Math.min(new Date(t.veg_datuma).getTime(), new Date(lastDay).getTime()))
-    const days = Math.max(1, Math.round((vDate.getTime() - kDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+    const startClipped = t.kezdet_datuma > firstDay ? t.kezdet_datuma : firstDay
+    const endClipped = t.veg_datuma < lastDay ? t.veg_datuma : lastDay
+    const days = calculateWorkingDays(startClipped, endClipped, monthHolidays, monthTransferredWorkdays)
 
     const tType = (t.tipus || "").toLowerCase()
     if (tType.includes("szabad") || tType.includes("fizetett")) {
@@ -327,15 +345,26 @@ export async function getPayrollDashboardData(
     const taj = sec?.taj || "-"
     const ado = sec?.ado || "-"
     const bankszamla = sec?.bankszamla || ""
-    const bruttoAlapber = sec?.brutto || 500000
 
     const b = beosztasMap.get(j.id)
+    const fte = b?.fte && b.fte > 0 ? Number(b.fte) : 1.0
+    const bruttoAlapber = sec?.brutto ? Math.round(sec.brutto * (fte < 1 ? fte : 1)) : Math.round(500000 * fte)
     const munkakor = (b?.munkakor && b.munkakor !== "-" ? b.munkakor : prof?.pozicio) || "-"
     const oId = b?.orgId || prof?.orgId
     const reszleg = (oId && orgMap.get(oId)) || "Központi Osztály"
 
-    const att = attendanceMap.get(dId) || { days: plannedWorkdays, hours: plannedWorkdays * 8 }
     const leaves = leaveMap.get(dId) || { szabadsag: 0, beteg: 0 }
+    const maxWorkableDays = Math.max(0, plannedWorkdays - leaves.szabadsag - leaves.beteg)
+    const rawAtt = attendanceMap.get(dId)
+    const att = rawAtt
+      ? {
+          days: Math.min(rawAtt.days, maxWorkableDays),
+          hours: Math.round(rawAtt.hours * 10) / 10,
+        }
+      : {
+          days: maxWorkableDays,
+          hours: Math.round(maxWorkableDays * 8 * fte * 10) / 10,
+        }
     const cafeteriaMonthly = cafeteriaMap.get(dId) || 0
 
     // Ha van már mentett bérpapír
@@ -366,10 +395,10 @@ export async function getPayrollDashboardData(
         bankszamlaszam: existing.bankszamlaszam || bankszamla,
         bruttoAlapber: Number(existing.brutto_alapber),
         tervezettMunkanap: existing.tervezett_munkanap || plannedWorkdays,
-        ledolgozottMunkanap: existing.ledolgozott_munkanap || att.days,
-        ledolgozottMunkaora: Number(existing.ledolgozott_munkaora || att.hours),
-        szabadsagNap: existing.szabadsag_nap || leaves.szabadsag,
-        betegszabadsagNap: existing.betegszabadsag_nap || leaves.beteg,
+        ledolgozottMunkanap: existing.ledolgozott_munkanap ?? att.days,
+        ledolgozottMunkaora: Number(existing.ledolgozott_munkaora ?? att.hours),
+        szabadsagNap: existing.szabadsag_nap ?? leaves.szabadsag,
+        betegszabadsagNap: existing.betegszabadsag_nap ?? leaves.beteg,
         tuloraOra: Number(existing.tulora_ora || 0),
         berpapirId: existing.id,
         statusz: existing.statusz,
@@ -393,6 +422,7 @@ export async function getPayrollDashboardData(
       // Előzetes becsült számítás a tervezet nézethez
       const calc = calculatePayslipDetails({
         bruttoAlapber,
+        munkaidoFte: fte,
         tervezettMunkanap: plannedWorkdays,
         ledolgozottMunkanap: att.days,
         ledolgozottMunkaora: att.hours,
@@ -467,11 +497,14 @@ export async function generateMonthlyPayslipsAction(params: {
   employeeIds?: string[]
   publishImmediately?: boolean
 }): Promise<{ success: boolean; count?: number; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Nincs bejelentkezve" }
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi"], null)
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: "Nincs jogosultságod bérjegyzékek előállításához." }
+  }
+  const user = auth.user
 
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   const adminClient = getAdminClient()
   const { data: dash, error } = await getPayrollDashboardData(params.year, params.month, activeCompanyId || undefined)
   if (error || !dash) return { success: false, error: error || "Nem sikerült az adatok betöltése" }

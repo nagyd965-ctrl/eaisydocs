@@ -78,7 +78,11 @@ export function RecruitmentTabs({
       </TabsContent>
 
       <TabsContent value="analytics" className="w-full m-0 p-0">
-        <RecruitmentAnalytics candidates={candidates} jobs={jobs} />
+        <RecruitmentAnalytics
+          candidates={candidates}
+          postings={postings}
+          jobs={jobs}
+        />
       </TabsContent>
     </Tabs>
   )

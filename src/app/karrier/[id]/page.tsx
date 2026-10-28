@@ -113,7 +113,7 @@ export default async function HirdetesReszletekPage({
     "Hibrid munkavégzés"
   const empTypeLabel =
     EMPLOYMENT_TYPE_LABELS[hirdetes.foglalkoztatas_tipusa || "teljes_munkaido"] ||
-    "Teljes munkaidő (40h)"
+    "Teljes munkaidő"
   const seniorityLabel =
     SENIORITY_LABELS[hirdetes.tapasztalati_szint || "medior"] || "Medior"
   const locationLabel = hirdetes.helyszin || company?.address || "Budapest"
@@ -332,52 +332,6 @@ export default async function HirdetesReszletekPage({
               }
             />
           </div>
-
-          {/* Cégünkről — Vállalati Bemutatkozó Prezentáció Teaser Kártya */}
-          {resolvedCompanyId && company?.career_presentation?.heroSlide && (
-            <div className="rounded-lg border border-primary/30 bg-card overflow-hidden grid sm:grid-cols-12">
-              <div className="sm:col-span-5 h-48 sm:h-auto bg-muted relative overflow-hidden">
-                <img
-                  src={company.career_presentation.heroSlide.coverImageUrl}
-                  alt={companyName}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex flex-col justify-end p-4 text-white">
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-white/80">
-                    Cégünkről — 5 Fejezetes Prezentáció
-                  </p>
-                  <p className="text-sm font-semibold">{companyName}</p>
-                </div>
-              </div>
-              <div className="sm:col-span-7 p-5 sm:p-6 flex flex-col justify-between space-y-4">
-                <div className="space-y-1.5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-                    Ismerd meg a leendő munkahelyedet
-                  </p>
-                  <h3 className="text-base font-semibold text-foreground leading-snug">
-                    {company.career_presentation.heroSlide.headline}
-                  </h3>
-                  <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                    {company.career_presentation.heroSlide.missionStatement}
-                  </p>
-                </div>
-                <div>
-                  <Link
-                    href={`/karrier?company=${resolvedCompanyId}&view=about`}
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "sm" }),
-                      "gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary/5"
-                    )}
-                  >
-                    <span>
-                      Teljes „Cégünkről” prezentáció és fotógaléria megnyitása
-                    </span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* További nyitott pozíciók ugyanennél a cégnél */}
           {relatedPostings.length > 0 && (

@@ -44,9 +44,10 @@ export default async function HrAdminPage() {
 
   const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
   const hrRole = scopedRoles.hrRole || profile?.hr_szerepkor || "munkavallalo"
+  const hrModules = scopedRoles.hrModules || []
 
-  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda", "auditor", "berugyi", "munkavedelmi"].includes(hrRole)
-  if (!isHrOrAdmin) {
+  const hasAdminModule = hrRole === "admin" || hrModules.includes("admin")
+  if (!hasAdminModule) {
     redirect("/hr/self-service/profile")
   }
 
@@ -185,7 +186,7 @@ export default async function HrAdminPage() {
   const offboardings = offboardingsRes.data || []
 
   // Jogosultság ellenőrzése admin műveletekhez (szerkesztés, törlés a törzsadatbázisban)
-  const canEdit = ["admin", "rendszergazda", "hr_vezeto", "hr_munkatars"].includes(hrRole)
+  const canEdit = hrRole === "admin" || hrModules.includes("admin")
 
   // Felvételi adatokhoz meglévő fiókok - csak az aktuális céghez tartozó Docs profilok
   const assignedIds = employees.filter(e => {
@@ -531,6 +532,13 @@ export default async function HrAdminPage() {
         </div>
         {canEdit && (
           <div className="flex items-center gap-2.5">
+            {hrRole === "admin" && (
+              <Link href="/hr/organization?tab=permissions">
+                <Button variant="outline">
+                  Jogosultságkezelő
+                </Button>
+              </Link>
+            )}
             <EaisyBooksEmployeeImportDialog
               companyId={companyScope}
               companyName={currentCompanyName}

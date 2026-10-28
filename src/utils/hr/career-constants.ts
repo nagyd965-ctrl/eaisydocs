@@ -15,7 +15,7 @@ export const WORK_MODE_SHORT_LABELS: Record<string, string> = {
 }
 
 export const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
-  teljes_munkaido: "Teljes munkaidő (40h)",
+  teljes_munkaido: "Teljes munkaidő",
   reszmunkaido: "Részmunkaidő",
   vallalkozoi: "Contractor (B2B)",
   gyakornok: "Gyakornoki program",

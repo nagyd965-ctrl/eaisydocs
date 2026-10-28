@@ -1,15 +1,13 @@
 "use server"
 
-import { createClient } from "@/utils/supabase/server"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { error: "Nincs bejelentkezve" }
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod szervezeti egység módosításához." }
   }
 
   const supabaseAdmin = createSupabaseClient(
@@ -17,10 +15,9 @@ export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: str
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // .select() hozzáadva hogy 0-sor update esetén se silent fail legyen
   const { data: updated, error } = await supabaseAdmin
     .from("felhasznalo_profil")
-    .update({ hr_szervezeti_egyseg_id: orgUnitId })
+    .update({ hr_szervezeti_egyseg_id: orgUnitId, szervezeti_egyseg_id: orgUnitId })
     .eq("id", employeeId)
     .select("id, hr_szervezeti_egyseg_id")
 
@@ -30,11 +27,8 @@ export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: str
   }
 
   if (!updated || updated.length === 0) {
-    console.error("[assignEmployeeToOrgUnit] 0 rows updated – employeeId not found:", employeeId)
     return { error: "A megadott dolgozó nem található az adatbázisban." }
   }
-
-  console.log("[assignEmployeeToOrgUnit] Updated:", updated)
 
   revalidatePath(`/hr/orgunit/${orgUnitId}`)
   revalidatePath("/hr/organization")
@@ -42,13 +36,10 @@ export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: str
   return { success: true }
 }
 
-
 export async function removeEmployeeFromOrgUnit(orgUnitId: string, employeeId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { error: "Nincs bejelentkezve" }
+  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod szervezeti egység módosításához." }
   }
 
   const supabaseAdmin = createSupabaseClient(
@@ -58,7 +49,7 @@ export async function removeEmployeeFromOrgUnit(orgUnitId: string, employeeId: s
 
   const { error } = await supabaseAdmin
     .from("felhasznalo_profil")
-    .update({ hr_szervezeti_egyseg_id: null })
+    .update({ hr_szervezeti_egyseg_id: null, szervezeti_egyseg_id: null })
     .eq("id", employeeId)
 
   if (error) {

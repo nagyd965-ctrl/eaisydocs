@@ -10,6 +10,8 @@ export type TimesheetEntry = {
   datum: string
   becsekkolas_ideje: string | null
   kicsekkolas_ideje: string | null
+  szunet_perc?: number
+  szunet_ms?: number
   type: "munka" | "szabadsag" | "betegseg" | "hetvege" | "unnep" | "csusztatas"
   note?: string
   tavollet_id?: string
@@ -188,6 +190,8 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           datum: dateStr,
           becsekkolas_ideje: munka.becsekkolas_ideje,
           kicsekkolas_ideje: munka.kicsekkolas_ideje,
+          szunet_perc: Number((munka as any).szunet_perc || 0),
+          szunet_ms: Number((munka as any).szunet_ms || 0),
           type: "munka",
           note: assignedShift ? `Beosztott műszak (${shiftCode})` : undefined,
           pendingCorrection: pendingCorr,

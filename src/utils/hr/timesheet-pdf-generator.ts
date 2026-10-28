@@ -61,6 +61,8 @@ export async function generateTimesheetHtml(
     type: t.type,
     checkIn: t.becsekkolas_ideje,
     checkOut: t.kicsekkolas_ideje,
+    szunetMs: t.szunet_ms,
+    szunetPerc: t.szunet_perc,
     shiftPlannedHours: t.shiftPlannedHours,
     shiftCode: t.shiftCode,
     shiftName: t.shiftName,

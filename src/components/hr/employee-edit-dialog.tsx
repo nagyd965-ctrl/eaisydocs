@@ -68,29 +68,29 @@ export function EmployeeEditDialog({
   const nev = employee.felhasznalo_profil?.nev || employee.nev || "Ismeretlen"
   
   const roleMap: Record<string, string> = {
-    "munkavallalo": "Munkavállaló (Alap)",
-    "vezeto": "Vezető (Közvetlen)",
-    "hr_munkatars": "HR Munkatárs",
-    "hr_vezeto": "HR Vezető (Igazgató)",
-    "berugyi": "Bérügyi / Bérszámfejtő",
+    "munkavallalo": "Munkavállaló",
+    "vezeto": "Vezető",
     "admin": "Admin",
-    "toborzo": "Toborzó (ATS)",
-    "munkavedelmi": "Munkavédelmi Felelős",
-    "rendszergazda": "Rendszergazda (IT)",
-    "auditor": "Auditor (Könyvvizsgáló)"
+  }
+
+  const normalizeLegacyRole = (r?: string | null) => {
+    if (!r) return "munkavallalo"
+    if (r === "admin" || r === "rendszergazda") return "admin"
+    if (r === "vezeto" || r === "hr_vezeto") return "vezeto"
+    return "munkavallalo"
   }
 
   const activeJogviszony = employee.hr_jogviszony?.[0] || employee.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
   const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
 
-  const [role, setRole] = useState<string>(employee.felhasznalo_profil?.hr_szerepkor || employee.hr_szerepkor || "munkavallalo")
+  const [role, setRole] = useState<string>(normalizeLegacyRole(employee.felhasznalo_profil?.hr_szerepkor || employee.hr_szerepkor))
   const [munkakorId, setMunkakorId] = useState<string>(activeBeosztas?.hr_munkakor?.id || "none")
   const [orgUnitId, setOrgUnitId] = useState<string>(employee.felhasznalo_profil?.hr_szervezeti_egyseg_id || employee.hr_szervezeti_egyseg_id || "none")
   const [managerId, setManagerId] = useState<string>(employee.felhasznalo_profil?.kozvetlen_vezeto_id || employee.kozvetlen_vezeto_id || "none")
 
   useEffect(() => {
     if (open) {
-      setRole(employee.felhasznalo_profil?.hr_szerepkor || employee.hr_szerepkor || "munkavallalo")
+      setRole(normalizeLegacyRole(employee.felhasznalo_profil?.hr_szerepkor || employee.hr_szerepkor))
       setMunkakorId(activeBeosztas?.hr_munkakor?.id || "none")
       setOrgUnitId(employee.felhasznalo_profil?.hr_szervezeti_egyseg_id || employee.hr_szervezeti_egyseg_id || "none")
       setManagerId(employee.felhasznalo_profil?.kozvetlen_vezeto_id || employee.kozvetlen_vezeto_id || "none")
@@ -149,18 +149,14 @@ export function EmployeeEditDialog({
                 <span>{roleMap[role] || "Válassz szerepkört"}</span>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="munkavallalo">Munkavállaló (Alap)</SelectItem>
-                <SelectItem value="vezeto">Vezető (Közvetlen)</SelectItem>
-                <SelectItem value="hr_munkatars">HR Munkatárs</SelectItem>
-                <SelectItem value="hr_vezeto">HR Vezető (Igazgató)</SelectItem>
-                <SelectItem value="berugyi">Bérügyi / Bérszámfejtő</SelectItem>
+                <SelectItem value="munkavallalo">Munkavállaló</SelectItem>
+                <SelectItem value="vezeto">Vezető</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="toborzo">Toborzó (ATS)</SelectItem>
-                <SelectItem value="munkavedelmi">Munkavédelmi Felelős</SelectItem>
-                <SelectItem value="rendszergazda">Rendszergazda (IT)</SelectItem>
-                <SelectItem value="auditor">Auditor (Könyvvizsgáló)</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Az egyedi modul-hozzáféréseket a Jogosultságkezelő mátrixban kapcsolhatod be.
+            </p>
           </div>
 
           <div className="space-y-2">

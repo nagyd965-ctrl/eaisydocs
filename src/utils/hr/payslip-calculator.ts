@@ -10,6 +10,7 @@
 
 export interface PayslipCalculationInput {
   bruttoAlapber: number
+  munkaidoFte?: number
   tervezettMunkanap: number
   ledolgozottMunkanap: number
   ledolgozottMunkaora?: number
@@ -64,9 +65,11 @@ export const MAX_UNDER_25_MONTHLY_TAX_BASE = 576601
 
 export function calculatePayslipDetails(input: PayslipCalculationInput): PayslipCalculationResult {
   const bruttoAlapber = Math.max(0, input.bruttoAlapber || 0)
+  const fte = input.munkaidoFte && input.munkaidoFte > 0 ? input.munkaidoFte : 1.0
+  const napiMunkaora = 8 * fte
   const tervezettMunkanap = Math.max(1, input.tervezettMunkanap || 20)
   const ledolgozottMunkanap = Math.max(0, input.ledolgozottMunkanap ?? tervezettMunkanap)
-  const ledolgozottMunkaora = input.ledolgozottMunkaora ?? ledolgozottMunkanap * 8
+  const ledolgozottMunkaora = input.ledolgozottMunkaora ?? Math.round(ledolgozottMunkanap * napiMunkaora * 10) / 10
   const szabadsagNap = Math.max(0, input.szabadsagNap || 0)
   const betegszabadsagNap = Math.max(0, input.betegszabadsagNap || 0)
   const tuloraOra = Math.max(0, input.tuloraOra || 0)
@@ -79,7 +82,7 @@ export function calculatePayslipDetails(input: PayslipCalculationInput): Payslip
 
   // 1. Napi és órabér alapok
   const napiBer = bruttoAlapber / tervezettMunkanap
-  const oraber = napiBer / 8
+  const oraber = napiBer / napiMunkaora
 
   // Ha a teljes havi munkaidő le van fedve sima munkával
   let alapberReszlet = 0
@@ -102,13 +105,15 @@ export function calculatePayslipDetails(input: PayslipCalculationInput): Payslip
   // Túlóra pótlék (50%-os bérpótlék + alap óradíj = 150%)
   const tuloraOsszeg = Math.round(tuloraOra * oraber * 1.5)
 
-  // Összes bruttó jövedelem
-  const bruttoOsszesen = alapberReszlet + szabadsagDij + betegszabadsagDij + tuloraOsszeg + bonuszJutalom + cafeteriaBrutto
+  // Bér jellegű bruttó jövedelem és összes bruttó (cafeteriával együtt)
+  const berBrutto = alapberReszlet + szabadsagDij + betegszabadsagDij + tuloraOsszeg + bonuszJutalom
+  const bruttoOsszesen = berBrutto + cafeteriaBrutto
 
   // 2. SZJA és TB adóalap
-  // A cafeteria bér adózása itt az egyszerűsített készpénzes/SZÉP kártya bruttó elszámolást követi
-  const szjaAlap = bruttoOsszesen
-  const tbJarulekAlap = bruttoOsszesen
+  // A béren kívüli juttatást (SZÉP-kártya) 28% munkáltatói közteher (15% SZJA + 13% SZOCHO) terheli,
+  // így a munkavállalói egyéni SZJA és 18,5%-os TB levonás alapja kizárólag a bérjellegű jövedelem (berBrutto).
+  const szjaAlap = berBrutto
+  const tbJarulekAlap = berBrutto
 
   // 3. SZJA számítás (15%)
   let nominalisSzja = Math.round(szjaAlap * 0.15)
@@ -152,8 +157,8 @@ export function calculatePayslipDetails(input: PayslipCalculationInput): Payslip
   const levonasokOsszesen = szjaLevonas + tbJarulekLevonas + letiltasEgyebLevonas
   const nettoKifizetendo = Math.max(0, bruttoOsszesen - levonasokOsszesen)
 
-  // 6. Munkáltatói teher: SZOCHO (13%)
-  const szochoMunkaltatoi = Math.round(bruttoOsszesen * 0.13)
+  // 6. Munkáltatói teher: bérre 13% SZOCHO + béren kívüli juttatásra (SZÉP-kártya) 28% közteher
+  const szochoMunkaltatoi = Math.round(berBrutto * 0.13 + cafeteriaBrutto * 0.28)
 
   return {
     bruttoAlapber,

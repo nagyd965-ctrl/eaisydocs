@@ -15,6 +15,10 @@ import { JobActionMenu } from "@/components/hr/job-action-menu"
 import { JobCreateDialog } from "@/components/hr/job-create-dialog"
 import { OrgUnitActionMenu } from "@/components/hr/org-unit-action-menu"
 import { HrOrgUnitCreateDialog } from "@/components/hr/org-unit-create-dialog"
+import {
+  PermissionsMatrixView,
+  type PermissionMatrixEmployee,
+} from "@/components/hr/permissions-matrix-view"
 
 interface OrganizationTabsViewProps {
   rootOrgUnits: OrgUnitNode[]
@@ -22,6 +26,9 @@ interface OrganizationTabsViewProps {
   dbJobs: any[]
   allUsers: any[]
   defaultTab?: string
+  isAdmin?: boolean
+  permissionEmployees?: PermissionMatrixEmployee[]
+  companyName?: string
 }
 
 export function OrganizationTabsView({
@@ -29,9 +36,13 @@ export function OrganizationTabsView({
   orgUnits,
   dbJobs,
   allUsers,
-  defaultTab = "orgchart"
+  defaultTab = "orgchart",
+  isAdmin = false,
+  permissionEmployees = [],
+  companyName = "Aktív Vállalat",
 }: OrganizationTabsViewProps) {
-  const [activeTab, setActiveTab] = useState(defaultTab)
+  const safeDefaultTab = !isAdmin && defaultTab === "permissions" ? "orgchart" : defaultTab
+  const [activeTab, setActiveTab] = useState(safeDefaultTab)
   const [orgSearch, setOrgSearch] = useState("")
   const [jobSearch, setJobSearch] = useState("")
 
@@ -91,6 +102,17 @@ export function OrganizationTabsView({
               {dbJobs.length}
             </span>
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger
+              value="permissions"
+              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3 gap-2"
+            >
+              Jogosultságkezelő
+              <span className="text-xs bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded-full font-medium">
+                Admin
+              </span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* 1. TAB: SZERVEZETI ÁBRA */}
@@ -304,6 +326,16 @@ export function OrganizationTabsView({
             </div>
           </Card>
         </TabsContent>
+
+        {/* 4. TAB: JOGOSULTSÁGKEZELŐ MÁTRIX (KIZÁRÓLAG ADMIN SZÁMÁRA) */}
+        {isAdmin && (
+          <TabsContent value="permissions" className="space-y-4 outline-none">
+            <PermissionsMatrixView
+              initialEmployees={permissionEmployees}
+              companyName={companyName}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )

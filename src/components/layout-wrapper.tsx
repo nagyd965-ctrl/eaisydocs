@@ -17,16 +17,17 @@ function DynamicSidebarTrigger() {
   return <SidebarTrigger className="-ml-2" />
 }
 
-
 export function LayoutWrapper({ 
   children, 
   docsRole,
   hrRole,
+  hrModules = [],
   elerhetoModulok = []
 }: { 
   children: React.ReactNode; 
   docsRole?: string;
   hrRole?: string;
+  hrModules?: string[];
   elerhetoModulok?: string[];
 }) {
   const pathname = usePathname()
@@ -38,11 +39,11 @@ export function LayoutWrapper({
     if (!isPublic && !pathname.startsWith("/hr")) {
       // Ha a felhasználónak NINCS docs modulja, de van hr modulja, azonnal átirányítjuk a HR felületre
       if (elerhetoModulok.length > 0 && !elerhetoModulok.includes("docs") && elerhetoModulok.includes("hr")) {
-        const isHrStaff = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda", "auditor"].includes(hrRole || "")
-        router.replace(isHrStaff ? "/hr/admin" : "/hr")
+        const hasAdminModule = hrRole === "admin" || hrModules.includes("admin")
+        router.replace(hasAdminModule ? "/hr/admin" : "/hr")
       }
     }
-  }, [pathname, elerhetoModulok, hrRole, router])
+  }, [pathname, elerhetoModulok, hrRole, hrModules, router])
   
   useEffect(() => {
     async function getSettings() {
@@ -91,7 +92,7 @@ export function LayoutWrapper({
   return (
     <SidebarProvider>
       <div className="print:hidden h-full flex flex-col z-50">
-        {pathname.startsWith("/hr") ? <HrSidebar hrRole={hrRole} /> : <AppSidebar docsRole={docsRole} />}
+        {pathname.startsWith("/hr") ? <HrSidebar hrRole={hrRole} hrModules={hrModules} /> : <AppSidebar docsRole={docsRole} />}
       </div>
       {timeoutMinutes && <SessionTimeout timeoutMinutes={timeoutMinutes} />}
       <main className="flex-1 w-full overflow-hidden flex flex-col relative print:overflow-visible">

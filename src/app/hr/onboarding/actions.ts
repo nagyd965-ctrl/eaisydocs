@@ -172,7 +172,7 @@ export async function activateOnboardingAccount(onboardingId: string) {
 
   const [{ data: profile }, companyRoles] = await Promise.all([
     supabase.from("felhasznalo_profil").select("hr_szerepkor").eq("id", user.id).single(),
-    getActiveCompanyMemberRolesServer(user.id),
+    getActiveCompanyMemberRolesServer(),
   ])
 
   const effectiveHrRole = companyRoles?.hrRole && companyRoles.hrRole !== "none"
@@ -591,6 +591,15 @@ export async function reopenOnboarding(onboardingId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  const [{ data: profile }, companyRoles] = await Promise.all([
+    supabase.from("felhasznalo_profil").select("hr_szerepkor").eq("id", user.id).single(),
+    getActiveCompanyMemberRolesServer(),
+  ])
+  const effectiveHrRole = companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : profile?.hr_szerepkor
+  if (!companyRoles?.isCompanyAdmin && !["admin", "hr_vezeto", "hr_munkatars"].includes(effectiveHrRole || "")) {
+    return { error: "Nincs jogosultságod a beléptetési folyamat újranyitásához." }
+  }
+
   const adminClient = getAdminClient()
 
   const { error } = await adminClient
@@ -627,6 +636,15 @@ export async function deleteOnboarding(onboardingId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
+
+  const [{ data: profile }, companyRoles] = await Promise.all([
+    supabase.from("felhasznalo_profil").select("hr_szerepkor").eq("id", user.id).single(),
+    getActiveCompanyMemberRolesServer(),
+  ])
+  const effectiveHrRole = companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : profile?.hr_szerepkor
+  if (!companyRoles?.isCompanyAdmin && !["admin", "hr_vezeto", "hr_munkatars"].includes(effectiveHrRole || "")) {
+    return { error: "Nincs jogosultságod a beléptetési folyamat törléséhez." }
+  }
 
   const adminClient = getAdminClient()
 
@@ -670,7 +688,7 @@ export async function createManualOnboarding(formData: {
 
   const [{ data: profile }, companyRoles, activeCompanyId] = await Promise.all([
     supabase.from("felhasznalo_profil").select("hr_szerepkor").eq("id", user.id).single(),
-    getActiveCompanyMemberRolesServer(user.id),
+    getActiveCompanyMemberRolesServer(),
     getActiveCompanyIdServer(),
   ])
 

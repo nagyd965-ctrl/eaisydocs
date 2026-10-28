@@ -277,30 +277,30 @@ export function MyPayslipsView({ initialItems }: MyPayslipsViewProps) {
               </h3>
 
               <div className="divide-y text-xs">
-                <div className="py-2 flex justify-between">
-                  <span className="text-muted-foreground">Szerződés szerinti alapbér:</span>
-                  <span className="font-mono font-medium">{formatHufCurrency(selectedItem.bruttoAlapber)}</span>
+                <div className="py-2 flex justify-between text-muted-foreground">
+                  <span>Szerződés szerinti havi alapbér (tájékoztató):</span>
+                  <span className="font-mono">{formatHufCurrency(selectedItem.bruttoAlapber)}</span>
                 </div>
                 <div className="py-2 flex justify-between">
-                  <span className="text-muted-foreground">Ledolgozott napok ({selectedItem.ledolgozottMunkanap} nap):</span>
-                  <span className="font-mono font-medium">{formatHufCurrency(selectedItem.bruttoAlapber)}</span>
+                  <span className="text-muted-foreground">Ledolgozott napokra járó alapbér ({selectedItem.ledolgozottMunkanap} nap):</span>
+                  <span className="font-mono font-medium">{formatHufCurrency(selectedItem.alapberReszlet)}</span>
                 </div>
                 {selectedItem.szabadsagNap > 0 && (
                   <div className="py-2 flex justify-between">
-                    <span className="text-muted-foreground">Fizetett szabadság ({selectedItem.szabadsagNap} nap):</span>
-                    <span className="font-mono font-medium text-emerald-600">Elszámolva</span>
+                    <span className="text-muted-foreground">Fizetett szabadság díja ({selectedItem.szabadsagNap} nap):</span>
+                    <span className="font-mono font-medium text-emerald-600">+{formatHufCurrency(selectedItem.szabadsagDij)}</span>
                   </div>
                 )}
                 {selectedItem.betegszabadsagNap > 0 && (
                   <div className="py-2 flex justify-between">
-                    <span className="text-muted-foreground">Betegszabadság (70%, {selectedItem.betegszabadsagNap} nap):</span>
-                    <span className="font-mono font-medium text-amber-600">Elszámolva</span>
+                    <span className="text-muted-foreground">Betegszabadság díja (70%, {selectedItem.betegszabadsagNap} nap):</span>
+                    <span className="font-mono font-medium text-amber-600">+{formatHufCurrency(selectedItem.betegszabadsagDij)}</span>
                   </div>
                 )}
                 {selectedItem.tuloraOra > 0 && (
                   <div className="py-2 flex justify-between">
                     <span className="text-muted-foreground">Túlóra pótlék ({selectedItem.tuloraOra} óra):</span>
-                    <span className="font-mono font-medium">Elszámolva</span>
+                    <span className="font-mono font-medium">+{formatHufCurrency(selectedItem.tuloraPotlek)}</span>
                   </div>
                 )}
                 {selectedItem.bonuszJutalom > 0 && (

@@ -27,11 +27,15 @@ import {
   Building2,
   Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Edit,
   Eye,
   Loader2,
   Save,
   Sparkles,
   Upload,
+  X,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -108,6 +112,13 @@ export function CompanyPresentationEditor({
     }
   )
 
+  const [hasSavedPresentation, setHasSavedPresentation] = useState<boolean>(
+    Boolean(initialPresentation && initialPresentation.heroSlide)
+  )
+  const [isEditing, setIsEditing] = useState<boolean>(
+    !Boolean(initialPresentation && initialPresentation.heroSlide)
+  )
+  const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false)
   const [currentStep, setCurrentStep] = useState<number>(1)
   const [editSlideTab, setEditSlideTab] = useState<
     "slide1" | "slide2" | "slide3" | "slide4" | "slide5"
@@ -202,6 +213,8 @@ export function CompanyPresentationEditor({
         toast.error(res.error || "Hiba történt a prezentáció mentésekor.")
       } else {
         setPresentation(payload)
+        setHasSavedPresentation(true)
+        setIsEditing(false)
         toast.success(
           `A(z) ${companyName} „Cégünkről” prezentációja sikeresen elmentve és publikálva a Karrieroldalra!`
         )
@@ -264,6 +277,118 @@ export function CompanyPresentationEditor({
     }
   }
 
+  if (!isEditing && hasSavedPresentation) {
+    const formattedUpdatedAt = presentation.updatedAt
+      ? new Date(presentation.updatedAt).toLocaleDateString("hu-HU", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : null
+
+    return (
+      <div className="w-full space-y-6 pb-12">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setIsPreviewOpen((prev) => !prev)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              setIsPreviewOpen((prev) => !prev)
+            }
+          }}
+          className={cn(
+            "group w-full rounded-lg border p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer select-none transition-colors",
+            isPreviewOpen
+              ? "border-primary/40 bg-primary/5 hover:border-primary/60"
+              : "border-border/70 bg-card hover:border-primary/40 hover:bg-muted/20"
+          )}
+        >
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <Badge
+                variant="outline"
+                className="border-primary/30 bg-primary/5 text-primary text-xs font-medium gap-1.5"
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>Aktív vállalat: {companyName}</span>
+              </Badge>
+              <Badge
+                variant="secondary"
+                className="text-[11px] bg-success/10 text-success border border-success/25"
+              >
+                Aktív és publikálva a Karrieroldalon
+              </Badge>
+              {formattedUpdatedAt && (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  Utoljára mentve: {formattedUpdatedAt}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap pt-0.5">
+              <h2 className="text-lg sm:text-xl font-semibold text-foreground group-hover:text-primary transition-colors">
+                „Cégünkről” Vállalati Prezentáció — {companyName}
+              </h2>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-medium transition-colors",
+                  isPreviewOpen
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border/70 bg-muted/40 text-muted-foreground group-hover:border-primary/30 group-hover:bg-primary/10 group-hover:text-primary"
+                )}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>
+                  {isPreviewOpen
+                    ? "Kattints a prezentáció elrejtéséhez"
+                    : "Kattints a prezentáció megtekintéséhez"}
+                </span>
+                {isPreviewOpen ? (
+                  <ChevronUp className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                )}
+              </span>
+            </div>
+
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Ez az 5 fejezetes interaktív prezentáció jelenik meg élőben a publikus Karrieroldalon a jelentkezők számára.
+            </p>
+          </div>
+
+          {!isReadOnly && (
+            <div
+              className="flex items-center gap-2.5 shrink-0 flex-wrap"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setCurrentStep(1)
+                  setIsEditing(true)
+                }}
+                className="gap-1.5 text-xs"
+              >
+                <Edit className="w-3.5 h-3.5" />
+                <span>Prezentáció szerkesztése</span>
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {isPreviewOpen && (
+          <CompanyPresentationViewer
+            companyName={companyName}
+            presentation={presentation}
+          />
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="w-full space-y-6 pb-12">
       {/* ── 1. TELJES SZÉLESSÉGŰ STÚDIÓ FEJLÉC ÉS 5 LÉPÉSES STEPPER SÁV ── */}
@@ -291,6 +416,19 @@ export function CompanyPresentationEditor({
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+            {hasSavedPresentation && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditing(false)}
+                className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Kilépés a szerkesztésből</span>
+              </Button>
+            )}
+
             {currentStep !== 5 ? (
               <Button
                 type="button"

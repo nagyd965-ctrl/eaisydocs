@@ -3,7 +3,7 @@ import { ShieldAlert, Shield } from "lucide-react"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export default async function HrReportsPage() {
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi", "auditor"])
+  const auth = await requireHrAuthServer(["reports"])
   if (!auth.authorized || !auth.activeCompanyId) {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">

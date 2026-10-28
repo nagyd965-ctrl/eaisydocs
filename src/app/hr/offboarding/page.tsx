@@ -7,7 +7,7 @@ import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 export const dynamic = "force-dynamic"
 
 export default async function OffboardingPage() {
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"])
+  const auth = await requireHrAuthServer(["offboarding"])
   if (!auth.authorized || !auth.activeCompanyId) {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">

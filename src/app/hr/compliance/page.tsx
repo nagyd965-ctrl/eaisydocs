@@ -19,7 +19,7 @@ export const metadata = {
 }
 
 export default async function CompliancePage() {
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "munkavedelmi", "auditor"])
+  const auth = await requireHrAuthServer(["compliance"])
   if (!auth.authorized || !auth.activeCompanyId) {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">

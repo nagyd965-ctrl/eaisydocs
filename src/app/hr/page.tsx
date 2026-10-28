@@ -99,7 +99,7 @@ export default async function SelfServicePage() {
   // 2. Időrögzítés státusz
   const { data: jelenlet } = await supabase
     .from("hr_jelenlet")
-    .select("becsekkolas_ideje, kicsekkolas_ideje")
+    .select("becsekkolas_ideje, kicsekkolas_ideje, szunet_perc, szunet_ms, szunet_kezdete")
     .eq("dolgozo_id", user.id)
     .eq("datum", new Date().toISOString().split('T')[0])
     .single()
@@ -264,6 +264,8 @@ export default async function SelfServicePage() {
           initialStatus={timeStatus}
           checkInTime={jelenlet?.becsekkolas_ideje || null}
           checkOutTime={jelenlet?.kicsekkolas_ideje || null}
+          initialAccumulatedBreakMs={Number((jelenlet as any)?.szunet_ms || 0)}
+          initialBreakStart={(jelenlet as any)?.szunet_kezdete || null}
         />
 
         {/* Szabadság egyenleg */}

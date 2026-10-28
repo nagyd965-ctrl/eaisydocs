@@ -990,7 +990,7 @@ export function ReportsTabs() {
               <TableToolbar
                 searchValue={kshSearch}
                 onSearchChange={setKshSearch}
-                searchPlaceholder="Keresés mutatók és FEOR kódok között..."
+                searchPlaceholder="Keresés mutatók, részlegek és FEOR kódok között..."
                 periodPicker={renderPeriodPicker()}
               />
               {/* KSH FŐMUTATÓK TÁBLÁZAT */}
@@ -1109,14 +1109,6 @@ export function ReportsTabs() {
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     2. Szervezeti Egységek (Részlegek) Szerinti Létszám- és Óramegoszlás
                   </h4>
-                  <div className="w-full sm:w-60">
-                    <Input
-                      placeholder="Szűrés részlegre..."
-                      value={kshSearch}
-                      onChange={(e) => setKshSearch(e.target.value)}
-                      className="h-7 text-xs"
-                    />
-                  </div>
                 </div>
 
                 <div className="rounded-md border border-border/70 overflow-x-auto">
