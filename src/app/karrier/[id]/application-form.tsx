@@ -51,6 +51,13 @@ export interface ApplicationFormProps {
   companyName?: string | null
   positionTitle?: string | null
   isSpontaneous?: boolean
+  isInternalPosting?: boolean
+  initialEmployeeData?: {
+    nev: string
+    email: string
+    telefon?: string
+    munkakor?: string
+  } | null
   companies?: ApplicationFormCompanyOption[]
   onSuccessCallback?: () => void
 }
@@ -62,9 +69,12 @@ export function ApplicationForm({
   companyName = null,
   positionTitle = null,
   isSpontaneous = false,
+  isInternalPosting = false,
+  initialEmployeeData = null,
   companies = [],
   onSuccessCallback,
 }: ApplicationFormProps) {
+  const isInternalEmployee = Boolean(initialEmployeeData)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submittedData, setSubmittedData] = useState<{
     palyazatiKod: string
@@ -72,13 +82,17 @@ export function ApplicationForm({
     positionName: string
   } | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
-  const [gdprConsent, setGdprConsent] = useState(false)
+  const [gdprConsent, setGdprConsent] = useState(Boolean(initialEmployeeData))
 
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(
     companyId || companies[0]?.id || ""
   )
-  const [kezdesiIdo, setKezdesiIdo] = useState<string>("1_honap")
-  const [forras, setForras] = useState<string>("karrieroldal")
+  const [kezdesiIdo, setKezdesiIdo] = useState<string>(
+    initialEmployeeData ? "azonnal" : "1_honap"
+  )
+  const [forras, setForras] = useState<string>(
+    initialEmployeeData ? "belso_palyazat" : "karrieroldal"
+  )
   const [megpalyazottTerulet, setMegpalyazottTerulet] = useState<string>(
     "Szoftverfejlesztés & IT"
   )
@@ -115,7 +129,7 @@ export function ApplicationForm({
     }
 
     const cvFile = selectedFile || (formData.get("cv") as File)
-    if (!cvFile || cvFile.size === 0) {
+    if (!isInternalEmployee && (!cvFile || cvFile.size === 0)) {
       toast.error("Kérjük, csatolja az önéletrajzát!")
       return
     }
@@ -127,7 +141,12 @@ export function ApplicationForm({
 
     setIsSubmitting(true)
     try {
-      formData.set("cv", cvFile)
+      if (cvFile && cvFile.size > 0) {
+        formData.set("cv", cvFile)
+      }
+      if (isInternalEmployee) {
+        formData.set("isInternalEmployee", "true")
+      }
       if (allashirdetesId) formData.set("allashirdetesId", allashirdetesId)
       if (munkakorId) formData.set("munkakorId", munkakorId)
       if (companyId || selectedCompanyId) {
@@ -244,6 +263,8 @@ export function ApplicationForm({
           <h3 className="text-lg font-semibold text-foreground">
             {isSpontaneous
               ? "Nyitott jelentkezés (Talent Pool)"
+              : isInternalPosting || isInternalEmployee
+              ? "Belső álláspályázat benyújtása"
               : "Jelentkezés erre a pozícióra"}
           </h3>
           {resolvedCompanyName && (
@@ -259,9 +280,29 @@ export function ApplicationForm({
         <p className="text-xs text-muted-foreground">
           {isSpontaneous
             ? "Add meg adataidat és csatold az önéletrajzodat, hogy felvehessünk a kiválasztott vállalat tehetségbázisába."
+            : isInternalEmployee
+            ? "Munkatársi adataidat automatikusan kitöltöttük. Ellenőrizd az adatokat, és küldd be belső pályázatodat."
             : "Töltsd ki az alábbi mezőket és csatold az önéletrajzodat. A beküldés után azonnal kapsz egy pályázatkövető azonosítót."}
         </p>
       </div>
+
+      {isInternalEmployee && initialEmployeeData && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3.5 space-y-1 text-xs">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="font-semibold text-primary">
+              Belső munkatársi jelentkezés (adataid előtöltve)
+            </span>
+            {initialEmployeeData.munkakor && (
+              <Badge variant="outline" className="text-[11px] font-normal bg-background">
+                Jelenlegi munkakör: {initialEmployeeData.munkakor}
+              </Badge>
+            )}
+          </div>
+          <p className="text-muted-foreground">
+            Bejelentkezett dolgozóként a személyes adataid és a belső pályázati forrás automatikusan kitöltésre kerültek.
+          </p>
+        </div>
+      )}
 
       {/* Ha általános Talent Pool jelentkezés, cég és szakterület választó */}
       {isSpontaneous && (
@@ -312,7 +353,13 @@ export function ApplicationForm({
           <Label htmlFor="nev" className="text-xs font-medium">
             Teljes név <span className="text-destructive">*</span>
           </Label>
-          <Input id="nev" name="nev" required placeholder="Kovács János" />
+          <Input
+            id="nev"
+            name="nev"
+            required
+            defaultValue={initialEmployeeData?.nev || ""}
+            placeholder="Kovács János"
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -325,19 +372,22 @@ export function ApplicationForm({
               name="email"
               type="email"
               required
+              defaultValue={initialEmployeeData?.email || ""}
               placeholder="kovacs.janos@example.com"
             />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="telefon" className="text-xs font-medium">
-              Telefonszám <span className="text-destructive">*</span>
+              Telefonszám{" "}
+              {!isInternalEmployee && <span className="text-destructive">*</span>}
             </Label>
             <Input
               id="telefon"
               name="telefon"
               type="tel"
-              required
+              required={!isInternalEmployee}
+              defaultValue={initialEmployeeData?.telefon || ""}
               placeholder="+36 30 123 4567"
             />
           </div>
@@ -413,7 +463,13 @@ export function ApplicationForm({
       <div className="space-y-1.5">
         <Label htmlFor="cv" className="text-xs font-medium">
           Szakmai önéletrajz (CV) feltöltése (PDF vagy Word, max. 10 MB){" "}
-          <span className="text-destructive">*</span>
+          {isInternalEmployee ? (
+            <span className="text-muted-foreground font-normal">
+              (opcionális belső munkatársaknak)
+            </span>
+          ) : (
+            <span className="text-destructive">*</span>
+          )}
         </Label>
         <div
           onDragOver={(e) => {

@@ -224,9 +224,6 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
         <TabsContent value="folyamatban" className="mt-0 outline-none">
           {filteredList.length === 0 ? (
             <div className="py-16 text-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed p-8">
-              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
-                <Users className="w-6 h-6 opacity-40" />
-              </div>
               <p className="font-medium text-foreground">
                 {search 
                   ? "Nincs a keresésnek megfelelő kiléptetési folyamat." 
@@ -324,9 +321,6 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
         <TabsContent value="lezart" className="mt-0 outline-none">
           {filteredList.length === 0 ? (
             <div className="py-16 text-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed p-8">
-              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
-                <Archive className="w-6 h-6 opacity-40" />
-              </div>
               <p className="font-medium text-foreground">
                 Még nincsenek lezárt és archivált kiléptetési folyamatok.
               </p>

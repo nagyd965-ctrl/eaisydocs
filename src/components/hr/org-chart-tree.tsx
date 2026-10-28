@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useState } from "react"
+import Link from "next/link"
 
 import { type OrgDolgozo, type OrgUnitNode } from "@/lib/org-chart-utils"
 
@@ -17,17 +18,25 @@ function DolgozoCard({ dolgozo }: { dolgozo: OrgDolgozo }) {
     ? dolgozo.nev.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
     : "?"
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/40 border border-border/50 hover:bg-muted/70 transition-colors">
-      <Avatar className="w-6 h-6 shrink-0">
-        <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-semibold">
-          {initials}
-        </AvatarFallback>
-      </Avatar>
-      <div className="min-w-0">
-        <div className="text-xs font-medium text-foreground truncate">{dolgozo.nev}</div>
-        <div className="text-[10px] text-muted-foreground truncate">{dolgozo.pozicio}</div>
+    <Link
+      href={`/hr/employee/${dolgozo.id}`}
+      className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md bg-muted/40 border border-border/50 hover:border-primary/40 hover:bg-muted/70 transition-colors group"
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <Avatar className="w-6 h-6 shrink-0">
+          <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-semibold">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
+          <div className="text-xs font-medium text-foreground group-hover:text-primary transition-colors truncate">
+            {dolgozo.nev}
+          </div>
+          <div className="text-[10px] text-muted-foreground truncate">{dolgozo.pozicio}</div>
+        </div>
       </div>
-    </div>
+      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+    </Link>
   )
 }
 
@@ -53,24 +62,33 @@ function OrgUnitCard({ unit, depth }: { unit: OrgUnitNode; depth: number }) {
       {/* Egység doboz */}
       <div className={`border-2 rounded-xl w-64 z-10 relative overflow-hidden ${cardColor}`}>
         {/* Fejléc */}
-        <button
-          onClick={() => hasChildren && setCollapsed(c => !c)}
-          className={`w-full flex items-center justify-between px-3 py-2.5 ${hasChildren ? "cursor-pointer" : "cursor-default"}`}
-        >
-          <div className="flex items-center min-w-0">
-            <span className="font-semibold text-sm text-foreground truncate">{unit.nev}</span>
-          </div>
+        <div className="w-full flex items-center justify-between px-3 py-2.5">
+          <Link
+            href={`/hr/orgunit/${unit.id}`}
+            className="flex items-center min-w-0 hover:underline text-foreground hover:text-primary transition-colors"
+            title={`${unit.nev} részleg adatlapjának megnyitása`}
+          >
+            <span className="font-semibold text-sm truncate">{unit.nev}</span>
+          </Link>
           <div className="flex items-center gap-1.5 shrink-0 ml-1">
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono tabular-nums">
               {totalHeadcount} fő
             </Badge>
             {hasChildren && (
-              collapsed
-                ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-                : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+              <button
+                type="button"
+                onClick={() => setCollapsed(c => !c)}
+                className="p-0.5 rounded hover:bg-muted/80 transition-colors cursor-pointer"
+                title={collapsed ? "Alárendelt egységek kinyitása" : "Alárendelt egységek összecsukása"}
+              >
+                {collapsed
+                  ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                  : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                }
+              </button>
             )}
           </div>
-        </button>
+        </div>
 
         {/* Dolgozók listája */}
         {unit.dolgozok.length > 0 && (

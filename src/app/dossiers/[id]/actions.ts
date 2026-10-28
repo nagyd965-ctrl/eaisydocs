@@ -152,6 +152,74 @@ export async function closeDossier(ugyiratId: string) {
   return { success: true }
 }
 
+export async function restoreDossierToArchive(ugyiratId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "Nincs bejelentkezve." }
+  }
+
+  const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
+  if (permCheck.error) return { error: permCheck.error }
+
+  const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+  const adminClient = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { data: ugyirat } = await adminClient
+    .from("ugyirat")
+    .select("id, ugy_id, iktatoszam, irattari_terv:irattari_tetel_id(megorzesi_ido_ev)")
+    .eq("id", ugyiratId)
+    .single()
+
+  if (!ugyirat) {
+    return { error: "Ügyirat nem található." }
+  }
+
+  const megorzesiEv = (ugyirat.irattari_terv as any)?.megorzesi_ido_ev || 50
+  const retentionEnd = `${new Date().getFullYear() + megorzesiEv}-12-31`
+
+  await adminClient.from("selejtezes_tetel").delete().eq("ugyirat_id", ugyiratId)
+
+  const { error: updateError } = await adminClient
+    .from("ugyirat")
+    .update({
+      statusz: "irattarban",
+      megorzesi_ido_vege: retentionEnd,
+    })
+    .eq("id", ugyiratId)
+
+  if (updateError) {
+    return { error: "Hiba az ügyirat visszaállításakor: " + updateError.message }
+  }
+
+  if (ugyirat.ugy_id) {
+    await adminClient
+      .from("ugy")
+      .update({ statusz: "folyamatban", lezarva: null })
+      .eq("id", ugyirat.ugy_id)
+  }
+
+  const { ip, userAgent } = await getClientInfo()
+  await adminClient.from("esemeny_naplo").insert({
+    entitas_tipus: "ugyirat",
+    entitas_id: ugyiratId,
+    esemeny_tipus: "modositva",
+    user_id: user.id,
+    indoklas: "Ügyirat selejtezésből visszaállítva az irattárba.",
+    ip_cim: ip,
+    user_agent: userAgent,
+  })
+
+  revalidatePath("/dossiers")
+  revalidatePath(`/dossiers/${ugyiratId}`)
+  revalidatePath("/archive")
+  return { success: true }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Belső megjegyzések (P-095): csatolmányok, szerkesztés, törlés, olvasottság
 // ─────────────────────────────────────────────────────────────────────────────

@@ -100,10 +100,10 @@ export async function getOrCreateEmployeeDossier(
   // 1. Ellenőrizzük, hogy létezik-e már dosszié
   const existing = await findEmployeeDossier(supabase, employeeId)
   if (existing) {
-    const CLOSED_STATUSES = ["irattarban", "lezart", "selejtezheto", "selejtezett"]
+    const CLOSED_STATUSES = ["lezart", "selejtezheto", "selejtezett"]
     if (existing.statusz && CLOSED_STATUSES.includes(existing.statusz)) {
       throw new Error(
-        `A dolgozó személyi dossziéja (${existing.iktatoszam}) lezárt/archivált státuszú! Újranyitás szükséges az iktatáshoz.`
+        `A dolgozó személyi dossziéja (${existing.iktatoszam}) lezárt vagy selejtezett státuszú! Visszaállítás szükséges az iktatáshoz.`
       )
     }
     return { id: existing.id, iktatoszam: existing.iktatoszam, isNew: false }

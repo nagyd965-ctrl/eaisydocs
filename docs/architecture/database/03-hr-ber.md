@@ -77,7 +77,7 @@ Fokozott biztonságú, Security Definer RPC rétegen keresztül kezelt (`get_dec
 
 ### `hr_tulora_egyenleg` & `hr_tulora_felhasznalás`
 - `hr_tulora_egyenleg`: `dolgozo_id` (PK), `perc` (INTEGER, automatikusan frissíti a `calculate_tulora_on_checkout()` trigger a napi FTE * 480 perc feletti/alatti idővel), `updated_at`.
-- `hr_tulora_felhasznalás`: `id`, `dolgozo_id`, `tipus` (`kiveszi_szabinak`, `kifizetteti`), `perc`, `statusz` (`jovahagyasra_var`, `jovahagyva`, `elutasitva`), `jovahagyo_id`, `jovahagyva_at`, `megjegyzes`.
+- `hr_tulora_felhasznalás`: `id`, `dolgozo_id`, `tipus` (`kiveszi_szabinak`, `kifizetteti`), `perc`, `statusz` (`jovahagyasra_var`, `jovahagyva`, `elutasitva`), `jovahagyo_id`, `jovahagyva_at`, `megjegyzes`, `elutasitas_oka`.
 
 ### `hr_havi_jelenlet_zaras`
 | Oszlop | Típus | Null | Leírás |
@@ -96,7 +96,7 @@ Fokozott biztonságú, Security Definer RPC rétegen keresztül kezelt (`get_dec
 
 ## 3. Távollét és Helyettesítés
 
-- `hr_tavollet`: `id`, `dolgozo_id` (FK → `hr_dolgozo_adatlap.id`), `kezdet_datuma`, `veg_datuma`, `munkanapok_szama` (integer, ünnepnapokkal és áthelyezett munkanapokkal korrigált munkanapok), `tipus` (`fizetett_szabadsag`, `betegszabadsag`, `fizetes_nelkuli`, `egyeb`), `statusz` (`tervezet`, `jovahagyva`, `elutasitva`), `jovahagyo_id`.
+- `hr_tavollet`: `id`, `dolgozo_id` (FK → `hr_dolgozo_adatlap.id`), `kezdet_datuma`, `veg_datuma`, `munkanapok_szama` (integer, ünnepnapokkal és áthelyezett munkanapokkal korrigált munkanapok), `tipus` (`fizetett_szabadsag`, `betegszabadsag`, `fizetes_nelkuli`, `egyeb`), `statusz` (`tervezet`, `jovahagyasra_var`, `jovahagyva`, `elutasitva`, `visszavonva`), `jovahagyo_id`, `megjegyzes`, `elutasitas_oka`.
 - `company_members.hr_modulok` & `felhasznalo_profil.hr_modulok`: `text[]` (`DEFAULT '{}'`), a felhasználó számára engedélyezett szakmai HR modulok kulcsai (`admin`, `organization`, `time`, `payroll`, `compliance`, `reports`, `recruitment`, `onboarding`, `offboarding`, `audit`).
 - `hr_helyettesites`: `id`, `tavollet_id` (FK → `hr_tavollet.id`), `helyettesito_id` (FK → `felhasznalo_profil.id`), `statusz` (`aktiv`, `inaktiv`).
 

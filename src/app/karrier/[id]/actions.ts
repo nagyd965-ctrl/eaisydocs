@@ -3,6 +3,7 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { sendNotificationEmail } from "@/utils/mailer"
+import { resolveCareerEmployeeContext } from "@/utils/hr/career-auth"
 
 function generateTrackingCode(): string {
   const year = new Date().getFullYear()
@@ -28,9 +29,16 @@ export async function submitApplication(formData: FormData) {
     const allashirdetesId = (formData.get("allashirdetesId") as string) || null
     const munkakorId = (formData.get("munkakorId") as string) || null
     const explicitCompanyId = (formData.get("companyId") as string) || null
-    const cvFile = formData.get("cv") as File
+    const cvFile = formData.get("cv") as File | null
+    const isInternalFlag = formData.get("isInternalEmployee") === "true"
 
-    if (!nev || !email || !cvFile) {
+    const empCtx = isInternalFlag
+      ? await resolveCareerEmployeeContext()
+      : { isAuthenticated: false, employeeCompanyIds: [], employeeData: null }
+    const isVerifiedInternalEmployee = Boolean(empCtx.isAuthenticated)
+    const hasCvFile = Boolean(cvFile && cvFile.size > 0)
+
+    if (!nev || !email || (!isVerifiedInternalEmployee && !hasCvFile)) {
       return { error: "Hiányzó kötelező mezők (Név, E-mail cím, Önéletrajz)!" }
     }
 
@@ -40,58 +48,59 @@ export async function submitApplication(formData: FormData) {
       return { error: "Kérjük, érvényes e-mail címet adjon meg!" }
     }
 
-    // 2. Fájl méret és típus ellenőrzés (max 10MB, PDF és Word)
-    const MAX_FILE_SIZE = 10 * 1024 * 1024
-    if (cvFile.size > MAX_FILE_SIZE) {
-      return { error: "A feltöltött önéletrajz mérete nem haladhatja meg a 10 MB-ot!" }
-    }
-    if (cvFile.size === 0) {
-      return { error: "A kiválasztott fájl üres (0 bájt)!" }
-    }
-
-    const allowedExtensions = ["pdf", "docx", "doc"]
-    const fileExt = cvFile.name.split(".").pop()?.toLowerCase() || ""
-    if (!allowedExtensions.includes(fileExt)) {
-      return {
-        error:
-          "Kérjük, kizárólag PDF vagy Word (.doc, .docx) formátumú önéletrajzot töltsön fel!",
-      }
-    }
-
-    // PDF fájl esetén mágikus bájtok vizsgálata
-    const fileBuffer = Buffer.from(await cvFile.arrayBuffer())
-    if (fileExt === "pdf") {
-      if (
-        fileBuffer.length < 32 ||
-        !fileBuffer.subarray(0, 5).toString("utf-8").startsWith("%PDF-")
-      ) {
-        return { error: "A feltöltött fájl nem valódi PDF állomány!" }
-      }
-    }
-
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // 3. Önéletrajz feltöltése biztonságos generált névvel
-    const fileName = `${crypto.randomUUID()}.${fileExt}`
-    const storagePath = `cv/${fileName}`
-
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-      .from("hr_dokumentumok")
-      .upload(storagePath, fileBuffer, {
-        contentType:
-          cvFile.type ||
-          (fileExt === "pdf" ? "application/pdf" : "application/octet-stream"),
-        upsert: false,
-      })
-
-    if (uploadError) {
-      console.error("Storage hiba:", uploadError)
-      return {
-        error: "Nem sikerült feltölteni az önéletrajzot. Kérjük, próbálja újra később.",
+    // 2. Fájl méret és típus ellenőrzés + feltöltés (ha van csatolt CV)
+    let uploadedCvPath: string | null = null
+    if (cvFile && cvFile.size > 0) {
+      const MAX_FILE_SIZE = 10 * 1024 * 1024
+      if (cvFile.size > MAX_FILE_SIZE) {
+        return { error: "A feltöltött önéletrajz mérete nem haladhatja meg a 10 MB-ot!" }
       }
+
+      const allowedExtensions = ["pdf", "docx", "doc"]
+      const fileExt = cvFile.name.split(".").pop()?.toLowerCase() || ""
+      if (!allowedExtensions.includes(fileExt)) {
+        return {
+          error:
+            "Kérjük, kizárólag PDF vagy Word (.doc, .docx) formátumú önéletrajzot töltsön fel!",
+        }
+      }
+
+      // PDF fájl esetén mágikus bájtok vizsgálata
+      const fileBuffer = Buffer.from(await cvFile.arrayBuffer())
+      if (fileExt === "pdf") {
+        if (
+          fileBuffer.length < 32 ||
+          !fileBuffer.subarray(0, 5).toString("utf-8").startsWith("%PDF-")
+        ) {
+          return { error: "A feltöltött fájl nem valódi PDF állomány!" }
+        }
+      }
+
+      // 3. Önéletrajz feltöltése biztonságos generált névvel
+      const fileName = `${crypto.randomUUID()}.${fileExt}`
+      const storagePath = `cv/${fileName}`
+
+      const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+        .from("hr_dokumentumok")
+        .upload(storagePath, fileBuffer, {
+          contentType:
+            cvFile.type ||
+            (fileExt === "pdf" ? "application/pdf" : "application/octet-stream"),
+          upsert: false,
+        })
+
+      if (uploadError) {
+        console.error("Storage hiba:", uploadError)
+        return {
+          error: "Nem sikerült feltölteni az önéletrajzot. Kérjük, próbálja újra később.",
+        }
+      }
+      uploadedCvPath = uploadData.path
     }
 
     // 3.5. Cégazonosító (company_id) és pozíciónév pontos feloldása
@@ -163,10 +172,10 @@ export async function submitApplication(formData: FormData) {
       linkedin_url: linkedinUrl?.trim() || null,
       berigeny: berigenyNum,
       kezdesi_ido: kezdesiIdo || null,
-      forras: forras || "karrieroldal",
+      forras: isVerifiedInternalEmployee ? "belso_palyazat" : forras || "karrieroldal",
       megpalyazott_terulet: megpalyazottTerulet?.trim() || null,
       palyazati_kod: palyazatiKod,
-      cv_storage_path: uploadData.path,
+      cv_storage_path: uploadedCvPath,
       statusz: "uj",
       ...(targetCompanyId ? { company_id: targetCompanyId } : {}),
     })
@@ -236,6 +245,7 @@ export async function submitApplication(formData: FormData) {
     })
 
     revalidatePath("/hr/recruitment")
+    revalidatePath("/hr/self-service/career")
 
     return {
       success: true,

@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import Link from "next/link"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -13,15 +14,23 @@ import {
   Lock,
   Building2,
   Calendar,
-  Sparkles,
   UserPlus,
   Gift,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Loader2,
+  Trash2,
 } from "lucide-react"
-import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import { MyReferralsView } from "./my-referrals-view"
 import { ReferralDialog } from "./referral-dialog"
-import { getMyReferralsAction } from "@/app/hr/self-service/career/referral-actions"
+import {
+  getMyReferralsAction,
+  withdrawInternalApplicationAction,
+  type InternalJobApplication,
+} from "@/app/hr/self-service/career/referral-actions"
 import type { EmployeeReferral } from "@/types/hr"
 
 export interface InternalJobPosting {
@@ -47,18 +56,37 @@ export interface InternalJobPosting {
 interface InternalCareerViewProps {
   postings: InternalJobPosting[]
   initialReferrals?: EmployeeReferral[]
+  initialApplications?: InternalJobApplication[]
   bonusAmount?: number
+  currentEmployee?: {
+    nev: string
+    email: string
+    munkakor: string
+  }
+}
+
+const APPLICATION_STATUS_MAP: Record<string, { label: string; className: string }> = {
+  uj: { label: "Beküldve (Elbírálásra vár)", className: "bg-info/10 text-info border-info/30" },
+  szures: { label: "Előszűrés alatt", className: "bg-warning/10 text-warning border-warning/30" },
+  interju: { label: "Interjú folyamatban", className: "bg-primary/10 text-primary border-primary/30" },
+  ajanlat: { label: "Ajánlattétel", className: "bg-success/10 text-success border-success/30" },
+  elfogadva: { label: "Elfogadva", className: "bg-success/15 text-success border-success/30" },
+  elutasitva: { label: "Elutasítva", className: "bg-destructive/10 text-destructive border-destructive/30" },
+  talent_pool: { label: "Tehetségbázisban", className: "bg-muted text-muted-foreground border-border" },
 }
 
 export function InternalCareerView({
   postings,
   initialReferrals = [],
+  initialApplications = [],
   bonusAmount = 150000,
 }: InternalCareerViewProps) {
   const [activeTab, setActiveTab] = useState<string>("jobs")
   const [referrals, setReferrals] = useState<EmployeeReferral[]>(initialReferrals)
+  const [applications, setApplications] = useState<InternalJobApplication[]>(initialApplications)
   const [referralDialogOpen, setReferralDialogOpen] = useState(false)
   const [selectedJobForReferral, setSelectedJobForReferral] = useState<string | null>(null)
+  const [withdrawingAppId, setWithdrawingAppId] = useState<string | null>(null)
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([])
@@ -222,6 +250,33 @@ export function InternalCareerView({
     setReferralDialogOpen(true)
   }
 
+  const appliedJobIds = useMemo(() => {
+    const ids = new Set<string>()
+    applications.forEach((app) => {
+      if (app.allashirdetes_id && app.statusz !== "elutasitva") {
+        ids.add(app.allashirdetes_id)
+      }
+    })
+    return ids
+  }, [applications])
+
+  const handleWithdrawApplication = async (appId: string) => {
+    setWithdrawingAppId(appId)
+    try {
+      const res = await withdrawInternalApplicationAction(appId)
+      if (!res.success) {
+        toast.error(res.error || "Nem sikerült visszavonni a pályázatot.")
+      } else {
+        setApplications((prev) => prev.filter((a) => a.id !== appId))
+        toast.success("Belső pályázat sikeresen visszavonva.")
+      }
+    } catch {
+      toast.error("Hiba történt a visszavonás során.")
+    } finally {
+      setWithdrawingAppId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Fejléc: Cím és globális Ajánlás gomb */}
@@ -233,14 +288,26 @@ export function InternalCareerView({
           </p>
         </div>
 
-        <Button
-          onClick={handleOpenGeneralReferral}
-          size="sm"
-          className="text-xs shrink-0 gap-1.5 self-start sm:self-auto"
-        >
-          <UserPlus className="w-3.5 h-3.5" />
-          <span>Ismerős ajánlása</span>
-        </Button>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <Link
+            href="/karrier?scope=internal"
+            className={cn(
+              buttonVariants({ variant: "outline", size: "sm" }),
+              "text-xs shrink-0 gap-1.5"
+            )}
+          >
+            <Lock className="w-3.5 h-3.5 text-primary" />
+            <span>Karrieroldal (Belső hirdetések)</span>
+          </Link>
+          <Button
+            onClick={handleOpenGeneralReferral}
+            size="sm"
+            className="text-xs shrink-0 gap-1.5"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Ismerős ajánlása</span>
+          </Button>
+        </div>
       </div>
 
       {/* Fülek: Álláshirdetések vs Saját ajánlásaim (Option "A") */}
@@ -257,8 +324,20 @@ export function InternalCareerView({
           </TabsTrigger>
 
           <TabsTrigger
+            value="applications"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-4 py-2.5 text-xs font-medium gap-2 cursor-pointer"
+          >
+            <span>Saját pályázataim</span>
+            {applications.length > 0 && (
+              <span className="inline-flex items-center justify-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                {applications.length}
+              </span>
+            )}
+          </TabsTrigger>
+
+          <TabsTrigger
             value="referrals"
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-4 py-2.5 text-xs font-medium gap-2"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-4 py-2.5 text-xs font-medium gap-2 cursor-pointer"
           >
             <span>Saját ajánlásaim</span>
             {referrals.length > 0 && (
@@ -387,19 +466,32 @@ export function InternalCareerView({
                         <span>Ajánlás</span>
                       </Button>
 
-                      <Link
-                        href={`/karrier/${hirdetes.id}`}
-                        className={cn(
-                          buttonVariants({
-                            variant: hirdetes.is_internal ? "default" : "secondary",
-                            size: "sm",
-                          }),
-                          "text-xs font-medium gap-1.5"
-                        )}
-                      >
-                        <span>Pályázás</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </Link>
+                      {appliedJobIds.has(hirdetes.id) ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setActiveTab("applications")}
+                          className="text-xs font-medium gap-1.5 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                          <span>Már pályáztál</span>
+                        </Button>
+                      ) : (
+                        <Link
+                          href={`/karrier/${hirdetes.id}?scope=internal`}
+                          className={cn(
+                            buttonVariants({
+                              variant: hirdetes.is_internal ? "default" : "secondary",
+                              size: "sm",
+                            }),
+                            "text-xs font-medium gap-1.5"
+                          )}
+                        >
+                          <span>Pályázás</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                      )}
                     </div>
                   </Card>
                 )
@@ -407,10 +499,7 @@ export function InternalCareerView({
             </div>
           ) : (
             /* Üres állapot (Empty State) */
-            <div className="flex flex-col items-center justify-center py-16 px-4 text-center border border-dashed rounded-lg bg-muted/10 space-y-3">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                <Sparkles className="w-5 h-5" />
-              </div>
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center border border-dashed rounded-lg bg-muted/10 space-y-2">
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-foreground">
                   {postings.length === 0
@@ -435,6 +524,126 @@ export function InternalCareerView({
               ) : null}
             </div>
           )}
+        </TabsContent>
+
+        {/* 2. FÜL: SAJÁT BELSŐ PÁLYÁZATAIM */}
+        <TabsContent value="applications" className="space-y-6 m-0 outline-none">
+          <Card>
+            <CardHeader className="pb-3 border-b">
+              <CardTitle className="text-base font-semibold">Saját belső pályázataim</CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                A cégen belül megpályázott pozícióid és azok aktuális kiválasztási státusza
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {applications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-14 px-4 text-center space-y-2">
+                  <p className="text-sm font-semibold text-foreground">
+                    Még nem nyújtottál be belső álláspályázatot
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-sm">
+                    Válassz egy nyitott pozíciót az Álláshirdetések fülön, és jelentkezz egyetlen kattintással belső munkatársként.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setActiveTab("jobs")}
+                    className="mt-2 text-xs cursor-pointer"
+                  >
+                    Nyitott pozíciók megtekintése
+                  </Button>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {applications.map((app) => {
+                    const posTitle =
+                      app.hr_allashirdetes?.cim ||
+                      app.hr_munkakor?.megnevezes ||
+                      app.hr_allashirdetes?.hr_munkakor?.megnevezes ||
+                      "Belső pozíció"
+                    const statusInfo = APPLICATION_STATUS_MAP[app.statusz] || {
+                      label: app.statusz,
+                      className: "bg-muted text-muted-foreground border-border",
+                    }
+                    const canWithdraw = app.statusz === "uj" || app.statusz === "szures"
+                    const cleanNote = (app.uzenet || "").replace(/^\[Belső pályázat[^\]]*\]:\s*/, "")
+
+                    return (
+                      <div
+                        key={app.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-4 hover:bg-muted/30 transition-colors"
+                      >
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-semibold text-foreground">
+                              {posTitle}
+                            </span>
+                            {app.palyazati_kod && (
+                              <Badge variant="outline" className="text-[10px] font-mono tabular-nums">
+                                {app.palyazati_kod}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                            <span>
+                              Beküldve: {new Date(app.created_at).toLocaleDateString("hu-HU")}
+                            </span>
+                            {app.interju_idopont && (
+                              <span className="text-primary font-medium">
+                                • Interjú időpontja: {new Date(app.interju_idopont).toLocaleString("hu-HU")}
+                                {app.interju_helyszin ? ` (${app.interju_helyszin})` : ""}
+                              </span>
+                            )}
+                          </div>
+                          {cleanNote && (
+                            <p className="text-xs text-muted-foreground italic line-clamp-2 pt-0.5">
+                              „{cleanNote}”
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          {canWithdraw && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={withdrawingAppId === app.id}
+                              onClick={() => handleWithdrawApplication(app.id)}
+                              className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30 gap-1.5 px-2.5 cursor-pointer"
+                            >
+                              {withdrawingAppId === app.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
+                              <span>Visszavonás</span>
+                            </Button>
+                          )}
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border",
+                              statusInfo.className
+                            )}
+                          >
+                            {app.statusz === "elfogadva" ? (
+                              <CheckCircle2 className="w-3 h-3" />
+                            ) : app.statusz === "elutasitva" ? (
+                              <XCircle className="w-3 h-3" />
+                            ) : (
+                              <Clock className="w-3 h-3" />
+                            )}
+                            {statusInfo.label}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* 2. FÜL: SAJÁT AJÁNLÁSAIM */}

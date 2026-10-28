@@ -79,7 +79,6 @@ export function ManagePostingDialog({
   const [munkakorId, setMunkakorId] = useState<string>(existingData?.munkakor_id || "")
   const [rovidLeiras, setRovidLeiras] = useState(existingData?.rovid_leiras || "")
   const [reszletesLeiras, setReszletesLeiras] = useState(existingData?.reszletes_leiras || "")
-  const [isInternal, setIsInternal] = useState<boolean>(existingData?.is_internal || false)
 
   // Strukturált ATS metaadatok
   const [munkavegzesModja, setMunkavegzesModja] = useState<string>(
@@ -121,7 +120,6 @@ export function ManagePostingDialog({
       setMunkakorId(existingData?.munkakor_id || "")
       setRovidLeiras(existingData?.rovid_leiras || "")
       setReszletesLeiras(existingData?.reszletes_leiras || "")
-      setIsInternal(existingData?.is_internal || false)
       setMunkavegzesModja(existingData?.munkavegzes_modja || "hibrid")
       setHelyszin(existingData?.helyszin || selectedCompany?.address || "Budapest")
       setFoglalkoztatasTipusa(existingData?.foglalkoztatas_tipusa || "teljes_munkaido")
@@ -200,7 +198,7 @@ export function ManagePostingDialog({
         munkakor_id: munkakorId,
         rovid_leiras: rovidLeiras.trim(),
         reszletes_leiras: reszletesLeiras.trim(),
-        is_internal: isInternal,
+        is_internal: existingData?.is_internal ?? false,
         munkavegzes_modja: munkavegzesModja,
         helyszin: helyszin.trim() || null,
         foglalkoztatas_tipusa: foglalkoztatasTipusa,
@@ -519,25 +517,6 @@ export function ManagePostingDialog({
                   placeholder="Rólunk, Főbb feladatok, Elvárások, Amit kínálunk..."
                 />
               </div>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 p-3.5 transition-colors hover:border-border">
-              <div className="space-y-0.5 pr-4 text-left">
-                <Label
-                  htmlFor="is_internal"
-                  className="text-sm font-medium text-foreground cursor-pointer"
-                >
-                  Csak Belső Hirdetés (Internal Mobility)
-                </Label>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Ha be van kapcsolva, a hirdetés kizárólag a belső munkatársak számára látható, a nyilvános karrieroldalon nem jelenik meg.
-                </p>
-              </div>
-              <Switch
-                id="is_internal"
-                checked={isInternal}
-                onCheckedChange={setIsInternal}
-              />
             </div>
 
             <div className="flex justify-end pt-3 border-t border-border/60">

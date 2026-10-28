@@ -58,13 +58,20 @@ export async function approveLeaveRequest(id: string) {
 
   const { error } = await supabase
     .from("hr_tavollet")
-    .update({ statusz: "jovahagyva", jovahagyo_id: user.id })
+    .update({ statusz: "jovahagyva", jovahagyo_id: user.id, elutasitas_oka: null })
     .eq("id", id)
 
   if (error) {
     console.error("Approve leave error:", error)
     return { error: "Nem sikerült jóváhagyni a kérelmet." }
   }
+
+  await supabase.from("alkalmazas_ertesites").insert({
+    user_id: req.dolgozo_id,
+    cim: "Szabadság kérelem jóváhagyva",
+    szoveg: `A(z) ${req.kezdet_datuma} – ${req.veg_datuma} időszakra benyújtott szabadság kérelmedet a vezetőd jóváhagyta.`,
+    link_url: "/hr/self-service/time"
+  })
 
   // Audit log is handled automatically by PostgreSQL triggers!
   revalidatePath("/hr", "layout")
@@ -119,9 +126,15 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string) {
     return { error: "Nincs jogosultságod a kérelem elutasítására." }
   }
 
+  const cleanedReason = rejectReason?.trim() || null
+
   const { error } = await supabase
     .from("hr_tavollet")
-    .update({ statusz: "elutasitva", jovahagyo_id: user.id })
+    .update({
+      statusz: "elutasitva",
+      jovahagyo_id: user.id,
+      elutasitas_oka: cleanedReason,
+    })
     .eq("id", id)
 
   if (error) {
@@ -129,14 +142,22 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string) {
     return { error: "Nem sikerült elutasítani a kérelmet." }
   }
 
+  // Ha csúsztatásról van szó, a kapcsolt túlóra-igényléshez is átmásoljuk az elutasítás okát
+  if (cleanedReason) {
+    await supabase
+      .from("hr_tulora_felhasznalás")
+      .update({ elutasitas_oka: cleanedReason })
+      .eq("tavollet_id", id)
+  }
+
   const targetCompanyId = req.company_id || activeCompanyId
-  if (rejectReason?.trim()) {
+  if (cleanedReason) {
     await supabase.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
       entitas_tipus: "hr_tavollet",
       entitas_id: id,
       esemeny_tipus: "tavollet_elutasitas",
-      megjegyzes: `Szabadság kérelem (${req.kezdet_datuma} – ${req.veg_datuma}) elutasítva. Indoklás: ${rejectReason.trim()}`,
+      megjegyzes: `Szabadság kérelem (${req.kezdet_datuma} – ${req.veg_datuma}) elutasítva. Indoklás: ${cleanedReason}`,
       ...(targetCompanyId ? { company_id: targetCompanyId } : {})
     })
   }
@@ -144,8 +165,8 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string) {
   await supabase.from("alkalmazas_ertesites").insert({
     user_id: req.dolgozo_id,
     cim: "Szabadság kérelem elutasítva",
-    szoveg: `A(z) ${req.kezdet_datuma} – ${req.veg_datuma} időszakra benyújtott szabadság kérelmedet elutasították.${rejectReason?.trim() ? ` Indoklás: ${rejectReason.trim()}` : ""}`,
-    link_url: "/hr/self-service/leave"
+    szoveg: `A(z) ${req.kezdet_datuma} – ${req.veg_datuma} időszakra benyújtott szabadság kérelmedet elutasították.${cleanedReason ? ` Indoklás: ${cleanedReason}` : ""}`,
+    link_url: "/hr/self-service/time"
   })
 
   revalidatePath("/hr", "layout")

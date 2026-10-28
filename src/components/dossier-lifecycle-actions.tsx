@@ -11,7 +11,7 @@ import {
   Ban,
   Clock
 } from "lucide-react"
-import { closeDossier, updateDossierStatus } from "@/app/dossiers/[id]/actions"
+import { closeDossier, updateDossierStatus, restoreDossierToArchive } from "@/app/dossiers/[id]/actions"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -120,9 +120,62 @@ export function DossierLifecycleActions({
     }
   }
 
-  // Ha az ügyirat már véglegesen archiválva / lezárva van, nem jelennek meg lezáró gombok
-  if (status === "irattarban" || status === "lezart" || status === "selejtezheto" || status === "selejtezett") {
-    return null
+  // 4. Selejtezésből visszaállítás az irattárba
+  const handleRestoreToArchive = async () => {
+    setLoadingAction("restore")
+    const res = await restoreDossierToArchive(ugyiratId)
+    setLoadingAction(null)
+    if (res.error) {
+      toast.error("Hiba", { description: res.error })
+    } else {
+      toast.success("Sikeres visszaállítás", { description: "Az ügyirat visszaállítva az irattárba." })
+      router.refresh()
+    }
+  }
+
+  if (status === "selejtezheto" || status === "selejtezett") {
+    if (!canArchive) return null
+    return (
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRestoreToArchive}
+          disabled={loadingAction !== null}
+          className="h-8 gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/10 cursor-pointer"
+        >
+          {loadingAction === "restore" ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RotateCcw className="h-3.5 w-3.5" />
+          )}
+          <span>Visszaállítás az irattárba</span>
+        </Button>
+      </div>
+    )
+  }
+
+  // Ha az ügyirat már véglegesen archiválva / lezárva van, visszahelyezhető ügyintézésbe
+  if (status === "irattarban" || status === "lezart") {
+    if (!canArchive) return null
+    return (
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleReopen}
+          disabled={loadingAction !== null}
+          className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+        >
+          {loadingAction === "reopen" ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RotateCcw className="h-3.5 w-3.5" />
+          )}
+          <span>Visszahelyezés ügyintézésbe</span>
+        </Button>
+      </div>
+    )
   }
 
   return (

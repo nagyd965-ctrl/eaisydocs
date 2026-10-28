@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
+import { useRouter } from "next/navigation"
 import {
   Dialog,
   DialogContent,
@@ -37,13 +38,16 @@ interface UploadSignedDocumentDialogProps {
   }
   employeeId: string
   employeeName: string
+  onSuccess?: (res: { storagePath?: string; alairva_ekor?: string }) => void
 }
 
 export function UploadSignedDocumentDialog({
   document,
   employeeId,
   employeeName,
+  onSuccess,
 }: UploadSignedDocumentDialogProps) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -80,6 +84,8 @@ export function UploadSignedDocumentDialog({
         )
         setOpen(false)
         setSelectedFile(null)
+        onSuccess?.({ storagePath: res.storagePath, alairva_ekor: res.alairva_ekor })
+        router.refresh()
       } else {
         toast.error(res.error || "Hiba történt a feltöltés során.")
       }
@@ -112,19 +118,12 @@ export function UploadSignedDocumentDialog({
 
       <DialogContent className="sm:max-w-[540px]">
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-              <PenLine className="w-5 h-5" />
-            </div>
-            <div>
-              <DialogTitle className="text-lg font-semibold">
-                {isAlreadySigned ? "Aláírt példány frissítése" : "Aláírt példány csatolása"}
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                {employeeName} • {document.nev}
-              </DialogDescription>
-            </div>
-          </div>
+          <DialogTitle className="text-lg font-semibold">
+            {isAlreadySigned ? "Aláírt példány frissítése" : "Aláírt példány csatolása"}
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+            {employeeName} • {document.nev}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">

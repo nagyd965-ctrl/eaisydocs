@@ -2,7 +2,10 @@
 
 import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Clock, CheckCircle2, XCircle, Eye, Download } from "lucide-react"
+import { Clock, CheckCircle2, XCircle, Eye, Download, Loader2, Trash2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { withdrawSelfServiceRequest } from "@/app/hr/self-service/actions"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 import { calculateWorkingDays } from "@/utils/hr/leave-calculator"
@@ -194,7 +197,29 @@ export function LeaveHistoryList({
     }),
   ].sort((a, b) => b.sortDate - a.sortDate)
 
+  const router = useRouter()
   const [statusFilter, setStatusFilter] = useState<"osszes" | "jovahagyasra_var" | "jovahagyva" | "elutasitva">("osszes")
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null)
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
+
+  const handleWithdraw = async (item: UnifiedSelfServiceItem) => {
+    const key = `${item.category}-${item.id}`
+    setWithdrawingId(key)
+    try {
+      const res = await withdrawSelfServiceRequest(item.category, item.id)
+      if (res?.error) {
+        toast.error(res.error)
+      } else {
+        setRemovedIds((prev) => new Set(prev).add(key))
+        toast.success("Kérelem sikeresen visszavonva.")
+        router.refresh()
+      }
+    } catch {
+      toast.error("Hiba történt a kérelem visszavonása során.")
+    } finally {
+      setWithdrawingId(null)
+    }
+  }
 
   const countAll = unifiedItems.length
   const countPending = useMemo(
@@ -211,9 +236,11 @@ export function LeaveHistoryList({
   )
 
   const filteredItems = useMemo(() => {
-    if (statusFilter === "osszes") return unifiedItems
+    const active = unifiedItems.filter((i) => !removedIds.has(`${i.category}-${i.id}`))
+    if (statusFilter === "osszes") return active
+    return active.filter((i) => i.statusz === statusFilter)
     return unifiedItems.filter((i) => i.statusz === statusFilter)
-  }, [unifiedItems, statusFilter])
+  }, [unifiedItems, statusFilter, removedIds])
 
   if (unifiedItems.length === 0) {
     return (
@@ -401,6 +428,23 @@ export function LeaveHistoryList({
               </div>
 
               <div className="shrink-0 flex items-center gap-2">
+                {item.statusz === "jovahagyasra_var" && !removedIds.has(`${item.category}-${item.id}`) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={withdrawingId === `${item.category}-${item.id}`}
+                    onClick={() => handleWithdraw(item)}
+                    className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30 gap-1.5 px-2.5 cursor-pointer"
+                  >
+                    {withdrawingId === `${item.category}-${item.id}` ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3.5 h-3.5" />
+                    )}
+                    <span>Visszavonás</span>
+                  </Button>
+                )}
                 {item.category === "tavollet" && item.statusz === "jovahagyva" && item.rawLeave && (
                   <div className="flex items-center gap-1">
                     <PdfViewerDialog

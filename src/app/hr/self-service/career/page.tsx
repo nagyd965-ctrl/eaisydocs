@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { InternalCareerView, InternalJobPosting } from "@/components/hr/internal-career-view"
-import { getMyReferralsAction, getReferralBonusAmountAction } from "./referral-actions"
+import { getMyReferralsAction, getReferralBonusAmountAction, getMyInternalApplicationsAction } from "./referral-actions"
 
 export default async function InternalCareerPage() {
   const supabase = await createClient()
@@ -42,17 +42,39 @@ export default async function InternalCareerPage() {
     query = query.or(`company_id.eq.${activeCompanyId},company_id.is.null`)
   }
 
-  const [{ data: hirdetesek }, referrals, bonusAmount] = await Promise.all([
+  const [
+    { data: hirdetesek },
+    referrals,
+    bonusAmount,
+    initialApplications,
+    { data: profile },
+    { data: adatlap },
+  ] = await Promise.all([
     query.order("created_at", { ascending: false }),
     getMyReferralsAction(),
     getReferralBonusAmountAction(),
+    getMyInternalApplicationsAction(),
+    supabase.from("felhasznalo_profil").select("nev, email").eq("id", user.id).maybeSingle(),
+    supabase.from("hr_dolgozo_adatlap").select("hr_munkakor(megnevezes)").eq("id", user.id).maybeSingle(),
   ])
+
+  const mk = Array.isArray((adatlap as any)?.hr_munkakor)
+    ? (adatlap as any)?.hr_munkakor[0]
+    : (adatlap as any)?.hr_munkakor
+
+  const currentEmployee = {
+    nev: profile?.nev || user.email || "Munkatárs",
+    email: profile?.email || user.email || "",
+    munkakor: mk?.megnevezes || "Belső munkatárs",
+  }
 
   return (
     <InternalCareerView
       postings={(hirdetesek as InternalJobPosting[]) || []}
       initialReferrals={referrals}
+      initialApplications={initialApplications}
       bonusAmount={bonusAmount}
+      currentEmployee={currentEmployee}
     />
   )
 }

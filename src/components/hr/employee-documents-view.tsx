@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge"
 import { KpiCard } from "@/components/kpi-card"
 import { TableToolbar, FilterGroup } from "@/components/table-toolbar/table-toolbar"
 import { DocumentViewer } from "@/components/document-viewer"
+import { UploadSignedDocumentDialog } from "@/components/hr/upload-signed-document-dialog"
 import { 
   FileText, 
   CheckCircle2, 
   Download, 
   Eye, 
   ExternalLink, 
-  FolderArchive,
   Calendar
 } from "lucide-react"
 import Link from "next/link"
@@ -40,13 +40,20 @@ export type HrDocument = {
 
 interface EmployeeDocumentsViewProps {
   documents: HrDocument[]
+  employeeId?: string
+  employeeName?: string
 }
 
-export function EmployeeDocumentsView({ documents }: EmployeeDocumentsViewProps) {
+export function EmployeeDocumentsView({
+  documents,
+  employeeId,
+  employeeName = "Munkavállaló",
+}: EmployeeDocumentsViewProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [onlyFiled, setOnlyFiled] = useState(false)
   const [onlySigned, setOnlySigned] = useState(false)
+  const [onlyUnsigned, setOnlyUnsigned] = useState(false)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
 
@@ -87,8 +94,12 @@ export function EmployeeDocumentsView({ documents }: EmployeeDocumentsViewProps)
         return false
       }
 
-      // 4. Csak aláírt iratok
-      if (onlySigned && !(doc.alairt_fajl_url || doc.alairas_statusz === "alairva")) {
+      // 4. Csak aláírt iratok / Aláírásra váró iratok
+      const isDocSigned = Boolean(doc.alairt_fajl_url || doc.alairas_statusz === "alairva")
+      if (onlySigned && !isDocSigned) {
+        return false
+      }
+      if (onlyUnsigned && isDocSigned) {
         return false
       }
 
@@ -106,7 +117,7 @@ export function EmployeeDocumentsView({ documents }: EmployeeDocumentsViewProps)
 
       return true
     })
-  }, [documents, searchTerm, selectedCategories, onlyFiled, onlySigned, dateFrom, dateTo])
+  }, [documents, searchTerm, selectedCategories, onlyFiled, onlySigned, onlyUnsigned, dateFrom, dateTo])
 
   // KPI statisztikák
   const totalCount = documents.length
@@ -119,13 +130,15 @@ export function EmployeeDocumentsView({ documents }: EmployeeDocumentsViewProps)
   const activeFiltersCount =
     selectedCategories.length +
     (onlyFiled ? 1 : 0) +
-    (onlySigned ? 1 : 0)
+    (onlySigned ? 1 : 0) +
+    (onlyUnsigned ? 1 : 0)
 
   const handleClearFilters = () => {
     setSearchTerm("")
     setSelectedCategories([])
     setOnlyFiled(false)
     setOnlySigned(false)
+    setOnlyUnsigned(false)
     setDateFrom("")
     setDateTo("")
   }
@@ -138,10 +151,24 @@ export function EmployeeDocumentsView({ documents }: EmployeeDocumentsViewProps)
       options: [
         { id: "iktatott", label: "Csak iktatott iratok", checked: onlyFiled },
         { id: "alairt", label: "Csak aláírt példányok", checked: onlySigned },
+        { id: "alairasra_var", label: "Aláírásra váró iratok (Tervezet)", checked: onlyUnsigned },
       ],
       onToggle: (id) => {
         if (id === "iktatott") setOnlyFiled((prev) => !prev)
-        if (id === "alairt") setOnlySigned((prev) => !prev)
+        if (id === "alairt") {
+          setOnlySigned((prev) => {
+            const next = !prev
+            if (next) setOnlyUnsigned(false)
+            return next
+          })
+        }
+        if (id === "alairasra_var") {
+          setOnlyUnsigned((prev) => {
+            const next = !prev
+            if (next) setOnlySigned(false)
+            return next
+          })
+        }
       },
     },
     {
@@ -158,7 +185,7 @@ export function EmployeeDocumentsView({ documents }: EmployeeDocumentsViewProps)
         )
       },
     },
-  ], [categories, documents, onlyFiled, onlySigned, selectedCategories])
+  ], [categories, documents, onlyFiled, onlySigned, onlyUnsigned, selectedCategories])
 
   const getDownloadUrl = (doc: HrDocument) => {
     if (doc.displayUrl) return doc.displayUrl
@@ -223,7 +250,6 @@ export function EmployeeDocumentsView({ documents }: EmployeeDocumentsViewProps)
         {filteredDocuments.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <FolderArchive className="w-10 h-10 mb-3 opacity-40" />
               <p className="font-medium text-base text-foreground">Nem található dokumentum</p>
               <p className="text-xs mt-1">Próbáld meg módosítani a keresési feltételeket vagy a szűrőket.</p>
               {activeFiltersCount > 0 && (
@@ -315,7 +341,16 @@ export function EmployeeDocumentsView({ documents }: EmployeeDocumentsViewProps)
                   </div>
 
                   {/* Jobb oldal: Műveleti gombok */}
-                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0 flex-wrap">
+                    {/* 0. Aláírt példány feltöltése (kizárólag amíg nincs aláírva - utána csak HR/Admin cserélheti) */}
+                    {!isSigned && (
+                      <UploadSignedDocumentDialog
+                        document={doc}
+                        employeeId={employeeId || doc.dolgozo_id}
+                        employeeName={employeeName}
+                      />
+                    )}
+
                     {/* 1. Beépített Gyors Megtekintés (DocumentViewer) */}
                     {hasFile ? (
                       <Button

@@ -2020,18 +2020,50 @@ export async function uploadSignedDocumentAction(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve!" }
 
-  const { data: userProfile } = await supabase
-    .from("felhasznalo_profil")
-    .select("nev, hr_szerepkor, docs_szerepkor")
-    .eq("id", user.id)
-    .single()
+  const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+  const adminClient = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const [
+    { data: userProfile },
+    { data: doc, error: docErr },
+    activeCompanyId
+  ] = await Promise.all([
+    adminClient
+      .from("felhasznalo_profil")
+      .select("nev, hr_szerepkor, docs_szerepkor")
+      .eq("id", user.id)
+      .single(),
+    adminClient
+      .from("hr_dokumentum")
+      .select("*")
+      .eq("id", documentId)
+      .single(),
+    getActiveCompanyIdServer(),
+  ])
+
+  if (docErr || !doc) {
+    return { success: false, error: "Dokumentum nem található!" }
+  }
 
   const isHrOrAdmin =
     ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
     userProfile?.docs_szerepkor === "admin"
 
-  if (!isHrOrAdmin) {
+  const isSelf = user.id === doc.dolgozo_id && user.id === employeeId
+
+  if (!isHrOrAdmin && !isSelf) {
     return { success: false, error: "Nincs jogosultsága aláírt példányt feltölteni!" }
+  }
+
+  const isAlreadySigned = Boolean(doc.alairt_fajl_url || doc.alairas_statusz === "alairva")
+  if (isSelf && !isHrOrAdmin && isAlreadySigned) {
+    return {
+      success: false,
+      error: "Ez a dokumentum már rendelkezik aláírt példánnyal. A feltöltött aláírt irat cseréjéhez forduljon a HR osztályhoz!",
+    }
   }
 
   // 2. Fájl kinyerése
@@ -2051,44 +2083,15 @@ export async function uploadSignedDocumentAction(
     const storagePath = `signed_documents/${employeeId}/${Date.now()}_${cleanFileName}`
 
     // Feltöltés a Supabase Storage irat_files vödörbe
-    const { error: uploadError } = await supabase.storage
+    const { error: adminUploadError } = await adminClient.storage
       .from("irat_files")
       .upload(storagePath, buffer, {
         contentType: file.type || "application/pdf",
         upsert: true,
       })
 
-    if (uploadError) {
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-      if (serviceRoleKey) {
-        const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
-        const adminClient = createSupabaseClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          serviceRoleKey
-        )
-        const { error: adminUploadError } = await adminClient.storage
-          .from("irat_files")
-          .upload(storagePath, buffer, {
-            contentType: file.type || "application/pdf",
-            upsert: true,
-          })
-        if (adminUploadError) {
-          return { success: false, error: "Fájl feltöltési hiba: " + adminUploadError.message }
-        }
-      } else {
-        return { success: false, error: "Fájl feltöltési hiba: " + uploadError.message }
-      }
-    }
-
-    // 4. Lekérjük a dokumentum adatait
-    const { data: doc, error: docErr } = await supabase
-      .from("hr_dokumentum")
-      .select("*")
-      .eq("id", documentId)
-      .single()
-
-    if (docErr || !doc) {
-      return { success: false, error: "Dokumentum nem található!" }
+    if (adminUploadError) {
+      return { success: false, error: "Fájl feltöltési hiba: " + adminUploadError.message }
     }
 
     const crypto = await import("crypto")
@@ -2097,7 +2100,7 @@ export async function uploadSignedDocumentAction(
     // 5. Ha a dokumentum már be van iktatva az eaisyDocs-ba (irat_id létezik):
     if (doc.irat_id) {
       // Megkeressük a legmagasabb verziószámot
-      const { data: maxVerzioItem } = await supabase
+      const { data: maxVerzioItem } = await adminClient
         .from("irat_fajl")
         .select("verzio")
         .eq("irat_id", doc.irat_id)
@@ -2107,8 +2110,8 @@ export async function uploadSignedDocumentAction(
 
       const nextVerzio = (maxVerzioItem?.verzio || 1) + 1
 
-      // Új verzióként beszúrjuk az irat_fajl táblába
-      await supabase.from("irat_fajl").insert({
+      // Új verzióként beszúrjuk az irat_fajl táblába (az eredeti 1. verzió megmarad!)
+      await adminClient.from("irat_fajl").insert({
         irat_id: doc.irat_id,
         storage_path: storagePath,
         eredeti_fajlnev: `[ALÁÍRT] ${file.name}`,
@@ -2120,7 +2123,7 @@ export async function uploadSignedDocumentAction(
 
       // Audit naplózás az eaisyDocs esemeny_naplo táblába
       try {
-        await supabase.from("esemeny_naplo").insert({
+        await adminClient.from("esemeny_naplo").insert({
           felhasznalo_id: user.id,
           esemeny_tipus: "irat_modositas",
           entitas_tipus: "irat",
@@ -2138,15 +2141,15 @@ export async function uploadSignedDocumentAction(
       }
     }
 
-    // 6. Frissítjük a hr_dokumentum rekordot
+    // 6. Frissítjük a hr_dokumentum rekordot (az eredeti doc.url megmarad!)
     const nowIso = new Date().toISOString()
-    const { error: updateDocErr } = await supabase
+    const { error: updateDocErr } = await adminClient
       .from("hr_dokumentum")
       .update({
         alairt_fajl_url: storagePath,
         alairva_ekor: nowIso,
         alairas_statusz: "alairva",
-        alairo_neve: userProfile?.nev || "HR Munkatárs"
+        alairo_neve: userProfile?.nev || (isSelf ? "Munkavállaló" : "HR Munkatárs")
       })
       .eq("id", documentId)
 
@@ -2156,25 +2159,27 @@ export async function uploadSignedDocumentAction(
 
     // 7. Szinkronizáljuk a kapcsolódó domain rekordokat ha vannak (tanulmányi, fegyelmi, elismerés, orvosi)
     await Promise.all([
-      supabase.from("hr_tanulmanyi_szerzodes").update({ fajl_url: storagePath }).eq("dokumentum_id", documentId),
-      supabase.from("hr_fegyelmi").update({ fajl_url: storagePath }).eq("dokumentum_id", documentId),
-      supabase.from("hr_kituntetes").update({ fajl_url: storagePath }).eq("dokumentum_id", documentId),
-      supabase.from("hr_orvosi_vizsgalat").update({ fajl_url: storagePath }).eq("dokumentum_id", documentId),
+      adminClient.from("hr_tanulmanyi_szerzodes").update({ fajl_url: storagePath }).eq("dokumentum_id", documentId),
+      adminClient.from("hr_fegyelmi").update({ fajl_url: storagePath }).eq("dokumentum_id", documentId),
+      adminClient.from("hr_kituntetes").update({ fajl_url: storagePath }).eq("dokumentum_id", documentId),
+      adminClient.from("hr_orvosi_vizsgalat").update({ fajl_url: storagePath }).eq("dokumentum_id", documentId),
     ])
 
     // 8. HR eseménynapló bejegyzés
-    await supabase.from("hr_esemeny_naplo").insert({
+    await adminClient.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
       esemeny_tipus: "adat_modositas",
       entitas_tipus: "hr_dokumentum",
       entitas_id: documentId,
+      company_id: doc.company_id || activeCompanyId || null,
       megjegyzes: `Aláírt példány csatolva a(z) "${doc.nev}" irathoz (${doc.iktatoszam || "nem iktatott"}).`
     })
 
     revalidatePath(`/hr/employee/${employeeId}`)
+    revalidatePath("/hr/self-service/documents")
     revalidatePath("/hr")
     revalidatePath("/dossiers")
-  revalidatePath("/hr/compliance")
+    revalidatePath("/hr/compliance")
 
     return { 
       success: true, 

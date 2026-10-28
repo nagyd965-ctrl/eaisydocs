@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import { EmployeeDocumentsView, HrDocument } from "@/components/hr/employee-documents-view"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export default async function EmployeeDocumentsPage() {
   const supabase = await createClient()
@@ -10,41 +11,65 @@ export default async function EmployeeDocumentsPage() {
     redirect("/login")
   }
 
-  // Lekérjük a bejelentkezett dolgozó összes hivatalos dokumentumát
-  const { data: documents, error } = await supabase
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  let docsQuery = supabase
     .from("hr_dokumentum")
     .select("*")
     .eq("dolgozo_id", user.id)
     .order("created_at", { ascending: false })
 
+  if (activeCompanyId) {
+    docsQuery = docsQuery.or(`company_id.eq.${activeCompanyId},company_id.is.null`)
+  }
+
+  const [{ data: documents, error }, { data: profile }] = await Promise.all([
+    docsQuery,
+    supabase.from("felhasznalo_profil").select("nev").eq("id", user.id).maybeSingle(),
+  ])
+
   if (error) {
     console.error("Hiba a dolgozói dokumentumok lekérésekor:", error)
   }
 
-  // Aláírt URL-ek generálása a letöltéshez és közvetlen megjelenítéshez
-  const hrDocuments = await Promise.all(
-    (documents || []).map(async (doc) => {
-      let signedUrl = doc.url
-      let alairtSignedUrl: string | null = null
+  // Kötegelt aláírt URL-ek generálása a letöltéshez és közvetlen megjelenítéshez
+  const pathsToSign = new Set<string>()
+  for (const doc of documents || []) {
+    if (doc.url && !doc.url.startsWith("http")) pathsToSign.add(doc.url)
+    if (doc.alairt_fajl_url && !doc.alairt_fajl_url.startsWith("http")) pathsToSign.add(doc.alairt_fajl_url)
+  }
 
-      if (doc.url && !doc.url.startsWith("http")) {
-        const { data } = await supabase.storage.from("irat_files").createSignedUrl(doc.url, 3600)
-        signedUrl = data?.signedUrl || doc.url
+  const signedUrlMap = new Map<string, string>()
+  if (pathsToSign.size > 0) {
+    const { data: signedList } = await supabase.storage
+      .from("irat_files")
+      .createSignedUrls(Array.from(pathsToSign), 3600)
+    for (const item of signedList || []) {
+      if (item.path && item.signedUrl) {
+        signedUrlMap.set(item.path, item.signedUrl)
       }
+    }
+  }
 
-      if (doc.alairt_fajl_url && !doc.alairt_fajl_url.startsWith("http")) {
-        const { data: aData } = await supabase.storage.from("irat_files").createSignedUrl(doc.alairt_fajl_url, 3600)
-        alairtSignedUrl = aData?.signedUrl || doc.alairt_fajl_url
-      }
+  const hrDocuments = (documents || []).map((doc) => {
+    const signedUrl = doc.url
+      ? doc.url.startsWith("http")
+        ? doc.url
+        : signedUrlMap.get(doc.url) || doc.url
+      : null
+    const alairtSignedUrl = doc.alairt_fajl_url
+      ? doc.alairt_fajl_url.startsWith("http")
+        ? doc.alairt_fajl_url
+        : signedUrlMap.get(doc.alairt_fajl_url) || doc.alairt_fajl_url
+      : null
 
-      return {
-        ...doc,
-        signedUrl,
-        alairtSignedUrl,
-        displayUrl: alairtSignedUrl || signedUrl,
-      }
-    })
-  )
+    return {
+      ...doc,
+      signedUrl,
+      alairtSignedUrl,
+      displayUrl: alairtSignedUrl || signedUrl,
+    }
+  })
 
   return (
     <div className="space-y-6 pb-12">
@@ -57,7 +82,11 @@ export default async function EmployeeDocumentsPage() {
       </div>
 
       {/* Részletes dokumentum lista szűrőkkel és előnézettel */}
-      <EmployeeDocumentsView documents={(hrDocuments as HrDocument[]) || []} />
+      <EmployeeDocumentsView
+        documents={(hrDocuments as HrDocument[]) || []}
+        employeeId={user.id}
+        employeeName={profile?.nev || "Munkavállaló"}
+      />
     </div>
   )
 }

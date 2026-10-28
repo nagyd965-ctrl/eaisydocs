@@ -203,9 +203,6 @@ export function ExitInterviewSummary({ interviews }: ExitInterviewSummaryProps) 
   if (interviews.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground border-2 border-dashed rounded-xl bg-muted/5">
-        <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-4">
-          <MessageSquare className="w-6 h-6" />
-        </div>
         <p className="font-semibold text-base text-foreground">Még nincs kitöltött kilépési interjú</p>
         <p className="text-sm mt-1 max-w-md text-muted-foreground">
           Amikor a távozó munkatársak lefolytatják a kilépési interjút az Offboarding profil modálban, itt jelennek meg a mélyreható fluktuációs statisztikák és a távozási motivációk.

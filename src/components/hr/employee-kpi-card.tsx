@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
-import { addKpiSelfEvaluation, addKpiActivity } from "@/app/hr/performance/actions"
+import { addKpiSelfEvaluation } from "@/app/hr/performance/actions"
 import { 
   KpiWorkflowStepper, 
   deriveWorkflowPhase,
@@ -592,35 +592,10 @@ function GoalListItem({
               </div>
             )}
 
-            {/* Diszkrét megjegyzés és előzmények sáv */}
-            <div className="p-3.5 rounded-xl border bg-muted/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <History className="w-3.5 h-3.5" />
-                <span>Célkitűzés dátuma: {kpi.created_at ? new Date(kpi.created_at).toLocaleDateString("hu-HU") : "Kezdetkor"}</span>
-              </div>
-              {phase !== "lezart" && (
-                <form
-                  className="flex items-center gap-2 w-full sm:w-auto"
-                  action={async (formData) => {
-                    const msg = formData.get("megjegyzes") as string
-                    if (!msg) return
-                    const res = await addKpiActivity(kpi.id, msg)
-                    if (res?.error) toast.error(res.error)
-                    else toast.success("Megjegyzés sikeresen rögzítve!")
-                  }}
-                >
-                  <Input
-                    type="text"
-                    name="megjegyzes"
-                    placeholder="Megjegyzés hozzáfűzése..."
-                    required
-                    className="h-8 text-xs w-full sm:w-80 bg-background"
-                  />
-                  <Button type="submit" size="sm" variant="secondary" className="h-8 text-xs shrink-0 cursor-pointer">
-                    Küldés
-                  </Button>
-                </form>
-              )}
+            {/* Célkitűzés rögzítésének dátuma */}
+            <div className="p-3.5 rounded-xl border bg-muted/10 flex items-center gap-2 text-xs text-muted-foreground">
+              <History className="w-3.5 h-3.5" />
+              <span>Célkitűzés dátuma: {kpi.created_at ? new Date(kpi.created_at).toLocaleDateString("hu-HU") : "Kezdetkor"}</span>
             </div>
 
           </div>

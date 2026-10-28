@@ -133,14 +133,20 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
   } else if (newStatus === "interju") {
     const { data: candidate, error: fetchErr } = await adminClient
       .from("hr_toborzas")
-      .select(`nev, email, hr_munkakor(megnevezes)`)
+      .select(`nev, email, allashirdetes_id, company_id, hr_munkakor(megnevezes)`)
       .eq("id", candidateId)
       .single()
 
     if (!fetchErr && candidate && candidate.email) {
       try {
         const munkakor = (candidate as any).hr_munkakor?.megnevezes || "megpályázott pozíció"
-        
+        const targetCompId = (candidate as any).company_id || auth.activeCompanyId
+        const careerUrl = (candidate as any).allashirdetes_id
+          ? `${getBaseUrl()}/karrier/${(candidate as any).allashirdetes_id}`
+          : targetCompId
+          ? `${getBaseUrl()}/karrier?company=${targetCompId}`
+          : `${getBaseUrl()}/karrier`
+
         await sendNotificationEmail({
           to: candidate.email,
           subject: "Meghívás személyes interjúra - eaisyHR",
@@ -151,7 +157,7 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
             `Kedves ${candidate.nev}!\n\nÖrömmel értesítjük, hogy jelentkezését a(z) ${munkakor} pozícióra sikeresnek értékeltük. Szeretnénk behívni egy személyes interjúra!\n\nHamarosan jelentkezni fogunk a pontos időpont egyeztetése céljából.\n\nÜdvözlettel,\neaisyHR Csapat`,
             [],
             "Jelentkezés megtekintése",
-            `${getBaseUrl()}/hr/recruitment`,
+            careerUrl,
             "eaisyHR"
           )
         })
@@ -197,10 +203,21 @@ export async function scheduleInterview(candidateId: string, idopont: string, he
 
   if (error) return { error: error.message }
 
-  const { data: candidate } = await adminClient.from("hr_toborzas").select(`nev, email`).eq("id", candidateId).single()
+  const { data: candidate } = await adminClient
+    .from("hr_toborzas")
+    .select(`nev, email, allashirdetes_id, company_id`)
+    .eq("id", candidateId)
+    .single()
   
   if (candidate && candidate.email) {
     try {
+      const targetCompId = (candidate as any).company_id || auth.activeCompanyId
+      const careerUrl = (candidate as any).allashirdetes_id
+        ? `${getBaseUrl()}/karrier/${(candidate as any).allashirdetes_id}`
+        : targetCompId
+        ? `${getBaseUrl()}/karrier?company=${targetCompId}`
+        : `${getBaseUrl()}/karrier`
+
       await sendNotificationEmail({
         to: candidate.email,
         subject: "Meghívás személyes interjúra - eaisyHR",
@@ -214,7 +231,7 @@ export async function scheduleInterview(candidateId: string, idopont: string, he
             { label: "Helyszín / Link", value: helyszin }
           ],
           "Jelentkezés megtekintése",
-          `${getBaseUrl()}/hr/recruitment`,
+          careerUrl,
           "eaisyHR"
         )
       })
@@ -472,6 +489,7 @@ export async function saveJobPostingAction(payload: SaveJobPostingPayload) {
 
     revalidatePath("/hr/recruitment")
     revalidatePath("/karrier")
+    revalidatePath("/hr/self-service/career")
     revalidatePath(`/karrier/${payload.id}`)
     return { success: true, data: updated }
   } else {
@@ -488,6 +506,35 @@ export async function saveJobPostingAction(payload: SaveJobPostingPayload) {
 
     revalidatePath("/hr/recruitment")
     revalidatePath("/karrier")
+    revalidatePath("/hr/self-service/career")
     return { success: true, data: inserted }
   }
+}
+
+export async function updateJobPostingFlagsAction(
+  id: string,
+  updates: { aktiv?: boolean; publikus?: boolean; is_internal?: boolean }
+) {
+  const auth = await verifyRecruitmentAccess()
+  if (!auth.allowed || !auth.activeCompanyId || !auth.user) {
+    return { error: auth.error || "Hozzáférés megtagadva" }
+  }
+
+  const adminClient = getAdminClient()
+
+  const { error } = await adminClient
+    .from("hr_allashirdetes")
+    .update(updates)
+    .eq("id", id)
+
+  if (error) {
+    console.error("Hiba az álláshirdetés státuszának frissítésekor:", error)
+    return { error: error.message }
+  }
+
+  revalidatePath("/hr/recruitment")
+  revalidatePath("/karrier")
+  revalidatePath(`/karrier/${id}`)
+  revalidatePath("/hr/self-service/career")
+  return { success: true }
 }

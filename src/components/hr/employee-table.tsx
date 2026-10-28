@@ -75,6 +75,14 @@ export function EmployeeTable({
 
   const isColVisible = (colId: string) => columns.find(c => c.id === colId)?.isVisible ?? true
 
+  const employeeCodeMap = useMemo(() => {
+    const map = new Map<string, string>()
+    employees.forEach((emp, idx) => {
+      map.set(emp.id, `EMP-${String(idx + 1).padStart(3, "0")}`)
+    })
+    return map
+  }, [employees])
+
   const munkakorOptions = useMemo(() => {
     const seen = new Set<string>()
     const opts: { value: string; label: string }[] = []
@@ -150,15 +158,18 @@ export function EmployeeTable({
   ], [selectedRoles, selectedJobs, selectedOrgs, munkakorOptions, orgOptions])
 
   const filtered = employees.filter(emp => {
+    const empCode = employeeCodeMap.get(emp.id) ?? ""
     const munkakor = emp.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
       ?.hr_beosztas?.[0]?.hr_munkakor?.megnevezes ?? ""
     const egyseg = (Array.isArray(emp.hr_szervezeti_egyseg)
       ? emp.hr_szervezeti_egyseg[0]?.nev
       : emp.hr_szervezeti_egyseg?.nev) || "Nincs besorolva"
-    const nameMatch = !search ||
-      emp.nev?.toLowerCase().includes(search.toLowerCase()) ||
-      munkakor.toLowerCase().includes(search.toLowerCase()) ||
-      egyseg.toLowerCase().includes(search.toLowerCase())
+    const q = search.toLowerCase().trim()
+    const nameMatch = !q ||
+      emp.nev?.toLowerCase().includes(q) ||
+      empCode.toLowerCase().includes(q) ||
+      munkakor.toLowerCase().includes(q) ||
+      egyseg.toLowerCase().includes(q)
     const roleMatch = selectedRoles.length === 0 || selectedRoles.includes(emp.hr_szerepkor ?? "")
     const jobMatch  = selectedJobs.length  === 0 || selectedJobs.includes(munkakor)
     const orgMatch  = selectedOrgs.length  === 0 || selectedOrgs.includes(egyseg)
@@ -210,7 +221,7 @@ export function EmployeeTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((emp, index) => {
+            {filtered.map((emp) => {
               const activeJogviszony = emp.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
               const activeBeosztas   = activeJogviszony?.hr_beosztas?.[0]
               const munkakor         = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
@@ -218,7 +229,7 @@ export function EmployeeTable({
                 ? emp.hr_szervezeti_egyseg[0]?.nev
                 : emp.hr_szervezeti_egyseg?.nev) || "Nincs besorolva"
               const initials         = getInitials(emp.nev || "?")
-              const empId            = `EMP-${String(index + 1).padStart(3, "0")}`
+              const empId            = employeeCodeMap.get(emp.id) ?? "EMP-000"
 
               return (
                 <TableRow key={emp.id} className="hover:bg-muted/30 transition-colors">

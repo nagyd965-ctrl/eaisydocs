@@ -596,18 +596,28 @@ export async function handleOvertimeApproval(
     return { error: "A túlóra kérelem nem található." }
   }
 
+  const cleanedReason = action === "elutasitva" ? (rejectReason?.trim() || null) : null
+
   const { error } = await supabase
     .from("hr_tulora_felhasznalás")
     .update({
       statusz: action,
       jovahagyo_id: user.id,
-      jovahagyva_at: new Date().toISOString()
+      jovahagyva_at: new Date().toISOString(),
+      elutasitas_oka: cleanedReason,
     })
     .eq("id", requestId)
 
   if (error) {
     console.error("Overtime approval error:", error)
     return { error: "Hiba történt a kérelem feldolgozásakor: " + error.message }
+  }
+
+  if (req.tavollet_id) {
+    await supabase
+      .from("hr_tavollet")
+      .update({ elutasitas_oka: cleanedReason })
+      .eq("id", req.tavollet_id)
   }
 
   // Értesítés küldése a kérelmező dolgozónak

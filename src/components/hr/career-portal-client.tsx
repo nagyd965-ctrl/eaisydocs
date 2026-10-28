@@ -52,6 +52,7 @@ import {
   Calendar,
   Briefcase,
   Presentation,
+  Lock,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -82,31 +83,51 @@ export interface CareerPostingItem {
   bersav_min?: number | null
   bersav_max?: number | null
   bersav_publikus?: boolean
+  is_internal?: boolean
+  publikus?: boolean
 }
 
 interface CareerPortalClientProps {
   postings: CareerPostingItem[]
   companies: CareerCompanyItem[]
   initialCompanyId?: string | null
+  initialScope?: "internal" | "public"
+  employeeCompanyIds?: string[]
+  employeeData?: {
+    nev: string
+    email: string
+    telefon?: string
+    munkakor?: string
+  } | null
 }
 
 export function CareerPortalClient({
   postings,
   companies,
   initialCompanyId = null,
+  initialScope = "public",
+  employeeCompanyIds = [],
+  employeeData = null,
 }: CareerPortalClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
   const urlCompany = searchParams.get("company")
   const urlView = searchParams.get("view")
+  const urlScope = searchParams.get("scope")
 
-  // Ha csak 1 vállalat létezik az adatbázisban, automatikusan kiválasztjuk
+  const isEmployeeOfAnyCompany = employeeCompanyIds.length > 0
+
+  // Ha csak 1 vállalat létezik az adatbázisban, vagy belső hirdetésekre érkezik a dolgozó, automatikusan kiválasztjuk
   const resolvedInitialCompany =
     urlCompany && companies.some((c) => c.id === urlCompany)
       ? urlCompany
       : initialCompanyId && companies.some((c) => c.id === initialCompanyId)
       ? initialCompanyId
+      : urlScope === "internal" &&
+        employeeCompanyIds[0] &&
+        companies.some((c) => c.id === employeeCompanyIds[0])
+      ? employeeCompanyIds[0]
       : companies.length === 1
       ? companies[0].id
       : null
@@ -118,6 +139,26 @@ export function CareerPortalClient({
   const [portalSection, setPortalSection] = useState<"positions" | "about">(
     urlView === "about" ? "about" : "positions"
   )
+
+  const [postingScope, setPostingScope] = useState<"public" | "internal">(
+    (urlScope === "internal" || initialScope === "internal") &&
+      isEmployeeOfAnyCompany
+      ? "internal"
+      : "public"
+  )
+
+  // Szigorú jogosultság-ellenőrzés: a kiválasztott cégnél valóban dolgozik-e a látogató
+  const isEmployeeOfSelectedCompany = useMemo(
+    () =>
+      Boolean(
+        selectedCompanyId && employeeCompanyIds.includes(selectedCompanyId)
+      ),
+    [selectedCompanyId, employeeCompanyIds]
+  )
+
+  // Külső látogató ("sima ember") SOHA nem láthatja a belső hirdetések fület
+  const effectivePostingScope: "public" | "internal" =
+    isEmployeeOfSelectedCompany ? postingScope : "public"
 
   const [search, setSearch] = useState("")
   const [selectedDept, setSelectedDept] = useState<string>("all")
@@ -193,22 +234,62 @@ export function CareerPortalClient({
     router.replace(qs ? `/karrier?${qs}` : "/karrier", { scroll: false })
   }
 
+  function handleSwitchPostingScope(nextScope: "public" | "internal") {
+    if (nextScope === "internal" && !isEmployeeOfSelectedCompany) return
+    setPortalSection("positions")
+    setPostingScope(nextScope)
+    setSelectedDept("all")
+    setSearch("")
+
+    const params = new URLSearchParams(searchParams.toString())
+    if (selectedCompanyId) {
+      params.set("company", selectedCompanyId)
+    }
+    params.delete("view")
+    if (nextScope === "internal") {
+      params.set("scope", "internal")
+    } else {
+      params.delete("scope")
+    }
+    const qs = params.toString()
+    router.replace(qs ? `/karrier?${qs}` : "/karrier", { scroll: false })
+  }
+
   // Cégekhez tartozó nyitott pozíciószámok a belépő cégválasztó képernyőhöz
   const countByCompany = useMemo(() => {
     const map = new Map<string, number>()
     postings.forEach((p) => {
-      if (p.company_id) {
+      if (p.company_id && !p.is_internal) {
         map.set(p.company_id, (map.get(p.company_id) || 0) + 1)
       }
     })
     return map
   }, [postings])
 
-  // Kiválasztott cég álláshirdetései
-  const companyScopedPostings = useMemo(() => {
+  // Kiválasztott cég összes elérhető álláshirdetése
+  const allCompanyPostings = useMemo(() => {
     if (!selectedCompanyId) return []
     return postings.filter((p) => p.company_id === selectedCompanyId)
   }, [postings, selectedCompanyId])
+
+  const internalCompanyPostings = useMemo(
+    () => allCompanyPostings.filter((p) => Boolean(p.is_internal)),
+    [allCompanyPostings]
+  )
+
+  const publicCompanyPostings = useMemo(
+    () => allCompanyPostings.filter((p) => !p.is_internal),
+    [allCompanyPostings]
+  )
+
+  // Kiválasztott fül szerinti álláshirdetések:
+  // Belső fülön KIZÁRÓLAG a belső hirdetések, publikus fülön KIZÁRÓLAG a publikus hirdetések látszanak!
+  const companyScopedPostings = useMemo(() => {
+    if (effectivePostingScope === "internal") {
+      return internalCompanyPostings
+    }
+    return publicCompanyPostings
+  }, [effectivePostingScope, internalCompanyPostings, publicCompanyPostings])
 
   // Elérhető részlegek a kiválasztott cégnél
   const departments = useMemo(() => {
@@ -333,6 +414,19 @@ export function CareerPortalClient({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {isEmployeeOfAnyCompany && (
+              <Link
+                href="/hr/self-service/career"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "h-8 text-xs font-medium gap-1.5 border-primary/30 text-primary hover:bg-primary/5"
+                )}
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Vissza a belső HR portálra</span>
+              </Link>
+            )}
+
             {activeCompanyObj && companies.length > 1 && (
               <Button
                 type="button"
@@ -518,6 +612,9 @@ export function CareerPortalClient({
                     companyId={activeCompanyObj.id}
                     companyName={activeCompanyObj.name}
                     companies={companies.map((c) => ({ id: c.id, name: c.name }))}
+                    initialEmployeeData={
+                      isEmployeeOfSelectedCompany ? employeeData : null
+                    }
                   />
                 </DialogContent>
               </Dialog>
@@ -724,35 +821,91 @@ export function CareerPortalClient({
             {/* Fő szekcióváltó sáv (dupla cégválasztók nélkül, tisztán az adott cégre) */}
             <div className="rounded-lg border border-border/70 bg-card p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => handleSwitchSection("positions")}
-                  className={cn(
-                    "px-4 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 border",
-                    portalSection === "positions"
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-muted/30 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/60"
-                  )}
-                >
-                  <Briefcase className="w-4 h-4" />
-                  <span>Nyitott pozíciók</span>
-                  <span
+                {isEmployeeOfSelectedCompany ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchPostingScope("internal")}
+                      className={cn(
+                        "px-4 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 border cursor-pointer",
+                        portalSection === "positions" &&
+                          effectivePostingScope === "internal"
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted/30 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/60"
+                      )}
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>Belső hirdetések</span>
+                      <span
+                        className={cn(
+                          "tabular-nums text-xs px-1.5 py-0.5 rounded",
+                          portalSection === "positions" &&
+                            effectivePostingScope === "internal"
+                            ? "bg-primary-foreground/20 text-primary-foreground"
+                            : "bg-muted text-foreground"
+                        )}
+                      >
+                        {internalCompanyPostings.length}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchPostingScope("public")}
+                      className={cn(
+                        "px-4 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 border cursor-pointer",
+                        portalSection === "positions" &&
+                          effectivePostingScope === "public"
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted/30 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/60"
+                      )}
+                    >
+                      <Briefcase className="w-4 h-4" />
+                      <span>Publikus hirdetések</span>
+                      <span
+                        className={cn(
+                          "tabular-nums text-xs px-1.5 py-0.5 rounded",
+                          portalSection === "positions" &&
+                            effectivePostingScope === "public"
+                            ? "bg-primary-foreground/20 text-primary-foreground"
+                            : "bg-muted text-foreground"
+                        )}
+                      >
+                        {publicCompanyPostings.length}
+                      </span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchSection("positions")}
                     className={cn(
-                      "tabular-nums text-xs px-1.5 py-0.5 rounded",
+                      "px-4 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 border",
                       portalSection === "positions"
-                        ? "bg-primary-foreground/20 text-primary-foreground"
-                        : "bg-muted text-foreground"
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted/30 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/60"
                     )}
                   >
-                    {companyScopedPostings.length}
-                  </span>
-                </button>
+                    <Briefcase className="w-4 h-4" />
+                    <span>Nyitott pozíciók</span>
+                    <span
+                      className={cn(
+                        "tabular-nums text-xs px-1.5 py-0.5 rounded",
+                        portalSection === "positions"
+                          ? "bg-primary-foreground/20 text-primary-foreground"
+                          : "bg-muted text-foreground"
+                      )}
+                    >
+                      {companyScopedPostings.length}
+                    </span>
+                  </button>
+                )}
 
                 <button
                   type="button"
                   onClick={() => handleSwitchSection("about")}
                   className={cn(
-                    "px-4 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 border",
+                    "px-4 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 border cursor-pointer",
                     portalSection === "about"
                       ? "bg-primary text-primary-foreground border-primary"
                       : "bg-muted/30 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/60"
@@ -762,6 +915,18 @@ export function CareerPortalClient({
                   <span>Cégünkről — Vállalati Prezentáció</span>
                 </button>
               </div>
+
+              {isEmployeeOfSelectedCompany && employeeData && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge
+                    variant="outline"
+                    className="gap-1.5 text-[11px] font-medium border-primary/30 bg-primary/5 text-primary"
+                  >
+                    <Lock className="w-3 h-3" />
+                    <span>Belső munkatársi hozzáférés ({employeeData.nev})</span>
+                  </Badge>
+                </div>
+              )}
             </div>
 
             {portalSection === "about" && activePresentation ? (
@@ -979,10 +1144,16 @@ export function CareerPortalClient({
                               ? formatSalaryBand(job.bersav_min, job.bersav_max)
                               : null
 
+                            const jobHref =
+                              job.is_internal ||
+                              effectivePostingScope === "internal"
+                                ? `/karrier/${job.id}?scope=internal`
+                                : `/karrier/${job.id}`
+
                             return (
                               <Link
                                 key={job.id}
-                                href={`/karrier/${job.id}`}
+                                href={jobHref}
                                 className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 hover:bg-muted/30 transition-colors"
                               >
                                 <div className="space-y-1.5 min-w-0 flex-1">
@@ -990,6 +1161,15 @@ export function CareerPortalClient({
                                     <h3 className="text-base font-semibold text-foreground group-hover:text-primary transition-colors">
                                       {job.cim}
                                     </h3>
+                                    {job.is_internal && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[11px] font-medium gap-1 border-primary/30 bg-primary/10 text-primary"
+                                      >
+                                        <Lock className="w-3 h-3" />
+                                        <span>Belső hirdetés</span>
+                                      </Badge>
+                                    )}
                                     {salaryBand && (
                                       <Badge
                                         variant="secondary"
@@ -1059,6 +1239,10 @@ export function CareerPortalClient({
                       const salaryBand = job.bersav_publikus
                         ? formatSalaryBand(job.bersav_min, job.bersav_max)
                         : null
+                      const jobHref =
+                        job.is_internal || effectivePostingScope === "internal"
+                          ? `/karrier/${job.id}?scope=internal`
+                          : `/karrier/${job.id}`
 
                       return (
                         <div
@@ -1070,6 +1254,15 @@ export function CareerPortalClient({
                               <Badge variant="secondary" className="text-[11px]">
                                 {job.department}
                               </Badge>
+                              {job.is_internal && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[11px] font-medium gap-1 border-primary/30 bg-primary/10 text-primary"
+                                >
+                                  <Lock className="w-3 h-3" />
+                                  <span>Belső hirdetés</span>
+                                </Badge>
+                              )}
                             </div>
 
                             <div>
@@ -1117,7 +1310,7 @@ export function CareerPortalClient({
                               </div>
                             )}
                             <Link
-                              href={`/karrier/${job.id}`}
+                              href={jobHref}
                               className={cn(
                                 buttonVariants({
                                   variant: "default",

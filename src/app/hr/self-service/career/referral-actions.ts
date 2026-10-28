@@ -344,3 +344,328 @@ export async function deleteReferralAction(referralId: string) {
   }
 }
 
+export interface InternalJobApplication {
+  id: string
+  allashirdetes_id: string | null
+  megpalyazott_munkakor_id: string | null
+  palyazati_kod: string | null
+  statusz: string
+  uzenet: string | null
+  cv_storage_path: string | null
+  interju_idopont?: string | null
+  interju_helyszin?: string | null
+  created_at: string
+  hr_allashirdetes?: {
+    id: string
+    cim: string
+    hr_munkakor?: {
+      megnevezes?: string
+    } | null
+  } | null
+  hr_munkakor?: {
+    megnevezes?: string
+  } | null
+}
+
+function generateInternalTrackingCode(): string {
+  const year = new Date().getFullYear()
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+  let suffix = ""
+  for (let i = 0; i < 6; i++) {
+    suffix += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return `BELS-${year}-${suffix}`
+}
+
+/**
+ * Saját belső álláspályázatok lekérése a bejelentkezett dolgozóhoz
+ */
+export async function getMyInternalApplicationsAction(): Promise<InternalJobApplication[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const adminClient = getAdminClient()
+
+  const { data: profile } = await adminClient
+    .from("felhasznalo_profil")
+    .select("email, nev")
+    .eq("id", user.id)
+    .maybeSingle()
+
+  const userEmail = (profile?.email || user.email || "").trim().toLowerCase()
+  if (!userEmail) return []
+
+  let query = adminClient
+    .from("hr_toborzas")
+    .select(`
+      id,
+      allashirdetes_id,
+      megpalyazott_munkakor_id,
+      palyazati_kod,
+      statusz,
+      uzenet,
+      cv_storage_path,
+      interju_idopont,
+      interju_helyszin,
+      created_at,
+      forras,
+      hr_allashirdetes (
+        id,
+        cim,
+        hr_munkakor (
+          megnevezes
+        )
+      ),
+      hr_munkakor (
+        megnevezes
+      )
+    `)
+    .ilike("email", userEmail)
+    .order("created_at", { ascending: false })
+
+  if (activeCompanyId) {
+    query = query.eq("company_id", activeCompanyId)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error("Hiba a saját belső pályázatok lekérésekor:", error)
+    return []
+  }
+
+  return ((data || []) as any[]).map((row) => ({
+    ...row,
+    hr_allashirdetes: Array.isArray(row.hr_allashirdetes) ? row.hr_allashirdetes[0] : row.hr_allashirdetes,
+    hr_munkakor: Array.isArray(row.hr_munkakor) ? row.hr_munkakor[0] : row.hr_munkakor,
+  }))
+}
+
+/**
+ * Belső álláspályázat beküldése (dolgozói mobilitás)
+ */
+export async function submitInternalApplicationAction(formData: FormData) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { success: false, error: "Nincs bejelentkezett felhasználó." }
+    }
+
+    const activeCompanyId = await getActiveCompanyIdServer()
+    if (!activeCompanyId) {
+      return { success: false, error: "Nincs aktív cég kiválasztva." }
+    }
+
+    const allashirdetesId = (formData.get("allashirdetesId") as string)?.trim() || null
+    const motivacio = (formData.get("motivacio") as string)?.trim() || ""
+    const telefon = (formData.get("telefon") as string)?.trim() || null
+    const cvFile = formData.get("cv") as File | null
+
+    if (!allashirdetesId) {
+      return { success: false, error: "Kérjük, válaszd ki a megpályázandó pozíciót!" }
+    }
+    if (!motivacio) {
+      return { success: false, error: "Kérjük, írj egy rövid motivációt vagy indoklást a belső pályázathoz!" }
+    }
+
+    const adminClient = getAdminClient()
+
+    // Dolgozó adatainak feloldása
+    const { data: profile } = await adminClient
+      .from("felhasznalo_profil")
+      .select("nev, email")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    const dolgozoNev = profile?.nev || user.email || "Belső munkatárs"
+    const dolgozoEmail = (profile?.email || user.email || "").trim().toLowerCase()
+
+    if (!dolgozoEmail) {
+      return { success: false, error: "Nem található érvényes e-mail cím a profilodban." }
+    }
+
+    // Duplikált aktív jelentkezés ellenőrzése ugyanarra a hirdetésre
+    const { data: existingApp } = await adminClient
+      .from("hr_toborzas")
+      .select("id, statusz")
+      .eq("allashirdetes_id", allashirdetesId)
+      .ilike("email", dolgozoEmail)
+      .neq("statusz", "elutasitva")
+      .maybeSingle()
+
+    if (existingApp) {
+      return {
+        success: false,
+        error: "Erre a pozícióra már van egy folyamatban lévő jelentkezésed!",
+      }
+    }
+
+    // Jelenlegi munkakör feloldása
+    let jelenlegiMunkakor = "Belső munkatárs"
+    const { data: adatlap } = await adminClient
+      .from("hr_dolgozo_adatlap")
+      .select("hr_munkakor(megnevezes)")
+      .eq("id", user.id)
+      .maybeSingle()
+    const mk = Array.isArray((adatlap as any)?.hr_munkakor)
+      ? (adatlap as any)?.hr_munkakor[0]
+      : (adatlap as any)?.hr_munkakor
+    if (mk?.megnevezes) {
+      jelenlegiMunkakor = mk.megnevezes
+    }
+
+    // Opcionális CV feltöltése
+    let cvStoragePath: string | null = null
+    if (cvFile && cvFile.size > 0) {
+      const MAX_FILE_SIZE = 10 * 1024 * 1024
+      if (cvFile.size > MAX_FILE_SIZE) {
+        return { success: false, error: "A feltöltött önéletrajz mérete nem haladhatja meg a 10 MB-ot!" }
+      }
+
+      const allowedExtensions = ["pdf", "docx", "doc"]
+      const fileExt = cvFile.name.split(".").pop()?.toLowerCase() || ""
+      if (!allowedExtensions.includes(fileExt)) {
+        return { success: false, error: "Kizárólag PDF vagy Word (.doc, .docx) formátumú önéletrajz tölthető fel!" }
+      }
+
+      const fileBuffer = Buffer.from(await cvFile.arrayBuffer())
+      if (fileExt === "pdf") {
+        if (fileBuffer.length < 32 || !fileBuffer.subarray(0, 5).toString("utf-8").startsWith("%PDF-")) {
+          return { success: false, error: "A feltöltött fájl nem valódi PDF állomány!" }
+        }
+      }
+
+      const fileName = `${crypto.randomUUID()}.${fileExt}`
+      const storagePath = `internal-cv/${fileName}`
+
+      const { data: uploadData, error: uploadError } = await adminClient
+        .storage
+        .from("hr_dokumentumok")
+        .upload(storagePath, fileBuffer, {
+          contentType: cvFile.type || (fileExt === "pdf" ? "application/pdf" : "application/octet-stream"),
+          upsert: false,
+        })
+
+      if (uploadError) {
+        return { success: false, error: "Nem sikerült feltölteni a csatolt dokumentumot." }
+      }
+
+      cvStoragePath = uploadData.path
+    }
+
+    // Hirdetés és munkakör lekérése
+    const { data: hirdetes } = await adminClient
+      .from("hr_allashirdetes")
+      .select("id, cim, munkakor_id")
+      .eq("id", allashirdetesId)
+      .maybeSingle()
+
+    const munkakorId = (hirdetes as any)?.munkakor_id || null
+    const pozicioCim = (hirdetes as any)?.cim || "Belső pozíció"
+    const palyazatiKod = generateInternalTrackingCode()
+
+    const { data: insertedRow, error: insertErr } = await adminClient
+      .from("hr_toborzas")
+      .insert({
+        company_id: activeCompanyId,
+        allashirdetes_id: allashirdetesId,
+        megpalyazott_munkakor_id: munkakorId,
+        nev: dolgozoNev,
+        email: dolgozoEmail,
+        telefon,
+        forras: "belso_palyazat",
+        palyazati_kod: palyazatiKod,
+        uzenet: `[Belső pályázat — Jelenlegi munkakör: ${jelenlegiMunkakor}]: ${motivacio}`,
+        cv_storage_path: cvStoragePath,
+        statusz: "uj",
+      })
+      .select("id")
+      .single()
+
+    if (insertErr) {
+      console.error("Belső pályázat mentési hiba:", insertErr)
+      return { success: false, error: "Nem sikerült rögzíteni a belső pályázatot: " + insertErr.message }
+    }
+
+    // Audit napló
+    await adminClient.from("hr_esemeny_naplo").insert({
+      company_id: activeCompanyId,
+      modul: "toborzas",
+      esemeny_tipus: "belso_palyazat",
+      leiras: `Új belső álláspályázat érkezett (${pozicioCim}): ${dolgozoNev} (${jelenlegiMunkakor}) [${palyazatiKod}]`,
+      celpont_id: insertedRow?.id || null,
+      entitas_tipus: "hr_toborzas",
+      felhasznalo_id: user.id,
+    })
+
+    revalidatePath("/hr/self-service/career")
+    revalidatePath("/hr/recruitment")
+
+    return {
+      success: true,
+      palyazatiKod,
+      message: "Belső pályázatodat sikeresen rögzítettük!",
+    }
+  } catch (err: any) {
+    console.error("Váratlan hiba a belső pályázat beküldésekor:", err)
+    return { success: false, error: err?.message || "Váratlan hiba történt." }
+  }
+}
+
+/**
+ * Saját belső pályázat visszavonása (amíg 'uj' vagy 'szures' státuszban van)
+ */
+export async function withdrawInternalApplicationAction(applicationId: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Nincs bejelentkezett felhasználó." }
+
+    const adminClient = getAdminClient()
+    const { data: profile } = await adminClient
+      .from("felhasznalo_profil")
+      .select("email")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    const userEmail = (profile?.email || user.email || "").trim().toLowerCase()
+
+    const { data: appRow } = await adminClient
+      .from("hr_toborzas")
+      .select("id, email, statusz, cv_storage_path")
+      .eq("id", applicationId)
+      .maybeSingle()
+
+    if (!appRow || (appRow.email || "").trim().toLowerCase() !== userEmail) {
+      return { success: false, error: "A pályázat nem található vagy nincs jogosultságod a visszavonására." }
+    }
+
+    if (!["uj", "szures"].includes(appRow.statusz)) {
+      return { success: false, error: "Már interjú vagy elbírálási szakaszban lévő pályázat nem vonható vissza." }
+    }
+
+    if (appRow.cv_storage_path) {
+      await adminClient.storage.from("hr_dokumentumok").remove([appRow.cv_storage_path])
+    }
+
+    const { error: delErr } = await adminClient
+      .from("hr_toborzas")
+      .delete()
+      .eq("id", applicationId)
+
+    if (delErr) {
+      return { success: false, error: delErr.message }
+    }
+
+    revalidatePath("/hr/self-service/career")
+    revalidatePath("/hr/recruitment")
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Hiba történt a visszavonás során." }
+  }
+}
+

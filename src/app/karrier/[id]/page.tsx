@@ -12,6 +12,7 @@ import {
   Building2,
   Clock,
   ArrowRight,
+  Lock,
 } from "lucide-react"
 import { ApplicationForm } from "./application-form"
 import { RichTextContent } from "@/components/rich-text-content"
@@ -22,20 +23,27 @@ import {
   SENIORITY_LABELS,
   formatSalaryBand,
 } from "@/utils/hr/career-constants"
+import { resolveCareerEmployeeContext } from "@/utils/hr/career-auth"
 
 export const dynamic = "force-dynamic"
 
 export default async function HirdetesReszletekPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ scope?: string }>
 }) {
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const resolvedParams = await params
+  const [resolvedParams, resolvedSearchParams, empCtx] = await Promise.all([
+    params,
+    searchParams ? searchParams : Promise.resolve({} as { scope?: string }),
+    resolveCareerEmployeeContext(),
+  ])
   const { id } = resolvedParams
 
   const { data: hirdetes, error } = await supabaseAdmin
@@ -71,7 +79,29 @@ export default async function HirdetesReszletekPage({
     ? munkakor.hr_szervezeti_egyseg[0]
     : munkakor?.hr_szervezeti_egyseg
 
-  const resolvedCompanyId = hirdetes.company_id || munkakor?.company_id || null
+  const resolvedCompanyId =
+    hirdetes.company_id ||
+    munkakor?.company_id ||
+    (hirdetes.is_internal
+      ? empCtx.activeCompanyId || empCtx.employeeCompanyIds[0] || null
+      : null)
+
+  // Szigorú jogosultság-ellenőrzés: a látogató valóban az adott cég bejelentkezett dolgozója-e
+  const isEmployeeOfCompany = Boolean(
+    empCtx.isAuthenticated &&
+      resolvedCompanyId &&
+      empCtx.employeeCompanyIds.includes(resolvedCompanyId)
+  )
+
+  // Ha kizárólag belső hirdetés (is_internal = true és publikus = false),
+  // külső látogató ("sima ember") SOHA nem nyithatja meg!
+  if (hirdetes.is_internal && !hirdetes.publikus && !isEmployeeOfCompany) {
+    notFound()
+  }
+
+  const isInternalContext =
+    isEmployeeOfCompany &&
+    (Boolean(hirdetes.is_internal) || resolvedSearchParams?.scope === "internal")
 
   // Hirdető cég lekérése
   let company: {
@@ -92,15 +122,20 @@ export default async function HirdetesReszletekPage({
   // További nyitott pozíciók ugyanennél a vállalatnál
   let relatedPostings: any[] = []
   if (resolvedCompanyId) {
-    const { data: rel } = await supabaseAdmin
+    let relQuery = supabaseAdmin
       .from("hr_allashirdetes")
-      .select("id, cim, munkavegzes_modja, tapasztalati_szint, helyszin, reszleg_nev")
+      .select("id, cim, munkavegzes_modja, tapasztalati_szint, helyszin, reszleg_nev, is_internal")
       .eq("company_id", resolvedCompanyId)
       .eq("aktiv", true)
-      .eq("publikus", true)
-      .eq("is_internal", false)
       .neq("id", hirdetes.id)
-      .limit(3)
+
+    if (isInternalContext) {
+      relQuery = relQuery.eq("is_internal", true)
+    } else {
+      relQuery = relQuery.eq("publikus", true).eq("is_internal", false)
+    }
+
+    const { data: rel } = await relQuery.limit(3)
     relatedPostings = rel || []
   }
 
@@ -142,11 +177,13 @@ export default async function HirdetesReszletekPage({
       {/* ── 1. FELSŐ NAVIGÁCIÓS SÁV ── */}
       <div className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <Link
               href={
                 resolvedCompanyId
-                  ? `/karrier?company=${resolvedCompanyId}`
+                  ? `/karrier?company=${resolvedCompanyId}${
+                      isInternalContext ? "&scope=internal" : ""
+                    }`
                   : "/karrier"
               }
               className={cn(
@@ -155,17 +192,63 @@ export default async function HirdetesReszletekPage({
               )}
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Vissza a nyitott pozíciókhoz ({companyName})</span>
+              <span>
+                {isInternalContext
+                  ? `Vissza a belső hirdetésekhez (${companyName})`
+                  : `Vissza a nyitott pozíciókhoz (${companyName})`}
+              </span>
             </Link>
+
+            {isEmployeeOfCompany && resolvedCompanyId && (
+              <div className="hidden md:flex items-center gap-1.5 pl-2 border-l border-border/60">
+                <Link
+                  href={`/karrier?company=${resolvedCompanyId}&scope=internal`}
+                  className={cn(
+                    buttonVariants({
+                      variant: isInternalContext ? "default" : "outline",
+                      size: "sm",
+                    }),
+                    "h-7 px-2.5 text-xs gap-1.5"
+                  )}
+                >
+                  <Lock className="w-3 h-3" />
+                  <span>Belső hirdetések</span>
+                </Link>
+                <Link
+                  href={`/karrier?company=${resolvedCompanyId}`}
+                  className={cn(
+                    buttonVariants({
+                      variant: !isInternalContext ? "default" : "outline",
+                      size: "sm",
+                    }),
+                    "h-7 px-2.5 text-xs gap-1.5"
+                  )}
+                >
+                  <Briefcase className="w-3 h-3" />
+                  <span>Publikus hirdetések</span>
+                </Link>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
+            {isEmployeeOfCompany && (
+              <Link
+                href="/hr/self-service/career"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "h-8 px-3 text-xs font-medium"
+                )}
+              >
+                Vissza a belső HR portálra
+              </Link>
+            )}
             {resolvedCompanyId && (
               <Link
                 href={`/karrier?company=${resolvedCompanyId}&view=about`}
                 className={cn(
                   buttonVariants({ variant: "outline", size: "sm" }),
-                  "h-8 px-3 text-xs font-medium border-primary/30 text-primary hover:bg-primary/5"
+                  "h-8 px-3 text-xs font-medium border-primary/30 text-primary hover:bg-primary/5 hidden sm:inline-flex"
                 )}
               >
                 Cégünkről — Vállalati Prezentáció ({companyName})
@@ -180,6 +263,15 @@ export default async function HirdetesReszletekPage({
       <header className="bg-primary text-primary-foreground py-10 sm:py-14 px-4 border-b border-border/60">
         <div className="max-w-6xl mx-auto space-y-4">
           <div className="flex flex-wrap items-center gap-2">
+            {hirdetes.is_internal && (
+              <Badge
+                variant="outline"
+                className="border-white bg-white text-primary text-xs font-semibold gap-1.5 px-2.5 py-0.5"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Belső álláspályázat (Munkatársaknak)</span>
+              </Badge>
+            )}
             <Badge
               variant="outline"
               className="border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground text-xs font-medium gap-1.5 px-2.5 py-0.5"
@@ -338,10 +430,14 @@ export default async function HirdetesReszletekPage({
             <div className="rounded-lg border border-border/70 bg-card p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-foreground">
-                  További nyitott pozíciók a(z) {companyName} vállalatnál
+                  {isInternalContext
+                    ? `További nyitott belső pozíciók a(z) ${companyName} vállalatnál`
+                    : `További nyitott pozíciók a(z) ${companyName} vállalatnál`}
                 </h3>
                 <Link
-                  href={`/karrier?company=${resolvedCompanyId}`}
+                  href={`/karrier?company=${resolvedCompanyId}${
+                    isInternalContext ? "&scope=internal" : ""
+                  }`}
                   className="text-xs text-primary hover:underline font-medium"
                 >
                   Összes megtekintése
@@ -351,7 +447,11 @@ export default async function HirdetesReszletekPage({
                 {relatedPostings.map((rel) => (
                   <Link
                     key={rel.id}
-                    href={`/karrier/${rel.id}`}
+                    href={`/karrier/${rel.id}${
+                      isInternalContext || rel.is_internal
+                        ? "?scope=internal"
+                        : ""
+                    }`}
                     className="group py-3 flex items-center justify-between gap-4 hover:text-primary transition-colors"
                   >
                     <div>
@@ -383,6 +483,8 @@ export default async function HirdetesReszletekPage({
             companyId={resolvedCompanyId}
             companyName={companyName}
             positionTitle={hirdetes.cim}
+            isInternalPosting={Boolean(hirdetes.is_internal)}
+            initialEmployeeData={isEmployeeOfCompany ? empCtx.employeeData : null}
           />
         </div>
       </main>

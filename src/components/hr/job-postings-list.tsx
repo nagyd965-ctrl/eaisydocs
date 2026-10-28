@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner"
 import Link from "next/link"
 import { ManagePostingDialog } from "./manage-posting-dialog"
+import { updateJobPostingFlagsAction } from "@/app/hr/recruitment/actions"
 import {
   WORK_MODE_SHORT_LABELS,
   SENIORITY_LABELS,
@@ -24,10 +25,11 @@ function daysSince(dateStr: string): number {
 }
 
 const FILTERS = [
-  { key: "all",     label: "Összes"  },
-  { key: "aktiv",   label: "Aktív"   },
-  { key: "inaktiv", label: "Inaktív" },
-  { key: "publikus",label: "Publikus"},
+  { key: "all",      label: "Összes"   },
+  { key: "aktiv",    label: "Aktív"    },
+  { key: "inaktiv",  label: "Inaktív"  },
+  { key: "publikus", label: "Publikus" },
+  { key: "belso",    label: "Belső"    },
 ] as const
 
 type FilterKey = typeof FILTERS[number]["key"]
@@ -38,6 +40,7 @@ export interface JobPostingItem {
   munkakor_id?: string
   aktiv?: boolean
   publikus?: boolean
+  is_internal?: boolean
   created_at?: string
   munkavegzes_modja?: string | null
   helyszin?: string | null
@@ -87,7 +90,7 @@ export function JobPostingsList({
   }, [initialPostings, propPostings])
 
   /* ───── Stats ───── */
-  const activePublicCount = postings.filter(p => p.aktiv && p.publikus).length
+  const activePublicCount = postings.filter(p => p.aktiv && p.publikus && !p.is_internal).length
 
   /* ───── Filter ───── */
   const filtered = useMemo(() => {
@@ -102,7 +105,8 @@ export function JobPostingsList({
     }
     if (filter === "aktiv")    result = result.filter(p => p.aktiv)
     if (filter === "inaktiv")  result = result.filter(p => !p.aktiv)
-    if (filter === "publikus") result = result.filter(p => p.publikus && p.aktiv)
+    if (filter === "publikus") result = result.filter(p => p.publikus && !p.is_internal && p.aktiv)
+    if (filter === "belso")    result = result.filter(p => p.is_internal && p.aktiv)
     return result
   }, [postings, search, filter])
 
@@ -127,19 +131,59 @@ export function JobPostingsList({
     })
   }
 
-  async function toggleStatus(id: string, field: "aktiv" | "publikus", current: boolean) {
+  async function toggleStatus(
+    id: string,
+    field: "aktiv" | "publikus" | "is_internal",
+    current: boolean
+  ) {
     const next = !current
-    setPostings(prev => prev.map(p => p.id === id ? { ...p, [field]: next } : p))
-    const { error } = await supabase.from("hr_allashirdetes").update({ [field]: next }).eq("id", id)
-    if (error) {
+    const prevPosting = postings.find((p) => p.id === id)
+    if (!prevPosting) return
+
+    let updates: { aktiv?: boolean; publikus?: boolean; is_internal?: boolean } = {}
+    if (field === "aktiv") {
+      updates = { aktiv: next }
+    } else if (field === "publikus") {
+      updates = next ? { publikus: true, is_internal: false } : { publikus: false }
+    } else if (field === "is_internal") {
+      updates = next ? { is_internal: true, publikus: false } : { is_internal: false }
+    }
+
+    setPostings((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+    )
+
+    const res = await updateJobPostingFlagsAction(id, updates)
+    if (res.error) {
       toast.error("Hiba a mentés során")
-      setPostings(prev => prev.map(p => p.id === id ? { ...p, [field]: current } : p))
-    } else {
-      toast.success(
-        field === "publikus"
-          ? next ? "Hirdetés publikálva" : "Hirdetés levéve a karrieroldalról"
-          : "Státusz frissítve"
+      setPostings((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                aktiv: prevPosting.aktiv,
+                publikus: prevPosting.publikus,
+                is_internal: prevPosting.is_internal,
+              }
+            : p
+        )
       )
+    } else {
+      if (field === "is_internal") {
+        toast.success(
+          next
+            ? "Csak belső hirdetésként beállítva"
+            : "Belső hirdetés megjelölés kikapcsolva"
+        )
+      } else if (field === "publikus") {
+        toast.success(
+          next
+            ? "Hirdetés publikálva"
+            : "Hirdetés levéve a publikus karrieroldalról"
+        )
+      } else {
+        toast.success(next ? "Hirdetés aktiválva" : "Hirdetés inaktiválva")
+      }
     }
   }
 
@@ -251,20 +295,25 @@ export function JobPostingsList({
                     {posting.reszleg_nev ? ` • ${posting.reszleg_nev}` : ""}
                   </p>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    {posting.aktiv && posting.publikus ? (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-success-subtle text-success">
-                        <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                        Publikus
+                    {!posting.aktiv ? (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-muted text-muted-foreground">
+                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+                        Inaktív
                       </span>
-                    ) : posting.aktiv ? (
+                    ) : posting.is_internal ? (
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-warning-subtle text-warning">
                         <span className="w-1.5 h-1.5 rounded-full bg-warning" />
                         Csak belső
                       </span>
+                    ) : posting.publikus ? (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-success-subtle text-success">
+                        <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                        Publikus
+                      </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-muted text-muted-foreground">
                         <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
-                        Inaktív
+                        Nem publikált
                       </span>
                     )}
 
@@ -310,20 +359,35 @@ export function JobPostingsList({
 
                 {/* Jobb: Togglek + Akciók */}
                 <div className="flex items-center gap-4 shrink-0">
-                  {/* Aktív / Publikus togglek */}
+                  {/* Aktív / Publikus / Belső togglek */}
                   <div className="flex items-center gap-4 border-r border-border pr-4">
                     <div className="flex flex-col items-center gap-1">
                       <span className="text-[11px] text-muted-foreground">Aktív</span>
                       <Switch
-                        checked={posting.aktiv}
+                        checked={!!posting.aktiv}
                         onCheckedChange={() => toggleStatus(posting.id, "aktiv", !!posting.aktiv)}
                       />
                     </div>
                     <div className="flex flex-col items-center gap-1">
                       <span className="text-[11px] text-muted-foreground">Publikus</span>
                       <Switch
-                        checked={posting.publikus}
-                        onCheckedChange={() => toggleStatus(posting.id, "publikus", !!posting.publikus)}
+                        checked={!!posting.publikus && !posting.is_internal}
+                        onCheckedChange={() =>
+                          toggleStatus(
+                            posting.id,
+                            "publikus",
+                            !!posting.publikus && !posting.is_internal
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="text-[11px] text-muted-foreground">Belső</span>
+                      <Switch
+                        checked={!!posting.is_internal}
+                        onCheckedChange={() =>
+                          toggleStatus(posting.id, "is_internal", !!posting.is_internal)
+                        }
                       />
                     </div>
                   </div>
@@ -336,8 +400,15 @@ export function JobPostingsList({
                       </Button>
                     </ManagePostingDialog>
 
-                    {posting.publikus && (
-                      <Link href={`/karrier/${posting.id}`} target="_blank">
+                    {(posting.publikus || posting.is_internal) && (
+                      <Link
+                        href={
+                          posting.is_internal
+                            ? `/karrier/${posting.id}?scope=internal`
+                            : `/karrier/${posting.id}`
+                        }
+                        target="_blank"
+                      >
                         <Button variant="ghost" size="icon" title="Megtekintés karrieroldalon">
                           <ExternalLink className="h-4 w-4 text-primary" />
                         </Button>

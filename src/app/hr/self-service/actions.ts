@@ -1084,3 +1084,140 @@ export async function deleteSubstitute(id: string) {
   revalidatePath("/hr/self-service/time")
   return { success: true }
 }
+
+export async function withdrawSelfServiceRequest(
+  category: "tavollet" | "korrekcio" | "tulora",
+  id: string
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  if (category === "tavollet") {
+    const { data: row } = await supabaseAdmin
+      .from("hr_tavollet")
+      .select("id, dolgozo_id, statusz, kezdet_datuma, veg_datuma, company_id")
+      .eq("id", id)
+      .maybeSingle()
+
+    if (!row || row.dolgozo_id !== user.id) {
+      return { error: "A kérelem nem található vagy nincs jogosultságod a visszavonására." }
+    }
+    if (row.statusz !== "jovahagyasra_var") {
+      return { error: "Csak a még el nem bírált (folyamatban lévő) kérelem vonható vissza." }
+    }
+
+    // Ha csúsztatás volt, a kapcsolt túlóra-igénylést is töröljük
+    await supabaseAdmin
+      .from("hr_tulora_felhasznalás")
+      .delete()
+      .eq("tavollet_id", id)
+      .eq("dolgozo_id", user.id)
+      .eq("statusz", "jovahagyasra_var")
+
+    const { error: delErr } = await supabaseAdmin
+      .from("hr_tavollet")
+      .delete()
+      .eq("id", id)
+      .eq("dolgozo_id", user.id)
+
+    if (delErr) {
+      return { error: "Nem sikerült visszavonni a kérelmet: " + delErr.message }
+    }
+
+    await supabaseAdmin.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      entitas_tipus: "hr_tavollet",
+      entitas_id: id,
+      esemeny_tipus: "kerelem_visszavonas",
+      megjegyzes: `Dolgozó visszavonta a még el nem bírált szabadságkérelmét (${row.kezdet_datuma} – ${row.veg_datuma}).`,
+      ...(row.company_id || activeCompanyId ? { company_id: row.company_id || activeCompanyId } : {}),
+    })
+  } else if (category === "korrekcio") {
+    const { data: row } = await supabaseAdmin
+      .from("hr_jelenlet_korrekcio")
+      .select("id, dolgozo_id, statusz, datum, company_id")
+      .eq("id", id)
+      .maybeSingle()
+
+    if (!row || row.dolgozo_id !== user.id) {
+      return { error: "A kérelem nem található vagy nincs jogosultságod a visszavonására." }
+    }
+    if (row.statusz !== "jovahagyasra_var") {
+      return { error: "Csak a még el nem bírált (folyamatban lévő) kérelem vonható vissza." }
+    }
+
+    const { error: delErr } = await supabaseAdmin
+      .from("hr_jelenlet_korrekcio")
+      .delete()
+      .eq("id", id)
+      .eq("dolgozo_id", user.id)
+
+    if (delErr) {
+      return { error: "Nem sikerült visszavonni a korrekciós kérelmet: " + delErr.message }
+    }
+
+    await supabaseAdmin.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      entitas_tipus: "hr_jelenlet_korrekcio",
+      entitas_id: id,
+      esemeny_tipus: "kerelem_visszavonas",
+      megjegyzes: `Dolgozó visszavonta a még el nem bírált jelenlét-korrekciós kérelmét (${row.datum}).`,
+      ...(row.company_id || activeCompanyId ? { company_id: row.company_id || activeCompanyId } : {}),
+    })
+  } else if (category === "tulora") {
+    const { data: row } = await supabaseAdmin
+      .from("hr_tulora_felhasznalás")
+      .select("id, dolgozo_id, statusz, tavollet_id, perc, company_id")
+      .eq("id", id)
+      .maybeSingle()
+
+    if (!row || row.dolgozo_id !== user.id) {
+      return { error: "A kérelem nem található vagy nincs jogosultságod a visszavonására." }
+    }
+    if (row.statusz !== "jovahagyasra_var") {
+      return { error: "Csak a még el nem bírált (folyamatban lévő) kérelem vonható vissza." }
+    }
+
+    const { error: delErr } = await supabaseAdmin
+      .from("hr_tulora_felhasznalás")
+      .delete()
+      .eq("id", id)
+      .eq("dolgozo_id", user.id)
+
+    if (delErr) {
+      return { error: "Nem sikerült visszavonni a túlóra-igénylést: " + delErr.message }
+    }
+
+    if (row.tavollet_id) {
+      await supabaseAdmin
+        .from("hr_tavollet")
+        .delete()
+        .eq("id", row.tavollet_id)
+        .eq("dolgozo_id", user.id)
+        .eq("statusz", "jovahagyasra_var")
+    }
+
+    await supabaseAdmin.from("hr_esemeny_naplo").insert({
+      felhasznalo_id: user.id,
+      entitas_tipus: "hr_tulora_felhasznalás",
+      entitas_id: id,
+      esemeny_tipus: "kerelem_visszavonas",
+      megjegyzes: `Dolgozó visszavonta a még el nem bírált túlóra-igénylését (${row.perc} perc).`,
+      ...(row.company_id || activeCompanyId ? { company_id: row.company_id || activeCompanyId } : {}),
+    })
+  }
+
+  revalidatePath("/hr", "layout")
+  revalidatePath("/hr/manager")
+  revalidatePath("/hr/self-service")
+  revalidatePath("/hr/self-service/time")
+  return { success: true }
+}
