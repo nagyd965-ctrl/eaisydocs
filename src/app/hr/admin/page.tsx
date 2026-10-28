@@ -63,14 +63,14 @@ export default async function HrAdminPage() {
   const thirtyDaysStr = thirtyDaysFromNow.toISOString().split("T")[0]
 
   // Aktív cég tagjainak azonosítói
-  const { data: companyMembers } = await supabase
+  const { data: companyMembers } = await supabaseAdmin
     .from("company_members")
-    .select("user_id")
+    .select("user_id, role, hr_szerepkor")
     .eq("company_id", companyScope)
   const memberUserIds = (companyMembers || []).map(m => m.user_id)
   const safeMemberIds = memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"]
 
-  // Párhuzamos adatlekérések az állományhoz és a teendőkhöz
+  // Párhuzamos adatlekérések az állományhoz és a teendőkhöz (minden lekérdezés a jogosultság-ellenőrzött supabaseAdmin klienssel és céges szűréssel)
   const [
     employeesRes,
     jobsRes,
@@ -83,7 +83,7 @@ export default async function HrAdminPage() {
     offboardingsRes
   ] = await Promise.all([
     // 1. Dolgozók lekérése az aktív céghez részletes adatlappal
-    supabase.from("felhasznalo_profil").select(`
+    supabaseAdmin.from("felhasznalo_profil").select(`
       id,
       nev,
       hr_szerepkor,
@@ -103,6 +103,8 @@ export default async function HrAdminPage() {
           probaido_vege,
           hr_beosztas (
             id,
+            ervenyes_tol,
+            ervenyes_ig,
             hr_munkakor ( id, megnevezes )
           )
         )
@@ -110,16 +112,16 @@ export default async function HrAdminPage() {
     `).in("id", safeMemberIds).order("created_at", { ascending: true }),
 
     // 2. Munkakörök
-    supabase.from("hr_munkakor").select("id, megnevezes").eq("company_id", companyScope).order("megnevezes"),
+    supabaseAdmin.from("hr_munkakor").select("id, megnevezes").eq("company_id", companyScope).order("megnevezes"),
 
     // 3. Szervezeti egységek
-    supabase.from("hr_szervezeti_egyseg").select("id, nev").eq("company_id", companyScope).order("nev"),
+    supabaseAdmin.from("hr_szervezeti_egyseg").select("id, nev").eq("company_id", companyScope).order("nev"),
 
     // 4. Toborzási statisztikák
     supabaseAdmin.from("hr_toborzas").select("*").eq("company_id", companyScope),
 
     // 5. Álláshirdetések
-    supabase.from("hr_allashirdetes")
+    supabaseAdmin.from("hr_allashirdetes")
       .select("*")
       .eq("company_id", companyScope)
       .eq("aktiv", true)
@@ -131,7 +133,7 @@ export default async function HrAdminPage() {
       .eq("company_id", companyScope),
 
     // 7. Függőben lévő szabadságkérelmek
-    supabase.from("hr_tavollet")
+    supabaseAdmin.from("hr_tavollet")
       .select(`
         id, dolgozo_id, kezdet_datuma, veg_datuma, tipus, statusz,
         hr_dolgozo_adatlap ( id, felhasznalo_profil ( id, nev, avatar_url ) )
@@ -141,7 +143,7 @@ export default async function HrAdminPage() {
       .order("created_at", { ascending: false }),
 
     // 8. Függőben lévő jelenlét korrekciók
-    supabase.from("hr_jelenlet_korrekcio")
+    supabaseAdmin.from("hr_jelenlet_korrekcio")
       .select(`
         id, dolgozo_id, datum, uj_becsekkolas, uj_kicsekkolas, indoklas, statusz,
         dolgozo:felhasznalo_profil!dolgozo_id ( id, nev, avatar_url )
@@ -259,7 +261,8 @@ export default async function HrAdminPage() {
     const adatlap = Array.isArray(emp.hr_dolgozo_adatlap) ? emp.hr_dolgozo_adatlap[0] : emp.hr_dolgozo_adatlap
     const orvosi = adatlap?.orvosi_alkalmassag_ervenyesseg
     const jogviszony = Array.isArray(adatlap?.hr_jogviszony) ? adatlap.hr_jogviszony[0] : adatlap?.hr_jogviszony
-    const beosztas = Array.isArray(jogviszony?.hr_beosztas) ? jogviszony.hr_beosztas[0] : jogviszony?.hr_beosztas
+    const beosztasList = Array.isArray(jogviszony?.hr_beosztas) ? jogviszony.hr_beosztas : (jogviszony?.hr_beosztas ? [jogviszony.hr_beosztas] : [])
+    const beosztas = beosztasList.find((b: any) => !b.ervenyes_ig)
     const munkakor = Array.isArray(beosztas?.hr_munkakor) ? beosztas.hr_munkakor[0]?.megnevezes : beosztas?.hr_munkakor?.megnevezes
     const empAvatar = emp.avatar_url || getAvatarFor(emp.id, emp.nev)
 

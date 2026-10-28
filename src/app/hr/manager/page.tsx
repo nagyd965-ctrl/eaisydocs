@@ -188,7 +188,7 @@ export default async function ManagerPage() {
     .select(`
       dolgozo_id,
       hr_dolgozo_adatlap!inner(id, felhasznalo_profil!inner(nev, email, avatar_url, kozvetlen_vezeto_id)),
-      hr_beosztas(hr_munkakor(megnevezes))
+      hr_beosztas(ervenyes_ig, hr_munkakor(megnevezes))
     `)
     .eq("hr_dolgozo_adatlap.felhasznalo_profil.kozvetlen_vezeto_id", user.id)
 

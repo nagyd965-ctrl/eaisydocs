@@ -4,6 +4,16 @@ import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 
+function hasCafeteriaAdminAccess(profile: any): boolean {
+  if (!profile) return false
+  const hrModules: string[] = Array.isArray(profile.hr_modulok) ? profile.hr_modulok : []
+  return (
+    ["admin", "hr_vezeto", "hr_munkatars"].includes(profile.hr_szerepkor || "") ||
+    ["admin", "rendszergazda"].includes(profile.docs_szerepkor || "") ||
+    hrModules.some((m) => ["admin", "payroll"].includes(m))
+  )
+}
+
 // 1. Get the catalog
 export async function getCafeteriaCatalog() {
   const supabase = await createClient()
@@ -36,12 +46,11 @@ export async function submitCafeteriaDeclaration(
   // Szerepkör és azonosító ellenőrzése (saját maga vagy HR/admin)
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = ["admin", "hr_vezeto", "hr_munkatars"].includes(profile?.hr_szerepkor || "") ||
-                      ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "")
+  const isHrOrAdmin = hasCafeteriaAdminAccess(profile)
 
   if (user.id !== employeeId && !isHrOrAdmin) {
     return { error: "Nincs jogosultságod más dolgozó nevében nyilatkozatot leadni!" }
@@ -141,12 +150,11 @@ export async function setCafeteriaBudget(employeeId: string, year: number, amoun
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = ["admin", "hr_vezeto", "hr_munkatars"].includes(profile?.hr_szerepkor || "") ||
-                      ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "")
+  const isHrOrAdmin = hasCafeteriaAdminAccess(profile)
 
   if (!isHrOrAdmin) {
     return { error: "Csak HR munkatárs vagy adminisztrátor állíthat be cafeteria keretet!" }
@@ -180,12 +188,11 @@ export async function reopenCafeteriaDeclaration(employeeId: string, year: numbe
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = ["admin", "hr_vezeto", "hr_munkatars"].includes(profile?.hr_szerepkor || "") ||
-                      ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "")
+  const isHrOrAdmin = hasCafeteriaAdminAccess(profile)
 
   if (!isHrOrAdmin) {
     return { error: "Csak HR munkatárs vagy adminisztrátor nyithatja újra a nyilatkozatot!" }
@@ -240,13 +247,11 @@ export async function fileCafeteriaDeclarationAction(employeeId: string, year: n
 
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin =
-    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
-    userProfile?.docs_szerepkor === "admin"
+  const isHrOrAdmin = hasCafeteriaAdminAccess(userProfile)
 
   if (!isHrOrAdmin) {
     return { success: false, error: "Nincs jogosultsága cafeteria nyilatkozatot iktatni!" }

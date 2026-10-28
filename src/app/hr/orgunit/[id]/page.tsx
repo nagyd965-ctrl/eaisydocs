@@ -48,7 +48,7 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
   if (!profile || !profile.elerheto_modulok.includes("hr")) redirect("/dashboard")
 
   // 1. Szervezeti egység adatai (szülő nevével)
-  const { data: orgUnit, error: orgUnitError } = await supabase
+  const { data: orgUnit, error: orgUnitError } = await admin
     .from("hr_szervezeti_egyseg")
     .select("*, parent:szulo_id(id, nev)")
     .eq("id", id)
@@ -102,7 +102,7 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
   }
 
   // 4. Ehhez az egységhez rendelt munkakörök
-  const { data: jobsRaw } = await supabase
+  const { data: jobsRaw } = await admin
     .from("hr_munkakor")
     .select(`
       id, megnevezes, feor_kod, besorolasi_szint,

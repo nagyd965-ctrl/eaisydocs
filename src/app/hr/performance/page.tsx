@@ -1,6 +1,4 @@
-import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
-import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { AddKpiDialog } from "@/components/hr/add-kpi-dialog"
@@ -8,6 +6,10 @@ import { ManageCyclesDialog } from "@/components/hr/manage-cycles-dialog"
 import { PerformanceList } from "@/components/hr/performance-list"
 import { KpiCard } from "@/components/kpi-card"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import {
+  getScopedPerformanceEmployeeIds,
+  hasFullCompanyPerformanceAccess,
+} from "@/utils/hr/performance-access"
 import { type KpiCatalogueItem } from "@/types/hr"
 
 export default async function PerformancePage() {
@@ -16,7 +18,7 @@ export default async function PerformancePage() {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">
         <div>
-          <h2 className="text-2xl font-bold text-destructive mb-2">Hozzáférés Megtagadva</h2>
+          <h2 className="text-2xl font-semibold text-destructive mb-2">Hozzáférés Megtagadva</h2>
           <p className="text-muted-foreground">Csak vezetők és HR munkatársak férhetnek hozzá a teljesítményértékelésekhez.</p>
         </div>
       </div>
@@ -25,6 +27,7 @@ export default async function PerformancePage() {
 
   const { activeCompanyId } = auth
   const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+  const isFullCompanyManager = hasFullCompanyPerformanceAccess(auth)
 
   // Admin kliens használata az adatok biztonságos, céges szűréséhez
   const supabaseAdmin = createAdminClient(
@@ -32,13 +35,18 @@ export default async function PerformancePage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Aktív cég tagjainak azonosítói
+  // Aktív cég tagjainak azonosítói (vezeto szerepkör esetén csak a saját közvetlen beosztottak)
   const { data: companyMembers } = await supabaseAdmin
     .from("company_members")
     .select("user_id")
     .eq("company_id", companyScope)
   const memberUserIds = (companyMembers || []).map((m: any) => m.user_id)
-  const safeMemberIds = memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"]
+  const scopedEmployeeIds = await getScopedPerformanceEmployeeIds(
+    supabaseAdmin,
+    auth,
+    memberUserIds
+  )
+  const safeMemberIds = scopedEmployeeIds.length > 0 ? scopedEmployeeIds : ["00000000-0000-0000-0000-000000000000"]
 
   const [kpisRes, employeesRes, cyclesRes, logsRes, catalogueRes] = await Promise.all([
     supabaseAdmin
@@ -115,7 +123,9 @@ export default async function PerformancePage() {
             Teljesítményértékelés
           </h1>
           <p className="text-muted-foreground mt-1">
-            Vállalati és egyéni KPI-ok, célok nyomon követése és kiértékelése.
+            {isFullCompanyManager
+              ? "Vállalati és egyéni KPI-ok, célok nyomon követése és kiértékelése."
+              : "Saját közvetlen csapatod KPI-jainak, céljainak nyomon követése és kiértékelése."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -124,7 +134,7 @@ export default async function PerformancePage() {
               Riportok
             </Button>
           </Link>
-          <ManageCyclesDialog cycles={cycles || []} />
+          {isFullCompanyManager && <ManageCyclesDialog cycles={cycles || []} />}
           <AddKpiDialog 
             employees={employees || []} 
             cycles={cycles || []} 
@@ -171,4 +181,3 @@ export default async function PerformancePage() {
     </div>
   )
 }
-

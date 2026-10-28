@@ -59,7 +59,13 @@ export default async function SelfServiceProfilePage() {
   const safetyTraining = safetyTrainingRes.data
   const safetyStatus = calculateSafetyTrainingStatus(safetyTraining?.ervenyesseg_vege)
 
-  const activeMunkakor = jogviszonyInfo?.hr_beosztas?.[0]?.hr_munkakor
+  const beosztasList = Array.isArray(jogviszonyInfo?.hr_beosztas)
+    ? jogviszonyInfo.hr_beosztas
+    : jogviszonyInfo?.hr_beosztas
+    ? [jogviszonyInfo.hr_beosztas]
+    : []
+  const activeBeosztas = beosztasList.find((b: any) => !b.ervenyes_ig)
+  const activeMunkakor = activeBeosztas?.hr_munkakor || null
   const munkakorMegnevezes = activeMunkakor?.megnevezes || null
   const belepesDatuma = jogviszonyInfo?.belepes_datuma || null
   const orvosiErvenyesseg = orvosi?.ervenyesseg_datuma || adatlap?.orvosi_alkalmassag_ervenyesseg || null

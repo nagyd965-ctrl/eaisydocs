@@ -1,18 +1,22 @@
 # [HR] eaisyHR Modul-Érettségi Audit és Kritikus Fejlesztési Feladatlista
 
-> **Dokumentum státusz:** Aktív modul-audit és fejlesztési terv (14 / 30 feladat + jogosultsági architektúra modernizáció elvégezve, 16 nyitott)
+> **Dokumentum státusz:** Aktív modul-audit és fejlesztési terv (15 / 30 feladat + jogosultsági architektúra modernizáció és aktív munkakör feloldás elvégezve, 15 nyitott)
 > **Létrehozva:** 2026. október 28.
 > **Hatókör:** `[HR]` és `[Közös]` (5 főcsoport, 20 almodul + 16 füles 360°-os dolgozói karton)
-> **Átlagos rendszer-érettség:** **87%** (európai enterprise HRIS benchmark: Personio, HiBob, BambooHR, Lattice, Nexon)
+> **Átlagos rendszer-érettség:** **88%** (európai enterprise HRIS benchmark: Personio, HiBob, BambooHR, Lattice, Nexon)
 > **Módszertan:** Pontról pontra történő javítás és modulfejlesztés. Amint egy feladat elkészül és típusellenőrzéssel (`npx tsc --noEmit`) igazolt, a nyitott listából átkerül az **Elkészült és Lezárt Feladatok** blokkba `[x]` jelöléssel és áthúzással (`~~...~~`).
 
 ---
 
-## ELKÉSZÜLT ÉS LEZÁRT FELADATOK (14 / 30 + Jogosultsági Modernizáció)
+## ELKÉSZÜLT ÉS LEZÁRT FELADATOK (15 / 30 + Jogosultsági Modernizáció)
 
 - [x] ~~**1. Szerveroldali RBAC és Multi-Tenant (`company_id`) védelem pótlása a HR Server Action-ökben**~~
   - **Érintett fájlok:** [`src/app/hr/reports/actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/reports/actions.ts), [`src/app/hr/payroll/actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/payroll/actions.ts), [`src/app/hr/offboarding/actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/offboarding/actions.ts), [`src/app/hr/admin/actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/admin/actions.ts), [`src/app/hr/orgunit/[id]/actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/orgunit/%5Bid%5D/actions.ts), [`src/app/hr/actions/idp-actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/actions/idp-actions.ts), [`src/app/hr/onboarding/actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/onboarding/actions.ts)
   - **Megvalósítás:** Minden `SUPABASE_SERVICE_ROLE_KEY`-t használó admin/HR végpontra bekerült a központi `requireHrAuthServer` szerepkör- és cégkontextus-ellenőrzés (`admin/actions.ts`, `orgunit/[id]/actions.ts`, `idp-actions.ts`, `payroll/actions.ts`, `reports/actions.ts`, `offboarding/actions.ts`), az `onboarding/actions.ts`-ben pedig javításra került a `getActiveCompanyMemberRolesServer()` paraméterezése, továbbá a `reopenOnboarding` és `deleteOnboarding` is szerepkör-védelmet kapott.
+
+- [x] ~~**2. Teljesítményértékelés (`/hr/performance` & `/hr/performance/dashboard`) `vezeto` szerepkör jogosultsági ellentmondásának feloldása és csapat-szintű szűrés**~~
+  - **Érintett fájlok:** [`src/utils/hr/performance-access.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/utils/hr/performance-access.ts), [`src/app/hr/performance/page.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/performance/page.tsx), [`src/app/hr/performance/dashboard/page.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/performance/dashboard/page.tsx), [`src/app/hr/performance/actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/performance/actions.ts)
+  - **Megvalósítás:** Létrejött a `performance-access.ts` jogosultság- és csapatfeloldó segédmodul (`hasFullCompanyPerformanceAccess`, `getScopedPerformanceEmployeeIds`, `canManageEmployeePerformance`). Sima `vezeto` szerepkör esetén a `/hr/performance` és `/hr/performance/dashboard` nézetek kizárólag a vezető saját közvetlen beosztottjait, a vezetett részlegek tagjait és az aktív helyettesítéssel átvett csapatot jelenítik meg (a HR és Admin továbbra is a teljes vállalatot látja), miközben az `addKpi`, `updateKpiProgress`, `deleteKpi`, `addKpiManagerEvaluation`, `confirmMeeting`, `finalCloseKpi` és `editKpi` Server Action-ök `requireHrAuthServer` + csapattagság-ellenőrzéssel engedélyezik a vezetői KPI-műveleteket.
 
 - [x] ~~**3. Ebédszünet adatbázis-perzisztencia és „Munkaidő folytatása” óraszámítás javítása (`/hr`)**~~
   - **Érintett fájlok:** [`supabase/migrations/20261028000001_add_break_tracking_to_hr_jelenlet.sql`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/supabase/migrations/20261028000001_add_break_tracking_to_hr_jelenlet.sql), [`src/app/hr/self-service/actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/self-service/actions.ts), [`src/components/hr/time-tracking-card.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/hr/time-tracking-card.tsx), [`src/app/hr/page.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/page.tsx), [`src/app/hr/attendance-actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/attendance-actions.ts), [`src/components/hr/employee-timesheet.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/hr/employee-timesheet.tsx), [`src/utils/hr/timesheet-calculator.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/utils/hr/timesheet-calculator.ts), [`src/utils/hr/timesheet-pdf-generator.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/utils/hr/timesheet-pdf-generator.ts), [`src/app/hr/payroll/actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/payroll/actions.ts), [`src/app/hr/reports/actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/reports/actions.ts)
@@ -76,18 +80,18 @@
 
 | Modulcsoport | Almodul / Útvonal | Készültség | Kanonikus `KpiCard` | Kanonikus `TableToolbar` | Legfontosabb Kritikus Hiányosság / Kódhiba |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **1. Dolgozói Portál** | `/hr` (Áttekintés) | **84%** | Igen (4 db) | N/A | Ebédszünet DB-perzisztencia kész; hiányzik a „Ki van ma távol” és „Saját Teendőim” widget |
+| **1. Dolgozói Portál** | `/hr` (Áttekintés) | **84%** | Igen (4 db) | N/A | Ebédszünet DB-perzisztencia kész; hiányzik a „Saját Teendőim” widget |
 | **1. Dolgozói Portál** | `/hr/self-service/profile` (Profilom) | **72%** | Nem | N/A | Munkaköri leírás nyugtázás nem verzió-kötött; TAJ/Adó/Bank közvetlen felülírása HR jóváhagyás nélkül; hiányzó lakcím/ICE/családtag adatok |
-| **1. Dolgozói Portál** | `/hr/self-service/documents` (Dokumentumaim) | **82%** | Igen (4 db) | Igen | Csak olvasható: nincs dolgozói dokumentum-feltöltés és nincs in-app e-aláírás / szabályzat-nyugtázás |
+| **1. Dolgozói Portál** | `/hr/self-service/documents` (Dokumentumaim) | **92%** | Igen (4 db) | Igen | Dolgozói aláírt példány feltöltés (`UploadSignedDocumentDialog`), verziókövetés és egyszeri véglegesítés kész |
 | **1. Dolgozói Portál** | `/hr/self-service/time` (Jelenlét) | **92%** | Igen (4 db) | Igen | Éves keret- és ünnepnap-ellenőrzés, kérelem-visszavonás, `elutasitas_oka` és `TableToolbar` kész; hiányzik az orvosi igazolás PDF csatolás |
 | **1. Dolgozói Portál** | `/hr/self-service/goals` (Célkitűzések) | **88%** | Igen (4 db) | Nem | 5 lépéses önértékelés és kártyatisztítás kész; hiányzik a ciklusválasztó és dolgozói céljavaslat |
 | **1. Dolgozói Portál** | `/hr/self-service/idp` (Fejlesztési Tervem) | **85%** | Igen (4 db) | Nem | Feltöltött tanúsítványról nem megy értesítés a vezetőnek és nem jelenik meg a vezetői jóváhagyó panelen |
 | **1. Dolgozói Portál** | `/hr/self-service/payroll` (Bérpapírjaim) | **88%** | Nem | Nem | Valós HUF bruttó bérbontás kész; hiányzó éves M30 / SZJA igazolások és adónyilatkozatok |
 | **1. Dolgozói Portál** | `/hr/self-service/career` (Belső Állások) | **95%** | Igen (2×4 db) | Igen | Integrált Belső/Publikus Karrierportál fülválasztó, előtöltött belső jelentkezés és „Saját pályázataim” követés kész |
 | **2. Vezetői nézet** | `/hr/manager` (Csapat áttekintés) | **83%** | Nem | Részben | Értesítési linkek (`/hr/self-service/time`) és `elutasitas_oka` kész; helyettesítő nem látja a túlóra kérelmeket; IDP és havi zárás hiányzik a jóváhagyó panelből |
-| **2. Vezetői nézet** | `/hr/performance` + `/dashboard` (Teljesítmény) | **86%** | Igen (4 db) | Igen | `vezeto` szerepkör látja az egész cég KPI-jait, de az `actions.ts` blokkolja a műveleteit |
-| **3. HR Munkaasztal** | `/hr/admin` + `/hr/employee/[id]` (Állomány & 360° Karton) | **84%** | Igen | Főoldalon igen, 10 tabon nem | `EMP-xxx` törzsszám szűréskor megváltozik; nincs TAJ/Adó/IBAN CDV validáció; hiányzó eltartottak/gyermekek és ICE nyilvántartás |
-| **3. HR Munkaasztal** | `/hr/organization` (Szervezeti Felépítés) | **80%** | Igen | Jogosultság tabon igen | 4. fül: Jogosultságkezelő Mátrix kész; kettős igazságforrás a részlegre; organigram kártyák nem kattinthatók |
+| **2. Vezetői nézet** | `/hr/performance` + `/dashboard` (Teljesítmény) | **94%** | Igen (4 db) | Igen | Vezetői csapatszűrés (`resolvePerformanceAccessContext`) és teljes körű csapat-KPI kezelés kész |
+| **3. HR Munkaasztal** | `/hr/admin` + `/hr/employee/[id]` (Állomány & 360° Karton) | **90%** | Igen | Főoldalon igen, 10 tabon nem | Stabil `EMP-xxx` törzsszám és modul-alapú RLS/RPC láthatóság (`has_hr_module_access`) kész |
+| **3. HR Munkaasztal** | `/hr/organization` (Szervezeti Felépítés) | **90%** | Igen | Igen (mind a 3 táblás tabon) | 4. fül: Jogosultságkezelő Mátrix, kanonikus `TableToolbar` és kattintható Organigram kártyák kész |
 | **3. HR Munkaasztal** | `/hr/time` (Műszakbeosztás & Naptár) | **82%** | Nem | Nem | Elutasított szabadságok szűrése kész; nincs munkaidőkeret (Mt. 93. §) és napi 11 órás pihenőidő (Mt. 104. §) ellenőrzés |
 | **3. HR Munkaasztal** | `/hr/payroll` (Bérszámfejtés) | **84%** | Igen (5 db) | Igen | FTE arányosítás, SZÉP-kártya adózás és bruttó bontás kész; hiányzik a GIRO XML utalási fájl és műszakpótlék |
 | **3. HR Munkaasztal** | `/hr/compliance` (Munkaügyi Megfelelőség) | **88%** | Igen (4×4 db) | Igen (mind a 4 tabon) | Kilépett dolgozók szűrése kész; évközi belépők időarányos szabadsága nincs arányosítva |
@@ -106,9 +110,8 @@
 #### A) Áttekintés (`/hr` — [`src/app/hr/page.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/page.tsx)) — **84%**
 - **Meglévő funkciók:** 4 kanonikus `KpiCard` (`Szabadság Marad`, `Felhasznált Nap`, `Függőben Lévő`, `Munkaidő Egyenleg`), adatbázis-perzisztens élő munkaidő- és ebédszünet-számláló ([`time-tracking-card.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/hr/time-tracking-card.tsx)), Cafeteria nyilatkozat-tervező ([`cafeteria-declaration.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/hr/cafeteria-declaration.tsx)), egyéni KPI előrehaladás widget ([`employee-kpi-widget.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/hr/employee-kpi-widget.tsx)).
 - **Hátralévő kódhibák és hiányosságok:**
-  - Duplikált `"Üdvözlünk, {nev}!"` fejléc ([`src/app/hr/page.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/page.tsx#L188-L225)) és felesleges teljes táblás `hr_esemeny_naplo` lekérdezés (`169-173.` sor).
+  - Felesleges teljes táblás `hr_esemeny_naplo` lekérdezés (`169-173.` sor).
   - **„Saját Teendőim & Figyelmeztetések” sáv:** Nyugtázásra váró bérjegyzék, aláírásra váró munkaköri leírás / dokumentum, önértékelésre váró KPI, lejáró orvosi alkalmassági.
-  - **„Ki van ma távol a csapatomból?” (Who's Out Today) widget.**
   - **Cafeteria időarányosítás (pro-rata)** évközi belépőknél és SZÉP-kártya adósáv-határ kezelés.
 
 #### B) Profilom (`/hr/self-service/profile` — [`src/app/hr/self-service/profile/page.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/self-service/profile/page.tsx)) — **72%**
@@ -183,29 +186,26 @@
 
 ---
 
-## 2. NYITOTT JAVÍTÁSI ÉS FEJLESZTÉSI FELADATLISTA (16 NYITOTT FELADAT)
+## 2. NYITOTT JAVÍTÁSI ÉS FEJLESZTÉSI FELADATLISTA (15 NYITOTT FELADAT)
 
-### P0 — Kritikus Kód-, Jogosultsági és Számítási Hibák (Azonnali Javítások)
-
-- [ ] **2. Teljesítményértékelés (`/hr/performance`) `vezeto` szerepkör jogosultsági ellentmondásának feloldása**
-  - **Érintett fájlok:** [`src/app/hr/performance/page.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/performance/page.tsx), [`src/app/hr/performance/actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/performance/actions.ts)
-  - **Feladat:** A `"vezeto"` szerepkör felvétele az `addKpi`, `updateKpiProgress`, `deleteKpi`, `confirmMeeting`, `finalCloseKpi`, `editKpi` és `addKpiManagerEvaluation` engedélyezett szerepkörei közé, miközben sima `vezeto` esetén a lekérdezés a saját közvetlen beosztottjaira szűkít (a HR és Admin továbbra is a teljes céget látja).
+### P0 — Kritikus Kód-, Jogosultsági és Számítási Hibák
+*(Mind a 8 P0 kritikus feladat elvégezve és lezárva!)*
 
 ---
 
 ### P1 — Félbehagyott Munkafolyamatok Bekötése és UI/UX Konzisztencia
 
-- [ ] **10. Vezetői Központ (`/hr/manager`) túlóra-helyettesítés és Egységes Jóváhagyási Panel bővítése**
+- [ ] **10. Vezetői Központ (`/hr/manager`) túlóra-helyettesítés, „Ki van ma távol a csapatomból?” áttekintő és Egységes Jóváhagyási Panel bővítése**
   - **Érintett fájlok:** [`src/app/hr/manager/page.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/manager/page.tsx), [`src/components/hr/unified-approvals-panel.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/hr/unified-approvals-panel.tsx)
-  - **Feladat:** *(Az elutasítási link `/hr/self-service/time`-ra javítása, a jóváhagyási értesítés és az `elutasitas_oka` mentése már elkészült a `manager/actions.ts`-ben.)* Hátralévő: helyettesítő vezető számára a túlóra-kérelmek megjelenítése; a jóváhagyásra váró **IDP tanúsítványok** és **havi jelenlét-zárások** megjelenítése az Egységes Jóváhagyási Panelen; 4 kanonikus `KpiCard` a `/hr/manager` tetejére.
+  - **Feladat:** *(Az elutasítási link `/hr/self-service/time`-ra javítása, a jóváhagyási értesítés és az `elutasitas_oka` mentése már elkészült a `manager/actions.ts`-ben.)* Hátralévő: helyettesítő vezető számára a túlóra-kérelmek megjelenítése; a jóváhagyásra váró **IDP tanúsítványok** és **havi jelenlét-zárások** megjelenítése az Egységes Jóváhagyási Panelen; 4 kanonikus `KpiCard` a `/hr/manager` tetejére, valamint a „Ki van ma távol a csapatomból?” csapatszintű jelenlét/távollét áttekintés.
 
 - [ ] **13. Profilom (`/hr/self-service/profile`) verziókötött munkaköri nyugtázás, TAJ/Adó/IBAN CDV-validáció és törzsadat-bővítés**
   - **Érintett fájlok:** [`src/app/hr/self-service/profile/page.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/self-service/profile/page.tsx), [`src/components/hr/personal-data-card.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/components/hr/personal-data-card.tsx), [`src/app/hr/self-service/actions.ts`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/self-service/actions.ts)
   - **Feladat:** A munkaköri leírás nyugtázásának hozzákötése az aktív `verzio_id`-hoz; magyar TAJ, adóazonosító jel és bankszámlaszám algoritmikus ellenőrzése; a duplikált „Alapadatok” kártya kiváltása valós személyes törzsadatokkal (lakcím, születési adatok, birtokolt eszközök).
 
-- [ ] **15. Dolgozói Portál Áttekintés (`/hr`) „Saját Teendőim” és „Ki van ma távol a csapatomból?” widgetek + duplikált fejléc törlése**
+- [ ] **15. Dolgozói Portál Áttekintés (`/hr`) „Saját Teendőim” widget (a fejléc és a zöld hero banner érintetlenül hagyásával)**
   - **Érintett fájl:** [`src/app/hr/page.tsx`](file:///c:/Users/dani%20pc%20xd/Desktop/Projectek/easydocs/src/app/hr/page.tsx)
-  - **Feladat:** A duplikált üdvözlő fejléc eltávolítása, `company_id` szűrés pótlása, valamint a függő teendők (nyugtázatlan bérjegyzék, munkaköri leírás, KPI önértékelés) és a mai csapattávollétek megjelenítése.
+  - **Feladat:** Az eredeti fejléc és zöld hero banner megtartása mellett `company_id` szűrés pótlása, valamint kizárólag a dolgozó saját függő teendőinek (nyugtázatlan bérjegyzék, munkaköri leírás, KPI önértékelés) megjelenítése.
 
 ---
 

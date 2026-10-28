@@ -63,7 +63,7 @@ export function EmploymentTab({
   const sortedBeosztasok = [...beosztasok].sort((a, b) => new Date(b.ervenyes_tol).getTime() - new Date(a.ervenyes_tol).getTime())
   
   // A jelenlegi beosztás az, ami érvényes (nincs lezárva vagy a lezárás a jövőben van)
-  const currentBeosztas = sortedBeosztasok.find(b => !b.ervenyes_ig || new Date(b.ervenyes_ig) >= new Date()) || sortedBeosztasok[0]
+  const currentBeosztas = sortedBeosztasok.find(b => !b.ervenyes_ig)
 
   // Aktív munkakör feloldása
   const activeMunkakor = propActiveMunkakor || currentBeosztas?.munkakor || null

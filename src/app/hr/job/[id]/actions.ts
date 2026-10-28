@@ -58,6 +58,9 @@ export async function assignEmployeeToJob(jobId: string, employeeId: string) {
   revalidatePath(`/hr/job/${jobId}`)
   revalidatePath("/hr/organization")
   revalidatePath("/hr/admin")
+  revalidatePath(`/hr/employee/${employeeId}`)
+  revalidatePath("/hr/self-service/profile")
+  revalidatePath("/hr")
   return { success: true }
 }
 

@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
+import { createClient as createSupabaseAdmin } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -38,19 +39,29 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const activeCompanyId = await getActiveCompanyIdServer()
   const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
-  const { data: currentUserProfile } = await supabase
+  const supabaseAdmin = createSupabaseAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { data: currentUserProfile } = await supabaseAdmin
     .from("felhasznalo_profil")
-    .select('hr_szerepkor')
+    .select("hr_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
   const currentHrRole = scopedRoles.hrRole || currentUserProfile?.hr_szerepkor || "munkavallalo"
-  const currentHrModules = scopedRoles.hrModules || []
-  const isHrOrAdmin = currentHrRole === "admin" || currentHrModules.includes("admin")
-  const isPayroll = currentHrRole === "admin" || currentHrModules.includes("payroll")
+  const currentHrModules = scopedRoles.hrModules.length > 0 ? scopedRoles.hrModules : ((currentUserProfile as any)?.hr_modulok || [])
+  const isHrOrAdmin =
+    currentHrRole === "admin" ||
+    currentHrModules.includes("admin") ||
+    ["hr_munkatars", "hr_vezeto", "admin"].includes(currentUserProfile?.hr_szerepkor || "")
+  const isPayroll = currentHrRole === "admin" || currentHrModules.includes("payroll") || currentHrRole === "berugyi"
+  const isCompliance = currentHrRole === "admin" || currentHrModules.includes("compliance") || currentHrRole === "munkavedelmi"
+  const isAudit = currentHrRole === "admin" || currentHrModules.includes("audit") || currentHrRole === "auditor"
 
   // 2. Lekérjük a profil adatokat
-  const { data: profile, error } = await supabase
+  const { data: profile, error } = await supabaseAdmin
     .from("felhasznalo_profil")
     .select(`
       id,
@@ -83,21 +94,21 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const isSelf = user.id === resolvedParams.id
   const isSubordinate = profile?.kozvetlen_vezeto_id === user.id
   const isManager = currentHrRole === 'vezeto' && isSubordinate
-  const isAllowed = isHrOrAdmin || isPayroll || isSelf || isManager || ["auditor", "munkavedelmi"].includes(currentHrRole)
+  const isAllowed = isHrOrAdmin || isPayroll || isCompliance || isAudit || isSelf || isManager
 
   if (profile && !isAllowed) {
     redirect("/hr/self-service/profile")
   }
 
   // 3. Lekérjük a választható munkaköröket
-  const { data: munkakorok } = await supabase
+  const { data: munkakorok } = await supabaseAdmin
     .from("hr_munkakor")
     .select("id, megnevezes")
     .order("megnevezes")
 
   let vezetoNev = ""
   if (profile?.kozvetlen_vezeto_id) {
-    const { data: vData } = await supabase
+    const { data: vData } = await supabaseAdmin
       .from("felhasznalo_profil")
       .select("nev")
       .eq("id", profile.kozvetlen_vezeto_id)
@@ -105,7 +116,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     if (vData?.nev) {
       vezetoNev = vData.nev
     } else {
-      const { data: aData } = await supabase
+      const { data: aData } = await supabaseAdmin
         .from("hr_dolgozo_adatlap")
         .select("felhasznalo_profil(nev)")
         .eq("id", profile.kozvetlen_vezeto_id)
@@ -116,14 +127,14 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     }
   }
 
-  const { data: hrDocumentsList } = await supabase
+  const { data: hrDocumentsList } = await supabaseAdmin
     .from("hr_dokumentum")
     .select("*")
     .eq("dolgozo_id", resolvedParams.id)
     .order("created_at", { ascending: false })
 
   // Munkavédelmi és tűzvédelmi oktatások lekérése
-  const { data: safetyTrainingsData } = await supabase
+  const { data: safetyTrainingsData } = await supabaseAdmin
     .from("hr_munkavedelmi_oktatas")
     .select(`
       id,
@@ -154,12 +165,12 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       let alairtSignedUrl: string | null = null
 
       if (doc.url) {
-        const { data } = await supabase.storage.from("irat_files").createSignedUrl(doc.url, 3600)
+        const { data } = await supabaseAdmin.storage.from("irat_files").createSignedUrl(doc.url, 3600)
         signedUrl = data?.signedUrl || doc.url
       }
 
       if (doc.alairt_fajl_url) {
-        const { data: aData } = await supabase.storage.from("irat_files").createSignedUrl(doc.alairt_fajl_url, 3600)
+        const { data: aData } = await supabaseAdmin.storage.from("irat_files").createSignedUrl(doc.alairt_fajl_url, 3600)
         alairtSignedUrl = aData?.signedUrl || doc.alairt_fajl_url
       }
 
@@ -195,12 +206,12 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const currentJogviszony = jogviszonyok.find((j: any) => !j.kilepes_datuma) || jogviszonyok[0]
   const beosztasok = currentJogviszony?.hr_beosztas || []
   const sortedBeosztasok = [...beosztasok].sort((a: any, b: any) => new Date(b.ervenyes_tol).getTime() - new Date(a.ervenyes_tol).getTime())
-  const currentBeosztas = sortedBeosztasok.find((b: any) => !b.ervenyes_ig || new Date(b.ervenyes_ig) >= new Date()) || sortedBeosztasok[0]
+  const currentBeosztas = sortedBeosztasok.find((b: any) => !b.ervenyes_ig)
   let activeMunkakor = currentBeosztas?.munkakor || null
-  const activeMunkakorId = currentBeosztas?.munkakor_id || adatlap?.munkakor_id || null
+  const activeMunkakorId = currentBeosztas ? (currentBeosztas.munkakor_id || null) : null
 
   if (activeMunkakorId && !activeMunkakor) {
-    const { data: jData } = await supabase
+    const { data: jData } = await supabaseAdmin
       .from("hr_munkakor")
       .select("*")
       .eq("id", activeMunkakorId)
@@ -210,7 +221,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
   let latestJobVersion = null
   if (activeMunkakorId) {
-    const { data: vData } = await supabase
+    const { data: vData } = await supabaseAdmin
       .from("hr_munkakor_leiras_verzio")
       .select("*")
       .eq("munkakor_id", activeMunkakorId)
@@ -218,7 +229,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       .limit(1)
       .maybeSingle()
     if (vData?.fajl_path) {
-      const { data: sData } = await supabase.storage.from("irat_files").createSignedUrl(vData.fajl_path, 3600)
+      const { data: sData } = await supabaseAdmin.storage.from("irat_files").createSignedUrl(vData.fajl_path, 3600)
       latestJobVersion = {
         ...vData,
         signedUrl: sData?.signedUrl || `/api/hr/download-document?path=${encodeURIComponent(vData.fajl_path)}&bucket=irat_files`
@@ -235,30 +246,30 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   // Cafeteria adatok
   const currentYear = new Date().getFullYear()
   
-  const { data: cafeteriaKeret } = await supabase
+  const { data: cafeteriaKeret } = await supabaseAdmin
     .from("hr_cafeteria_keret")
     .select("*")
     .eq("dolgozo_id", resolvedParams.id)
     .eq("ev", currentYear)
     .single()
 
-  const { data: cafeteriaKatalogus } = await supabase
+  const { data: cafeteriaKatalogus } = await supabaseAdmin
     .from("hr_cafeteria_katalogus")
     .select("*")
     .eq("aktiv", true)
     .order("nev")
 
-  const { data: cafeteriaValasztasok } = await supabase
+  const { data: cafeteriaValasztasok } = await supabaseAdmin
     .from("hr_cafeteria_valasztas")
     .select("*")
     .eq("dolgozo_id", resolvedParams.id)
     .eq("ev", currentYear)
 
   // Bérpapírok lekérése (biztonság: HR/Admin, Bérügyi, Auditor vagy a dolgozó saját maga férhet hozzá)
-  const canViewSalary = isHrOrAdmin || isPayroll || isSelf || currentHrRole === "auditor"
+  const canViewSalary = isHrOrAdmin || isPayroll || isSelf || isAudit
   let employeePayslips: any[] = []
   if (canViewSalary) {
-    const { data: pData } = await supabase
+    const { data: pData } = await supabaseAdmin
       .from("hr_berpapir")
       .select("*")
       .eq("dolgozo_id", resolvedParams.id)
@@ -279,7 +290,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const displayRole = roleMap[profile.hr_szerepkor] || profile.hr_szerepkor
 
   // Offboarding státusz lekérése a dolgozóhoz
-  const { data: employeeOffboarding } = await supabase
+  const { data: employeeOffboarding } = await supabaseAdmin
     .from("hr_offboarding")
     .select("id, statusz, kilepes_datuma, utolso_munkaban_toltott_nap, megszunes_modja")
     .eq("dolgozo_id", resolvedParams.id)
@@ -384,7 +395,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               Bérpapírok
             </TabsTrigger>
           )}
-          {(isHrOrAdmin || isPayroll || ["auditor", "munkavedelmi"].includes(currentHrRole)) && (
+          {(isHrOrAdmin || isPayroll || isCompliance || isAudit) && (
             <TabsTrigger value="bizalmas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">
               Bizalmas HR adatok
             </TabsTrigger>
@@ -464,7 +475,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                 employeeId={profile.id} 
                 isHrOrAdmin={isHrOrAdmin} 
                 loggedInUserId={user.id}
-                currentUserRole={currentUserProfile?.hr_szerepkor || "munkavallalo"}
+                currentUserRole={(isHrOrAdmin || isPayroll) ? "admin" : currentHrRole}
                 adatlap={adatlap} 
                 jogviszonyok={adatlap?.hr_jogviszony || []}
                 munkakorok={munkakorok || []}
@@ -494,9 +505,9 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           )}
 
           {/* 4. Bizalmas HR Adatok (Összevont) */}
-          {(isHrOrAdmin || isPayroll || ["auditor", "munkavedelmi"].includes(currentHrRole)) && (
+          {(isHrOrAdmin || isPayroll || isCompliance || isAudit) && (
             <TabsContent value="bizalmas" className="mt-0 outline-none space-y-12">
-              {(isHrOrAdmin || ["auditor", "munkavedelmi"].includes(currentHrRole)) && (
+              {(isHrOrAdmin || isCompliance || isAudit) && (
                 <>
                   <div className="space-y-4">
                     <h2 className="text-xl font-semibold tracking-tight border-b pb-2">
@@ -505,8 +516,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                     <MedicalTab 
                       employeeId={profile.id} 
                       employeeName={profile.nev}
-                      isHrOrAdmin={isHrOrAdmin || currentHrRole === "munkavedelmi"} 
-                      currentUserRole={currentHrRole}
+                      isHrOrAdmin={isHrOrAdmin || isCompliance} 
+                      currentUserRole={isHrOrAdmin ? "admin" : (isCompliance ? "munkavedelmi" : currentHrRole)}
                       initialData={adatlap?.hr_orvosi_vizsgalat || []} 
                     />
                   </div>
@@ -518,14 +529,14 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                       employeeName={profile.nev}
                       munkakor={activeMunkakor?.megnevezes || null}
                       reszleg={(profile as any)?.hr_szervezeti_egyseg?.nev || null}
-                      isHrOrAdmin={isHrOrAdmin || currentHrRole === "munkavedelmi"}
+                      isHrOrAdmin={isHrOrAdmin || isCompliance}
                       trainings={(safetyTrainingsData as any) || []}
                     />
                   </div>
                 </>
               )}
 
-              {(isHrOrAdmin || ["auditor"].includes(currentHrRole)) && (
+              {(isHrOrAdmin || isAudit) && (
                 <div className="space-y-4">
                   <h2 className="text-xl font-semibold tracking-tight border-b pb-2">
                     Fegyelmi és Károkozási Ügyek (Mt. 56. §, 179. §)

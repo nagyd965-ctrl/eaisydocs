@@ -83,12 +83,33 @@ export function EmployeeTable({
     return map
   }, [employees])
 
+  const getActiveMunkakorNev = (emp: any): string => {
+    const adatlap = Array.isArray(emp.hr_dolgozo_adatlap)
+      ? emp.hr_dolgozo_adatlap[0]
+      : emp.hr_dolgozo_adatlap
+    const jogviszonyok = Array.isArray(adatlap?.hr_jogviszony)
+      ? adatlap.hr_jogviszony
+      : adatlap?.hr_jogviszony
+      ? [adatlap.hr_jogviszony]
+      : []
+    const activeJogviszony = jogviszonyok.find((j: any) => !j.kilepes_datuma) || jogviszonyok[0]
+    const beosztasok = Array.isArray(activeJogviszony?.hr_beosztas)
+      ? activeJogviszony.hr_beosztas
+      : activeJogviszony?.hr_beosztas
+      ? [activeJogviszony.hr_beosztas]
+      : []
+    const activeBeosztas = beosztasok.find((b: any) => !b.ervenyes_ig)
+    const mk = Array.isArray(activeBeosztas?.hr_munkakor)
+      ? activeBeosztas.hr_munkakor[0]
+      : activeBeosztas?.hr_munkakor
+    return mk?.megnevezes || ""
+  }
+
   const munkakorOptions = useMemo(() => {
     const seen = new Set<string>()
     const opts: { value: string; label: string }[] = []
     for (const emp of employees) {
-      const name = emp.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
-        ?.hr_beosztas?.[0]?.hr_munkakor?.megnevezes
+      const name = getActiveMunkakorNev(emp)
       if (name && !seen.has(name)) {
         seen.add(name)
         opts.push({ value: name, label: name })
@@ -159,8 +180,7 @@ export function EmployeeTable({
 
   const filtered = employees.filter(emp => {
     const empCode = employeeCodeMap.get(emp.id) ?? ""
-    const munkakor = emp.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
-      ?.hr_beosztas?.[0]?.hr_munkakor?.megnevezes ?? ""
+    const munkakor = getActiveMunkakorNev(emp)
     const egyseg = (Array.isArray(emp.hr_szervezeti_egyseg)
       ? emp.hr_szervezeti_egyseg[0]?.nev
       : emp.hr_szervezeti_egyseg?.nev) || "Nincs besorolva"
@@ -222,9 +242,7 @@ export function EmployeeTable({
           </TableHeader>
           <TableBody>
             {filtered.map((emp) => {
-              const activeJogviszony = emp.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
-              const activeBeosztas   = activeJogviszony?.hr_beosztas?.[0]
-              const munkakor         = activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beállítva"
+              const munkakor         = getActiveMunkakorNev(emp) || "Nincs beállítva"
               const egyseg           = (Array.isArray(emp.hr_szervezeti_egyseg)
                 ? emp.hr_szervezeti_egyseg[0]?.nev
                 : emp.hr_szervezeti_egyseg?.nev) || "Nincs besorolva"

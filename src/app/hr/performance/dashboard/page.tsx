@@ -1,5 +1,6 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { getScopedPerformanceEmployeeIds } from "@/utils/hr/performance-access"
 import {
   PerformanceCalibrationDashboard,
   type EnrichedEmployee,
@@ -30,14 +31,19 @@ export default async function DashboardPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Aktív cég tagjainak azonosítói
+  // Aktív cég tagjainak azonosítói (vezeto esetén csak a saját közvetlen beosztottak)
   const { data: companyMembers } = await supabaseAdmin
     .from("company_members")
     .select("user_id")
     .eq("company_id", companyScope)
   const memberUserIds = (companyMembers || []).map((m: any) => m.user_id)
+  const scopedEmployeeIds = await getScopedPerformanceEmployeeIds(
+    supabaseAdmin,
+    auth,
+    memberUserIds
+  )
   const safeMemberIds =
-    memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"]
+    scopedEmployeeIds.length > 0 ? scopedEmployeeIds : ["00000000-0000-0000-0000-000000000000"]
 
   const [kpisRes, cyclesRes, employeesRes, departmentsRes] = await Promise.all([
     supabaseAdmin

@@ -12,6 +12,16 @@ import { getClientInfo } from "@/utils/client-info"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { generateAnnualLeavePdfBuffer } from "@/utils/hr/annual-leave-pdf-generator"
 
+function hasHrOrDocsAdminProfile(userProfile: any): boolean {
+  if (!userProfile) return false
+  const hrModules: string[] = Array.isArray(userProfile.hr_modulok) ? userProfile.hr_modulok : []
+  return (
+    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile.hr_szerepkor || "") ||
+    userProfile.docs_szerepkor === "admin" ||
+    hrModules.some((m) => ["admin", "compliance", "payroll", "onboarding", "offboarding"].includes(m))
+  )
+}
+
 // -----------------------------------------------------------------------------
 // Előző munkahelyek
 // -----------------------------------------------------------------------------
@@ -266,13 +276,11 @@ export async function fileStudyContractAction(contractId: string, employeeId: st
 
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin =
-    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
-    userProfile?.docs_szerepkor === "admin"
+  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { success: false, error: "Nincs jogosultsága tanulmányi szerződést iktatni!" }
@@ -609,13 +617,11 @@ export async function fileMedicalExaminationAction(orvosiId: string, employeeId:
 
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin =
-    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
-    userProfile?.docs_szerepkor === "admin"
+  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { success: false, error: "Nincs jogosultsága orvosi alkalmassági dokumentumot iktatni!" }
@@ -907,13 +913,11 @@ export async function fileDisciplinaryAction(disciplinaryId: string, employeeId:
 
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin =
-    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
-    userProfile?.docs_szerepkor === "admin"
+  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { success: false, error: "Nincs jogosultsága fegyelmi határozatot iktatni!" }
@@ -1189,13 +1193,11 @@ export async function fileKituntetesAction(awardId: string, employeeId: string) 
 
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin =
-    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
-    userProfile?.docs_szerepkor === "admin"
+  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { success: false, error: "Nincs jogosultsága elismerést iktatni!" }
@@ -1490,15 +1492,16 @@ export async function updateJogviszonyData(employeeId: string, formData: FormDat
   if (!munkakor_id) {
     const { data: currProfile } = await supabase
       .from("hr_dolgozo_adatlap")
-      .select(`hr_jogviszony ( hr_beosztas ( munkakor_id ) )`)
+      .select(`hr_jogviszony ( hr_beosztas ( munkakor_id, ervenyes_ig ) )`)
       .eq("id", employeeId)
       .single()
 
     const jogviszonyok = (currProfile as any)?.hr_jogviszony
     if (jogviszonyok && jogviszonyok.length > 0) {
-      const beosztasok = jogviszonyok[0].hr_beosztas
-      if (beosztasok && beosztasok.length > 0) {
-        munkakor_id = beosztasok[0].munkakor_id
+      const beosztasok = jogviszonyok[0].hr_beosztas || []
+      const activeBeo = beosztasok.find((b: any) => !b.ervenyes_ig)
+      if (activeBeo) {
+        munkakor_id = activeBeo.munkakor_id
       }
     }
   }
@@ -1756,13 +1759,11 @@ export async function fileHrDocumentAction(
 
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin =
-    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
-    userProfile?.docs_szerepkor === "admin"
+  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { error: "Nincs jogosultságod HR dokumentumot iktatni az eaisyDocs rendszerbe!" }
@@ -1812,13 +1813,11 @@ export async function fileAllHrDocumentsAction(employeeId: string) {
 
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin =
-    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
-    userProfile?.docs_szerepkor === "admin"
+  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { error: "Nincs jogosultságod HR dokumentumokat kötegelten iktatni az eaisyDocs rendszerbe!", filedCount: 0 }
@@ -1894,13 +1893,11 @@ export async function fileAnnualLeaveSheet(employeeId: string, year: number) {
 
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin =
-    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
-    userProfile?.docs_szerepkor === "admin"
+  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { success: false, error: "Nincs jogosultsága éves szabadság-nyilvántartást iktatni!" }
@@ -2033,7 +2030,7 @@ export async function uploadSignedDocumentAction(
   ] = await Promise.all([
     adminClient
       .from("felhasznalo_profil")
-      .select("nev, hr_szerepkor, docs_szerepkor")
+      .select("nev, hr_szerepkor, docs_szerepkor, hr_modulok")
       .eq("id", user.id)
       .single(),
     adminClient
@@ -2048,9 +2045,7 @@ export async function uploadSignedDocumentAction(
     return { success: false, error: "Dokumentum nem található!" }
   }
 
-  const isHrOrAdmin =
-    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile?.hr_szerepkor || "") ||
-    userProfile?.docs_szerepkor === "admin"
+  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
 
   const isSelf = user.id === doc.dolgozo_id && user.id === employeeId
 

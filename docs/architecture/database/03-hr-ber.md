@@ -98,6 +98,7 @@ Fokozott biztonságú, Security Definer RPC rétegen keresztül kezelt (`get_dec
 
 - `hr_tavollet`: `id`, `dolgozo_id` (FK → `hr_dolgozo_adatlap.id`), `kezdet_datuma`, `veg_datuma`, `munkanapok_szama` (integer, ünnepnapokkal és áthelyezett munkanapokkal korrigált munkanapok), `tipus` (`fizetett_szabadsag`, `betegszabadsag`, `fizetes_nelkuli`, `egyeb`), `statusz` (`tervezet`, `jovahagyasra_var`, `jovahagyva`, `elutasitva`, `visszavonva`), `jovahagyo_id`, `megjegyzes`, `elutasitas_oka`.
 - `company_members.hr_modulok` & `felhasznalo_profil.hr_modulok`: `text[]` (`DEFAULT '{}'`), a felhasználó számára engedélyezett szakmai HR modulok kulcsai (`admin`, `organization`, `time`, `payroll`, `compliance`, `reports`, `recruitment`, `onboarding`, `offboarding`, `audit`).
+- `public.has_hr_module_access(p_modules text[])`: `SECURITY DEFINER` PostgreSQL segédfüggvény (`20261028000005`), amely az összes `hr_*` RLS szabályban és a titkosított PII RPC-kben (`get_decrypted_hr_data`, `update_decrypted_hr_data`) ellenőrzi a felhasználó `felhasznalo_profil.hr_modulok` és `company_members.hr_modulok` tömbjét (valamint az `admin` szerepköröket).
 - `hr_helyettesites`: `id`, `tavollet_id` (FK → `hr_tavollet.id`), `helyettesito_id` (FK → `felhasznalo_profil.id`), `statusz` (`aktiv`, `inaktiv`).
 
 ---

@@ -85,6 +85,7 @@ export async function getWeeklyShiftRoster(
         )
       ),
       hr_beosztas (
+        ervenyes_ig,
         hr_munkakor ( megnevezes )
       )
     `)
@@ -101,6 +102,7 @@ export async function getWeeklyShiftRoster(
       const orgUnitObj = Array.isArray(prof?.hr_szervezeti_egyseg)
         ? prof?.hr_szervezeti_egyseg[0]
         : prof?.hr_szervezeti_egyseg
+      const activeBeosztas = (j.hr_beosztas || []).find((b: any) => !b.ervenyes_ig)
 
       const medExpiry = adatlap?.orvosi_alkalmassag_ervenyesseg
         ? format(parseISO(adatlap.orvosi_alkalmassag_ervenyesseg), "yyyy-MM-dd")
@@ -125,7 +127,7 @@ export async function getWeeklyShiftRoster(
         id: j.dolgozo_id,
         nev: prof?.nev || "Ismeretlen dolgozó",
         avatar_url: prof?.avatar_url || null,
-        munkakor: j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beosztás",
+        munkakor: activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beosztás",
         szervezeti_egyseg_id: prof?.hr_szervezeti_egyseg_id || orgUnitObj?.id || null,
         szervezeti_egyseg_nev: orgUnitObj?.nev || "Egyéb részleg",
         orvosi_ervenyesseg: medExpiry,

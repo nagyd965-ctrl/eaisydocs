@@ -544,11 +544,17 @@ export async function closeOnboarding(onboardingId: string) {
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor")
+    .select("hr_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  if (!profile || !["admin", "hr_vezeto", "hr_munkatars"].includes(profile.hr_szerepkor)) {
+  const hrModules: string[] = Array.isArray((profile as any)?.hr_modulok) ? (profile as any).hr_modulok : []
+  const canCloseOnboarding =
+    profile &&
+    (["admin", "hr_vezeto", "hr_munkatars"].includes(profile.hr_szerepkor) ||
+      hrModules.some((m) => ["admin", "onboarding"].includes(m)))
+
+  if (!canCloseOnboarding) {
     return { error: "Nincs jogosultságod a beléptetés lezárásához." }
   }
 

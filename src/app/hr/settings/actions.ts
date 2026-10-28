@@ -187,6 +187,9 @@ export async function updateEmployeeInfo(formData: FormData) {
   revalidatePath("/hr/settings")
   revalidatePath("/hr/admin")
   revalidatePath("/hr/organization")
+  revalidatePath(`/hr/employee/${employeeId}`)
+  revalidatePath("/hr/self-service/profile")
+  revalidatePath("/hr")
   return { success: true }
 }
 

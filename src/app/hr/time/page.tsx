@@ -1,6 +1,4 @@
-import { createClient } from "@/utils/supabase/server"
-import { getActiveCompanyIdServer } from "@/utils/company-server"
-import { redirect } from "next/navigation"
+import { createClient as createSupabaseAdmin } from "@supabase/supabase-js"
 import { TimeTabsView } from "@/components/hr/time-tabs-view"
 import { getWeeklyShiftRoster, getCompanyShiftTemplates } from "@/app/hr/time/shift-actions"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
@@ -20,19 +18,22 @@ export default async function TimeAndAttendancePage() {
     )
   }
 
-  const supabase = await createClient()
+  const adminClient = createSupabaseAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
   const companyScope = auth.companyScope
 
   // 1. Összes (Folyamatban/Jóváhagyott/stb) kérelem, teljes cég dolgozói és szervezeti egységek lekérése a TeamCalendarhoz
   const [{ data: allLeaves }, { data: rawEmployees }, { data: orgUnits }, initialRosterData, initialTemplates] =
     await Promise.all([
-      supabase
+      adminClient
         .from("hr_tavollet")
         .select("*")
         .eq("company_id", companyScope)
         .neq("statusz", "elutasitva")
         .order("kezdet_datuma", { ascending: true }),
-      supabase
+      adminClient
         .from("hr_jogviszony")
         .select(`
           id,
@@ -50,12 +51,13 @@ export default async function TimeAndAttendancePage() {
             )
           ),
           hr_beosztas (
+            ervenyes_ig,
             hr_munkakor ( megnevezes )
           )
         `)
         .eq("company_id", companyScope)
         .order("created_at", { ascending: false }),
-      supabase
+      adminClient
         .from("hr_szervezeti_egyseg")
         .select("id, nev")
         .eq("company_id", companyScope)
@@ -74,12 +76,13 @@ export default async function TimeAndAttendancePage() {
       const orgUnitObj = Array.isArray(prof?.hr_szervezeti_egyseg)
         ? prof?.hr_szervezeti_egyseg[0]
         : prof?.hr_szervezeti_egyseg
+      const activeBeosztas = (j.hr_beosztas || []).find((b: any) => !b.ervenyes_ig)
 
       employeeMap.set(j.dolgozo_id, {
         id: j.dolgozo_id,
         felhasznalo_profil: prof,
         hr_munkakor: {
-          megnevezes: j.hr_beosztas?.[0]?.hr_munkakor?.megnevezes || "Nincs beosztás",
+          megnevezes: activeBeosztas?.hr_munkakor?.megnevezes || "Nincs beosztás",
         },
         szervezeti_egyseg_id: prof?.hr_szervezeti_egyseg_id || orgUnitObj?.id || null,
         szervezeti_egyseg_nev: orgUnitObj?.nev || null,

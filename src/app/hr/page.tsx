@@ -10,6 +10,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { calculateAnnualLeave, calculateWorkingDays } from "@/utils/hr/leave-calculator"
 import { KpiCard } from "@/components/kpi-card"
+
 export default async function SelfServicePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -26,7 +27,7 @@ export default async function SelfServicePage() {
       .single(),
     supabase
       .from("hr_jogviszony")
-      .select("belepes_datuma, hr_beosztas(hr_munkakor(megnevezes))")
+      .select("belepes_datuma, hr_beosztas(ervenyes_ig, hr_munkakor(megnevezes))")
       .eq("dolgozo_id", user.id)
       .is("kilepes_datuma", null)
       .order("created_at", { ascending: false })
@@ -36,7 +37,16 @@ export default async function SelfServicePage() {
 
   const adatlap = adatlapRes.data
   const jogviszony = jogviszonyRes.data
-  const munkakorMegnevezes = (jogviszony?.hr_beosztas as any)?.[0]?.hr_munkakor?.megnevezes || null
+  const beosztasList = Array.isArray(jogviszony?.hr_beosztas)
+    ? jogviszony.hr_beosztas
+    : jogviszony?.hr_beosztas
+    ? [jogviszony.hr_beosztas]
+    : []
+  const activeBeosztas: any = beosztasList.find((b: any) => !b.ervenyes_ig)
+  const activeMunkakor = Array.isArray(activeBeosztas?.hr_munkakor)
+    ? activeBeosztas.hr_munkakor[0]
+    : activeBeosztas?.hr_munkakor
+  const munkakorMegnevezes = activeMunkakor?.megnevezes || null
   const belepesDatuma = jogviszony?.belepes_datuma || null
 
   // 1. Szabadság egyenleg számítása
@@ -76,9 +86,9 @@ export default async function SelfServicePage() {
     ["szabadsag", "alapszabadsag", "fizetett"].includes((tipus || "").toLowerCase())
 
   const totalLeave = calculateAnnualLeave(
-    adatlap?.szuletesi_datum || adatlap?.szuletesi_ido, 
-    adatlap?.gyermekek_szama, 
-    adatlap?.megvaltozott_munkakepessegu, 
+    adatlap?.szuletesi_datum || adatlap?.szuletesi_ido,
+    adatlap?.gyermekek_szama,
+    adatlap?.megvaltozott_munkakepessegu,
     currentYear
   )
 
@@ -101,9 +111,9 @@ export default async function SelfServicePage() {
     .from("hr_jelenlet")
     .select("becsekkolas_ideje, kicsekkolas_ideje, szunet_perc, szunet_ms, szunet_kezdete")
     .eq("dolgozo_id", user.id)
-    .eq("datum", new Date().toISOString().split('T')[0])
+    .eq("datum", new Date().toISOString().split("T")[0])
     .single()
-  
+
   let timeStatus: "none" | "checked_in" | "checked_out" = "none"
   if (jelenlet) {
     if (jelenlet.kicsekkolas_ideje) timeStatus = "checked_out"
@@ -128,7 +138,6 @@ export default async function SelfServicePage() {
     if (m === 0) return `${sign}${h} óra`
     return `${sign}${h} ó ${m} p`
   }
-
 
   // Cafeteria
   const [
@@ -166,12 +175,6 @@ export default async function SelfServicePage() {
     .eq("dolgozo_id", user.id)
     .order("created_at", { ascending: false })
 
-  const { data: kpiLogs } = await supabaseAdmin
-    .from("hr_esemeny_naplo")
-    .select("*, felhasznalo_profil(nev)")
-    .eq("entitas_tipus", "hr_teljesitmeny")
-    .order("created_at", { ascending: true })
-
   const nev = adatlap?.felhasznalo_profil?.nev || "Dolgozó"
 
   const statuszLabel: Record<string, string> = {
@@ -186,9 +189,6 @@ export default async function SelfServicePage() {
       {/* Fejléc: cím */}
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Áttekintés</h1>
-        <p className="text-muted-foreground mt-1">
-          Üdvözlünk, {nev}! Ez a személyes irányítópultod.
-        </p>
       </div>
 
       {/* Hero üdvözlő banner */}
@@ -373,4 +373,3 @@ export default async function SelfServicePage() {
     </div>
   )
 }
-

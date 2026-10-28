@@ -81,7 +81,12 @@ export function EmployeeEditDialog({
   }
 
   const activeJogviszony = employee.hr_jogviszony?.[0] || employee.hr_dolgozo_adatlap?.hr_jogviszony?.[0]
-  const activeBeosztas = activeJogviszony?.hr_beosztas?.[0]
+  const beosztasList = Array.isArray(activeJogviszony?.hr_beosztas)
+    ? activeJogviszony.hr_beosztas
+    : activeJogviszony?.hr_beosztas
+    ? [activeJogviszony.hr_beosztas]
+    : []
+  const activeBeosztas = beosztasList.find((b: any) => !b.ervenyes_ig)
 
   const [role, setRole] = useState<string>(normalizeLegacyRole(employee.felhasznalo_profil?.hr_szerepkor || employee.hr_szerepkor))
   const [munkakorId, setMunkakorId] = useState<string>(activeBeosztas?.hr_munkakor?.id || "none")

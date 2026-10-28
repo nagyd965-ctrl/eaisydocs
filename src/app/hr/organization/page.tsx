@@ -57,14 +57,14 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
   // Párhuzamos adatlekérések a szervezeti struktúrához
   const [orgUnitsRes, dbJobsRes, employeesRes] = await Promise.all([
     // 1. Szervezeti egységek
-    supabase
+    supabaseAdmin
       .from("hr_szervezeti_egyseg")
       .select("id, nev, szulo_id")
       .eq("company_id", companyScope)
       .order("nev"),
 
     // 2. Munkakörök
-    supabase
+    supabaseAdmin
       .from("hr_munkakor")
       .select(`
         *,
@@ -93,6 +93,8 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
             kilepes_datuma,
             hr_beosztas (
               id,
+              ervenyes_tol,
+              ervenyes_ig,
               hr_munkakor ( id, megnevezes )
             )
           )
@@ -124,7 +126,8 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
 
     const adatlap = Array.isArray(emp.hr_dolgozo_adatlap) ? emp.hr_dolgozo_adatlap[0] : emp.hr_dolgozo_adatlap
     const jogviszony = Array.isArray(adatlap?.hr_jogviszony) ? adatlap.hr_jogviszony[0] : adatlap?.hr_jogviszony
-    const beosztas = Array.isArray(jogviszony?.hr_beosztas) ? jogviszony.hr_beosztas[0] : jogviszony?.hr_beosztas
+    const beosztasList = Array.isArray(jogviszony?.hr_beosztas) ? jogviszony.hr_beosztas : (jogviszony?.hr_beosztas ? [jogviszony.hr_beosztas] : [])
+    const beosztas = beosztasList.find((b: any) => !b.ervenyes_ig)
     const munkakor = Array.isArray(beosztas?.hr_munkakor) ? beosztas.hr_munkakor[0] : (beosztas?.hr_munkakor as any)
     const pozicio = munkakor?.megnevezes || "Nincs beállítva"
 
@@ -173,7 +176,8 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
         ? p.hr_dolgozo_adatlap[0]
         : p.hr_dolgozo_adatlap
       const jogviszony = adatlap?.hr_jogviszony?.[0]
-      const beosztas = jogviszony?.hr_beosztas?.[0]
+      const beosztasList = Array.isArray(jogviszony?.hr_beosztas) ? jogviszony.hr_beosztas : []
+      const beosztas = beosztasList.find((b: any) => !b.ervenyes_ig)
       const munkakor = beosztas?.hr_munkakor?.megnevezes || "Nincs munkakör beállítva"
 
       return {

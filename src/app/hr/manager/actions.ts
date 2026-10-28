@@ -32,12 +32,15 @@ export async function approveLeaveRequest(id: string) {
   // 2. Szerepkör és jóváhagyói jogosultság ellenőrzése
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = ["admin", "hr_vezeto", "hr_munkatars"].includes(profile?.hr_szerepkor || "") ||
-                      ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "")
+  const hrModules: string[] = Array.isArray((profile as any)?.hr_modulok) ? (profile as any).hr_modulok : []
+  const isHrOrAdmin =
+    ["admin", "hr_vezeto", "hr_munkatars"].includes(profile?.hr_szerepkor || "") ||
+    ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "") ||
+    hrModules.some((m) => ["admin", "time", "payroll"].includes(m))
 
   if (req.dolgozo_id === user.id && !isHrOrAdmin) {
     return { error: "Saját távolléti kérelmet nem hagyhatsz jóvá." }
@@ -106,12 +109,15 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string) {
   // 2. Szerepkör és jogosultság ellenőrzése
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
+    .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = ["admin", "hr_vezeto", "hr_munkatars"].includes(profile?.hr_szerepkor || "") ||
-                      ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "")
+  const hrModules: string[] = Array.isArray((profile as any)?.hr_modulok) ? (profile as any).hr_modulok : []
+  const isHrOrAdmin =
+    ["admin", "hr_vezeto", "hr_munkatars"].includes(profile?.hr_szerepkor || "") ||
+    ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "") ||
+    hrModules.some((m) => ["admin", "time", "payroll"].includes(m))
 
   const isAssignedApprover = req.aktualis_jovahagyo_id === user.id
   let isSubordinate = false

@@ -13,6 +13,7 @@ import { JobDescriptionUpload } from "@/components/hr/job-description-upload"
 import { JobEditDialog } from "@/components/hr/job-edit-dialog"
 import { JobProfileTasksSection } from "./job-profile-tasks-section"
 import { JobAssignedEmployeesTable } from "@/components/hr/job-assigned-employees-table"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 
 export default async function JobProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -26,26 +27,34 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("elerheto_modulok, hr_szerepkor")
+    .select("elerheto_modulok, hr_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  if (!profile || !profile.elerheto_modulok.includes("hr")) {
+  if (!profile || (!profile.elerheto_modulok.includes("hr") && scopedRoles.hrModules.length === 0)) {
     redirect("/dashboard")
   }
 
-  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)
+  const effectiveModules = scopedRoles.hrModules.length > 0 ? scopedRoles.hrModules : ((profile as any).hr_modulok || [])
+  const isHrOrAdmin =
+    scopedRoles.hrRole === "admin" ||
+    effectiveModules.includes("organization") ||
+    effectiveModules.includes("admin") ||
+    ["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)
 
   // Munkakör és szervezeti egységek lekérése
-  const { data: job, error: jobError } = await supabase
+  const { data: job, error: jobError } = await admin
     .from("hr_munkakor")
     .select("*, hr_szervezeti_egyseg(id, nev)")
     .eq("id", id)
     .single()
 
-  let orgUnitsQuery = supabase
+  let orgUnitsQuery = admin
     .from("hr_szervezeti_egyseg")
     .select("id, nev")
     .order("nev")
