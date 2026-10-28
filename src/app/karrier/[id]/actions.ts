@@ -195,11 +195,10 @@ export async function submitApplication(formData: FormData) {
 
     // 5. Audit napló bejegyzés a cél-céghez kötve
     await supabaseAdmin.from("hr_esemeny_naplo").insert({
-      modul: "toborzas",
-      esemeny_tipus: "uj_jelentkezes",
-      leiras: `Új jelentkezés érkezett a karrieroldalról (${companyName} — ${positionName}): ${nev} [${palyazatiKod}]`,
-      celpont_id: resolvedMunkakorId,
-      entitas_tipus: "hr_munkakor",
+      esemeny_tipus: "munkatars_felvetel",
+      megjegyzes: `Új jelentkezés érkezett a karrieroldalról (${companyName} — ${positionName}): ${nev} [${palyazatiKod}]`,
+      entitas_id: resolvedMunkakorId || null,
+      entitas_tipus: "hr_toborzas",
       felhasznalo_id: null,
       ...(targetCompanyId ? { company_id: targetCompanyId } : {}),
     })
@@ -242,6 +241,8 @@ export async function submitApplication(formData: FormData) {
       subject: `Sikeres jelentkezés (${companyName}): ${positionName} [${palyazatiKod}]`,
       html: emailHtml,
       senderName: `${companyName} Karrier`,
+      modul: "hr",
+      companyId: targetCompanyId || undefined,
     })
 
     revalidatePath("/hr/recruitment")

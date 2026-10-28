@@ -33,6 +33,18 @@ export async function sendNotificationEmail({
   // Aktuális user lekérése a naplózáshoz
   const { data: { user } } = await supabase.auth.getUser()
 
+  // Cégkontextus automatikus feloldása, ha a hívó nem adta át explicit módon
+  let resolvedCompanyId = companyId
+  if (!resolvedCompanyId) {
+    try {
+      const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+      const activeId = await getActiveCompanyIdServer()
+      if (activeId) resolvedCompanyId = activeId
+    } catch {
+      // Háttérfolyamat / publikus kontextus esetén a DB trigger oldja fel
+    }
+  }
+
   // Intelligens modul felismerés ha nincs expliciten megadva
   const resolvedModul: "docs" | "hr" = modul || (
     subject.toLowerCase().includes("hr") ||
@@ -57,7 +69,7 @@ export async function sendNotificationEmail({
 
   if (!apiKey) {
     console.error("Hiányzik a BREVO_API_KEY a környezeti változókból!")
-    await logNotification(supabase, to, subject, html, "hibas", "Hiányzó API kulcs", dossierId, user?.id, resolvedModul, companyId)
+    await logNotification(supabase, to, subject, html, "hibas", "Hiányzó API kulcs", dossierId, user?.id, resolvedModul, resolvedCompanyId)
     return { success: false, error: "Hiányzó API kulcs" }
   }
 
@@ -83,17 +95,17 @@ export async function sendNotificationEmail({
     if (!response.ok) {
       const errorText = await response.text()
       console.error("Brevo API hiba:", errorText)
-      await logNotification(supabase, to, subject, html, "hibas", `Brevo hiba: ${errorText}`, dossierId, user?.id, resolvedModul, companyId)
+      await logNotification(supabase, to, subject, html, "hibas", `Brevo hiba: ${errorText}`, dossierId, user?.id, resolvedModul, resolvedCompanyId)
       return { success: false, error: errorText }
     }
 
     const data = await response.json()
-    await logNotification(supabase, to, subject, html, "sikeres", null, dossierId, user?.id, resolvedModul, companyId)
+    await logNotification(supabase, to, subject, html, "sikeres", null, dossierId, user?.id, resolvedModul, resolvedCompanyId)
     return { success: true, messageId: data.messageId }
   } catch (error: unknown) {
     console.error("Kivétel az e-mail küldés során:", error)
     const errorMessage = error instanceof Error ? error.message : "Ismeretlen hiba"
-    await logNotification(supabase, to, subject, html, "hibas", errorMessage, dossierId, user?.id, resolvedModul, companyId)
+    await logNotification(supabase, to, subject, html, "hibas", errorMessage, dossierId, user?.id, resolvedModul, resolvedCompanyId)
     return { success: false, error: errorMessage }
   }
 }

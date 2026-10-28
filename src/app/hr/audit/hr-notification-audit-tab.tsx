@@ -74,7 +74,16 @@ const HR_CATEGORY_LABELS: Record<string, { label: string; badgeClass: string }> 
 
 export function HrNotificationAuditTab({ companyId, companyName }: HrNotificationAuditTabProps) {
   const [logs, setLogs] = useState<HrNotificationAuditLogItem[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [stats, setStats] = useState({
+    total: 0,
+    successful: 0,
+    failed: 0,
+    uniqueRecipients: 0,
+    successRate: 0,
+  })
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const [selectedLog, setSelectedLog] = useState<HrNotificationAuditLogItem | null>(null)
   const [detailModalOpen, setDetailModalOpen] = useState(false)
 
@@ -87,7 +96,7 @@ export function HrNotificationAuditTab({ companyId, companyName }: HrNotificatio
   const [dateTo, setDateTo] = useState("")
   const [activePreset, setActivePreset] = useState<"7" | "30" | null>(null)
 
-  // ── Lapozás ──
+  // ── Szerveroldali Lapozás ──
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
 
@@ -103,15 +112,37 @@ export function HrNotificationAuditTab({ companyId, companyName }: HrNotificatio
     { id: "muvelet", label: "Művelet", isVisible: true }
   ])
 
-  // ── Adatok betöltése ──
+  // ── Adatok betöltése szerveroldali szűréssel és lapozással ──
   const fetchLogs = useCallback(async () => {
+    if (!companyId) {
+      setLogs([])
+      setTotalCount(0)
+      setStats({ total: 0, successful: 0, failed: 0, uniqueRecipients: 0, successRate: 0 })
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     try {
-      const res = await getHrNotificationAuditLogs(companyId)
+      const res = await getHrNotificationAuditLogs({
+        companyId,
+        page: currentPage,
+        pageSize,
+        search: searchQuery,
+        selectedChannels,
+        selectedStatuses,
+        selectedCategories,
+        dateFrom,
+        dateTo,
+      })
       if (res.error) {
         toast.error(res.error)
+        setLogs([])
+        setTotalCount(0)
       } else {
         setLogs(res.logs || [])
+        setTotalCount(res.totalCount || 0)
+        setStats(res.stats)
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Nem sikerült betölteni a HR kiküldési naplót."
@@ -119,87 +150,29 @@ export function HrNotificationAuditTab({ companyId, companyName }: HrNotificatio
     } finally {
       setLoading(false)
     }
-  }, [companyId])
+  }, [
+    companyId,
+    currentPage,
+    pageSize,
+    searchQuery,
+    selectedChannels,
+    selectedStatuses,
+    selectedCategories,
+    dateFrom,
+    dateTo,
+  ])
 
   useEffect(() => {
     fetchLogs()
   }, [fetchLogs])
 
-  // ── KPI Statisztikák ──
-  const stats = useMemo(() => {
-    const total = logs.length
-    const successful = logs.filter(l => l.statusz === "sikeres").length
-    const failed = logs.filter(l => l.statusz === "hibas").length
-    const uniqueRecipients = new Set(logs.map(l => l.cimzett_email).filter(Boolean)).size
-    const successRate = total > 0 ? Math.round((successful / total) * 100) : 0
-
-    return {
-      total,
-      successful,
-      failed,
-      uniqueRecipients,
-      successRate
-    }
-  }, [logs])
-
-  // ── Szűrt lista ──
-  const filteredLogs = useMemo(() => {
-    return logs.filter(log => {
-      // 1. Keresés
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim()
-        const matchEmail = (log.cimzett_email || "").toLowerCase().includes(q)
-        const matchSubject = (log.targy || "").toLowerCase().includes(q)
-        const matchError = (log.hiba_oka || "").toLowerCase().includes(q)
-        const matchUser = (log.kivato_nev || "").toLowerCase().includes(q)
-        const matchContent = (log.uzenet || "").toLowerCase().includes(q)
-
-        if (!matchEmail && !matchSubject && !matchError && !matchUser && !matchContent) {
-          return false
-        }
-      }
-
-      // 2. Csatorna
-      if (selectedChannels.length > 0) {
-        if (!selectedChannels.includes(log.csatorna)) return false
-      }
-
-      // 3. Státusz
-      if (selectedStatuses.length > 0) {
-        if (!selectedStatuses.includes(log.statusz)) return false
-      }
-
-      // 4. Kategória
-      if (selectedCategories.length > 0) {
-        if (!selectedCategories.includes(log.kategoria)) return false
-      }
-
-      // 5. Dátumtól
-      if (dateFrom) {
-        const fromDate = new Date(dateFrom)
-        fromDate.setHours(0, 0, 0, 0)
-        const logDate = new Date(log.mikor)
-        if (logDate < fromDate) return false
-      }
-
-      // 6. Dátumig
-      if (dateTo) {
-        const toDate = new Date(dateTo)
-        toDate.setHours(23, 59, 59, 999)
-        const logDate = new Date(log.mikor)
-        if (logDate > toDate) return false
-      }
-
-      return true
-    })
-  }, [logs, searchQuery, selectedChannels, selectedStatuses, selectedCategories, dateFrom, dateTo])
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [companyId])
 
   // ── Lapozás számítás ──
-  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize))
-  const paginatedLogs = useMemo(() => {
-    const start = (currentPage - 1) * pageSize
-    return filteredLogs.slice(start, start + pageSize)
-  }, [filteredLogs, currentPage, pageSize])
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+  const paginatedLogs = logs
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -330,14 +303,31 @@ export function HrNotificationAuditTab({ companyId, companyName }: HrNotificatio
     setCurrentPage(1)
   }
 
-  // ── CSV Exportálás ──
-  const handleExportCsv = () => {
-    if (filteredLogs.length === 0) {
+  // ── CSV Exportálás (Szerveroldali teljes szűrt adathalmaz) ──
+  const handleExportCsv = async () => {
+    if (!companyId || totalCount === 0) {
       toast.error("Nincs exportálható adat a megadott szűrési feltételekkel.")
       return
     }
 
+    setExporting(true)
     try {
+      const res = await getHrNotificationAuditLogs({
+        companyId,
+        search: searchQuery,
+        selectedChannels,
+        selectedStatuses,
+        selectedCategories,
+        dateFrom,
+        dateTo,
+        exportAll: true,
+      })
+
+      if (res.error || !res.logs || res.logs.length === 0) {
+        toast.error(res.error || "Nincs exportálható adat a megadott szűrési feltételekkel.")
+        return
+      }
+
       const headers = [
         "Időpont",
         "Csatorna",
@@ -349,7 +339,7 @@ export function HrNotificationAuditTab({ companyId, companyName }: HrNotificatio
         "Hiba oka"
       ]
 
-      const rows = filteredLogs.map(log => [
+      const rows = res.logs.map(log => [
         `"${format(new Date(log.mikor), "yyyy.MM.dd. HH:mm:ss")}"`,
         `"${log.csatorna === "email" ? "E-mail" : "SMS"}"`,
         `"${log.cimzett_email || ""}"`,
@@ -372,11 +362,13 @@ export function HrNotificationAuditTab({ companyId, companyName }: HrNotificatio
       URL.revokeObjectURL(url)
 
       toast.success("CSV export sikeresen letöltve", {
-        description: `${filteredLogs.length} sor exportálva.`
+        description: `${res.logs.length} sor exportálva.`
       })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Ismeretlen hiba"
       toast.error("Hiba a CSV exportálás során: " + msg)
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -444,7 +436,7 @@ export function HrNotificationAuditTab({ companyId, companyName }: HrNotificatio
               variant="outline"
               size="sm"
               onClick={handleExportCsv}
-              disabled={loading || filteredLogs.length === 0}
+              disabled={loading || exporting || totalCount === 0}
               className="gap-2 h-9 border-border/80"
             >
               <Download className="w-3.5 h-3.5" />
@@ -635,7 +627,7 @@ export function HrNotificationAuditTab({ companyId, companyName }: HrNotificatio
               <option value={100}>100</option>
             </select>
             <span className="ml-2">
-              Összesen <b>{filteredLogs.length}</b> HR értesítés
+              Összesen <b>{totalCount}</b> HR értesítés
             </span>
           </div>
 

@@ -69,6 +69,7 @@ export function DashboardCharts({ kpis, cycles }: { kpis: any[], cycles: any[] }
                   outerRadius={95}
                   paddingAngle={5}
                   dataKey="value"
+                  isAnimationActive={false}
                   label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
                 >
                   {pieData.map((entry, index) => (
@@ -106,7 +107,7 @@ export function DashboardCharts({ kpis, cycles }: { kpis: any[], cycles: any[] }
                   formatter={(value: any) => [`${value}%`, 'Átlagos teljesítmény']} 
                   contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: 8 }}
                 />
-                <Bar dataKey="average" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="average" radius={[4, 4, 0, 0]} isAnimationActive={false}>
                   {cycleData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill="hsl(var(--primary))" />
                   ))}

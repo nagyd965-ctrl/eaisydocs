@@ -702,6 +702,7 @@ export function RecruitmentAnalytics({
                         paddingAngle={2}
                         stroke="hsl(var(--card))"
                         strokeWidth={2}
+                        isAnimationActive={false}
                       >
                         {channelAnalytics.map((entry, idx) => (
                           <Cell key={`donut-${idx}`} fill={entry.color} />
@@ -794,12 +795,14 @@ export function RecruitmentAnalytics({
                         fill="#0f766e"
                         radius={[3, 3, 0, 0]}
                         barSize={22}
+                        isAnimationActive={false}
                       />
                       <Bar
                         dataKey="interviews"
                         fill="#14b8a6"
                         radius={[3, 3, 0, 0]}
                         barSize={22}
+                        isAnimationActive={false}
                       />
                     </BarChart>
                   </ResponsiveContainer>

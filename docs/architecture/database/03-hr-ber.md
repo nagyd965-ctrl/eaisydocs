@@ -146,4 +146,5 @@ Fokozott biztonságú, Security Definer RPC rétegen keresztül kezelt (`get_dec
 - `hr_ceges_dokumentum`: `id`, `cim`, `kategoria`, `verzio`, `fajl_url`, `hatalybalepes_datuma`.
 - `hr_ceges_dokumentum_nyugtazas`: `id`, `dokumentum_id`, `dolgozo_id`, `nyugtazva_at`, `ip_cim`.
 - `hr_bevallas_archivum`: `id`, `tipus` (pl. `NAV_T1041`, `KSH`), `idoszak`, `fajlnev`, `tarolasi_ut`, `sha256`.
-- `hr_esemeny_naplo`: Szigorúan append-only személyügyi eseménynapló.
+- `hr_esemeny_naplo`: Szigorúan append-only személyügyi eseménynapló (`company_id` kötelezően töltve a `trg_hr_esemeny_naplo_company_id` `BEFORE INSERT` triggerrel, indexelve a `(company_id, created_at DESC)` és `(company_id, entitas_tipus, created_at DESC)` oszlopokra — `20261028000006_hr_audit_company_isolation_and_indexes.sql`).
+- `ertesites_naplo` (`modul = 'hr'`): Kiküldött HR e-mail és SMS értesítések naplója, `trg_ertesites_naplo_company_id` `BEFORE INSERT` triggerrel és `(modul, company_id, mikor DESC)` összetett indexszel a szigorú multi-tenant izolációhoz.

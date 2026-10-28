@@ -753,6 +753,7 @@ export function PerformanceCalibrationDashboard({
                       fillOpacity={1}
                       fill="url(#perfTrendTealGrad)"
                       activeDot={{ r: 5, fill: "#0d9488", strokeWidth: 0 }}
+                      isAnimationActive={false}
                     />
                   </AreaChart>
                 </ResponsiveContainer>

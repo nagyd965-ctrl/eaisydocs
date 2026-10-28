@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
-import { createClient } from "@/utils/supabase/client"
 import { useCompany } from "@/contexts/company-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +23,7 @@ import {
 import { KpiCard } from "@/components/kpi-card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { HrNotificationAuditTab } from "./hr-notification-audit-tab"
+import { getHrEventAuditLogs, type ActionCategory } from "./actions"
 import { 
   ShieldAlert, 
   User, 
@@ -44,6 +44,8 @@ import {
 import { format } from "date-fns"
 import { hu } from "date-fns/locale"
 import { toast } from "sonner"
+
+export type { ActionCategory }
 
 // ── Entitás szótár és kategóriák ──
 export const HR_ENTITY_CONFIG: Record<string, { label: string; category: string }> = {
@@ -66,10 +68,9 @@ export const HR_ENTITY_CONFIG: Record<string, { label: string; category: string 
   "hr_teljesitmeny": { label: "Teljesítményértékelés (KPI)", category: "Teljesítmény" },
   "hr_fegyelmi": { label: "Fegyelmi Határozat", category: "Fegyelmi ügyek" },
   "hr_ceges_dokumentum": { label: "Céges Szabályzat", category: "Szabályzatok" },
+  "hr_toborzas": { label: "Toborzás & Jelöltek", category: "Toborzás" },
   "system": { label: "Rendszer", category: "Rendszer" }
 }
-
-export type ActionCategory = "read" | "create" | "update" | "delete" | "approval" | "system"
 
 export const HR_EVENT_CONFIG: Record<string, { label: string; category: ActionCategory; badgeClass: string }> = {
   // Megtekintés / Olvasás
@@ -163,7 +164,17 @@ function HrAuditPageInner() {
   }
 
   const [logs, setLogs] = useState<any[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [kpiStats, setKpiStats] = useState({
+    total: 0,
+    secretAccessCount: 0,
+    modificationsCount: 0,
+    uniqueUsersCount: 0,
+  })
+  const [availableUsers, setAvailableUsers] = useState<{ id: string; name: string }[]>([])
+  const [availableCategories, setAvailableCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedLog, setSelectedLog] = useState<any | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -175,7 +186,7 @@ function HrAuditPageInner() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
 
-  // ── Lapozás ──
+  // ── Szerveroldali Lapozás ──
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
 
@@ -190,39 +201,64 @@ function HrAuditPageInner() {
   ])
 
   const { selectedCompany, isSwitching } = useCompany()
-  const supabase = createClient()
 
   const fetchLogs = useCallback(async () => {
     if (!selectedCompany?.id) {
       setLogs([])
+      setTotalCount(0)
+      setKpiStats({ total: 0, secretAccessCount: 0, modificationsCount: 0, uniqueUsersCount: 0 })
+      setAvailableUsers([])
+      setAvailableCategories([])
       setLoading(false)
       return
     }
 
     setLoading(true)
-    const { data, error } = await supabase
-      .from("hr_esemeny_naplo")
-      .select(`
-        *,
-        felhasznalo_profil:felhasznalo_id ( nev, hr_szerepkor, pozicio )
-      `)
-      .eq("company_id", selectedCompany.id)
-      .order("created_at", { ascending: false })
-      .limit(500)
+    const res = await getHrEventAuditLogs({
+      companyId: selectedCompany.id,
+      page: currentPage,
+      pageSize,
+      search: searchTerm,
+      selectedUsers,
+      selectedActionTypes,
+      selectedEntityCategories,
+      dateFrom,
+      dateTo,
+    })
 
-    if (error) {
-      console.error("Hiba a napló lekérésekor:", error.message || error)
-      toast.error("Nem sikerült betölteni az audit naplót: " + (error.message || "Ismeretlen hiba"))
+    if (res.error) {
+      console.error("Hiba a napló lekérésekor:", res.error)
+      toast.error("Nem sikerült betölteni az audit naplót: " + res.error)
+      setLogs([])
+      setTotalCount(0)
     } else {
-      setLogs(data || [])
+      setLogs(res.logs || [])
+      setTotalCount(res.totalCount || 0)
+      setKpiStats(res.kpiStats)
+      setAvailableUsers(res.availableUsers || [])
+      setAvailableCategories(res.availableCategories || [])
     }
     setLoading(false)
-  }, [selectedCompany, supabase])
+  }, [
+    selectedCompany?.id,
+    currentPage,
+    pageSize,
+    searchTerm,
+    selectedUsers,
+    selectedActionTypes,
+    selectedEntityCategories,
+    dateFrom,
+    dateTo,
+  ])
 
   useEffect(() => {
-    setCurrentPage(1)
     fetchLogs()
   }, [fetchLogs])
+
+  // Cégváltáskor vissza az 1. oldalra
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedCompany?.id])
 
   // ── Segédfüggvények ──
   const cleanNote = (note?: string) => {
@@ -234,7 +270,6 @@ function HrAuditPageInner() {
   }
 
   const getEventInfo = (type: string, entity?: string) => {
-    // Érzékeny adat speciális kezelése
     if (entity === "hr_dolgozo_titkos_adat" && ["irat_megtekintes", "adat_megtekintes", "megtekintes"].includes(type)) {
       return { 
         label: "Adatfeloldás", 
@@ -288,106 +323,15 @@ function HrAuditPageInner() {
     }
   }
 
-  // ── Egyedi felhasználók kinyerése a naplóból a szűrőhöz ──
-  const availableUsers = useMemo(() => {
-    const map = new Map<string, string>()
-    logs.forEach(log => {
-      const id = log.felhasznalo_id || "system"
-      const name = log.felhasznalo_profil?.nev || (id === "system" ? "Rendszer" : "Ismeretlen")
-      map.set(id, name)
-    })
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }))
-  }, [logs])
-
-  // ── Egyedi modul kategóriák ──
-  const availableCategories = useMemo(() => {
-    const set = new Set<string>()
-    logs.forEach(log => {
-      const cat = getEntityInfo(log.entitas_tipus).category
-      if (cat) set.add(cat)
-    })
-    return Array.from(set).sort()
-  }, [logs])
-
-  // ── Szűrési logika ──
-  const filteredLogs = useMemo(() => {
-    return logs.filter(log => {
-      const note = (log.megjegyzes || "").toLowerCase()
-      const userName = (log.felhasznalo_profil?.nev || "rendszer").toLowerCase()
-      const entityLabel = getEntityInfo(log.entitas_tipus).label.toLowerCase()
-      const eventLabel = getEventInfo(log.esemeny_tipus, log.entitas_tipus).label.toLowerCase()
-      const search = searchTerm.toLowerCase().trim()
-
-      // 1. Szöveges keresés
-      if (search) {
-        const matches = 
-          note.includes(search) || 
-          userName.includes(search) || 
-          entityLabel.includes(search) || 
-          eventLabel.includes(search) ||
-          log.entitas_tipus.toLowerCase().includes(search) ||
-          log.esemeny_tipus.toLowerCase().includes(search)
-        if (!matches) return false
-      }
-
-      // 2. Felhasználó szűrő
-      if (selectedUsers.length > 0) {
-        const userId = log.felhasznalo_id || "system"
-        if (!selectedUsers.includes(userId)) return false
-      }
-
-      // 3. Művelettípus szűrő
-      if (selectedActionTypes.length > 0) {
-        const actionCat = getEventInfo(log.esemeny_tipus, log.entitas_tipus).category
-        if (!selectedActionTypes.includes(actionCat)) return false
-      }
-
-      // 4. Modul / Entitás kategória szűrő
-      if (selectedEntityCategories.length > 0) {
-        const entityCat = getEntityInfo(log.entitas_tipus).category
-        if (!selectedEntityCategories.includes(entityCat)) return false
-      }
-
-      // 5. Dátum szűrő
-      if (dateFrom) {
-        const logDate = new Date(log.created_at).toISOString().slice(0, 10)
-        if (logDate < dateFrom) return false
-      }
-      if (dateTo) {
-        const logDate = new Date(log.created_at).toISOString().slice(0, 10)
-        if (logDate > dateTo) return false
-      }
-
-      return true
-    })
-  }, [logs, searchTerm, selectedUsers, selectedActionTypes, selectedEntityCategories, dateFrom, dateTo])
-
   // ── Pagináció számítás ──
-  const totalPages = Math.ceil(filteredLogs.length / pageSize) || 1
-  const paginatedLogs = useMemo(() => {
-    const start = (currentPage - 1) * pageSize
-    return filteredLogs.slice(start, start + pageSize)
-  }, [filteredLogs, currentPage, pageSize])
+  const totalPages = Math.ceil(totalCount / pageSize) || 1
+  const paginatedLogs = logs
 
-  // Ha a szűrés miatt kevesebb oldal lett
   useEffect(() => {
-    if (currentPage > totalPages) {
+    if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(1)
     }
   }, [totalPages, currentPage])
-
-  // ── KPI számítások ──
-  const kpiStats = useMemo(() => {
-    const total = logs.length
-    const secretAccessCount = logs.filter(l => l.entitas_tipus === "hr_dolgozo_titkos_adat").length
-    const modificationsCount = logs.filter(l => {
-      const cat = getEventInfo(l.esemeny_tipus, l.entitas_tipus).category
-      return cat === "update" || cat === "delete"
-    }).length
-    const uniqueUsersCount = new Set(logs.map(l => l.felhasznalo_id).filter(Boolean)).size
-
-    return { total, secretAccessCount, modificationsCount, uniqueUsersCount }
-  }, [logs])
 
   // ── TableToolbar konfiguráció ──
   const filterGroups: FilterGroup[] = useMemo(() => [
@@ -403,6 +347,7 @@ function HrAuditPageInner() {
         setSelectedUsers(prev => 
           prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
         )
+        setCurrentPage(1)
       }
     },
     {
@@ -421,6 +366,7 @@ function HrAuditPageInner() {
         setSelectedActionTypes(prev => 
           prev.includes(cat) ? prev.filter(x => x !== cat) : [...prev, cat]
         )
+        setCurrentPage(1)
       }
     },
     {
@@ -435,6 +381,7 @@ function HrAuditPageInner() {
         setSelectedEntityCategories(prev => 
           prev.includes(cat) ? prev.filter(x => x !== cat) : [...prev, cat]
         )
+        setCurrentPage(1)
       }
     }
   ], [availableUsers, selectedUsers, selectedActionTypes, availableCategories, selectedEntityCategories])
@@ -453,13 +400,20 @@ function HrAuditPageInner() {
     setDateFrom("")
     setDateTo("")
     setSearchTerm("")
+    setCurrentPage(1)
   }
 
   const dateRange: DateRangeFilter = {
     from: dateFrom,
     to: dateTo,
-    onFromChange: setDateFrom,
-    onToChange: setDateTo
+    onFromChange: (val) => {
+      setDateFrom(val)
+      setCurrentPage(1)
+    },
+    onToChange: (val) => {
+      setDateTo(val)
+      setCurrentPage(1)
+    },
   }
 
   const handleToggleColumn = (colId: string) => {
@@ -471,62 +425,83 @@ function HrAuditPageInner() {
     return col ? col.isVisible : true
   }
 
-  // ── CSV Exportálás ──
-  const handleExportCsv = () => {
-    if (!filteredLogs || filteredLogs.length === 0) {
+  // ── CSV Exportálás (Szerveroldali teljes szűrt adathalmaz) ──
+  const handleExportCsv = async () => {
+    if (!selectedCompany?.id || totalCount === 0) {
       toast.error("Nincs exportálható adat a jelenlegi szűréssel!")
       return
     }
 
-    const companyName = selectedCompany?.name || "Kiválasztott cég"
-    const headers = [
-      "Cég",
-      "Dátum",
-      "Felhasználó",
-      "HR Szerepkör",
-      "Művelet Kategória",
-      "Művelet Típusa",
-      "Modul",
-      "Entitás",
-      "Részletek",
-      "IP Cím"
-    ]
+    setExporting(true)
+    try {
+      const res = await getHrEventAuditLogs({
+        companyId: selectedCompany.id,
+        search: searchTerm,
+        selectedUsers,
+        selectedActionTypes,
+        selectedEntityCategories,
+        dateFrom,
+        dateTo,
+        exportAll: true,
+      })
 
-    const rows = filteredLogs.map(log => {
-      const dateStr = format(new Date(log.created_at), "yyyy-MM-dd HH:mm:ss")
-      const user = log.felhasznalo_profil?.nev || "Rendszer"
-      const role = log.felhasznalo_profil?.hr_szerepkor || "-"
-      const action = getEventInfo(log.esemeny_tipus, log.entitas_tipus)
-      const entity = getEntityInfo(log.entitas_tipus)
-      const note = cleanNote(log.megjegyzes) || ""
-      const ip = log.ip_cim || ""
+      if (res.error || !res.logs || res.logs.length === 0) {
+        toast.error(res.error || "Nincs exportálható adat a jelenlegi szűréssel!")
+        return
+      }
 
-      return [
-        companyName,
-        dateStr,
-        user,
-        role,
-        action.category,
-        action.label,
-        entity.category,
-        entity.label,
-        note,
-        ip
-      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(";")
-    })
+      const companyName = selectedCompany?.name || "Kiválasztott cég"
+      const headers = [
+        "Cég",
+        "Dátum",
+        "Felhasználó",
+        "HR Szerepkör",
+        "Művelet Kategória",
+        "Művelet Típusa",
+        "Modul",
+        "Entitás",
+        "Részletek",
+        "IP Cím"
+      ]
 
-    const csvContent = "\uFEFF" + headers.join(";") + "\n" + rows.join("\n")
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    const now = format(new Date(), "yyyyMMdd_HHmm")
-    const safeCompanyName = companyName.toLowerCase().replace(/[^a-z0-9]/g, "_")
-    link.setAttribute("href", url)
-    link.setAttribute("download", `eaisyhr_audit_${safeCompanyName}_${now}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    toast.success("Audit napló sikeresen exportálva CSV formátumban!")
+      const rows = res.logs.map(log => {
+        const dateStr = format(new Date(log.created_at), "yyyy-MM-dd HH:mm:ss")
+        const user = log.felhasznalo_profil?.nev || "Rendszer"
+        const role = log.felhasznalo_profil?.hr_szerepkor || "-"
+        const action = getEventInfo(log.esemeny_tipus, log.entitas_tipus)
+        const entity = getEntityInfo(log.entitas_tipus)
+        const note = cleanNote(log.megjegyzes) || ""
+        const ip = log.ip_cim || ""
+
+        return [
+          companyName,
+          dateStr,
+          user,
+          role,
+          action.category,
+          action.label,
+          entity.category,
+          entity.label,
+          note,
+          ip
+        ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(";")
+      })
+
+      const csvContent = "\uFEFF" + headers.join(";") + "\n" + rows.join("\n")
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      const now = format(new Date(), "yyyyMMdd_HHmm")
+      const safeCompanyName = companyName.toLowerCase().replace(/[^a-z0-9]/g, "_")
+      link.setAttribute("href", url)
+      link.setAttribute("download", `eaisyhr_audit_${safeCompanyName}_${now}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      toast.success(`Audit napló sikeresen exportálva CSV formátumban (${res.logs.length} sor)!`)
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -566,7 +541,7 @@ function HrAuditPageInner() {
               variant="outline" 
               size="sm" 
               onClick={handleExportCsv}
-              disabled={loading || isSwitching || filteredLogs.length === 0}
+              disabled={loading || exporting || isSwitching || totalCount === 0}
               className="gap-1.5 h-8 text-xs"
             >
               <Download className="w-3.5 h-3.5" />
@@ -624,7 +599,10 @@ function HrAuditPageInner() {
           {/* Kanonikus TableToolbar keresővel, oszlopválasztóval, dátumtartománnyal és szűrőcsoportokkal */}
           <TableToolbar
             searchValue={searchTerm}
-            onSearchChange={setSearchTerm}
+            onSearchChange={(val) => {
+              setSearchTerm(val)
+              setCurrentPage(1)
+            }}
             searchPlaceholder="Keresés esemény, felhasználó, modul vagy indoklás alapján..."
             columns={columns}
             onToggleColumn={handleToggleColumn}
@@ -640,7 +618,7 @@ function HrAuditPageInner() {
               <Calendar className="w-3 h-3" /> Időszak:
             </span>
             <button
-              onClick={() => { setDateFrom(""); setDateTo("") }}
+              onClick={() => { setDateFrom(""); setDateTo(""); setCurrentPage(1) }}
               className={`text-xs px-2.5 py-0.5 rounded-md transition-colors ${
                 !dateFrom && !dateTo
                   ? "bg-primary text-primary-foreground font-medium"
@@ -654,6 +632,7 @@ function HrAuditPageInner() {
                 const today = new Date().toISOString().slice(0, 10)
                 setDateFrom(today)
                 setDateTo(today)
+                setCurrentPage(1)
               }}
               className={`text-xs px-2.5 py-0.5 rounded-md transition-colors ${
                 dateFrom === new Date().toISOString().slice(0, 10) && dateTo === new Date().toISOString().slice(0, 10)
@@ -669,6 +648,7 @@ function HrAuditPageInner() {
                 d.setDate(d.getDate() - 7)
                 setDateFrom(d.toISOString().slice(0, 10))
                 setDateTo(new Date().toISOString().slice(0, 10))
+                setCurrentPage(1)
               }}
               className="text-xs px-2.5 py-0.5 rounded-md bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
             >
@@ -680,6 +660,7 @@ function HrAuditPageInner() {
                 d.setDate(d.getDate() - 30)
                 setDateFrom(d.toISOString().slice(0, 10))
                 setDateTo(new Date().toISOString().slice(0, 10))
+                setCurrentPage(1)
               }}
               className="text-xs px-2.5 py-0.5 rounded-md bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
             >
@@ -792,7 +773,7 @@ function HrAuditPageInner() {
                                   {log.felhasznalo_profil.nev}
                                 </span>
                                 <span className="text-[11px] text-muted-foreground pl-4">
-                                  {log.felhasznalo_profil.hr_szerepkor || "Munkatárs"}
+                                  {log.felhasznalo_profil.pozicio || log.felhasznalo_profil.hr_szerepkor || "Munkatárs"}
                                 </span>
                               </div>
                             ) : (
@@ -871,8 +852,8 @@ function HrAuditPageInner() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t bg-muted/10 gap-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <span>
-                Megjelenítve: {filteredLogs.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} –{" "}
-                {Math.min(currentPage * pageSize, filteredLogs.length)} / {filteredLogs.length} bejegyzés
+                Megjelenítve: {totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1} –{" "}
+                {Math.min(currentPage * pageSize, totalCount)} / {totalCount} bejegyzés
               </span>
               <span className="text-border">|</span>
               <div className="flex items-center gap-1.5">
@@ -898,7 +879,7 @@ function HrAuditPageInner() {
                 variant="outline"
                 size="sm"
                 className="h-7 px-2 text-xs"
-                disabled={currentPage <= 1}
+                disabled={currentPage <= 1 || loading}
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               >
                 <ChevronLeft className="w-3.5 h-3.5 mr-0.5" /> Előző
@@ -910,7 +891,7 @@ function HrAuditPageInner() {
                 variant="outline"
                 size="sm"
                 className="h-7 px-2 text-xs"
-                disabled={currentPage >= totalPages}
+                disabled={currentPage >= totalPages || loading}
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               >
                 Következő <ChevronRight className="w-3.5 h-3.5 ml-0.5" />

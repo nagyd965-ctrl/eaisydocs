@@ -152,6 +152,8 @@ export async function updateCandidateStatus(candidateId: string, newStatus: stri
           subject: "Meghívás személyes interjúra - eaisyHR",
           senderName: "eaisyHR Toborzás",
           senderEmail: "eaisyhr@thinkai.hu",
+          modul: "hr",
+          companyId: targetCompId || undefined,
           html: buildHtmlEmail(
             "Meghívás személyes interjúra",
             `Kedves ${candidate.nev}!\n\nÖrömmel értesítjük, hogy jelentkezését a(z) ${munkakor} pozícióra sikeresnek értékeltük. Szeretnénk behívni egy személyes interjúra!\n\nHamarosan jelentkezni fogunk a pontos időpont egyeztetése céljából.\n\nÜdvözlettel,\neaisyHR Csapat`,
@@ -223,6 +225,8 @@ export async function scheduleInterview(candidateId: string, idopont: string, he
         subject: "Meghívás személyes interjúra - eaisyHR",
         senderName: "eaisyHR Toborzás",
         senderEmail: "eaisyhr@thinkai.hu",
+        modul: "hr",
+        companyId: targetCompId || undefined,
         html: buildHtmlEmail(
           "Meghívás személyes interjúra",
           uzenet,

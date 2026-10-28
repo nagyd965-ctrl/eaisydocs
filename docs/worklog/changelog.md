@@ -4,6 +4,15 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-28)
 
+### eaisyHR: Központi Eseménynapló (`/hr/audit`) Szerveroldali Lapozás, Szigorú `company_id` Izoláció (`30. P2`) és Recharts 3.10.0 + React 19 Diagram-stabilizálás (ADR A-091, PRD P-124)
+- **Eseménynapló és Kiküldési Napló Szerveroldali Lapozás és Szűrés (`src/app/hr/audit/actions.ts`, `src/app/hr/audit/page.tsx`, `src/app/hr/audit/hr-notification-audit-tab.tsx` — 30. P2):**
+  - A kliensoldali `.limit(500)` lekérdezéseket mindkét fülön (`getHrEventAuditLogs` és `getHrNotificationAuditLogs`) szerveroldali szűrés, teljes vállalati KPI-összesítés és oldalas lapozás (`page`, `pageSize`, `totalCount`, valamint `exportAll: true` a teljes CSV exporthoz) váltotta fel, központi `authorizeAuditRequest` (`admin`, `audit`, `compliance`) védelemmel.
+  - A Kiküldési Naplóból eltávolításra került a `company_id.is.null` kiskapu; mindkét fül szigorúan `.eq("company_id", auth.companyId)` alapján izolálja az adatokat.
+- **Adatbázis Backfill és Kötelező `company_id` Triggerek (`supabase/migrations/20261028000006_hr_audit_company_isolation_and_indexes.sql`, `src/utils/mailer.ts`, `src/utils/sms/twilio.ts`):**
+  - Visszamenőlegesen felcímkézésre kerültek a `hr_esemeny_naplo` és `ertesites_naplo` táblák `company_id IS NULL` rekordjai (`0` darab `NULL` rekord maradt), és `BEFORE INSERT` triggerek (`trg_hr_esemeny_naplo_company_id`, `trg_ertesites_naplo_company_id`) valamint a `mailer.ts` / `twilio.ts` automatikus cégfeloldása garantálják a `company_id` kötelező kitöltését.
+- **Recharts 3.10.0 + React 19 `Maximum update depth exceeded` Javítás (`src/components/hr/recruitment-analytics.tsx`, `src/app/hr/performance/dashboard/components/performance-calibration-dashboard.tsx`, `src/app/hr/performance/dashboard/components/dashboard-charts.tsx`, `src/components/dashboard-overview.tsx`):**
+  - Minden `<Pie>`, `<Bar>` és `<Area>` diagramon beállításra került az `isAnimationActive={false}`, megszüntetve a Recharts 3.10.0 `JavascriptAnimate` (`AnimationControllerImpl.js` / `timeoutController.js`) végtelen `setState` ciklusát React 19 alatt.
+
 ### eaisyHR: Teljesítményértékelés (`/hr/performance`) Vezetői Jogosultság és Csapatszűrés (`2. P0`), valamint Adatbázis RLS / RPC és Szerveroldali Modul-Jogosultság Szinkronizáció (`hr_modulok`) (ADR A-090, PRD P-123)
 - **Teljesítményértékelés (`/hr/performance` & `/hr/performance/dashboard`) — Vezetői Csapatszűrés és Jogosultságok (`src/utils/hr/performance-access.ts`, `src/app/hr/performance/page.tsx`, `src/app/hr/performance/dashboard/page.tsx`, `src/app/hr/performance/actions.ts` — 2. P0):**
   - Bevezetésre került a központi `resolvePerformanceAccessContext` segédfüggvény, amely megkülönbözteti a teljes vállalati HR Admin jogosultságot (`isCompanyWideAdmin`) és a közvetlen vezetői jogosultságot (`isManagerOnly`).

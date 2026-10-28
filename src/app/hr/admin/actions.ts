@@ -103,7 +103,9 @@ export async function onboardEmployee(data: {
         subject: "Üdvözlünk a csapatban! - eaisyHR hozzáférés",
         html: emailHtml,
         senderName: "eaisyHR Rendszer",
-        senderEmail: "eaisyhr@thinkai.hu"
+        senderEmail: "eaisyhr@thinkai.hu",
+        modul: "hr",
+        companyId: auth.activeCompanyId || undefined
       })
     }
   } else if (data.mode === "create_new") {

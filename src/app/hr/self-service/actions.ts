@@ -297,6 +297,8 @@ export async function submitLeaveRequest(formData: FormData) {
               subject: `Új távollét kérelem jóváhagyásra: ${dolgozoNev}`,
               senderName: "eaisyHR Rendszer",
               senderEmail: "eaisyhr@thinkai.hu",
+              modul: "hr",
+              companyId: activeCompanyId || undefined,
               html: buildHtmlEmail(
                 "Távollét kérelem jóváhagyása",
                 `${dolgozoNev} új távollét kérelmet nyújtott be, amely a jóváhagyásodra vár.`,
@@ -322,7 +324,9 @@ export async function submitLeaveRequest(formData: FormData) {
             const { sendSmsNotification } = await import('@/utils/sms/twilio');
             await sendSmsNotification({
               to: jovahagyoProfil.telefon,
-              body: `eaisyHR: ${dolgozoNev} új távollét kérelmet nyújtott be (${startDate} - ${endDate}), amely jóváhagyásra vár.`
+              body: `eaisyHR: ${dolgozoNev} új távollét kérelmet nyújtott be (${startDate} - ${endDate}), amely jóváhagyásra vár.`,
+              modul: "hr",
+              companyId: activeCompanyId || undefined,
             });
           }
         } catch (e) {

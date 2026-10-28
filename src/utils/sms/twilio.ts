@@ -53,10 +53,21 @@ async function logSmsAudit(
 }
 
 export async function sendSmsNotification({ to, body, subject, dossierId, skipLog, modul = "docs", companyId }: SendSmsParams) {
+  let resolvedCompanyId = companyId;
+  if (!resolvedCompanyId) {
+    try {
+      const { getActiveCompanyIdServer } = await import("@/utils/company-server");
+      const activeId = await getActiveCompanyIdServer();
+      if (activeId) resolvedCompanyId = activeId;
+    } catch {
+      // Háttérfolyamat esetén a DB trigger oldja fel
+    }
+  }
+
   if (!client || !fromPhone) {
     console.warn("Twilio nincs megfelelően konfigurálva az .env fájlban! (SMS szimulált)");
     if (!skipLog) {
-      await logSmsAudit(to, body, 'hibas', 'Twilio nincs konfigurálva (szimulált küldés)', subject, dossierId, modul, companyId);
+      await logSmsAudit(to, body, 'hibas', 'Twilio nincs konfigurálva (szimulált küldés)', subject, dossierId, modul, resolvedCompanyId);
     }
     return { success: false, error: "Twilio credentials missing", simulated: true };
   }
@@ -70,14 +81,14 @@ export async function sendSmsNotification({ to, body, subject, dossierId, skipLo
     
     console.log(`Twilio SMS sikeresen elküldve a ${to} számra. SID: ${message.sid}`);
     if (!skipLog) {
-      await logSmsAudit(to, body, 'sikeres', null, subject, dossierId);
+      await logSmsAudit(to, body, 'sikeres', null, subject, dossierId, modul, resolvedCompanyId);
     }
     return { success: true, messageSid: message.sid };
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : "Ismeretlen SMS hiba";
     console.error("Twilio SMS küldési hiba:", error);
     if (!skipLog) {
-      await logSmsAudit(to, body, 'hibas', errorMsg, subject, dossierId);
+      await logSmsAudit(to, body, 'hibas', errorMsg, subject, dossierId, modul, resolvedCompanyId);
     }
     return { success: false, error: errorMsg };
   }

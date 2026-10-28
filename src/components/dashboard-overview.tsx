@@ -707,6 +707,7 @@ export function DashboardOverview({
                     fill="url(#tealGrad)"
                     dot={false}
                     activeDot={{ r:4, fill:BRAND, strokeWidth:0 }}
+                    isAnimationActive={false}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -734,6 +735,7 @@ export function DashboardOverview({
                           cx="50%" cy="50%"
                           innerRadius={42} outerRadius={64}
                           paddingAngle={3} strokeWidth={0}
+                          isAnimationActive={false}
                         >
                           {channelData.map((e,i) => <Cell key={i} fill={e.color} />)}
                         </Pie>
