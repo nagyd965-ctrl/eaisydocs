@@ -10,7 +10,8 @@ Ez a dokumentum rögzíti az **eaisyDocs** és **eaisyHR** alkalmazás éles, el
 | Útvonal | Képernyő / Komponens | Hatókör | Jogosultság | Állapot |
 |---|---|---|---|---|
 | `/` | **Vezetői & Operatív Dashboard** (`DashboardOverview`, Recharts statisztikák, lejáró határidők, gyorsműveletek) | `[Közös]` | Minden bejelentkezett felhasználó | **Éles / Kész** |
-| `/login` | **Bejelentkezés** (Email + jelszó alapú Supabase Auth) | `[Közös]` | Nyilvános | **Éles / Kész** |
+| `/login` | **Bejelentkezés** (Újraírva: P-129 platform-branding, középre zárt minimál design — LoginShell) | `[Közös]` | Nyilvános | **Éles / Kész** |
+| `/login/forgot-password` | **Elfelejtett Jelszó** (E-mail bekérés + sikeres kiküldés állapot; magyar Brevo e-mail, A-095) | `[Közös]` | Nyilvános | **Éles / Kész** |
 | `/login/mfa-verify` | **Kétlépcsős Azonosítás (MFA)** (`MfaVerifyForm`, TOTP kód ellenőrzés) | `[Közös]` | Belépés alatt álló felhasználó | **Éles / Kész** |
 | `/search` | **Összetett Kereső** (Magyar ékezetfüggetlen FTS + pgvector szemantikus hibrid keresés, mentett szűrők, riasztások) | `[Docs]` | Minden felhasználó (RLS szűréssel) | **Éles / Kész** |
 | `/tasks` | **Feladatkezelő Munkaterület** (`KanbanBoard`, `TaskCalendar`, `TaskList`, felelősök, határidők) | `[Közös]` | Minden felhasználó | **Éles / Kész** |
