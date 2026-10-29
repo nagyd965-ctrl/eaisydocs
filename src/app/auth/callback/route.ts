@@ -45,6 +45,12 @@ export async function GET(request: Request) {
       }
     }
     console.error("[AuthCallback] Error verifying OTP token_hash:", error.message)
+    // Email-link (pl. jelszó-visszaállítás) érvénytelenedése esetén érthető céloldalra irányítunk
+    if (type === "recovery") {
+      return NextResponse.redirect(
+        `${origin}/login/forgot-password?message=${encodeURIComponent("A jelszó-visszaállító link érvénytelen vagy lejárt. Kérjük, kérj új linket.")}`
+      )
+    }
   }
 
   // Ha a kód hiányzik vagy érvénytelen, hibaüzenettel a bejelentkezőre irányítjuk

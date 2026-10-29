@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Eye, EyeOff, KeyRound, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
+import { Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 export default function SetPasswordPage() {
@@ -108,14 +108,10 @@ export default function SetPasswordPage() {
     <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 py-8">
       <Card className="mx-auto max-w-md w-full border border-border/50 shadow-none bg-card">
         <CardHeader className="text-center pb-4">
-          <div className="mx-auto w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary">
-            <KeyRound className="h-5 w-5" />
-          </div>
-          <CardTitle className="text-2xl font-semibold flex items-center justify-center gap-1 mb-1">
-            <span className="text-foreground/80">e</span>
-            <span className="text-primary">ai</span>
-            <span className="text-foreground/80">sy</span>
-            <span className="text-primary">Docs</span>
+          <CardTitle className="text-[26px] font-semibold leading-none tracking-tight flex items-center justify-center mb-3">
+            <span className="font-medium text-foreground/80">e</span>
+            <span className="font-bold text-primary">ai</span>
+            <span className="font-medium text-foreground/80">sy</span>
           </CardTitle>
           <CardDescription className="text-sm">
             {userEmail ? (
@@ -123,7 +119,7 @@ export default function SetPasswordPage() {
                 Jelszó beállítása a következő fiókhoz: <strong className="text-foreground">{userEmail}</strong>
               </>
             ) : (
-              "Add meg az új jelszavadat a hozzáférésed aktiválásához."
+              "Add meg az új jelszavadat a folytatáshoz."
             )}
           </CardDescription>
         </CardHeader>
