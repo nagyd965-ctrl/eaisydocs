@@ -4,6 +4,25 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-29)
 
+### eaisyHR: „Cégünkről” Prezentáció Végleges Törlése Megerősítő Dialógussal és Fülátnevezés (ADR A-094, PRD P-127)
+- **`deleteCompanyPresentationAction` Szerver Action (`src/app/hr/recruitment/company-presentation-actions.ts`):**
+  - A vállalati „Cégünkről” prezentáció (`companies.career_presentation`) **véglegesen törölhető** a meglévő `verifyPresentationAccess` jogosultsági kapun keresztül: a mező `NULL`-ra állításra kerül, a vállalati rekord többi adata érintetlen marad.
+  - **Audit naplózás:** `hr_esemeny_naplo` bejegyzés `adat_torles` eseménytípussal (`modul: toborzas`, `entitas_tipus: companies`), valamint a `/hr/recruitment` és `/karrier` útvonalak revalidációja biztosítja, hogy a prezentáció azonnal eltűnjön a publikus Karrieroldalról is.
+- **Törlés gomb és Megerősítő Dialógus a mentett prezentáció kártyáján (`src/components/hr/company-presentation-editor.tsx`):**
+  - A `Prezentáció szerkesztése` gomb mellé **`Törlés` gomb** került (destruktív körvonal, kizárólag írási jogosultsággal), amely `AlertDialog` megerősítést nyit (`Mégsem` / `Végleges törlés`).
+  - Sikeres törlés után a felület **visszavált az 5 lépéses létrehozó varázsló alapállapotába** (alapértelmezett briefinggel és prezentációval), így a bemutatkozó bármikor újból létrehozható.
+- **Toborzás Fülátnevezés (`src/app/hr/recruitment/recruitment-tabs.tsx`):**
+  - A fülsáv címkéje „Cégünkről (AI Prezentáció)” helyett **„Cégünkről prezentáció”** lett.
+
+### eaisyHR: Munkakör-adatlap (`/hr/job/[id]`) és HR Munkaasztal (`/hr/admin`) Duplikált Szerkesztőgomb-takarítás (PRD P-128)
+- **Passzív KPI Kártyák és Duplikált Triggerek Eltávolítása (`src/app/hr/job/[id]/page.tsx`, `src/app/hr/job/[id]/job-profile-tasks-section.tsx`):**
+  - A munkakör-adatlap mind a **4 KPI kártyája passzív statisztikává vált** (nincs rejtett kattinthatóság és szerkesztő-modál trigger-csomagolás).
+  - Eltávolításra került az `Alapadatok szerkesztése` gomb (Profil fül), a 2× `Összes kezelése` gomb (Feladatok/Kompetenciák kártyafejlécek) és a 2 feltételes `+ Kockázat és védőeszköz megadása` / `+ Orvosi vizsgálat beállítása` gomb (Munkavédelem fül) — mind a fejléc `Munkakör szerkesztése` gombja vagy a megfelelő kártyafejléci gomb fedi le ugyanazt a `JobEditDialog` modált.
+  - A Feladatok és Kompetenciák kártyák **gyors hozzáadó mezői (Enter) és kuka-törlései változatlanul működnek**; a `JobProfileTasksSection` elhagyatott `orgUnits` propja és `JobEditDialog` importja törlésre került.
+  - A szerkesztési belépési pontok száma 7-ről 3-ra csökkent (fejléc `Munkakör szerkesztése` + a Munkavédelem fül 2 kártyafejléci gombja), a `Dolgozó hozzárendelése` párbeszédablak marad a fejlécben.
+- **HR Munkaasztal Fejléctakarítás (`src/app/hr/admin/page.tsx`):**
+  - A fejléc `Jogosultságkezelő` gyorsgombja eltávolításra került; a Jogosultságkezelő Mátrix továbbra is elérhető a Szervezeti Felépítés 4. füleként (`/hr/organization?tab=permissions`), kizárólag admin szerepkörrel.
+
 ### eaisyHR: Álláshirdetés Részletes Adatlap (`/hr/recruitment/posting/[id]`) 8-Kártyás Felső Paramétersáv, Kétfülű Elrendezés, Helyben Történő (In-Place) Szerkesztés és Tiptap WYSIWYG Szerkesztő (ADR A-093, PRD P-126)
 - **8-Kártyás Felső Pozíció-paraméter Rács és Kétfülű Elrendezés (`src/app/hr/recruitment/posting/[id]/posting-detail-client.tsx`):**
   - A `/hr/recruitment/posting/[id]` adatlap fejléce letisztításra került (`Breadcrumb` + vissza gomb + pozíció címe + státusz badge + tömör alcím: `Belső munkakör: ... • Közzétéve: ...` + jobb oldali láthatósági kapcsolók és műveleti gombok).

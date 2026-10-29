@@ -8,11 +8,10 @@ import { Input } from "@/components/ui/input"
 import { Plus, Trash2, X, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { addJobTaskAction, removeJobTaskAction, addJobCompetencyAction, removeJobCompetencyAction } from "./actions"
-import { JobEditDialog, JobEditData, OrgUnitOption } from "@/components/hr/job-edit-dialog"
+import type { JobEditData } from "@/components/hr/job-edit-dialog"
 
 interface JobProfileTasksSectionProps {
   job: JobEditData
-  orgUnits: OrgUnitOption[]
   isHrOrAdmin: boolean
   initialTasks: string[]
   initialCompetencies: string[]
@@ -20,7 +19,6 @@ interface JobProfileTasksSectionProps {
 
 export function JobProfileTasksSection({
   job,
-  orgUnits,
   isHrOrAdmin,
   initialTasks,
   initialCompetencies,
@@ -102,7 +100,7 @@ export function JobProfileTasksSection({
       {/* ── Feladatok és Hatáskörök Kártya ── */}
       <Card className="border-border flex flex-col justify-between">
         <div>
-          <CardHeader className="pb-3 border-b flex flex-row items-center justify-between gap-2">
+          <CardHeader className="pb-3 border-b">
             <div>
               <div className="flex items-center gap-2">
                 <CardTitle className="text-base font-semibold">Feladatok és Hatáskörök</CardTitle>
@@ -112,18 +110,6 @@ export function JobProfileTasksSection({
                 A munkakörhöz tartozó felelősségek és napi feladatok.
               </CardDescription>
             </div>
-            {isHrOrAdmin && (
-              <JobEditDialog
-                job={job}
-                orgUnits={orgUnits}
-                initialTab="tasks"
-                trigger={
-                  <Button variant="outline" size="sm" className="h-8 text-xs shrink-0">
-                    Összes kezelése
-                  </Button>
-                }
-              />
-            )}
           </CardHeader>
 
           <CardContent className="pt-4 space-y-3">
@@ -197,7 +183,7 @@ export function JobProfileTasksSection({
       {/* ── Elvárt Kompetenciák és Végzettség Kártya ── */}
       <Card className="border-border flex flex-col justify-between">
         <div>
-          <CardHeader className="pb-3 border-b flex flex-row items-center justify-between gap-2">
+          <CardHeader className="pb-3 border-b">
             <div>
               <div className="flex items-center gap-2">
                 <CardTitle className="text-base font-semibold">Elvárt Kompetenciák és Végzettség</CardTitle>
@@ -207,18 +193,6 @@ export function JobProfileTasksSection({
                 Szükséges képesítések, készségek és szakmai elvárások.
               </CardDescription>
             </div>
-            {isHrOrAdmin && (
-              <JobEditDialog
-                job={job}
-                orgUnits={orgUnits}
-                initialTab="tasks"
-                trigger={
-                  <Button variant="outline" size="sm" className="h-8 text-xs shrink-0">
-                    Összes kezelése
-                  </Button>
-                }
-              />
-            )}
           </CardHeader>
 
           <CardContent className="pt-4 space-y-3">

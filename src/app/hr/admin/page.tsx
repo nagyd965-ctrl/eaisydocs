@@ -535,13 +535,6 @@ export default async function HrAdminPage() {
         </div>
         {canEdit && (
           <div className="flex items-center gap-2.5">
-            {hrRole === "admin" && (
-              <Link href="/hr/organization?tab=permissions">
-                <Button variant="outline">
-                  Jogosultságkezelő
-                </Button>
-              </Link>
-            )}
             <EaisyBooksEmployeeImportDialog
               companyId={companyScope}
               companyName={currentCompanyName}

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   CompanyCareerPresentation,
   PresentationBriefingInput,
@@ -12,6 +13,7 @@ import {
 import {
   generateCompanyPresentationWithAiAction,
   saveCompanyPresentationAction,
+  deleteCompanyPresentationAction,
   uploadCompanyPresentationImageAction,
 } from "@/app/hr/recruitment/company-presentation-actions"
 import { CompanyPresentationViewer } from "@/components/hr/company-presentation-viewer"
@@ -20,6 +22,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
 import {
   ArrowLeft,
@@ -34,6 +46,7 @@ import {
   Loader2,
   Save,
   Sparkles,
+  Trash2,
   Upload,
   X,
 } from "lucide-react"
@@ -126,10 +139,47 @@ export function CompanyPresentationEditor({
   const [aiGenerating, setAiGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const router = useRouter()
 
   const locationShort = companyAddress
     ? companyAddress.split(",")[0].trim()
     : "Budapest"
+
+  async function handleDeletePresentation() {
+    if (isReadOnly) return
+    setDeleting(true)
+    try {
+      const res = await deleteCompanyPresentationAction()
+      if (res.error) {
+        toast.error(res.error)
+      } else {
+        const freshDefault = buildDefaultCompanyPresentation(
+          companyName,
+          companyAddress,
+          "tech_ai"
+        )
+        setPresentation(freshDefault)
+        if (freshDefault.briefing) {
+          setBriefing(freshDefault.briefing)
+        }
+        setHasSavedPresentation(false)
+        setIsEditing(true)
+        setIsPreviewOpen(false)
+        setCurrentStep(1)
+        setDeleteDialogOpen(false)
+        toast.success(
+          "A „Cégünkről” prezentáció törölve és levéve a Karrieroldalról. A varázslóval bármikor létrehozhatod újra."
+        )
+        router.refresh()
+      }
+    } catch {
+      toast.error("Hiba történt a prezentáció törlésekor.")
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   function handleSelectTheme(themeId: PresentationVisualThemeId) {
     setBriefing((prev) => ({ ...prev, visualTheme: themeId }))
@@ -375,6 +425,41 @@ export function CompanyPresentationEditor({
                 <Edit className="w-3.5 h-3.5" />
                 <span>Prezentáció szerkesztése</span>
               </Button>
+
+              <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={deleting}
+                  onClick={() => setDeleteDialogOpen(true)}
+                  className="gap-1.5 text-xs text-destructive border-destructive/30 hover:text-destructive hover:bg-destructive/10 hover:border-destructive/50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Törlés</span>
+                </Button>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      „Cégünkről” prezentáció törlése
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Biztosan törölni szeretnéd a(z) {companyName} vállalati bemutatkozó prezentációját?
+                      A törlés után az azonnal eltűnik a publikus Karrieroldalról, és a varázslóval bármikor újból létrehozható.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={deleting}>Mégsem</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeletePresentation}
+                      disabled={deleting}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {deleting ? "Törlés folyamatban..." : "Végleges törlés"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           )}
         </div>

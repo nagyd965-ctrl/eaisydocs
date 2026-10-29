@@ -421,6 +421,45 @@ export async function saveCompanyPresentationAction(
 }
 
 /**
+ * A vállalati „Cégünkről" prezentáció végleges törlése (visszaállítás a varázsló alapállapotba)
+ */
+export async function deleteCompanyPresentationAction(): Promise<{
+  success: boolean
+  error?: string
+}> {
+  const auth = await verifyPresentationAccess()
+  if (!auth.allowed || !auth.activeCompanyId || !auth.user) {
+    return { success: false, error: auth.error || "Hozzáférés megtagadva" }
+  }
+
+  const adminClient = getAdminClient()
+  const { error } = await adminClient
+    .from("companies")
+    .update({ career_presentation: null })
+    .eq("id", auth.activeCompanyId)
+
+  if (error) {
+    console.error("Hiba a vállalati prezentáció törlésekor:", error)
+    return { success: false, error: error.message }
+  }
+
+  await adminClient.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: auth.user.id,
+    modul: "toborzas",
+    esemeny_tipus: "adat_torles",
+    entitas_tipus: "companies",
+    entitas_id: auth.activeCompanyId,
+    megjegyzes: "Vállalati karrier-prezentáció (Cégünkről) törölve és levéve a Karrieroldalról",
+    company_id: auth.activeCompanyId,
+  })
+
+  revalidatePath("/hr/recruitment")
+  revalidatePath("/karrier")
+
+  return { success: true }
+}
+
+/**
  * Saját irodai / csapatfotó feltöltése a prezentációhoz
  */
 export async function uploadCompanyPresentationImageAction(

@@ -49,7 +49,7 @@ export function RecruitmentTabs({
         <TabsList>
           <TabsTrigger value="postings">Álláshirdetések</TabsTrigger>
           <TabsTrigger value="company-presentation">
-            Cégünkről (AI Prezentáció)
+            Cégünkről prezentáció
           </TabsTrigger>
           <TabsTrigger value="kanban">Kanban Tábla</TabsTrigger>
           <TabsTrigger value="talent-pool">Talent Pool</TabsTrigger>
