@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login háttér-variánsok — 2. kör</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Montserrat', -apple-system, 'Segoe UI', Roboto, sans-serif; background: #FAFAFA; color: #18181B; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; gap: 36px; }
+  .logo { font-size: 26px; }
+  .logo .a { color: rgba(24,24,27,.75); font-weight: 500; }
+  .logo .b { color: #0D9488; font-weight: 800; }
+  h1 { font-size: 19px; font-weight: 600; }
+  .sub { font-size: 13px; color: #71717A; margin-top: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; max-width: 1020px; width: 100%; }
+  a.card { display: block; background: #fff; border: 1px solid #E4E4E7; border-radius: 12px; padding: 0; text-decoration: none; color: inherit; overflow: hidden; transition: border-color .15s, transform .15s; }
+  a.card:hover { border-color: #0D9488; transform: translateY(-2px); }
+  .preview { height: 150px; position: relative; overflow: hidden; border-bottom: 1px solid #ECECEE; }
+  .preview .mini-card { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 84px; height: 58px; background: #fff; border: 1px solid #E4E4E7; border-radius: 8px; }
+  .body { padding: 18px 20px 20px; }
+  .tag { display: inline-block; font-size: 10px; font-weight: 700; color: #0D9488; background: rgba(13,148,136,.08); border: 1px solid rgba(13,148,136,.25); border-radius: 999px; padding: 2px 9px; margin-bottom: 10px; letter-spacing: .5px; }
+  .body h2 { font-size: 15px; font-weight: 600; margin-bottom: 5px; }
+  .body p { font-size: 12.5px; line-height: 1.55; color: #52525B; }
+  .open { margin-top: 10px; font-size: 12px; font-weight: 600; color: #0D9488; }
+  /* preview hátterek */
+  .p1 { background: linear-gradient(180deg,#FBFCFD,#F3F8F7); }
+  .p1::before { content:""; position:absolute; inset:0; background-image: linear-gradient(rgba(13,148,136,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(13,148,136,.06) 1px, transparent 1px); background-size: 26px 26px; }
+  .p1::after { content:""; position:absolute; width:260px; height:130px; left:50%; top:-40px; transform:translateX(-50%); background: radial-gradient(ellipse, rgba(13,148,136,.18), transparent 70%); }
+  .p2::before { content:""; position:absolute; width:180px; height:180px; left:-40px; top:-50px; border-radius:50%; background: rgba(13,148,136,.20); filter: blur(46px); }
+  .p2::after { content:""; position:absolute; width:200px; height:200px; right:-50px; bottom:-70px; border-radius:50%; background: rgba(16,185,129,.18); filter: blur(50px); }
+  .p2a { position:absolute; width:130px; height:130px; right:60px; top:-40px; border-radius:50%; background: rgba(56,189,248,.14); filter: blur(42px); }
+  .p3 { background: #FAFAF9; }
+  .p3::before { content:""; position:absolute; inset:0; background-image: linear-gradient(rgba(0,0,0,.05) 1px, transparent 1px); background-size: 100% 22px; }
+  .p3::after { content:""; position:absolute; left: 38px; top:0; bottom:0; width:1px; background: rgba(13,148,136,.25); }
+  .p3a { position:absolute; left: 30px; top: 43px; width:9px; height:9px; background: rgba(13,148,136,.30); border-radius:2px; }
+  .p3b { position:absolute; left: 30px; top: 109px; width:9px; height:9px; background: rgba(13,148,136,.18); border-radius:2px; }
+  .p4::before { content:"eaisy"; position:absolute; left:50%; top:50%; transform:translate(-50%,-52%); font-size:110px; font-weight:800; letter-spacing:-4px; color:rgba(13,148,136,.07); white-space:nowrap; }
+  .p4::after { content:""; position:absolute; width:280px; height:150px; left:50%; top:-30px; transform:translateX(-50%); background: radial-gradient(ellipse, rgba(13,148,136,.12), transparent 70%); }
+</style>
+</head>
+<body>
+  <div class="logo"><span class="a">eai</span><span class="b">sy</span></div>
+  <div style="text-align:center">
+    <h1>Login háttér-tervek — 2. kör</h1>
+    <p class="sub">A középre zárt elrendezés és az űrlap változatlan — csak a háttér kap gazdagabb, profibb kezelést. Nyisd meg őket teljes méretben!</p>
+  </div>
+  <div class="grid">
+    <a class="card" href="v5-grid-glow.html">
+      <div class="preview p1"><div class="mini-card"></div></div>
+      <div class="body">
+        <span class="tag">5. VARIÁNS</span>
+        <h2>Rács + mélyített ragyogás</h2>
+        <p>Halvány teal vonalrács a teljes háttéren, fölötte erősebb, kétrétegű ragyogással. Precíz, „mérnöki" hatás — a Linear-stílus közeli rokona.</p>
+        <span class="open">Megnyitás →</span>
+      </div>
+    </a>
+    <a class="card" href="v6-aurora.html">
+      <div class="preview p2"><div class="p2a"></div><div class="mini-card"></div></div>
+      <div class="body">
+        <span class="tag">6. VARIÁNS</span>
+        <h2>Aurora — lágy fényfoltok</h2>
+        <p>Elmosott, organikus teal-eszkék-s kékes fénypöttyök lebegnek a sarkokban. A 2026-os SaaS-ok kedvence: légies, barátságos, mégis minimal.</p>
+        <span class="open">Megnyitás →</span>
+      </div>
+    </a>
+    <a class="card" href="v7-ledger.html">
+      <div class="preview p3"><div class="p3a"></div><div class="p3b"></div><div class="mini-card"></div></div>
+      <div class="body">
+        <span class="tag">7. VARIÁNS</span>
+        <h2>Iktatókönyv-motívum</h2>
+        <p>Visszafogott „vonalas notesz" sorok margóvonallal és pici jelölőkkel — utalás az iktatókönyvre, a termékvilág saját metaforájára. Hordoz márkátörténetet.</p>
+        <span class="open">Megnyitás →</span>
+      </div>
+    </a>
+    <a class="card" href="v8-watermark.html">
+      <div class="preview p4"><div class="mini-card"></div></div>
+      <div class="body">
+        <span class="tag">8. VARIÁNS</span>
+        <h2>Óriás vízjel-tipográfia</h2>
+        <p>Hatalmas, alig látható „eaisy" felirat a háttérben ragyogással párosítva — merész, brand-centrikus, a kártya szinte „lebeg" a név felett.</p>
+        <span class="open">Megnyitás →</span>
+      </div>
+    </a>
+    <a class="card" href="v9-brand-hero.html" style="border-color:#0D9488">
+      <div class="preview p2"><div class="mini-card"></div></div>
+      <div class="body">
+        <span class="tag">9. VARIÁNS · HIVATALOS MÁRKA</span>
+        <h2>eaisy.hu hero-háttér + hivatalos logó + szlogen</h2>
+        <p>A termékcsalád oldalának saját háttérképe és logója, a „Könnyebb működés. Nagyobb szabadság." szlogennel és a „100% GDPR kompatibilis" bizalmi sorral. Azonnali márkaazonosság.</p>
+        <span class="open">Megnyitás →</span>
+      </div>
+    </a>
+    <a class="card" href="v10-brand-sky.html" style="border-color:#0D9488">
+      <div class="preview p2"><div class="p2a"></div><div class="mini-card"></div></div>
+      <div class="body">
+        <span class="tag">10. VARIÁNS · HIVATALOS MÁRKA</span>
+        <h2>Sky-háttér + Docs/HR terméksor</h2>
+        <p>A másik hivatalos háttérkép, fölötte a két termék (eaisyDocs + eaisyHR) bemutatkozó kártyáival — a családi oldal saját szövegein alapuló leírásokkal.</p>
+        <span class="open">Megnyitás →</span>
+      </div>
+    </a>
+    <a class="card" href="v11-product-snapshots.html" style="border-color:#0D9488">
+      <div class="preview p1"><div class="mini-card" style="width:60px"></div></div>
+      <div class="body">
+        <span class="tag">11. VARIÁNS · TERMÉK-PILLANATKÉPEK</span>
+        <h2>Docs balra, HR jobbra — élő adat-hatás</h2>
+        <p>A login középen marad, a két oldalán a termékek „működés-pillanatképei": baloldalt iktatott iratok kereséssel és AI-javaslatokkal, jobboldalt szabadság-egyenleg, jelenlét, KPI. Az eaisyDesk admin hangulatát idézi.</p>
+        <span class="open">Megnyitás →</span>
+      </div>
+    </a>
+  </div>
+  <p style="font-size:12px;color:#A1A1AA;text-align:center">Mockup fájlok — nem production kód. Mindegyik világos módban készült, sötét módra ugyanez mélyebb teal árnyalatokkal működne.</p>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>15. variáns — Sötét Desk wave háttér</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Montserrat', sans-serif; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 48px 24px;
+    background: url("assets/desk-wave-dark.webp") center center / cover no-repeat fixed #082432;
+  }
+  .wrap { width: 100%; max-width: 400px; }
+  .logo { text-align: center; font-size: 26px; letter-spacing: -.5px; margin-bottom: 10px; }
+  .logo .a { color: rgba(228,245,241,.72); font-weight: 500; }
+  .logo .b { color: #1ceee0; font-weight: 800; }
+  .tagline { text-align: center; font-size: 13px; color: rgba(228,245,241,.62); margin-bottom: 36px; }
+  .card { background: rgba(255,255,255,.96); border: 1px solid rgba(255,255,255,.6); border-radius: 16px; padding: 32px 28px 28px; box-shadow: 0 28px 64px -28px rgba(0,0,0,.55); }
+  .card h2 { font-size: 17px; font-weight: 600; color: #18181B; margin-bottom: 4px; }
+  .card .hint { font-size: 12px; color: #71717A; margin-bottom: 24px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: #3F3F46; margin-bottom: 6px; }
+  .field { margin-bottom: 16px; }
+  input { width: 100%; height: 42px; border: 1px solid #E4E4E7; border-radius: 8px; padding: 0 14px; font-family: inherit; font-size: 14px; color: #18181B; outline: none; background: #fff; }
+  input:focus { border-color: #0D9488; box-shadow: 0 0 0 3px rgba(13,148,136,.12); }
+  .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .row a { font-size: 12px; color: #0D9488; text-decoration: none; font-weight: 500; }
+  button { width: 100%; height: 44px; background: #0D9488; color: #fff; border: none; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 4px; }
+  .footer { margin-top: 26px; text-align: center; font-size: 11px; color: rgba(228,245,241,.45); line-height: 1.9; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo"><span class="a">eai</span><span class="b">sy</span></div>
+    <p class="tagline">Iratkezelő és munkaügyi platform</p>
+    <div class="card">
+      <h2>Bejelentkezés</h2>
+      <p class="hint">Add meg az e-mail címedet és jelszavadat.</p>
+      <div class="field"><label>E-mail cím</label><input type="email" placeholder="te@ceged.hu"></div>
+      <div class="field">
+        <div class="row"><label style="margin:0">Jelszó</label><a href="#">Elfelejtett jelszó?</a></div>
+        <input type="password">
+      </div>
+      <button>Bejelentkezés</button>
+    </div>
+    <div class="footer">© 2026 eaisy · Adatvédelmi tájékoztató · ÁSZF · Kapcsolat</div>
+  </div>
+</body>
+</html>

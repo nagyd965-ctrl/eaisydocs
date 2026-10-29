@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>11. variáns — Termék-pillanatképek a login két oldalán</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Montserrat', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(180deg, #FBFCFD 0%, #F2F7F6 100%);
+    color: #18181B; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 48px 24px; position: relative; overflow-x: hidden;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0;
+    background-image: radial-gradient(rgba(13,148,136,.07) 1px, transparent 1px);
+    background-size: 24px 24px; pointer-events: none;
+  }
+  body::after {
+    content: ""; position: fixed; width: 900px; height: 420px; top: -180px; left: 50%;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse at center, rgba(13,148,136,.12), transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ── Oldalsó termék-pillanatképek ── */
+  .side { position: fixed; top: 50%; width: 296px; z-index: 0; opacity: .96; }
+  .side.left  { left: 5vw;  transform: translateY(-56%); }
+  .side.right { right: 5vw; transform: translateY(-44%); }
+  .panel {
+    background: rgba(255,255,255,.88); border: 1px solid #E4E9EA; border-radius: 14px;
+    padding: 18px; backdrop-filter: blur(8px);
+  }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+  .panel-head .name { font-size: 13.5px; font-weight: 700; color: #0D9488; }
+  .panel-head .cat { font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: #A1A1AA; }
+
+  .search { display: flex; align-items: center; gap: 8px; border: 1px solid #E4E4E7; border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; color: #A1A1AA; font-size: 11.5px; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid #F1F4F4; }
+  .row:last-child { border-bottom: none; }
+  .row .doc-ic { width: 28px; height: 28px; border-radius: 7px; background: rgba(13,148,136,.08); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .row .txt { flex: 1; min-width: 0; }
+  .row .t { font-size: 11.5px; font-weight: 600; color: #27272A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .s { font-size: 10px; color: #A1A1AA; font-variant-numeric: tabular-nums; }
+  .chip { font-size: 9.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
+  .chip.ok { background: rgba(13,148,136,.1); color: #0D9488; }
+  .chip.ai { background: rgba(99,102,241,.1); color: #6366F1; }
+  .chip.wait { background: rgba(234,179,8,.12); color: #A16207; }
+
+  .stat { border: 1px solid #E4E9EA; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+  .stat .lbl { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: #A1A1AA; margin-bottom: 7px; }
+  .bar { height: 6px; border-radius: 4px; background: #EDF2F1; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 72%; background: #0D9488; border-radius: 4px; }
+  .stat .val { display: flex; justify-content: space-between; margin-top: 6px; font-size: 10.5px; color: #71717A; font-variant-numeric: tabular-nums; }
+  .stat .val b { color: #0D9488; }
+
+  .clock-row { display: flex; align-items: center; gap: 9px; padding: 7px 4px; }
+  .dot { width: 7px; height: 7px; border-radius: 2px; background: #0D9488; flex-shrink: 0; }
+  .clock-row .txt { font-size: 11.5px; color: #3F3F46; font-weight: 500; }
+  .clock-row .time { margin-left: auto; font-size: 10.5px; color: #A1A1AA; font-variant-numeric: tabular-nums; }
+
+  /* ── Középső login ── */
+  .wrap { position: relative; z-index: 1; width: 100%; max-width: 400px; }
+  .logo { text-align: center; font-size: 26px; letter-spacing: -0.5px; margin-bottom: 10px; }
+  .logo .a { color: rgba(24,24,27,.72); font-weight: 500; }
+  .logo .b { color: #0D9488; font-weight: 800; }
+  .tagline { text-align: center; font-size: 13px; color: #71717A; margin-bottom: 32px; }
+  .card { background: #fff; border: 1px solid #E2E7E8; border-radius: 14px; padding: 32px 28px 28px; box-shadow: 0 8px 30px -18px rgba(13,148,136,.25); }
+  .card h2 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  .card .hint { font-size: 12px; color: #71717A; margin-bottom: 24px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: #3F3F46; margin-bottom: 6px; }
+  .field { margin-bottom: 16px; }
+  input { width: 100%; height: 42px; border: 1px solid #E4E4E7; border-radius: 8px; padding: 0 14px; font-family: inherit; font-size: 14px; outline: none; }
+  input:focus { border-color: #0D9488; box-shadow: 0 0 0 3px rgba(13,148,136,.12); }
+  .pwrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .pwrow a { font-size: 12px; color: #0D9488; text-decoration: none; font-weight: 500; }
+  button { width: 100%; height: 44px; background: #0D9488; color: #fff; border: none; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 4px; }
+  .footer { margin-top: 26px; text-align: center; font-size: 11px; color: #A1A1AA; line-height: 1.9; }
+
+  @media (max-width: 1240px) { .side { display: none; } }
+</style>
+</head>
+<body>
+
+  <!-- BAL: eaisyDocs pillanatkép -->
+  <aside class="side left">
+    <div class="panel">
+      <div class="panel-head"><span class="name">eaisyDocs</span><span class="cat">Iratkezelés</span></div>
+      <div class="search">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        Keresés minden iratban…
+      </div>
+      <div class="row">
+        <div class="doc-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="txt"><div class="t">Társasház-szerződés</div><div class="s">NYILV/2026/00042</div></div>
+        <span class="chip ok">Iktatva</span>
+      </div>
+      <div class="row">
+        <div class="doc-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg></div>
+        <div class="txt"><div class="t">Bejövő számla — Kft.</div><div class="s">Érkeztetve ma, 09:14</div></div>
+        <span class="chip ai">AI javaslat</span>
+      </div>
+      <div class="row">
+        <div class="doc-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A16207" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="txt"><div class="t">Hatósági levelezés</div><div class="s">NYILV/2026/00043</div></div>
+        <span class="chip wait">Határidő 3 nap</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- JOBB: eaisyHR pillanatkép -->
+  <aside class="side right">
+    <div class="panel">
+      <div class="panel-head"><span class="name">eaisyHR</span><span class="cat">Munkaügy</span></div>
+      <div class="stat">
+        <div class="lbl">Szabadság egyenleg</div>
+        <div class="bar"><i></i></div>
+        <div class="val"><span>18 nap felhasználva</span><b>7 nap maradt</b></div>
+      </div>
+      <div class="clock-row"><span class="dot"></span><span class="txt">Mai becsekkolás</span><span class="time">08:32</span></div>
+      <div class="clock-row"><span class="dot" style="background:#6366F1"></span><span class="txt">Túlóra-egyenleg</span><span class="time">+4,5 óra</span></div>
+      <div class="clock-row"><span class="dot" style="background:#A16207"></span><span class="txt">NAV T1041 bejelentés</span><span class="time">Kész</span></div>
+      <div class="clock-row" style="padding-top:10px">
+        <div style="flex:1">
+          <div class="lbl" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#A1A1AA;margin-bottom:6px">Negyedéves KPI</div>
+          <div class="bar"><i style="width:78%"></i></div>
+        </div>
+        <span style="font-size:12px;font-weight:700;color:#0D9488;margin-left:12px">78%</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Középen: bejelentkezés -->
+  <div class="wrap">
+    <div class="logo"><span class="a">eai</span><span class="b">sy</span></div>
+    <p class="tagline">Iratkezelő és munkaügyi platform</p>
+    <div class="card">
+      <h2>Bejelentkezés</h2>
+      <p class="hint">Add meg az e-mail címedet és jelszavadat.</p>
+      <div class="field">
+        <label>E-mail cím</label>
+        <input type="email" placeholder="te@ceged.hu">
+      </div>
+      <div class="field">
+        <div class="pwrow"><label style="margin:0">Jelszó</label><a href="#">Elfelejtett jelszó?</a></div>
+        <input type="password">
+      </div>
+      <button>Bejelentkezés</button>
+    </div>
+    <div class="footer">© 2026 eaisy · Adatvédelmi tájékoztató · ÁSZF · Kapcsolat</div>
+  </div>
+
+</body>
+</html>
