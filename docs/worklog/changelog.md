@@ -14,6 +14,11 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 - **Toborzás Fülátnevezés (`src/app/hr/recruitment/recruitment-tabs.tsx`):**
   - A fülsáv címkéje „Cégünkről (AI Prezentáció)” helyett **„Cégünkről prezentáció”** lett.
 
+### eaisyHR: Dolgozói Portál Áttekintés (`/hr`) Dekoratív Ikonok Eltávolítása és Import-takarítás (Zero-Emoji)
+- **`Aktuális Célkitűzéseim` kártyacím (`src/components/hr/employee-kpi-widget.tsx`):** A `Target` dekoratív ikon eltávolításra került a cím elől (Zero-Emoji / A-029 / P-043 irányelv).
+- **`Szabadság ({év})` kártyafejléc (`src/app/hr/page.tsx`):** A `CalendarDays` dekoratív naptár ikon eltávolításra került a kártya jobb felső sarkából.
+- **Import-takarítás:** Mindkét fájlból törölve a korábban elhagyatott importok (`Button`, `Clock`, `AlertCircle`, `CheckCircle2`, `User`, `CalendarCheck`, `cn`), így a lint 0 unused import állapotban tiszta.
+
 ### eaisyHR: Munkakör-adatlap (`/hr/job/[id]`) és HR Munkaasztal (`/hr/admin`) Duplikált Szerkesztőgomb-takarítás (PRD P-128)
 - **Passzív KPI Kártyák és Duplikált Triggerek Eltávolítása (`src/app/hr/job/[id]/page.tsx`, `src/app/hr/job/[id]/job-profile-tasks-section.tsx`):**
   - A munkakör-adatlap mind a **4 KPI kártyája passzív statisztikává vált** (nincs rejtett kattinthatóság és szerkesztő-modál trigger-csomagolás).

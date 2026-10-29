@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { CalendarDays, ArrowRight, Clock, AlertCircle } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { createClient } from "@/utils/supabase/server"
 import { TimeTrackingCard } from "@/components/hr/time-tracking-card"
 import { EmployeeKpiWidget } from "@/components/hr/employee-kpi-widget"
@@ -270,12 +269,11 @@ export default async function SelfServicePage() {
 
         {/* Szabadság egyenleg */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className="pb-2">
             <div className="space-y-1">
               <CardTitle className="text-base font-semibold">Szabadság ({new Date().getFullYear()})</CardTitle>
               <p className="text-xs text-muted-foreground">Éves alapszabadság + pótszabadságok</p>
             </div>
-            <CalendarDays className="w-5 h-5 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="flex items-end justify-between mt-2">

@@ -3,9 +3,8 @@
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Target, ArrowRight, CheckCircle2, Lock, Clock, User, CalendarCheck } from "lucide-react"
+import { Target, ArrowRight, Lock } from "lucide-react"
 import { deriveWorkflowPhase, formatKpiTargetBadge } from "@/components/hr/kpi-workflow-stepper"
-import { cn } from "@/lib/utils"
 
 export interface EmployeeKpiWidgetProps {
   kpis: any[]
@@ -59,8 +58,7 @@ export function EmployeeKpiWidget({ kpis = [] }: EmployeeKpiWidgetProps) {
       <div>
         <CardHeader className="pb-3 border-b bg-muted/20">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Target className="w-4 h-4 text-primary" />
+            <CardTitle className="text-base font-semibold">
               Aktuális Célkitűzéseim
             </CardTitle>
             {kpis.length > 0 && (
