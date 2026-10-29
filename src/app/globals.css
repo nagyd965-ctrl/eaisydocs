@@ -295,3 +295,26 @@ body[data-scroll-locked] {
 
 /* Freeze all animations during theme switch (pause, don't reset) */
 .theme-switching * { animation-play-state: paused !important; }
+
+/* ── Login héj háttér (design: docs/design/login-redesign-v2 V16 — lágy gradiens-mosás) ──
+   Több rétegű, finom teal/türkiz/kék fény-árnyalat a login-oldalcsalád (login,
+   elfelejezett-jelszó, MFA) mögött — kép nélkül, azonnal renderel. */
+.login-shell-bg {
+  background:
+    radial-gradient(ellipse 58% 48% at 18% 14%, rgba(13, 148, 136, 0.16) 0%, transparent 100%),
+    radial-gradient(ellipse 50% 44% at 86% 78%, rgba(59, 130, 246, 0.10) 0%, transparent 100%),
+    radial-gradient(ellipse 42% 38% at 82% 12%, rgba(28, 238, 224, 0.12) 0%, transparent 100%),
+    radial-gradient(ellipse 46% 40% at 10% 86%, rgba(16, 185, 129, 0.10) 0%, transparent 100%),
+    linear-gradient(180deg, #fbfcfd 0%, #f1f7f5 100%);
+  background-attachment: fixed;
+}
+
+.dark .login-shell-bg {
+  background:
+    radial-gradient(ellipse 58% 48% at 18% 14%, rgba(20, 212, 184, 0.14) 0%, transparent 100%),
+    radial-gradient(ellipse 50% 44% at 86% 78%, rgba(59, 130, 246, 0.10) 0%, transparent 100%),
+    radial-gradient(ellipse 42% 38% at 82% 12%, rgba(28, 238, 224, 0.09) 0%, transparent 100%),
+    radial-gradient(ellipse 46% 40% at 10% 86%, rgba(16, 185, 129, 0.08) 0%, transparent 100%),
+    linear-gradient(180deg, #0a1512 0%, #0d1f1b 100%);
+  background-attachment: fixed;
+}

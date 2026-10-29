@@ -7,6 +7,11 @@ import { createClient } from "@/utils/supabase/server"
 export async function login(formData: FormData) {
   const supabase = await createClient()
 
+  const { getSafeRedirectPath } = await import("@/utils/url")
+  // Explicit cél (pl. e-mail link): belépés után ide visszavezetni — csak
+  // validált, belső útvonalat fogadunk el (open-redirect védelem).
+  const nextPath = getSafeRedirectPath(formData.get("next") as string | null)
+
   const data = {
     email: formData.get("email") as string,
     password: formData.get("password") as string,
@@ -20,9 +25,14 @@ export async function login(formData: FormData) {
 
   // MFA ellenőrzés — ha a user kétlépcsős azonosítást állított be,
   // az AAL szint aal1 → aal2 átmenetet igényel, átirányítjuk a kód bekérő oldalra
+  // (az eredeti célt átvisszük, hogy a kód beadása után is oda jusson)
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
   if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
-    redirect("/login/mfa-verify")
+    redirect(
+      nextPath
+        ? `/login/mfa-verify?redirectTo=${encodeURIComponent(nextPath)}`
+        : "/login/mfa-verify"
+    )
   }
 
   const { data: profile } = await supabase
@@ -32,6 +42,12 @@ export async function login(formData: FormData) {
     .single()
 
   revalidatePath("/", "layout")
+
+  // Ha a felhasználó konkrét oldalra indult (pl. értesítési link), belépés után oda visszavezetni.
+  // Jogosultsági esetén az oldal saját védelme továbbirányít — itt nem kell duplikálni.
+  if (nextPath) {
+    redirect(nextPath)
+  }
 
   if (profile?.elerheto_modulok) {
     if (profile.elerheto_modulok.includes("hr") && !profile.elerheto_modulok.includes("docs")) {

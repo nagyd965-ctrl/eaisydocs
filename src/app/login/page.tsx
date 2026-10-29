@@ -1,14 +1,13 @@
-import Link from "next/link"
-import { login } from "./actions"
 import { LoginShell, EaisyLogo } from "./login-shell"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { LoginForm } from "./login-form"
+import { getSafeRedirectPath } from "@/utils/url"
 
 export default async function LoginPage(props: {
-  searchParams: Promise<{ message?: string }>
+  searchParams: Promise<{ message?: string; next?: string }>
 }) {
   const searchParams = await props.searchParams
+  // Az eredeti cél (pl. e-mail link) — csak validált, belső útvonalat fogadunk el
+  const nextPath = getSafeRedirectPath(searchParams.next) ?? undefined
 
   return (
     <LoginShell>
@@ -26,51 +25,7 @@ export default async function LoginPage(props: {
             Add meg az e-mail címedet és jelszavadat.
           </p>
 
-          <form action={login} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail cím</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="te@ceged.hu"
-                autoComplete="username"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Jelszó</Label>
-                <Link
-                  href="/login/forgot-password"
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  Elfelejtett jelszó?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-              />
-            </div>
-
-            {searchParams?.message && (
-              <p
-                role="alert"
-                className="pt-1 text-center text-sm font-medium text-destructive"
-              >
-                {searchParams.message}
-              </p>
-            )}
-
-            <Button type="submit" className="mt-1.5 h-11 w-full">
-              Bejelentkezés
-            </Button>
-          </form>
+          <LoginForm message={searchParams?.message} next={nextPath} />
         </div>
 
         {/* Lábléc */}

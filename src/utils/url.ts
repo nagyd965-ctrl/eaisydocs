@@ -24,3 +24,16 @@ export function getBaseUrl() {
 
   return "https://eaisydocs2.vercel.app";
 }
+
+/**
+ * Belépés utáni átirányítási cél („next") biztonságos validálása.
+ * Csak relatív, "/"-rel kezdődő belső útvonalat enged át:
+ *  - open-redirect védelem: külső URL és protokoll-relatív ("//...") tiltott
+ *  - login oldalak kizárva (végtelen átirányítási kör ellen)
+ */
+export function getSafeRedirectPath(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  if (raw.startsWith("/login")) return null;
+  return raw;
+}

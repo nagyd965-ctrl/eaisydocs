@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { getSafeRedirectPath } from "@/utils/url"
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -50,16 +51,24 @@ export async function updateSession(request: NextRequest) {
 
   // Default redirect for unauthenticated users on protected routes
   if (!user && isProtectedRoute) {
-    // Return to login page
+    // Vissza a loginra — közben megjegyezzük az eredeti célt (?next=),
+    // hogy a sikeres belépés után a felhasználó pont oda kerüljön vissza
+    // (pl. e-mailben kapott értesítési link).
     const url = request.nextUrl.clone()
+    const originalPath = request.nextUrl.pathname + (request.nextUrl.search || "")
     url.pathname = '/login'
+    url.search = ''
+    url.searchParams.set('next', originalPath)
     return NextResponse.redirect(url)
   }
 
   // Redirect authenticated users away from login page
   if (user && request.nextUrl.pathname === '/login') {
+    // Ha már be van lépve és konkrét célja volt (?next=), egyenesen oda küldjük
+    const next = getSafeRedirectPath(request.nextUrl.searchParams.get('next'))
     const url = request.nextUrl.clone()
-    url.pathname = '/'
+    url.pathname = next || '/'
+    url.search = ''
     return NextResponse.redirect(url)
   }
 
