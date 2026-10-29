@@ -35,7 +35,7 @@ export function LayoutWrapper({
   const [timeoutMinutes, setTimeoutMinutes] = useState<number | null>(null)
 
   useEffect(() => {
-    const isPublic = pathname === "/login" || pathname.startsWith("/auth") || pathname.startsWith("/embed") || pathname.startsWith("/archive/print") || pathname.startsWith("/karrier")
+    const isPublic = pathname.startsWith("/login") || pathname.startsWith("/auth") || pathname.startsWith("/embed") || pathname.startsWith("/archive/print") || pathname.startsWith("/karrier")
     if (!isPublic && !pathname.startsWith("/hr")) {
       // Ha a felhasználónak NINCS docs modulja, de van hr modulja, azonnal átirányítjuk a HR felületre
       if (elerhetoModulok.length > 0 && !elerhetoModulok.includes("docs") && elerhetoModulok.includes("hr")) {
@@ -59,7 +59,7 @@ export function LayoutWrapper({
       }
     }
     
-    if (pathname !== "/login") {
+    if (!pathname.startsWith("/login")) {
       getSettings()
     }
 
@@ -71,7 +71,7 @@ export function LayoutWrapper({
     }
   }, [pathname])
 
-  if (pathname === "/login" || pathname.startsWith("/auth") || pathname.startsWith("/embed") || pathname.startsWith("/archive/print") || pathname.startsWith("/karrier")) {
+  if (pathname.startsWith("/login") || pathname.startsWith("/auth") || pathname.startsWith("/embed") || pathname.startsWith("/archive/print") || pathname.startsWith("/karrier")) {
     return (
       <main className="flex-1 w-full flex flex-col bg-slate-50 print:bg-white h-screen">
         {children}
