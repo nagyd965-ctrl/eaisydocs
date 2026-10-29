@@ -2,6 +2,18 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
+## [Unreleased] – Fejlesztés alatt (2026-10-30)
+
+### [Közös]: Login UX-CSomag — Gomb-Betöltésállapot, Jelszó-Megjelenítés, Caps Lock Figyelmeztetés, Belépés Utáni Célkövetés és V16 Gradiens Háttér (ADR A-096, PRD P-130)
+- **Bejelentkezés gomb betöltésállapot (`src/app/login/login-form.tsx`):** Az űrlap kliensoldali `LoginForm` komponensbe került; a submit gomb `useFormStatus`-zal pörgettyűt és „Bejelentkezés…" feliratot kap, letiltással (dupla beküldés kizárva).
+- **Jelszó-megjelenítés:** Szem ikon a jelszómező végén (password/text váltás, `aria-label`-lel) — a set-password oldali minta loginra vitele.
+- **Caps Lock figyelmeztetés:** Gépelés közben `getModifierState` figyelés; bekapcsolt Caps Locknál borostyán „A Caps Lock bekapcsolva" tipp (`role="status"`), fókuszelhagyásra eltűnik.
+- **Belépés utáni célkövetés (`?next=`, A-096):** A proxy a védett útvonalakról `/login?next=<eredeti cél>`-ra irányít; a cél rejtett mezőn át a login actionbe kerül, és belépés után — MFA-n (redirectTo) átvezetve is — a felhasználó az eredeti céljára jut (értesítő e-mail linkek, megosztott linkek, könyvjelzők). Központi `getSafeRedirectPath` validátor (`src/utils/url.ts`): csak belső relatív útvonal, külső URL és login-körzet tiltva (open-redirect védelem). Bejelentkezett felhasználó `/login?next=`-ről egyenesen a céljára kerül.
+- **V16 „gradiens-mosás" háttér (`src/app/globals.css` `.login-shell-bg`, `login-shell.tsx`):** A korábbi ragyogás+vonalminta rétegek helyett 4 rétegű, halvány teal/türkiz/kék fénymosás fix hátterűen, `.dark` variánssal — a `LoginShell`t használó minden oldal (login, elfelejtett-jelszó) automatikusan örökli. A kiválasztás 11+ élő HTML-mockup (`docs/design/login-redesign-v2/`) közül, megrendelői teszteléssel történt; a folyamat során az eaisyDesk hivatalos brand-elemei is kiértékelésre kerültek.
+
+### [Közös]: Teljes eaisyDocs Rendszer Mélyelemzési Audit Dokumentálva (`docs/eaisydocs-deep-analysis-20261030.md`)
+- A teljes eaisyDocs modul (~20 almodul: inbox/iktatás, ügyiratok, irattár/selejtezés, fizikai irattár, partnerek, AI szerződésgenerátor, szabályok, keresés, embed, REST API, workerek/cronok/PDF, dashboard, tasks, cégkezelés, beállítások, audit) dokumentáció-alapú mélyelemzése: mért érettség ~68% (funkcionális ~80% vs. biztonsági/üzemeltetési ~55%), **~14 P0 és ~58 P1 találat** emberi nyelvű magyarázattal. Három vezető felfedezés: ① a Docs RLS-ben nincs cég-dimenzió (a multi-tenant migráció a policy-ket nem frissítette; a partner-kapcsolattartók anonimul olvashatók), ② élesben az IMAP-érkeztetés és az AI/PDF-A sor nem fut (daemonok Vercen nem élnek, IMAP-cron nincs ütemezve, `claim_ai_tasks` anon-grant), ③ öt guard nélküli SERVICE ROLE admin-action a settings rétegben jogosultság-eszkalációs lánccal. 8 pontos javítási prioritási sorrenddel.
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-29)
 
 ### [Közös]: Bejelentkezési Oldal Újratervezése, Elfelejtett-jelszó Folyamat, Magyar Visszaállító E-mail és Login-aloldal Layout-javítás (ADR A-095, PRD P-129)

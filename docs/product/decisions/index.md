@@ -137,11 +137,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-127](./P-127-company-presentation-deletion-dialog-and-tab-rename-ux.md) | 2026-10-29 | „Cégünkről” Prezentáció Törlés Megerősítő Dialógussal és Fülátnevezés UX | `[HR]` | `HR / Recruitment, Employer Branding & Career Presentation UX` | [A-094](../../architecture/decisions/A-094-company-presentation-deletion-audit-and-revalidation-architecture.md), `company-presentation-editor.tsx`, `company-presentation-actions.ts`, `recruitment-tabs.tsx` |
 | [P-128](./P-128-job-detail-and-hr-admin-duplicate-edit-button-cleanup-ux.md) | 2026-10-29 | Munkakör-adatlap és HR Munkaasztal Duplikált Szerkesztőgomb-takarítás és Passzív KPI Kártyák UX | `[HR]` | `HR / Job Catalog, Employee 360 & Global Shell UX` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), [A-053](../../architecture/decisions/A-053-hr-job-profile-and-catalog-action-deduplication.md), `src/app/hr/job/[id]/page.tsx`, `job-profile-tasks-section.tsx`, `src/app/hr/admin/page.tsx` |
 | [P-129](./P-129-login-redesign-and-password-recovery-ux.md) | 2026-10-29 | Bejelentkezési Oldal Újratervezése, Elfelejtett-jelszó Folyamat és Platform Branding UX | `[Közös]` | `Auth / Login & Password Recovery UX` | [A-095](../../architecture/decisions/A-095-password-recovery-hungarian-email-and-login-shell-architecture.md), `src/app/login/*`, `src/app/auth/set-password/page.tsx`, `src/app/auth/callback/route.ts`, `src/components/layout-wrapper.tsx`, `docs/design/login-redesign/` |
+| [P-130](./P-130-login-ux-polish-and-gradient-background.md) | 2026-10-30 | Bejelentkezési Űrlap UX-CSomag — Gomb-Betöltésállapot, Jelszó-Megjelenítés, Caps Lock Figyelmeztetés és V16 Gradiens-Mosás Háttér | `[Közös]` | `Auth / Login UX` | [A-096](../../architecture/decisions/A-096-login-next-redirect-architecture.md), `src/app/login/login-form.tsx`, `src/app/login/login-shell.tsx`, `src/app/globals.css`, `docs/design/login-redesign-v2/` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-130`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-131`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 

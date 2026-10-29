@@ -108,11 +108,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [A-093](./A-093-tiptap-prosemirror-rich-text-editor-and-in-place-posting-editing-architecture.md) | 2026-10-29 | Tiptap ProseMirror Rich Text Szerkesztő, HTML Sanitizer Normalizáció és Helyben Történő (In-Place) Álláshirdetés-szerkesztési Architektúra | `[HR]` `[Közös]` | `Decided` | [P-126](../../product/decisions/P-126-job-posting-detail-8-card-parameter-grid-in-place-editing-and-tiptap-wysiwyg-ux.md), `src/components/rich-text-editor.tsx`, `src/components/rich-text-content.tsx`, `src/lib/sanitize-html.ts`, `src/app/hr/recruitment/posting/[id]/posting-detail-client.tsx`, `src/components/hr/job-postings-list.tsx` |
 | [A-094](./A-094-company-presentation-deletion-audit-and-revalidation-architecture.md) | 2026-10-29 | Vállalati „Cégünkről” Prezentáció Végleges Törlési Architektúrája, Audit Naplózás és Karrieroldal Revalidáció | `[HR]` | `Decided` | [P-127](../../product/decisions/P-127-company-presentation-deletion-dialog-and-tab-rename-ux.md), `src/app/hr/recruitment/company-presentation-actions.ts`, `src/components/hr/company-presentation-editor.tsx`, `src/app/hr/recruitment/recruitment-tabs.tsx` |
 | [A-095](./A-095-password-recovery-hungarian-email-and-login-shell-architecture.md) | 2026-10-29 | Jelszó-visszaállítási Architektúra: Supabase Admin Link-generálás, Saját Magyar Brevo E-mail, Éles-domain Linkelés és a Login Héj | `[Közös]` | `Decided` | [P-129](../../product/decisions/P-129-login-redesign-and-password-recovery-ux.md), `src/app/login/actions.ts`, `src/app/login/login-shell.tsx`, `src/app/auth/callback/route.ts`, `src/app/auth/set-password/page.tsx`, `src/components/layout-wrapper.tsx` |
+| [A-096](./A-096-login-next-redirect-architecture.md) | 2026-10-30 | Belépés Utáni Célkövetés (`?next=`) Architektúra — Proxy-Emlékezet, MFA-Átvitel és Open-Redirect Védelem | `[Közös]` | `Decided` | [P-130](../../product/decisions/P-130-login-ux-polish-and-gradient-background.md), `src/utils/supabase/middleware.ts`, `src/utils/url.ts`, `src/app/login/actions.ts`, `src/app/login/login-form.tsx` |
 
 ---
 
 > **Új ADR létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-096`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `A-097`), készítsd el a fájlt `A-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 
