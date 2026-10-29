@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eaisy — Login redesign · 3 variáns</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Montserrat', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: #FAFAFA; color: #18181B; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 48px 24px; gap: 40px;
+  }
+  .logo { font-size: 28px; letter-spacing: -0.5px; }
+  .logo .a { color: rgba(24,24,27,.8); font-weight: 500; }
+  .logo .b { color: #0D9488; font-weight: 800; }
+  h1 { font-size: 20px; font-weight: 600; color: #18181B; }
+  .sub { font-size: 13px; color: #71717A; margin-top: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; max-width: 1000px; width: 100%; }
+  a.card {
+    display: block; background: #fff; border: 1px solid #E4E4E7; border-radius: 12px;
+    padding: 24px; text-decoration: none; color: inherit; transition: border-color .15s, transform .15s;
+  }
+  a.card:hover { border-color: #0D9488; transform: translateY(-2px); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; color: #0D9488; background: rgba(13,148,136,.08); border: 1px solid rgba(13,148,136,.25); border-radius: 999px; padding: 3px 10px; margin-bottom: 12px; }
+  .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .card p { font-size: 13px; line-height: 1.55; color: #52525B; }
+  .open { margin-top: 14px; font-size: 12px; font-weight: 600; color: #0D9488; }
+  .note { font-size: 12px; color: #A1A1AA; max-width: 560px; text-align: center; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <div class="logo"><span class="a">eai</span><span class="b">sy</span></div>
+  <div style="text-align:center">
+    <h1>Bejelentkezés — 3 design variáns</h1>
+    <p class="sub">Mindegyik önálló HTML mockup: nyisd meg, méretezd át, nézd mobilon. A kiválasztott változat közvetlenül átemelhető a valódi login page-be.</p>
+  </div>
+  <div class="grid">
+    <a class="card" href="v1-platform-split.html">
+      <span class="tag">1. VARIÁNS</span>
+      <h2>Platform split-screen</h2>
+      <p>Sötét teal márkapanel + űrlap. Az „egy platform, két világ" üzenet: master brand, két termék-kártya, bizalmi sor. A klasszikus, légies 2026-os B2B SaaS felépítés.</p>
+      <span class="open">Megnyitás →</span>
+    </a>
+    <a class="card" href="v2-minimal-dark.html">
+      <span class="tag">2. VARIÁNS</span>
+      <h2>Minimal — sötét mód</h2>
+      <p>Linear-stílusú, középre zárt kártya sötét háttéren, teal fény-akcenttel. A legkevesebb elem, a legnagyobb nyugalom — fejlesztői és tech-vásárlói ízlésre.</p>
+      <span class="open">Megnyitás →</span>
+    </a>
+    <a class="card" href="v3-product-showcase.html">
+      <span class="tag">3. VARIÁNS</span>
+      <h2>Termék-bemutató (interaktív)</h2>
+      <p>Világos, vállalati tiszta felosztás — a bal oldalon Docs/HR fülváltóval, ami élőben váltja az értékajánlatot. Felfedezi a „két külön termék" lehetőséget.</p>
+      <span class="open">Megnyitás →</span>
+    </a>
+    <a class="card" href="v4-centered-platform.html" style="border-color:#0D9488">
+      <span class="tag">4. VARIÁNS · KIVÁLASZTOTT IRÁNY</span>
+      <h2>Középre zárt platform</h2>
+      <p>Az 1-es márkatartalma („Egy platform. Két világ.", Docs/HR kártyák, bizalmi sor) — de minden egy középre zárt oszlopban, teal-degradált háttéren, átmeneti kártyával.</p>
+      <span class="open">Megnyitás →</span>
+    </a>
+  </div>
+  <p class="note">Mockup fájlok — nem production kód. Saját design-rendszer tokenek: teal #0D9488 / #14D4B8, Montserrat, flat, árnyékmentes. A gombok, linkek nem csinálnak semmit.</p>
+</body>
+</html>

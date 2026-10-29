@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Variáns 4 — Középre zárt platform · eaisy login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Montserrat', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(165deg, #04211D 0%, #063A33 52%, #042F29 100%);
+    color: #E4F5F1; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px 20px; position: relative; overflow-x: hidden;
+  }
+  body::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(20,212,184,.13) 1px, transparent 1px);
+    background-size: 26px 26px; pointer-events: none;
+  }
+  body::after {
+    content: ""; position: absolute; width: 720px; height: 400px; top: -140px; left: 50%;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse at center, rgba(20,212,184,.16) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .wrap { position: relative; z-index: 1; width: 100%; max-width: 440px; }
+
+  /* ── Márka blokk ── */
+  .logo { text-align: center; font-size: 26px; letter-spacing: -0.5px; margin-bottom: 18px; }
+  .logo .a { color: rgba(228,245,241,.72); font-weight: 500; }
+  .logo .b { color: #14D4B8; font-weight: 800; }
+  .logo .c { color: rgba(228,245,241,.45); font-weight: 500; font-size: 17px; }
+
+  h1 {
+    text-align: center; font-size: 30px; line-height: 1.2; font-weight: 700;
+    letter-spacing: -0.8px; color: #fff;
+  }
+  h1 em { font-style: normal; color: #14D4B8; }
+  .lead {
+    text-align: center; font-size: 13.5px; line-height: 1.65;
+    color: rgba(228,245,241,.66); margin: 12px auto 0; max-width: 360px;
+  }
+
+  /* ── Termék kártyák ── */
+  .products { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 26px 0 26px; }
+  .product {
+    background: rgba(255,255,255,.04); border: 1px solid rgba(20,212,184,.2);
+    border-radius: 12px; padding: 16px; text-align: center;
+  }
+  .product svg { display: block; margin: 0 auto 8px; }
+  .product .name { font-size: 12.5px; font-weight: 700; color: #14D4B8; margin-bottom: 4px; }
+  .product p { font-size: 11px; line-height: 1.55; color: rgba(228,245,241,.55); }
+
+  /* ── Bejelentkezés kártya ── */
+  .card {
+    background: rgba(6,20,17,.72); border: 1px solid rgba(20,212,184,.25);
+    border-radius: 14px; padding: 28px 26px 24px;
+    backdrop-filter: blur(6px);
+  }
+  .card h2 { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 18px; text-align: center; }
+  label { display: block; font-size: 12px; font-weight: 600; color: rgba(228,245,241,.75); margin-bottom: 6px; }
+  .field { margin-bottom: 16px; }
+  input {
+    width: 100%; height: 42px; border: 1px solid rgba(228,245,241,.14); border-radius: 8px;
+    padding: 0 14px; font-family: inherit; font-size: 14px; color: #fff;
+    background: rgba(4,15,13,.6); outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input::placeholder { color: rgba(228,245,241,.35); }
+  input:focus { border-color: #14D4B8; box-shadow: 0 0 0 3px rgba(20,212,184,.12); }
+  .pw-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .pw-row a { font-size: 12px; color: #14D4B8; text-decoration: none; font-weight: 500; }
+  .pw-row a:hover { text-decoration: underline; }
+  button {
+    width: 100%; height: 44px; background: #14D4B8; color: #04211D; border: none; border-radius: 8px;
+    font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px;
+    transition: filter .15s;
+  }
+  button:hover { filter: brightness(1.08); }
+
+  /* ── Bizalom + lábléc ── */
+  .trust {
+    display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;
+    margin-top: 24px; font-size: 11.5px; color: rgba(228,245,241,.5);
+  }
+  .trust span { display: flex; align-items: center; gap: 7px; }
+  .trust i { width: 5px; height: 5px; border-radius: 2px; background: #14D4B8; }
+  .footer { margin-top: 20px; text-align: center; font-size: 11px; color: rgba(228,245,241,.35); line-height: 1.9; }
+  .footer a { color: rgba(228,245,241,.5); text-decoration: none; }
+  .footer a:hover { color: #14D4B8; }
+
+  @media (max-width: 420px) {
+    .products { grid-template-columns: 1fr; }
+    h1 { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo"><span class="a">eai</span><span class="b">sy</span> <span class="c">platform</span></div>
+
+    <h1>Egy platform.<br><em>Két világ.</em></h1>
+    <p class="lead">eaisyDocs iratkezelő és eaisyHR munkaügyi rendszer — közös adatbázison, külön vagy együtt vásárolható modulokként.</p>
+
+    <div class="products">
+      <div class="product">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14D4B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>
+        <div class="name">eaisyDocs</div>
+        <p>Iktatás, AI-feldolgozás, irattár és selejtezés.</p>
+      </div>
+      <div class="product">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14D4B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <div class="name">eaisyHR</div>
+        <p>Karton, jelenlét, toborzás, bérszámfejtés.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Bejelentkezés</h2>
+      <div class="field">
+        <label for="email">E-mail cím</label>
+        <input id="email" type="email" placeholder="te@ceged.hu" autocomplete="username">
+      </div>
+      <div class="field">
+        <div class="pw-row">
+          <label for="password" style="margin-bottom:0">Jelszó</label>
+          <a href="#">Elfelejtett jelszó?</a>
+        </div>
+        <input id="password" type="password" autocomplete="current-password">
+      </div>
+      <button>Bejelentkezés</button>
+    </div>
+
+    <div class="trust">
+      <span><i></i>Magyar fejlesztés</span>
+      <span><i></i>GDPR-kompatibilis</span>
+      <span><i></i>Kétlépcsős azonosítás</span>
+    </div>
+    <div class="footer">
+      © 2026 eaisy · <a href="#">Adatvédelmi tájékoztató</a> · <a href="#">Kapcsolat</a>
+    </div>
+  </div>
+</body>
+</html>
