@@ -2,6 +2,21 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
+## [Unreleased] – Fejlesztés alatt (2026-10-29)
+
+### eaisyHR: Álláshirdetés Részletes Adatlap (`/hr/recruitment/posting/[id]`) 8-Kártyás Felső Paramétersáv, Kétfülű Elrendezés, Helyben Történő (In-Place) Szerkesztés és Tiptap WYSIWYG Szerkesztő (ADR A-093, PRD P-126)
+- **8-Kártyás Felső Pozíció-paraméter Rács és Kétfülű Elrendezés (`src/app/hr/recruitment/posting/[id]/posting-detail-client.tsx`):**
+  - A `/hr/recruitment/posting/[id]` adatlap fejléce letisztításra került (`Breadcrumb` + vissza gomb + pozíció címe + státusz badge + tömör alcím: `Belső munkakör: ... • Közzétéve: ...` + jobb oldali láthatósági kapcsolók és műveleti gombok).
+  - A felső sávban a KPI kártyák helyére **8 önálló pozíció-paraméter kártya (`4×2` grid)** került: `Szakmai részleg`, `Belső munkakör` (közvetlen linkkel a `/hr/job/[id]` munkaköri törzslapra), `Munkavégzés módja`, `Foglalkoztatás`, `Tapasztalati szint`, `Munkavégzés helye`, `Bruttó havi bérsáv` (Fintech Teal kiemeléssel és publikus/belső jelzéssel), valamint `Jelentkezési határidő`.
+  - Az oldal tartalma **2 külön fülre** (`Jelentkezők` | `Álláshirdetés tartalma és leírása`) lett bontva.
+- **Helyben Történő (In-Place) Álláshirdetés- és Paraméter-szerkesztés Létrehozó Pop-up Nélkül (`src/app/hr/recruitment/posting/[id]/posting-detail-client.tsx`, `src/components/hr/job-postings-list.tsx`):**
+  - A `Hirdetés szerkesztése` gombra kattintva (vagy az álláshirdetések listájában a `Szerkesztés` ikonról `/hr/recruitment/posting/[id]?edit=true` útvonalon érkezve) nem ugrik fel a 3-lépéses létrehozó varázsló (`Hogyan szeretnéd elkészíteni az álláshirdetést?`).
+  - Ehelyett közvetlenül az oldalon szerkeszthetővé válik a hirdetés címe, mind a 8 pozíció-paraméter kártya (inline beviteli mezőkkel, legördülő választókkal, bér-intervallummal és publikus kapcsolóval), valamint a rövid összefoglaló és a részletes leírás, a fejlécben megjelenő `Mégsem` és `Módosítások mentése` gombokkal.
+- **Tiptap / ProseMirror WYSIWYG Szerkesztő és HTML Sanitizer Normalizáció (`src/components/rich-text-editor.tsx`, `src/components/rich-text-content.tsx`, `src/lib/sanitize-html.ts`):**
+  - A böngésző-natív `document.execCommand` szerkesztőt felváltotta a Tiptap (`@tiptap/react`) alapú `RichTextEditor` valódi toggle működéssel (`Címsor`, `Alcím`, `Bekezdés`, `Félkövér`, `Dőlt`, `Aláhúzott`, `Felsorolás`, `Számozott lista`, `Kiemelés`, `Formázás törlése`, `Visszavonás`, `Újra`).
+  - A `Kiemelés` (`blockquote`) gomb egyedi ProseMirror `lift` kicsomagolást kapott, így a kiemelés bármikor (még kiemelésen belüli listaelemeken állva is) egyetlen kattintással visszavonható, nem ágyazódik egymásba.
+  - A `sanitizeRichTextHtml` és a `RichTextContent` eltávolítja a legacy inline `style="..."` attribútumokat, kilapítja a többszörösen egymásba ágyazott `<blockquote>` elemeket, és dekódolja a duplán kódolt HTML-entitásokat.
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-28)
 
 ### eaisyHR: 3-Lépéses AI Álláshirdetés Varázsló, Teljes Oldalas 360° Jelölti Tehetségprofil (`/hr/recruitment/candidate/[id]`), Álláshirdetés Részletes Adatlap (`/hr/recruitment/posting/[id]`) és Karrierportál Egységesítés (ADR A-092, PRD P-125)

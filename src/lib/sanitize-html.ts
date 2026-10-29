@@ -1,7 +1,7 @@
 /**
  * Biztonságos HTML és Markdown tartalom-tisztító segédfüggvény.
  * Eltávolítja a potenciálisan veszélyes scripteket, beágyazásokat és eseménykezelőket,
- * miközben megőrzi a formázási elemeket (címek, bekezdések, listák, idézetek, táblázatok, stílusok).
+ * valamint normalizálja az egymásba ágyazott blockquote blokkokat.
  */
 export function sanitizeHtml(rawHtml: string): string {
   if (!rawHtml || typeof rawHtml !== "string") {
@@ -19,14 +19,30 @@ export function sanitizeHtml(rawHtml: string): string {
     .replace(/<meta\b[^>]*>/gi, "")
     .replace(/<link\b[^>]*>/gi, "")
     .replace(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, "")
-    
-    // 2. Inline eseménykezelők eltávolítása (pl. onload=, onerror=, onclick=)
+
+    // 2. Inline eseménykezelők és beégetett inline style attribútumok eltávolítása
     .replace(/\s+on[a-zA-Z]+\s*=\s*(['"]).*?\1/gi, "")
     .replace(/\s+on[a-zA-Z]+\s*=\s*[^\s>]+/gi, "")
-    
-    // 3. Veszélyes protokollok semlegesítése linkekben és forrásokban (javascript:, vbscript:, data:text/html)
-    .replace(/(href|src)\s*=\s*(['"])\s*(?:javascript|vbscript|data:text\/html):[^'"]*\2/gi, '$1="#"')
-    .replace(/(href|src)\s*=\s*(?:javascript|vbscript|data:text\/html):[^\s>]+/gi, '$1="#"')
+    .replace(/\s+style\s*=\s*(['"]).*?\1/gi, "")
+
+    // 3. Veszélyes protokollok semlegesítése linkekben és forrásokban
+    .replace(
+      /(href|src)\s*=\s*(['"])\s*(?:javascript|vbscript|data:text\/html):[^'"]*\2/gi,
+      '$1="#"'
+    )
+    .replace(
+      /(href|src)\s*=\s*(?:javascript|vbscript|data:text\/html):[^\s>]+/gi,
+      '$1="#"'
+    )
+
+  // 4. Egymásba ágyazott <blockquote><blockquote>...</blockquote></blockquote> lapítása
+  let prev = ""
+  while (prev !== clean) {
+    prev = clean
+    clean = clean
+      .replace(/<blockquote[^>]*>\s*<blockquote[^>]*>/gi, "<blockquote>")
+      .replace(/<\/blockquote>\s*<\/blockquote>/gi, "</blockquote>")
+  }
 
   return clean
 }

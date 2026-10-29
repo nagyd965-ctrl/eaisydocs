@@ -650,15 +650,11 @@ export function JobPostingsList({
 
                   {/* Műveletek */}
                   <div className="flex items-center gap-0.5 shrink-0">
-                    <ManagePostingDialog
-                      jobs={jobs}
-                      existingData={posting as any}
-                      onSaved={addOrUpdate}
-                    >
+                    <Link href={`/hr/recruitment/posting/${posting.id}?edit=true`}>
                       <Button variant="ghost" size="icon-xs" title="Szerkesztés">
                         <Edit className="h-3.5 w-3.5 text-muted-foreground" />
                       </Button>
-                    </ManagePostingDialog>
+                    </Link>
 
                     {(posting.publikus || posting.is_internal) && (
                       <Link
@@ -880,15 +876,11 @@ export function JobPostingsList({
 
                     <TableCell className="py-3 text-right">
                       <div className="inline-flex items-center justify-end gap-1">
-                        <ManagePostingDialog
-                          jobs={jobs}
-                          existingData={posting as any}
-                          onSaved={addOrUpdate}
-                        >
+                        <Link href={`/hr/recruitment/posting/${posting.id}?edit=true`}>
                           <Button variant="ghost" size="icon-xs" title="Szerkesztés">
                             <Edit className="h-3.5 w-3.5 text-muted-foreground" />
                           </Button>
-                        </ManagePostingDialog>
+                        </Link>
 
                         {(posting.publikus || posting.is_internal) && (
                           <Link
