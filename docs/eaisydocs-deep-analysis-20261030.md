@@ -35,6 +35,8 @@ A statikus elemzés **false positive** találatjai — a megrendelő a futó ren
 | 2 | `selejtezett` ügyirat feltámasztható (Visszaállítás gomb) | **Nem reprodukálható** — a gomb nem jelenik meg selejtezett státusznál a felületen |
 | 3 | Felelős mező mindig „Kiosztatlan" (adatlapon) | **Nem reprodukálható** — HR/2026/00044-nél rendesen kiírja a felelős nevét („Nagy Dániel") |
 | 4 | Kimenő irat vázlat-törlése soha nem működik | **Nem reprodukálható** — a UI-ban nincs külön vázlat-törlési flow (a popup egyben küld és iktat) |
+| 5 | Ő/ű betűk törlődnek a sablon-PDF-ekben | **Nem reprodukálható** — a megrendelő tesztelte, a PDF-ek rendesen generálódnak |
+| 6 | Kölcsönzés határidő-figyelmeztetés hiányzik (BRD-005) | **Nem reprodukálható** — az értesítési rendszer működik, 6 típusú értesítés tesztelve |
 
 ---
 
