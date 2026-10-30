@@ -26,6 +26,7 @@ Az alábbi P0 találatok a **settings modul guard-sweep** csomagból **lezárás
 | 11 | Feladatsablonok GLOBÁLISAK — minden cég ugyanazt a sablonlistát látja | `3d12af1` | Cég-specifikus kulcs: `feladat_sablonok:{companyId}` a `rendszer_beallitas`-ban | ✔ |
 | 12 | Szerződés-generátor megbízó adatai GLOBÁLISAK — minden cég a „eaisyDocs Zrt." nevében generált | `5f4e345` + `08d54af` | `resolveCompanyDetailsServer()` az aktív cég valódi adatait használja mind a 4 ponton (context, AI-prompt, PDF, iktatás) | ✔ |
 | 13 | REST API v1 nyitott — nincs hitelesítés, bejelentkezés nélkül JSON adat | `677d256` | Supabase session VAGY Bearer API kulcs hitelesítés + cég-szűrés + UUID-validáció | ✔ |
+| 14 | Selejtezési jegyzőkönyv PDF fejléce hardkódolt — a cég neve nem szerepel | `b45a8f6` | `resolveCompanyDetailsServer()` — a cég neve a rendszer-név ALATT jelenik meg (a megrendelő kérése: a rendszer-név maradjon) | ✔ |
 
 **Szabály:** ADR [A-097](architecture/decisions/A-097-use-server-exports-as-endpoints-deletion-and-guard-policy.md) — a `"use server"` exportok nyilvános végpontok: a halott action törlendő, az élő action kötelező szerveroldali őrblokkot kap.
 
