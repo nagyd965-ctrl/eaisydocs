@@ -180,13 +180,50 @@ export async function createNewUser(formData: FormData) {
     return { error: "Email és jelszó kötelező!" }
   }
 
+  // ── ŐRBLOKK (A-097): csak bejelentkezett, aktív céghez tartozó admin hozhat létre felhasználót ──
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: "Nincs bejelentkezve." }
+  }
+
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (!activeCompanyId) {
+    return { error: "Nincs kiválasztott aktív cég." }
+  }
+
+  const { data: callerMembership } = await supabase
+    .from("company_members")
+    .select("role, docs_szerepkor")
+    .eq("company_id", activeCompanyId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  const isCompanyAdmin =
+    callerMembership?.role === "owner" ||
+    callerMembership?.role === "admin" ||
+    callerMembership?.docs_szerepkor === "admin"
+  if (!isCompanyAdmin) {
+    return { error: "Csak a cég adminja hozhat létre új felhasználót." }
+  }
+
+  // ── Szerepkör és minősítés validáció: csak az űrlap által kínált értékek fogadhatók el ──
+  const ALLOWED_ROLES = ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "betekinto", "auditor"]
+  const ALLOWED_CLEARANCES = ["nyilt", "belso", "bizalmas", "szigoruan_bizalmas"]
+  if (!ALLOWED_ROLES.includes(role)) {
+    return { error: "Érvénytelen szerepkör." }
+  }
+  if (!ALLOWED_CLEARANCES.includes(clearance)) {
+    return { error: "Érvénytelen biztonsági minősítés." }
+  }
+
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceRoleKey) {
     return { error: "Hiányzik a SUPABASE_SERVICE_ROLE_KEY a .env.local fájlból! Kérlek, add hozzá a kulcsot a háttérben történő felhasználó létrehozásához." }
   }
 
   // Create admin client using the service role key to bypass RLS and avoid sending emails
-  const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
   const supabaseAdmin = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     serviceRoleKey,
@@ -222,8 +259,22 @@ export async function createNewUser(formData: FormData) {
       .eq("id", newUserId)
   }
 
+  // ── CÉG-TAGSÁG: az új felhasználó az aktív cég tagja lesz (company_members),
+  //    ellenkező esetben árva fiók keletkezne — se láthatóság, se hozzáférés nélkül ──
+  const { error: memberError } = await supabaseAdmin
+    .from("company_members")
+    .insert({
+      company_id: activeCompanyId,
+      user_id: newUserId,
+      role: "member",
+      docs_szerepkor: role,
+    })
+
+  if (memberError) {
+    return { error: "Felhasználó létrejött, de a céghez rendelés sikertelen: " + memberError.message }
+  }
+
   // Use the logged in admin's client to call the RPC and set roles
-  const supabase = await createClient()
   const { error: rpcError } = await supabase.rpc('admin_update_user_role', {
     target_user_id: newUserId,
     new_role: role,
