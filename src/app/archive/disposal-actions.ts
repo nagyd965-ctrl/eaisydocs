@@ -397,10 +397,15 @@ export async function approveDisposal(
   const protocolNumber = `SELEJT-${year}/${batchSuffix}`
   const formattedDate = now.toLocaleDateString("hu-HU")
 
+  // Az aktív cég valódi neve (a rendszer-név alá kerül a PDF fejlécében)
+  const { resolveCompanyDetailsServer } = await import("@/utils/company-server")
+  const companyDetails = await resolveCompanyDetailsServer()
+
   const pdfBytes = await generateDisposalProtocolPdf({
     protocolNumber,
     date: formattedDate,
     organizationName: "eaisyDocs Elektronikus Iratkezelő Rendszer",
+    companyName: companyDetails.nev || undefined,
     proposerName: finalProposerName,
     approverName: approverName.trim(),
     items: protocolItems,

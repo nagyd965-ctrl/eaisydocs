@@ -19,6 +19,7 @@ export interface DisposalProtocolData {
   date: string
   cutoffDate?: string
   organizationName?: string
+  companyName?: string
   proposerName: string
   approverName: string
   items: DisposalProtocolItem[]
@@ -86,7 +87,19 @@ export async function generateDisposalProtocolPdf(data: DisposalProtocolData): P
     font: helveticaBold,
     color: rgb(0.1, 0.1, 0.1),
   })
-  y -= 18
+  y -= 16
+
+  // Cégnév a rendszer-név alatt (a megrendelő kérése: a tényleges cég is szerepeljen)
+  if (data.companyName) {
+    page.drawText(clean(data.companyName), {
+      x: margin,
+      y,
+      size: 9,
+      font: helvetica,
+      color: rgb(0.45, 0.45, 0.45),
+    })
+    y -= 14
+  }
 
   page.drawText(clean("SELEJTEZÉSI ÉS LEVÉLTÁRI ÁTADÁSI JEGYZŐKÖNYV"), {
     x: margin,

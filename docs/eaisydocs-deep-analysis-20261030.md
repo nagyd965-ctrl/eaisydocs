@@ -44,6 +44,7 @@ A statikus elemzés **false positive** találatjai — a megrendelő a futó ren
 | 5 | Ő/ű betűk törlődnek a sablon-PDF-ekben | **Nem reprodukálható** — a megrendelő tesztelte, a PDF-ek rendesen generálódnak |
 | 6 | Kölcsönzés határidő-figyelmeztetés hiányzik (BRD-005) | **Nem reprodukálható** — az értesítési rendszer működik, 6 típusú értesítés tesztelve |
 | 7 | Partner adatlapon bizalmas iratok metaadatai a kliensnek | **Tudatos működés** — a dosszié (ügyirat) látszik a listában, de az iratok és PDF-ek minősítés szerint szűrve; a megrendelő szerint kárt nem okoz |
+| 8 | A `/archive/print` oldal halott — soha nem tölt be | **Nem reprodukálható** — a megrendelő szerint megjelenik a nyomtatható jegyzőkönyv |
 
 ---
 
