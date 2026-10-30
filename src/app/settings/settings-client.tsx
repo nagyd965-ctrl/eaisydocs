@@ -40,7 +40,8 @@ export function SettingsClient({
   isAdmin, 
   totpFactor, 
   irattariTervek = [], 
-  initialFourEyesRequired = true
+  initialFourEyesRequired = true,
+  credentialStatus = null
 }: { 
   initialProfile: any, 
   email: string | undefined, 
@@ -53,11 +54,60 @@ export function SettingsClient({
   isAdmin?: boolean, 
   totpFactor?: any, 
   irattariTervek?: any[], 
-  initialFourEyesRequired?: boolean
+  initialFourEyesRequired?: boolean,
+  credentialStatus?: any
 }) {
   const router = useRouter()
   const [timeoutValue, setTimeoutValue] = useState<number>(initialProfile?.munkamenet_idotullepes || 15)
   const [savingTimeout, setSavingTimeout] = useState(false)
+
+  // ── Hitelesítő adatok (cég-szintű e-mail beállítások) állapot ──
+  const [credImapHost, setCredImapHost] = useState(credentialStatus?.imap?.host || "")
+  const [credImapPort, setCredImapPort] = useState(String(credentialStatus?.imap?.port || 993))
+  const [credImapUser, setCredImapUser] = useState(credentialStatus?.imap?.user || "")
+  const [credImapPassword, setCredImapPassword] = useState("")
+  const [credImapEnabled, setCredImapEnabled] = useState(credentialStatus?.imap?.enabled !== false)
+  const [credBrevoKey, setCredBrevoKey] = useState("")
+  const [credSaving, setCredSaving] = useState(false)
+  const [credTesting, setCredTesting] = useState(false)
+
+  async function handleCredentialSave() {
+    setCredSaving(true)
+    const { saveCredentialConfig } = await import("./credential-actions")
+    const fd = new FormData()
+    fd.set("imap_host", credImapHost)
+    fd.set("imap_port", credImapPort)
+    fd.set("imap_user", credImapUser)
+    fd.set("imap_password", credImapPassword)
+    fd.set("imap_enabled", credImapEnabled ? "true" : "false")
+    fd.set("brevo_api_key", credBrevoKey)
+    const res = await saveCredentialConfig(fd)
+    setCredSaving(false)
+    if (res.error) {
+      toast.error("Mentés sikertelen", { description: res.error })
+    } else {
+      setCredImapPassword("")
+      setCredBrevoKey("")
+      toast.success("Hitelesítő adatok elmentve", {
+        description: credImapEnabled
+          ? "A beérkező e-mail csatorna mostantól ezzel a postafiókkal működik ennél a cégnél."
+          : "A beérkező e-mail csatorna le van tiltva ennél a cégnél.",
+      })
+      router.refresh()
+    }
+  }
+
+  async function handleCredentialTest() {
+    setCredTesting(true)
+    const { testImapConnection } = await import("./credential-actions")
+    const res = await testImapConnection()
+    setCredTesting(false)
+    if (res.error) {
+      toast.error("A kapcsolat tesztje sikertelen", { description: res.error })
+    } else {
+      toast.success("Kapcsolat rendben", { description: res.message || "Az IMAP-kiszolgáló elérhető." })
+    }
+  }
 
   async function handleTimeoutChange(newTimeout: number) {
     setSavingTimeout(true)
@@ -697,6 +747,138 @@ export function SettingsClient({
       {/* RENDSZERGAZDA TAB — csak adminoknak */}
       {isAdmin && (
         <TabsContent value="rendszergazda" className="space-y-6 outline-none">
+
+          {/* Hitelesítő adatok — cég-szintű e-mail beállítások (eaisyDocs) */}
+          <Card className="border-border/50 shadow-none">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl">Hitelesítő adatok</CardTitle>
+                <div className="flex items-center gap-2">
+                  {credentialStatus?.configured ? (
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs font-normal">
+                      IMAP be van állítva
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs font-normal">
+                      IMAP nincs beállítva
+                    </Badge>
+                  )}
+                  {credentialStatus?.brevoConfigured ? (
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs font-normal">
+                      Brevo kulcs be van állítva
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-xs font-normal">
+                      Brevo kulcs nincs beállítva
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <CardDescription>
+                Cég-szintű e-mail beállítások: a beérkező levelek (IMAP) és a kimenő értesítő e-mailek (Brevo) hitelesítő adatai.
+                Minden cég a saját postafiókját olvassa — az onnan beérkezett iratokra automatikusan rákerül a cég megjelölése.
+                A mentett jelszavak titkosítva tárolódnak, és utólag nem jeleníthetők meg.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Beérkező e-mail: IMAP */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-muted/20">
+                  <div className="space-y-1 pr-4">
+                    <Label className="text-sm font-semibold text-foreground">
+                      Beérkező e-mail csatorna engedélyezése ennél a cégnél
+                    </Label>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Kikapcsolva a rendszer nem olvassa ennek a cégnek a postafiókját, és e-mail útján nem érkeztet iratot.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={credImapEnabled}
+                    onCheckedChange={setCredImapEnabled}
+                  />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="cred-imap-host" className="text-sm">IMAP kiszolgáló</Label>
+                    <Input
+                      id="cred-imap-host"
+                      placeholder="pl. imap.example.hu"
+                      value={credImapHost}
+                      onChange={(e) => setCredImapHost(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cred-imap-port" className="text-sm">Port</Label>
+                    <Input
+                      id="cred-imap-port"
+                      type="number"
+                      placeholder="993"
+                      value={credImapPort}
+                      onChange={(e) => setCredImapPort(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cred-imap-user" className="text-sm">Felhasználónév (e-mail cím)</Label>
+                    <Input
+                      id="cred-imap-user"
+                      placeholder="pl. iratkezeles@cég.hu"
+                      value={credImapUser}
+                      onChange={(e) => setCredImapUser(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="cred-imap-password" className="text-sm">IMAP jelszó</Label>
+                    <Input
+                      id="cred-imap-password"
+                      type="password"
+                      placeholder={credentialStatus?.configured ? "Be van állítva — csak új jelszó beírásakor módosul" : "Új jelszó megadása"}
+                      value={credImapPassword}
+                      onChange={(e) => setCredImapPassword(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      A jelszó titkosítva tárolódik; a mentés után nem olvasható vissza.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cred-brevo-key" className="text-sm">Brevo API kulcs (kimenő értesítések)</Label>
+                    <Input
+                      id="cred-brevo-key"
+                      type="password"
+                      placeholder={credentialStatus?.brevoConfigured ? "Be van állítva — csak új kulcs beírásakor módosul" : "Opcionális — a globális kulcs használatos helyette"}
+                      value={credBrevoKey}
+                      onChange={(e) => setCredBrevoKey(e.target.value)}
+                      autoComplete="off"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Ha nincs megadva, a rendszer a kiszolgálón beállított globális Brevo kulcsot használja.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="flex items-center gap-3 justify-end border-t border-border/50 pt-4">
+              <Button
+                variant="outline"
+                onClick={handleCredentialTest}
+                disabled={credTesting || credSaving}
+              >
+                {credTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Kapcsolat tesztelése
+              </Button>
+              <Button
+                onClick={handleCredentialSave}
+                disabled={credSaving || credTesting}
+              >
+                {credSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Mentés
+              </Button>
+            </CardFooter>
+          </Card>
 
           {/* Selejtezési Szabályzat & Négyszem-elv (B10) */}
           <Card className="border-border/50 shadow-none">

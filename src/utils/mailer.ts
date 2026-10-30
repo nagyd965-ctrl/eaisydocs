@@ -45,6 +45,27 @@ export async function sendNotificationEmail({
     }
   }
 
+  // Cég-szintű Brevo API kulcs feloldása (Hitelesítő adatok beállítás):
+  // ha az adott cégnek van saját kulcsa, azt használjuk; különben az env fallback.
+  let effectiveApiKey = apiKey
+  if (resolvedCompanyId) {
+    try {
+      const { loadCompanyCredentialRow } = await import("./imap-config")
+      const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+      const admin = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      )
+      const cred = await loadCompanyCredentialRow(resolvedCompanyId, admin)
+      if (cred?.brevoApiKey) {
+        effectiveApiKey = cred.brevoApiKey
+      }
+    } catch {
+      // Hiba esetén az env kulccsal folytatjuk
+    }
+  }
+
   // Intelligens modul felismerés ha nincs expliciten megadva
   const resolvedModul: "docs" | "hr" = modul || (
     subject.toLowerCase().includes("hr") ||
@@ -67,8 +88,8 @@ export async function sendNotificationEmail({
       : "docs"
   )
 
-  if (!apiKey) {
-    console.error("Hiányzik a BREVO_API_KEY a környezeti változókból!")
+  if (!effectiveApiKey) {
+    console.error("Hiányzik a BREVO_API_KEY a környezeti változókból és a cég hitelesítő adataiból!")
     await logNotification(supabase, to, subject, html, "hibas", "Hiányzó API kulcs", dossierId, user?.id, resolvedModul, resolvedCompanyId)
     return { success: false, error: "Hiányzó API kulcs" }
   }
@@ -78,7 +99,7 @@ export async function sendNotificationEmail({
       method: "POST",
       headers: {
         accept: "application/json",
-        "api-key": apiKey,
+        "api-key": effectiveApiKey,
         "content-type": "application/json",
       },
       body: JSON.stringify({

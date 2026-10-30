@@ -1,5 +1,6 @@
 import { getUserProfile, getTeamMembers, getDepartments } from "./settings-actions"
 import { getIrattariTervek, getFourEyesSetting } from "./admin-actions"
+import { getCredentialStatus } from "./credential-actions"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Info } from "lucide-react"
 import { SettingsClient } from "./settings-client"
@@ -32,6 +33,7 @@ export default async function SettingsPage() {
   // Admin adatok (csak adminoknak)
   const irattariTervek = isAdmin ? await getIrattariTervek() : []
   const initialFourEyesRequired = isAdmin ? await getFourEyesSetting() : true
+  const credentialStatus = isAdmin ? await getCredentialStatus() : null
 
   let myHelyettesitesQuery = supabase
     .from("helyettesites")
@@ -137,6 +139,7 @@ export default async function SettingsPage() {
           totpFactor={totpFactor}
           irattariTervek={irattariTervek}
           initialFourEyesRequired={initialFourEyesRequired}
+          credentialStatus={credentialStatus && !credentialStatus.error ? credentialStatus : null}
         />
       </Tabs>
     </div>
