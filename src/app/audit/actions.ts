@@ -49,6 +49,25 @@ export async function getDocsCentralAuditLogs(companyId?: string): Promise<{
       return { logs: [], error: "Nincs jogosultságod a központi eseménynapló megtekintéséhez." }
     }
 
+    // ── A-091 port: cég-tagság ellenőrzése SZERVEROLDALON ──
+    // A kliens által küldött companyId önmagában nem elfogadható: ellenőrizzük,
+    // hogy a hívó ténylegesen tagja-e a kért cégnek (aktív cég fallbackkal).
+    const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+    const effectiveCompanyId = companyId || (await getActiveCompanyIdServer())
+    if (!effectiveCompanyId) {
+      return { logs: [], error: "Nincs kiválasztott vállalat." }
+    }
+
+    const { data: membership } = await supabase
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", effectiveCompanyId)
+      .eq("user_id", user.id)
+      .maybeSingle()
+    if (!membership) {
+      return { logs: [], error: "Nincs hozzáférésed a kért vállalat naplójához." }
+    }
+
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -72,11 +91,7 @@ export async function getDocsCentralAuditLogs(companyId?: string): Promise<{
         company_id
       `)
       .order("tortent", { ascending: false })
-      .limit(500)
-
-    if (companyId) {
-      query = query.eq("company_id", companyId)
-    }
+      .eq("company_id", effectiveCompanyId)
 
     const { data: rawLogs, error: logError } = await query
     if (logError) {
@@ -189,6 +204,23 @@ export async function getNotificationAuditLogs(companyId?: string): Promise<{
       return { logs: [], error: "Nincs jogosultságod a kiküldési napló megtekintéséhez." }
     }
 
+    // ── A-091 port: cég-tagság ellenőrzése SZERVEROLDALON ──
+    const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+    const effectiveCompanyId = companyId || (await getActiveCompanyIdServer())
+    if (!effectiveCompanyId) {
+      return { logs: [], error: "Nincs kiválasztott vállalat." }
+    }
+
+    const { data: membership } = await supabase
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", effectiveCompanyId)
+      .eq("user_id", user.id)
+      .maybeSingle()
+    if (!membership) {
+      return { logs: [], error: "Nincs hozzáférésed a kért vállalat naplójához." }
+    }
+
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -214,11 +246,7 @@ export async function getNotificationAuditLogs(companyId?: string): Promise<{
       `)
       .eq("modul", "docs")
       .order("mikor", { ascending: false })
-      .limit(500)
-
-    if (companyId) {
-      query = query.or(`company_id.eq.${companyId},company_id.is.null`)
-    }
+      .eq("company_id", effectiveCompanyId)
 
     const { data: rawLogs, error: logError } = await query
 
