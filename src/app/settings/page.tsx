@@ -94,14 +94,6 @@ export default async function SettingsPage() {
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger 
-              value="csapat" 
-              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
-            >
-              Csapat
-            </TabsTrigger>
-          )}
-          {isAdmin && (
-            <TabsTrigger 
               value="osztalyok" 
               className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3"
             >

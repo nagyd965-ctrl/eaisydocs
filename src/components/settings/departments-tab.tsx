@@ -31,6 +31,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { TeamTab } from "./team-tab"
 import { 
   createDepartment, 
   updateDepartment, 
@@ -81,11 +82,13 @@ export interface TeamMemberItem {
   szerepkor?: string | null
   max_minosites?: string | null
   szervezeti_egyseg_id?: string | null
+  pozicio?: string | null
 }
 
 interface DepartmentsTabProps {
   departments: DepartmentItem[]
   teamMembers: TeamMemberItem[]
+  currentUserId?: string
 }
 
 // ─── Rekurzív Fa Típusok & Építés ──────────────────────────────────────────
@@ -313,7 +316,7 @@ function DocsOrgChartTree({ rootNodes }: { rootNodes: DocsOrgNode[] }) {
 
 // ─── Fő Komponens: DepartmentsTab ──────────────────────────────────────────
 
-export function DepartmentsTab({ departments, teamMembers }: DepartmentsTabProps) {
+export function DepartmentsTab({ departments, teamMembers, currentUserId }: DepartmentsTabProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("orgunits")
   const [searchTerm, setSearchTerm] = useState("")
@@ -471,6 +474,16 @@ export function DepartmentsTab({ departments, teamMembers }: DepartmentsTabProps
           >
             <Network className="w-4 h-4" />
             Szervezeti Ábra
+          </TabsTrigger>
+          <TabsTrigger
+            value="team"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 py-3 gap-2"
+          >
+            <Users className="w-4 h-4" />
+            Csapat
+            <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground tabular-nums">
+              {teamMembers.length}
+            </span>
           </TabsTrigger>
         </TabsList>
 
@@ -649,6 +662,15 @@ export function DepartmentsTab({ departments, teamMembers }: DepartmentsTabProps
               <DocsOrgChartTree rootNodes={rootNodes} />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* 3. AL-FÜL: CSAPAT (felhasználók és hozzáférések) */}
+        <TabsContent value="team" className="space-y-4 outline-none">
+          <TeamTab
+            teamMembers={teamMembers}
+            departments={departments}
+            currentUserId={currentUserId}
+          />
         </TabsContent>
       </Tabs>
 
