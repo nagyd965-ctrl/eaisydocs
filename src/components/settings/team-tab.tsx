@@ -86,29 +86,31 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <Badge variant="outline" className="text-[10px] uppercase font-mono tracking-wider border-border/80">
+            <div className="flex items-center justify-end space-x-3 shrink-0">
+              <Badge variant="outline" className="w-[150px] justify-center whitespace-nowrap text-[10px] uppercase font-mono tracking-wider border-border/80">
                 {member.max_minosites ? (clearanceMap[member.max_minosites] || member.max_minosites) : "Nyílt"}
               </Badge>
-              <Badge variant="secondary" className="uppercase font-semibold text-[10px] tracking-wider">
+              <Badge variant="secondary" className="w-[120px] justify-center whitespace-nowrap uppercase font-semibold text-[10px] tracking-wider">
                 {member.docs_szerepkor}
               </Badge>
-              {!isSelf && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={async (e) => {
-                    e.stopPropagation()
-                    if (confirm(`Biztosan törlöd a következő felhasználót: ${member.nev}?`)) {
-                      const res = await deleteUser(member.id)
-                      if (res.error) toast.error("Hiba", { description: res.error })
-                    }
-                  }}
-                >
-                  Törlés
-                </Button>
-              )}
+              <div className="w-[72px] flex justify-end">
+                {!isSelf && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      if (confirm(`Biztosan törlöd a következő felhasználót: ${member.nev}?`)) {
+                        const res = await deleteUser(member.id)
+                        if (res.error) toast.error("Hiba", { description: res.error })
+                      }
+                    }}
+                  >
+                    Törlés
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         )})}
