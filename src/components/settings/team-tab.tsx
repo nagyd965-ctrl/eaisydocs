@@ -43,6 +43,23 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
   const [selectedMemberRole, setSelectedMemberRole] = useState<string>("")
   const [selectedMemberDepartment, setSelectedMemberDepartment] = useState<string>("")
   const [selectedMemberClearance, setSelectedMemberClearance] = useState<string>("nyilt")
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deletingMember, setDeletingMember] = useState<any>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingMember) return
+    setDeleteLoading(true)
+    const res = await deleteUser(deletingMember.id)
+    setDeleteLoading(false)
+    if (res.error) {
+      toast.error("Hiba", { description: res.error })
+    } else {
+      toast.success("Sikeres törlés", { description: `${deletingMember.nev} felhasználó törölve.` })
+      setDeleteOpen(false)
+      setDeletingMember(null)
+    }
+  }
 
   return (
     <Card className="border-border shadow-sm">
@@ -116,12 +133,10 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
                     size="sm"
                     className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                     title="Törlés"
-                    onClick={async (e) => {
+                    onClick={(e) => {
                       e.stopPropagation()
-                      if (confirm(`Biztosan törlöd a következő felhasználót: ${member.nev}?`)) {
-                        const res = await deleteUser(member.id)
-                        if (res.error) toast.error("Hiba", { description: res.error })
-                      }
+                      setDeletingMember(member)
+                      setDeleteOpen(true)
                     }}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -310,6 +325,38 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* 3. Törlés dialógus */}
+        <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <DialogContent className="sm:max-w-[420px]">
+            <DialogHeader>
+              <DialogTitle className="text-destructive flex items-center gap-2">
+                <Trash2 className="h-5 w-5" />
+                Felhasználó törlése
+              </DialogTitle>
+              <DialogDescription>
+                Biztosan törölni szeretnéd a(z) <strong>{deletingMember?.nev}</strong> felhasználót?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2 text-xs text-muted-foreground space-y-1">
+              <p>• A felhasználó fiókja véglegesen törlésre kerül, a művelet nem visszavonható.</p>
+              <p>• A felhasználó korábbi iktatásai és ügyiratai a rendszerben maradnak.</p>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)}>
+                Mégse
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={deleteLoading}
+                onClick={handleDeleteConfirm}
+              >
+                {deleteLoading ? "Törlés..." : "Igen, végleges törlés"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
