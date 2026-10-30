@@ -74,7 +74,7 @@ export async function getDocsCentralAuditLogs(companyId?: string): Promise<{
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    let query = supabaseAdmin
+    const query = supabaseAdmin
       .from("esemeny_naplo")
       .select(`
         id,
@@ -227,7 +227,7 @@ export async function getNotificationAuditLogs(companyId?: string): Promise<{
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    let query = supabaseAdmin
+    const query = supabaseAdmin
       .from("ertesites_naplo")
       .select(`
         id,
