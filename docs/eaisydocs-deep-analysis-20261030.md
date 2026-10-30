@@ -23,6 +23,8 @@ Az alábbi P0 találatok a **settings modul guard-sweep** csomagból **lezárás
 | 8 | Irattári terv CRUD — guard nélkül + `company_id` nélküli insert (nem-default cégnél láthatatlan/téves céghez kerül) | `2738773` | Őrblokk (`requireIrattariTervAccess`) + `company_id: aktív cég` + cég-szűrt lekérdezés | ✔ (DB-ben igazolva) |
 | 9 | Válaszlevél-sablonok GLOBÁLISAK — minden cég ugyanazt a listát látja/törölheti | `2738773` | Cég-specifikus kulcs: `valaszlevel_sablonok:{companyId}` + hitelesítés | ✔ (2 céggel tesztelve) |
 | 10 | Iktatási panel — az irattári tétel legördüló az összes cég tételét listázta | `a3c7e87` | `.eq("company_id", activeCompanyId)` szűrés a lekérdezésben | ✔ |
+| 11 | Feladatsablonok GLOBÁLISAK — minden cég ugyanazt a sablonlistát látja | `3d12af1` | Cég-specifikus kulcs: `feladat_sablonok:{companyId}` a `rendszer_beallitas`-ban | ✔ |
+| 12 | Szerződés-generátor megbízó adatai GLOBÁLISAK — minden cég a „eaisyDocs Zrt." nevében generált | `5f4e345` + `08d54af` | `resolveCompanyDetailsServer()` az aktív cég valódi adatait használja mind a 4 ponton (context, AI-prompt, PDF, iktatás) | ✔ |
 
 **Szabály:** ADR [A-097](architecture/decisions/A-097-use-server-exports-as-endpoints-deletion-and-guard-policy.md) — a `"use server"` exportok nyilvános végpontok: a halott action törlendő, az élő action kötelező szerveroldali őrblokkot kap.
 
