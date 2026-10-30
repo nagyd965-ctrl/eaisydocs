@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { UserPlus } from "lucide-react"
+import { UserPlus, Edit, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { createNewUser, updateUserRole, deleteUser } from "@/app/settings/settings-actions"
 import type { DepartmentItem, TeamMemberItem } from "./departments-tab"
@@ -87,12 +87,35 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
               </div>
             </div>
             <div className="flex items-center justify-end space-x-3 shrink-0">
-              <div className="w-[72px] flex justify-start shrink-0">
+              <Badge variant="outline" className="w-[150px] justify-center whitespace-nowrap text-[10px] uppercase font-mono tracking-wider border-border/80">
+                {member.max_minosites ? (clearanceMap[member.max_minosites] || member.max_minosites) : "Nyílt"}
+              </Badge>
+              <Badge variant="secondary" className="w-[120px] justify-center whitespace-nowrap uppercase font-semibold text-[10px] tracking-wider">
+                {member.docs_szerepkor}
+              </Badge>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
+                  title="Módosítás"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedMember(member)
+                    setSelectedMemberRole(member.docs_szerepkor || "")
+                    setSelectedMemberDepartment(member.szervezeti_egyseg_id || "none")
+                    setSelectedMemberClearance(member.max_minosites || "nyilt")
+                    setEditRoleDialogOpen(true)
+                  }}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
                 {!isSelf && (
                   <Button
-                    variant="destructive"
+                    variant="ghost"
                     size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                    title="Törlés"
                     onClick={async (e) => {
                       e.stopPropagation()
                       if (confirm(`Biztosan törlöd a következő felhasználót: ${member.nev}?`)) {
@@ -101,16 +124,10 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
                       }
                     }}
                   >
-                    Törlés
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 )}
               </div>
-              <Badge variant="outline" className="w-[150px] justify-center whitespace-nowrap text-[10px] uppercase font-mono tracking-wider border-border/80">
-                {member.max_minosites ? (clearanceMap[member.max_minosites] || member.max_minosites) : "Nyílt"}
-              </Badge>
-              <Badge variant="secondary" className="w-[120px] justify-center whitespace-nowrap uppercase font-semibold text-[10px] tracking-wider">
-                {member.docs_szerepkor}
-              </Badge>
             </div>
           </div>
         )})}
