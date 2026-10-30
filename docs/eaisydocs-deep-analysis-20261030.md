@@ -27,6 +27,7 @@ Az alábbi P0 találatok a **settings modul guard-sweep** csomagból **lezárás
 | 12 | Szerződés-generátor megbízó adatai GLOBÁLISAK — minden cég a „eaisyDocs Zrt." nevében generált | `5f4e345` + `08d54af` | `resolveCompanyDetailsServer()` az aktív cég valódi adatait használja mind a 4 ponton (context, AI-prompt, PDF, iktatás) | ✔ |
 | 13 | REST API v1 nyitott — nincs hitelesítés, bejelentkezés nélkül JSON adat | `677d256` | Supabase session VAGY Bearer API kulcs hitelesítés + cég-szűrés + UUID-validáció | ✔ |
 | 14 | Selejtezési jegyzőkönyv PDF fejléce hardkódolt — a cég neve nem szerepel | `b45a8f6` | `resolveCompanyDetailsServer()` — a cég neve a rendszer-név ALATT jelenik meg (a megrendelő kérése: a rendszer-név maradjon) | ✔ |
+| 15 | IMAP/e-mail csatorna nem cég-tudatos — minden levél a DB-default cégnél landolt, a harang-értesítés minden cégnek ment | `c345216` + `dce8953` + `ea97abc` | Új „Hitelesítő adatok" beállítás (ADR A-098): cégenkénti, AES-256-GCM titkosított IMAP + Brevo adatok; a worker postafiók-alapú cég-hozzárendeléssel dolgozik; értesítés és partner-feloldás cég-szűrt | ✔ |
 
 **Szabály:** ADR [A-097](architecture/decisions/A-097-use-server-exports-as-endpoints-deletion-and-guard-policy.md) — a `"use server"` exportok nyilvános végpontok: a halott action törlendő, az élő action kötelező szerveroldali őrblokkot kap.
 
