@@ -278,8 +278,20 @@ export async function getContractGeneratorContextAction(partnerId: string): Prom
 
     partner.kapcsolattartok = kapcsolattartok || []
 
-    // 2. Megbízó vállalati adatok (rendszerbeállításból vagy alapértelmezett)
-    let megbizo = { ...DEFAULT_MEGBIZO_COMPANY }
+    // 2. Megbízó vállalati adatok — az AKTÍV CÉG valódi adataiból (companies tábla),
+    //    kiegészítve a rendszerbeállításokban megadott extra mezőkkel (bankszámla, e-mail, telefon)
+    const { resolveCompanyDetailsServer } = await import("@/utils/company-server")
+    const companyDetails = await resolveCompanyDetailsServer()
+
+    let megbizo = {
+      ...DEFAULT_MEGBIZO_COMPANY,
+      nev: companyDetails.nev || DEFAULT_MEGBIZO_COMPANY.nev,
+      szekhely: companyDetails.szekhely || DEFAULT_MEGBIZO_COMPANY.szekhely,
+      adoszam: companyDetails.adoszam || DEFAULT_MEGBIZO_COMPANY.adoszam,
+      kepviselo: companyDetails.kepviselo || DEFAULT_MEGBIZO_COMPANY.kepviselo,
+    }
+
+    // Extra mezők a rendszerbeállításokból (bankszámla, e-mail, telefon — ezek nincsenek a companies táblában)
     const { data: configRow } = await supabase
       .from("rendszer_beallitas")
       .select("ertek")
@@ -289,14 +301,10 @@ export async function getContractGeneratorContextAction(partnerId: string): Prom
     if (configRow?.ertek && typeof configRow.ertek === "object") {
       megbizo = {
         ...megbizo,
-        nev: configRow.ertek.nev || megbizo.nev,
-        szekhely: configRow.ertek.szekhely || megbizo.szekhely,
-        adoszam: configRow.ertek.adoszam || megbizo.adoszam,
-        cegjegyzekszam: configRow.ertek.cegjegyzekszam || megbizo.cegjegyzekszam,
-        kepviselo: configRow.ertek.kepviselo || megbizo.kepviselo,
         bankszamlaszam: configRow.ertek.bankszamlaszam || megbizo.bankszamlaszam,
         email: configRow.ertek.email || megbizo.email,
         telefonszam: configRow.ertek.telefonszam || megbizo.telefonszam,
+        cegjegyzekszam: configRow.ertek.cegjegyzekszam || megbizo.cegjegyzekszam,
       }
     }
 
