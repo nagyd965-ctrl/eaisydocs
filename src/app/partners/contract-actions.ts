@@ -443,8 +443,16 @@ export async function generateContractDraftAction(
     // Cím
     const contractTitle = params.title?.trim() || template.defaultTitle
 
-    // Megbízó és Megbízott összeállítása
-    const megbizo: ContractParty = { ...DEFAULT_MEGBIZO_COMPANY }
+    // Megbízó és Megbízott összeállítása — az AKTÍV CÉG valódi adataiból
+    const { resolveCompanyDetailsServer: resolveCmp } = await import("@/utils/company-server")
+    const cmpDetails = await resolveCmp()
+    const megbizo: ContractParty = {
+      ...DEFAULT_MEGBIZO_COMPANY,
+      nev: cmpDetails.nev || DEFAULT_MEGBIZO_COMPANY.nev,
+      szekhely: cmpDetails.szekhely || DEFAULT_MEGBIZO_COMPANY.szekhely,
+      adoszam: cmpDetails.adoszam || DEFAULT_MEGBIZO_COMPANY.adoszam,
+      kepviselo: cmpDetails.kepviselo || DEFAULT_MEGBIZO_COMPANY.kepviselo,
+    }
 
     const primaryContact =
       partner.kapcsolattartok?.find((c: any) => c.elsodleges) || partner.kapcsolattartok?.[0]
@@ -821,7 +829,22 @@ export async function finalizeAndFileContractAction(
       })
     }
 
-    const megbizo = params.megbizo || { ...DEFAULT_MEGBIZO_COMPANY }
+    // Megbízó: az aktív cég valódi adatai (fallback a kliens által küldött adatokra)
+    let megbizo = params.megbizo
+    if (!megbizo || !megbizo.nev || megbizo.nev === DEFAULT_MEGBIZO_COMPANY.nev) {
+      const { resolveCompanyDetailsServer: resolveCmp2 } = await import("@/utils/company-server")
+      const cmp2 = await resolveCmp2()
+      megbizo = {
+        ...DEFAULT_MEGBIZO_COMPANY,
+        nev: cmp2.nev || DEFAULT_MEGBIZO_COMPANY.nev,
+        szekhely: cmp2.szekhely || DEFAULT_MEGBIZO_COMPANY.szekhely,
+        adoszam: cmp2.adoszam || DEFAULT_MEGBIZO_COMPANY.adoszam,
+        kepviselo: cmp2.kepviselo || DEFAULT_MEGBIZO_COMPANY.kepviselo,
+        ...(params.megbizo?.bankszamlaszam ? { bankszamlaszam: params.megbizo.bankszamlaszam } : {}),
+        ...(params.megbizo?.email ? { email: params.megbizo.email } : {}),
+        ...(params.megbizo?.telefonszam ? { telefonszam: params.megbizo.telefonszam } : {}),
+      }
+    }
     const megbizott = params.megbizott || {
       nev: partner.nev,
       szekhely: "–",
@@ -1068,7 +1091,22 @@ export async function generateContractPdfPreviewAction(
       })
     }
 
-    const megbizo = params.megbizo || { ...DEFAULT_MEGBIZO_COMPANY }
+    // Megbízó: az aktív cég valódi adatai (fallback a kliens által küldött adatokra)
+    let megbizo = params.megbizo
+    if (!megbizo || !megbizo.nev || megbizo.nev === DEFAULT_MEGBIZO_COMPANY.nev) {
+      const { resolveCompanyDetailsServer: resolveCmp2 } = await import("@/utils/company-server")
+      const cmp2 = await resolveCmp2()
+      megbizo = {
+        ...DEFAULT_MEGBIZO_COMPANY,
+        nev: cmp2.nev || DEFAULT_MEGBIZO_COMPANY.nev,
+        szekhely: cmp2.szekhely || DEFAULT_MEGBIZO_COMPANY.szekhely,
+        adoszam: cmp2.adoszam || DEFAULT_MEGBIZO_COMPANY.adoszam,
+        kepviselo: cmp2.kepviselo || DEFAULT_MEGBIZO_COMPANY.kepviselo,
+        ...(params.megbizo?.bankszamlaszam ? { bankszamlaszam: params.megbizo.bankszamlaszam } : {}),
+        ...(params.megbizo?.email ? { email: params.megbizo.email } : {}),
+        ...(params.megbizo?.telefonszam ? { telefonszam: params.megbizo.telefonszam } : {}),
+      }
+    }
     const megbizott = params.megbizott || {
       nev: "Partner",
       szekhely: "–",
