@@ -92,6 +92,8 @@ export async function getDocsCentralAuditLogs(companyId?: string): Promise<{
       `)
       .order("tortent", { ascending: false })
       .eq("company_id", effectiveCompanyId)
+      // Tudatos limit: a legfrissebb 1000 esemény (explicit, a DB-API implicit 1000 helyett)
+      .limit(1000)
 
     const { data: rawLogs, error: logError } = await query
     if (logError) {
@@ -247,6 +249,7 @@ export async function getNotificationAuditLogs(companyId?: string): Promise<{
       .eq("modul", "docs")
       .order("mikor", { ascending: false })
       .eq("company_id", effectiveCompanyId)
+      .limit(1000)
 
     const { data: rawLogs, error: logError } = await query
 
