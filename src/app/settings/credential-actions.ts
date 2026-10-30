@@ -78,6 +78,7 @@ export async function getCredentialStatus() {
       port: e?.imap_port ? Number(e.imap_port) : 993,
       user: e?.imap_user || "",
       enabled: e?.imap_enabled !== false,
+      passwordSet: !!e?.imap_password_enc,
     },
     brevoConfigured: !!e?.brevo_api_key_enc,
   }
