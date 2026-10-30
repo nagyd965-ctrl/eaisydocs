@@ -25,6 +25,7 @@ Az alábbi P0 találatok a **settings modul guard-sweep** csomagból **lezárás
 | 10 | Iktatási panel — az irattári tétel legördüló az összes cég tételét listázta | `a3c7e87` | `.eq("company_id", activeCompanyId)` szűrés a lekérdezésben | ✔ |
 | 11 | Feladatsablonok GLOBÁLISAK — minden cég ugyanazt a sablonlistát látja | `3d12af1` | Cég-specifikus kulcs: `feladat_sablonok:{companyId}` a `rendszer_beallitas`-ban | ✔ |
 | 12 | Szerződés-generátor megbízó adatai GLOBÁLISAK — minden cég a „eaisyDocs Zrt." nevében generált | `5f4e345` + `08d54af` | `resolveCompanyDetailsServer()` az aktív cég valódi adatait használja mind a 4 ponton (context, AI-prompt, PDF, iktatás) | ✔ |
+| 13 | REST API v1 nyitott — nincs hitelesítés, bejelentkezés nélkül JSON adat | `677d256` | Supabase session VAGY Bearer API kulcs hitelesítés + cég-szűrés + UUID-validáció | ✔ |
 
 **Szabály:** ADR [A-097](architecture/decisions/A-097-use-server-exports-as-endpoints-deletion-and-guard-policy.md) — a `"use server"` exportok nyilvános végpontok: a halott action törlendő, az élő action kötelező szerveroldali őrblokkot kap.
 
@@ -42,6 +43,7 @@ A statikus elemzés **false positive** találatjai — a megrendelő a futó ren
 | 4 | Kimenő irat vázlat-törlése soha nem működik | **Nem reprodukálható** — a UI-ban nincs külön vázlat-törlési flow (a popup egyben küld és iktat) |
 | 5 | Ő/ű betűk törlődnek a sablon-PDF-ekben | **Nem reprodukálható** — a megrendelő tesztelte, a PDF-ek rendesen generálódnak |
 | 6 | Kölcsönzés határidő-figyelmeztetés hiányzik (BRD-005) | **Nem reprodukálható** — az értesítési rendszer működik, 6 típusú értesítés tesztelve |
+| 7 | Partner adatlapon bizalmas iratok metaadatai a kliensnek | **Tudatos működés** — a dosszié (ügyirat) látszik a listában, de az iratok és PDF-ek minősítés szerint szűrve; a megrendelő szerint kárt nem okoz |
 
 ---
 
