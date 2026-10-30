@@ -4,6 +4,9 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-30)
 
+### [Közös]: Első Docs-Audit P0 Javítás — `getGlobalisAuditNaplo` Halott, Nem Védett Server Action Törlése (ADR A-097)
+- **`src/app/settings/admin-actions.ts`:** A `getGlobalisAuditNaplo` függvény és a hozzá tartozó `AuditFilters` típus törölve (külön commitban: `2cee3f9`, `git revert`-tel visszaállítható). A deep-audit P0 találatának lezárása: a függvény a központi audit-átépítés (A-050) óta sehol nem volt behívva (ellenőrizve a Docs modulban, a HR modulban és dinamikus importokban egyaránt), miközben `"use server"` exportként hitelesítés nélkül, SERVICE ROLE kulccsal hívható volt, és az összes cég audit-eseményét adta vissza (IP-cím, User-Agent, felhasználónevek, indoklások). Helyén magyarázó komment maradt. A döntés általános szabállyá is emelkedett (ADR A-097): a `"use server"` exportok nyilvános végpontok — a halott action törlendő, az élők kötelező szerveroldali őrblokkot kapnak.
+
 ### [Közös]: Login UX-CSomag — Gomb-Betöltésállapot, Jelszó-Megjelenítés, Caps Lock Figyelmeztetés, Belépés Utáni Célkövetés és V16 Gradiens Háttér (ADR A-096, PRD P-130)
 - **Bejelentkezés gomb betöltésállapot (`src/app/login/login-form.tsx`):** Az űrlap kliensoldali `LoginForm` komponensbe került; a submit gomb `useFormStatus`-zal pörgettyűt és „Bejelentkezés…" feliratot kap, letiltással (dupla beküldés kizárva).
 - **Jelszó-megjelenítés:** Szem ikon a jelszómező végén (password/text váltás, `aria-label`-lel) — a set-password oldali minta loginra vitele.
