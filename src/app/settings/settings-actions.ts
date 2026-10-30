@@ -495,9 +495,53 @@ export async function createDepartment(formData: FormData) {
   return { success: true }
 }
 
+/**
+ * A-097 ŐRBLOKK a settings szervezeti-egység műveletekhez:
+ * bejelentkezett cég-admin + (opcionálisan) az egység az aktív céghez tartozik.
+ * Visszaadja a hibaüzenetet, vagy null-t ha minden rendben.
+ */
+async function requireDepartmentAdminAccess(departmentId?: string): Promise<string | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return "Nincs bejelentkezve."
+
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (!activeCompanyId) return "Nincs kiválasztott aktív cég."
+
+  const { data: callerMembership } = await supabase
+    .from("company_members")
+    .select("role, docs_szerepkor")
+    .eq("company_id", activeCompanyId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  const isCompanyAdmin =
+    callerMembership?.role === "owner" ||
+    callerMembership?.role === "admin" ||
+    callerMembership?.docs_szerepkor === "admin"
+  if (!isCompanyAdmin) return "Csak a cég adminja módosíthatja a szervezeti egységeket."
+
+  if (departmentId) {
+    const { data: dept } = await supabase
+      .from("szervezeti_egyseg")
+      .select("id, company_id")
+      .eq("id", departmentId)
+      .maybeSingle()
+    if (!dept) return "A szervezeti egység nem található."
+    if (dept.company_id !== activeCompanyId) return "A szervezeti egység másik céghez tartozik."
+  }
+
+  return null // minden rendben
+}
+
 export async function updateDepartment(id: string, formData: FormData) {
   const nev = (formData.get("nev") as string)?.trim()
   if (!nev) return { error: "Név megadása kötelező!" }
+
+  // ── ŐRBLOKK (A-097) ──
+  const guardError = await requireDepartmentAdminAccess(id)
+  if (guardError) return { error: guardError }
 
   const szuloIdRaw = formData.get("szulo_id") as string
   const szulo_id = !szuloIdRaw || szuloIdRaw === "__none__" || szuloIdRaw === "none" || szuloIdRaw === id ? null : szuloIdRaw
@@ -539,6 +583,10 @@ export async function updateDepartment(id: string, formData: FormData) {
 }
 
 export async function deleteDepartment(id: string) {
+  // ── ŐRBLOKK (A-097) ──
+  const guardError = await requireDepartmentAdminAccess(id)
+  if (guardError) return { error: guardError }
+
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceRoleKey) return { error: "Hiányzik a konfiguráció." }
 
@@ -576,6 +624,10 @@ export async function deleteDepartment(id: string) {
 }
 
 export async function removeUserFromDepartment(userId: string, departmentId: string) {
+  // ── ŐRBLOKK (A-097) ──
+  const guardError = await requireDepartmentAdminAccess(departmentId)
+  if (guardError) return { error: guardError }
+
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceRoleKey) return { error: "Hiányzik a konfiguráció." }
 
@@ -679,6 +731,10 @@ export async function toggleNotificationRule(id: string, active: boolean) {
 }
 
 export async function addUsersToDepartment(departmentId: string, userIds: string[]) {
+  // ── ŐRBLOKK (A-097) ──
+  const guardError = await requireDepartmentAdminAccess(departmentId)
+  if (guardError) return { error: guardError }
+
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceRoleKey) return { error: "Hiányzik a SUPABASE_SERVICE_ROLE_KEY." }
 
