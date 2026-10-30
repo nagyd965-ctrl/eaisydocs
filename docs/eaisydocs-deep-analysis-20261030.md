@@ -7,6 +7,26 @@
 
 ---
 
+## ⭐ JAVÍTOTT P0 TALÁLATOK (2026.10.30. — a megrendelő által tesztelve)
+
+Az alábbi P0 találatok a **settings modul guard-sweep** csomagból **lezárásra kerültek**. Minden javítást a megrendelő admin fiókkal végigtesztelt — a viselkedés változatlan (saját cégen belül minden működik), csak a jogosulatlan hívások záródtak.
+
+| # | P0 találat | Commit | Javítás | Megrendelői teszt |
+|---|---|---|---|---|
+| 1 | `getGlobalisAuditNaplo` — hitelesítés nélkül, SERVICE ROLE, minden cég audit-adata | `2cee3f9` | **Törölve** (halott kód: 3 dimenziós ellenőrzéssel bizonyítva, hogy sehol nincs behívva) | ✔ |
+| 2 | `createNewUser` — nincs admin-check, árva fiók (nem kerül céghez) | `7cc1523` | Őrblokk + whitelist + **automatikus `company_members` bejegyzés** az aktív cégbe | ✔ (Csapat fülon azonnal látszott) |
+| 3 | `setDepartmentLeader` — hitelesítés nélkül + **globális `ugyintezo→vezeto` előléptetés** | `41b5a4e` | Őrblokk + **az előléptetés törölve**; előzetes kockázatelemzés (0 NULL-céges egység, az egyetlen éles vezető nem függ tőle) | ✔ (adatbázis-szinten igazolva, javítás után visszaállítva) |
+| 4 | `updateDepartment` — hitelesítés nélkül, cross-tenant | `0ba0930` | Őrblokk (közös `requireDepartmentAdminAccess()`) | ✔ |
+| 5 | `deleteDepartment` — hitelesítés nélkül, cross-tenant, globális tag-nullázás | `0ba0930` | Őrblokk | ✔ |
+| 6 | `addUsersToDepartment` — hitelesítés nélkül, cross-tenant | `0ba0930` | Őrblokk | ✔ |
+| 7 | `removeUserFromDepartment` — hitelesítés nélkül, cross-tenant | `0ba0930` | Őrblokk | ✔ |
+
+**Szabály:** ADR [A-097](architecture/decisions/A-097-use-server-exports-as-endpoints-deletion-and-guard-policy.md) — a `"use server"` exportok nyilvános végpontok: a halott action törlendő, az élő action kötelező szerveroldali őrblokkot kap.
+
+**Fennmaradó P0/P1 találatok:** lásd a teljes jelentést alább.
+
+---
+
 ## 0. Vezetői összefoglaló — mit tapasztaltunk nagyban
 
 Az eaisyDocs **felületi és funkcionális rétege érett** (iktatási split-view, ügyirat-munkalap, négyszem-elvű selejtezés, AI szerződésgenerátor, keresés, kanban taskok — a dokumentált UX nagyrészt hűen implementálva, a Docs-UX akár jobban is áll, mint a HR-é). Ugyanakkor a mélyebb rétegekben **három rendszerszintű gyökérok** miatt a modul tényleges biztonsági és üzemeltetési érettsége jelentősen a funkcionális alatt van:

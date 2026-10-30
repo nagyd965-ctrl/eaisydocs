@@ -4,6 +4,14 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-30)
 
+### [Közös]: eaisyDocs Settings Modul Teljes P0 Guard-Sweep Lezárva (ADR A-097, Deep-Analysis 1.2)
+A `docs/eaisydocs-deep-analysis-20261030.md` 1.2-es gyökérokának (guard nélküli SERVICE ROLE actionök a settings rétegben) **mind a 7 P0 találatja lezárva** — a módosításokat a megrendelő admin fiókkal végigtesztelte:
+
+- **`getGlobalisAuditNaplo` TÖRLÉSE** (commit `2cee3f9`): a függvény sehol nem volt behívva (a központi `/audit` oldal a cég-szűrt `src/app/audit/actions.ts`-t használja), miközben `"use server"` exportként hitelesítés nélkül hívható volt és SERVICE ROLE kulccsal az összes cég audit-eseményét adta vissza. A döntés általános szabállyá emelkedett (ADR A-097).
+- **`createNewUser` őrblokk + cég-tagság** (commit `7cc1523`): a felhasználó által tesztelve és igazolva („árva user, nem látszik a Csapat fülön"). Őrblokk (bejelentkezett + cég-admin), whitelist-validáció (szerepkör + minősítés), és **automatikus `company_members` bejegyzés** az aktív cégbe — korábban árva fiók keletkezett.
+- **`setDepartmentLeader` őrblokk + globális előléptetés törölve** (commit `41b5a4e`): a felhasználó által tesztelve („Géza globálisan vezető lett"). Az `ugyintezo → vezeto` globális `docs_szerepkor` átírás megszüntetve; őrblokk (cég-admin + cég-egyezés + a kinevezendő cégtagsága). Előzetes kockázatelemzéssel: 0 örökölt NULL-céges egység, az egyetlen éles Pénzügy-vezető nem volt előléptetve.
+- **`updateDepartment`, `deleteDepartment`, `addUsersToDepartment`, `removeUserFromDepartment` őrblokk** (commit `0ba0930`): közös `requireDepartmentAdminAccess()` segédfüggvény — bejelentkezett + cég-admin + az egység az aktív céghez tartozik. A megrendelő admin fiókkal végigtesztelte: minden művelet működik.
+
 ### [Közös]: Első Docs-Audit P0 Javítás — `getGlobalisAuditNaplo` Halott, Nem Védett Server Action Törlése (ADR A-097)
 - **`src/app/settings/admin-actions.ts`:** A `getGlobalisAuditNaplo` függvény és a hozzá tartozó `AuditFilters` típus törölve (külön commitban: `2cee3f9`, `git revert`-tel visszaállítható). A deep-audit P0 találatának lezárása: a függvény a központi audit-átépítés (A-050) óta sehol nem volt behívva (ellenőrizve a Docs modulban, a HR modulban és dinamikus importokban egyaránt), miközben `"use server"` exportként hitelesítés nélkül, SERVICE ROLE kulccsal hívható volt, és az összes cég audit-eseményét adta vissza (IP-cím, User-Agent, felhasználónevek, indoklások). Helyén magyarázó komment maradt. A döntés általános szabállyá is emelkedett (ADR A-097): a `"use server"` exportok nyilvános végpontok — a halott action törlendő, az élők kötelező szerveroldali őrblokkot kapnak.
 
