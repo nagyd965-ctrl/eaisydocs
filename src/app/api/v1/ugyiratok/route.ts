@@ -5,11 +5,31 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const partner_id = searchParams.get("partner_id")
 
+  // ── HITELESÍTÉS: Supabase session VAGY Bearer API kulcs (A-020) ──
+  const authHeader = request.headers.get("authorization")
+  const apiKey = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : null
+
   const supabase = await createClient()
 
-  // Mivel ez demó API, egyelőre nem várunk el Authorization headert, hanem
-  // hagyjuk, hogy a Supabase Auth session, vagy fallbackként egyszerű publikus adatként jöjjön le.
-  // Élesben: const authHeader = request.headers.get('authorization') -> JWT ellenőrzés
+  // 1) Bearer API kulcs ellenőrzése ( külső integrációkhoz)
+  if (apiKey && apiKey === process.env.REST_API_V1_KEY) {
+    // API kulcs valid — tovább a lekérdezésre
+  } else {
+    // 2) Supabase session ellenőrzése (böngészőből hívás esetén)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized — érvényes Supabase session vagy Bearer API kulcs szükséges." },
+        { status: 401 }
+      )
+    }
+  }
+
+  // Cég-szűrés (multi-tenant): az aktív cég ügyiratai only
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
 
   let query = supabase
     .from("ugyirat")
@@ -24,6 +44,10 @@ export async function GET(request: Request) {
       )
     `)
     .order('iktatas_datuma', { ascending: false })
+
+  if (activeCompanyId) {
+    query = query.eq("company_id", activeCompanyId)
+  }
 
   // Ha van partner szűrés, megkeressük az irat_kapcsolaton keresztül azokat az ügyiratokat
   if (partner_id) {

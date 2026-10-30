@@ -9,6 +9,28 @@ export async function GET(
   const id = params.id
   const supabase = await createClient()
 
+  // ── HITELESÍTÉS: Supabase session VAGY Bearer API kulcs (A-020) ──
+  const authHeader = request.headers.get("authorization")
+  const apiKey = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : null
+
+  if (!(apiKey && apiKey === process.env.REST_API_V1_KEY)) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized — érvényes Supabase session vagy Bearer API kulcs szükséges." },
+        { status: 401 }
+      )
+    }
+  }
+
+  // UUID validáció (PostgREST filter-injekció ellen)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!uuidRegex.test(id)) {
+    return NextResponse.json({ error: "Érvénytelen ügyirat azonosító." }, { status: 400 })
+  }
+
   // Lekérdezzük az adott ügyirathoz (vagy a hozzá tartozó iratokhoz) tartozó naplóbejegyzéseket
   const { data, error } = await supabase
     .from("esemeny_naplo")
