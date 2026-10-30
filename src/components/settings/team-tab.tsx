@@ -87,13 +87,7 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
               </div>
             </div>
             <div className="flex items-center justify-end space-x-3 shrink-0">
-              <Badge variant="outline" className="w-[150px] justify-center whitespace-nowrap text-[10px] uppercase font-mono tracking-wider border-border/80">
-                {member.max_minosites ? (clearanceMap[member.max_minosites] || member.max_minosites) : "Nyílt"}
-              </Badge>
-              <Badge variant="secondary" className="w-[120px] justify-center whitespace-nowrap uppercase font-semibold text-[10px] tracking-wider">
-                {member.docs_szerepkor}
-              </Badge>
-              <div className="w-[72px] flex justify-end">
+              <div className="w-[72px] flex justify-start shrink-0">
                 {!isSelf && (
                   <Button
                     variant="destructive"
@@ -111,6 +105,12 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
                   </Button>
                 )}
               </div>
+              <Badge variant="outline" className="w-[150px] justify-center whitespace-nowrap text-[10px] uppercase font-mono tracking-wider border-border/80">
+                {member.max_minosites ? (clearanceMap[member.max_minosites] || member.max_minosites) : "Nyílt"}
+              </Badge>
+              <Badge variant="secondary" className="w-[120px] justify-center whitespace-nowrap uppercase font-semibold text-[10px] tracking-wider">
+                {member.docs_szerepkor}
+              </Badge>
             </div>
           </div>
         )})}
