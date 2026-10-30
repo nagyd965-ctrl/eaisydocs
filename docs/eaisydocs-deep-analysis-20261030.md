@@ -28,6 +28,7 @@ Az alábbi P0 találatok a **settings modul guard-sweep** csomagból **lezárás
 | 13 | REST API v1 nyitott — nincs hitelesítés, bejelentkezés nélkül JSON adat | `677d256` | Supabase session VAGY Bearer API kulcs hitelesítés + cég-szűrés + UUID-validáció | ✔ |
 | 14 | Selejtezési jegyzőkönyv PDF fejléce hardkódolt — a cég neve nem szerepel | `b45a8f6` | `resolveCompanyDetailsServer()` — a cég neve a rendszer-név ALATT jelenik meg (a megrendelő kérése: a rendszer-név maradjon) | ✔ |
 | 15 | IMAP/e-mail csatorna nem cég-tudatos — minden levél a DB-default cégnél landolt, a harang-értesítés minden cégnek ment | `c345216` + `dce8953` + `ea97abc` | Új „Hitelesítő adatok" beállítás (ADR A-098): cégenkénti, AES-256-GCM titkosított IMAP + Brevo adatok; a worker postafiók-alapú cég-hozzárendeléssel dolgozik; értesítés és partner-feloldás cég-szűrt | ✔ |
+| 16 | Audit napló: `.limit(500)` — 500 fölötti események soha nem látszottak; a cég-szűrőt a kliens diktálta; a kiküldési naplóban `company_id IS NULL` kiskapu (A-091 Docs-port hiánya) | `54855c6` + `f26508e` + `b253f4b` | Szerveroldali cég-tagság ellenőrzés, NULL-kiskapu zárva, explicit 1000-es limit (a megrendelő tudatos döntése: a legfrissebb 1000 esemény) | ✔ |
 
 **Szabály:** ADR [A-097](architecture/decisions/A-097-use-server-exports-as-endpoints-deletion-and-guard-policy.md) — a `"use server"` exportok nyilvános végpontok: a halott action törlendő, az élő action kötelező szerveroldali őrblokkot kap.
 
