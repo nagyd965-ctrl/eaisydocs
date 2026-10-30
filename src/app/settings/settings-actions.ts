@@ -714,13 +714,18 @@ export async function deleteUser(userId: string) {
 export async function toggleNotificationRule(id: string, active: boolean) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) return { error: "Nem vagy bejelentkezve" }
+
+  // Cég-szűrés: csak a saját cég szabályát módosíthatja
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
 
   const { error } = await supabase
     .from("ertesitesi_szabaly")
     .update({ aktiv: active })
     .eq("id", id)
+    .eq("company_id", activeCompanyId || "00000000-0000-0000-0000-000000000000")
 
   if (error) {
     return { error: error.message }
@@ -771,6 +776,9 @@ export async function updateRuleChannels(id: string, channels: string[]) {
   }
 
   // Szervíz kulcs használata RLS megkerüléséhez (mivel az RLS jelenleg rosszul van beállítva a DB-ben)
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   const supabaseAdmin = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -781,6 +789,7 @@ export async function updateRuleChannels(id: string, channels: string[]) {
     .from("ertesitesi_szabaly")
     .update({ csatorna: channels })
     .eq("id", id)
+    .eq("company_id", activeCompanyId || "00000000-0000-0000-0000-000000000000")
 
   if (error) {
     return { error: error.message }

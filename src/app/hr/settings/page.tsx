@@ -36,10 +36,16 @@ export default async function HrSettingsPage() {
 
   let szabalyok: any[] = []
   if (isHrOrAdmin) {
-    const { data: fetchedSzabalyok } = await supabase
+    const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+    const notifCompanyId = await getActiveCompanyIdServer()
+    let szabalyQuery = supabase
       .from("ertesitesi_szabaly")
       .select("*")
       .order("esemeny_tipus")
+    if (notifCompanyId) {
+      szabalyQuery = szabalyQuery.eq("company_id", notifCompanyId)
+    }
+    const { data: fetchedSzabalyok } = await szabalyQuery
     if (fetchedSzabalyok) szabalyok = fetchedSzabalyok
   }
 

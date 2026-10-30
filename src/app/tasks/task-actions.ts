@@ -518,17 +518,29 @@ export async function createTask(
 // FELADATSABLONOK (TEMPLATES) KEZELÉSE
 // ====================================================================
 
+/**
+ * Cég-specifikus kulcs a feladatsablonok tárolásához (multi-tenant).
+ */
+async function getTaskTemplateKey(): Promise<string> {
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const companyId = await getActiveCompanyIdServer()
+  return companyId ? `feladat_sablonok:${companyId}` : "feladat_sablonok"
+}
 export async function getTaskTemplates(): Promise<{
   success: boolean
   templates: TaskTemplate[]
 }> {
   const supabase = await createClient()
 
-  // Lekérdezzük a sablonokat a rendszer_beallitas táblából
+  // Cég-specifikus kulcs (multi-tenant)
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const key = await getTaskTemplateKey()
+
   const { data: settingRow } = await supabase
     .from("rendszer_beallitas")
     .select("ertek")
-    .eq("kulcs", "feladat_sablonok")
+    .eq("kulcs", key)
     .maybeSingle()
 
   // Ha még nincs elmentve semmi, inicializáljuk a DEFAULT sablonokkal
@@ -536,9 +548,9 @@ export async function getTaskTemplates(): Promise<{
     await supabase
       .from("rendszer_beallitas")
       .upsert({
-        kulcs: "feladat_sablonok",
+        kulcs: key,
         ertek: DEFAULT_TASK_TEMPLATES,
-        leiras: "Feladatsablonok a feladatkatalógushoz.",
+        leiras: "Feladatsablonok a feladatkatalógushoz (cég-specifikus).",
         updated_at: new Date().toISOString(),
       })
     return { success: true, templates: DEFAULT_TASK_TEMPLATES }
@@ -574,11 +586,12 @@ export async function createCustomTaskTemplate(templateData: {
     created_at: new Date().toISOString(),
   }
 
-  // Lekérjük a meglévőket
+  const templateKey = await getTaskTemplateKey()
+
   const { data: settingRow } = await supabase
     .from("rendszer_beallitas")
     .select("ertek")
-    .eq("kulcs", "feladat_sablonok")
+    .eq("kulcs", templateKey)
     .maybeSingle()
 
   const existing: TaskTemplate[] =
@@ -591,7 +604,7 @@ export async function createCustomTaskTemplate(templateData: {
   const { error } = await supabase
     .from("rendszer_beallitas")
     .upsert({
-      kulcs: "feladat_sablonok",
+      kulcs: templateKey,
       ertek: updated,
       leiras: "Feladatsablonok a feladatkatalógushoz.",
       updated_at: new Date().toISOString(),
@@ -617,10 +630,12 @@ export async function deleteCustomTaskTemplate(templateId: string): Promise<{
 
   if (!user) return { success: false, error: "Nincs bejelentkezve." }
 
+  const templateKey = await getTaskTemplateKey()
+
   const { data: settingRow } = await supabase
     .from("rendszer_beallitas")
     .select("ertek")
-    .eq("kulcs", "feladat_sablonok")
+    .eq("kulcs", templateKey)
     .maybeSingle()
 
   const existing: TaskTemplate[] =
@@ -633,7 +648,7 @@ export async function deleteCustomTaskTemplate(templateId: string): Promise<{
   const { error } = await supabase
     .from("rendszer_beallitas")
     .upsert({
-      kulcs: "feladat_sablonok",
+      kulcs: templateKey,
       ertek: filtered,
       leiras: "Feladatsablonok a feladatkatalógushoz.",
       updated_at: new Date().toISOString(),
@@ -658,10 +673,12 @@ export async function updateCustomTaskTemplate(
 
   if (!user) return { success: false, error: "Nincs bejelentkezve." }
 
+  const templateKey = await getTaskTemplateKey()
+
   const { data: settingRow } = await supabase
     .from("rendszer_beallitas")
     .select("ertek")
-    .eq("kulcs", "feladat_sablonok")
+    .eq("kulcs", templateKey)
     .maybeSingle()
 
   const existing: TaskTemplate[] =
@@ -696,7 +713,7 @@ export async function updateCustomTaskTemplate(
   const { error } = await supabase
     .from("rendszer_beallitas")
     .upsert({
-      kulcs: "feladat_sablonok",
+      kulcs: templateKey,
       ertek: existing,
       leiras: "Feladatsablonok a feladatkatalógushoz.",
       updated_at: new Date().toISOString(),
