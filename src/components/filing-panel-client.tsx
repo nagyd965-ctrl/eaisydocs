@@ -853,25 +853,36 @@ export function FilingPanelClient({
                       <Label htmlFor="irattari_terv_id" className="text-xs font-medium">
                         Irattári tételszám <span className="text-destructive">*</span>
                       </Label>
-                      <Select 
-                        name="irattari_terv_id" 
-                        required={mode === "new"} 
-                        value={ugytipusId} 
-                        onValueChange={(v) => setUgytipusId(v || "")}
-                      >
-                        <SelectTrigger id="irattari_terv_id" className={aiLoading ? "animate-pulse bg-muted" : ""}>
-                          <SelectValue placeholder="Válassz tételszámot...">
-                            {selectedPlan ? `${selectedPlan.tetelszam} - ${selectedPlan.megnevezes}` : undefined}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {tervek.map((t) => (
-                            <SelectItem key={t.id} value={t.id} label={`${t.tetelszam} - ${t.megnevezes}`}>
-                              {t.tetelszam} - {t.megnevezes}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {tervek.length === 0 ? (
+                        <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2.5 space-y-1">
+                          <p className="text-xs font-semibold text-warning">
+                            Nincs rögzített irattári tétel a cégnél
+                          </p>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            Az aktív céghez még nem tartozik egyetlen irattári tétel sem. Az iktatáshoz legalább egy tétel szükséges. Kérjük, vedd fel a kapcsolatot a cég adminisztrátorával, vagy add hozzá a Beállítások → Irattári terv menüben.
+                          </p>
+                        </div>
+                      ) : (
+                        <Select
+                          name="irattari_terv_id"
+                          required={mode === "new"}
+                          value={ugytipusId}
+                          onValueChange={(v) => setUgytipusId(v || "")}
+                        >
+                          <SelectTrigger id="irattari_terv_id" className={aiLoading ? "animate-pulse bg-muted" : ""}>
+                            <SelectValue placeholder="Válassz tételszámot...">
+                              {selectedPlan ? `${selectedPlan.tetelszam} - ${selectedPlan.megnevezes}` : undefined}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {tervek.map((t) => (
+                              <SelectItem key={t.id} value={t.id} label={`${t.tetelszam} - ${t.megnevezes}`}>
+                                {t.tetelszam} - {t.megnevezes}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
