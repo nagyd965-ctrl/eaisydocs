@@ -23,7 +23,18 @@ Az alábbi P0 találatok a **settings modul guard-sweep** csomagból **lezárás
 
 **Szabály:** ADR [A-097](architecture/decisions/A-097-use-server-exports-as-endpoints-deletion-and-guard-policy.md) — a `"use server"` exportok nyilvános végpontok: a halott action törlendő, az élő action kötelező szerveroldali őrblokkot kap.
 
-**Fennmaradó P0/P1 találatok:** lásd a teljes jelentést alább.
+---
+
+## ✖ A MEGRENDELŐ ÁLTAL ELVETETT TALÁLATOK (2026.10.30. — tesztelve, nem hiba)
+
+A statikus elemzés **false positive** találatjai — a megrendelő a futó rendszeren tesztelte és **nem reprodukálható**/szándékos viselkedés:
+
+| # | Eredeti találat | Elvetés oka |
+|---|---|---|
+| 1 | `forceExpireAllDossiers` („Lejárt generálás") őrség nélkül éles UI-n | **Szándékos funkció** — a megrendelő megtartja, célja van |
+| 2 | `selejtezett` ügyirat feltámasztható (Visszaállítás gomb) | **Nem reprodukálható** — a gomb nem jelenik meg selejtezett státusznál a felületen |
+| 3 | Felelős mező mindig „Kiosztatlan" (adatlapon) | **Nem reprodukálható** — HR/2026/00044-nél rendesen kiírja a felelős nevét („Nagy Dániel") |
+| 4 | Kimenő irat vázlat-törlése soha nem működik | **Nem reprodukálható** — a UI-ban nincs külön vázlat-törlési flow (a popup egyben küld és iktat) |
 
 ---
 
