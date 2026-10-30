@@ -4,6 +4,12 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-30)
 
+### [Közös]: Irattári Terv Cégesítése, Válaszlevél-Sablonok Cég- Izolációja és Iktatási Panel Cég-Szűrés (Deep-Analysis P0/P1)
+- **Irattári terv CRUD cégesítve (`src/app/settings/admin-actions.ts`):** Új `requireIrattariTervAccess()` őrblokk (bejelentkezett cég-admin); `createIrattariTetel` mostantól `company_id`-t ír (az aktív céget, nem a DB-default „Think AI Kft."); a lista, update és delete **csak az aktív cég tételeit** éri el (commit `2738773`). *A megrendelő tesztelte és DB-ben igazolta: Teszt Kft-nél létrehozott tétel Think AI-hoz került.*
+- **Válaszlevél-sablonok cég-specifikus kulccsal (`src/app/dossiers/[id]/template-actions.ts`):** A globális `valaszlevel_sablonok` kulcs helyett `valaszlevel_sablonok:{companyId}` — minden cég **saját** sablonlistával rendelkezik; első olvasáskor a DEFAULT_REPLY_TEMPLATES inicializálódik. `getReplyTemplates` hitelesítést kapott (commit `2738773`). *A megrendelő tesztelte: Think AI-nál készített sablon átlátszott Teszt Kft-re.*
+- **Iktatási panel irattári tétel cég-szűrés (`src/app/inbox/[id]/page.tsx`):** A tételszám-legördüló lekérdezése `.eq("company_id", activeCompanyId)` szűrést kapott — korábban az összes cég tételét listázta (commit `a3c7e87`).
+- **Figyelmeztető üzenet üres tétellistánál (`src/components/filing-panel-client.tsx`):** Ha a cégnek nincs egyetlen irattári tétele sem, a legördüló helyett borostyánsárga figyelmeztető doboz jelenik meg útmutatóval („Nincs rögzített irattári tétel a cégnél…") (commit `1250605`).
+
 ### [Közös]: eaisyDocs Settings Modul Teljes P0 Guard-Sweep Lezárva (ADR A-097, Deep-Analysis 1.2)
 A `docs/eaisydocs-deep-analysis-20261030.md` 1.2-es gyökérokának (guard nélküli SERVICE ROLE actionök a settings rétegben) **mind a 7 P0 találatja lezárva** — a módosításokat a megrendelő admin fiókkal végigtesztelte:
 
