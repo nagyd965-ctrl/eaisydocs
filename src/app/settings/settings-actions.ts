@@ -365,6 +365,55 @@ export async function getDepartments() {
 }
 
 export async function setDepartmentLeader(departmentId: string, leaderId: string | null) {
+  // ── ŐRBLOKK (A-097): csak bejelentkezett cég-admin nevezhet ki vezetőt,
+  //    az aktív céghez tartozó szervezeti egységre, cégtagra ──
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (!activeCompanyId) return { error: "Nincs kiválasztott aktív cég." }
+
+  const { data: callerMembership } = await supabase
+    .from("company_members")
+    .select("role, docs_szerepkor")
+    .eq("company_id", activeCompanyId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  const isCompanyAdmin =
+    callerMembership?.role === "owner" ||
+    callerMembership?.role === "admin" ||
+    callerMembership?.docs_szerepkor === "admin"
+  if (!isCompanyAdmin) {
+    return { error: "Csak a cég adminja nevezhet ki osztályvezetőt." }
+  }
+
+  // Az érintett szervezeti egységnek az aktív céghez kell tartoznia
+  const { data: dept } = await supabase
+    .from("szervezeti_egyseg")
+    .select("id, company_id")
+    .eq("id", departmentId)
+    .maybeSingle()
+  if (!dept) return { error: "A szervezeti egység nem található." }
+  if (dept.company_id !== activeCompanyId) {
+    return { error: "A szervezeti egység másik céghez tartozik." }
+  }
+
+  // A kinevezendő vezetőnek az aktív cég tagjának kell lennie (cross-tenant védelem)
+  if (leaderId) {
+    const { data: leaderMembership } = await supabase
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", activeCompanyId)
+      .eq("user_id", leaderId)
+      .maybeSingle()
+    if (!leaderMembership) {
+      return { error: "A kinevezendő vezető nem tagja az aktív cégnek." }
+    }
+  }
+
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceRoleKey) return { error: "Hiányzik a SUPABASE_SERVICE_ROLE_KEY." }
 
@@ -382,28 +431,23 @@ export async function setDepartmentLeader(departmentId: string, leaderId: string
 
   if (error) return { error: "Hiba a vezető beállításakor: " + error.message }
 
-  // Ha új vezetőt jelölünk ki, győződjünk meg róla, hogy be van osztva és a szerepköre legalább vezeto
+  // Ha a kinevezett vezetőnek még nincs szervezeti egysége, hozzárendeljük —
+  // így az osztály iratai a 4 dimenziós RLS szervezeti dimenziója alapján láthatók lesznek neki.
+  // MEGSZÜNTETVE (2026-10-30, docs deep-analysis): a globális docs_szerepkor
+  // 'ugyintezo' → 'vezeto' automatikus előléptetése — jogosultságot kizárólag
+  // explicit, látható adminisztrátori döntéssel szabad megváltoztatni.
   if (leaderId) {
     const { data: userProf } = await supabaseAdmin
       .from("felhasznalo_profil")
-      .select("docs_szerepkor, szervezeti_egyseg_id")
+      .select("szervezeti_egyseg_id")
       .eq("id", leaderId)
       .single()
 
-    if (userProf) {
-      const updates: any = {}
-      if (!userProf.szervezeti_egyseg_id) {
-        updates.szervezeti_egyseg_id = departmentId
-      }
-      if (userProf.docs_szerepkor === 'ugyintezo') {
-        updates.docs_szerepkor = 'vezeto'
-      }
-      if (Object.keys(updates).length > 0) {
-        await supabaseAdmin
-          .from("felhasznalo_profil")
-          .update(updates)
-          .eq("id", leaderId)
-      }
+    if (userProf && !userProf.szervezeti_egyseg_id) {
+      await supabaseAdmin
+        .from("felhasznalo_profil")
+        .update({ szervezeti_egyseg_id: departmentId })
+        .eq("id", leaderId)
     }
   }
 
