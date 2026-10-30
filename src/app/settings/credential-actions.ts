@@ -53,6 +53,15 @@ export async function getCredentialStatus() {
   const guard = await requireCredentialAdminAccess()
   if (guard.error) return { error: guard.error }
 
+  // Self-heal: ha még semmi sincs DB-ben, de az env-ben van IMAP-konfiguráció,
+  // egyszeri auto-import az első céghez (ugyanaz a logika, mint a workerben)
+  try {
+    const { ensureCredentialSeed } = await import("@/utils/imap-config")
+    await ensureCredentialSeed()
+  } catch {
+    // nem kritikus — a status olvasása ettől függetlenül működik
+  }
+
   const supabase = await createClient()
   const { data: row } = await supabase
     .from("rendszer_beallitas")

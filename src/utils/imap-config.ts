@@ -116,16 +116,35 @@ export async function loadCompanyImapConfigs(): Promise<CompanyImapConfig[]> {
     return configs
   }
 
-  // ── ÁTMENETI AUTO-IMPORT ──
-  // Ha még egyetlen cégnek sincs DB-ben hitelesítő adata, de a környezeti
-  // változókban van IMAP-konfiguráció (EMAIL_HOST/USER/PASSWORD), akkor azt
-  // egyszeri alkalommal elmentjük az ELSŐ cég (created_at szerint) nevére.
-  // Így a meglévő (pl. Think AI) postafiók üzemelése megszakítás nélkül
-  // folytatódik, a többi cég pedig üres = e-mail csatorna kikapcsolva.
+  // Még nincs egyetlen cég sem konfigurálva → átmeneti auto-import az env-ből
+  const seeded = await ensureCredentialSeed(db)
+  return seeded ? [seeded] : []
+}
+
+/**
+ * ÁTMENETI AUTO-IMPORT (idempotens):
+ * Ha még egyetlen cégnek sincs DB-ben hitelesítő adata, de a környezeti
+ * változókban van IMAP-konfiguráció (EMAIL_HOST/USER/PASSWORD), akkor azt
+ * elmentjük az ELSŐ cég (created_at szerint) nevére. Így a meglévő
+ * (pl. Think AI) postafiók üzemelése megszakítás nélkül folytatódik,
+ * a többi cég pedig üres = e-mail csatorna kikapcsolva.
+ * A Beállítások oldal megnyitásakor is meghívódik (self-heal), hogy
+ * ne csak a worker indulásán múljék.
+ */
+export async function ensureCredentialSeed(
+  db = adminClient()
+): Promise<CompanyImapConfig | null> {
+  // Csak akkor, ha még SEMMI sincs DB-ben
+  const { count } = await db
+    .from("rendszer_beallitas")
+    .select("kulcs", { count: "exact", head: true })
+    .like("kulcs", `${CREDENTIAL_KEY_PREFIX}%`)
+  if ((count ?? 0) > 0) return null
+
   const envHost = process.env.EMAIL_HOST
   const envUser = process.env.EMAIL_USER
   const envPass = process.env.EMAIL_PASSWORD
-  if (!envHost || !envUser || !envPass) return []
+  if (!envHost || !envUser || !envPass) return null
 
   const { data: firstCompany } = await db
     .from("companies")
@@ -133,7 +152,7 @@ export async function loadCompanyImapConfigs(): Promise<CompanyImapConfig[]> {
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle()
-  if (!firstCompany) return []
+  if (!firstCompany) return null
 
   const port = parseInt(process.env.EMAIL_IMAP_PORT || "993", 10)
   const ertek = {
@@ -154,22 +173,20 @@ export async function loadCompanyImapConfigs(): Promise<CompanyImapConfig[]> {
   })
   if (seedError) {
     console.error("[IMAP-config] Auto-import sikertelen:", seedError.message)
-    return []
+    return null
   }
 
   console.log(
     `[IMAP-config] A környezeti változókban lévő IMAP-adatok auto-importálva lettek az első céghez: ${firstCompany.name} (${firstCompany.id}).`
   )
 
-  return [
-    {
-      companyId: firstCompany.id,
-      host: envHost,
-      port,
-      user: envUser,
-      pass: envPass,
-      enabled: true,
-      brevoApiKey: process.env.BREVO_API_KEY || null,
-    },
-  ]
+  return {
+    companyId: firstCompany.id,
+    host: envHost,
+    port,
+    user: envUser,
+    pass: envPass,
+    enabled: true,
+    brevoApiKey: process.env.BREVO_API_KEY || null,
+  }
 }
