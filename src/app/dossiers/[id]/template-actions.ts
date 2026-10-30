@@ -17,7 +17,30 @@ function getAdminClient() {
 }
 
 /**
+ * Cég-specifikus kulcs a válaszlevél-sablonok tárolásához.
+ * Korábban GLOBÁLIS kulcsot használt ("valaszlevel_sablonok"), ami miatt
+ * minden cég ugyanazt a sablonlistát látta — ez a P0 multi-tenant hiba.
+ */
+async function getTemplateKey(): Promise<string | null> {
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const companyId = await getActiveCompanyIdServer()
+  if (!companyId) return null
+  return `valaszlevel_sablonok:${companyId}`
+}
+
+/**
+ * A-097 ŐRBLOKK a sablon-műveletekhez: bejelentkezett felhasználó + iktató/admin szerepkör.
+ */
+async function requireTemplateAccess(): Promise<string | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return "Nincs bejelentkezve."
+  return null // TODO: szerepkör-ellenőrzés (iktato/admin) — egyelőre bejelentkezés elegendő
+}
+
+/**
  * Lekérdezi az összes válaszlevél- és iratsablont (beépített + egyéni/vállalati)
+ * Az AKTÍV CÉG saját listáját adja vissza (multi-tenant izoláció).
  */
 export async function getReplyTemplates(): Promise<{
   success: boolean
@@ -25,24 +48,32 @@ export async function getReplyTemplates(): Promise<{
   error?: string
 }> {
   try {
+    const authError = await requireTemplateAccess()
+    if (authError) return { success: false, error: authError, templates: [] }
+
+    const key = await getTemplateKey()
+    if (!key) {
+      return { success: true, templates: DEFAULT_REPLY_TEMPLATES }
+    }
+
     const supabase = await createClient()
 
     const { data: settingRow } = await supabase
       .from("rendszer_beallitas")
       .select("ertek")
-      .eq("kulcs", "valaszlevel_sablonok")
+      .eq("kulcs", key)
       .maybeSingle()
 
-    // Ha az adatbázisban még nincs feltöltve (null vagy nem tömb vagy üres), inicializáljuk a DEFAULT_REPLY_TEMPLATES-szel
+    // Ha az adatbázisban még nincs feltöltve a céghez, inicializáljuk a DEFAULT_REPLY_TEMPLATES-szel
     if (!settingRow || !Array.isArray(settingRow.ertek) || settingRow.ertek.length === 0) {
       const admin = getAdminClient()
       await admin
         .from("rendszer_beallitas")
         .upsert(
           {
-            kulcs: "valaszlevel_sablonok",
+            kulcs: key,
             ertek: DEFAULT_REPLY_TEMPLATES,
-            leiras: "Válaszlevél- és iratsablonok az expediálási modulhoz.",
+            leiras: `Válaszlevél-sablonok (cég: ${key.split(":")[1]?.slice(0, 8) || "?"})`,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "kulcs" }
@@ -89,6 +120,9 @@ export async function createCustomReplyTemplate(templateData: {
       return { success: false, error: "A sablon levélszövegezése kötelező!" }
     }
 
+    const key = await getTemplateKey()
+    if (!key) return { success: false, error: "Nincs aktív cég kiválasztva." }
+
     const newTemplate: ReplyTemplate = {
       id: `custom-reply-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       nev: templateData.nev.trim(),
@@ -103,11 +137,11 @@ export async function createCustomReplyTemplate(templateData: {
 
     const admin = getAdminClient()
 
-    // Lekérjük a meglévőket
+    // Lekérjük a meglévőket (cég-specifikus kulcsról)
     const { data: settingRow } = await admin
       .from("rendszer_beallitas")
       .select("ertek")
-      .eq("kulcs", "valaszlevel_sablonok")
+      .eq("kulcs", key)
       .maybeSingle()
 
     const existing: ReplyTemplate[] =
@@ -121,9 +155,9 @@ export async function createCustomReplyTemplate(templateData: {
       .from("rendszer_beallitas")
       .upsert(
         {
-          kulcs: "valaszlevel_sablonok",
+          kulcs: key,
           ertek: updated,
-          leiras: "Válaszlevél- és iratsablonok az expediálási modulhoz.",
+          leiras: `Válaszlevél-sablonok (cég-specifikus)`,
           updated_at: new Date().toISOString(),
           updated_by: user.id,
         },
@@ -166,10 +200,13 @@ export async function updateCustomReplyTemplate(
 
     const admin = getAdminClient()
 
+    const key = await getTemplateKey()
+    if (!key) return { success: false, error: "Nincs aktív cég kiválasztva." }
+
     const { data: settingRow } = await admin
       .from("rendszer_beallitas")
       .select("ertek")
-      .eq("kulcs", "valaszlevel_sablonok")
+      .eq("kulcs", key)
       .maybeSingle()
 
     const existing: ReplyTemplate[] =
@@ -208,9 +245,9 @@ export async function updateCustomReplyTemplate(
       .from("rendszer_beallitas")
       .upsert(
         {
-          kulcs: "valaszlevel_sablonok",
+          kulcs: key,
           ertek: existing,
-          leiras: "Válaszlevél- és iratsablonok az expediálási modulhoz.",
+          leiras: `Válaszlevél-sablonok (cég-specifikus)`,
           updated_at: new Date().toISOString(),
           updated_by: user.id,
         },
@@ -249,10 +286,13 @@ export async function deleteCustomReplyTemplate(
 
     const admin = getAdminClient()
 
+    const key = await getTemplateKey()
+    if (!key) return { success: false, error: "Nincs aktív cég kiválasztva." }
+
     const { data: settingRow } = await admin
       .from("rendszer_beallitas")
       .select("ertek")
-      .eq("kulcs", "valaszlevel_sablonok")
+      .eq("kulcs", key)
       .maybeSingle()
 
     const existing: ReplyTemplate[] =
@@ -266,9 +306,9 @@ export async function deleteCustomReplyTemplate(
       .from("rendszer_beallitas")
       .upsert(
         {
-          kulcs: "valaszlevel_sablonok",
+          kulcs: key,
           ertek: filtered,
-          leiras: "Válaszlevél- és iratsablonok az expediálási modulhoz.",
+          leiras: `Válaszlevél-sablonok (cég-specifikus)`,
           updated_at: new Date().toISOString(),
           updated_by: user.id,
         },

@@ -4,20 +4,56 @@ import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 
 // ─────────────────────────────────────────────
-// IRATTÁRI TERV CRUD
+// IRATTÁRI TERV CRUD (A-097 őrblokk + company_id)
 // ─────────────────────────────────────────────
 
+/**
+ * A-097 ŐRBLOKK az irattári terv műveletekhez:
+ * bejelentkezett cég-admin + aktív cég kontextus.
+ */
+async function requireIrattariTervAccess(): Promise<{ error?: string; activeCompanyId?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve." }
+
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (!activeCompanyId) return { error: "Nincs kiválasztott aktív cég." }
+
+  const { data: callerMembership } = await supabase
+    .from("company_members")
+    .select("role, docs_szerepkor")
+    .eq("company_id", activeCompanyId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  const isCompanyAdmin =
+    callerMembership?.role === "owner" ||
+    callerMembership?.role === "admin" ||
+    callerMembership?.docs_szerepkor === "admin"
+  if (!isCompanyAdmin) return { error: "Csak a cég adminja kezelheti az irattári tervet." }
+
+  return { activeCompanyId }
+}
+
 export async function getIrattariTervek() {
+  const guard = await requireIrattariTervAccess()
+  if (guard.error) return []
+
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("irattari_terv")
     .select("*")
+    .eq("company_id", guard.activeCompanyId!)
     .order("tetelszam", { ascending: true })
   if (error) return []
   return data ?? []
 }
 
 export async function createIrattariTetel(formData: FormData) {
+  const guard = await requireIrattariTervAccess()
+  if (guard.error) return { error: guard.error }
+
   const supabase = await createClient()
 
   const tetelszam = (formData.get("tetelszam") as string)?.trim()
@@ -34,6 +70,7 @@ export async function createIrattariTetel(formData: FormData) {
     megnevezes,
     megorzesi_ido_ev,
     selejtezheto,
+    company_id: guard.activeCompanyId!,
   })
 
   if (error) {
@@ -46,6 +83,9 @@ export async function createIrattariTetel(formData: FormData) {
 }
 
 export async function updateIrattariTetel(id: string, formData: FormData) {
+  const guard = await requireIrattariTervAccess()
+  if (guard.error) return { error: guard.error }
+
   const supabase = await createClient()
 
   const tetelszam = (formData.get("tetelszam") as string)?.trim()
@@ -57,10 +97,12 @@ export async function updateIrattariTetel(id: string, formData: FormData) {
     return { error: "Minden mező kitöltése kötelező." }
   }
 
+  // Cég-szűrés: csak a saját cég tételét módosíthatja
   const { error } = await supabase
     .from("irattari_terv")
     .update({ tetelszam, megnevezes, megorzesi_ido_ev, selejtezheto })
     .eq("id", id)
+    .eq("company_id", guard.activeCompanyId!)
 
   if (error) {
     if (error.code === "23505") return { error: "Ez a tételszám már létezik." }
@@ -72,6 +114,9 @@ export async function updateIrattariTetel(id: string, formData: FormData) {
 }
 
 export async function deleteIrattariTetel(id: string) {
+  const guard = await requireIrattariTervAccess()
+  if (guard.error) return { error: guard.error }
+
   const supabase = await createClient()
 
   // Safety check: van-e hivatkozott ügyirat vagy ügy?
@@ -92,7 +137,12 @@ export async function deleteIrattariTetel(id: string) {
     }
   }
 
-  const { error } = await supabase.from("irattari_terv").delete().eq("id", id)
+  // Cég-szűrés: csak a saját cég tételét törölheti
+  const { error } = await supabase
+    .from("irattari_terv")
+    .delete()
+    .eq("id", id)
+    .eq("company_id", guard.activeCompanyId!)
   if (error) return { error: error.message }
 
   revalidatePath("/settings")
