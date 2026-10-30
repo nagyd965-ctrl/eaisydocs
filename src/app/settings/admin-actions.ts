@@ -102,69 +102,12 @@ export async function deleteIrattariTetel(id: string) {
 // ─────────────────────────────────────────────
 // GLOBÁLIS AUDIT NAPLÓ
 // ─────────────────────────────────────────────
-
-export interface AuditFilters {
-  esemeny_tipus?: string
-  user_id?: string
-  dateFrom?: string
-  dateTo?: string
-}
-
-export async function getGlobalisAuditNaplo(filters: AuditFilters = {}) {
-  // Service role key szükséges, mert az audit napló RLS append-only
-  const { createClient: createAdmin } = await import("@supabase/supabase-js")
-  const supabase = createAdmin(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-
-  let query = supabase
-    .from("esemeny_naplo")
-    .select(`
-      id,
-      esemeny_tipus,
-      entitas_tipus,
-      entitas_id,
-      tortent,
-      ip_cim,
-      user_agent,
-      indoklas,
-      user_id
-    `)
-    .order("tortent", { ascending: false })
-    .limit(200)
-
-  if (filters.esemeny_tipus) query = query.eq("esemeny_tipus", filters.esemeny_tipus)
-  if (filters.user_id) query = query.eq("user_id", filters.user_id)
-  if (filters.dateFrom) query = query.gte("tortent", filters.dateFrom)
-  if (filters.dateTo) query = query.lte("tortent", filters.dateTo)
-
-  const { data, error } = await query
-  if (error) {
-    console.error("Audit napló lekérési hiba:", error)
-    return []
-  }
-
-  // Felhasználó nevek lekérése külön (nincs FK constraint az esemeny_naplo-n)
-  const userIds = [...new Set((data ?? []).map((e: any) => e.user_id).filter(Boolean))]
-  let userMap: Record<string, string> = {}
-  if (userIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from("felhasznalo_profil")
-      .select("id, nev")
-      .in("id", userIds)
-    if (profiles) {
-      userMap = Object.fromEntries(profiles.map((p: any) => [p.id, p.nev]))
-    }
-  }
-
-  return (data ?? []).map((e: any) => ({
-    ...e,
-    letrehozva: e.tortent, // alias a UI számára
-    felhasznalo_nev: userMap[e.user_id] || null,
-  }))
-}
+// MEGSZÜNTETVE (2026-10-30, docs deep-analysis P0): a getGlobalisAuditNaplo
+// és az AuditFilters itt állt. A függvény NEM volt sehol behívva (a központi
+// /audit oldal a cég-szűrt src/app/audit/actions.ts-t használja), ugyanakkor
+// "use server" exportként hitelesítés nélkül, SERVICE ROLE kulccsal hívható
+// volt — az összes cég audit-eseményét adta vissza (IP, User-Agent, nevek).
+// Visszaállítás: git revert az ezt törlő commitra.
 
 // ─────────────────────────────────────────────
 // RENDSZERBEÁLLÍTÁSOK (B10 - NÉGYSZEM-ELV)
