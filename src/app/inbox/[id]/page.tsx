@@ -71,14 +71,19 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
   }
 
   // 3. Fetch data needed for the filing form
-  const { data: tervek } = await supabase
-    .from("irattari_terv")
-    .select("id, tetelszam, megnevezes")
-    .order("tetelszam")
-
   const { getActiveCompanyIdServer } = await import("@/utils/company-server")
   const activeCompanyId = await getActiveCompanyIdServer()
   const companyScope = activeCompanyId || null
+
+  // Irattari tetel lista — CEG-SZURVE (csak az aktiv ceg tetelei)
+  let tervQuery = supabase
+    .from("irattari_terv")
+    .select("id, tetelszam, megnevezes")
+    .order("tetelszam")
+  if (activeCompanyId) {
+    tervQuery = tervQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: tervek } = await tervQuery
 
   let ugyiratQuery = supabase
     .from("ugyirat")
