@@ -15,15 +15,10 @@ export default async function SettingsPage() {
 
   const supabase = await createClient()
 
-  // Cég-szűrt értesítési szabályok (multi-tenant)
-  let szabalyQuery = supabase
+  const { data: szabalyok } = await supabase
     .from("ertesitesi_szabaly")
     .select("*")
     .order("created_at", { ascending: false })
-  if (activeCompanyId) {
-    szabalyQuery = szabalyQuery.eq("company_id", activeCompanyId)
-  }
-  const { data: szabalyok } = await szabalyQuery
 
   const isAdmin = profile.szerepkor === 'admin' || profile.docs_szerepkor === 'admin' || profile.szerepkor === 'rendszergazda' || profile.docs_szerepkor === 'rendszergazda'
   const naplo: any[] = []
