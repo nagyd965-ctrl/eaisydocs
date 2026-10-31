@@ -52,6 +52,7 @@ A statikus elemzés **false positive** találatjai — a megrendelő a futó ren
 | 7 | Partner adatlapon bizalmas iratok metaadatai a kliensnek | **Tudatos működés** — a dosszié (ügyirat) látszik a listában, de az iratok és PDF-ek minősítés szerint szűrve; a megrendelő szerint kárt nem okoz |
 | 8 | A `/archive/print` oldal halott — soha nem tölt be | **Nem reprodukálható** — a megrendelő szerint megjelenik a nyomtatható jegyzőkönyv |
 | 9 | Felelős-választó más cég felhasználóit listázza (cross-tenant) | **Nem reprodukálható eredeti formájában** — a megrendelő szerint csak a saját cég kollégái látszanak; UGYANAKKOR a cég-tagság hiánya miatt a cégben nem tagsággal rendelkező profilok (árva/legacy fiókok, pl. „Flotta kezelő Józsi") még látszottak — ez valós hibaként javítva (#19) |
+| 10 | Embed partner-dosszié widget token nélkül, mindenki számára elérhető | **Nem reprodukálható** — a megrendelő tesztelte: kijelentkezve a bejelentkező oldalra irányít, az authentikáció működik |
 
 ---
 
