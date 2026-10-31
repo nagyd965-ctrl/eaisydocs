@@ -60,6 +60,8 @@ A statikus elemzés **false positive** találatjai — a megrendelő a futó ren
 | 14 | Jogosultság-eszkalációs lánc: „Rendszergazda" docs-szerepkör globálisan él → idegen cég is kezelhető | **Nem reprodukálható** — a megrendelő tesztelte: Rendszergazda szerepkörrel is csak a saját tagsági cégek látszanak |
 | 15 | Életciklus-állapotgép nincs szerveroldalon kikényszerítve (pl. irattárba zárt ügyirat visszahelyezhető ügyintézés alá) | **Tudatos funkció** — a „Visszahelyezés ügyintézésbe" gomb szándékos; a megrendelő később eltávolítja, egyelőre marad |
 | 16 | `/api/pdf/[id]` IDOR: iktatlan (inbox) elemeknél a cég/szervezeti ellenőrzés kimarad — idegen cég bejövő irata URL-lel megnyitható | **Nem reprodukálható** — a megrendelő tesztelte: Teszt Kft-s fiókkal a Think AI-s iktatlan irat PDF-URL-je „Hozzáférés megtagadva" (403) választ ad |
+| 17 | @említés névlistája a jegyzetekben cég-szűrés nélkül (P2) | **Nem reprodukálható** — a megrendelő tesztelte: Teszt Kft-nél csak a saját tag, Think AI-nál csak a saját két tag jelenik meg |
+| 18 | Feladat-kiírás címzett-választója cég-szűrés nélkül (P2) | **Nem reprodukálható** — a megrendelő tesztelte: a címzettlista helyesen a saját cég tagjait mutatja |
 
 ---
 
