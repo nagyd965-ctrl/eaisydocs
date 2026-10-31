@@ -13,6 +13,18 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 - **AI-szerződés iktatás company_id-ja (`src/app/partners/contract-actions.ts`):** A megrendelő tesztelte és igazolta: Teszt Kft-nél véglegesített szerződés ügyirata a Think AI iktatókönyvében jelent meg — az `ugy` és `ugyirat` insertek company_id nélkül futottak (DB-default = Think AI). Mostantól mindkét insert az aktív cég azonosítóját kapja, és az irattári tétel keresés („%szerződ%") is cég-szűrt — a cross-tenant tétel-találat is megszűnt (commit `bf3a860`).
 - **Felelős-választó cég-tagság szűrése (`src/app/dossiers/[id]/page.tsx` + `src/app/dossiers/page.tsx`):** A megrendelő találta: a felelős-választó olyan profilokat is listázott, amelyek NEM tagjai a cégnek (árva/legacy fiók, pl. „Flotta kezelő Józsi"). A felhasználó-lista mostantól a `company_members` tagsági listájára szűkül az ügyirat-adatlapon és az iktatókönyv oldalon egyaránt (commit `bf3a860`).
 
+## [Unreleased] – Fejlesztés alatt (2026-10-31)
+
+### [eaisyHR]: BUG-0 — Toborzás és Beléptetés Mentési Gombjainak Javítása (Deep-Analysis 1.4 Gyökérok, P0)
+- **A megrendelő tesztelte és igazolta:** a Toborzás modullal rendelkező, nem cég-admin HR-es **látja** az oldalt, de minden mentése elutasult — az action-ök **legacy szerepkörneveken** („hr_munkatars", „hr_vezeto", „toborzo") egyeztettek, amelyeket a 10.28-i normalizált szerepkörök soha nem egyeztetnek meg.
+- **Javítás (`src/app/hr/recruitment/actions.ts` + `company-presentation-actions.ts` + `src/app/hr/onboarding/actions.ts`, commit `ce3253e`):** a legacy `.includes()` listák helyett mindenhol a kanonikus **`isUserAuthorizedForHrView()` modulkulcs-ellenőrzése** — toborzásnál `["recruitment"]`, a beléptetés 4 action-jében (fiók-aktiválás, folyamat-újranyitás, törlés, új folyamat indítása) `["onboarding"]`. Cég-admin és hrRole=admin változatlanul átmennek; a resolver „kompatibilitási szepéje" nem érintett (az külön találat marad, l. 1.1/1.3).
+
+### [eaisyHR]: Hirdetés-Törlés App-Stílusú Megerősítő Dialógussal (Deep-Analysis 2.6 P2)
+- **`src/components/hr/job-postings-list.tsx` (commit `eb5cca0`):** a hirdetés törlésekor a böngészős `confirm()` helyett az alkalmazásban máshol is használt dialógus-minta jelenik meg: piros cím kukával, a hirdetés nevének kiemelésével, figyelmeztető pontokkal (végleges, a publikus és belső karrierportálról is eltűnik), „Mégse" + „Igen, végleges törlés" gombbal, töltés-állapottal — mindkét nézetben (kártya + táblázat).
+
+### [eaisyHR]: Élőben Igazolt Nyitott Találat — „Admin" Modulkulcs-Ütközés (Deep-Analysis 1.3, P0 — javítás halasztva)
+- A megrendelő élő tesztje igazolta: sima munkavállaló („Kelemen Roberta") **látja a Vezetői nézetet**, mert a Jogosultsági Mátrixból kapott „Állomány" modul kulcsa `admin` — és a menü és a `/hr/manager` oldal-modul-ellenőrzése egyaránt egyezteti. A vezetői nézet adatszűrése (csak közvetlen beosztottak) eközben helyes. A javítás (szerepkör-alapú Vezetői nézet + modulkulcs-átnevezés + „szepe" bezárása) a megrendelő döntése alapján **halasztva**; részletes 3-rétegű elemzés a HR deep-analysis dokumentumban.
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-30)
 
 ### [eaisyDocs]: Audit Napló A-091 Docs-Port — Cég-Izoláció és Tudatos 1000-es Limit (Deep-Analysis P1)

@@ -7,6 +7,19 @@
 
 ---
 
+## ⭐ JAVÍTOTT ÉS TESZTELT TALÁLATOK (2026.10.31. — a megrendelő által)
+
+| # | Találat (eredeti szakasz) | Commit | Javítás | Állapot |
+|---|---|---|---|---|
+| 1 | **BUG-0 / 1.4 gyökérok:** a toborzás oldalt a jogos HR-es látja, de minden mentése elutasul — az action-ök legacy szerepkörneveken egyeztetnek | `ce3253e` | `verifyRecruitmentAccess` + `verifyPresentationAccess`: legacy lista helyett `isUserAuthorizedForHrView(hrRole, ["recruitment"], hrModules)` | ✔ A megrendelő tesztelte és igazolta |
+| 2 | **BUG-0 / 1.4 kiterjesztés (beléptetés):** ugyanaz a legacy minta az onboarding 4 action-jében (fiók-aktiválás, újranyitás, törlés, új folyamat indítása) | `ce3253e` | Mind a 4 pont `["onboarding"]` modulkulcs-ellenőrzést kapott | ✔ (testvér-hiba, azonos gyökérok) |
+| 3 | **2.6 P2:** hirdetéstörlés böngészős `confirm()`-dal (projekt-konvenció ellen) | `eb5cca0` | App-stílusú megerősítő dialógus (piros cím, figyelmeztető pontok, „Igen, végleges törlés"), mindkét nézetben (kártya + tábla) | ✔ |
+
+**Élőben megerősített, MÉG NYITVA (2026.10.31.):**
+- **1.3 gyökérok („admin" modulkulcs-ütközés):** a megrendelő élő tesztje igazolta — „Kelemen Roberta" (`hr_szerepkor: munkavallalo`) **látja a Vezetői nézetet**, mert a Mátrixból kapott „Állomány" modul kulcsa `admin`, és a menü (`hr-sidebar.tsx:127`) valamint a `/hr/manager` oldal (`requireHrAuthServer(["...","admin"])`) modulkulcsként is egyezteti. A vezetői nézet adatszűrése eközben rendben van (csak közvetlen beosztottak). **A javítás elhalasztva a megrendelő döntése szerint; a teljes elemzés (3 réteg: menü / ~30 action / titkosítás-RPC) a session-naplóban.**
+
+---
+
 ## 0. Vezetői összefoglaló — mit tapasztaltunk nagyban
 
 A rendszer **funkcionális felületi rétege erős**: a dokumentált UX-döntések (TableToolbar, KpiCard, DocumentViewer, 5 lépéses értékelési workflow, orvosi blokkolás, karrierportál-választó, Tiptap szerkesztő) tényleg beépültek, és ott ahol működnek, minőségi munkát látni. **A 2026.10.28-i jogosultsági modernizáció (3 alapszerepkör + modulmátrix) azonban félig sikerült**: az oldalak (page.tsx fájlok) megkapták az új modul-alapú védelmet, de a mögöttük álló server action-ök jelentős része:
