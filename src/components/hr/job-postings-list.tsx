@@ -16,6 +16,14 @@ import {
 } from "@/components/ui/table"
 import { KpiCard } from "@/components/kpi-card"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   TableToolbar,
   FilterGroup,
   TableColumnOption,
@@ -103,6 +111,11 @@ export function JobPostingsList({
   const [selectedJobNames, setSelectedJobNames] = useState<string[]>([])
   const [selectedWorkModes, setSelectedWorkModes] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards")
+
+  // Hirdetés-törlés megerősítő dialógus állapota
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deletingPosting, setDeletingPosting] = useState<JobPostingItem | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   const [columns, setColumns] = useState<TableColumnOption[]>([
     { id: "cim", label: "Pozíció megnevezése", isVisible: true },
@@ -350,12 +363,24 @@ export function JobPostingsList({
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Biztosan törlöd a hirdetést? Ezt nem lehet visszavonni.")) return
-    setPostings((prev) => prev.filter((p) => p.id !== id))
-    const { error } = await supabase.from("hr_allashirdetes").delete().eq("id", id)
-    if (error) toast.error("Hiba a törlés során")
-    else toast.success("Hirdetés törölve")
+  function handleDelete(posting: JobPostingItem) {
+    setDeletingPosting(posting)
+    setDeleteOpen(true)
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deletingPosting) return
+    setDeleteLoading(true)
+    setPostings((prev) => prev.filter((p) => p.id !== deletingPosting.id))
+    const { error } = await supabase.from("hr_allashirdetes").delete().eq("id", deletingPosting.id)
+    setDeleteLoading(false)
+    if (error) {
+      toast.error("Hiba a törlés során")
+    } else {
+      toast.success("Hirdetés törölve", { description: `${deletingPosting.cim || "Névtelen hirdetés"} véglegesen eltávolítva.` })
+    }
+    setDeleteOpen(false)
+    setDeletingPosting(null)
   }
 
   function renderStatusBadge(posting: JobPostingItem) {
@@ -679,7 +704,7 @@ export function JobPostingsList({
                       variant="ghost"
                       size="icon-xs"
                       title="Törlés"
-                      onClick={() => handleDelete(posting.id)}
+                      onClick={() => handleDelete(posting)}
                       className="text-muted-foreground hover:text-destructive"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -905,7 +930,7 @@ export function JobPostingsList({
                           variant="ghost"
                           size="icon-xs"
                           title="Törlés"
-                          onClick={() => handleDelete(posting.id)}
+                          onClick={() => handleDelete(posting)}
                           className="text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -919,6 +944,38 @@ export function JobPostingsList({
           </Table>
         </div>
       )}
+
+      {/* Hirdetés törlése — megerősítő dialógus (app-minta, natív confirm helyett) */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Hirdetés törlése
+            </DialogTitle>
+            <DialogDescription>
+              Biztosan törölni szeretnéd a(z) <strong>{deletingPosting?.cim || "névtelen"}</strong> hirdetést?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 text-xs text-muted-foreground space-y-1">
+            <p>• A hirdetés véglegesen törlésre kerül, a művelet nem visszavonható.</p>
+            <p>• A hirdetés azonnal eltűnik a publikus és a belső karrierportálról is.</p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>
+              Mégse
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteLoading}
+              onClick={handleDeleteConfirm}
+            >
+              {deleteLoading ? "Törlés..." : "Igen, végleges törlés"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
