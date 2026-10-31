@@ -29,6 +29,9 @@ Az alábbi P0 találatok a **settings modul guard-sweep** csomagból **lezárás
 | 14 | Selejtezési jegyzőkönyv PDF fejléce hardkódolt — a cég neve nem szerepel | `b45a8f6` | `resolveCompanyDetailsServer()` — a cég neve a rendszer-név ALATT jelenik meg (a megrendelő kérése: a rendszer-név maradjon) | ✔ |
 | 15 | IMAP/e-mail csatorna nem cég-tudatos — minden levél a DB-default cégnél landolt, a harang-értesítés minden cégnek ment | `c345216` + `dce8953` + `ea97abc` | Új „Hitelesítő adatok" beállítás (ADR A-098): cégenkénti, AES-256-GCM titkosított IMAP + Brevo adatok; a worker postafiók-alapú cég-hozzárendeléssel dolgozik; értesítés és partner-feloldás cég-szűrt | ✔ |
 | 16 | Audit napló: `.limit(500)` — 500 fölötti események soha nem látszottak; a cég-szűrőt a kliens diktálta; a kiküldési naplóban `company_id IS NULL` kiskapu (A-091 Docs-port hiánya) | `54855c6` + `f26508e` + `b253f4b` | Szerveroldali cég-tagság ellenőrzés, NULL-kiskapu zárva, explicit 1000-es limit (a megrendelő tudatos döntése: a legfrissebb 1000 esemény) | ✔ |
+| 17 | Négyszem-elv beállítás GLOBÁLIS — B cég adminja átírhatta A cég selejtezési szigorát | `bf3a860` | Cég-specifikus kulcs (`negy_szem_elve_selejtezesnel:{companyId}`) a get/set párosban és a selejtezési motor olvasási pontján; régi globális kulcs átmeneti fallback | ✔ |
+| 18 | AI-szerződés iktatása company_id nélkül — Teszt Kft-nél iktatott szerződés a Think AI iktatókönyvében landolt (ügy + ügyirat insert, irattári tétel keresés cross-tenant) | `bf3a860` | Aktív cég `company_id`-ja az ügy és ügyirat insertekbe + az irattári tétel keresés cég-szűrése | ✔ |
+| 19 | Felelős-választó cég-tagság nélkül — a cégben NEM tagsággal rendelkező profilok is látszottak (pl. árva „Flotta kezelő Józsi") | `bf3a860` | A felhasználó-lista (ügyirat-adatlap + iktatókönyv) a `company_members` tagsági listájára szűkül | ✔ |
 
 **Szabály:** ADR [A-097](architecture/decisions/A-097-use-server-exports-as-endpoints-deletion-and-guard-policy.md) — a `"use server"` exportok nyilvános végpontok: a halott action törlendő, az élő action kötelező szerveroldali őrblokkot kap.
 
@@ -48,6 +51,7 @@ A statikus elemzés **false positive** találatjai — a megrendelő a futó ren
 | 6 | Kölcsönzés határidő-figyelmeztetés hiányzik (BRD-005) | **Nem reprodukálható** — az értesítési rendszer működik, 6 típusú értesítés tesztelve |
 | 7 | Partner adatlapon bizalmas iratok metaadatai a kliensnek | **Tudatos működés** — a dosszié (ügyirat) látszik a listában, de az iratok és PDF-ek minősítés szerint szűrve; a megrendelő szerint kárt nem okoz |
 | 8 | A `/archive/print` oldal halott — soha nem tölt be | **Nem reprodukálható** — a megrendelő szerint megjelenik a nyomtatható jegyzőkönyv |
+| 9 | Felelős-választó más cég felhasználóit listázza (cross-tenant) | **Nem reprodukálható eredeti formájában** — a megrendelő szerint csak a saját cég kollégái látszanak; UGYANAKKOR a cég-tagság hiánya miatt a cégben nem tagsággal rendelkező profilok (árva/legacy fiókok, pl. „Flotta kezelő Józsi") még látszottak — ez valós hibaként javítva (#19) |
 
 ---
 
