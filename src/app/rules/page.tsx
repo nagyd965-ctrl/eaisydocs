@@ -18,6 +18,18 @@ export default async function RulesPage() {
     redirect("/login")
   }
 
+  // A megrendelő döntése (2026-10-31): a Szabályok rész CSAK admin/rendszergazda szerepkörrel érhető el
+  const { requireRulesAdminAccess } = await import("./rules-guard")
+  const accessError = await requireRulesAdminAccess()
+  if (accessError) {
+    return (
+      <div className="flex-1 p-8 pt-6">
+        <h2 className="text-2xl font-semibold tracking-tight">Szabályok</h2>
+        <p className="text-muted-foreground mt-2">{accessError}</p>
+      </div>
+    )
+  }
+
   const activeCompanyId = await getActiveCompanyIdServer()
   const activeCompany = await getActiveCompanyServer()
 

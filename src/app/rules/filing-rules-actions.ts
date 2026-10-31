@@ -86,6 +86,11 @@ export async function createCompanyFilingRule(input: {
   scope?: "company" | "all"
 }): Promise<FilingRuleActionResult<CompanyFilingRule>> {
   try {
+    // A-097 őrblokk: a Szabályok írása csak admin/rendszergazda szerepkörrel
+    const { requireRulesAdminAccess } = await import("./rules-guard")
+    const guardError = await requireRulesAdminAccess()
+    if (guardError) return { success: false, error: guardError }
+
     const validation = validateFilingRuleInput(input)
     if (!validation.isValid) {
       return { success: false, error: validation.error }
@@ -183,6 +188,11 @@ export async function updateCompanyFilingRule(input: {
   scope?: "company" | "all"
 }): Promise<FilingRuleActionResult> {
   try {
+    // A-097 őrblokk: a Szabályok írása csak admin/rendszergazda szerepkörrel
+    const { requireRulesAdminAccess } = await import("./rules-guard")
+    const guardError = await requireRulesAdminAccess()
+    if (guardError) return { success: false, error: guardError }
+
     const validation = validateFilingRuleInput(input)
     if (!validation.isValid) {
       return { success: false, error: validation.error }
@@ -229,6 +239,11 @@ export async function toggleCompanyFilingRuleActive(
   isActive: boolean
 ): Promise<FilingRuleActionResult> {
   try {
+    // A-097 őrblokk: a Szabályok írása csak admin/rendszergazda szerepkörrel
+    const { requireRulesAdminAccess } = await import("./rules-guard")
+    const guardError = await requireRulesAdminAccess()
+    if (guardError) return { success: false, error: guardError }
+
     const supabase = await createClient()
 
     const { error } = await supabase
@@ -258,6 +273,11 @@ export async function toggleCompanyFilingRuleActive(
  */
 export async function deleteCompanyFilingRule(ruleId: string): Promise<FilingRuleActionResult> {
   try {
+    // A-097 őrblokk: a Szabályok írása csak admin/rendszergazda szerepkörrel
+    const { requireRulesAdminAccess } = await import("./rules-guard")
+    const guardError = await requireRulesAdminAccess()
+    if (guardError) return { success: false, error: guardError }
+
     const supabase = await createClient()
 
     const { error } = await supabase

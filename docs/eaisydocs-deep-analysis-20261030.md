@@ -32,6 +32,7 @@ Az alábbi P0 találatok a **settings modul guard-sweep** csomagból **lezárás
 | 17 | Négyszem-elv beállítás GLOBÁLIS — B cég adminja átírhatta A cég selejtezési szigorát | `bf3a860` | Cég-specifikus kulcs (`negy_szem_elve_selejtezesnel:{companyId}`) a get/set párosban és a selejtezési motor olvasási pontján; régi globális kulcs átmeneti fallback | ✔ |
 | 18 | AI-szerződés iktatása company_id nélkül — Teszt Kft-nél iktatott szerződés a Think AI iktatókönyvében landolt (ügy + ügyirat insert, irattári tétel keresés cross-tenant) | `bf3a860` | Aktív cég `company_id`-ja az ügy és ügyirat insertekbe + az irattári tétel keresés cég-szűrése | ✔ |
 | 19 | Felelős-választó cég-tagság nélkül — a cégben NEM tagsággal rendelkező profilok is látszottak (pl. árva „Flotta kezelő Józsi") | `bf3a860` | A felhasználó-lista (ügyirat-adatlap + iktatókönyv) a `company_members` tagsági listájára szűkül | ✔ |
+| 20 | Szabályok: „Minden cég (Közös szabály)" hatókörű iktatási szabályt bármely cég bármely tagja létrehozhatott — más cégek iktatására ható szabállyal | `45172c5` | A megrendelő döntése alapján a Szabályok modul írása és elérése CSAK admin/rendszergazda szerepkörrel: oldal-guard + A-097 őrblokk mind a 8 író actionön (iktatási + prompt szabályok) + oldalsáv-szűkítés | ✔ |
 
 **Szabály:** ADR [A-097](architecture/decisions/A-097-use-server-exports-as-endpoints-deletion-and-guard-policy.md) — a `"use server"` exportok nyilvános végpontok: a halott action törlendő, az élő action kötelező szerveroldali őrblokkot kap.
 
@@ -58,6 +59,7 @@ A statikus elemzés **false positive** találatjai — a megrendelő a futó ren
 | 13 | Jóváhagyott selejtezési csomagok company_id nélkül keletkeznek — nem-default cégnél a jegyzőkönyv-archívum láthatatlan | **Nem reprodukálható** — a megrendelő Teszt Kft-nél végigvitt selejtezése helyesen a Teszt Kft selejtezett archívumában jelent meg |
 | 14 | Jogosultság-eszkalációs lánc: „Rendszergazda" docs-szerepkör globálisan él → idegen cég is kezelhető | **Nem reprodukálható** — a megrendelő tesztelte: Rendszergazda szerepkörrel is csak a saját tagsági cégek látszanak |
 | 15 | Életciklus-állapotgép nincs szerveroldalon kikényszerítve (pl. irattárba zárt ügyirat visszahelyezhető ügyintézés alá) | **Tudatos funkció** — a „Visszahelyezés ügyintézésbe" gomb szándékos; a megrendelő később eltávolítja, egyelőre marad |
+| 16 | `/api/pdf/[id]` IDOR: iktatlan (inbox) elemeknél a cég/szervezeti ellenőrzés kimarad — idegen cég bejövő irata URL-lel megnyitható | **Nem reprodukálható** — a megrendelő tesztelte: Teszt Kft-s fiókkal a Think AI-s iktatlan irat PDF-URL-je „Hozzáférés megtagadva" (403) választ ad |
 
 ---
 

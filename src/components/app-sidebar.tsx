@@ -57,7 +57,7 @@ const items = [
     title: "Szabályok",
     url: "/rules",
     icon: Sliders,
-    allowedRoles: ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"],
+    allowedRoles: ["admin", "rendszergazda"],
   },
   {
     title: "Eseménynapló",
