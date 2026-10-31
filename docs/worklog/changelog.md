@@ -4,6 +4,10 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-10-31)
 
+### [eaisyDocs]: Szabályok Modul CSAK Admin/Rendszergazda Szerepkörrel (Deep-Analysis P1, audit #20)
+- **A megrendelő tesztelte és valós hibaként igazolta:** a „Minden cég (Közös szabály)" hatókörű iktatási szabályt bármely cég bármely tagja létrehozhatta — ilyen szabály a szabálymotor (`scope=all`) szerint az ÖSSZES cég beérkező iratára hat. A megrendelő döntése: a Szabályok rész kizárólag admin/rendszergazda szerepkörrel érhető el.
+- **Védelem három rétegen (`src/app/rules/` + `src/components/app-sidebar.tsx`, commit `9b6aa25`):** (1) új közös A-097 őrblokk (`rules-guard.ts` — `requireRulesAdminAccess`); (2) mind a **8 író szerver-action** őrblokkot kapott (iktatási szabályok create/update/toggle/delete + prompt-szabályok ugyanez a négy); (3) a `/rules` oldal-guard — nem admin szöveges jogosultsági üzenetet kap; (4) az oldalsáv „Szabályok" menüpontja csak admin/rendszergazda szerepkörnél jelenik meg.
+
 ### [eaisyDocs]: Hármas Multi-Tenant Javítási Csomag — Négyszem-elv, Szerződés-iktatás, Felelős-választó (Deep-Analysis P1/P2)
 - **Négyszem-elv beállítás cégesítése (`src/app/settings/admin-actions.ts` + `src/utils/system-settings.ts`):** A megrendelő tesztelte és igazolta: a „Szigorú négyszem-elv" kapcsoló globális kulcson élt — Teszt Kft adminja átírhatta a Think AI selejtezési szigorát. Mostantól cég-specifikus kulccsal (`negy_szem_elve_selejtezesnel:{companyId}`) működik a get/set párosban ÉS a selejtezési motor olvasási pontján (`isFourEyesDisposalRequired`); a régi globális érték átmenetileg öröklődik az első cégspecifikus mentésig (commit `bf3a860`).
 - **AI-szerződés iktatás company_id-ja (`src/app/partners/contract-actions.ts`):** A megrendelő tesztelte és igazolta: Teszt Kft-nél véglegesített szerződés ügyirata a Think AI iktatókönyvében jelent meg — az `ugy` és `ugyirat` insertek company_id nélkül futottak (DB-default = Think AI). Mostantól mindkét insert az aktív cég azonosítóját kapja, és az irattári tétel keresés („%szerződ%") is cég-szűrt — a cross-tenant tétel-találat is megszűnt (commit `bf3a860`).
