@@ -53,6 +53,8 @@ A statikus elemzés **false positive** találatjai — a megrendelő a futó ren
 | 8 | A `/archive/print` oldal halott — soha nem tölt be | **Nem reprodukálható** — a megrendelő szerint megjelenik a nyomtatható jegyzőkönyv |
 | 9 | Felelős-választó más cég felhasználóit listázza (cross-tenant) | **Nem reprodukálható eredeti formájában** — a megrendelő szerint csak a saját cég kollégái látszanak; UGYANAKKOR a cég-tagság hiánya miatt a cégben nem tagsággal rendelkező profilok (árva/legacy fiókok, pl. „Flotta kezelő Józsi") még látszottak — ez valós hibaként javítva (#19) |
 | 10 | Embed partner-dosszié widget token nélkül, mindenki számára elérhető | **Nem reprodukálható** — a megrendelő tesztelte: kijelentkezve a bejelentkező oldalra irányít, az authentikáció működik |
+| 11 | „Levelek szinkronizálása" gomb action guard nélkül — betekintő is kényszerítheti az érkeztetést | **Elvetve a megrendelő által** — a program szándékos működése, hogy a gomb minden szerepkörnek elérhető; hibának nem minősül |
+| 12 | Realtime Beérkező-csatorna cég-szűrés nélkül idegen iratot szúr a listába | **Nem reprodukálható** — a megrendelő két böngészővel tesztelte: más cég irat-módosítása nem jelenik meg a saját Beérkezőjében |
 
 ---
 
