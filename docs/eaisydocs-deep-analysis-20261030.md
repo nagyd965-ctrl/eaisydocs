@@ -55,6 +55,9 @@ A statikus elemzés **false positive** találatjai — a megrendelő a futó ren
 | 10 | Embed partner-dosszié widget token nélkül, mindenki számára elérhető | **Nem reprodukálható** — a megrendelő tesztelte: kijelentkezve a bejelentkező oldalra irányít, az authentikáció működik |
 | 11 | „Levelek szinkronizálása" gomb action guard nélkül — betekintő is kényszerítheti az érkeztetést | **Elvetve a megrendelő által** — a program szándékos működése, hogy a gomb minden szerepkörnek elérhető; hibának nem minősül |
 | 12 | Realtime Beérkező-csatorna cég-szűrés nélkül idegen iratot szúr a listába | **Nem reprodukálható** — a megrendelő két böngészővel tesztelte: más cég irat-módosítása nem jelenik meg a saját Beérkezőjében |
+| 13 | Jóváhagyott selejtezési csomagok company_id nélkül keletkeznek — nem-default cégnél a jegyzőkönyv-archívum láthatatlan | **Nem reprodukálható** — a megrendelő Teszt Kft-nél végigvitt selejtezése helyesen a Teszt Kft selejtezett archívumában jelent meg |
+| 14 | Jogosultság-eszkalációs lánc: „Rendszergazda" docs-szerepkör globálisan él → idegen cég is kezelhető | **Nem reprodukálható** — a megrendelő tesztelte: Rendszergazda szerepkörrel is csak a saját tagsági cégek látszanak |
+| 15 | Életciklus-állapotgép nincs szerveroldalon kikényszerítve (pl. irattárba zárt ügyirat visszahelyezhető ügyintézés alá) | **Tudatos funkció** — a „Visszahelyezés ügyintézésbe" gomb szándékos; a megrendelő később eltávolítja, egyelőre marad |
 
 ---
 
