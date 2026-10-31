@@ -319,7 +319,7 @@ export default async function DossierPage({
   const { data: logs } = await logsQuery.order("tortent", { ascending: true })
 
   // Fetch comments
-  let { data: comments, error: commentsError } = await supabase
+  const { data: comments, error: commentsError } = await supabase
     .from("ugyirat_megjegyzes")
     .select(`
       id,
