@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache"
 import { sendNotificationEmail, buildHtmlEmail } from "@/utils/mailer"
 import { getBaseUrl } from "@/utils/url"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 
 function getAdminClient() {
   return createAdminClient(
@@ -22,8 +23,11 @@ async function verifyRecruitmentAccess() {
   const activeCompanyId = await getActiveCompanyIdServer()
   if (!activeCompanyId) return { allowed: false, error: "Nincs kiválasztott cég", activeCompanyId: null, user }
 
-  const { hrRole, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
-  if (!isCompanyAdmin && !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(hrRole)) {
+  // BUG-0 javítás (2026-10-31): a legacy szerepkörnevek ("hr_munkatars", "toborzo", ...)
+  // helyett a kanonikus modulkulcs-ellenőrzés — a Toborzás modullal rendelkező,
+  // nem-admin HR-esek is menthetnek (az általuk megnyitott oldal action-jei eddig elutasultak).
+  const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  if (!isCompanyAdmin && !isUserAuthorizedForHrView(hrRole, ["recruitment"], hrModules)) {
     return { allowed: false, error: "Nincs jogosultságod a toborzás kezeléséhez ebben a cégben.", activeCompanyId, user }
   }
 

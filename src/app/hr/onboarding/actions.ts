@@ -5,6 +5,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { onboardEmployee } from "@/app/hr/admin/actions"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 
 function getAdminClient() {
   return createAdminClient(
@@ -175,11 +176,12 @@ export async function activateOnboardingAccount(onboardingId: string) {
     getActiveCompanyMemberRolesServer(),
   ])
 
-  const effectiveHrRole = companyRoles?.hrRole && companyRoles.hrRole !== "none"
-    ? companyRoles.hrRole
-    : profile?.hr_szerepkor
-
-  if (!companyRoles?.isCompanyAdmin && !["admin", "hr_vezeto", "hr_munkatars"].includes(effectiveHrRole || "")) {
+  // BUG-0 javítás (2026-10-31): legacy szerepkörnevek helyett kanonikus modulkulcs-ellenőrzés
+  if (!companyRoles?.isCompanyAdmin && !isUserAuthorizedForHrView(
+        companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : (profile?.hr_szerepkor || "none"),
+        ["onboarding"],
+        companyRoles?.hrModules || []
+      )) {
     return { error: "Nincs jogosultságod a munkavállalói fiók aktiválásához." }
   }
 
@@ -601,8 +603,12 @@ export async function reopenOnboarding(onboardingId: string) {
     supabase.from("felhasznalo_profil").select("hr_szerepkor").eq("id", user.id).single(),
     getActiveCompanyMemberRolesServer(),
   ])
-  const effectiveHrRole = companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : profile?.hr_szerepkor
-  if (!companyRoles?.isCompanyAdmin && !["admin", "hr_vezeto", "hr_munkatars"].includes(effectiveHrRole || "")) {
+  // BUG-0 javítás (2026-10-31): legacy szerepkörnevek helyett kanonikus modulkulcs-ellenőrzés
+  if (!companyRoles?.isCompanyAdmin && !isUserAuthorizedForHrView(
+        companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : (profile?.hr_szerepkor || "none"),
+        ["onboarding"],
+        companyRoles?.hrModules || []
+      )) {
     return { error: "Nincs jogosultságod a beléptetési folyamat újranyitásához." }
   }
 
@@ -647,8 +653,12 @@ export async function deleteOnboarding(onboardingId: string) {
     supabase.from("felhasznalo_profil").select("hr_szerepkor").eq("id", user.id).single(),
     getActiveCompanyMemberRolesServer(),
   ])
-  const effectiveHrRole = companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : profile?.hr_szerepkor
-  if (!companyRoles?.isCompanyAdmin && !["admin", "hr_vezeto", "hr_munkatars"].includes(effectiveHrRole || "")) {
+  // BUG-0 javítás (2026-10-31): legacy szerepkörnevek helyett kanonikus modulkulcs-ellenőrzés
+  if (!companyRoles?.isCompanyAdmin && !isUserAuthorizedForHrView(
+        companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : (profile?.hr_szerepkor || "none"),
+        ["onboarding"],
+        companyRoles?.hrModules || []
+      )) {
     return { error: "Nincs jogosultságod a beléptetési folyamat törléséhez." }
   }
 
@@ -698,11 +708,12 @@ export async function createManualOnboarding(formData: {
     getActiveCompanyIdServer(),
   ])
 
-  const effectiveHrRole = companyRoles?.hrRole && companyRoles.hrRole !== "none"
-    ? companyRoles.hrRole
-    : profile?.hr_szerepkor
-
-  if (!companyRoles?.isCompanyAdmin && !["admin", "hr_vezeto", "hr_munkatars"].includes(effectiveHrRole || "")) {
+  // BUG-0 javítás (2026-10-31): legacy szerepkörnevek helyett kanonikus modulkulcs-ellenőrzés
+  if (!companyRoles?.isCompanyAdmin && !isUserAuthorizedForHrView(
+        companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : (profile?.hr_szerepkor || "none"),
+        ["onboarding"],
+        companyRoles?.hrModules || []
+      )) {
     return { error: "Nincs jogosultságod új beléptetési folyamat indításához." }
   }
 

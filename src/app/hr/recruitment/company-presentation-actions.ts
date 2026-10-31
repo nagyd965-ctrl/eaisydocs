@@ -7,6 +7,7 @@ import {
   getActiveCompanyIdServer,
   getActiveCompanyMemberRolesServer,
 } from "@/utils/company-server"
+import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 import {
   CompanyCareerPresentation,
   PresentationBriefingInput,
@@ -35,8 +36,9 @@ async function verifyPresentationAccess() {
     return { allowed: false, error: "Nincs kiválasztott vállalat", activeCompanyId: null, user }
   }
 
-  const { hrRole, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
-  if (!isCompanyAdmin && !["hr_munkatars", "hr_vezeto", "admin", "toborzo"].includes(hrRole)) {
+  // BUG-0 javítás (2026-10-31): legacy szerepkörnevek helyett kanonikus modulkulcs-ellenőrzés
+  const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  if (!isCompanyAdmin && !isUserAuthorizedForHrView(hrRole, ["recruitment"], hrModules)) {
     return {
       allowed: false,
       error: "Nincs jogosultságod a vállalati karrier-prezentáció szerkesztéséhez.",
