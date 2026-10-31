@@ -2,6 +2,13 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
+## [Unreleased] – Fejlesztés alatt (2026-10-31)
+
+### [eaisyDocs]: Hármas Multi-Tenant Javítási Csomag — Négyszem-elv, Szerződés-iktatás, Felelős-választó (Deep-Analysis P1/P2)
+- **Négyszem-elv beállítás cégesítése (`src/app/settings/admin-actions.ts` + `src/utils/system-settings.ts`):** A megrendelő tesztelte és igazolta: a „Szigorú négyszem-elv" kapcsoló globális kulcson élt — Teszt Kft adminja átírhatta a Think AI selejtezési szigorát. Mostantól cég-specifikus kulccsal (`negy_szem_elve_selejtezesnel:{companyId}`) működik a get/set párosban ÉS a selejtezési motor olvasási pontján (`isFourEyesDisposalRequired`); a régi globális érték átmenetileg öröklődik az első cégspecifikus mentésig (commit `bf3a860`).
+- **AI-szerződés iktatás company_id-ja (`src/app/partners/contract-actions.ts`):** A megrendelő tesztelte és igazolta: Teszt Kft-nél véglegesített szerződés ügyirata a Think AI iktatókönyvében jelent meg — az `ugy` és `ugyirat` insertek company_id nélkül futottak (DB-default = Think AI). Mostantól mindkét insert az aktív cég azonosítóját kapja, és az irattári tétel keresés („%szerződ%") is cég-szűrt — a cross-tenant tétel-találat is megszűnt (commit `bf3a860`).
+- **Felelős-választó cég-tagság szűrése (`src/app/dossiers/[id]/page.tsx` + `src/app/dossiers/page.tsx`):** A megrendelő találta: a felelős-választó olyan profilokat is listázott, amelyek NEM tagjai a cégnek (árva/legacy fiók, pl. „Flotta kezelő Józsi"). A felhasználó-lista mostantól a `company_members` tagsági listájára szűkül az ügyirat-adatlapon és az iktatókönyv oldalon egyaránt (commit `bf3a860`).
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-30)
 
 ### [eaisyDocs]: Audit Napló A-091 Docs-Port — Cég-Izoláció és Tudatos 1000-es Limit (Deep-Analysis P1)
