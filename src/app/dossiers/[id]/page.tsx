@@ -319,7 +319,7 @@ export default async function DossierPage({
   const { data: logs } = await logsQuery.order("tortent", { ascending: true })
 
   // Fetch comments
-  const { data: comments, error: commentsError } = await supabase
+  const { data: commentsData, error: commentsError } = await supabase
     .from("ugyirat_megjegyzes")
     .select(`
       id,
@@ -332,6 +332,7 @@ export default async function DossierPage({
     .order("created_at", { ascending: true });
 
   // A P-095 migráció előtti adatbázissal is működjön a megjegyzések listája
+  let comments: any = commentsData
   if (commentsError) {
     const fallback = await supabase
       .from("ugyirat_megjegyzes")
