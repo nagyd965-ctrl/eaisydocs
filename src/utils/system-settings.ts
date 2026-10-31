@@ -27,11 +27,35 @@ export async function getSystemSetting<T>(key: string, defaultValue: T): Promise
 /**
  * Lekéri, hogy a selejtezésnél kötelező-e a szigorú négyszem-elv.
  * Alapértelmezett: true
+ *
+ * Cég-specifikus kulccsal működik (negy_szem_elve_selejtezesnel:{companyId}) —
+ * a beállítás cégfüggő, B cég nem írhatja felül A cég selejtezési szigorát.
+ * Ha még nincs cégspecifikus sor, a régi globális kulcsra esik vissza
+ * (átmeneti kompatibilitás az első mentésig).
  */
 export async function isFourEyesDisposalRequired(): Promise<boolean> {
-  const setting = await getSystemSetting<{ kotelezo?: boolean }>(
-    "negy_szem_elve_selejtezesnel",
-    { kotelezo: true }
-  )
+  let companyId: string | null = null
+  try {
+    const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+    companyId = await getActiveCompanyIdServer()
+  } catch {
+    companyId = null
+  }
+
+  const key = companyId
+    ? `negy_szem_elve_selejtezesnel:${companyId}`
+    : "negy_szem_elve_selejtezesnel"
+
+  const setting = await getSystemSetting<{ kotelezo?: boolean } | null>(key, null)
+
+  // Nincs cégspecifikus érték → a régi globális kulcs (vagy az alapértelmezés)
+  if (setting === null && companyId) {
+    const legacy = await getSystemSetting<{ kotelezo?: boolean } | null>(
+      "negy_szem_elve_selejtezesnel",
+      null
+    )
+    return legacy?.kotelezo !== false
+  }
+
   return setting?.kotelezo !== false
 }

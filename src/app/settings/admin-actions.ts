@@ -165,11 +165,29 @@ export async function deleteIrattariTetel(id: string) {
 
 export async function getFourEyesSetting(): Promise<boolean> {
   const supabase = await createClient()
+
+  // Cég-specifikus kulcs (A-098 minta): a négyszem-elv cégfüggő beállítás
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const kulcs = activeCompanyId
+    ? `negy_szem_elve_selejtezesnel:${activeCompanyId}`
+    : "negy_szem_elve_selejtezesnel"
+
   const { data, error } = await supabase
     .from("rendszer_beallitas")
     .select("ertek")
-    .eq("kulcs", "negy_szem_elve_selejtezesnel")
+    .eq("kulcs", kulcs)
     .maybeSingle()
+
+  // Nincs cégspecifikus sor → a régi globális kulcs az átmeneti forrás
+  if ((error || !data) && activeCompanyId) {
+    const { data: legacy } = await supabase
+      .from("rendszer_beallitas")
+      .select("ertek")
+      .eq("kulcs", "negy_szem_elve_selejtezesnel")
+      .maybeSingle()
+    return (legacy?.ertek as any)?.kotelezo !== false
+  }
 
   if (error || !data) return true
   return (data.ertek as any)?.kotelezo !== false
@@ -197,10 +215,17 @@ export async function setFourEyesSetting(kotelezo: boolean) {
     return { error: "Csak adminisztrátor vagy rendszergazda módosíthatja a selejtezési szabályzatot." }
   }
 
+  // Cég-specifikus kulcs (A-098 minta): minden cég saját selejtezési szabályzatot kap
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (!activeCompanyId) {
+    return { error: "Nincs kiválasztott aktív cég." }
+  }
+
   const { error } = await supabase
     .from("rendszer_beallitas")
     .upsert({
-      kulcs: "negy_szem_elve_selejtezesnel",
+      kulcs: `negy_szem_elve_selejtezesnel:${activeCompanyId}`,
       ertek: { kotelezo },
       updated_at: new Date().toISOString(),
       updated_by: user.id,

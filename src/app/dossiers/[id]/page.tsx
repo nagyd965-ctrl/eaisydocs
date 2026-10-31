@@ -75,10 +75,27 @@ export default async function DossierPage({
     .eq("id", id)
     .single();
 
-  const { data: users } = await supabase
+  // Felhasználók: CSAK az aktív cég tagjai (cég-tagság ellenőrzéssel) —
+  // a cégben nem tagsággal rendelkező (pl. árva/legacy) profilok ne jelenjenek meg
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const dossierCompanyId = await getActiveCompanyIdServer()
+  let memberUserIds: string[] | null = null
+  if (dossierCompanyId) {
+    const { data: companyMembers } = await supabase
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", dossierCompanyId)
+    memberUserIds = (companyMembers || []).map((m: any) => m.user_id)
+  }
+
+  let usersQuery = supabase
     .from("felhasznalo_profil")
     .select('id, nev, avatar_url, docs_szerepkor, szervezeti_egyseg_id, szervezeti_egyseg:szervezeti_egyseg_id(nev)')
     .contains('elerheto_modulok', ['docs'])
+  if (memberUserIds) {
+    usersQuery = usersQuery.in("id", memberUserIds)
+  }
+  const { data: users } = await usersQuery
 
   // Current user role check
   const { data: authUser } = await supabase.auth.getUser()

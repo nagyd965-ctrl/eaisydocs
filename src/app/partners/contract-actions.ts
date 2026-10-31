@@ -678,17 +678,25 @@ export async function finalizeAndFileContractAction(
       .eq("id", user.id)
       .single()
 
+    // Aktív cég feloldása: az ügy és ügyirat a létrehozó cégéhez kerül (multi-tenant)
+    const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+    const activeCompanyId = await getActiveCompanyIdServer()
+
     const currentYear = new Date().getFullYear()
     let ugyiratIdToUse = params.dossierId || null
     let iktatoszamToUse = ""
 
     // 3. Ügyirat feloldása vagy új létrehozása
     if (!ugyiratIdToUse || params.createNewDossier) {
-      // Irattári tétel keresése (pl. Szerződések)
-      const { data: tetel } = await supabase
+      // Irattári tétel keresése (pl. Szerződések) — CSAK az aktív cég tételei között
+      let tetelQuery = supabase
         .from("irattari_terv")
         .select("id, megorzesi_ido_ev")
         .ilike("megnevezes", "%szerződ%")
+      if (activeCompanyId) {
+        tetelQuery = tetelQuery.eq("company_id", activeCompanyId)
+      }
+      const { data: tetel } = await tetelQuery
         .limit(1)
         .maybeSingle()
 
@@ -707,7 +715,7 @@ export async function finalizeAndFileContractAction(
         console.warn("generate_ugyszam RPC nem elérhető, fallback ügyszám:", ugyszam)
       }
 
-      // Ügy rekord
+      // Ügy rekord — az aktív céghez rendelve
       const dossierSubject = params.dossierTitle?.trim() || `Szerződés: ${params.title} — ${partner.nev}`
       const { data: ugyData, error: ugyErr } = await supabase
         .from("ugy")
@@ -717,6 +725,7 @@ export async function finalizeAndFileContractAction(
           ugytipus_id: irattariTetelId,
           statusz: "folyamatban",
           felelos_user_id: user.id,
+          ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
         })
         .select("id")
         .single()
@@ -740,7 +749,7 @@ export async function finalizeAndFileContractAction(
       const retentionEnd = new Date()
       retentionEnd.setFullYear(retentionEnd.getFullYear() + megorzesiEv)
 
-      // Ügyirat rekord
+      // Ügyirat rekord — az aktív céghez rendelve
       const { data: ugyiratData, error: ugyiratErr } = await supabase
         .from("ugyirat")
         .insert({
@@ -751,6 +760,7 @@ export async function finalizeAndFileContractAction(
           statusz: "iktatva",
           szervezeti_egyseg_id: profile?.szervezeti_egyseg_id || null,
           iktato_user_id: user.id,
+          ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
         })
         .select("id, iktatoszam")
         .single()

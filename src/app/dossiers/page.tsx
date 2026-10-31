@@ -55,10 +55,23 @@ export default async function DossiersPage() {
   const permissions = getPermissions(currentUserProfile?.docs_szerepkor)
   const canAssign = permissions.canAssign
 
-  // Felhasználók és szervezeti egységek lekérése memóriába
-  const { data: users } = await supabase
+  // Felhasználók: CSAK az aktív cég tagjai (cég-tagság ellenőrzéssel)
+  let memberUserIds: string[] | null = null
+  if (companyScope) {
+    const { data: companyMembers } = await supabase
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", companyScope)
+    memberUserIds = (companyMembers || []).map((m: any) => m.user_id)
+  }
+
+  let usersQuery = supabase
     .from("felhasznalo_profil")
     .select("id, nev, docs_szerepkor, szervezeti_egyseg_id")
+  if (memberUserIds) {
+    usersQuery = usersQuery.in("id", memberUserIds)
+  }
+  const { data: users } = await usersQuery
 
   const { data: depts } = await supabase
     .from("szervezeti_egyseg")
