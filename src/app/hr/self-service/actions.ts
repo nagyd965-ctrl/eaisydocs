@@ -606,7 +606,48 @@ export async function updateSecretData(formData: FormData) {
   const taj_szam     = formData.get("taj_szam")     as string
   const adoazonosito = formData.get("adoazonosito") as string
   const bankszamla   = formData.get("bankszamla")   as string
-  // Béradatokat a dolgozó NEM módosíthatja – null-ként küldjük, 
+
+  // ── P1-javítás (2026-11-01, deep-analysis 2.1): TAJ/adóazonosító/bankszámla CDV-validáció ──
+  // Korábban formai validáció nélkül került az adatbázisba — elírt TAJ vagy
+  // bankszámlaszám közvetlenül a bérszámfejtésbe került.
+  if (taj_szam && taj_szam.trim()) {
+    const clean = taj_szam.replace(/[\s-]/g, "")
+    if (!/^\d{9}$/.test(clean)) {
+      return { error: "A TAJ-szám pontosan 9 számjegyből kell álljon (pl. 123 456 789)." }
+    }
+    // CDV: az első 8 számjegy × súlyok (3,7) összege mod 10 = 9. számjegy
+    const digits = clean.split("").map(Number)
+    const cdv = (digits[0] * 3 + digits[1] * 7 + digits[2] * 3 + digits[3] * 7 +
+                 digits[4] * 3 + digits[5] * 7 + digits[6] * 3 + digits[7] * 7) % 10
+    if (cdv !== digits[8]) {
+      return { error: "A TAJ-szám ellenőrző összege hibás — kérjük, ellenőrizze a beírt számot." }
+    }
+  }
+
+  if (adoazonosito && adoazonosito.trim()) {
+    const clean = adoazonosito.replace(/[\s-]/g, "")
+    if (!/^\d{10}$/.test(clean)) {
+      return { error: "Az adóazonosító jel pontosan 10 számjegyből kell álljon." }
+    }
+    // CDV: az első 9 számjegy × súlyok (1..9) összege mod 11 = 10. számjegy
+    const digits = clean.split("").map(Number)
+    let sum = 0
+    for (let i = 0; i < 9; i++) sum += digits[i] * (i + 1)
+    const cdv = sum % 11
+    if (cdv !== digits[9]) {
+      return { error: "Az adóazonosító jel ellenőrző összege hibás — kérjük, ellenőrizze a beírt számot." }
+    }
+  }
+
+  if (bankszamla && bankszamla.trim()) {
+    const clean = bankszamla.replace(/[\s-]/g, "")
+    if (!/^\d{16,24}$/.test(clean)) {
+      return { error: "A bankszámlaszám 16-24 számjegyből kell álljon (magyar formátum: 11700000-00000000-00000000)." }
+    }
+  }
+  // ── VÉGE validáció ──
+
+  // Béradatokat a dolgozó NEM módosíthatja – null-ként küldjük,
   // az RPC CASE logika megőrzi az adatbázisban lévő értéket.
 
   const { error } = await supabase.rpc("update_decrypted_hr_data", {

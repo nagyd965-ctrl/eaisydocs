@@ -116,9 +116,12 @@ async function authorizeAuditRequest(requestedCompanyId?: string): Promise<{
     return { authorized: false, companyId: effectiveCompanyId, error: "Nincs hozzáférésed a kiválasztott vállalathoz." }
   }
 
+  // P1-javítás (2026-11-01): a lista korábban "hr_vezeto"/"hr_munkatars" mellett
+  // bármely 1 modulos usernek átengedte (resolver "szepe") — beleértve a Kiküldési
+  // Napló e-mail/SMS tartalmait. Mostantól kizárólag audit/admin/compliance modul.
   const isAuthorized = isUserAuthorizedForHrView(
     scopedRoles.hrRole,
-    ["admin", "audit", "compliance", "hr_vezeto", "hr_munkatars"],
+    ["admin", "audit", "compliance"],
     scopedRoles.hrModules
   )
 
