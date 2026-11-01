@@ -62,12 +62,24 @@ export async function getMyPayslipsAction(): Promise<{ data: MyPayslipItem[] | n
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { data: null, error: "Nincs bejelentkezve" }
 
+  // HR deep-analysis 20261029 (2.1) P0-javítás (2026-11-01): CÉG-SZŰRÉS —
+  // a megrendelő találta: többcéges dolgozó MINDEN cég bérpapírja minden
+  // cég-nézetben megjelent (a Célkitűzések/IDP azonos mintája).
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   const adminClient = getAdminClient()
-  const { data, error } = await adminClient
+  let query = adminClient
     .from("hr_berpapir")
     .select("*")
     .eq("dolgozo_id", user.id)
     .in("statusz", ["kikuldve", "atveve"])
+
+  if (activeCompanyId) {
+    query = query.eq("company_id", activeCompanyId)
+  }
+
+  const { data, error } = await query
     .order("ev", { ascending: false })
     .order("honap", { ascending: false })
 

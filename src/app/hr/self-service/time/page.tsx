@@ -20,21 +20,29 @@ export default async function SelfServiceTimePage() {
   const activeCompanyId = await getActiveCompanyIdServer()
   const memberRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
-  // Távollétek lekérése
-  const { data: tavolletek } = await supabase
+  // Távollétek lekérése (HR deep-analysis P0-javítás 2026-11-01: aktív cég-szűrés)
+  let tavolletQuery = supabase
     .from("hr_tavollet")
     .select("*")
     .eq("dolgozo_id", user.id)
-    .order("created_at", { ascending: false })
+  if (activeCompanyId) {
+    tavolletQuery = tavolletQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: tavolletek } = await tavolletQuery.order("created_at", { ascending: false })
 
-  // Munkaidő korrekciók lekérése
-  const { data: korrekciok } = await supabase
+  // Munkaidő korrekciók lekérése (aktív cég-szűrés)
+  let korrekcioQuery = supabase
     .from("hr_jelenlet_korrekcio")
     .select("*")
     .eq("dolgozo_id", user.id)
-    .order("created_at", { ascending: false })
+  if (activeCompanyId) {
+    korrekcioQuery = korrekcioQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: korrekciok } = await korrekcioQuery.order("created_at", { ascending: false })
 
   // Túlóra elszámolási / felhasználási kérelmek lekérése
+  // (Megjegyzés: a hr_tulora_felhasznalás táblán nincs company_id oszlop —
+  //  cég-szűrése migrációs tétel, l. deep-analysis 2.2)
   const { data: tulorak } = await supabase
     .from("hr_tulora_felhasznalás")
     .select("*")
