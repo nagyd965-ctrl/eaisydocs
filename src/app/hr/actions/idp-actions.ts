@@ -446,15 +446,20 @@ export async function uploadIDPCertificateAction(formData: FormData) {
   if (!user) {
     return { success: false, error: 'Nincs bejelentkezve' };
   }
+  const activeCompanyId = await getActiveCompanyIdServer();
+  const targetCompanyId = cel.company_id || cel.hr_fejlesztesi_terv?.company_id || null;
+  if (activeCompanyId && targetCompanyId && targetCompanyId !== activeCompanyId) {
+    return { success: false, error: 'A fejlesztési cél másik vállalathoz tartozik.' };
+  }
   if (cel.dolgozo_id !== user.id) {
     const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
-    const auth = await requireHrAuthServer(['admin', 'vezeto'], null);
+    const auth = await requireHrAuthServer(['admin', 'vezeto', 'performance', 'employees'], null);
     if (!auth.authorized) {
       return { success: false, error: 'Nincs jogosultságod más dolgozó tanúsítványának feltöltéséhez.' };
     }
   }
 
-  const companyId = cel.company_id || cel.hr_fejlesztesi_terv?.company_id || 'general';
+  const companyId = targetCompanyId || activeCompanyId || 'general';
   const timestamp = Date.now();
   const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
   const storagePath = `idp/${companyId}/${cel.dolgozo_id}/${celId}_${timestamp}_${safeName}`;
@@ -830,8 +835,8 @@ export async function getCompanyMentorsAction(companyId?: string) {
     }
   }
 
-  // Fallback ha nincs tag
-  if (map.size === 0) {
+  // Fallback csak akkor, ha nincs kiválasztott vállalat (soha ne szivárogjon át másik cég névsora)
+  if (map.size === 0 && !activeCompanyId) {
     const supabase = await createClient();
     const { data: allProfs } = await supabase
       .from('felhasznalo_profil')
@@ -847,11 +852,26 @@ export async function getCompanyMentorsAction(companyId?: string) {
 
 export async function getEmployeeStudyContractsAction(dolgozoId: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const activeCompanyId = await getActiveCompanyIdServer();
+  if (user.id !== dolgozoId) {
+    const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
+    const auth = await requireHrAuthServer(['performance', 'employees', 'admin', 'vezeto', 'auditor'], null);
+    if (!auth.authorized) {
+      return [];
+    }
+  }
+
+  let query = supabase
     .from('hr_tanulmanyi_szerzodes')
     .select('id, intezmeny_neve, kepzes_neve, szerzodes_szam')
-    .eq('dolgozo_id', dolgozoId)
-    .order('created_at', { ascending: false });
+    .eq('dolgozo_id', dolgozoId);
+  if (activeCompanyId) {
+    query = query.eq('company_id', activeCompanyId);
+  }
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) {
     console.error('Hiba a tanulmányi szerződések lekérésekor:', error);
@@ -868,6 +888,29 @@ export async function addIDPNote(celId: string, szoveg: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Nincs bejelentkezve' };
+
+  const activeCompanyId = await getActiveCompanyIdServer();
+  const { data: cel } = await supabase
+    .from('hr_fejlesztesi_cel')
+    .select('id, dolgozo_id, company_id, hr_fejlesztesi_terv(company_id)')
+    .eq('id', celId)
+    .maybeSingle();
+
+  if (!cel) {
+    return { success: false, error: 'A fejlesztési cél nem található.' };
+  }
+
+  const targetCompanyId = (cel as any).company_id || (cel as any).hr_fejlesztesi_terv?.company_id || null;
+  if (activeCompanyId && targetCompanyId && targetCompanyId !== activeCompanyId) {
+    return { success: false, error: 'A fejlesztési cél másik vállalathoz tartozik.' };
+  }
+
+  if (cel.dolgozo_id !== user.id) {
+    const auth = await requireIdpManagerAuth();
+    if (!auth.ok) {
+      return { success: false, error: auth.error || 'Nincs jogosultságod megjegyzés rögzítéséhez.' };
+    }
+  }
 
   const { error } = await supabase
     .from('hr_idp_megjegyzes')

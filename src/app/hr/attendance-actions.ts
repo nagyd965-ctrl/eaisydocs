@@ -3,6 +3,68 @@
 import { createClient } from "@/utils/supabase/server"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { revalidatePath } from "next/cache"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { checkMedicalValidityForDate } from "@/utils/hr/medical-compliance-checker"
+import { resolveEffectiveHolidays } from "@/utils/hr/leave-calculator"
+
+async function verifyTimesheetEmployeeAccess(
+  employeeId: string,
+  options: { allowSelf: boolean; requiredModules?: string[] }
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { ok: false as const, error: "Nincs bejelentkezve", isSelf: false }
+  }
+
+  const modules = options.requiredModules || ["time", "admin", "vezeto", "payroll", "employees", "auditor"]
+  const auth = await requireHrAuthServer(modules, null)
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+  const isSelf = user.id === employeeId
+
+  if (!auth.authorized && !(options.allowSelf && isSelf)) {
+    return {
+      ok: false as const,
+      error: isSelf
+        ? "Saját jelenléti ív közvetlen módosítása nem engedélyezett. Kérjük, használd a jelenlétkorrekciós kérelmet!"
+        : "Nincs jogosultság a jelenléti adatok eléréséhez.",
+      isSelf,
+    }
+  }
+
+  if (activeCompanyId && !isSelf) {
+    const [{ data: card }, { data: member }] = await Promise.all([
+      supabase
+        .from("hr_dolgozo_adatlap")
+        .select("id")
+        .eq("id", employeeId)
+        .eq("company_id", activeCompanyId)
+        .maybeSingle(),
+      supabase
+        .from("company_members")
+        .select("user_id")
+        .eq("user_id", employeeId)
+        .eq("company_id", activeCompanyId)
+        .maybeSingle(),
+    ])
+    if (!card && !member) {
+      return {
+        ok: false as const,
+        error: "A dolgozó nem tartozik az aktív vállalathoz.",
+        isSelf: false,
+      }
+    }
+  }
+
+  return {
+    ok: true as const,
+    supabase,
+    user,
+    auth,
+    activeCompanyId,
+    isSelf,
+  }
+}
 
 export type TimesheetEntry = {
   id: string
@@ -39,40 +101,56 @@ function getDaysInMonth(year: number, month: number) {
 // 1. Get Monthly Timesheet
 export async function getMonthlyTimesheet(employeeId: string, year: number, month: number): Promise<{ data: TimesheetEntry[] | null, fte: number, error: string | null }> {
   try {
-    const supabase = await createClient()
+    const access = await verifyTimesheetEmployeeAccess(employeeId, { allowSelf: true })
+    if (!access.ok) {
+      return { data: null, fte: 1.0, error: access.error }
+    }
+    const { supabase, activeCompanyId } = access
 
     const startDate = new Date(Date.UTC(year, month - 1, 1)).toISOString().split('T')[0]
     const endDate = new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0]
 
     // Fetch Jelenlét
-    const { data: jelenletData, error: jelenletError } = await supabase
+    let jelenletQuery = supabase
       .from("hr_jelenlet")
       .select("*")
       .eq("dolgozo_id", employeeId)
       .gte("datum", startDate)
       .lte("datum", endDate)
+    if (activeCompanyId) {
+      jelenletQuery = jelenletQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: jelenletData, error: jelenletError } = await jelenletQuery
 
     if (jelenletError) throw new Error(jelenletError.message)
 
     // Fetch Távollét
-    const { data: tavolletData, error: tavolletError } = await supabase
+    let tavolletQuery = supabase
       .from("hr_tavollet")
       .select("*")
       .eq("dolgozo_id", employeeId)
       .eq("statusz", "jovahagyva")
       .lte("kezdet_datuma", endDate)
       .gte("veg_datuma", startDate)
+    if (activeCompanyId) {
+      tavolletQuery = tavolletQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: tavolletData, error: tavolletError } = await tavolletQuery
 
     if (tavolletError) throw new Error(tavolletError.message)
 
     // Fetch függőben lévő munkaidő korrekciós kérelmek részletekkel
-    const { data: pendingCorrections } = await supabase
+    let corrQuery = supabase
       .from("hr_jelenlet_korrekcio")
       .select("datum, uj_becsekkolas, uj_kicsekkolas, indoklas")
       .eq("dolgozo_id", employeeId)
       .eq("statusz", "jovahagyasra_var")
       .gte("datum", startDate)
       .lte("datum", endDate)
+    if (activeCompanyId) {
+      corrQuery = corrQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: pendingCorrections } = await corrQuery
 
     const pendingMap = new Map<string, { uj_becsekkolas: string; uj_kicsekkolas: string; indoklas: string }>()
     for (const c of pendingCorrections || []) {
@@ -83,19 +161,26 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
       })
     }
 
-    // Munkaszüneti napok lekérése az adott hónapra
-    const { data: unnepnapData } = await supabase
+    // Munkaszüneti napok és áthelyezett munkanapok lekérése az adott hónapra (országos + vállalati felülbírálás)
+    let unnepnapQuery = supabase
       .from("hr_munkaszuneti_nap")
-      .select("datum, megnevezes, athelye_munkanap")
+      .select("datum, megnevezes, athelye_munkanap, company_id")
       .gte("datum", startDate)
       .lte("datum", endDate)
-      .eq("athelye_munkanap", false)
+    if (activeCompanyId) {
+      unnepnapQuery = unnepnapQuery.or(`company_id.is.null,company_id.eq.${activeCompanyId}`)
+    } else {
+      unnepnapQuery = unnepnapQuery.is("company_id", null)
+    }
+    const { data: unnepnapData } = await unnepnapQuery
+    const effectiveHolidayInfo = resolveEffectiveHolidays(unnepnapData as any[], activeCompanyId)
 
-    const unnepnapok = new Set((unnepnapData || []).map(n => n.datum as string))
-    const unnepNevek = new Map((unnepnapData || []).map(n => [n.datum as string, n.megnevezes as string]))
+    const unnepnapok = new Set(effectiveHolidayInfo.holidays)
+    const athelyezettMunkanapok = new Set(effectiveHolidayInfo.transferredWorkdays)
+    const unnepNevek = new Map(effectiveHolidayInfo.rows.map(n => [n.datum as string, (n.megnevezes as string) || ""]))
 
     // Műszakbeosztások lekérése (HR-TASK-01 / Előzetes műszakok szinkronja)
-    const { data: shiftAssignments } = await supabase
+    let shiftQuery = supabase
       .from("hr_muszak_beosztas")
       .select(`
         datum,
@@ -115,6 +200,10 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
       .eq("dolgozo_id", employeeId)
       .gte("datum", startDate)
       .lte("datum", endDate)
+    if (activeCompanyId) {
+      shiftQuery = shiftQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: shiftAssignments } = await shiftQuery
 
     const shiftMap = new Map<string, any>()
     for (const s of (shiftAssignments as any[]) || []) {
@@ -143,7 +232,7 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
 
       // Jelenlét (Munka)
       const munka = jelenletData?.find(j => j.datum === dateStr)
-      
+
       // Távollét
       const tavollet = tavolletData?.find(t => {
         return dateStr >= t.kezdet_datuma && dateStr <= t.veg_datuma
@@ -158,8 +247,8 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           type: tavollet.tipus === "betegszabadsag" || tavollet.tipus === "tappenz" || tavollet.tipus === "beteg"
             ? "betegseg"
             : tavollet.tipus === "csusztatas"
-            ? "csusztatas"
-            : "szabadsag",
+              ? "csusztatas"
+              : "szabadsag",
           note: tavollet.indoklas,
           tavollet_id: tavollet.id,
           pendingCorrection: pendingCorr,
@@ -201,13 +290,18 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           isWeekendShift
         })
       } else if (isWeekend) {
+        const isTransferredWorkday = athelyezettMunkanapok.has(dateStr)
         timesheet.push({
           id: dateStr, // Unique key for the day
           datum: dateStr,
           becsekkolas_ideje: null,
           kicsekkolas_ideje: null,
-          type: isWeekendShift ? "munka" : "hetvege",
-          note: isWeekendShift ? `Hétvégi műszak (${shiftCode}: ${shiftName || "Túlóra"})` : undefined,
+          type: isWeekendShift || isTransferredWorkday ? "munka" : "hetvege",
+          note: isWeekendShift
+            ? `Hétvégi műszak (${shiftCode}: ${shiftName || "Túlóra"})`
+            : isTransferredWorkday
+              ? unnepNevek.get(dateStr) || "Áthelyezett munkanap"
+              : undefined,
           pendingCorrection: pendingCorr,
           shiftPlannedHours: shiftHours,
           shiftCode,
@@ -236,24 +330,30 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
     const today = new Date().toISOString().split('T')[0];
 
     // Az aktuálisan érvényes beosztásból kell az FTE-t kiolvasni
-    const { data: jogviszonyData } = await supabase
+    let jvQuery = supabase
       .from("hr_jogviszony")
       .select("id")
       .eq("dolgozo_id", employeeId)
       .is("kilepes_datuma", null) // aktív jogviszony (kilepes_datuma IS NULL)
       .order("belepes_datuma", { ascending: false })
       .limit(1)
-      .single()
+    if (activeCompanyId) {
+      jvQuery = jvQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: jogviszonyData } = await jvQuery.single()
 
     if (jogviszonyData) {
-      const { data: beosztasData } = await supabase
+      let beosztasQuery = supabase
         .from("hr_beosztas")
         .select("fte, munkaido_fte")
         .eq("jogviszony_id", jogviszonyData.id)
         .or(`ervenyes_ig.is.null,ervenyes_ig.gte.${today}`)
         .order("ervenyes_tol", { ascending: false })
         .limit(1)
-        .single()
+      if (activeCompanyId) {
+        beosztasQuery = beosztasQuery.eq("company_id", activeCompanyId)
+      }
+      const { data: beosztasData } = await beosztasQuery.maybeSingle()
 
       if (beosztasData) {
         // munkaido_fte az RPC által frissített érték, fte az eredeti oszlop – a frissebbet használjuk
@@ -268,18 +368,21 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
 }
 
 // Helper to check if month is closed
-async function checkIsMonthClosed(supabase: any, employeeId: string, datum: string) {
+async function checkIsMonthClosed(supabase: any, employeeId: string, datum: string, activeCompanyId?: string | null) {
   const dateObj = new Date(datum)
   const ev = dateObj.getUTCFullYear()
   const honap = dateObj.getUTCMonth() + 1
-  const { data } = await supabase
+  let query = supabase
     .from("hr_havi_jelenlet_zaras")
     .select("statusz")
     .eq("dolgozo_id", employeeId)
     .eq("ev", ev)
     .eq("honap", honap)
-    .single()
-  
+  if (activeCompanyId) {
+    query = query.eq("company_id", activeCompanyId)
+  }
+  const { data } = await query.single()
+
   if (data && data.statusz !== 'nyitott') {
     return true
   }
@@ -288,19 +391,59 @@ async function checkIsMonthClosed(supabase: any, employeeId: string, datum: stri
 
 // 2. Add or Update Attendance Record
 export async function saveAttendanceRecord(
-  employeeId: string, 
-  datum: string, 
-  becsekkolas_ideje: string | null, 
+  employeeId: string,
+  datum: string,
+  becsekkolas_ideje: string | null,
   kicsekkolas_ideje: string | null
 ) {
   try {
-    const supabase = await createClient()
+    const access = await verifyTimesheetEmployeeAccess(employeeId, {
+      allowSelf: false,
+      requiredModules: ["time", "admin", "vezeto"],
+    })
+    if (!access.ok) {
+      throw new Error(access.error)
+    }
+    const { supabase, activeCompanyId } = access
 
-    if (await checkIsMonthClosed(supabase, employeeId, datum)) {
+    if (await checkIsMonthClosed(supabase, employeeId, datum, activeCompanyId)) {
       throw new Error("Ez a hónap már le van zárva vagy jóváhagyásra vár, nem szerkeszthető!")
     }
 
-    const activeCompanyId = await getActiveCompanyIdServer()
+    // Orvosi alkalmasság cégszintű ellenőrzése jelenlét rögzítése előtt (Mvt. 49. §)
+    let examQuery = supabase
+      .from("hr_orvosi_vizsgalat")
+      .select("ervenyesseg_datuma")
+      .eq("dolgozo_id", employeeId)
+      .order("vizsgalat_datuma", { ascending: false })
+      .limit(1)
+    if (activeCompanyId) {
+      examQuery = examQuery.eq("company_id", activeCompanyId)
+    }
+
+    const [{ data: latestExam }, { data: adatlap }] = await Promise.all([
+      examQuery.maybeSingle(),
+      supabase
+        .from("hr_dolgozo_adatlap")
+        .select("company_id, orvosi_alkalmassag_ervenyesseg")
+        .eq("id", employeeId)
+        .maybeSingle(),
+    ])
+
+    const isAdatlapForCompany =
+      !activeCompanyId || !adatlap?.company_id || adatlap.company_id === activeCompanyId
+    const effectiveMedicalExpiry =
+      latestExam?.ervenyesseg_datuma ||
+      (isAdatlapForCompany ? adatlap?.orvosi_alkalmassag_ervenyesseg : null)
+
+    const medicalCheck = checkMedicalValidityForDate(effectiveMedicalExpiry, datum)
+    if (!medicalCheck.isValid) {
+      throw new Error(
+        medicalCheck.errorMessage ||
+          "A jelenlét nem rögzíthető: a dolgozó orvosi alkalmassága lejárt vagy hiányzik!"
+      )
+    }
+
     const { error } = await supabase
       .from("hr_jelenlet")
       .upsert(
@@ -370,14 +513,22 @@ export async function deleteAttendanceRecord(id: string, employeeId: string, dat
 // 4. Get Monthly Closing Status
 export async function getMonthlyClosingStatus(employeeId: string, year: number, month: number) {
   try {
-    const supabase = await createClient()
-    const { data, error } = await supabase
+    const access = await verifyTimesheetEmployeeAccess(employeeId, { allowSelf: true })
+    if (!access.ok) {
+      return { data: null, error: access.error }
+    }
+    const { supabase, activeCompanyId } = access
+
+    let query = supabase
       .from("hr_havi_jelenlet_zaras")
       .select("*")
       .eq("dolgozo_id", employeeId)
       .eq("ev", year)
       .eq("honap", month)
-      .single()
+    if (activeCompanyId) {
+      query = query.eq("company_id", activeCompanyId)
+    }
+    const { data, error } = await query.single()
 
     if (error && error.code !== 'PGRST116') throw new Error(error.message)
     return { data: data || { statusz: 'nyitott' }, error: null }
@@ -389,24 +540,37 @@ export async function getMonthlyClosingStatus(employeeId: string, year: number, 
 // 5. Submit Monthly Timesheet
 export async function submitMonthlyTimesheet(employeeId: string, year: number, month: number) {
   try {
-    const supabase = await createClient()
-    
-    const { data: existing } = await supabase
+    const access = await verifyTimesheetEmployeeAccess(employeeId, {
+      allowSelf: true,
+      requiredModules: ["time", "admin", "vezeto"],
+    })
+    if (!access.ok) {
+      return { error: access.error }
+    }
+    const { supabase, activeCompanyId } = access
+
+    let existingQuery = supabase
       .from("hr_havi_jelenlet_zaras")
       .select("id")
       .eq("dolgozo_id", employeeId)
       .eq("ev", year)
       .eq("honap", month)
-      .single()
+    if (activeCompanyId) {
+      existingQuery = existingQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: existing } = await existingQuery.single()
 
     if (existing) {
-      const { error } = await supabase
+      let updateQuery = supabase
         .from("hr_havi_jelenlet_zaras")
         .update({ statusz: 'jovahagyasra_var', bekuldve_at: new Date().toISOString() })
         .eq("id", existing.id)
+      if (activeCompanyId) {
+        updateQuery = updateQuery.eq("company_id", activeCompanyId)
+      }
+      const { error } = await updateQuery
       if (error) throw new Error(error.message)
     } else {
-      const activeCompanyId = await getActiveCompanyIdServer()
       const { error } = await supabase
         .from("hr_havi_jelenlet_zaras")
         .insert({
@@ -448,8 +612,8 @@ export async function approveMonthlyTimesheet(employeeId: string, year: number, 
     const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
     let updateQuery = supabase
       .from("hr_havi_jelenlet_zaras")
-      .update({ 
-        statusz: 'jovahagyva', 
+      .update({
+        statusz: 'jovahagyva',
         jovahagyva_at: new Date().toISOString(),
         jovahagyo_vezeto_id: user.id
       })
@@ -474,21 +638,30 @@ export async function approveMonthlyTimesheet(employeeId: string, year: number, 
 // 7. Get Monthly Timesheet Filed Document
 export async function getMonthlyTimesheetDocument(employeeId: string, year: number, month: number) {
   try {
-    const supabase = await createClient()
+    const access = await verifyTimesheetEmployeeAccess(employeeId, { allowSelf: true })
+    if (!access.ok) {
+      return { doc: null, error: access.error }
+    }
+    const { supabase, activeCompanyId } = access
+
     const monthNames = [
       "január", "február", "március", "április", "május", "június",
       "július", "augusztus", "szeptember", "október", "november", "december"
     ]
     const monthName = monthNames[month - 1]
 
-    const { data: docs } = await supabase
+    let docsQuery = supabase
       .from("hr_dokumentum")
       .select("id, nev, kategoria, url, iktatoszam, ugyirat_id, created_at")
       .eq("dolgozo_id", employeeId)
       .eq("kategoria", "Havi jelenléti ív")
       .order("created_at", { ascending: false })
+    if (activeCompanyId) {
+      docsQuery = docsQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: docs } = await docsQuery
 
-    const matchingDoc = docs?.find(d => 
+    const matchingDoc = docs?.find(d =>
       d.nev.includes(`${year}`) && (d.nev.toLowerCase().includes(monthName) || d.nev.includes(`.${month}.`))
     )
 
@@ -506,9 +679,14 @@ export async function getMonthlyTimesheetDocument(employeeId: string, year: numb
 // 8. File Monthly Timesheet into Personal Dossier (eaisyDocs)
 export async function fileMonthlyTimesheet(employeeId: string, year: number, month: number) {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error("Nincs bejelentkezve")
+    const access = await verifyTimesheetEmployeeAccess(employeeId, {
+      allowSelf: false,
+      requiredModules: ["time", "admin", "vezeto", "payroll", "employees"],
+    })
+    if (!access.ok) {
+      return { success: false, error: access.error }
+    }
+    const { supabase, user } = access
 
     const { generateTimesheetPdfBuffer } = await import("@/utils/hr/timesheet-pdf-generator")
     const { executeHrDocumentFiling } = await import("@/utils/hr-filing-bridge")
@@ -548,14 +726,18 @@ export async function fileMonthlyTimesheet(employeeId: string, year: number, mon
     }
 
     // 3. Dokumentum rekord létrehozása / keresése
+    const activeCompanyId = await getActiveCompanyIdServer()
     const docName = `${employeeName} - Havi jelenléti ív (${year}. ${monthName})`
-    const { data: existingDoc } = await supabase
+    let existingDocQuery = supabase
       .from("hr_dokumentum")
       .select("id, iktatoszam")
       .eq("dolgozo_id", employeeId)
       .eq("kategoria", "Havi jelenléti ív")
       .ilike("nev", `%${year}.%${monthName}%`)
-      .maybeSingle()
+    if (activeCompanyId) {
+      existingDocQuery = existingDocQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: existingDoc } = await existingDocQuery.maybeSingle()
 
     let docId = existingDoc?.id
 
@@ -566,7 +748,8 @@ export async function fileMonthlyTimesheet(employeeId: string, year: number, mon
           dolgozo_id: employeeId,
           nev: docName,
           kategoria: "Havi jelenléti ív",
-          url: storagePath
+          url: storagePath,
+          company_id: activeCompanyId
         })
         .select("id")
         .single()
@@ -599,10 +782,10 @@ export async function fileMonthlyTimesheet(employeeId: string, year: number, mon
     revalidatePath(`/hr/employee/${employeeId}`)
     revalidatePath("/hr")
 
-    return { 
-      success: true, 
-      iktatoszam: filingResult.iktatoszam, 
-      ugyirat_id: filingResult.ugyirat_id 
+    return {
+      success: true,
+      iktatoszam: filingResult.iktatoszam,
+      ugyirat_id: filingResult.ugyirat_id
     }
   } catch (err: any) {
     console.error("fileMonthlyTimesheet error:", err)
@@ -623,6 +806,12 @@ export async function handleOvertimeApproval(
     return { error: "Nincs bejelentkezve" }
   }
 
+  const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
+  if (!auth.authorized) {
+    return { error: "A túlóra kérelem elbírálása csak vezetői vagy HR/admin jogosultsággal lehetséges." }
+  }
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+
   // Lekérjük a kérelmet
   const { data: req, error: fetchErr } = await supabase
     .from("hr_tulora_felhasznalás")
@@ -634,9 +823,17 @@ export async function handleOvertimeApproval(
     return { error: "A túlóra kérelem nem található." }
   }
 
+  if (req.dolgozo_id === user.id) {
+    return { error: "Saját túlóra kérelmet nem hagyhatsz jóvá!" }
+  }
+
+  if (activeCompanyId && req.company_id && req.company_id !== activeCompanyId) {
+    return { error: "A túlóra kérelem másik vállalathoz tartozik." }
+  }
+
   const cleanedReason = action === "elutasitva" ? (rejectReason?.trim() || null) : null
 
-  const { error } = await supabase
+  let updateQuery = supabase
     .from("hr_tulora_felhasznalás")
     .update({
       statusz: action,
@@ -645,6 +842,10 @@ export async function handleOvertimeApproval(
       elutasitas_oka: cleanedReason,
     })
     .eq("id", requestId)
+  if (activeCompanyId) {
+    updateQuery = updateQuery.eq("company_id", activeCompanyId)
+  }
+  const { error } = await updateQuery
 
   if (error) {
     console.error("Overtime approval error:", error)
@@ -669,7 +870,6 @@ export async function handleOvertimeApproval(
     ? `A vezetőd jóváhagyta a ${tipusNev} kérelmedet (${durationStr}).`
     : `A vezetőd elutasította a ${tipusNev} kérelmedet (${durationStr}).${rejectReason?.trim() ? ` Indoklás: ${rejectReason.trim()}` : ""}`
 
-  const activeCompanyId = await getActiveCompanyIdServer()
   if (action === "elutasitva") {
     await supabase.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
@@ -745,14 +945,19 @@ export async function handleAttendanceCorrectionApproval(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  const resolvedCompanyId = request.company_id || auth.activeCompanyId || (await getActiveCompanyIdServer())
+
   if (action === "jovahagyva") {
     // 1. Érvényesítjük a módosítást a hr_jelenlet táblában ELŐSZÖR
-    const { data: existingJelenlet } = await adminClient
+    let existingJelenletQuery = adminClient
       .from("hr_jelenlet")
       .select("id")
       .eq("dolgozo_id", request.dolgozo_id)
       .eq("datum", request.datum)
-      .maybeSingle()
+    if (resolvedCompanyId) {
+      existingJelenletQuery = existingJelenletQuery.eq("company_id", resolvedCompanyId)
+    }
+    const { data: existingJelenlet } = await existingJelenletQuery.maybeSingle()
 
     if (existingJelenlet) {
       const { error: jelenletUpdateErr } = await adminClient
@@ -768,7 +973,6 @@ export async function handleAttendanceCorrectionApproval(
         return { error: "Hiba a jelenlét rekord frissítésekor: " + jelenletUpdateErr.message }
       }
     } else {
-      const resolvedCompanyId = request.company_id || (await getActiveCompanyIdServer())
       const { error: jelenletInsertErr } = await adminClient
         .from("hr_jelenlet")
         .insert({
@@ -804,6 +1008,7 @@ export async function handleAttendanceCorrectionApproval(
       entitas_id: correctionId,
       esemeny_tipus: "jelenlet_korrekcio_jovahagyva",
       megjegyzes: `Vezető jóváhagyta a(z) ${request.datum} napi jelenlét korrekciót (${(request as any).felhasznalo_profil?.nev || "Dolgozó"}).`,
+      ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
     })
 
     // 4. Dolgozó értesítése
@@ -833,6 +1038,7 @@ export async function handleAttendanceCorrectionApproval(
       entitas_id: correctionId,
       esemeny_tipus: "jelenlet_korrekcio_elutasitva",
       megjegyzes: `Vezető elutasította a(z) ${request.datum} napi korrekciót. Indok: ${elutasitasOka || "Nincs megadva"}`,
+      ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
     })
 
     // Dolgozó értesítése

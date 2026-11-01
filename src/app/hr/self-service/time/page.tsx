@@ -5,7 +5,9 @@ import { SubstituteDialog } from "@/components/hr/substitute-dialog"
 import { LeaveRequestDialog } from "@/components/hr/leave-request-dialog"
 import { redirect } from "next/navigation"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 import { syncExpiredSubstitutions } from "@/utils/hr/substitute-sync"
+import { resolveEffectiveHolidays } from "@/utils/hr/leave-calculator"
 
 export default async function SelfServiceTimePage() {
   await syncExpiredSubstitutions()
@@ -40,40 +42,50 @@ export default async function SelfServiceTimePage() {
   }
   const { data: korrekciok } = await korrekcioQuery.order("created_at", { ascending: false })
 
-  // Túlóra elszámolási / felhasználási kérelmek lekérése
-  // (Megjegyzés: a hr_tulora_felhasznalás táblán nincs company_id oszlop —
-  //  cég-szűrése migrációs tétel, l. deep-analysis 2.2)
-  const { data: tulorak } = await supabase
+  // Túlóra elszámolási / felhasználási kérelmek lekérése (aktív cégre szűrve)
+  let tuloraQuery = supabase
     .from("hr_tulora_felhasznalás")
     .select("*")
     .eq("dolgozo_id", user.id)
-    .order("created_at", { ascending: false })
+  if (activeCompanyId) {
+    tuloraQuery = tuloraQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: tulorak } = await tuloraQuery.order("created_at", { ascending: false })
 
-  // Munkaszüneti napok lekérése a munkanapok pontos Mt. szerinti kalkulációjához
+  // Munkaszüneti napok és áthelyezett munkanapok lekérése a munkanapok pontos Mt. szerinti kalkulációjához
   const currentYear = new Date().getFullYear()
-  const { data: holidaysData } = await supabase
+  let holidaysQuery = supabase
     .from("hr_munkaszuneti_nap")
-    .select("datum")
+    .select("datum, athelye_munkanap, company_id")
     .gte("datum", `${currentYear - 1}-01-01`)
     .lte("datum", `${currentYear + 1}-12-31`)
-    .eq("athelye_munkanap", false)
+  if (activeCompanyId) {
+    holidaysQuery = holidaysQuery.or(`company_id.is.null,company_id.eq.${activeCompanyId}`)
+  } else {
+    holidaysQuery = holidaysQuery.is("company_id", null)
+  }
+  const { data: holidaysData } = await holidaysQuery
 
-  const holidays = (holidaysData || []).map((h: any) => h.datum as string)
+  const { holidays, transferredWorkdays } = resolveEffectiveHolidays(holidaysData as any[], activeCompanyId)
 
-  const isManagerOrAdmin = ['hr_vezeto', 'vezeto', 'admin'].includes(memberRoles.hrRole || "")
+  const isManagerOrAdmin =
+    memberRoles.isCompanyAdmin ||
+    memberRoles.hrRole === "vezeto" ||
+    isUserAuthorizedForHrView(memberRoles.hrRole, ["admin", "time"], memberRoles.hrModules)
 
   // Helyettesítések lekérése (aktív cégre szűrve)
+  const todayStr = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Budapest" }).format(new Date())
   let substituteQuery = supabase
     .from("hr_helyettesites")
     .select("*, helyettes_profil:felhasznalo_profil!hr_helyettesites_helyettes_id_fkey(nev)")
     .eq("vezeto_id", user.id)
     .eq("aktiv", true)
-    .gte("veg_datuma", new Date().toISOString().split('T')[0])
+    .gte("veg_datuma", todayStr)
     .order("created_at", { ascending: false })
     .limit(1)
 
   if (activeCompanyId) {
-    substituteQuery = substituteQuery.or(`company_id.eq.${activeCompanyId},company_id.is.null`)
+    substituteQuery = substituteQuery.eq("company_id", activeCompanyId)
   }
 
   const { data: currentSubstituteList } = await substituteQuery
@@ -81,67 +93,55 @@ export default async function SelfServiceTimePage() {
   
   // Helyettesítő személyek lekérdezése (szigorúan a multi-tenant aktív cégre szűrve)
   let availableUsers: any[] = []
-  if (isManagerOrAdmin) {
+  if (isManagerOrAdmin && activeCompanyId) {
     const { createClient: createAdminClient } = await import("@supabase/supabase-js")
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    if (activeCompanyId) {
-      // 1. Céghez tartozó tagok lekérése a company_members táblából
-      const { data: members } = await supabaseAdmin
-        .from("company_members")
-        .select("user_id")
-        .eq("company_id", activeCompanyId)
+    // 1. Céghez tartozó tagok lekérése a company_members táblából
+    const { data: members } = await supabaseAdmin
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", activeCompanyId)
 
-      const memberIds = (members || []).map((m: any) => m.user_id).filter((id: string) => id !== user.id)
+    const memberIds = (members || []).map((m: any) => m.user_id).filter((id: string) => id !== user.id)
 
-      // 2. Céghez tartozó dolgozói adatlapok lekérése
-      const { data: adatlapUsers } = await supabaseAdmin
-        .from("hr_dolgozo_adatlap")
-        .select("id, felhasznalo_profil!inner(id, nev)")
-        .eq("company_id", activeCompanyId)
-        .neq("id", user.id)
+    // 2. Céghez tartozó dolgozói adatlapok lekérése
+    const { data: adatlapUsers } = await supabaseAdmin
+      .from("hr_dolgozo_adatlap")
+      .select("id, felhasznalo_profil!inner(id, nev)")
+      .eq("company_id", activeCompanyId)
+      .neq("id", user.id)
 
-      // 3. Cégtagok profiljainak lekérése
-      let memberProfiles: any[] = []
-      if (memberIds.length > 0) {
-        const { data: profiles } = await supabaseAdmin
-          .from("felhasznalo_profil")
-          .select("id, nev")
-          .in("id", memberIds)
-        memberProfiles = profiles || []
-      }
-
-      // Egyesítés duplikációk nélkül (kizárólag az aktív céghez tartozó személyek)
-      const userMap = new Map<string, { id: string; nev: string }>()
-      for (const a of (adatlapUsers || [])) {
-        const profile = (Array.isArray(a.felhasznalo_profil) ? a.felhasznalo_profil[0] : a.felhasznalo_profil) as { id: string; nev: string } | undefined
-        if (profile?.id && profile?.nev) {
-          userMap.set(profile.id, { id: profile.id, nev: profile.nev })
-        }
-      }
-      for (const p of memberProfiles) {
-        if (p?.id && p?.nev && !userMap.has(p.id)) {
-          userMap.set(p.id, { id: p.id, nev: p.nev })
-        }
-      }
-
-      availableUsers = Array.from(userMap.values()).sort((a, b) =>
-        (a.nev || "").localeCompare(b.nev || "", "hu", { sensitivity: "base" })
-      )
-    } else {
-      const { data: availableAdatlapUsers } = await supabaseAdmin
-        .from("hr_dolgozo_adatlap")
-        .select("id, felhasznalo_profil!inner(id, nev)")
-        .neq("id", user.id)
-
-      availableUsers = (availableAdatlapUsers || [])
-        .map((a: any) => (Array.isArray(a.felhasznalo_profil) ? a.felhasznalo_profil[0] : a.felhasznalo_profil))
-        .filter((p: any) => p && p.id && p.nev)
-        .sort((a: any, b: any) => (a.nev || "").localeCompare(b.nev || "", "hu", { sensitivity: "base" }))
+    // 3. Cégtagok profiljainak lekérése
+    let memberProfiles: any[] = []
+    if (memberIds.length > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from("felhasznalo_profil")
+        .select("id, nev")
+        .in("id", memberIds)
+      memberProfiles = profiles || []
     }
+
+    // Egyesítés duplikációk nélkül (kizárólag az aktív céghez tartozó személyek)
+    const userMap = new Map<string, { id: string; nev: string }>()
+    for (const a of (adatlapUsers || [])) {
+      const profile = (Array.isArray(a.felhasznalo_profil) ? a.felhasznalo_profil[0] : a.felhasznalo_profil) as { id: string; nev: string } | undefined
+      if (profile?.id && profile?.nev) {
+        userMap.set(profile.id, { id: profile.id, nev: profile.nev })
+      }
+    }
+    for (const p of memberProfiles) {
+      if (p?.id && p?.nev && !userMap.has(p.id)) {
+        userMap.set(p.id, { id: p.id, nev: p.nev })
+      }
+    }
+
+    availableUsers = Array.from(userMap.values()).sort((a, b) =>
+      (a.nev || "").localeCompare(b.nev || "", "hu", { sensitivity: "base" })
+    )
   }
 
   return (
@@ -175,6 +175,7 @@ export default async function SelfServiceTimePage() {
         corrections={korrekciok || []}
         overtimes={tulorak || []}
         holidays={holidays}
+        transferredWorkdays={transferredWorkdays}
       />
     </div>
   )

@@ -3,19 +3,108 @@
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
-import { resolveCompanyDetailsServer } from "@/utils/company-server"
-import { 
-  type EmploymentContractPdfData, 
-  DEFAULT_COMPANY_DETAILS 
+import { resolveCompanyDetailsServer, getActiveCompanyIdServer } from "@/utils/company-server"
+import {
+  type EmploymentContractPdfData,
+  DEFAULT_COMPANY_DETAILS,
 } from "@/utils/hr/employment-contract-constants"
 import { generateEmploymentContractPdfBuffer } from "@/utils/hr/employment-contract-pdf-generator"
 import { executeHrDocumentFiling } from "@/utils/hr-filing-bridge"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 
 function getAdminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+}
+
+async function verifyEmploymentContractAccess(
+  adminClient: ReturnType<typeof getAdminClient>,
+  target: {
+    dolgozoId?: string | null
+    onboardingId?: string | null
+    documentId?: string | null
+  }
+) {
+  const auth = await requireHrAuthServer(
+    ["onboarding", "employees", "payroll", "organization", "admin"],
+    null
+  )
+  if (!auth.user) {
+    return { ok: false, error: "Nincs bejelentkezve!", auth, activeCompanyId: null as string | null }
+  }
+  if (!auth.authorized) {
+    return {
+      ok: false,
+      error: "Nincs jogosultságod a munkaszerződés műveletekhez!",
+      auth,
+      activeCompanyId: null as string | null,
+    }
+  }
+
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+
+  if (activeCompanyId) {
+    if (target.dolgozoId) {
+      const [{ data: member }, { data: adatlap }] = await Promise.all([
+        adminClient
+          .from("company_members")
+          .select("user_id")
+          .eq("company_id", activeCompanyId)
+          .eq("user_id", target.dolgozoId)
+          .maybeSingle(),
+        adminClient
+          .from("hr_dolgozo_adatlap")
+          .select("company_id")
+          .eq("id", target.dolgozoId)
+          .maybeSingle(),
+      ])
+      if (!member && adatlap?.company_id !== activeCompanyId) {
+        return {
+          ok: false,
+          error: "A megadott munkavállaló nem tartozik az aktív vállalathoz.",
+          auth,
+          activeCompanyId,
+        }
+      }
+    }
+
+    if (target.onboardingId) {
+      const { data: ob } = await adminClient
+        .from("hr_onboarding")
+        .select("company_id")
+        .eq("id", target.onboardingId)
+        .maybeSingle()
+      if (!ob || (ob.company_id && ob.company_id !== activeCompanyId)) {
+        return {
+          ok: false,
+          error: "A beléptetési folyamat nem tartozik az aktív vállalathoz.",
+          auth,
+          activeCompanyId,
+        }
+      }
+    }
+
+    if (target.documentId) {
+      const { data: doc } = await adminClient
+        .from("hr_dokumentum")
+        .select("company_id")
+        .eq("id", target.documentId)
+        .maybeSingle()
+      if (!doc || (doc.company_id && doc.company_id !== activeCompanyId)) {
+        return {
+          ok: false,
+          error: "A dokumentum nem tartozik az aktív vállalathoz.",
+          auth,
+          activeCompanyId,
+        }
+      }
+    }
+  }
+
+  return { ok: true, auth, activeCompanyId }
 }
 
 export interface GetEmploymentContractParams {
@@ -25,9 +114,19 @@ export interface GetEmploymentContractParams {
 
 export async function getEmploymentContractRecord({ dolgozoId, onboardingId }: GetEmploymentContractParams) {
   try {
+    const adminClient = getAdminClient()
+    const access = await verifyEmploymentContractAccess(adminClient, { dolgozoId, onboardingId })
+    if (!access.ok) {
+      return { data: null, existingDocument: null, mt46Document: null, error: access.error }
+    }
+
     const supabase = await createClient()
+    const activeCompanyId = access.activeCompanyId
 
     let query = supabase.from("hr_munkaszerzodes").select("*")
+    if (activeCompanyId) {
+      query = query.eq("company_id", activeCompanyId)
+    }
     if (dolgozoId) {
       query = query.eq("dolgozo_id", dolgozoId)
     } else if (onboardingId) {
@@ -64,14 +163,16 @@ export async function getEmploymentContractRecord({ dolgozoId, onboardingId }: G
           url: sData?.signedUrl || doc.url,
           originalStoragePath: doc.url,
           alairt_fajl_url: alairtSignedUrl || doc.alairt_fajl_url,
-          displayUrl: alairtSignedUrl || sData?.signedUrl || doc.url
+          displayUrl: alairtSignedUrl || sData?.signedUrl || doc.url,
         }
       }
     }
 
     let mt46Document: any = null
-    const adminClient = getAdminClient()
     let mtQuery = adminClient.from("hr_dokumentum").select("*").ilike("nev", "%Mt. 46%")
+    if (activeCompanyId) {
+      mtQuery = mtQuery.eq("company_id", activeCompanyId)
+    }
     if (dolgozoId) {
       mtQuery = mtQuery.eq("dolgozo_id", dolgozoId)
     } else if (onboardingId) {
@@ -99,6 +200,14 @@ export async function getEmploymentContractRecord({ dolgozoId, onboardingId }: G
       if (ob?.dolgozo_id) resolvedDolgozoId = ob.dolgozo_id
     }
 
+    const canAccessPayrollOrOnboarding =
+      access.auth.isCompanyAdmin ||
+      isUserAuthorizedForHrView(
+        access.auth.hrRole,
+        ["admin", "payroll", "onboarding"],
+        access.auth.hrModules
+      )
+
     let adatlapData: any = null
     let secretData: any = null
     if (resolvedDolgozoId) {
@@ -112,6 +221,7 @@ export async function getEmploymentContractRecord({ dolgozoId, onboardingId }: G
             hr_szervezeti_egyseg ( nev )
           ),
           hr_jogviszony (
+            company_id,
             tipus,
             belepes_datuma,
             kilepes_datuma,
@@ -125,22 +235,31 @@ export async function getEmploymentContractRecord({ dolgozoId, onboardingId }: G
         .maybeSingle()
       adatlapData = aData
 
-      try {
-        const { data: sData } = await adminClient.rpc("get_decrypted_hr_data", {
-          p_dolgozo_id: resolvedDolgozoId,
-        })
-        secretData = sData
-      } catch (secErr) {
-        console.warn("Nem sikerült a titkos HR adatok dekódolása a szerződéshez:", secErr)
+      if (canAccessPayrollOrOnboarding) {
+        try {
+          const { data: sData } = await supabase.rpc("get_decrypted_hr_data", {
+            p_dolgozo_id: resolvedDolgozoId,
+          })
+          secretData = sData
+        } catch (secErr) {
+          console.warn("Nem sikerült a titkos HR adatok dekódolása a szerződéshez:", secErr)
+        }
       }
     }
 
-    // Aktív munkakör kinyerése
+    // Aktív munkakör kinyerése (cég-szűrt jogviszonyból)
     let activeMunkakorMegnevezes = ""
-    if (adatlapData?.hr_jogviszony && Array.isArray(adatlapData.hr_jogviszony)) {
-      const activeJog = adatlapData.hr_jogviszony.find((j: any) => !j.kilepes_datuma) || adatlapData.hr_jogviszony[0]
+    const jogviszonyList = Array.isArray(adatlapData?.hr_jogviszony)
+      ? adatlapData.hr_jogviszony.filter(
+          (j: any) => !activeCompanyId || !j.company_id || j.company_id === activeCompanyId
+        )
+      : []
+
+    if (jogviszonyList.length > 0) {
+      const activeJog = jogviszonyList.find((j: any) => !j.kilepes_datuma) || jogviszonyList[0]
       const beosztasok = activeJog?.hr_beosztas || []
-      const activeBeosztas = beosztasok.find((b: any) => !b.ervenyes_ig || new Date(b.ervenyes_ig) >= new Date()) || beosztasok[0]
+      const activeBeosztas =
+        beosztasok.find((b: any) => !b.ervenyes_ig || new Date(b.ervenyes_ig) >= new Date()) || beosztasok[0]
       if (activeBeosztas?.hr_munkakor?.megnevezes) {
         activeMunkakorMegnevezes = activeBeosztas.hr_munkakor.megnevezes
         if (activeBeosztas.hr_munkakor.feor_kod) {
@@ -149,26 +268,49 @@ export async function getEmploymentContractRecord({ dolgozoId, onboardingId }: G
       }
     }
 
-    const reszlegNev = (Array.isArray(adatlapData?.felhasznalo_profil?.hr_szervezeti_egyseg) ? adatlapData?.felhasznalo_profil?.hr_szervezeti_egyseg[0]?.nev : (adatlapData?.felhasznalo_profil?.hr_szervezeti_egyseg as any)?.nev) || null
+    const reszlegNev =
+      (Array.isArray(adatlapData?.felhasznalo_profil?.hr_szervezeti_egyseg)
+        ? adatlapData?.felhasznalo_profil?.hr_szervezeti_egyseg[0]?.nev
+        : (adatlapData?.felhasznalo_profil?.hr_szervezeti_egyseg as any)?.nev) || null
 
     // Összefésüljük a szerződést a dolgozó ismert adataival
-    const mergedData = (record || resolvedDolgozoId) ? {
-      ...(record || {}),
-      munkakor: record?.munkakor || activeMunkakorMegnevezes || adatlapData?.felhasznalo_profil?.pozicio || null,
-      reszleg: record?.reszleg || reszlegNev,
-      kezdes_datuma: record?.kezdes_datuma || adatlapData?.hr_jogviszony?.[0]?.belepes_datuma || new Date().toISOString().split("T")[0],
-      szerzodes_tipusa: record?.szerzodes_tipusa || (adatlapData?.szerzodes_tipusa === "határozott" ? "hatarozott" : "hatarozatlan"),
-      alapber: Number(record?.alapber || (secretData?.brutto_ber ? Number(secretData.brutto_ber) : null) || 650000),
+    const mergedData =
+      record || resolvedDolgozoId
+        ? {
+            ...(record || {}),
+            munkakor:
+              record?.munkakor || activeMunkakorMegnevezes || adatlapData?.felhasznalo_profil?.pozicio || null,
+            reszleg: record?.reszleg || reszlegNev,
+            kezdes_datuma:
+              record?.kezdes_datuma ||
+              jogviszonyList[0]?.belepes_datuma ||
+              new Date().toISOString().split("T")[0],
+            szerzodes_tipusa:
+              record?.szerzodes_tipusa ||
+              (adatlapData?.szerzodes_tipusa === "határozott" ? "hatarozott" : "hatarozatlan"),
+            alapber: canAccessPayrollOrOnboarding
+              ? Number(
+                  record?.alapber || (secretData?.brutto_ber ? Number(secretData.brutto_ber) : null) || 650000
+                )
+              : 0,
 
-      // Munkavállaló személyes azonosító adatai automatikus kitöltéssel
-      szuletesi_hely: record?.szuletesi_hely || adatlapData?.szuletesi_hely || "Budapest",
-      szuletesi_datum: record?.szuletesi_datum || adatlapData?.szuletesi_datum || adatlapData?.szuletesi_ido || null,
-      anyja_neve: record?.anyja_neve || adatlapData?.anyja_neve || null,
-      lakcim: record?.lakcim || adatlapData?.lakcim || null,
-      adoazonosito_jel: record?.adoazonosito_jel || secretData?.adoazonosito || null,
-      taj_szam: record?.taj_szam || secretData?.taj_szam || null,
-      bankszamlaszam: record?.bankszamlaszam || secretData?.bankszamla || null,
-    } : null
+            // Munkavállaló személyes azonosító adatai automatikus kitöltéssel
+            szuletesi_hely: record?.szuletesi_hely || adatlapData?.szuletesi_hely || "Budapest",
+            szuletesi_datum:
+              record?.szuletesi_datum || adatlapData?.szuletesi_datum || adatlapData?.szuletesi_ido || null,
+            anyja_neve: record?.anyja_neve || adatlapData?.anyja_neve || null,
+            lakcim: record?.lakcim || adatlapData?.lakcim || null,
+            adoazonosito_jel: canAccessPayrollOrOnboarding
+              ? record?.adoazonosito_jel || secretData?.adoazonosito || null
+              : null,
+            taj_szam: canAccessPayrollOrOnboarding
+              ? record?.taj_szam || secretData?.taj_szam || null
+              : null,
+            bankszamlaszam: canAccessPayrollOrOnboarding
+              ? record?.bankszamlaszam || secretData?.bankszamla || null
+              : null,
+          }
+        : null
 
     return { data: mergedData, existingDocument, mt46Document }
   } catch (err: any) {
@@ -203,18 +345,22 @@ export interface GenerateEmploymentContractActionParams {
 
 export async function generateAndFileEmploymentContractAction(params: GenerateEmploymentContractActionParams) {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authErr } = await supabase.auth.getUser()
-    if (authErr || !user) {
-      return { error: "Nincs bejelentkezve!" }
-    }
-
     const adminClient = getAdminClient()
+    const access = await verifyEmploymentContractAccess(adminClient, {
+      dolgozoId: params.dolgozoId,
+      onboardingId: params.onboardingId,
+    })
+    if (!access.ok || !access.auth.user) {
+      return { error: access.error || "Nincs jogosultságod!" }
+    }
+    const user = access.auth.user
+    const activeCompanyId = access.activeCompanyId
+
     const now = new Date()
     const contractNumber = `MSZ-${now.getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`
 
     // 1. PDF Buffer előállítása
-    const cegAdatok = await resolveCompanyDetailsServer(null, adminClient)
+    const cegAdatok = await resolveCompanyDetailsServer(activeCompanyId, adminClient)
     const pdfData: EmploymentContractPdfData = {
       contractNumber,
       employeeName: params.employeeName,
@@ -237,7 +383,7 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
       munkavegzesHelye: params.munkavegzesHelye || "A Munkáltató mindenkori székhelye és telephelyei",
       tavmunkaMegallapodas: Boolean(params.tavmunkaMegallapodas),
       cegAdatok,
-      isDraft: !params.dolgozoId
+      isDraft: !params.dolgozoId,
     }
 
     const { buffer, fileName } = await generateEmploymentContractPdfBuffer(pdfData)
@@ -248,7 +394,7 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
       .from("irat_files")
       .upload(storagePath, buffer, {
         contentType: "application/pdf",
-        upsert: true
+        upsert: true,
       })
 
     if (uploadErr) {
@@ -265,7 +411,8 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
         nev: docName,
         kategoria: "Munkaszerződés",
         url: storagePath,
-        alairas_statusz: "vazlat"
+        alairas_statusz: "vazlat",
+        company_id: activeCompanyId,
       })
       .select()
       .single()
@@ -285,7 +432,7 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
           documentId: newDoc.id,
           employeeId: params.dolgozoId,
           customTargy: docName,
-          currentUserId: user.id
+          currentUserId: user.id,
         })
         isFiled = Boolean(filingResult.success && filingResult.iktatoszam)
       } catch (fErr) {
@@ -318,7 +465,8 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
         taj_szam: params.tajSzam || null,
         bankszamlaszam: params.bankszamlaszam || null,
         reszleg: params.reszleg || null,
-        dokumentum_id: newDoc.id
+        dokumentum_id: newDoc.id,
+        company_id: activeCompanyId,
       })
       .select()
       .single()
@@ -328,44 +476,60 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
     }
 
     // 5b. Ha meglévő dolgozóról van szó (dolgozoId megadva), szinkronizáljuk a szerződés és titkos adatokat az adatlapjára és a titkos tárolóba
+    const canModifySecretPayrollData =
+      access.auth.isCompanyAdmin ||
+      isUserAuthorizedForHrView(
+        access.auth.hrRole,
+        ["admin", "payroll", "onboarding"],
+        access.auth.hrModules
+      )
+
     if (params.dolgozoId) {
       try {
-        await adminClient
+        let adatlapUpd = adminClient
           .from("hr_dolgozo_adatlap")
           .update({
             lakcim: params.lakcim || undefined,
             szuletesi_hely: params.szuletesiHely || undefined,
             szuletesi_datum: params.szuletesiDatum || undefined,
-            anyja_neve: params.anyjaNeve || undefined
+            anyja_neve: params.anyjaNeve || undefined,
           })
           .eq("id", params.dolgozoId)
+        if (activeCompanyId) {
+          adatlapUpd = adatlapUpd.eq("company_id", activeCompanyId)
+        }
+        await adatlapUpd
 
         if (params.kezdesDatuma) {
-          await adminClient
+          let jogUpd = adminClient
             .from("hr_jogviszony")
             .update({ belepes_datuma: params.kezdesDatuma })
             .eq("dolgozo_id", params.dolgozoId)
+          if (activeCompanyId) {
+            jogUpd = jogUpd.eq("company_id", activeCompanyId)
+          }
+          await jogUpd
         }
 
-        const taj = params.tajSzam || ""
-        const ado = params.adoazonositoJel || ""
-        const bank = params.bankszamlaszam || ""
-        const brutto = params.alapber ? String(params.alapber) : ""
-        const bruttoNum = Number(params.alapber || 0)
-        const netto = bruttoNum > 0 ? String(Math.round(bruttoNum * 0.665)) : ""
-        const toByteaHex = (str: string) => "\\x" + Buffer.from(str, "utf-8").toString("hex")
+        if (canModifySecretPayrollData) {
+          const taj = params.tajSzam || ""
+          const ado = params.adoazonositoJel || ""
+          const bank = params.bankszamlaszam || ""
+          const brutto = params.alapber ? String(params.alapber) : ""
+          const bruttoNum = Number(params.alapber || 0)
+          const netto = bruttoNum > 0 ? String(Math.round(bruttoNum * 0.665)) : ""
+          const toByteaHex = (str: string) => "\\x" + Buffer.from(str, "utf-8").toString("hex")
 
-        if (taj || ado || bank || brutto) {
-          await adminClient
-            .from("hr_dolgozo_titkos_adat")
-            .upsert({
+          if (taj || ado || bank || brutto) {
+            await adminClient.from("hr_dolgozo_titkos_adat").upsert({
               dolgozo_id: params.dolgozoId,
               taj_szam_titkositott: taj ? toByteaHex(taj) : null,
               adoazonosito_titkositott: ado ? toByteaHex(ado) : null,
               bankszamla_titkositott: bank ? toByteaHex(bank) : null,
               brutto_ber_titkositott: brutto ? toByteaHex(brutto) : null,
-              netto_ber_titkositott: netto ? toByteaHex(netto) : null
+              netto_ber_titkositott: netto ? toByteaHex(netto) : null,
             })
+          }
         }
       } catch (syncErr) {
         console.error("Hiba a szerződés adatlap szinkronizációjakor:", syncErr)
@@ -375,24 +539,28 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
     // 6. Ha van onboarding feladat a munkaszerződésre, automatikusan készre állítjuk és frissítjük az onboarding rekordot!
     if (params.onboardingId) {
       try {
-        // Frissítjük a belépési adatokat az onboarding rekordon is
-        await adminClient
+        let obUpd = adminClient
           .from("hr_onboarding")
           .update({
             munkakor: params.munkakor,
             reszleg: params.reszleg || null,
-            belepes_datuma: params.kezdesDatuma
+            belepes_datuma: params.kezdesDatuma,
           })
           .eq("id", params.onboardingId)
+        if (activeCompanyId) {
+          obUpd = obUpd.eq("company_id", activeCompanyId)
+        }
+        await obUpd
 
         const { data: tasks } = await adminClient
           .from("hr_onboarding_feladat")
           .select("id, cim, statusz")
           .eq("onboarding_id", params.onboardingId)
 
-        const contractTask = (tasks || []).find((t: any) =>
-          (t.cim || "").toLowerCase().includes("munkaszerződés") ||
-          (t.cim || "").toLowerCase().includes("szerződés")
+        const contractTask = (tasks || []).find(
+          (t: any) =>
+            (t.cim || "").toLowerCase().includes("munkaszerződés") ||
+            (t.cim || "").toLowerCase().includes("szerződés")
         )
 
         if (contractTask && contractTask.statusz !== "done") {
@@ -409,14 +577,11 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
     // 7. Audit naplózás
     await adminClient.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
-      esemeny_tipus: "szerzodes_generalas",
-      leiras: `Munkaszerződés generálva: ${params.employeeName} (${params.munkakor})`,
-      metadata: {
-        dokumentum_id: newDoc.id,
-        onboarding_id: params.onboardingId,
-        dolgozo_id: params.dolgozoId,
-        iktatoszam: filingResult?.iktatoszam || null
-      }
+      esemeny_tipus: "adat_letrehozas",
+      entitas_tipus: "hr_munkaszerzodes",
+      entitas_id: contractRecord?.id || newDoc.id,
+      company_id: activeCompanyId,
+      megjegyzes: `Munkaszerződés generálva: ${params.employeeName} (${params.munkakor})`,
     })
 
     const { data: sData } = await adminClient.storage.from("irat_files").createSignedUrl(storagePath, 3600)
@@ -432,9 +597,9 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
       document: {
         ...newDoc,
         url: sData?.signedUrl || storagePath,
-        iktatoszam: filingResult?.iktatoszam || null
+        iktatoszam: filingResult?.iktatoszam || null,
       },
-      isFiled
+      isFiled,
     }
   } catch (err: any) {
     console.error("generateAndFileEmploymentContractAction error:", err)
@@ -445,18 +610,19 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
 export async function fileExistingEmploymentContractDocument({
   documentId,
   dolgozoId,
-  employeeName
+  employeeName,
 }: {
   documentId: string
   dolgozoId: string
   employeeName: string
 }) {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authErr } = await supabase.auth.getUser()
-    if (authErr || !user) return { error: "Nincs bejelentkezve!" }
-
     const adminClient = getAdminClient()
+    const access = await verifyEmploymentContractAccess(adminClient, { documentId, dolgozoId })
+    if (!access.ok || !access.auth.user) {
+      return { error: access.error || "Nincs jogosultságod!" }
+    }
+
     const { data: doc, error: docErr } = await adminClient
       .from("hr_dokumentum")
       .select("id, nev, iktatoszam")
@@ -475,7 +641,7 @@ export async function fileExistingEmploymentContractDocument({
       documentId,
       employeeId: dolgozoId,
       customTargy: doc.nev || `Munkaszerződés - ${employeeName}`,
-      currentUserId: user.id
+      currentUserId: access.auth.user.id,
     })
 
     if (!result.success) {
@@ -502,13 +668,19 @@ export async function fileExistingEmploymentContractDocument({
  */
 export async function generateMt46NoticeAction(params: GenerateEmploymentContractActionParams) {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: "Nincs bejelentkezve" }
-
     const adminClient = getAdminClient()
+    const access = await verifyEmploymentContractAccess(adminClient, {
+      dolgozoId: params.dolgozoId,
+      onboardingId: params.onboardingId,
+    })
+    if (!access.ok || !access.auth.user) {
+      return { error: access.error || "Nincs jogosultságod!" }
+    }
+    const user = access.auth.user
+    const activeCompanyId = access.activeCompanyId
+
     const { generateMt46NoticePdfBuffer } = await import("@/utils/hr/mt46-notice-generator")
-    const cegAdatok = await resolveCompanyDetailsServer(null, adminClient)
+    const cegAdatok = await resolveCompanyDetailsServer(activeCompanyId, adminClient)
 
     const pdfData: EmploymentContractPdfData = {
       contractNumber: "Mt. 46 Tájékoztató",
@@ -532,7 +704,7 @@ export async function generateMt46NoticeAction(params: GenerateEmploymentContrac
       munkavegzesHelye: params.munkavegzesHelye || "A Munkáltató mindenkori székhelye és telephelyei",
       tavmunkaMegallapodas: Boolean(params.tavmunkaMegallapodas),
       cegAdatok,
-      isDraft: !params.dolgozoId
+      isDraft: !params.dolgozoId,
     }
 
     const buffer = await generateMt46NoticePdfBuffer(pdfData)
@@ -543,7 +715,7 @@ export async function generateMt46NoticeAction(params: GenerateEmploymentContrac
       .from("irat_files")
       .upload(storagePath, buffer, {
         contentType: "application/pdf",
-        upsert: true
+        upsert: true,
       })
 
     if (uploadErr) {
@@ -558,7 +730,8 @@ export async function generateMt46NoticeAction(params: GenerateEmploymentContrac
         dolgozo_id: params.dolgozoId || null,
         nev: docName,
         kategoria: "Tájékoztató",
-        url: storagePath
+        url: storagePath,
+        company_id: activeCompanyId,
       })
       .select()
       .single()
@@ -578,7 +751,7 @@ export async function generateMt46NoticeAction(params: GenerateEmploymentContrac
         documentId: newDoc.id,
         employeeId: params.dolgozoId,
         customTargy: docName,
-        currentUserId: user.id
+        currentUserId: user.id,
       })
       if (filingRes.success && filingRes.iktatoszam) {
         iktatoszam = filingRes.iktatoszam
@@ -593,7 +766,7 @@ export async function generateMt46NoticeAction(params: GenerateEmploymentContrac
       documentId: newDoc.id,
       url: viewUrl,
       displayUrl: viewUrl,
-      iktatoszam
+      iktatoszam,
     }
   } catch (err: any) {
     console.error("generateMt46NoticeAction error:", err)

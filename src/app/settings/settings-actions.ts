@@ -7,7 +7,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 export async function getUserProfile() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) {
     return { error: "Nem vagy bejelentkezve" }
   }
@@ -28,17 +28,17 @@ export async function getUserProfile() {
 export async function updateProfile(formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) {
     return { error: "Nem vagy bejelentkezve" }
   }
 
   const rpcData: any = {}
-  
+
   if (formData.has("nev")) rpcData.p_nev = formData.get("nev") as string
   if (formData.has("pozicio")) rpcData.p_pozicio = formData.get("pozicio") as string
   if (formData.has("ceg_neve")) rpcData.p_ceg_neve = formData.get("ceg_neve") as string
-  
+
   const idotullepes = formData.get("munkamenet_idotullepes")
   if (idotullepes) {
     rpcData.p_munkamenet_idotullepes = parseInt(idotullepes as string, 10)
@@ -51,7 +51,7 @@ export async function updateProfile(formData: FormData) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-    
+
     const { error: telefonError } = await supabaseAdmin
       .from("felhasznalo_profil")
       .update({ telefon: telefon as string })
@@ -306,7 +306,7 @@ export async function updateUserPassword(formData: FormData) {
   }
 
   const supabase = await createClient()
-  
+
   const { error } = await supabase.auth.updateUser({
     password: password
   })
@@ -321,9 +321,38 @@ export async function updateUserPassword(formData: FormData) {
 export async function updateUserRole(userId: string, newRole: string, currentMinosites: string, departmentId: string | null) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: "Nincs bejelentkezve!" }
+  }
 
-  if (user && user.id === userId && !['admin', 'rendszergazda'].includes(newRole)) {
+  const ALLOWED_ROLES = ["admin", "rendszergazda", "vezeto", "iktato", "ugyintezo", "betekinto", "auditor"]
+  if (!ALLOWED_ROLES.includes(newRole)) {
+    return { error: "Érvénytelen szerepkör!" }
+  }
+
+  if (user.id === userId && !['admin', 'rendszergazda'].includes(newRole)) {
     return { error: "Saját adminisztrátori szerepkörödet nem vonhatod vissza, hogy elkerüld a rendszerből való kizáródást!" }
+  }
+
+  const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const scoped = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
+  if (!scoped.isCompanyAdmin && scoped.docsRole !== "admin" && scoped.docsRole !== "rendszergazda") {
+    return { error: "Nincs jogosultságod a felhasználói szerepkör módosítására ebben a vállalatban!" }
+  }
+
+  if (activeCompanyId) {
+    const { data: targetMembership } = await supabase
+      .from("company_members")
+      .select("id")
+      .eq("company_id", activeCompanyId)
+      .eq("user_id", userId)
+      .maybeSingle()
+
+    if (!targetMembership) {
+      return { error: "A kiválasztott felhasználó nem tagja az aktív vállalatnak!" }
+    }
   }
 
   const { error: rpcError } = await supabase.rpc('admin_update_user_profile', {
@@ -702,7 +731,7 @@ export async function deleteUser(userId: string) {
   )
 
   const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
-  
+
   if (error) {
     return { error: error.message }
   }
@@ -717,9 +746,28 @@ export async function toggleNotificationRule(id: string, active: boolean) {
 
   if (!user) return { error: "Nem vagy bejelentkezve" }
 
-  // Cég-szűrés: csak a saját cég szabályát módosíthatja
-  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
   const activeCompanyId = await getActiveCompanyIdServer()
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .maybeSingle()
+
+  const isAuthorized =
+    scopedRoles.isCompanyAdmin ||
+    scopedRoles.docsRole === "admin" ||
+    scopedRoles.hrRole === "admin" ||
+    scopedRoles.hrRole === "rendszergazda" ||
+    profile?.szerepkor === "admin" ||
+    profile?.docs_szerepkor === "admin" ||
+    profile?.szerepkor === "rendszergazda" ||
+    profile?.docs_szerepkor === "rendszergazda"
+
+  if (!isAuthorized) {
+    return { error: "Nincs adminisztrátor jogosultságod a művelethez." }
+  }
 
   const { error } = await supabase
     .from("ertesitesi_szabaly")
@@ -732,6 +780,7 @@ export async function toggleNotificationRule(id: string, active: boolean) {
   }
 
   revalidatePath("/settings")
+  revalidatePath("/hr/settings")
   return { success: true }
 }
 
@@ -766,18 +815,28 @@ export const assignUsersToDepartment = addUsersToDepartment
 export async function updateRuleChannels(id: string, channels: string[]) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) return { error: "Nem vagy bejelentkezve" }
 
-  // Jogosultság ellenőrzése
+  const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
+  // Jogosultság ellenőrzése (cég-admin vagy globális admin)
   const { data: profile } = await supabase.from("felhasznalo_profil").select("szerepkor, docs_szerepkor").eq("id", user.id).single()
-  if (!profile || (profile.szerepkor !== 'admin' && profile.docs_szerepkor !== 'admin' && profile.szerepkor !== 'rendszergazda' && profile.docs_szerepkor !== 'rendszergazda')) {
+  const isAuthorized =
+    scopedRoles.isCompanyAdmin ||
+    scopedRoles.docsRole === "admin" ||
+    scopedRoles.hrRole === "admin" ||
+    scopedRoles.hrRole === "rendszergazda" ||
+    profile?.szerepkor === "admin" ||
+    profile?.docs_szerepkor === "admin" ||
+    profile?.szerepkor === "rendszergazda" ||
+    profile?.docs_szerepkor === "rendszergazda"
+
+  if (!isAuthorized) {
     return { error: "Nincs adminisztrátor jogosultságod a művelethez." }
   }
-
-  // Szervíz kulcs használata RLS megkerüléséhez (mivel az RLS jelenleg rosszul van beállítva a DB-ben)
-  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
-  const activeCompanyId = await getActiveCompanyIdServer()
 
   const supabaseAdmin = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -796,6 +855,7 @@ export async function updateRuleChannels(id: string, channels: string[]) {
   }
 
   revalidatePath("/settings")
+  revalidatePath("/hr/settings")
   return { success: true }
 }
 

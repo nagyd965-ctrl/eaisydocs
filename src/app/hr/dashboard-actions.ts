@@ -3,7 +3,8 @@
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
-import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 
 export async function reassignPendingLeaves() {
   const supabase = await createClient()
@@ -11,20 +12,19 @@ export async function reassignPendingLeaves() {
   if (!user) return { error: "Nincs bejelentkezve" }
 
   const activeCompanyId = await getActiveCompanyIdServer()
+  const scoped = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Csak HR/Admin futtathatja
-  const { data: currentUserProfile } = await supabase
-    .from("felhasznalo_profil")
-    .select("hr_szerepkor")
-    .eq("id", user.id)
-    .single()
+  // Csak HR/Admin (time vagy admin moduljoggal rendelkező) futtathatja az aktív cégben
+  const canReassign =
+    scoped.isCompanyAdmin ||
+    isUserAuthorizedForHrView(scoped.hrRole, ["admin", "time"], scoped.hrModules)
 
-  if (!currentUserProfile || !["hr_vezeto", "admin"].includes(currentUserProfile.hr_szerepkor)) {
+  if (!canReassign) {
     return { error: "Nincs jogosultságod ehhez a művelethez!" }
   }
 
@@ -92,15 +92,24 @@ export async function reassignPendingLeaves() {
       }
     }
 
-    if (!currentManagerId && !newJovahagyoId) {
-      const { data: hrAdmin } = await supabaseAdmin
-        .from("felhasznalo_profil")
-        .select("id")
-        .in("hr_szerepkor", ["hr_vezeto", "admin"])
-        .limit(1)
-        .maybeSingle();
-      
-      if (hrAdmin) newJovahagyoId = hrAdmin.id;
+    if (!currentManagerId && !newJovahagyoId && activeCompanyId) {
+      const { data: companyMembers } = await supabaseAdmin
+        .from("company_members")
+        .select("user_id, role, hr_szerepkor, hr_modulok")
+        .eq("company_id", activeCompanyId)
+
+      const hrOrAdminMember = (companyMembers || []).find((m: any) =>
+        m.role === "owner" ||
+        m.role === "admin" ||
+        isUserAuthorizedForHrView(
+          m.hr_szerepkor,
+          ["admin", "time"],
+          Array.isArray(m.hr_modulok) ? m.hr_modulok : []
+        )
+      )
+      if (hrOrAdminMember?.user_id) {
+        newJovahagyoId = hrOrAdminMember.user_id
+      }
     }
 
     // Csak akkor frissítjük, ha változott az aktuális jóváhagyó

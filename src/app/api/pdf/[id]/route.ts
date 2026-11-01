@@ -285,6 +285,7 @@ export async function GET(
       entitas_id: iratId,
       esemeny_tipus: "megtekintve",
       user_id: user.id,
+      company_id: irat.company_id || null,
       indoklas: isConfidential ? "Vízjelezett PDF megtekintése" : "PDF megtekintése",
       ip_cim: ip,
       user_agent: userAgent

@@ -13,7 +13,7 @@ import {
   type PayslipPdfData 
 } from "@/utils/hr/payslip-pdf-generator"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
-import { calculateWorkingDays } from "@/utils/hr/leave-calculator"
+import { calculateWorkingDays, resolveEffectiveHolidays } from "@/utils/hr/leave-calculator"
 
 function getAdminClient() {
   return createAdminClient(
@@ -260,17 +260,14 @@ export async function getPayrollDashboardData(
       .eq("statusz", "jovahagyva"),
     adminClient
       .from("hr_munkaszuneti_nap")
-      .select("datum, athelye_munkanap")
+      .select("datum, athelye_munkanap, company_id")
       .gte("datum", firstDay)
-      .lte("datum", lastDay),
+      .lte("datum", lastDay)
+      .or(`company_id.is.null,company_id.eq.${activeCompanyId}`),
   ])
 
-  const monthHolidays = (holidaysData || [])
-    .filter((h: any) => !h.athelye_munkanap)
-    .map((h: any) => h.datum as string)
-  const monthTransferredWorkdays = (holidaysData || [])
-    .filter((h: any) => Boolean(h.athelye_munkanap))
-    .map((h: any) => h.datum as string)
+  const { holidays: monthHolidays, transferredWorkdays: monthTransferredWorkdays } =
+    resolveEffectiveHolidays(holidaysData as any[], activeCompanyId)
 
   const leaveMap = new Map<string, { szabadsag: number; beteg: number }>()
   tavolletek?.forEach((t) => {
@@ -584,7 +581,7 @@ export async function generateMonthlyPayslipsAction(params: {
 
     const { error: upsertErr } = await adminClient
       .from("hr_berpapir")
-      .upsert(payload, { onConflict: "dolgozo_id,ev,honap" })
+      .upsert(payload, { onConflict: "company_id,dolgozo_id,ev,honap" })
 
     if (upsertErr) {
       console.error("Hiba bérpapír mentésekor:", upsertErr)
@@ -600,6 +597,7 @@ export async function generateMonthlyPayslipsAction(params: {
     entitas_id: user.id,
     esemeny_tipus: "hr_modositva",
     user_id: user.id,
+    company_id: activeCompanyId,
     indoklas: `Havi bérpapírok előállítása és közzététele (Mt. 155. §) - ${params.year}/${params.month}. Érintett dolgozók száma: ${generatedCount}`
   })
 
@@ -674,23 +672,26 @@ export async function updateSinglePayslipAction(
     }
   }
 
-  // P0-javítás (2026-11-01): cross-tenant írás tiltása — a bérpapír az aktív céghez tartozzon
-  if (current?.company_id && current.company_id !== activeCompanyId) {
-    return { success: false, error: "A bérpapír másik céghez tartozik — nincs jogosultságod a módosításához." }
-  }
-
   if (!current && dolgozoId && year && month) {
-    const { data } = await adminClient
+    let fallbackQuery = adminClient
       .from("hr_berpapir")
       .select("*")
       .eq("dolgozo_id", dolgozoId)
       .eq("ev", year)
       .eq("honap", month)
-      .maybeSingle()
+    if (activeCompanyId) {
+      fallbackQuery = fallbackQuery.eq("company_id", activeCompanyId)
+    }
+    const { data } = await fallbackQuery.maybeSingle()
     if (data) {
       current = data
       payslipId = current.id
     }
+  }
+
+  // P0/P1-javítás (2026-11-01): cross-tenant írás tiltása — a bérpapír mindkét betöltési ágon az aktív céghez tartozzon
+  if (current?.company_id && activeCompanyId && current.company_id !== activeCompanyId) {
+    return { success: false, error: "A bérpapír másik céghez tartozik — nincs jogosultságod a módosításához." }
   }
 
   const p = params || (typeof targetOrPayslipId === "object" ? (targetOrPayslipId as any) : {})

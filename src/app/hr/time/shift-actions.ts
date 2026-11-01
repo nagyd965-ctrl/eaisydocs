@@ -16,8 +16,11 @@ import { checkWeeklyHoursCompliance } from "@/utils/hr/overtime-engine"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export async function getCompanyShiftTemplates(): Promise<ShiftTemplate[]> {
+  const auth = await requireHrAuthServer(["time", "admin", "vezeto", "payroll", "employees", "auditor"], null)
+  if (!auth.authorized) return []
+
   const supabase = await createClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   if (!activeCompanyId) return []
 
   const { data, error } = await supabase
@@ -51,8 +54,9 @@ export async function getCompanyShiftTemplates(): Promise<ShiftTemplate[]> {
 export async function getWeeklyShiftRoster(
   weekStartInput?: string
 ): Promise<WeeklyRosterData> {
+  const auth = await requireHrAuthServer(["time", "admin", "vezeto", "payroll", "employees", "auditor"], null)
   const supabase = await createClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   // Számoljuk a hétfőtől vasárnapig tartó intervallumot
@@ -62,6 +66,17 @@ export async function getWeeklyShiftRoster(
 
   const weekStartStr = format(monday, "yyyy-MM-dd")
   const weekEndStr = format(sunday, "yyyy-MM-dd")
+
+  if (!auth.authorized) {
+    return {
+      weekStart: weekStartStr,
+      weekEnd: weekEndStr,
+      templates: [],
+      employees: [],
+      assignments: [],
+      leaves: [],
+    }
+  }
 
   // 1. Sablonok lekérése
   const templates = await getCompanyShiftTemplates()

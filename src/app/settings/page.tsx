@@ -16,10 +16,14 @@ export default async function SettingsPage() {
 
   const supabase = await createClient()
 
-  const { data: szabalyok } = await supabase
+  let szabalyokQuery = supabase
     .from("ertesitesi_szabaly")
     .select("*")
     .order("created_at", { ascending: false })
+  if (activeCompanyId) {
+    szabalyokQuery = szabalyokQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: szabalyok } = await szabalyokQuery
 
   const isAdmin = profile.szerepkor === 'admin' || profile.docs_szerepkor === 'admin' || profile.szerepkor === 'rendszergazda' || profile.docs_szerepkor === 'rendszergazda'
   const naplo: any[] = []

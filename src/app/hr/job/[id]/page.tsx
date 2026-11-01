@@ -23,11 +23,20 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Biztonsági ellenőrzés (HR modul hozzáférés)
+  // Biztonsági ellenőrzés (HR modul hozzáférés + jogosultság és cég-hatókör)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const viewAuth = await requireHrAuthServer(
+    ["admin", "organization", "employees", "onboarding", "vezeto", "auditor"],
+    null
+  )
+  if (!viewAuth.authorized) {
+    redirect("/hr")
+  }
+
+  const activeCompanyId = viewAuth.activeCompanyId || (await getActiveCompanyIdServer())
   const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
   const { data: profile } = await supabase
@@ -41,29 +50,22 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
   }
 
   const effectiveModules = scopedRoles.hrModules.length > 0 ? scopedRoles.hrModules : ((profile as any).hr_modulok || [])
+  const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
   const isHrOrAdmin =
-    scopedRoles.hrRole === "admin" ||
-    effectiveModules.includes("organization") ||
-    effectiveModules.includes("admin") ||
-    ["hr_munkatars", "hr_vezeto", "admin"].includes(profile.hr_szerepkor)
+    scopedRoles.isCompanyAdmin ||
+    isUserAuthorizedForHrView(scopedRoles.hrRole || profile.hr_szerepkor, ["admin", "organization"], effectiveModules)
 
-  // Munkakör és szervezeti egységek lekérése
-  const { data: job, error: jobError } = await admin
+  // Munkakör és szervezeti egységek lekérése (cég-ellenőrzéssel)
+  let jobQuery = admin
     .from("hr_munkakor")
     .select("*, hr_szervezeti_egyseg(id, nev)")
     .eq("id", id)
-    .single()
-
-  let orgUnitsQuery = admin
-    .from("hr_szervezeti_egyseg")
-    .select("id, nev")
-    .order("nev")
-  if (job?.company_id) {
-    orgUnitsQuery = orgUnitsQuery.eq("company_id", job.company_id)
+  if (activeCompanyId) {
+    jobQuery = jobQuery.eq("company_id", activeCompanyId)
   }
-  const { data: orgUnits } = await orgUnitsQuery
+  const { data: job, error: jobError } = await jobQuery.single()
 
-  if (jobError || !job) {
+  if (jobError || !job || (activeCompanyId && job.company_id && job.company_id !== activeCompanyId)) {
     return (
       <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
         <h2 className="text-xl font-semibold text-muted-foreground">Munkakör nem található</h2>
@@ -73,6 +75,15 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
       </div>
     )
   }
+
+  let orgUnitsQuery = admin
+    .from("hr_szervezeti_egyseg")
+    .select("id, nev")
+    .order("nev")
+  if (job.company_id || activeCompanyId) {
+    orgUnitsQuery = orgUnitsQuery.eq("company_id", job.company_id || activeCompanyId)
+  }
+  const { data: orgUnits } = await orgUnitsQuery
 
   // Jelenleg ebben a munkakörben dolgozók lekérése profil avatarral
   const { data: beosztasok } = await admin

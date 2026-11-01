@@ -13,7 +13,7 @@ import {
 import { type KpiCatalogueItem } from "@/types/hr"
 
 export default async function PerformancePage() {
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "vezeto", "auditor"])
+  const auth = await requireHrAuthServer(["admin", "performance", "audit", "vezeto"])
   if (!auth.authorized || !auth.activeCompanyId) {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">
@@ -87,6 +87,7 @@ export default async function PerformancePage() {
       .from("hr_kpi_katalogus")
       .select("*")
       .eq("aktiv", true)
+      .or(`company_id.eq.${companyScope},company_id.is.null`)
       .order("megnevezes")
   ])
 

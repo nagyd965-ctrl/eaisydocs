@@ -892,6 +892,22 @@ export async function uploadT1041ReceiptFromReport(formData: FormData) {
     }
 
     const activeCompanyId = await getActiveCompanyIdServer()
+    // Ha van meglévő hr_t1041_bejelentes rekord, előbb ellenőrizzük a cég-hatókört
+    if (t1041Id && t1041Id !== "new") {
+      const { data: existingT1041 } = await adminClient
+        .from("hr_t1041_bejelentes")
+        .select("id, company_id")
+        .eq("id", t1041Id)
+        .maybeSingle()
+
+      if (!existingT1041) {
+        return { error: "A megadott T1041 bejelentés nem található." }
+      }
+      if (activeCompanyId && existingT1041.company_id && existingT1041.company_id !== activeCompanyId) {
+        return { error: "A T1041 bejelentés másik vállalathoz tartozik." }
+      }
+    }
+
     const docName = `${employeeName} - Hivatalos NAV T1041 Befogadási Nyugta`
 
     const { data: newDoc, error: docErr } = await adminClient
@@ -911,7 +927,7 @@ export async function uploadT1041ReceiptFromReport(formData: FormData) {
 
     // Ha van meglévő hr_t1041_bejelentes rekord
     if (t1041Id && t1041Id !== "new") {
-      await adminClient
+      let t1041UpdateQuery = adminClient
         .from("hr_t1041_bejelentes")
         .update({
           nyugta_dokumentum_id: newDoc.id,
@@ -920,6 +936,10 @@ export async function uploadT1041ReceiptFromReport(formData: FormData) {
           updated_at: new Date().toISOString(),
         })
         .eq("id", t1041Id)
+      if (activeCompanyId) {
+        t1041UpdateQuery = t1041UpdateQuery.eq("company_id", activeCompanyId)
+      }
+      await t1041UpdateQuery
     }
 
     // Audit napló

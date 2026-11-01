@@ -9,22 +9,32 @@ export const SELECTED_COMPANY_COOKIE = "eaisydocs_selected_company_id"
 /**
  * Lekéri a bejelentkezett felhasználó számára elérhető cégeket a szerver oldalon.
  * Magyar ABC sorrendben adja vissza őket.
+ * Biztonság (P2-14): A `share_token` mezőt kizárólag a cég tulajdonosa és adminjai kapják meg;
+ * sima tagok számára `null`-ra maszkoljuk.
  */
 export async function getUserCompaniesServer(): Promise<Company[]> {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
   // Lekérjük a cégeket a tagságok alapján
   const { data: memberships } = await supabase
     .from("company_members")
-    .select("company_id")
+    .select("company_id, role, docs_szerepkor, hr_szerepkor")
     .eq("user_id", user.id)
 
-  const companyIds = (memberships || []).map(m => m.company_id)
+  const companyIds = (memberships || []).map((m) => m.company_id)
   if (companyIds.length === 0) {
     return []
+  }
+
+  const membershipMap = new Map<
+    string,
+    { role?: string | null; docs_szerepkor?: string | null; hr_szerepkor?: string | null }
+  >()
+  for (const m of memberships || []) {
+    membershipMap.set(m.company_id, m)
   }
 
   const { data: companies, error } = await supabase
@@ -37,9 +47,28 @@ export async function getUserCompaniesServer(): Promise<Company[]> {
     return []
   }
 
-  return (companies as Company[]).sort((a, b) =>
-    (a.name || "").localeCompare(b.name || "", "hu", { sensitivity: "base" })
-  )
+  return (companies as Company[])
+    .map((company) => {
+      const member = membershipMap.get(company.id)
+      const isCompanyAdminOrOwner =
+        company.owner_id === user.id ||
+        member?.role === "owner" ||
+        member?.role === "admin" ||
+        member?.docs_szerepkor === "admin" ||
+        member?.docs_szerepkor === "rendszergazda" ||
+        member?.hr_szerepkor === "admin" ||
+        member?.hr_szerepkor === "rendszergazda"
+
+      if (!isCompanyAdminOrOwner) {
+        return {
+          ...company,
+          share_token: null,
+          share_token_created_at: null,
+        }
+      }
+      return company
+    })
+    .sort((a, b) => (a.name || "").localeCompare(b.name || "", "hu", { sensitivity: "base" }))
 }
 
 /**
@@ -55,7 +84,7 @@ export async function getActiveCompanyIdServer(): Promise<string | null> {
     return null
   }
 
-  if (cookieVal && companies.some(c => c.id === cookieVal)) {
+  if (cookieVal && companies.some((c) => c.id === cookieVal)) {
     return cookieVal
   }
 
@@ -70,7 +99,7 @@ export async function getActiveCompanyServer(): Promise<Company | null> {
   if (!activeId) return null
 
   const companies = await getUserCompaniesServer()
-  return companies.find(c => c.id === activeId) || null
+  return companies.find((c) => c.id === activeId) || null
 }
 
 /**

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -81,6 +81,10 @@ export function PayslipsTab({
 }: PayslipsTabProps) {
   const [payslips, setPayslips] = useState<EmployeePayslipItem[]>(initialPayslips)
   const [loadingPdfId, setLoadingPdfId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setPayslips(initialPayslips)
+  }, [initialPayslips])
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null)
   const [previewPdfTitle, setPreviewPdfTitle] = useState<string>("")
 

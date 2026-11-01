@@ -125,3 +125,45 @@ export function calculateWorkingDays(
 
   return count
 }
+
+export interface HolidayRecordLike {
+  datum: string
+  megnevezes?: string | null
+  athelye_munkanap?: boolean | null
+  company_id?: string | null
+}
+
+/**
+ * Összefésüli az országos (company_id IS NULL) és a vállalati (company_id = activeCompanyId)
+ * munkaszüneti/áthelyezett munkanap rekordokat úgy, hogy azonos dátum esetén a vállalati
+ * bejegyzés felülbírálja az országos alapértelmezést.
+ */
+export function resolveEffectiveHolidays<T extends HolidayRecordLike>(
+  rawRows: T[] | null | undefined,
+  activeCompanyId?: string | null
+): {
+  rows: T[]
+  holidays: string[]
+  transferredWorkdays: string[]
+} {
+  const byDate = new Map<string, T>()
+  for (const row of rawRows || []) {
+    if (!row?.datum) continue
+    if (row.company_id && activeCompanyId && row.company_id !== activeCompanyId) {
+      continue
+    }
+    if (row.company_id && !activeCompanyId) {
+      continue
+    }
+    const existing = byDate.get(row.datum)
+    if (!existing || (row.company_id && !existing.company_id)) {
+      byDate.set(row.datum, row)
+    }
+  }
+
+  const rows = Array.from(byDate.values()).sort((a, b) => a.datum.localeCompare(b.datum))
+  const holidays = rows.filter((r) => !r.athelye_munkanap).map((r) => r.datum)
+  const transferredWorkdays = rows.filter((r) => Boolean(r.athelye_munkanap)).map((r) => r.datum)
+
+  return { rows, holidays, transferredWorkdays }
+}

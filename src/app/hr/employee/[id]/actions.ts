@@ -87,7 +87,7 @@ async function requireEmployeeActionAccess(
       .select("company_id")
       .eq("id", employeeId)
       .maybeSingle()
-    if (adatlap?.company_id && adatlap.company_id !== effectiveCompanyId) {
+    if (!adatlap || adatlap.company_id !== effectiveCompanyId) {
       const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
       const adminClient = createSupabaseClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -146,6 +146,7 @@ export async function addWorkplace(employeeId: string, formData: FormData) {
     jogviszony_tipusa,
     kezdet_datuma,
     veg_datuma,
+    ...(access.activeCompanyId ? { company_id: access.activeCompanyId } : {}),
   })
 
   if (error) return { error: error.message }
@@ -158,7 +159,11 @@ export async function deleteWorkplace(id: string, employeeId: string) {
   const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"], { allowSelf: true })
   if (!access.ok) return { error: access.error }
   const supabase = await createClient()
-  const { error } = await supabase.from("hr_elozo_munkahely").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  let q = supabase.from("hr_elozo_munkahely").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  if (access.activeCompanyId) {
+    q = q.eq("company_id", access.activeCompanyId)
+  }
+  const { error } = await q
   if (error) return { error: error.message }
   revalidatePath(`/hr/employee/${employeeId}`)
   return { success: true }
@@ -218,7 +223,8 @@ export async function addQualification(employeeId: string, formData: FormData) {
     bizonyitvany_szam,
     megszerzes_datuma: megszerzes_datuma || null,
     fokozat,
-    dokumentum_url: fileUrl
+    dokumentum_url: fileUrl,
+    ...(access.activeCompanyId ? { company_id: access.activeCompanyId } : {}),
   })
 
   if (error) return { error: error.message }
@@ -258,7 +264,11 @@ export async function deleteQualification(id: string, employeeId: string) {
   const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"], { allowSelf: true })
   if (!access.ok) return { error: access.error }
   const supabase = await createClient()
-  const { error } = await supabase.from("hr_kepzettseg").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  let q = supabase.from("hr_kepzettseg").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  if (access.activeCompanyId) {
+    q = q.eq("company_id", access.activeCompanyId)
+  }
+  const { error } = await q
   if (error) return { error: error.message }
   revalidatePath(`/hr/employee/${employeeId}`)
   return { success: true }
@@ -394,6 +404,9 @@ export async function deleteStudyContract(id: string, employeeId: string) {
 }
 
 export async function fileStudyContractAction(contractId: string, employeeId: string) {
+  const access = await requireEmployeeActionAccess(employeeId, HR_DOC_FILING_MODULES)
+  if (!access.ok) return { success: false, error: access.error || "Nincs jogosultsága tanulmányi szerződést iktatni!" }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
@@ -411,11 +424,15 @@ export async function fileStudyContractAction(contractId: string, employeeId: st
   }
 
   // 1. Rekord lekérése
-  const { data: contract, error: contractErr } = await supabase
+  let contractQuery = supabase
     .from("hr_tanulmanyi_szerzodes")
     .select("*")
     .eq("id", contractId)
-    .single()
+    .eq("dolgozo_id", employeeId)
+  if (access.activeCompanyId) {
+    contractQuery = contractQuery.eq("company_id", access.activeCompanyId)
+  }
+  const { data: contract, error: contractErr } = await contractQuery.single()
 
   if (contractErr || !contract) {
     return { success: false, error: "Tanulmányi szerződés nem található!" }
@@ -480,13 +497,15 @@ export async function fileStudyContractAction(contractId: string, employeeId: st
 
   // 4. Ha még nincs hr_dokumentum bejegyzés, hozzunk létre egyet
   if (!docId) {
+    const activeCompanyId = contract.company_id || (await getActiveCompanyIdServer())
     const { data: newDoc, error: docError } = await supabase
       .from("hr_dokumentum")
       .insert({
         dolgozo_id: employeeId,
         nev: docSubject,
         kategoria: "Tanulmányi szerződés",
-        url: storagePath
+        url: storagePath,
+        company_id: activeCompanyId
       })
       .select("id")
       .single()
@@ -527,6 +546,7 @@ export async function fileStudyContractAction(contractId: string, employeeId: st
     esemeny_tipus: "adat_letrehozas",
     entitas_tipus: "hr_dokumentum",
     entitas_id: docId,
+    company_id: contract.company_id || access.activeCompanyId || null,
     megjegyzes: `Tanulmányi szerződés hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`
   })
 
@@ -754,6 +774,9 @@ export async function deleteOrvosiVizsgalat(id: string, employeeId: string) {
 }
 
 export async function fileMedicalExaminationAction(orvosiId: string, employeeId: string) {
+  const access = await requireEmployeeActionAccess(employeeId, HR_DOC_FILING_MODULES)
+  if (!access.ok) return { success: false, error: access.error || "Nincs jogosultsága orvosi alkalmassági dokumentumot iktatni!" }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
@@ -771,11 +794,15 @@ export async function fileMedicalExaminationAction(orvosiId: string, employeeId:
   }
 
   // 1. Lekérjük a vizsgálat rekordot
-  const { data: orvosi, error: orvosiErr } = await supabase
+  let orvosiQuery = supabase
     .from("hr_orvosi_vizsgalat")
     .select("*")
     .eq("id", orvosiId)
-    .single()
+    .eq("dolgozo_id", employeeId)
+  if (access.activeCompanyId) {
+    orvosiQuery = orvosiQuery.eq("company_id", access.activeCompanyId)
+  }
+  const { data: orvosi, error: orvosiErr } = await orvosiQuery.single()
 
   if (orvosiErr || !orvosi) {
     return { success: false, error: "Orvosi vizsgálat nem található!" }
@@ -848,13 +875,15 @@ export async function fileMedicalExaminationAction(orvosiId: string, employeeId:
 
   // 4. Ha még nincs hr_dokumentum bejegyzés, hozzunk létre egyet
   if (!docId) {
+    const activeCompanyId = orvosi.company_id || (await getActiveCompanyIdServer())
     const { data: newDoc, error: docError } = await supabase
       .from("hr_dokumentum")
       .insert({
         dolgozo_id: employeeId,
         nev: docSubject,
         kategoria: "Orvosi alkalmassági igazolás",
-        url: storagePath
+        url: storagePath,
+        company_id: activeCompanyId
       })
       .select("id")
       .single()
@@ -895,6 +924,7 @@ export async function fileMedicalExaminationAction(orvosiId: string, employeeId:
     esemeny_tipus: "adat_letrehozas",
     entitas_tipus: "hr_dokumentum",
     entitas_id: docId,
+    company_id: orvosi.company_id || access.activeCompanyId || null,
     megjegyzes: `Orvosi alkalmassági vélemény hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`
   })
 
@@ -1056,6 +1086,9 @@ export async function deleteFegyelmi(id: string, employeeId: string) {
 }
 
 export async function fileDisciplinaryAction(disciplinaryId: string, employeeId: string) {
+  const access = await requireEmployeeActionAccess(employeeId, HR_DOC_FILING_MODULES)
+  if (!access.ok) return { success: false, error: access.error || "Nincs jogosultsága fegyelmi határozatot iktatni!" }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
@@ -1073,11 +1106,15 @@ export async function fileDisciplinaryAction(disciplinaryId: string, employeeId:
   }
 
   // 1. Rekord lekérése
-  const { data: item, error: itemErr } = await supabase
+  let itemQuery = supabase
     .from("hr_fegyelmi")
     .select("*")
     .eq("id", disciplinaryId)
-    .single()
+    .eq("dolgozo_id", employeeId)
+  if (access.activeCompanyId) {
+    itemQuery = itemQuery.eq("company_id", access.activeCompanyId)
+  }
+  const { data: item, error: itemErr } = await itemQuery.single()
 
   if (itemErr || !item) {
     return { success: false, error: "Fegyelmi határozat nem található!" }
@@ -1151,13 +1188,15 @@ export async function fileDisciplinaryAction(disciplinaryId: string, employeeId:
 
   // 4. Ha még nincs hr_dokumentum bejegyzés, hozzunk létre egyet
   if (!docId) {
+    const activeCompanyId = item.company_id || (await getActiveCompanyIdServer())
     const { data: newDoc, error: docError } = await supabase
       .from("hr_dokumentum")
       .insert({
         dolgozo_id: employeeId,
         nev: docSubject,
         kategoria: "Fegyelmi és kártérítési ügyek",
-        url: storagePath
+        url: storagePath,
+        company_id: activeCompanyId
       })
       .select("id")
       .single()
@@ -1198,6 +1237,7 @@ export async function fileDisciplinaryAction(disciplinaryId: string, employeeId:
     esemeny_tipus: "adat_letrehozas",
     entitas_tipus: "hr_dokumentum",
     entitas_id: docId,
+    company_id: item.company_id || access.activeCompanyId || null,
     megjegyzes: `Munkáltatói fegyelmi határozat hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`
   })
 
@@ -1342,6 +1382,9 @@ export async function deleteKituntetes(id: string, employeeId: string) {
 }
 
 export async function fileKituntetesAction(awardId: string, employeeId: string) {
+  const access = await requireEmployeeActionAccess(employeeId, HR_DOC_FILING_MODULES)
+  if (!access.ok) return { success: false, error: access.error || "Nincs jogosultsága elismerést iktatni!" }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
@@ -1359,11 +1402,15 @@ export async function fileKituntetesAction(awardId: string, employeeId: string) 
   }
 
   // 1. Rekord lekérése
-  const { data: item, error: itemErr } = await supabase
+  let itemQuery = supabase
     .from("hr_kituntetes")
     .select("*")
     .eq("id", awardId)
-    .single()
+    .eq("dolgozo_id", employeeId)
+  if (access.activeCompanyId) {
+    itemQuery = itemQuery.eq("company_id", access.activeCompanyId)
+  }
+  const { data: item, error: itemErr } = await itemQuery.single()
 
   if (itemErr || !item) {
     return { success: false, error: "Elismerés rekord nem található!" }
@@ -1428,13 +1475,15 @@ export async function fileKituntetesAction(awardId: string, employeeId: string) 
 
   // 4. Ha még nincs hr_dokumentum bejegyzés, hozzunk létre egyet
   if (!docId) {
+    const activeCompanyId = item.company_id || (await getActiveCompanyIdServer())
     const { data: newDoc, error: docError } = await supabase
       .from("hr_dokumentum")
       .insert({
         dolgozo_id: employeeId,
         nev: docSubject,
         kategoria: "Kitüntetések és elismerések",
-        url: storagePath
+        url: storagePath,
+        company_id: activeCompanyId
       })
       .select("id")
       .single()
@@ -1475,6 +1524,7 @@ export async function fileKituntetesAction(awardId: string, employeeId: string) 
     esemeny_tipus: "adat_letrehozas",
     entitas_tipus: "hr_dokumentum",
     entitas_id: docId,
+    company_id: item.company_id || access.activeCompanyId || null,
     megjegyzes: `Szakmai elismerés (oklevél) hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`
   })
 
@@ -1519,11 +1569,13 @@ export async function revealEmployeeSecretData(employeeId: string) {
     .maybeSingle()
 
   if (!recentLog) {
+    const activeCompanyId = await getActiveCompanyIdServer()
     await supabase.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
       esemeny_tipus: "adat_megtekintes",
       entitas_tipus: "hr_dolgozo_titkos_adat",
       entitas_id: employeeId,
+      company_id: activeCompanyId || null,
       megjegyzes: "Szigorúan bizalmas dolgozói adatok (TAJ, Adó, Bér) feloldása és megtekintése"
     })
   }
@@ -1556,11 +1608,13 @@ export async function updateEmployeeSecretData(employeeId: string, formData: For
     return { error: `Hiba: ${error.message}` }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "modositas",
     entitas_tipus: "hr_dolgozo_titkos_adat",
     entitas_id: employeeId,
+    company_id: activeCompanyId || null,
     megjegyzes: "Szigorúan bizalmas dolgozói adatok (TAJ, Adó, Bér) módosítása"
   })
 
@@ -1618,6 +1672,7 @@ export async function updateGeneralPersonalInfo(employeeId: string, formData: Fo
       entitas_id: employeeId,
       esemeny_tipus: "modositas",
       felhasznalo_id: user.id,
+      company_id: access.activeCompanyId || null,
       regi_adat: oldData,
       uj_adat: uj_adatok,
       megjegyzes: "Alapadatok szerkesztése a HR felületről"
@@ -1931,16 +1986,27 @@ export async function getEmployeeAuditLogs(employeeId: string) {
 // -----------------------------------------------------------------------------
 
 export async function getEmployeeDossierInfo(employeeId: string) {
+  const access = await requireEmployeeActionAccess(
+    employeeId,
+    [...HR_DOC_FILING_MODULES, "auditor", "audit"],
+    { allowSelf: true }
+  )
+  if (!access.ok) return { error: access.error || "Nincs jogosultságod" }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
   const existing = await findEmployeeDossier(supabase, employeeId)
   if (existing) {
-    const { count } = await supabase
+    let iratCountQuery = supabase
       .from("irat")
       .select("id", { count: "exact", head: true })
       .eq("ugyirat_id", existing.id)
+    if (access.activeCompanyId) {
+      iratCountQuery = iratCountQuery.eq("company_id", access.activeCompanyId)
+    }
+    const { count } = await iratCountQuery
 
     return {
       hasDossier: true,
@@ -1971,6 +2037,9 @@ export async function fileHrDocumentAction(
   employeeId: string,
   customTargy?: string
 ) {
+  const access = await requireEmployeeActionAccess(employeeId, HR_DOC_FILING_MODULES)
+  if (!access.ok) return { error: access.error || "Nincs jogosultságod HR dokumentumot iktatni az eaisyDocs rendszerbe!" }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
@@ -1985,6 +2054,20 @@ export async function fileHrDocumentAction(
 
   if (!isHrOrAdmin) {
     return { error: "Nincs jogosultságod HR dokumentumot iktatni az eaisyDocs rendszerbe!" }
+  }
+
+  if (access.activeCompanyId) {
+    const { data: docCheck } = await supabase
+      .from("hr_dokumentum")
+      .select("id, company_id, dolgozo_id")
+      .eq("id", documentId)
+      .maybeSingle()
+    if (!docCheck || (docCheck.dolgozo_id && docCheck.dolgozo_id !== employeeId)) {
+      return { error: "A dokumentum nem található az adott munkavállalónál." }
+    }
+    if (docCheck.company_id && docCheck.company_id !== access.activeCompanyId) {
+      return { error: "A dokumentum másik céghez tartozik." }
+    }
   }
 
   let clientInfo = undefined
@@ -2025,6 +2108,9 @@ export async function fileHrDocumentAction(
 }
 
 export async function fileAllHrDocumentsAction(employeeId: string) {
+  const access = await requireEmployeeActionAccess(employeeId, HR_DOC_FILING_MODULES)
+  if (!access.ok) return { error: access.error || "Nincs jogosultságod HR dokumentumokat kötegelten iktatni az eaisyDocs rendszerbe!", filedCount: 0 }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve", filedCount: 0 }
@@ -2077,8 +2163,15 @@ export async function fileAllHrDocumentsAction(employeeId: string) {
 }
 
 export async function getAnnualLeaveDocument(employeeId: string, year: number) {
+  const access = await requireEmployeeActionAccess(
+    employeeId,
+    ["employees", "time", "payroll", "admin", "auditor"],
+    { allowSelf: true }
+  )
+  if (!access.ok) return null
+
   const supabase = await createClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = access.activeCompanyId || (await getActiveCompanyIdServer())
   let q = supabase
     .from("hr_dokumentum")
     .select("id, nev, iktatoszam, created_at, url")
@@ -2109,6 +2202,9 @@ export async function getAnnualLeaveDocument(employeeId: string, year: number) {
 }
 
 export async function fileAnnualLeaveSheet(employeeId: string, year: number) {
+  const access = await requireEmployeeActionAccess(employeeId, [...HR_DOC_FILING_MODULES, "time"])
+  if (!access.ok) return { success: false, error: access.error || "Nincs jogosultsága éves szabadság-nyilvántartást iktatni!" }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
@@ -2163,14 +2259,18 @@ export async function fileAnnualLeaveSheet(employeeId: string, year: number) {
     }
 
     // 3. Dokumentum rekord létrehozása / keresése
+    const activeCompanyId = await getActiveCompanyIdServer()
     const docName = `${employeeName} - Éves Szabadság Nyilvántartás (${year})`
-    const { data: existingDoc } = await supabase
+    let existingDocQuery = supabase
       .from("hr_dokumentum")
       .select("id, iktatoszam")
       .eq("dolgozo_id", employeeId)
       .eq("kategoria", "Éves szabadság nyilvántartás")
       .ilike("nev", `%${year}%`)
-      .maybeSingle()
+    if (activeCompanyId) {
+      existingDocQuery = existingDocQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: existingDoc } = await existingDocQuery.maybeSingle()
 
     let docId = existingDoc?.id
 
@@ -2181,7 +2281,8 @@ export async function fileAnnualLeaveSheet(employeeId: string, year: number) {
           dolgozo_id: employeeId,
           nev: docName,
           kategoria: "Éves szabadság nyilvántartás",
-          url: storagePath
+          url: storagePath,
+          company_id: activeCompanyId
         })
         .select("id")
         .single()
@@ -2208,6 +2309,7 @@ export async function fileAnnualLeaveSheet(employeeId: string, year: number) {
       esemeny_tipus: "adat_letrehozas",
       entitas_tipus: "hr_dokumentum",
       entitas_id: docId,
+      company_id: activeCompanyId || access.activeCompanyId || null,
       megjegyzes: `Éves szabadság- és távollét nyilvántartás (${year}) hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`
     })
 
@@ -2345,11 +2447,12 @@ export async function uploadSignedDocumentAction(
       // Audit naplózás az eaisyDocs esemeny_naplo táblába
       try {
         await adminClient.from("esemeny_naplo").insert({
-          felhasznalo_id: user.id,
+          user_id: user.id,
+          company_id: doc.company_id || activeCompanyId || null,
           esemeny_tipus: "irat_modositas",
           entitas_tipus: "irat",
           entitas_id: doc.irat_id,
-          reszletek: {
+          uj_ertek: {
             muvelet: "alairt_peldany_csatolasa",
             iktatoszam: doc.iktatoszam,
             verzio: nextVerzio,

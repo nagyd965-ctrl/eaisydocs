@@ -4,6 +4,9 @@ import { launchPdfBrowser } from '@/utils/pdf-browser'
 import { createClient } from '@/utils/supabase/server'
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from 'next/cache'
+import { getActiveCompanyIdServer } from '@/utils/company-server'
+import { requireHrAuthServer } from '@/utils/hr/hr-auth-guard'
+import { isUserAuthorizedForHrView } from '@/utils/hr/company-role-resolver'
 
 function getAdminClient() {
   return createAdminClient(
@@ -12,13 +15,68 @@ function getAdminClient() {
   )
 }
 
+async function verifyContractEmployeeAccess(
+  dolgozoId: string,
+  allowedModules: string[] = ["employees", "onboarding", "payroll", "organization", "admin"]
+) {
+  const auth = await requireHrAuthServer(allowedModules, null)
+  if (!auth.user) {
+    return { ok: false, error: "Nincs bejelentkezve", auth, activeCompanyId: null as string | null }
+  }
+  if (!auth.authorized) {
+    return {
+      ok: false,
+      error: "Nincs jogosultságod a szerződés művelethez.",
+      auth,
+      activeCompanyId: null as string | null,
+    }
+  }
+
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+  const adminClient = getAdminClient()
+
+  if (activeCompanyId && dolgozoId) {
+    const [{ data: member }, { data: adatlap }] = await Promise.all([
+      adminClient
+        .from("company_members")
+        .select("user_id")
+        .eq("company_id", activeCompanyId)
+        .eq("user_id", dolgozoId)
+        .maybeSingle(),
+      adminClient
+        .from("hr_dolgozo_adatlap")
+        .select("company_id")
+        .eq("id", dolgozoId)
+        .maybeSingle(),
+    ])
+    if (!member && adatlap?.company_id !== activeCompanyId) {
+      return {
+        ok: false,
+        error: "A kiválasztott munkavállaló nem tartozik az aktív vállalathoz.",
+        auth,
+        activeCompanyId,
+      }
+    }
+  }
+
+  return { ok: true, auth, activeCompanyId, adminClient }
+}
+
 export async function getEmployeeContractFillData(dolgozoId: string) {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { success: false, error: "Nincs bejelentkezve" }
+    const access = await verifyContractEmployeeAccess(dolgozoId, [
+      "employees",
+      "onboarding",
+      "payroll",
+      "admin",
+    ])
+    if (!access.ok || !access.adminClient) {
+      return { success: false, error: access.error || "Nincs jogosultságod." }
+    }
 
-    const adminClient = getAdminClient()
+    const supabase = await createClient()
+    const adminClient = access.adminClient
+    const activeCompanyId = access.activeCompanyId
 
     // 1. Profil & Adatlap
     const { data: profil } = await adminClient
@@ -32,6 +90,7 @@ export async function getEmployeeContractFillData(dolgozoId: string) {
       .select(`
         *,
         hr_jogviszony (
+          company_id,
           tipus,
           belepes_datuma,
           kilepes_datuma,
@@ -44,30 +103,50 @@ export async function getEmployeeContractFillData(dolgozoId: string) {
       .eq("id", dolgozoId)
       .maybeSingle()
 
-    // 2. Legfrissebb munkaszerződés ha van
-    const { data: contract } = await adminClient
+    // 2. Legfrissebb munkaszerződés ha van (cégre szűrve)
+    let contractQuery = adminClient
       .from("hr_munkaszerzodes")
       .select("*")
       .eq("dolgozo_id", dolgozoId)
+    if (activeCompanyId) {
+      contractQuery = contractQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: contract } = await contractQuery
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    // 3. Titkos adatok (TAJ, adójel, bankszámla, bér)
+    const canAccessSensitive =
+      access.auth.isCompanyAdmin ||
+      isUserAuthorizedForHrView(
+        access.auth.hrRole,
+        ["admin", "payroll", "onboarding"],
+        access.auth.hrModules
+      )
+
+    // 3. Titkos adatok (TAJ, adójel, bankszámla, bér) — csak payroll/onboarding/admin joggal
     let secretData: any = null
-    try {
-      const { data: sec } = await adminClient.rpc("get_decrypted_hr_data", {
-        p_dolgozo_id: dolgozoId,
-      })
-      secretData = sec
-    } catch (e) {
-      console.warn("Could not fetch decrypted data for contract fill:", e)
+    if (canAccessSensitive) {
+      try {
+        const { data: sec } = await supabase.rpc("get_decrypted_hr_data", {
+          p_dolgozo_id: dolgozoId,
+        })
+        secretData = sec
+      } catch (e) {
+        console.warn("Could not fetch decrypted data for contract fill:", e)
+      }
     }
 
     // 4. Munkakör feloldása
     let activeMunkakor = contract?.munkakor || ""
-    if (!activeMunkakor && adatlap?.hr_jogviszony && Array.isArray(adatlap.hr_jogviszony)) {
-      const activeJog = adatlap.hr_jogviszony.find((j: any) => !j.kilepes_datuma) || adatlap.hr_jogviszony[0]
+    const jogviszonyok = Array.isArray(adatlap?.hr_jogviszony)
+      ? adatlap.hr_jogviszony.filter(
+          (j: any) => !activeCompanyId || !j.company_id || j.company_id === activeCompanyId
+        )
+      : []
+
+    if (!activeMunkakor && jogviszonyok.length > 0) {
+      const activeJog = jogviszonyok.find((j: any) => !j.kilepes_datuma) || jogviszonyok[0]
       const beosztasok = activeJog?.hr_beosztas || []
       const activeBeosztas = beosztasok.find((b: any) => !b.ervenyes_ig || new Date(b.ervenyes_ig) >= new Date()) || beosztasok[0]
       if (activeBeosztas?.hr_munkakor?.megnevezes) {
@@ -79,7 +158,7 @@ export async function getEmployeeContractFillData(dolgozoId: string) {
     }
     if (!activeMunkakor) activeMunkakor = profil?.pozicio || "Alkalmazott"
 
-    const belepesDatuma = contract?.kezdes_datuma || adatlap?.hr_jogviszony?.[0]?.belepes_datuma || adatlap?.created_at?.split("T")[0] || new Date().toISOString().split("T")[0]
+    const belepesDatuma = contract?.kezdes_datuma || jogviszonyok[0]?.belepes_datuma || adatlap?.created_at?.split("T")[0] || new Date().toISOString().split("T")[0]
 
     const reszlegNev = (Array.isArray(profil?.hr_szervezeti_egyseg) ? profil.hr_szervezeti_egyseg[0]?.nev : (profil?.hr_szervezeti_egyseg as any)?.nev) || "Központi"
 
@@ -90,10 +169,10 @@ export async function getEmployeeContractFillData(dolgozoId: string) {
       szuletesiDatum: contract?.szuletesi_datum || adatlap?.szuletesi_datum || adatlap?.szuletesi_ido || "",
       anyjaNeve: contract?.anyja_neve || adatlap?.anyja_neve || "",
       lakcim: contract?.lakcim || adatlap?.lakcim || "",
-      adoazonositoJel: contract?.adoazonosito_jel || secretData?.adoazonosito || "",
-      tajSzam: contract?.taj_szam || secretData?.taj_szam || "",
-      bankszamlaszam: contract?.bankszamlaszam || secretData?.bankszamla || "",
-      alapber: Number(contract?.alapber || (secretData?.brutto_ber ? Number(secretData.brutto_ber) : null) || 650000),
+      adoazonositoJel: canAccessSensitive ? (contract?.adoazonosito_jel || secretData?.adoazonosito || "") : "",
+      tajSzam: canAccessSensitive ? (contract?.taj_szam || secretData?.taj_szam || "") : "",
+      bankszamlaszam: canAccessSensitive ? (contract?.bankszamlaszam || secretData?.bankszamla || "") : "",
+      alapber: canAccessSensitive ? Number(contract?.alapber || (secretData?.brutto_ber ? Number(secretData.brutto_ber) : null) || 650000) : 0,
       munkakor: activeMunkakor,
       reszleg: contract?.reszleg || reszlegNev,
       belepesDatuma: belepesDatuma,
@@ -114,12 +193,16 @@ export async function generateAndSaveContract(
   nev: string
 ) {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return { success: false, error: "Nincs bejelentkezve" }
+    const access = await verifyContractEmployeeAccess(dolgozo_id, [
+      "employees",
+      "onboarding",
+      "payroll",
+      "admin",
+    ])
+    if (!access.ok) {
+      return { success: false, error: access.error || "Nincs jogosultságod." }
     }
+    const supabase = await createClient()
 
     // Wrap the HTML content in a proper HTML document structure with complete print styles
     const fullHtml = `
@@ -291,6 +374,8 @@ export async function generateAndSaveContract(
 
     const displayNev = `${nev} - ${kategoria} (${new Date().toLocaleDateString('hu-HU')})`
 
+    const activeCompanyId = await getActiveCompanyIdServer()
+
     // Insert into hr_dokumentum
     const { error: dbError } = await supabase
       .from('hr_dokumentum')
@@ -298,7 +383,8 @@ export async function generateAndSaveContract(
         dolgozo_id: dolgozo_id,
         nev: displayNev,
         kategoria: kategoria,
-        url: fileUrl
+        url: fileUrl,
+        company_id: activeCompanyId
       })
 
     if (dbError) {
@@ -323,6 +409,11 @@ export async function assignJobDescriptionToEmployee(
   versionId?: string
 ) {
   try {
+    const access = await verifyContractEmployeeAccess(employeeId, ["admin", "employees", "onboarding", "organization"])
+    if (!access.ok) {
+      return { success: false, error: access.error }
+    }
+
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
@@ -333,8 +424,12 @@ export async function assignJobDescriptionToEmployee(
     // 1. Lekérjük a munkakör leírás verzióját
     let query = supabase
       .from("hr_munkakor_leiras_verzio")
-      .select("*, hr_munkakor(megnevezes)")
+      .select("*, hr_munkakor(megnevezes, company_id)")
       .eq("munkakor_id", munkakorId)
+
+    if (access.activeCompanyId) {
+      query = query.eq("company_id", access.activeCompanyId)
+    }
 
     if (versionId) {
       query = query.eq("id", versionId)
@@ -349,6 +444,14 @@ export async function assignJobDescriptionToEmployee(
       return { success: false, error: "Ehhez a munkakörhöz nem található hivatalos munkaköri leírás fájl." }
     }
 
+    const activeCompanyId = access.activeCompanyId || (version as any)?.company_id || (await getActiveCompanyIdServer())
+    if (
+      access.activeCompanyId &&
+      (version as any)?.company_id &&
+      (version as any).company_id !== access.activeCompanyId
+    ) {
+      return { success: false, error: "A munkaköri leírás másik vállalathoz tartozik." }
+    }
     const munkakorNev = (version.hr_munkakor as any)?.megnevezes || "Munkakör"
     const docNev = `${employeeName} - Munkaköri Leírás (${munkakorNev} v${version.verzio_szam})`
 
@@ -359,7 +462,8 @@ export async function assignJobDescriptionToEmployee(
         dolgozo_id: employeeId,
         nev: docNev,
         kategoria: "Munkaköri leírás",
-        url: version.fajl_path
+        url: version.fajl_path,
+        company_id: activeCompanyId
       })
       .select()
       .single()
@@ -375,6 +479,7 @@ export async function assignJobDescriptionToEmployee(
       esemeny_tipus: "adat_letrehozas",
       entitas_tipus: "hr_dokumentum",
       entitas_id: newDoc.id,
+      company_id: activeCompanyId,
       megjegyzes: `Hivatalos munkaköri leírás (v${version.verzio_szam} - ${version.fajl_nev}) hozzárendelve a dolgozóhoz.`
     })
 
@@ -388,6 +493,11 @@ export async function assignJobDescriptionToEmployee(
 
 export async function deleteContract(documentId: string, fileUrl: string | null, dolgozo_id: string) {
   try {
+    const access = await verifyContractEmployeeAccess(dolgozo_id, ["admin", "employees", "onboarding", "payroll"])
+    if (!access.ok) {
+      return { success: false, error: access.error }
+    }
+
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
@@ -395,12 +505,21 @@ export async function deleteContract(documentId: string, fileUrl: string | null,
       return { success: false, error: "Nincs bejelentkezve" }
     }
 
-    // Integritás védelem: iktatott irat soha nem törölhető a HR felületről
-    const { data: existingDoc } = await supabase
+    // Integritás védelem: iktatott irat soha nem törölhető a HR felületről + cég-ellenőrzés
+    let docLookup = supabase
       .from('hr_dokumentum')
-      .select('iktatoszam')
+      .select('iktatoszam, company_id, dolgozo_id')
       .eq('id', documentId)
-      .single()
+
+    if (access.activeCompanyId) {
+      docLookup = docLookup.eq('company_id', access.activeCompanyId)
+    }
+
+    const { data: existingDoc } = await docLookup.single()
+
+    if (!existingDoc || existingDoc.dolgozo_id !== dolgozo_id) {
+      return { success: false, error: "A dokumentum nem található az aktív vállalatnál." }
+    }
 
     if (existingDoc?.iktatoszam) {
       return { 
@@ -410,10 +529,16 @@ export async function deleteContract(documentId: string, fileUrl: string | null,
     }
 
     // Törlés az adatbázisból
-    const { error: dbError } = await supabase
+    let deleteQuery = supabase
       .from('hr_dokumentum')
       .delete()
       .eq('id', documentId)
+
+    if (access.activeCompanyId) {
+      deleteQuery = deleteQuery.eq('company_id', access.activeCompanyId)
+    }
+
+    const { error: dbError } = await deleteQuery
 
     if (dbError) {
       console.error("DB delete error:", dbError)

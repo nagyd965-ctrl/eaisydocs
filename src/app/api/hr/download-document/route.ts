@@ -19,30 +19,53 @@ export async function GET(request: NextRequest) {
       return new NextResponse("Érvénytelen fájl útvonal", { status: 400 })
     }
 
-    // 1. Felhasználói profil és szerepkörök lekérése
+    // 1. Felhasználói profil és cég-szintű szerepkörök lekérése
+    const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
+    const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
+    const activeCompanyId = await getActiveCompanyIdServer()
+    const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
     const { data: profile } = await supabase
       .from("felhasznalo_profil")
-      .select("hr_szerepkor, docs_szerepkor")
+      .select("hr_szerepkor, docs_szerepkor, hr_modulok")
       .eq("id", user.id)
       .single()
 
-    const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin"].includes(profile?.hr_szerepkor || "") ||
-                        ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "")
+    const effectiveHrRole =
+      scopedRoles.hrRole && scopedRoles.hrRole !== "none" ? scopedRoles.hrRole : profile?.hr_szerepkor
+    const effectiveHrModules =
+      scopedRoles.hrModules.length > 0 ? scopedRoles.hrModules : ((profile as any)?.hr_modulok || [])
+
+    const isHrOrAdmin =
+      scopedRoles.isCompanyAdmin ||
+      scopedRoles.docsRole === "admin" ||
+      ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "") ||
+      isUserAuthorizedForHrView(
+        effectiveHrRole,
+        ["admin", "employees", "compliance", "payroll", "onboarding", "offboarding", "auditor"],
+        effectiveHrModules
+      )
 
     // 2. Dokumentum jogosultság ellenőrzése
     // Ellenőrizzük, hogy a fájl munkaköri leírás-e (publikus a cégen belül minden munkavállalónak)
-    const { data: jobDoc } = await supabase
+    let jobDocQuery = supabase
       .from("hr_munkakor_leiras_verzio")
-      .select("id")
+      .select("id, company_id")
       .eq("fajl_path", filePath)
-      .maybeSingle()
+    if (activeCompanyId) {
+      jobDocQuery = jobDocQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: jobDoc } = await jobDocQuery.maybeSingle()
 
-    // Vagy személyes HR dokumentum-e (csak saját maga vagy HR/Admin férhet hozzá)
-    const { data: empDoc } = await supabase
+    // Vagy személyes HR dokumentum-e (csak saját maga vagy HR/Admin férhet hozzá az adott cégnél)
+    let empDocQuery = supabase
       .from("hr_dokumentum")
-      .select("id, dolgozo_id")
+      .select("id, dolgozo_id, company_id")
       .or(`url.eq.${filePath},alairt_fajl_url.eq.${filePath}`)
-      .maybeSingle()
+    if (activeCompanyId) {
+      empDocQuery = empDocQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: empDoc } = await empDocQuery.maybeSingle()
 
     const isOwnDocument = empDoc?.dolgozo_id === user.id
     const isAuthorized = isHrOrAdmin || Boolean(jobDoc) || isOwnDocument

@@ -93,12 +93,15 @@ export async function proposeDisposal(ugyiratIds: string[], note?: string) {
 
   // Értesítés a vezetőknek a selejtezési felterjesztésről
   try {
-    const { data: szabaly } = await supabase
+    let szabalyQuery = supabase
       .from("ertesitesi_szabaly")
       .select("aktiv")
       .eq("esemeny_tipus", "allapotvaltozas")
       .eq("kinek", "vezeto")
-      .single()
+    if (activeCompanyId) {
+      szabalyQuery = szabalyQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: szabaly } = await szabalyQuery.limit(1).maybeSingle()
 
     if (szabaly?.aktiv) {
       const { data: vezetok } = await supabase
@@ -182,8 +185,8 @@ export async function approveDisposal(
 
   const approverRole = approverProfile?.docs_szerepkor || approverProfile?.szerepkor || "ugyintezo"
   if (!["admin", "vezeto", "rendszergazda"].includes(approverRole)) {
-    return { 
-      error: "A selejtezési jegyzéket kizárólag Vezető vagy Rendszergazda hagyhatja jóvá! Ügyintéző szerepkörrel a jóváhagyás nem engedélyezett." 
+    return {
+      error: "A selejtezési jegyzéket kizárólag Vezető vagy Rendszergazda hagyhatja jóvá! Ügyintéző szerepkörrel a jóváhagyás nem engedélyezett."
     }
   }
 

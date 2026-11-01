@@ -127,10 +127,14 @@ export async function getOnboardingJobData(params: {
       munkakorMegnevezes = prof.pozicio || munkakorMegnevezes
       reszleg = profOrg?.nev || reszleg
     }
-    const { data: jogv } = await adminClient
+    let jogvQuery = adminClient
       .from("hr_jogviszony")
       .select("belepes_datuma, hr_beosztas(hr_munkakor(megnevezes, hr_szervezeti_egyseg:szervezeti_egyseg_id(nev)))")
       .eq("dolgozo_id", dolgozoId)
+    if (access.auth.activeCompanyId) {
+      jogvQuery = jogvQuery.eq("company_id", access.auth.activeCompanyId)
+    }
+    const { data: jogv } = await jogvQuery
       .order("kilepes_datuma", { ascending: false, nullsFirst: true })
       .order("created_at", { ascending: false })
       .limit(1)
@@ -152,6 +156,9 @@ export async function getOnboardingJobData(params: {
     query = query.eq("onboarding_id", onboardingId)
   } else if (dolgozoId) {
     query = query.eq("dolgozo_id", dolgozoId)
+  }
+  if (access.auth.activeCompanyId) {
+    query = query.eq("company_id", access.auth.activeCompanyId)
   }
   const { data: assignData } = await query.order("created_at", { ascending: false }).limit(1)
   existingAssignment = assignData?.[0] || null
@@ -181,19 +188,27 @@ export async function getOnboardingJobData(params: {
   let catalogVersions: any[] = []
 
   if (munkakorMegnevezes) {
-    const { data: job } = await adminClient
+    let jobQuery = adminClient
       .from("hr_munkakor")
       .select("*")
       .eq("megnevezes", munkakorMegnevezes)
+    if (access.auth.activeCompanyId) {
+      jobQuery = jobQuery.eq("company_id", access.auth.activeCompanyId)
+    }
+    const { data: job } = await jobQuery
       .limit(1)
       .maybeSingle()
     jobCatalog = job || null
 
     if (job?.id) {
-      const { data: versions } = await adminClient
+      let versionsQuery = adminClient
         .from("hr_munkakor_leiras_verzio")
         .select("*")
         .eq("munkakor_id", job.id)
+      if (access.auth.activeCompanyId) {
+        versionsQuery = versionsQuery.eq("company_id", access.auth.activeCompanyId)
+      }
+      const { data: versions } = await versionsQuery
         .order("verzio_szam", { ascending: false })
 
       if (versions && versions.length > 0) {
@@ -249,15 +264,19 @@ export async function assignCatalogJobDescriptionAction(params: {
     if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
     const activeCompanyId = access.auth.activeCompanyId
 
-    // 1. Lekérjük a kiválasztott verziót
-    const { data: version, error: vErr } = await adminClient
+    // 1. Lekérjük a kiválasztott verziót (cég- és munkakör-ellenőrzéssel)
+    let versionQuery = adminClient
       .from("hr_munkakor_leiras_verzio")
       .select("*")
       .eq("id", versionId)
-      .single()
+      .eq("munkakor_id", munkakorId)
+    if (activeCompanyId) {
+      versionQuery = versionQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: version, error: vErr } = await versionQuery.single()
 
-    if (vErr || !version) {
-      return { error: "Nem található a kiválasztott munkaköri leírás verzió." }
+    if (vErr || !version || (activeCompanyId && version.company_id && version.company_id !== activeCompanyId)) {
+      return { error: "Nem található a kiválasztott munkaköri leírás verzió az aktív vállalatnál." }
     }
 
     const docName = `${employeeName} - Munkaköri Leírás (${munkakorNev} v${version.verzio_szam})`
@@ -290,13 +309,15 @@ export async function assignCatalogJobDescriptionAction(params: {
       dokumentum_id: newDoc.id,
       forras_tipus: "katalogus",
       statusz: "atadva",
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
     }
 
     // Megnézzük létezik-e már hozzárendelés
     let existingQuery = adminClient.from("hr_onboarding_munkakor").select("id")
     if (onboardingId) existingQuery = existingQuery.eq("onboarding_id", onboardingId)
     else if (dolgozoId) existingQuery = existingQuery.eq("dolgozo_id", dolgozoId)
+    if (activeCompanyId) existingQuery = existingQuery.eq("company_id", activeCompanyId)
     const { data: existing } = await existingQuery.limit(1)
 
     if (existing && existing.length > 0) {
@@ -424,12 +445,14 @@ export async function generateJobDescriptionPdfAction(params: {
       dokumentum_id: newDoc.id,
       forras_tipus: "generator",
       statusz: "atadva",
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
     }
 
     let existingQuery = adminClient.from("hr_onboarding_munkakor").select("id")
     if (onboardingId) existingQuery = existingQuery.eq("onboarding_id", onboardingId)
     else if (dolgozoId) existingQuery = existingQuery.eq("dolgozo_id", dolgozoId)
+    if (activeCompanyId) existingQuery = existingQuery.eq("company_id", activeCompanyId)
     const { data: existing } = await existingQuery.limit(1)
 
     if (existing && existing.length > 0) {
@@ -562,12 +585,14 @@ export async function uploadCustomJobDescriptionAction(formData: FormData) {
       dokumentum_id: newDoc.id,
       forras_tipus: "feltoltes",
       statusz: "atadva",
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
     }
 
     let existingQuery = adminClient.from("hr_onboarding_munkakor").select("id")
     if (onboardingId) existingQuery = existingQuery.eq("onboarding_id", onboardingId)
     else if (dolgozoId) existingQuery = existingQuery.eq("dolgozo_id", dolgozoId)
+    if (activeCompanyId) existingQuery = existingQuery.eq("company_id", activeCompanyId)
     const { data: existing } = await existingQuery.limit(1)
 
     if (existing && existing.length > 0) {

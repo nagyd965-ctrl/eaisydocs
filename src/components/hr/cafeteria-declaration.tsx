@@ -113,13 +113,20 @@ export function CafeteriaDeclaration({
       return
     }
 
-    // Check if item already exists, then update it
+    // Check if item already exists, then update it immutably
     const existingIndex = choices.findIndex(c => c.katalogus_elem_id === selectedItem)
     if (existingIndex >= 0) {
-      const newChoices = [...choices]
-      newChoices[existingIndex].kert_osszeg += numAmount
-      newChoices[existingIndex].levont_keret_osszeg += deducted
-      setChoices(newChoices)
+      setChoices(
+        choices.map((c, idx) =>
+          idx === existingIndex
+            ? {
+                ...c,
+                kert_osszeg: c.kert_osszeg + numAmount,
+                levont_keret_osszeg: c.levont_keret_osszeg + deducted,
+              }
+            : c
+        )
+      )
     } else {
       setChoices([...choices, {
         katalogus_elem_id: item.id,

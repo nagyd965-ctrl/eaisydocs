@@ -9,7 +9,7 @@ import {
 } from "./components/performance-calibration-dashboard"
 
 export default async function DashboardPage() {
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "vezeto", "auditor"])
+  const auth = await requireHrAuthServer(["admin", "performance", "audit", "vezeto"])
   if (!auth.authorized || !auth.activeCompanyId) {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">

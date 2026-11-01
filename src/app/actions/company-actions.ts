@@ -43,6 +43,7 @@ export async function switchCompanyAction(companyId: string) {
   cookieStore.set(SELECTED_COMPANY_COOKIE, companyId, {
     path: "/",
     maxAge: 60 * 60 * 24 * 365, // 1 év
+    httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
   })
@@ -101,6 +102,7 @@ export async function createCompanyAction(data: {
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
     sameSite: "lax",
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
   })
 
@@ -159,6 +161,7 @@ export async function joinCompanyByTokenAction(shareToken: string) {
       path: "/",
       maxAge: 60 * 60 * 24 * 365,
       sameSite: "lax",
+      httpOnly: true,
       secure: process.env.NODE_ENV === "production",
     })
   }
@@ -194,12 +197,12 @@ export async function updateCompanyAction(
 
   const { data: member } = await supabase
     .from("company_members")
-    .select("role")
+    .select("role, hr_szerepkor")
     .eq("company_id", companyId)
     .eq("user_id", user.id)
     .maybeSingle()
 
-  const isOwner = company?.owner_id === user.id || member?.role === "owner" || member?.role === "admin" || (member as any)?.hr_szerepkor === "admin"
+  const isOwner = company?.owner_id === user.id || member?.role === "owner" || member?.role === "admin" || member?.hr_szerepkor === "admin"
 
   if (!isOwner) {
     return { success: false, error: "Kizárólag a cég tulajdonosa vagy adminisztrátora módosíthatja a cég adatait." }
@@ -297,7 +300,30 @@ export async function deleteCompanyAction(companyId: string): Promise<{
       }
     }
 
-    // 4. Végleges törlés a companies táblából (minden kapcsolódó adat kaszkádolva törlődik)
+    // 4. Audit napló rögzítése a törlés ELŐTT (company_id: null, hogy a CASCADE törlés ne törölje a naplóbejegyzést!)
+    try {
+      await admin.from("esemeny_naplo").insert({
+        entitas_tipus: "company",
+        entitas_id: companyId,
+        esemeny_tipus: "adat_modositas",
+        user_id: user.id,
+        company_id: null,
+        indoklas: `Vállalat véglegesen törölve: "${company.name}" (ID: ${companyId})`,
+      })
+
+      await admin.from("hr_esemeny_naplo").insert({
+        felhasznalo_id: user.id,
+        entitas_tipus: "companies",
+        entitas_id: companyId,
+        esemeny_tipus: "adat_modositas",
+        company_id: null,
+        megjegyzes: `Vállalat véglegesen törölve: "${company.name}" (ID: ${companyId})`,
+      })
+    } catch (auditErr) {
+      console.warn("Cégtörlési audit napló rögzítési figyelmeztetés:", auditErr)
+    }
+
+    // 5. Végleges törlés a companies táblából (minden kapcsolódó adat kaszkádolva törlődik)
     const { error: deleteErr } = await admin
       .from("companies")
       .delete()
@@ -307,7 +333,7 @@ export async function deleteCompanyAction(companyId: string): Promise<{
       return { success: false, error: "Hiba a cég törlésekor: " + deleteErr.message }
     }
 
-    // 5. Ha a törölt cég volt az aktív cég, átváltunk egy megmaradt cégre
+    // 6. Ha a törölt cég volt az aktív cég, átváltunk egy megmaradt cégre
     const cookieStore = await cookies()
     const currentActiveId = cookieStore.get(SELECTED_COMPANY_COOKIE)?.value
     let nextCompanyId: string | null = null
@@ -326,6 +352,7 @@ export async function deleteCompanyAction(companyId: string): Promise<{
         cookieStore.set(SELECTED_COMPANY_COOKIE, nextId, {
           path: "/",
           maxAge: 60 * 60 * 24 * 365,
+          httpOnly: true,
           sameSite: "lax",
           secure: process.env.NODE_ENV === "production",
         })
@@ -465,18 +492,17 @@ export async function getCompanyMembersAction(companyId: string) {
       .select("id, nev, docs_szerepkor, hr_szerepkor, szerepkor")
       .in("id", userIds)
 
-    // Auth userek email címeinek és metaadatainak lekérdezése
+    // Auth userek email címeinek és metaadatainak lekérdezése (lapozva)
     const emailMap = new Map<string, string>()
     const authNameMap = new Map<string, string>()
     if (serviceRoleKey) {
       try {
-        const { data: authData } = await adminClient.auth.admin.listUsers()
-        if (authData?.users) {
-          for (const u of authData.users) {
-            if (u.email) emailMap.set(u.id, u.email)
-            const metaName = (u.user_metadata?.name || u.user_metadata?.nev) as string | undefined
-            if (metaName) authNameMap.set(u.id, metaName)
-          }
+        const { listAllAuthUsers } = await import("@/utils/supabase/admin-users")
+        const allAuthUsers = await listAllAuthUsers(adminClient)
+        for (const u of allAuthUsers) {
+          if (u.email) emailMap.set(u.id, u.email)
+          const metaName = (u.user_metadata?.name || u.user_metadata?.nev) as string | undefined
+          if (metaName) authNameMap.set(u.id, metaName)
         }
       } catch (err) {
         console.error("Hiba auth userek listázásakor:", err)
@@ -939,6 +965,36 @@ export async function inviteCompanyMemberAction(data: {
     return { success: false, error: "Legalább egy céget ki kell választani!" }
   }
 
+  const VALID_DOCS_ROLES = new Set([
+    "ugyintezo",
+    "iktato",
+    "vezeto",
+    "betekinto",
+    "auditor",
+    "admin",
+    "rendszergazda",
+    "irattaros",
+  ])
+  const VALID_HR_ROLES = new Set([
+    "munkavallalo",
+    "hr_munkatars",
+    "hr_vezeto",
+    "vezeto",
+    "berugyi",
+    "toborzo",
+    "munkavedelmi",
+    "auditor",
+    "admin",
+    "rendszergazda",
+  ])
+
+  if (data.module === "docs" && !VALID_DOCS_ROLES.has(data.role)) {
+    return { success: false, error: "Érvénytelen eaisyDocs szerepkör." }
+  }
+  if (data.module === "hr" && !VALID_HR_ROLES.has(data.role)) {
+    return { success: false, error: "Érvénytelen eaisyHR szerepkör." }
+  }
+
   // Ellenőrizzük, hogy a hívó fél tulajdonos-e az összes kijelölt cégnél
   for (const compId of data.companyIds) {
     const { data: company } = await supabase
@@ -1033,9 +1089,12 @@ export async function inviteCompanyMemberAction(data: {
       profilePayload.szerepkor = "munkavallalo"
     }
 
-    await supabaseAdmin
+    const { error: profileUpsertErr } = await supabaseAdmin
       .from("felhasznalo_profil")
       .upsert(profilePayload)
+    if (profileUpsertErr) {
+      return { success: false, error: "Hiba a felhasználói profil mentésekor: " + profileUpsertErr.message }
+    }
   }
 
   // 2. Hozzárendelés a kijelölt cégekhez
@@ -1052,9 +1111,12 @@ export async function inviteCompanyMemberAction(data: {
       memberPayload.hr_szerepkor = data.role
     }
 
-    await supabaseAdmin
+    const { error: memberUpsertErr } = await supabaseAdmin
       .from("company_members")
       .upsert(memberPayload, { onConflict: "user_id, company_id" })
+    if (memberUpsertErr) {
+      return { success: false, error: "Hiba a cégtagság mentésekor: " + memberUpsertErr.message }
+    }
   }
 
   revalidatePath("/", "layout")
@@ -1261,6 +1323,7 @@ export async function importEaisyBillCompanyAction(eaisybillCompanyId: string): 
     cookieStore.set(SELECTED_COMPANY_COOKIE, targetCompany.id, {
       path: "/",
       maxAge: 60 * 60 * 24 * 365,
+      httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
     })

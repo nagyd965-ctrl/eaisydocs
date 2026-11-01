@@ -95,6 +95,7 @@ export async function getDocumentSignedUrl(filePath: string, iratId: string, fil
     entitas_id: iratId,
     esemeny_tipus: "megtekintve",
     user_id: user.id,
+    company_id: irat?.company_id || null,
     uj_ertek: { fajl: filePath, isPdfa: !!isPdfa, akcio: "megtekintes_biztonsagos_api_vegponton" },
     ip_cim: ip,
     user_agent: userAgent

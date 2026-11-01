@@ -37,11 +37,18 @@ async function hasCafeteriaAdminAccess(profile: any, activeCompanyId?: string | 
 // 1. Get the catalog
 export async function getCafeteriaCatalog() {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  const activeCompanyId = await getActiveCompanyIdServer()
+  let query = supabase
     .from("hr_cafeteria_katalogus")
     .select("*")
     .eq("aktiv", true)
     .order("nev")
+
+  if (activeCompanyId) {
+    query = query.eq("company_id", activeCompanyId)
+  }
+
+  const { data, error } = await query
     
   if (error) {
     console.error("Error fetching catalog:", error)
@@ -195,7 +202,7 @@ export async function setCafeteriaBudget(employeeId: string, year: number, amoun
     return { error: "Csak HR munkatárs vagy adminisztrátor állíthat be cafeteria keretet!" }
   }
   
-  // Upsert the budget
+  // Upsert the budget (scoped to active company)
   const { error } = await supabase
     .from("hr_cafeteria_keret")
     .upsert({
@@ -204,7 +211,7 @@ export async function setCafeteriaBudget(employeeId: string, year: number, amoun
       osszeg: amount,
       nyilatkozat_lezarva: false, // Re-open if they change the budget
       ...(activeCompanyId ? { company_id: activeCompanyId } : {})
-    }, { onConflict: 'dolgozo_id, ev' })
+    }, { onConflict: 'company_id,dolgozo_id,ev' })
 
   if (error) {
     console.error("Error setting budget:", error)

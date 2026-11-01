@@ -363,10 +363,11 @@ export async function importEaisyBooksPayrollEmployeesAction(input: {
     let importedCount = 0
     let invitedCount = 0
 
-    // Összes meglévő auth felhasználó lekérése e-mail alapú feloldáshoz
-    const { data: existingUserList } = await supabaseAdmin.auth.admin.listUsers()
+    // Összes meglévő auth felhasználó lekérése e-mail alapú feloldáshoz (lapozva)
+    const { listAllAuthUsers } = await import("@/utils/supabase/admin-users")
+    const allExistingUsers = await listAllAuthUsers(supabaseAdmin)
     const emailToAuthUserMap = new Map(
-      (existingUserList?.users || []).map((u) => [u.email?.toLowerCase(), u])
+      allExistingUsers.map((u) => [u.email?.toLowerCase(), u])
     )
 
     for (const emp of selectedEmployees) {

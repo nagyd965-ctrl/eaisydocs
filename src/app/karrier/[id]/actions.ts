@@ -326,15 +326,49 @@ export async function submitApplication(formData: FormData) {
   }
 }
 
+// Egyszerű memóriabeli rate-limit ablak e-mail enumeráció és brute-force ellen (max 5 kísérlet / 60 mp / kulcs)
+const statusCheckRateLimitMap = new Map<string, { count: number; resetAt: number }>()
+const STATUS_CHECK_WINDOW_MS = 60_000
+const STATUS_CHECK_MAX_ATTEMPTS = 5
+
 /**
- * Jelölt pályázatkövető lekérdezése e-mail cím és pályázati kód (vagy csak e-mail cím) alapján
+ * Jelölt pályázatkövető lekérdezése KÖTELEZŐ e-mail cím + pályázati kód páros alapján
+ * (GDPR P1 védelem: e-mail cím önmagában nem kérdezhető le, rate-limitált + egységes hibaüzenet)
  */
 export async function checkApplicationStatusAction(
   email: string,
   palyazatiKod?: string
 ) {
-  if (!email || !email.trim()) {
+  const normalizedEmail = (email || "").trim().toLowerCase()
+  const normalizedKod = (palyazatiKod || "").trim().toUpperCase()
+
+  if (!normalizedEmail) {
     return { error: "Kérjük, adja meg a jelentkezéskor használt e-mail címét!" }
+  }
+
+  if (!normalizedKod) {
+    return {
+      error:
+        "A személyes adatok védelme (GDPR) érdekében a státusz lekérdezéséhez kötelező megadni a visszaigazoló üzenetben kapott pályázati azonosítót is (pl. KAR-2026-...).",
+    }
+  }
+
+  const now = Date.now()
+  const rateKey = normalizedEmail
+  const entry = statusCheckRateLimitMap.get(rateKey)
+  if (entry && entry.resetAt > now) {
+    if (entry.count >= STATUS_CHECK_MAX_ATTEMPTS) {
+      return {
+        error:
+          "Túl sok lekérdezési kísérlet rövid időn belül. Kérjük, várjon egy percet, majd próbálja újra!",
+      }
+    }
+    entry.count += 1
+  } else {
+    statusCheckRateLimitMap.set(rateKey, {
+      count: 1,
+      resetAt: now + STATUS_CHECK_WINDOW_MS,
+    })
   }
 
   const supabaseAdmin = createAdminClient(
@@ -342,7 +376,7 @@ export async function checkApplicationStatusAction(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  let query = supabaseAdmin
+  const { data: rows, error } = await supabaseAdmin
     .from("hr_toborzas")
     .select(`
       id,
@@ -358,14 +392,10 @@ export async function checkApplicationStatusAction(
       hr_allashirdetes ( cim ),
       hr_munkakor ( megnevezes )
     `)
-    .ilike("email", email.trim())
+    .ilike("email", normalizedEmail)
+    .ilike("palyazati_kod", normalizedKod)
     .order("created_at", { ascending: false })
-
-  if (palyazatiKod && palyazatiKod.trim()) {
-    query = query.ilike("palyazati_kod", palyazatiKod.trim())
-  }
-
-  const { data: rows, error } = await query.limit(5)
+    .limit(5)
 
   if (error) {
     console.error("Hiba a pályázatstátusz lekérdezésekor:", error)
@@ -375,8 +405,7 @@ export async function checkApplicationStatusAction(
   if (!rows || rows.length === 0) {
     return {
       error:
-        "Nem található pályázat a megadott e-mail címmel" +
-        (palyazatiKod?.trim() ? " és pályázati azonosítóval." : "."),
+        "A megadott e-mail cím és pályázati azonosító párossal nem található aktív jelentkezés.",
     }
   }
 

@@ -685,21 +685,37 @@ export async function deleteJobDescriptionVersion(versionId: string, munkakorId:
     }
   }
 
-  // Get file path first
-  const { data: version } = await supabase
+  // Get file path first (ellenőrizve, hogy a verzió ehhez a munkakörhöz és céghez tartozik)
+  let versionQuery = supabase
     .from("hr_munkakor_leiras_verzio")
-    .select("fajl_path")
+    .select("id, fajl_path, munkakor_id, company_id")
     .eq("id", versionId)
-    .single()
+    .eq("munkakor_id", munkakorId)
 
-  if (version?.fajl_path) {
+  if (guard.activeCompanyId) {
+    versionQuery = versionQuery.eq("company_id", guard.activeCompanyId)
+  }
+
+  const { data: version } = await versionQuery.maybeSingle()
+  if (!version) {
+    return { error: "A munkaköri leírás verzió nem található az adott munkakörnél." }
+  }
+
+  if (version.fajl_path) {
     await supabase.storage.from("irat_files").remove([version.fajl_path])
   }
 
-  const { error } = await supabase
+  let deleteQuery = supabase
     .from("hr_munkakor_leiras_verzio")
     .delete()
     .eq("id", versionId)
+    .eq("munkakor_id", munkakorId)
+
+  if (guard.activeCompanyId) {
+    deleteQuery = deleteQuery.eq("company_id", guard.activeCompanyId)
+  }
+
+  const { error } = await deleteQuery
 
   if (error) return { error: error.message }
 

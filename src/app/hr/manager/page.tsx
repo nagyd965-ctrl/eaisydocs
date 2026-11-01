@@ -8,7 +8,7 @@ import { syncExpiredSubstitutions } from "@/utils/hr/substitute-sync"
 import { Shield } from "lucide-react"
 
 export default async function ManagerPage() {
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "vezeto"])
+  const auth = await requireHrAuthServer(["admin", "time", "payroll", "vezeto"])
   if (!auth.authorized || !auth.activeCompanyId) {
     return (
       <div className="flex items-center justify-center h-[50vh] text-center">
@@ -37,7 +37,7 @@ export default async function ManagerPage() {
   }
   const companyUserSet = new Set(companyUserIds)
 
-  const todayStr = new Date().toISOString().split("T")[0]
+  const todayStr = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Budapest" }).format(new Date())
 
   // 1. Közvetlen beosztottak ID-jainak lekérése (csak az aktív cég tagjai)
   const { data: teamProfiles } = await supabase

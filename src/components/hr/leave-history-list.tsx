@@ -72,6 +72,7 @@ export interface LeaveHistoryListProps {
   corrections?: AttendanceCorrectionItem[]
   overtimes?: OvertimeRequestItem[]
   holidays?: string[]
+  transferredWorkdays?: string[]
 }
 
 function formatLocalDate(dateStr?: string | null): string {
@@ -117,6 +118,7 @@ export function LeaveHistoryList({
   corrections = [],
   overtimes = [],
   holidays = [],
+  transferredWorkdays = [],
 }: LeaveHistoryListProps) {
   // 1. Egységes lista összeállítása
   const unifiedItems: UnifiedSelfServiceItem[] = [
@@ -131,7 +133,7 @@ export function LeaveHistoryList({
         typeof leave.munkanapok_szama === "number" && leave.munkanapok_szama > 0
           ? leave.munkanapok_szama
           : startDateStr && endDateStr
-            ? calculateWorkingDays(startDateStr, endDateStr, holidays)
+            ? calculateWorkingDays(startDateStr, endDateStr, holidays, transferredWorkdays)
             : null
 
       return {
@@ -158,7 +160,7 @@ export function LeaveHistoryList({
       const hasOriginal = c.eredeti_becsekkolas || c.eredeti_kicsekkolas
 
       const detailText = hasOriginal
-        ? `Eredeti: ${origIn} – ${origOut} ➔ Kért idő: ${newIn} – ${newOut}`
+        ? `Eredeti: ${origIn} – ${origOut} -> Kért idő: ${newIn} – ${newOut}`
         : `Kért idő: ${newIn} – ${newOut}`
 
       return {
@@ -239,7 +241,6 @@ export function LeaveHistoryList({
     const active = unifiedItems.filter((i) => !removedIds.has(`${i.category}-${i.id}`))
     if (statusFilter === "osszes") return active
     return active.filter((i) => i.statusz === statusFilter)
-    return unifiedItems.filter((i) => i.statusz === statusFilter)
   }, [unifiedItems, statusFilter, removedIds])
 
   if (unifiedItems.length === 0) {

@@ -35,26 +35,34 @@ export default async function SelfServiceGoalsPage() {
   let cyclesQuery = supabaseAdmin
     .from("hr_teljesitmeny_ciklus")
     .select("*")
-  let kpiLogsQuery = supabaseAdmin
-    .from("hr_esemeny_naplo")
-    .select("*, felhasznalo_profil(nev)")
-    .eq("entitas_tipus", "hr_teljesitmeny")
 
   if (activeCompanyId) {
     kpisQuery = kpisQuery.eq("company_id", activeCompanyId)
     cyclesQuery = cyclesQuery.eq("company_id", activeCompanyId)
-    kpiLogsQuery = kpiLogsQuery.eq("company_id", activeCompanyId)
   }
 
-  const [kpisRes, cyclesRes, kpiLogsRes] = await Promise.all([
+  const [kpisRes, cyclesRes] = await Promise.all([
     kpisQuery.order("created_at", { ascending: false }),
     cyclesQuery.order("kezdo_datum", { ascending: false }),
-    kpiLogsQuery.order("created_at", { ascending: true }),
   ])
 
   const kpis = kpisRes.data || []
   const cycles = cyclesRes.data || []
-  const kpiLogs = kpiLogsRes.data || []
+  const ownKpiIds = kpis.map((k: any) => k.id).filter(Boolean)
+
+  let kpiLogs: any[] = []
+  if (ownKpiIds.length > 0) {
+    let kpiLogsQuery = supabaseAdmin
+      .from("hr_esemeny_naplo")
+      .select("*, felhasznalo_profil(nev)")
+      .eq("entitas_tipus", "hr_teljesitmeny")
+      .in("entitas_id", ownKpiIds)
+    if (activeCompanyId) {
+      kpiLogsQuery = kpiLogsQuery.eq("company_id", activeCompanyId)
+    }
+    const kpiLogsRes = await kpiLogsQuery.order("created_at", { ascending: true })
+    kpiLogs = kpiLogsRes.data || []
+  }
 
   // Aktív ciklus keresése
   const activeCycle = cycles.find((c: any) => c.statusz === "nyitott" || c.statusz === "aktiv") 

@@ -5,22 +5,73 @@ import { revalidatePath } from "next/cache"
 import { generateJobDescriptionPdfBuffer } from "@/utils/hr/job-description-pdf-generator"
 import type { JobDescriptionPdfData } from "@/utils/hr/job-description-constants"
 import { getActiveCompanyServer } from "@/utils/company-server"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+
+async function verifyJobAdminAccess(jobId: string) {
+  const auth = await requireHrAuthServer(["admin", "organization"], null)
+  if (!auth.authorized || !auth.user) {
+    return { ok: false as const, error: "Nincs jogosultság a munkakör módosításához." }
+  }
+
+  const supabase = await createClient()
+  let jobQuery = supabase
+    .from("hr_munkakor")
+    .select("id, company_id, megnevezes, feladatok_es_hataskorok, elvart_kompetenciak, feor_kod, leiras, orvosi_vizsgalat_tipus, orvosi_vizsgalat_gyakorisag_ho, vedoeszkoz_igeny, kockazat_tipusa, hr_szervezeti_egyseg(id, nev)")
+    .eq("id", jobId)
+
+  if (auth.activeCompanyId) {
+    jobQuery = jobQuery.eq("company_id", auth.activeCompanyId)
+  }
+
+  const { data: job, error: jobErr } = await jobQuery.maybeSingle()
+  if (jobErr || !job) {
+    return { ok: false as const, error: "A munkakör nem található az aktív vállalatnál." }
+  }
+
+  if (auth.activeCompanyId && job.company_id && job.company_id !== auth.activeCompanyId) {
+    return { ok: false as const, error: "A munkakör másik vállalathoz tartozik." }
+  }
+
+  return {
+    ok: true as const,
+    supabase,
+    user: auth.user,
+    activeCompanyId: auth.activeCompanyId || job.company_id || null,
+    job,
+  }
+}
 
 export async function assignEmployeeToJob(jobId: string, employeeId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const access = await verifyJobAdminAccess(jobId)
+  if (!access.ok) return { error: access.error }
+  const { supabase, activeCompanyId } = access
 
-  if (!user) return { error: "Nincs bejelentkezve" }
+  if (activeCompanyId) {
+    const { data: empCard } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select("id, company_id")
+      .eq("id", employeeId)
+      .eq("company_id", activeCompanyId)
+      .maybeSingle()
+    if (!empCard) {
+      return { error: "A dolgozó nem tartozik az aktív vállalathoz." }
+    }
+  }
 
   // 1. Get active jogviszony
-  const { data: jogviszony } = await supabase
+  let jvQuery = supabase
     .from("hr_jogviszony")
     .select("id")
     .eq("dolgozo_id", employeeId)
     .is("kilepes_datuma", null)
     .order("belepes_datuma", { ascending: false })
     .limit(1)
-    .maybeSingle()
+
+  if (activeCompanyId) {
+    jvQuery = jvQuery.eq("company_id", activeCompanyId)
+  }
+
+  const { data: jogviszony } = await jvQuery.maybeSingle()
 
   if (!jogviszony) {
     return { error: "A dolgozónak nincs aktív jogviszonya!" }
@@ -46,7 +97,8 @@ export async function assignEmployeeToJob(jobId: string, employeeId: string) {
     const res = await supabase.from("hr_beosztas").insert({ 
       jogviszony_id: jogviszony.id, 
       munkakor_id: jobId, 
-      ervenyes_tol: new Date().toISOString().split('T')[0] 
+      ervenyes_tol: new Date().toISOString().split('T')[0],
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
     })
     error = res.error
   }
@@ -65,20 +117,24 @@ export async function assignEmployeeToJob(jobId: string, employeeId: string) {
 }
 
 export async function removeEmployeeFromJob(jobId: string, employeeId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) return { error: "Nincs bejelentkezve" }
+  const access = await verifyJobAdminAccess(jobId)
+  if (!access.ok) return { error: access.error }
+  const { supabase, activeCompanyId } = access
 
   // 1. Get active jogviszony
-  const { data: jogviszony } = await supabase
+  let jvQuery = supabase
     .from("hr_jogviszony")
     .select("id")
     .eq("dolgozo_id", employeeId)
     .is("kilepes_datuma", null)
     .order("belepes_datuma", { ascending: false })
     .limit(1)
-    .maybeSingle()
+
+  if (activeCompanyId) {
+    jvQuery = jvQuery.eq("company_id", activeCompanyId)
+  }
+
+  const { data: jogviszony } = await jvQuery.maybeSingle()
 
   if (!jogviszony) return { success: true }
 
@@ -102,20 +158,12 @@ export async function removeEmployeeFromJob(jobId: string, employeeId: string) {
 }
 
 export async function addJobTaskAction(jobId: string, task: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
+  const access = await verifyJobAdminAccess(jobId)
+  if (!access.ok) return { error: access.error }
+  const { supabase, job, activeCompanyId } = access
 
   const trimmed = task.trim()
   if (!trimmed) return { error: "A feladat nem lehet üres!" }
-
-  const { data: job, error: fetchErr } = await supabase
-    .from("hr_munkakor")
-    .select("feladatok_es_hataskorok")
-    .eq("id", jobId)
-    .single()
-
-  if (fetchErr || !job) return { error: "Munkakör nem található" }
 
   let currentTasks: string[] = []
   if (Array.isArray(job.feladatok_es_hataskorok)) {
@@ -131,11 +179,13 @@ export async function addJobTaskAction(jobId: string, task: string) {
 
   currentTasks.push(trimmed)
 
-  const { error: updateErr } = await supabase
+  let updateQuery = supabase
     .from("hr_munkakor")
     .update({ feladatok_es_hataskorok: currentTasks })
     .eq("id", jobId)
+  if (activeCompanyId) updateQuery = updateQuery.eq("company_id", activeCompanyId)
 
+  const { error: updateErr } = await updateQuery
   if (updateErr) return { error: updateErr.message }
 
   revalidatePath(`/hr/job/${jobId}`)
@@ -143,17 +193,9 @@ export async function addJobTaskAction(jobId: string, task: string) {
 }
 
 export async function removeJobTaskAction(jobId: string, taskIndex: number) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
-  const { data: job, error: fetchErr } = await supabase
-    .from("hr_munkakor")
-    .select("feladatok_es_hataskorok")
-    .eq("id", jobId)
-    .single()
-
-  if (fetchErr || !job) return { error: "Munkakör nem található" }
+  const access = await verifyJobAdminAccess(jobId)
+  if (!access.ok) return { error: access.error }
+  const { supabase, job, activeCompanyId } = access
 
   let currentTasks: string[] = []
   if (Array.isArray(job.feladatok_es_hataskorok)) {
@@ -162,11 +204,13 @@ export async function removeJobTaskAction(jobId: string, taskIndex: number) {
 
   const updatedTasks = currentTasks.filter((_, idx) => idx !== taskIndex)
 
-  const { error: updateErr } = await supabase
+  let updateQuery = supabase
     .from("hr_munkakor")
     .update({ feladatok_es_hataskorok: updatedTasks })
     .eq("id", jobId)
+  if (activeCompanyId) updateQuery = updateQuery.eq("company_id", activeCompanyId)
 
+  const { error: updateErr } = await updateQuery
   if (updateErr) return { error: updateErr.message }
 
   revalidatePath(`/hr/job/${jobId}`)
@@ -174,20 +218,12 @@ export async function removeJobTaskAction(jobId: string, taskIndex: number) {
 }
 
 export async function addJobCompetencyAction(jobId: string, competency: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
+  const access = await verifyJobAdminAccess(jobId)
+  if (!access.ok) return { error: access.error }
+  const { supabase, job, activeCompanyId } = access
 
   const trimmed = competency.trim()
   if (!trimmed) return { error: "A kompetencia nem lehet üres!" }
-
-  const { data: job, error: fetchErr } = await supabase
-    .from("hr_munkakor")
-    .select("elvart_kompetenciak")
-    .eq("id", jobId)
-    .single()
-
-  if (fetchErr || !job) return { error: "Munkakör nem található" }
 
   let currentComp: string[] = []
   if (Array.isArray(job.elvart_kompetenciak)) {
@@ -205,11 +241,13 @@ export async function addJobCompetencyAction(jobId: string, competency: string) 
     currentComp.push(trimmed)
   }
 
-  const { error: updateErr } = await supabase
+  let updateQuery = supabase
     .from("hr_munkakor")
     .update({ elvart_kompetenciak: currentComp })
     .eq("id", jobId)
+  if (activeCompanyId) updateQuery = updateQuery.eq("company_id", activeCompanyId)
 
+  const { error: updateErr } = await updateQuery
   if (updateErr) return { error: updateErr.message }
 
   revalidatePath(`/hr/job/${jobId}`)
@@ -217,17 +255,9 @@ export async function addJobCompetencyAction(jobId: string, competency: string) 
 }
 
 export async function removeJobCompetencyAction(jobId: string, compIndex: number) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
-  const { data: job, error: fetchErr } = await supabase
-    .from("hr_munkakor")
-    .select("elvart_kompetenciak")
-    .eq("id", jobId)
-    .single()
-
-  if (fetchErr || !job) return { error: "Munkakör nem található" }
+  const access = await verifyJobAdminAccess(jobId)
+  if (!access.ok) return { error: access.error }
+  const { supabase, job, activeCompanyId } = access
 
   let currentComp: string[] = []
   if (Array.isArray(job.elvart_kompetenciak)) {
@@ -236,11 +266,13 @@ export async function removeJobCompetencyAction(jobId: string, compIndex: number
 
   const updatedComp = currentComp.filter((_, idx) => idx !== compIndex)
 
-  const { error: updateErr } = await supabase
+  let updateQuery = supabase
     .from("hr_munkakor")
     .update({ elvart_kompetenciak: updatedComp })
     .eq("id", jobId)
+  if (activeCompanyId) updateQuery = updateQuery.eq("company_id", activeCompanyId)
 
+  const { error: updateErr } = await updateQuery
   if (updateErr) return { error: updateErr.message }
 
   revalidatePath(`/hr/job/${jobId}`)
@@ -251,20 +283,9 @@ export async function generateJobDescriptionVersionAction(
   jobId: string,
   options?: { megjegyzes?: string }
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
-  // 1. Munkakör adatok lekérése a legfrissebb állapotból
-  const { data: job, error: jobErr } = await supabase
-    .from("hr_munkakor")
-    .select("*, hr_szervezeti_egyseg(id, nev)")
-    .eq("id", jobId)
-    .single()
-
-  if (jobErr || !job) {
-    return { error: "Munkakör nem található: " + (jobErr?.message || "") }
-  }
+  const access = await verifyJobAdminAccess(jobId)
+  if (!access.ok) return { error: access.error }
+  const { supabase, user, job } = access
 
   // 2. Aktív cég lekérése fejléc adatokhoz
   const activeCompany = await getActiveCompanyServer()
@@ -327,7 +348,10 @@ export async function generateJobDescriptionVersionAction(
       : `Munkaköri kockázati besorolás: ${job.kockazat_tipusa}`
   }
 
-  const orgUnitNev = job.hr_szervezeti_egyseg?.nev || "Központi állomány"
+  const orgUnitObj = Array.isArray(job.hr_szervezeti_egyseg)
+    ? job.hr_szervezeti_egyseg[0]
+    : (job.hr_szervezeti_egyseg as { id?: string; nev?: string } | null)
+  const orgUnitNev = orgUnitObj?.nev || "Központi állomány"
 
   // 7. PDF adatstruktúra összeállítása
   const pdfData: JobDescriptionPdfData = {
@@ -380,7 +404,8 @@ export async function generateJobDescriptionVersionAction(
       fajl_path: storagePath,
       fajl_nev: fileName,
       feltolto_id: user.id,
-      megjegyzes: megjegyzes
+      megjegyzes: megjegyzes,
+      ...(job.company_id || activeCompany?.id ? { company_id: job.company_id || activeCompany?.id } : {})
     })
 
   if (dbError) {

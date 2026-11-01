@@ -80,6 +80,9 @@ export async function assignDossier(formData: FormData) {
     }
   }
 
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   // 3. Log event
   if (user) {
     let reszletek = `Felelős frissítve.`
@@ -107,19 +110,23 @@ export async function assignDossier(formData: FormData) {
       indoklas: reszletek,
       uj_ertek: { felelos_user_id, hatarido },
       ip_cim: ip,
-      user_agent: userAgent
+      user_agent: userAgent,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
     })
   }
 
   // 4. Értesítés küldése, ha a szabály aktív és van új felelős
   if (felelos_user_id && felelos_user_id !== "none") {
-    // Ellenőrizzük az értesítési szabályt
-    const { data: szabaly } = await supabase
+    // Ellenőrizzük az értesítési szabályt (az aktív vállalatra szűrve)
+    let szabalyQuery = supabase
       .from("ertesitesi_szabaly")
       .select("aktiv, csatorna")
       .eq("esemeny_tipus", "uj_szignalas")
       .eq("kinek", "felelos")
-      .single()
+    if (activeCompanyId) {
+      szabalyQuery = szabalyQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: szabaly } = await szabalyQuery.limit(1).maybeSingle()
 
     if (szabaly?.aktiv) {
       const csatornak = szabaly.csatorna || ['email']

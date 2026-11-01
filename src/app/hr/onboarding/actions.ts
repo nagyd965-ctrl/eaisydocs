@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache"
 import { onboardEmployee } from "@/app/hr/admin/actions"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 function getAdminClient() {
   return createAdminClient(
@@ -21,19 +22,37 @@ export async function toggleTaskStatus(taskId: string, currentStatus: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  const auth = await requireHrAuthServer(["admin", "onboarding"], null)
+  if (!auth.authorized) {
+    return { error: "Nincs jogosultságod a beléptetési feladatok módosításához." }
+  }
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+
   const newStatus = currentStatus === 'pending' ? 'done' : 'pending'
 
-  // Feladat lekérése audit infóhoz
+  // Feladat lekérése audit infóhoz és cég-ellenőrzéshez
   const { data: taskData } = await supabase
     .from("hr_onboarding_feladat")
-    .select(`cim, onboarding_id, hr_onboarding(nev)`)
+    .select(`cim, onboarding_id, company_id, hr_onboarding(nev, company_id)`)
     .eq("id", taskId)
     .single()
 
-  const { error } = await supabase
+  if (!taskData) {
+    return { error: "A feladat nem található." }
+  }
+  const targetCompanyId = (taskData as any).company_id || (taskData.hr_onboarding as any)?.company_id || null
+  if (activeCompanyId && targetCompanyId && targetCompanyId !== activeCompanyId) {
+    return { error: "A feladat másik vállalathoz tartozik." }
+  }
+
+  let updateQuery = supabase
     .from("hr_onboarding_feladat")
     .update({ statusz: newStatus })
     .eq("id", taskId)
+  if (activeCompanyId) {
+    updateQuery = updateQuery.eq("company_id", activeCompanyId)
+  }
+  const { error } = await updateQuery
 
   if (error) {
     console.error("Hiba feladat módosításakor:", error)
@@ -42,7 +61,6 @@ export async function toggleTaskStatus(taskId: string, currentStatus: string) {
 
   // Audit napló írása
   if (taskData) {
-    const activeCompanyId = await getActiveCompanyIdServer()
     const statusText = newStatus === 'done' ? 'Elvégezve' : 'Folyamatban'
     await supabase.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
@@ -64,10 +82,33 @@ export async function updateOnboardingDate(onboardingId: string, newDate: string
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const { error } = await supabase
+  const auth = await requireHrAuthServer(["admin", "onboarding"], null)
+  if (!auth.authorized) {
+    return { error: "Nincs jogosultságod a belépési dátum módosításához." }
+  }
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+
+  const { data: existingOnb } = await supabase
+    .from("hr_onboarding")
+    .select("id, company_id")
+    .eq("id", onboardingId)
+    .maybeSingle()
+
+  if (!existingOnb) {
+    return { error: "A beléptetési folyamat nem található." }
+  }
+  if (activeCompanyId && existingOnb.company_id && existingOnb.company_id !== activeCompanyId) {
+    return { error: "A beléptetési folyamat másik vállalathoz tartozik." }
+  }
+
+  let updateQuery = supabase
     .from("hr_onboarding")
     .update({ belepes_datuma: newDate })
     .eq("id", onboardingId)
+  if (activeCompanyId) {
+    updateQuery = updateQuery.eq("company_id", activeCompanyId)
+  }
+  const { error } = await updateQuery
 
   if (error) {
     console.error("Hiba a dátum mentésekor:", error)
@@ -75,7 +116,6 @@ export async function updateOnboardingDate(onboardingId: string, newDate: string
   }
 
   // Logolás
-  const activeCompanyId = await getActiveCompanyIdServer()
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "munkatars_felvetel", 
@@ -95,13 +135,33 @@ export async function addOnboardingTask(onboardingId: string, cim: string, felel
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  const auth = await requireHrAuthServer(["admin", "onboarding"], null)
+  if (!auth.authorized) {
+    return { error: "Nincs jogosultságod új beléptetési feladat hozzáadásához." }
+  }
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+
+  const { data: existingOnb } = await supabase
+    .from("hr_onboarding")
+    .select("id, company_id")
+    .eq("id", onboardingId)
+    .maybeSingle()
+
+  if (!existingOnb) {
+    return { error: "A beléptetési folyamat nem található." }
+  }
+  if (activeCompanyId && existingOnb.company_id && existingOnb.company_id !== activeCompanyId) {
+    return { error: "A beléptetési folyamat másik vállalathoz tartozik." }
+  }
+
   const { error } = await supabase
     .from("hr_onboarding_feladat")
     .insert([{
       onboarding_id: onboardingId,
       cim,
       felelos_reszleg,
-      statusz: 'pending'
+      statusz: 'pending',
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
     }])
 
   if (error) {
@@ -110,7 +170,6 @@ export async function addOnboardingTask(onboardingId: string, cim: string, felel
   }
 
   // Logolás
-  const activeCompanyId = await getActiveCompanyIdServer()
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "adat_modositas", 
@@ -130,16 +189,34 @@ export async function deleteOnboardingTask(taskId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  const auth = await requireHrAuthServer(["admin", "onboarding"], null)
+  if (!auth.authorized) {
+    return { error: "Nincs jogosultságod beléptetési feladat törléséhez." }
+  }
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+
   const { data: taskData } = await supabase
     .from("hr_onboarding_feladat")
-    .select(`cim, onboarding_id`)
+    .select(`cim, onboarding_id, company_id, hr_onboarding(company_id)`)
     .eq("id", taskId)
     .single()
 
-  const { error } = await supabase
+  if (!taskData) {
+    return { error: "A feladat nem található." }
+  }
+  const targetCompanyId = (taskData as any).company_id || (taskData as any).hr_onboarding?.company_id || null
+  if (activeCompanyId && targetCompanyId && targetCompanyId !== activeCompanyId) {
+    return { error: "A feladat másik vállalathoz tartozik." }
+  }
+
+  let deleteQuery = supabase
     .from("hr_onboarding_feladat")
     .delete()
     .eq("id", taskId)
+  if (activeCompanyId) {
+    deleteQuery = deleteQuery.eq("company_id", activeCompanyId)
+  }
+  const { error } = await deleteQuery
 
   if (error) {
     console.error("Hiba a feladat törlésekor:", error)
@@ -147,7 +224,6 @@ export async function deleteOnboardingTask(taskId: string) {
   }
 
   if (taskData) {
-    const activeCompanyId = await getActiveCompanyIdServer()
     await supabase.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
       esemeny_tipus: "adat_torles", 
@@ -171,17 +247,8 @@ export async function activateOnboardingAccount(onboardingId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const [{ data: profile }, companyRoles] = await Promise.all([
-    supabase.from("felhasznalo_profil").select("hr_szerepkor").eq("id", user.id).single(),
-    getActiveCompanyMemberRolesServer(),
-  ])
-
-  // BUG-0 javítás (2026-10-31): legacy szerepkörnevek helyett kanonikus modulkulcs-ellenőrzés
-  if (!companyRoles?.isCompanyAdmin && !isUserAuthorizedForHrView(
-        companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : (profile?.hr_szerepkor || "none"),
-        ["onboarding"],
-        companyRoles?.hrModules || []
-      )) {
+  const auth = await requireHrAuthServer(["admin", "onboarding"], null)
+  if (!auth.authorized) {
     return { error: "Nincs jogosultságod a munkavállalói fiók aktiválásához." }
   }
 
@@ -203,9 +270,9 @@ export async function activateOnboardingAccount(onboardingId: string) {
   }
 
   if (
-    companyRoles?.companyId &&
+    auth.activeCompanyId &&
     onboarding.company_id &&
-    onboarding.company_id !== companyRoles.companyId
+    onboarding.company_id !== auth.activeCompanyId
   ) {
     return { error: "Az onboarding folyamat egy másik céghez tartozik." }
   }
@@ -552,23 +619,22 @@ export async function closeOnboarding(onboardingId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("hr_szerepkor, hr_modulok")
-    .eq("id", user.id)
-    .single()
-
-  const hrModules: string[] = Array.isArray((profile as any)?.hr_modulok) ? (profile as any).hr_modulok : []
-  const canCloseOnboarding =
-    profile &&
-    (["admin", "hr_vezeto", "hr_munkatars"].includes(profile.hr_szerepkor) ||
-      hrModules.some((m) => ["admin", "onboarding"].includes(m)))
-
-  if (!canCloseOnboarding) {
+  const auth = await requireHrAuthServer(["admin", "onboarding"], null)
+  if (!auth.authorized) {
     return { error: "Nincs jogosultságod a beléptetés lezárásához." }
   }
 
   const adminClient = getAdminClient()
+  if (auth.activeCompanyId) {
+    const { data: onb } = await adminClient
+      .from("hr_onboarding")
+      .select("company_id")
+      .eq("id", onboardingId)
+      .maybeSingle()
+    if (onb?.company_id && onb.company_id !== auth.activeCompanyId) {
+      return { error: "A beléptetési folyamat egy másik vállalathoz tartozik." }
+    }
+  }
   const nowIso = new Date().toISOString()
 
   const { error } = await adminClient
@@ -607,22 +673,29 @@ export async function reopenOnboarding(onboardingId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const [{ data: profile }, companyRoles] = await Promise.all([
-    supabase.from("felhasznalo_profil").select("hr_szerepkor").eq("id", user.id).single(),
-    getActiveCompanyMemberRolesServer(),
-  ])
-  // BUG-0 javítás (2026-10-31): legacy szerepkörnevek helyett kanonikus modulkulcs-ellenőrzés
-  if (!companyRoles?.isCompanyAdmin && !isUserAuthorizedForHrView(
-        companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : (profile?.hr_szerepkor || "none"),
-        ["onboarding"],
-        companyRoles?.hrModules || []
-      )) {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["admin", "onboarding"], null)
+  if (!auth.authorized) {
     return { error: "Nincs jogosultságod a beléptetési folyamat újranyitásához." }
   }
 
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   const adminClient = getAdminClient()
 
-  const { error } = await adminClient
+  const { data: existing } = await adminClient
+    .from("hr_onboarding")
+    .select("id, company_id")
+    .eq("id", onboardingId)
+    .maybeSingle()
+
+  if (!existing) {
+    return { error: "A beléptetési folyamat nem található." }
+  }
+  if (activeCompanyId && existing.company_id && existing.company_id !== activeCompanyId) {
+    return { error: "A beléptetési folyamat másik vállalathoz tartozik." }
+  }
+
+  let updateQuery = adminClient
     .from("hr_onboarding")
     .update({
       statusz: "folyamatban",
@@ -630,12 +703,16 @@ export async function reopenOnboarding(onboardingId: string) {
       lezarta_id: null
     })
     .eq("id", onboardingId)
+  if (activeCompanyId) {
+    updateQuery = updateQuery.eq("company_id", activeCompanyId)
+  }
+
+  const { error } = await updateQuery
 
   if (error) {
     return { error: error.message }
   }
 
-  const activeCompanyId = await getActiveCompanyIdServer()
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "adat_modositas",
@@ -657,31 +734,42 @@ export async function deleteOnboarding(onboardingId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const [{ data: profile }, companyRoles] = await Promise.all([
-    supabase.from("felhasznalo_profil").select("hr_szerepkor").eq("id", user.id).single(),
-    getActiveCompanyMemberRolesServer(),
-  ])
-  // BUG-0 javítás (2026-10-31): legacy szerepkörnevek helyett kanonikus modulkulcs-ellenőrzés
-  if (!companyRoles?.isCompanyAdmin && !isUserAuthorizedForHrView(
-        companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : (profile?.hr_szerepkor || "none"),
-        ["onboarding"],
-        companyRoles?.hrModules || []
-      )) {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["admin", "onboarding"], null)
+  if (!auth.authorized) {
     return { error: "Nincs jogosultságod a beléptetési folyamat törléséhez." }
   }
 
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   const adminClient = getAdminClient()
 
-  const { error } = await adminClient
+  const { data: existing } = await adminClient
+    .from("hr_onboarding")
+    .select("id, company_id")
+    .eq("id", onboardingId)
+    .maybeSingle()
+
+  if (!existing) {
+    return { error: "A beléptetési folyamat nem található." }
+  }
+  if (activeCompanyId && existing.company_id && existing.company_id !== activeCompanyId) {
+    return { error: "A beléptetési folyamat másik vállalathoz tartozik." }
+  }
+
+  let deleteQuery = adminClient
     .from("hr_onboarding")
     .delete()
     .eq("id", onboardingId)
+  if (activeCompanyId) {
+    deleteQuery = deleteQuery.eq("company_id", activeCompanyId)
+  }
+
+  const { error } = await deleteQuery
 
   if (error) {
     return { error: error.message }
   }
 
-  const activeCompanyId = await getActiveCompanyIdServer()
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "adat_torles",

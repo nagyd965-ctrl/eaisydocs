@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,18 +43,24 @@ export function CafeteriaTab({
   year, 
   budgetData,
   catalog,
-  choices
+  choices,
+  isHrOrAdmin = false,
 }: { 
   employeeId: string, 
   year: number,
   budgetData: any,
   catalog: any[],
-  choices: any[]
+  choices: any[],
+  isHrOrAdmin?: boolean,
 }) {
   const [loading, setLoading] = useState(false)
   const [reopenLoading, setReopenLoading] = useState(false)
   const [filing, setFiling] = useState(false)
   const [budgetAmount, setBudgetAmount] = useState<string>(budgetData?.osszeg?.toString() || "")
+
+  useEffect(() => {
+    setBudgetAmount(budgetData?.osszeg?.toString() || "")
+  }, [budgetData?.osszeg])
   
   const budget = budgetData?.osszeg || 0
   const isClosed = budgetData?.nyilatkozat_lezarva || false
@@ -122,21 +128,23 @@ export function CafeteriaTab({
             <CardDescription>Határozd meg a dolgozó éves bruttó cafeteria keretét.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="budgetAmount">Éves keretösszeg (Ft)</Label>
-              <div className="flex gap-2">
-                <Input 
-                  id="budgetAmount" 
-                  type="number" 
-                  value={budgetAmount}
-                  onChange={(e) => setBudgetAmount(e.target.value)}
-                  placeholder="pl. 400000"
-                />
-                <Button onClick={handleSaveBudget} disabled={loading}>
-                  {loading ? "Mentés..." : "Beállítás"}
-                </Button>
+            {isHrOrAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="budgetAmount">Éves keretösszeg (Ft)</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    id="budgetAmount" 
+                    type="number" 
+                    value={budgetAmount}
+                    onChange={(e) => setBudgetAmount(e.target.value)}
+                    placeholder="pl. 400000"
+                  />
+                  <Button onClick={handleSaveBudget} disabled={loading}>
+                    {loading ? "Mentés..." : "Beállítás"}
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
 
             {budget > 0 && (
               <div className="bg-muted/30 p-4 rounded-lg border mt-6">
@@ -226,8 +234,8 @@ export function CafeteriaTab({
                     <span>Letöltés</span>
                   </Button>
 
-                  {/* 3. Iktatás az eaisyDocs-ba (ha még nincs iktatva) */}
-                  {!iktatoszam ? (
+                  {/* 3. Iktatás az eaisyDocs-ba (ha még nincs iktatva, csak HR/adminnak) */}
+                  {isHrOrAdmin && !iktatoszam ? (
                     <Button
                       variant="default"
                       size="sm"
@@ -241,37 +249,39 @@ export function CafeteriaTab({
                     </Button>
                   ) : null}
 
-                  {/* 4. Újranyitás */}
-                  <AlertDialog>
-                    <AlertDialogTrigger 
-                      className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-warning/30 bg-transparent hover:bg-warning/10 text-warning h-8 px-2.5" 
-                      disabled={reopenLoading}
-                      title="Nyilatkozat újranyitása módosításhoz"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5 mr-1" /> Újranyitás
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Nyilatkozat újranyitása (Év közbeni módosítás)</AlertDialogTitle>
-                        <AlertDialogDescription className="space-y-2">
-                          <div>
-                            Biztosan újranyitod a dolgozó nyilatkozatát? Ezzel a dolgozó újra módosíthatja és beküldheti a cafeteria választásait.
-                          </div>
-                          {iktatoszam && (
-                            <div className="p-3 bg-muted/60 border rounded-md text-xs text-foreground font-medium">
-                              <strong>Levéltári figyelem:</strong> Ez a nyilatkozat már hivatalosan be lett iktatva a személyi dossziéba (<strong>{iktatoszam}</strong>). A korábbi iktatott irat megőrzött archívumként megmarad, és az új nyilatkozat leadásakor új iratként iktatható.
+                  {/* 4. Újranyitás (csak HR/adminnak) */}
+                  {isHrOrAdmin && (
+                    <AlertDialog>
+                      <AlertDialogTrigger 
+                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-warning/30 bg-transparent hover:bg-warning/10 text-warning h-8 px-2.5" 
+                        disabled={reopenLoading}
+                        title="Nyilatkozat újranyitása módosításhoz"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 mr-1" /> Újranyitás
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Nyilatkozat újranyitása (Év közbeni módosítás)</AlertDialogTitle>
+                          <AlertDialogDescription className="space-y-2">
+                            <div>
+                              Biztosan újranyitod a dolgozó nyilatkozatát? Ezzel a dolgozó újra módosíthatja és beküldheti a cafeteria választásait.
                             </div>
-                          )}
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Mégse</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleReopen} className="bg-warning hover:bg-warning/90 text-warning-foreground">
-                          Igen, Újranyitás
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                            {iktatoszam && (
+                              <div className="p-3 bg-muted/60 border rounded-md text-xs text-foreground font-medium">
+                                <strong>Levéltári figyelem:</strong> Ez a nyilatkozat már hivatalosan be lett iktatva a személyi dossziéba (<strong>{iktatoszam}</strong>). A korábbi iktatott irat megőrzött archívumként megmarad, és az új nyilatkozat leadásakor új iratként iktatható.
+                              </div>
+                            )}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Mégse</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleReopen} className="bg-warning hover:bg-warning/90 text-warning-foreground">
+                            Igen, Újranyitás
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                 </div>
               )}
             </div>

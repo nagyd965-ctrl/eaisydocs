@@ -90,7 +90,7 @@ Fokozott biztonságú, Security Definer RPC rétegen keresztül kezelt (`get_dec
 | `jovahagyo_vezeto_id` | uuid | ✓ | FK → `felhasznalo_profil.id` |
 
 ### `hr_munkaszuneti_nap`
-`id`, `datum` (DATE UNIQUE), `megnevezes` (TEXT), `athelye_munkanap` (BOOLEAN: true ha ledolgozandó szombat). Pre-seedelve 2025, 2026, 2027 évekre.
+`id`, `datum` (DATE), `megnevezes` (TEXT), `tipus` (`unnepnap`, `pihenonap`, `athelyezett_munkanap`), `company_id` (`UUID REFERENCES public.companies(id) ON DELETE CASCADE`, nullable: `NULL` = országos alapértelmezett, `<uuid>` = céges egyedi pihenőnap vagy munkanap-áthelyezés). Parciális unique indexek: `hr_munkaszuneti_nap_global_datum_idx` (`WHERE company_id IS NULL`) és `hr_munkaszuneti_nap_company_datum_idx` (`WHERE company_id IS NOT NULL`). Pre-seedelve 2025, 2026, 2027 évekre (`20261101000004`, `20261101000005`).
 
 ---
 
@@ -99,16 +99,16 @@ Fokozott biztonságú, Security Definer RPC rétegen keresztül kezelt (`get_dec
 - `hr_tavollet`: `id`, `dolgozo_id` (FK → `hr_dolgozo_adatlap.id`), `kezdet_datuma`, `veg_datuma`, `munkanapok_szama` (integer, ünnepnapokkal és áthelyezett munkanapokkal korrigált munkanapok), `tipus` (`fizetett_szabadsag`, `betegszabadsag`, `fizetes_nelkuli`, `egyeb`), `statusz` (`tervezet`, `jovahagyasra_var`, `jovahagyva`, `elutasitva`, `visszavonva`), `jovahagyo_id`, `megjegyzes`, `elutasitas_oka`.
 - `company_members.hr_modulok` & `felhasznalo_profil.hr_modulok`: `text[]` (`DEFAULT '{}'`), a felhasználó számára engedélyezett szakmai HR modulok kulcsai (`admin`, `organization`, `time`, `payroll`, `compliance`, `reports`, `recruitment`, `onboarding`, `offboarding`, `audit`).
 - `public.has_hr_module_access(p_modules text[], p_company_id uuid DEFAULT NULL)`: `SECURITY DEFINER` PostgreSQL segédfüggvény (`20261028000005`, cégre szűkítve: `20261101000001`), amely az összes `company_id`-val rendelkező `hr_*` tábla RLS szabályában (`has_hr_module_access(ARRAY[...], company_id)`) és a titkosított PII RPC-kben (`get_decrypted_hr_data`, `update_decrypted_hr_data`) az adott cégbeli `company_members.hr_modulok` tömböt és céges szerepkört ellenőrzi (a `felhasznalo_profil` globális fallbacket kizárólag egycéges felhasználónál engedélyezve).
-- `hr_kituntetes`, `hr_berpapir`, `hr_elozo_munkahely`, `hr_tulora_felhasznalás`, `hr_munkakor_nyugtazas`, `hr_beosztas`: Mindegyik tábla rendelkezik `company_id UUID REFERENCES public.companies(id)` oszloppal, `company_isolation_restrictive` (`AS RESTRICTIVE`, `public.user_has_company_access(company_id)`) szabályokkal és cégre szűkített 2 paraméteres `has_hr_module_access(..., company_id)` modul-alapú RLS védelemmel; a `hr_jelenlet` táblán pedig a `hr_jelenlet_hr_delete` (`FOR DELETE`) szabály engedélyezi a törlést a `time`/`admin` moduljogosultak számára (`20261101000001`).
+- `hr_kituntetes`, `hr_berpapir` (`UNIQUE (company_id, dolgozo_id, ev, honap)`), `hr_elozo_munkahely`, `hr_tulora_felhasznalás`, `hr_munkakor_nyugtazas`, `hr_beosztas`, `hr_onboarding_munkakor`, `hr_munkakor_leiras_verzio`, `hr_cafeteria_katalogus`: Mindegyik tábla rendelkezik `company_id UUID REFERENCES public.companies(id)` oszloppal, `RESTRICTIVE` (`public.user_has_company_access(company_id)`) szabályokkal és cégre szűkített 2 paraméteres `has_hr_module_access(..., company_id)` modul-alapú RLS védelemmel; a `hr_jelenlet` táblán pedig a `hr_jelenlet_hr_delete` (`FOR DELETE`) szabály engedélyezi a törlést a `time`/`admin` moduljogosultak számára (`20261101000001`, `20261101000002`, `20261101000003`, `20261101000004`).
 - `hr_helyettesites`: `id`, `tavollet_id` (FK → `hr_tavollet.id`), `helyettesito_id` (FK → `felhasznalo_profil.id`), `statusz` (`aktiv`, `inaktiv`).
 
 ---
 
 ## 4. Cafeteria Rendszer
 
-- `hr_cafeteria_katalogus`: `id`, `nev`, `leiras`, `eves_maximum`, `ado_szazalek`, `aktiv`.
-- `hr_cafeteria_keret`: `id`, `dolgozo_id`, `ev`, `eves_keret`.
-- `hr_cafeteria_valasztas`: `id`, `keret_id`, `katalogus_elem_id`, `osszeg`, `statusz` (`tervezet`, `leadva`, `elfogadva`).
+- `hr_cafeteria_katalogus`: `id`, `company_id` (FK → `companies.id`), `nev`, `leiras`, `eves_maximum`, `ado_szazalek`, `aktiv`.
+- `hr_cafeteria_keret`: `id`, `company_id` (FK → `companies.id`), `dolgozo_id`, `ev`, `eves_keret` (`UNIQUE (company_id, dolgozo_id, ev)`).
+- `hr_cafeteria_valasztas`: `id`, `company_id` (FK → `companies.id`), `keret_id`, `katalogus_elem_id`, `osszeg`, `statusz` (`tervezet`, `leadva`, `elfogadva`).
 
 ---
 
@@ -133,19 +133,20 @@ Fokozott biztonságú, Security Definer RPC rétegen keresztül kezelt (`get_dec
 ## 7. Teljesítményértékelés (KPI) és Egyéni Fejlesztési Terv (IDP)
 
 - `hr_teljesitmeny_ciklus`: `id`, `megnevezes`, `kezdo_datum`, `befejezo_datum`, `statusz` (`tervezes`, `aktiv`, `lezart`).
-- `hr_kpi_katalogus`: `id`, `megnevezes`, `leiras`, `meroszam_tipusa` (`szazalek`, `darab`, `osszeg`), `aktiv`.
-- `hr_teljesitmeny`: `id`, `dolgozo_id`, `ertekeles_datuma`, `ertekelt_idoszak`, `pontszam`, `kpi_statusz`, `ertekeles_szovege`, `ertekeles_keszito_id`.
-- `hr_fejlesztesi_terv`: `id`, `dolgozo_id`, `idoszak`, `statusz`.
-- `hr_fejlesztesi_cel`: `id`, `terv_id`, `megnevezes`, `leiras`, `statusz`, `hatarido`.
-- `hr_idp_megjegyzes`: `id`, `cel_id`, `szerzo_id`, `szoveg`.
+- `hr_kpi_katalogus`: `id`, `company_id` (`UUID REFERENCES public.companies(id) ON DELETE CASCADE`, nullable: `NULL` = központi sablon, `<uuid>` = vállalati saját KPI), `megnevezes`, `leiras`, `meroszam_tipusa` (`szazalek`, `darab`, `osszeg`), `aktiv` (`20261101000004`, `20261101000005`).
+- `hr_teljesitmeny`: `id`, `company_id`, `dolgozo_id`, `ertekeles_datuma`, `ertekelt_idoszak`, `pontszam`, `kpi_statusz`, `ertekeles_szovege`, `ertekeles_keszito_id`.
+- `hr_fejlesztesi_terv`: `id`, `company_id`, `dolgozo_id`, `idoszak`, `statusz`.
+- `hr_fejlesztesi_cel`: `id`, `company_id`, `terv_id`, `megnevezes`, `leiras`, `statusz`, `hatarido`.
+- `hr_idp_megjegyzes`: `id`, `company_id`, `cel_id`, `szerzo_id`, `szoveg`.
 
 ---
 
 ## 8. Megfelelőség, Szabályzatok és Hatósági Riportok
 
-- `hr_orvosi_vizsgalat`: `id`, `dolgozo_id`, `tipus` (`elozetes`, `idoszakos`, `soron_kivuli`, `zaro`), `vizsgalat_datuma`, `ervenyesseg_datuma`, `eredmeny` (`alkalmas`, `fetelekkel_alkalmas`, `nem_alkalmas`), `megjegyzes`.
-- `hr_ceges_dokumentum`: `id`, `cim`, `kategoria`, `verzio`, `fajl_url`, `hatalybalepes_datuma`.
-- `hr_ceges_dokumentum_nyugtazas`: `id`, `dokumentum_id`, `dolgozo_id`, `nyugtazva_at`, `ip_cim`.
-- `hr_bevallas_archivum`: `id`, `tipus` (pl. `NAV_T1041`, `KSH`), `idoszak`, `fajlnev`, `tarolasi_ut`, `sha256`.
-- `hr_esemeny_naplo`: Szigorúan append-only személyügyi eseménynapló (`company_id` kötelezően töltve a `trg_hr_esemeny_naplo_company_id` `BEFORE INSERT` triggerrel, indexelve a `(company_id, created_at DESC)` és `(company_id, entitas_tipus, created_at DESC)` oszlopokra — `20261028000006_hr_audit_company_isolation_and_indexes.sql`).
-- `ertesites_naplo` (`modul = 'hr'`): Kiküldött HR e-mail és SMS értesítések naplója, `trg_ertesites_naplo_company_id` `BEFORE INSERT` triggerrel és `(modul, company_id, mikor DESC)` összetett indexszel a szigorú multi-tenant izolációhoz.
+- `hr_orvosi_vizsgalat`: `id`, `company_id`, `dolgozo_id`, `tipus` (`elozetes`, `idoszakos`, `soron_kivuli`, `zaro`), `vizsgalat_datuma`, `ervenyesseg_datuma`, `eredmeny` (`alkalmas`, `fetelekkel_alkalmas`, `nem_alkalmas`), `megjegyzes`.
+- `hr_ceges_dokumentum`: `id`, `company_id`, `cim`, `kategoria`, `verzio`, `fajl_url`, `hatalybalepes_datuma`.
+- `hr_ceges_dokumentum_nyugtazas`: `id`, `company_id`, `dokumentum_id`, `dolgozo_id`, `nyugtazva_at`, `ip_cim`.
+- `hr_bevallas_archivum`: `id`, `company_id`, `tipus` (pl. `NAV_T1041`, `KSH`), `idoszak`, `fajlnev`, `tarolasi_ut`, `sha256`.
+- `ertesitesi_szabaly`: `id`, `company_id` (`UUID REFERENCES public.companies(id) ON DELETE CASCADE`), `esemeny_tipus`, `kinek`, `aktiv`, `csatorna` (`UNIQUE (company_id, esemeny_tipus, kinek)`). Új vállalat létrehozásakor a `trg_seed_company_notification_rules` (`AFTER INSERT ON public.companies`) trigger automatikusan klónozza az alapértelmezett szabályokat (`20261101000004`, `20261101000005`).
+- `hr_esemeny_naplo`: Szigorúan append-only személyügyi eseménynapló (`company_id` kötelezően töltve a `trg_hr_esemeny_naplo_company_id` `BEFORE INSERT` triggerrel, `ON DELETE SET NULL` külső kulccsal a cégtörlési audit-sorok megőrzéséhez, és szigorított `"Eseménynapló rögzítés"` `INSERT` RLS szabállyal — `20261028000006`, `20261101000003`, `20261101000004`).
+- `ertesites_naplo` (`modul = 'hr'`): Kiküldött HR e-mail és SMS értesítések naplója, `trg_ertesites_naplo_company_id` `BEFORE INSERT` triggerrel, `RESTRICTIVE` cég-izolációval és `(modul, company_id, mikor DESC)` összetett indexszel (`20261101000002`).

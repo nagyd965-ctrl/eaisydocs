@@ -3,6 +3,7 @@ import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Coffee } from "lucide-react"
 import { redirect } from "next/navigation"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export default async function SelfServiceBenefitsPage() {
   const supabase = await createClient()
@@ -12,26 +13,38 @@ export default async function SelfServiceBenefitsPage() {
     redirect("/login")
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   const currentYear = new Date().getFullYear()
-  
-  const { data: cafeteriaKeret } = await supabase
+
+  let keretQuery = supabase
     .from("hr_cafeteria_keret")
     .select("*")
     .eq("dolgozo_id", user.id)
     .eq("ev", currentYear)
-    .single()
+  if (activeCompanyId) {
+    keretQuery = keretQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: cafeteriaKeret } = await keretQuery.maybeSingle()
 
-  const { data: cafeteriaKatalogus } = await supabase
+  let katalogusQuery = supabase
     .from("hr_cafeteria_katalogus")
     .select("*")
     .eq("aktiv", true)
     .order("nev")
+  if (activeCompanyId) {
+    katalogusQuery = katalogusQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: cafeteriaKatalogus } = await katalogusQuery
 
-  const { data: cafeteriaValasztasok } = await supabase
+  let valasztasokQuery = supabase
     .from("hr_cafeteria_valasztas")
     .select("*")
     .eq("dolgozo_id", user.id)
     .eq("ev", currentYear)
+  if (activeCompanyId) {
+    valasztasokQuery = valasztasokQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: cafeteriaValasztasok } = await valasztasokQuery
 
   return (
     <div className="space-y-6">

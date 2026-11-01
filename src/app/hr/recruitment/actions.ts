@@ -386,13 +386,13 @@ export async function generateCvSignedUrl(candidateId: string, storagePath: stri
   if (auth.activeCompanyId && candidate.company_id && candidate.company_id !== auth.activeCompanyId) {
     return { error: "A jelölt egy másik céghez tartozik." }
   }
-  if (candidate.cv_storage_path && candidate.cv_storage_path !== storagePath) {
+  if (!candidate.cv_storage_path || candidate.cv_storage_path !== storagePath) {
     return { error: "A megadott CV útvonal nem egyezik a jelölt rögzített önéletrajzával." }
   }
   
   const { data, error } = await adminClient.storage
     .from('hr_dokumentumok')
-    .createSignedUrl(candidate.cv_storage_path || storagePath, 60)
+    .createSignedUrl(candidate.cv_storage_path, 60)
     
   if (error) {
     console.error("Signed URL hiba:", error)
@@ -510,16 +510,19 @@ export async function saveJobPostingAction(payload: SaveJobPostingPayload) {
 
   const adminClient = getAdminClient()
 
-  // Garantált cég-hozzárendelés: az aktív cégből (vagy a munkakör cégéből)
-  let targetCompanyId = auth.activeCompanyId || payload.company_id || null
+  // Garantált cég-hozzárendelés: kizárólag az aktív cégből (más cég munkakörét elutasítjuk)
+  const targetCompanyId = auth.activeCompanyId
   if (payload.munkakor_id) {
     const { data: jobRow } = await adminClient
       .from("hr_munkakor")
       .select("company_id, hr_szervezeti_egyseg:szervezeti_egyseg_id(nev)")
       .eq("id", payload.munkakor_id)
       .maybeSingle()
-    if (jobRow?.company_id) {
-      targetCompanyId = jobRow.company_id
+    if (!jobRow) {
+      return { error: "A kiválasztott munkakör nem található." }
+    }
+    if (jobRow.company_id && jobRow.company_id !== auth.activeCompanyId) {
+      return { error: "A kiválasztott munkakör másik céghez tartozik." }
     }
     if (!payload.reszleg_nev) {
       const org = Array.isArray((jobRow as any)?.hr_szervezeti_egyseg)

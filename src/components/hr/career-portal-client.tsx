@@ -366,6 +366,10 @@ export function CareerPortalClient({
       toast.error("Kérjük, adja meg az e-mail címét!")
       return
     }
+    if (!trackerCode.trim()) {
+      toast.error("Kérjük, adja meg a visszaigazoló üzenetben kapott pályázati azonosítóját!")
+      return
+    }
     setTrackerLoading(true)
     try {
       const res = await checkApplicationStatusAction(trackerEmail, trackerCode)
@@ -455,7 +459,7 @@ export function CareerPortalClient({
                     Jelentkezés státuszának lekérdezése
                   </DialogTitle>
                   <DialogDescription className="text-xs">
-                    Add meg a jelentkezéskor használt e-mail címedet és (opcionálisan) a visszaigazoló üzenetben kapott KAR-2026-... pályázati azonosítódat.
+                    Add meg a jelentkezéskor használt e-mail címedet és a visszaigazoló üzenetben kapott KAR-2026-... pályázati azonosítódat.
                   </DialogDescription>
                 </DialogHeader>
 
@@ -476,10 +480,11 @@ export function CareerPortalClient({
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="tracker_code" className="text-xs font-medium">
-                        Pályázati azonosító (opcionális)
+                        Pályázati azonosító <span className="text-destructive">*</span>
                       </Label>
                       <Input
                         id="tracker_code"
+                        required
                         value={trackerCode}
                         onChange={(e) => setTrackerCode(e.target.value)}
                         placeholder="pl. KAR-2026-..."

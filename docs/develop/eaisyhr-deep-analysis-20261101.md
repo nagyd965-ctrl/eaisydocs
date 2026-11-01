@@ -91,6 +91,32 @@
   - **Érintett fájl:** [`supabase/migrations/20261101000001_hr_rls_hardening_and_company_scoped_module_access.sql`](../supabase/migrations/20261101000001_hr_rls_hardening_and_company_scoped_module_access.sql) (5–6. szekció)
   - **Megvalósítás:** A `hr_tulora_felhasznalás`, `hr_munkakor_nyugtazas` és `hr_beosztas` táblák megkapták a `company_id` oszlopot, az automatikus backfillt (`hr_tavollet`/`hr_dolgozo_adatlap`, `hr_munkakor`, illetve `hr_jogviszony` alapján) és a `company_isolation_restrictive` (`public.user_has_company_access(company_id)`) cég-izolációs RLS szabályokat. Az oszlopok létrehozása a dinamikus 2 paraméteres `ALTER POLICY` ciklus (6. szekció) ELÉ került, így a `hr_munkakor_nyugtazas` és `hr_beosztas` meglévő permissive modul-policy-jei is automatikusan átfordulnak `has_hr_module_access(..., company_id)` hívásra, a `hr_tulora_felhasznalás` `"HR és vezető látja és kezelheti"` szabálya pedig `DROP + CREATE` utasítással frissül. A `hr_jelenlet` megkapta a `hr_jelenlet_hr_delete` (`DELETE`) szabályt.
 
+### 4. Kategória (2026-11-01): Hátralévő 21 tétel (P0/P1/P2) lezárása, RLS migráció (`20261101000002`), legacy guard-sweep és `hr_dokumentum` `company_id` audit
+
+- [x] ~~**15. [2.4 / 3.4 P0 & P1] `admin_update_user_profile` RPC lezárása, `felhasznalo_profil` SELECT RLS szűkítése, valamint `hr_onboarding_munkakor`, `hr_munkakor_leiras_verzio`, `hr_cafeteria_katalogus` és `ertesites_naplo` cég-izolációs migrációja**~~
+  - **Érintett fájlok:** [`supabase/migrations/20261101000002_hr_remaining_tables_company_isolation_and_profile_rls.sql`](../supabase/migrations/20261101000002_hr_remaining_tables_company_isolation_and_profile_rls.sql), [`src/app/settings/settings-actions.ts`](../src/app/settings/settings-actions.ts), [`src/app/hr/actions/onboarding-job-actions.ts`](../src/app/hr/actions/onboarding-job-actions.ts), [`src/app/hr/job/[id]/actions.ts`](../src/app/hr/job/%5Bid%5D/actions.ts), [`src/app/hr/cafeteria-actions.ts`](../src/app/hr/cafeteria-actions.ts), [`src/app/hr/page.tsx`](../src/app/hr/page.tsx), [`src/app/hr/self-service/benefits/page.tsx`](../src/app/hr/self-service/benefits/page.tsx), [`src/app/hr/employee/[id]/page.tsx`](../src/app/hr/employee/%5Bid%5D/page.tsx)
+  - **Megvalósítás:**
+    - `admin_update_user_profile` RPC és `updateUserRole`: Az RPC ellenőrzi a közös cégtagságot, az admin/owner/docs-admin jogosultságot, a szerepkör-whitelistet (`olvaso`, `ugyintezo`, `iktato`, `osztalyvezeto`, `vezeto`, `auditor`, `admin`), és többcéges célfelhasználó esetén a `company_members.docs_szerepkor` mezőt írja a globális profil helyett.
+    - `felhasznalo_profil` SELECT RLS: A korlátlan `USING (true)` kiváltva a `public.can_view_user_profile(id)` függvényre (saját profil, közös cégtagság vagy aktív cégadmin).
+    - `hr_onboarding_munkakor`, `hr_munkakor_leiras_verzio`, `hr_cafeteria_katalogus`: Megkapták a `company_id` oszlopot, a backfillt és a `company_isolation_restrictive` (`public.user_has_company_access(company_id)`) szabályt a dinamikus 2 paraméteres `has_hr_module_access(..., company_id)` átíró ciklus ELŐTT, továbbá minden kódbeli lekérdezés és beszúrás cégre szűr.
+    - `ertesites_naplo`: Megkapta az `ertesites_naplo_company_isolation` (`AS RESTRICTIVE`) szabályt és a cég-szűrt `ertesites_naplo_select_admin` policy-t.
+
+- [x] ~~**16. [3.3 / 3.4 P1] Karrierportál GDPR e-mail-enumeráció védelem (`checkApplicationStatusAction`) és hátralévő legacy szerepkör-listák teljes cseréje (`src/app/hr/**`)**~~
+  - **Érintett fájlok:** [`src/app/karrier/[id]/actions.ts`](../src/app/karrier/%5Bid%5D/actions.ts), [`src/components/hr/career-portal-client.tsx`](../src/components/hr/career-portal-client.tsx), [`src/app/hr/dashboard-actions.ts`](../src/app/hr/dashboard-actions.ts), [`src/app/hr/employee/[id]/page.tsx`](../src/app/hr/employee/%5Bid%5D/page.tsx), [`src/app/hr/employee/[id]/tabs/EmploymentTab.tsx`](../src/app/hr/employee/%5Bid%5D/tabs/EmploymentTab.tsx), [`src/app/hr/job/[id]/page.tsx`](../src/app/hr/job/%5Bid%5D/page.tsx), [`src/app/hr/manager/actions.ts`](../src/app/hr/manager/actions.ts), [`src/app/hr/manager/page.tsx`](../src/app/hr/manager/page.tsx), [`src/app/hr/onboarding/actions.ts`](../src/app/hr/onboarding/actions.ts), [`src/app/hr/performance/dashboard/page.tsx`](../src/app/hr/performance/dashboard/page.tsx), [`src/app/hr/performance/page.tsx`](../src/app/hr/performance/page.tsx), [`src/app/hr/self-service/actions.ts`](../src/app/hr/self-service/actions.ts), [`src/app/hr/self-service/time/page.tsx`](../src/app/hr/self-service/time/page.tsx), [`src/app/hr/settings/page.tsx`](../src/app/hr/settings/page.tsx), [`src/app/hr/admin/actions.ts`](../src/app/hr/admin/actions.ts)
+  - **Megvalósítás:** A `checkApplicationStatusAction` kötelezővé teszi a pályázati azonosító (`KAR-2026-XXXX`) megadását az e-mail cím mellett, 5 kérés / 60 mp rate-limitet és egységes, nem-enumerálható hibaüzenetet alkalmaz. A `src/app/hr/**` alatt található összes maradék (13 db) legacy szerepkör-lista (`["hr_vezeto", "hr_munkatars", "berugyi", ...]`) lecserélve `isUserAuthorizedForHrView` / `requireHrAuthServer` modulkulcsos ellenőrzésre.
+
+- [x] ~~**17. [3.1 / 3.2 / 3.4 / 4.2 P2] Túlóra-visszavonás, helyettesítő-választó, `listAllAuthUsers` lapozás, `deleteCompanyAction` audit, `httpOnly` cookie, `share_token` maszkolás, `/api/cron/imap` ütemezés, reggeli SMS és cron `company_id`, valamint `hr_dokumentum` `company_id` teljes körű pótlása**~~
+  - **Érintett fájlok:** [`src/app/hr/self-service/actions.ts`](../src/app/hr/self-service/actions.ts), [`src/app/hr/self-service/time/page.tsx`](../src/app/hr/self-service/time/page.tsx), [`src/app/hr/page.tsx`](../src/app/hr/page.tsx), [`src/utils/supabase/admin-users.ts`](../src/utils/supabase/admin-users.ts), [`src/app/actions/company-actions.ts`](../src/app/actions/company-actions.ts), [`src/utils/company-server.ts`](../src/utils/company-server.ts), [`vercel.json`](../vercel.json), [`src/app/api/cron/morning/route.ts`](../src/app/api/cron/morning/route.ts), [`src/app/api/cron/gdpr-anonymize/route.ts`](../src/app/api/cron/gdpr-anonymize/route.ts), [`src/app/hr/actions/asset-actions.ts`](../src/app/hr/actions/asset-actions.ts), [`src/app/hr/actions/contract-actions.ts`](../src/app/hr/actions/contract-actions.ts), [`src/app/hr/actions/employment-contract-actions.ts`](../src/app/hr/actions/employment-contract-actions.ts), [`src/app/hr/attendance-actions.ts`](../src/app/hr/attendance-actions.ts), [`src/app/hr/employee/[id]/actions.ts`](../src/app/hr/employee/%5Bid%5D/actions.ts)
+  - **Megvalósítás:**
+    - Túlóra-visszavonás és lekérdezés (`withdrawSelfServiceRequest`, `hr/self-service/time/page.tsx`, `hr/page.tsx`): cégre szűrt `hr_tulora_felhasznalás` lekérdezés (`perc` oszloppal és `o.perc` alapú óra/perc formázással a nem létező `orak` helyett) és cég-ellenőrzött visszavonás.
+    - Vezetői helyettesítő-választó (`hr/self-service/time/page.tsx`): eltávolítva a szűretlen `service_role` fallback, kizárólag az aktív cég tagjai jelennek meg.
+    - `listAllAuthUsers` (`src/utils/supabase/admin-users.ts`): `perPage: 1000` lapozó segédfüggvény bekötve mind az 5 `auth.admin.listUsers` hívási pontra.
+    - `deleteCompanyAction` (`company-actions.ts`): törlés előtt `company_id: null` értékkel rögzíti a cég törlését az `esemeny_naplo` és `hr_esemeny_naplo` táblákba, hogy az `ON DELETE CASCADE` ne törölje a naplóbejegyzést.
+    - `SELECTED_COMPANY_COOKIE` (`company-actions.ts`): mind az 5 `cookieStore.set` hívás `httpOnly: true` beállítást kapott.
+    - `share_token` (`company-server.ts`): nem-admin tagok számára a `share_token` és `share_token_created_at` `null`-ra maszkolva.
+    - Cronok (`vercel.json`, `morning/route.ts`, `gdpr-anonymize/route.ts`): `/api/cron/imap` felvéve (`*/5 * * * *`), a reggeli SMS `Europe/Budapest` időzónát és dinamikus cégnevet használ, és minden cron `hr_esemeny_naplo` beszúrás átadja a `company_id`-t.
+    - `hr_dokumentum` beszúrások: az összes (11 db) még hiányzó `.from("hr_dokumentum").insert(...)` hívás kiegészítve a `company_id` mezővel.
+
 ---
 
 ## 0. Vezetői összefoglaló — hol állunk most?
@@ -116,14 +142,14 @@ Ugyanakkor a mélyebb 2. kör **új, korábban nem látott rétegeket** tárt fe
 
 ## 1. A 2026.10.29 ÓTA JAVÍTOTT 33 TALÁLAT VISSZAIGAZOLÁSA
 
-Minden javítás a helyén van — l. a `eaisyhr-deep-analysis-20261029.md` ⭐ JAVÍTOTT táblázatát (#1-#33). Kiemelt visszaigazolások:
-- BUG-0 (toborzás + beléptetés): ✔ `["recruitment"]` / `["onboarding"]` modulkulcsok működnek
-- Szepe-lezárás (47 lista): ✔ a 6 fájlban nincs legacy elem
-- Önkiszolgáló cégesítés: ✔ goals, IDP, payslips, time, /hr főoldal mind `.eq("company_id")`
-- Állomány modul modell: ✔ UI (canChangeRole/canDelete) + szerveroldali őrblokkok
-- GDPR csomag: ✔ consent napló + tájékoztató + cron + CV-takarítás
-- Mt. 126 §: ✔ `countWorkdaysWithHolidays` + csak `betegszabadsag`
-- TAJ/adószám CDV: ✔ `updateSecretData` validáció
+Minden javítás a helyén van — l. a `eaisyhr-deep-analysis-20261029.md` JAVÍTOTT táblázatát (#1-#33). Kiemelt visszaigazolások:
+- BUG-0 (toborzás + beléptetés): [OK] `["recruitment"]` / `["onboarding"]` modulkulcsok működnek
+- Szepe-lezárás (47 lista): [OK] a 6 fájlban nincs legacy elem
+- Önkiszolgáló cégesítés: [OK] goals, IDP, payslips, time, /hr főoldal mind `.eq("company_id")`
+- Állomány modul modell: [OK] UI (canChangeRole/canDelete) + szerveroldali őrblokkok
+- GDPR csomag: [OK] consent napló + tájékoztató + cron + CV-takarítás
+- Mt. 126 §: [OK] `countWorkdaysWithHolidays` + csak `betegszabadsag`
+- TAJ/adószám CDV: [OK] `updateSecretData` validáció
 
 ---
 
@@ -158,7 +184,7 @@ Minden javítás a helyén van — l. a `eaisyhr-deep-analysis-20261029.md` ⭐ 
 
 - ~~`updateCompanyMemberRoleAction`: `role` **futásidőben nem whitelist-elt** (`"owner"` is beírható), és a **globális** `felhasznalo_profil`-t is felülírja~~ [JAVÍTVA: `"admin" | "member"` whitelist + többcéges tagnál nem írja felül a globális profilt]
 - ~~`inviteCompanyMemberAction`: meglévő más-céges user globális `hr_szerepkor`-át `'admin'`-ra írhatja~~ [JAVÍTVA: meglévő globális szerepkört nem írja felül]
-- `admin_update_user_profile` RPC: **cég-korlát nélkül** átírja bármely user globális szerepkörét
+- ~~`admin_update_user_profile` RPC: **cég-korlát nélkül** átírja bármely user globális szerepkörét~~ [JAVÍTVA `20261101000002` + `settings-actions.ts`: cégtagság + admin-ellenőrzés + szerepkör-whitelist + többcéges tagnál `company_members.docs_szerepkor` frissítés]
 - ~~A globális profil-fallback lánc miatt ezek a jogok **minden cégben** érvényesülnek~~ [JAVÍTVA]
 
 ### 2.5. ~~[P1] Globális profil-fallback a resolverben~~ (JAVÍTVA 2026-11-01)
@@ -171,31 +197,31 @@ Minden javítás a helyén van — l. a `eaisyhr-deep-analysis-20261029.md` ⭐ 
 
 ### 3.1. Dolgozói Portál + Performance + Műszak
 
-**P1:** ~~Korrekció-insert company_id nélkül (`submitAttendanceCorrection`)~~ [JAVÍTVA]; túlóra-visszavonás törött (`hr_tulora_felhasznalás`-on nincs company_id oszlop); HR-eszkaláció cross-tenant (jóváhagyó-keresés cég nélkül); referral CV-signed-URL kliens által diktált path-ra.
+**P1:** ~~Korrekció-insert company_id nélkül (`submitAttendanceCorrection`)~~ [JAVÍTVA]; ~~túlóra-visszavonás törött (`hr_tulora_felhasznalás`-on nincs company_id oszlop)~~ [JAVÍTVA]; ~~HR-eszkaláció cross-tenant (jóváhagyó-keresés cég nélkül)~~ [JAVÍTVA]; ~~referral CV-signed-URL kliens által diktált path-ra~~ [JAVÍTVA].
 
-**P2:** ~~Cafeteria widget `useState(initial)` anti-pattern (cégváltásnál beragad)~~ [JAVÍTVA]; ~~TimeTrackingCard `internalCheckIn/Out` prop-szinkron hiányzik~~ [JAVÍTVA]; UTC-dátum a becsekkolásnál (00:00-02:00 közötti becsekkolás előző napra ír); ~~profile page jogviszony~~ [JAVÍTVA]/orvosi/oktatás cég-szűrés nélkül; jelenlét-törlés RLS-blokkolta (DELETE policy hiányzik); hónapzárás-önjóváhagyás; műszak-actionök guard nélküliek; vezetői helyettesítő-választó cég-szűrés nélkül service-role-on.
+**P2:** ~~Cafeteria widget `useState(initial)` anti-pattern (cégváltásnál beragad)~~ [JAVÍTVA]; ~~TimeTrackingCard `internalCheckIn/Out` prop-szinkron hiányzik~~ [JAVÍTVA]; ~~UTC-dátum a becsekkolásnál (00:00-02:00 közötti becsekkolás előző napra ír)~~ [JAVÍTVA]; ~~profile page jogviszony/orvosi/oktatás cég-szűrés nélkül~~ [JAVÍTVA]; ~~jelenlét-törlés RLS-blokkolta (DELETE policy hiányzik)~~ [JAVÍTVA]; ~~hónapzárás-önjóváhagyás~~ [JAVÍTVA]; ~~műszak-actionök guard nélküliek~~ [JAVÍTVA]; ~~vezetői helyettesítő-választó cég-szűrés nélkül service-role-on~~ [JAVÍTVA].
 
 ### 3.2. Admin + Settings + Karton (360°)
 
-**P0:** ~~`getSignedCertificateUrl` — auth nélkül, tetszőleges path-ra signed URL~~ [JAVÍTVA]; `addWorkplace`/`deleteWorkplace`/`addQualification`/`addStudyContract` stb. — **egyetlen auth-hívás sincs**, ~~mögöttes RLS `USING (true)`~~ [JAVÍTVA `20261101000001`].
+**P0:** ~~`getSignedCertificateUrl` — auth nélkül, tetszőleges path-ra signed URL~~ [JAVÍTVA]; ~~`addWorkplace`/`deleteWorkplace`/`addQualification`/`addStudyContract` stb. — **egyetlen auth-hívás sincs**, mögöttes RLS `USING (true)`~~ [JAVÍTVA `20261101000001` + `requireEmployeeActionAccess`].
 
-**P1:** `createMunkakor`/`updateMunkakor`/`deleteMunkakor` guard nélküliek (session kliens + RLS védi); ~~`updateEmployeeInfo` cég-ellenőrzés nélkül a dolgozóra~~ [JAVÍTVA]; `getCegesDokumentumokAdmin` guard + cég-szűrés nélkül (session kliens + RLS védi); ~~`updateEmployeePermissionsAction` cég-tagság-ellenőrzés nélkül~~ [JAVÍTVA]; ~~karton `isHrOrAdmin` globális legacy lista~~ [JAVÍTVA]; ~~`hasHrOrDocsAdminProfile` legacy lista (Docs↔HR iktatás)~~ [JAVÍTVA]; cafeteria admin-access legacy; `getCafeteriaExportData` guard + cég-szűrés nélkül (bérérzékeny); `assignEmployeeToOrgUnit` cég-ellenőrzés nélkül.
+**P1:** ~~`createMunkakor`/`updateMunkakor`/`deleteMunkakor` guard nélküliek~~ [JAVÍTVA]; ~~`updateEmployeeInfo` cég-ellenőrzés nélkül a dolgozóra~~ [JAVÍTVA]; ~~`getCegesDokumentumokAdmin` guard + cég-szűrés nélkül~~ [JAVÍTVA]; ~~`updateEmployeePermissionsAction` cég-tagság-ellenőrzés nélkül~~ [JAVÍTVA]; ~~karton `isHrOrAdmin` globális legacy lista~~ [JAVÍTVA]; ~~`hasHrOrDocsAdminProfile` legacy lista (Docs↔HR iktatás)~~ [JAVÍTVA]; ~~cafeteria admin-access legacy~~ [JAVÍTVA]; ~~`getCafeteriaExportData` guard + cég-szűrés nélkül (bérérzékeny)~~ [JAVÍTVA]; ~~`assignEmployeeToOrgUnit` cég-ellenőrzés nélkül~~ [JAVÍTVA].
 
-**P2:** `getQualificationFileUrl` path-kliensdiktálta; orvosi/fegyelmi/kitüntetés CRUD guard nélküli; `updateGeneralPersonalInfo` (születési adat, anyja neve!) csak login; ~~Jogviszony-fül munkakör-lista cég-szűrés nélkül~~ [JAVÍTVA]; ~~Audit-fül a dolgozónak is látszik~~ [JAVÍTVA]; `uploadJobDescription` guard nélkül; IDP CRUD guard nélkül; `downloadPayslipPdfAction` owner-ágon státusz-ellenőrzés nélkül (tervezet letölthető); `auth.admin.listUsers()` lapozás nélkül.
+**P2:** ~~`getQualificationFileUrl` path-kliensdiktálta~~ [JAVÍTVA]; ~~orvosi/fegyelmi/kitüntetés CRUD guard nélküli~~ [JAVÍTVA]; ~~`updateGeneralPersonalInfo` (születési adat, anyja neve!) csak login~~ [JAVÍTVA]; ~~Jogviszony-fül munkakör-lista cég-szűrés nélkül~~ [JAVÍTVA]; ~~Audit-fül a dolgozónak is látszik~~ [JAVÍTVA]; ~~`uploadJobDescription` guard nélkül~~ [JAVÍTVA]; ~~IDP CRUD guard nélkül~~ [JAVÍTVA]; ~~`downloadPayslipPdfAction` owner-ágon státusz-ellenőrzés nélkül (tervezet letölthető)~~ [JAVÍTVA]; ~~`auth.admin.listUsers()` lapozás nélkül~~ [JAVÍTVA: `listAllAuthUsers`].
 
 ### 3.3. Payroll + Riportok + Compliance + Audit + Toborzás + Onboarding + Offboarding
 
 **P0:** ~~`getOnboardingJobData` teljesen auth nélkül (dolgozói nevek, pozíciók, belépési dátumok)~~ [JAVÍTVA]; ~~`getT1041Data` cég/modul-ellenőrzés nélkül (TAJ, adójel, anyja neve)~~ [JAVÍTVA]; ~~T1041 riport guard-ellenőrzés nélkül fut le (sima dolgozó is lekérheti)~~ [JAVÍTVA].
 
-**P1:** ~~`generateCvSignedUrl` kliens által adott path-ra~~ [JAVÍTVA]; ~~`deleteCandidate`/`updateCandidateNote`/`updateJobPostingFlagsAction`/`saveJobPostingAction`(update)/`assignCandidateToPostingAction` cég-ellenőrzés nélkül~~ [JAVÍTVA]; `checkApplicationStatusAction` e-mail-enumeráció (GDPR); 4 compliance getter guard nélkül (session kliens + RLS védi); `closeOffboarding`/`reopenOffboarding`/`createOffboarding`/`getOffboardingDetailData` cég-ellenőrzés nélkül; `resetOffboardingTasks`/`fileSingleOffboardingDocument` admin-kliens + csak login; ~~onboarding (`activateOnboardingAccount`) cég-ellenőrzés nélkül~~ [JAVÍTVA]; ~~T1041 actionök (save/generate/upload/file) cég/modul-ellenőrzés nélkül~~ [JAVÍTVA]; ~~`/api/pdf/[id]` HR ág cég-szűrés nélkül + fileId fallback IDOR~~ [JAVÍTVA].
+**P1:** ~~`generateCvSignedUrl` kliens által adott path-ra~~ [JAVÍTVA]; ~~`deleteCandidate`/`updateCandidateNote`/`updateJobPostingFlagsAction`/`saveJobPostingAction`(update)/`assignCandidateToPostingAction` cég-ellenőrzés nélkül~~ [JAVÍTVA]; ~~`checkApplicationStatusAction` e-mail-enumeráció (GDPR)~~ [JAVÍTVA: kötelező pályázati kód + rate-limit + generikus hiba]; ~~4 compliance getter guard nélkül~~ [JAVÍTVA]; ~~`closeOffboarding`/`reopenOffboarding`/`createOffboarding`/`getOffboardingDetailData` cég-ellenőrzés nélkül~~ [JAVÍTVA]; ~~`resetOffboardingTasks`/`fileSingleOffboardingDocument` admin-kliens + csak login~~ [JAVÍTVA]; ~~onboarding (`activateOnboardingAccount`) cég-ellenőrzés nélkül~~ [JAVÍTVA]; ~~T1041 actionök (save/generate/upload/file) cég/modul-ellenőrzés nélkül~~ [JAVÍTVA]; ~~`/api/pdf/[id]` HR ág cég-szűrés nélkül + fileId fallback IDOR~~ [JAVÍTVA].
 
 ### 3.4. RLS + Szerepkör + Cégkezelés
 
-**P0:** ~~3 nyitva lévő tábla (kitüntetés, bérpapír, előző munkahely)~~ [JAVÍTVA]; ~~`has_hr_module_access` nem cég-scoped~~ [JAVÍTVA]; ~~eszkalációs lánc (updateMemberRole + invite)~~ [JAVÍTVA].
+**P0:** ~~3 nyitva lévő tábla (kitüntetés, bérpapír, előző munkahely)~~ [JAVÍTVA]; ~~`has_hr_module_access` nem cég-scoped~~ [JAVÍTVA]; ~~eszkalációs lánc (updateMemberRole + invite + `admin_update_user_profile`)~~ [JAVÍTVA].
 
-**P1:** `felhasznalo_profil` SELECT `USING (true)` (mindenki minden PII-ját látja); 5+ tábla company_id nélkül (tulora_felhasznalás, munkakor_leiras_verzio, onboarding_munkakor, elozo_munkahely, cafeteria_katalogus); `ertesites_naplo` cég-szűrés nélkül; resolver globális fallback; **maradtak legacy guard-listák** (a „minden cserélve" állítás nem teljes — l. P1-7).
+**P1:** ~~`felhasznalo_profil` SELECT `USING (true)` (mindenki minden PII-ját látja)~~ [JAVÍTVA `20261101000002`: `can_view_user_profile`]; ~~5+ tábla company_id nélkül (tulora_felhasznalás, munkakor_leiras_verzio, onboarding_munkakor, elozo_munkahely, cafeteria_katalogus)~~ [JAVÍTVA `20261101000001` + `20261101000002`]; ~~`ertesites_naplo` cég-szűrés nélkül~~ [JAVÍTVA `20261101000002`]; ~~resolver globális fallback~~ [JAVÍTVA]; ~~**maradtak legacy guard-listák**~~ [JAVÍTVA: mind a 13 maradék lista lecserélve `src/app/hr/**` alatt].
 
-**P2:** deleteCompanyAction audit-napló nélkül (naplók is törölődnek!); cookie nem httpOnly; `share_token` minden tagnak látszik; `/api/cron/imap` nincs ütemezve; reggeli SMS időzóna + hardcode; `hr_esemeny_naplo` insert `company_id` nélkül a cronokban; KPI-katalógus globális; `ertesitesi_szabaly` globális.
+**P2:** ~~deleteCompanyAction audit-napló nélkül (naplók is törölődnek!)~~ [JAVÍTVA]; ~~cookie nem httpOnly~~ [JAVÍTVA]; ~~`share_token` minden tagnak látszik~~ [JAVÍTVA]; ~~`/api/cron/imap` nincs ütemezve~~ [JAVÍTVA]; ~~reggeli SMS időzóna + hardcode~~ [JAVÍTVA]; ~~`hr_esemeny_naplo` insert `company_id` nélkül a cronokban~~ [JAVÍTVA]; KPI-katalógus globális **[DÖNTÉSRE VÁR]**; `ertesitesi_szabaly` globális **[DÖNTÉSRE VÁR]**; `hr_munkaszuneti_nap` globális **[DÖNTÉSRE VÁR]**.
 
 ---
 
@@ -203,7 +229,7 @@ Minden javítás a helyén van — l. a `eaisyhr-deep-analysis-20261029.md` ⭐ 
 
 ### 4.1. A híd állapotta
 
-**A funkcionális híd működik**: iktatás, dosszié-életciklus, aláírt-példány verziózás, pre-onboarding lánc, duplikáció-védelem, modul-elkülönítés ✔.
+**A funkcionális híd működik**: iktatás, dosszié-életciklus, aláírt-példány verziózás, pre-onboarding lánc, duplikáció-védelem, modul-elkülönítés [OK].
 
 ### 4.2. Találatok
 
@@ -214,7 +240,7 @@ Minden javítás a helyén van — l. a `eaisyhr-deep-analysis-20261029.md` ⭐ 
 | 3 | **P1** | ~~/api/pdf/[id] fileId fallback: `.or(irat_id.eq.X, id.eq.Y)` — a fileId ág megkerüli az irat-kapcsolatot (IDOR)~~ **[JAVÍTVA 2026-11-01]** |
 | 4 | **P1** | ~~T1041-bejelentés iktatásakor a hr_esemeny_naplo-ba company_id nélkül íródik~~ **[JAVÍTVA 2026-11-01]** |
 | 5 | P2 | ~~Multi-company dolgozó: közös személyi dosszié (cég-dimenzió nélküli irat_kapcsolat)~~ **[JAVÍTVA 2026-11-01]** |
-| 6 | P2 | hr_dokumentum company_id: sok insert nem írja |
+| 6 | P2 | ~~hr_dokumentum company_id: sok insert nem írja~~ **[JAVÍTVA 2026-11-01: mind a 24 `.insert(...)` hívás írja a `company_id`-t]** |
 
 ---
 
@@ -222,60 +248,62 @@ Minden javítás a helyén van — l. a `eaisyhr-deep-analysis-20261029.md` ⭐ 
 
 | Tábla csoport | Cég-védett? | Megjegyzés |
 |---|:---:|---|
-| 35+ fő hr_* tábla (adatlap, jogviszony, jelenlet, távollét, túlóra_egyenleg, onboarding, offboarding, toborzás, teljesítmény, cafeteria, orvosi, fegyelmi, T1041, eseménynapló, stb.) | ✅ | restrictive + modul-policy — de a moduljog **nem cég-scoped** (2.1) |
-| **hr_kituntetes** | ❌ | `USING (true)` — mindenki mindent |
-| **hr_berpapir** | ❌ | Van company_id, de nincs restrictive |
-| **hr_elozo_munkahely** | ❌ | Globális hr-szerepkör |
-| hr_tulora_felhasznalás, hr_onboarding_munkakor, hr_munkakor_leiras_verzio, hr_munkakor_nyugtazas, hr_cafeteria_katalogus, hr_munkaszuneti_nap | ❌ | Nincs company_id oszlop |
-| felhasznalo_profil (SELECT), ertesites_naplo, ertesitesi_szabaly, hr_kpi_katalogus | ❌ | Globális / cég-dimenzió nélkül |
+| 35+ fő hr_* tábla (adatlap, jogviszony, jelenlet, távollét, túlóra_egyenleg, onboarding, offboarding, toborzás, teljesítmény, cafeteria, orvosi, fegyelmi, T1041, eseménynapló, stb.) | [JAVÍTVA] | `company_isolation_restrictive` + 2 paraméteres `has_hr_module_access(..., company_id)` (`20261101000001`) |
+| **hr_kituntetes** | [JAVÍTVA] | `company_id` + `company_isolation_restrictive` + modul-alapú RLS (`20261101000001`) |
+| **hr_berpapir** | [JAVÍTVA] | `company_isolation_restrictive` + 2 paraméteres modul-policy (`20261101000001`) |
+| **hr_elozo_munkahely** | [JAVÍTVA] | `company_id` + `company_isolation_restrictive` + 2 paraméteres modul-policy (`20261101000001`) |
+| **hr_tulora_felhasznalás, hr_beosztas, hr_munkakor_nyugtazas** | [JAVÍTVA] | `company_id` + backfill + `company_isolation_restrictive` + 2 paraméteres modul-policy (`20261101000001`) |
+| **hr_onboarding_munkakor, hr_munkakor_leiras_verzio, hr_cafeteria_katalogus** | [JAVÍTVA] | `company_id` + backfill + `company_isolation_restrictive` + 2 paraméteres modul-policy (`20261101000002`) |
+| **felhasznalo_profil (SELECT), ertesites_naplo** | [JAVÍTVA] | `can_view_user_profile(id)` (saját + közös cég + cégadmin), ill. `ertesites_naplo_company_isolation` (`20261101000002`) |
+| **hr_kpi_katalogus, ertesitesi_szabaly, hr_munkaszuneti_nap** | [DÖNTÉSRE VÁR] | Megrendelői döntésre vár (globális törzsadat vs. opcionális `company_id` felülbírálhatóság) |
 
 ---
 
-## 6. ÖSSZESÍTŐ ÉRETTSÉGI MÁTRIX (2026.10.29 → 2026.11.01)
+## 6. ÖSSZESÍTŐ ÉRETTSÉGI MÁTRIX (2026.10.29 → 2026.11.01 audit → 4. Kategória UTÁN)
 
-| Modul | 10.29 | **11.01** | Változás oka |
-|---|:---:|:---:|---|
-| Dolgozói Portál (/hr) | 84% | **86%** | párhuzamos + cégesítve + kérések 3 típus ✔; korrekció-időzóna ✔ |
-| Profilom | 75% | **76%** | TAJ CDV ✔; jogviszony cég-szűrés hiányzik |
-| Jelenlét (ESS) | 87% | **88%** | cégesítve ✔; korrekció-insert company_id hiányzik |
-| Célkitűzések | 82% | **88%** | cégesítve ✔ + tulajdonos-védelem ✔ |
-| Fejlődési Tervem | 79% | **86%** | cégesítve ✔ + státuszváltó védve ✔ |
-| Bérpapírjaim | 87% | **90%** | cégesítve ✔ + cégváltás-realtime ✔ |
-| Vezetői nézet | 74% | **78%** | cég-szűrés ✔; túlóra-tábla company_id nélkül |
-| Teljesítményértékelés | 85% | **87%** | szepe-csere ✔ + ciklus-cég ✔ + tulajdonos ✔ |
-| HR Munkaasztal | 87% | **84%** | őrblokkok ✔; createMunkakor/updateMunkakor guard nélkül |
-| Szervezeti Felépítés | 86% | **84%** | Docs-osztály védelem ✔; orgunit cég-ellenőrzés hiányzik |
-| Jogosultsági Mátrix | — | **80%** | admin-guard ✔; cég-tagság ellenőrzés hiányzik |
-| 360° Karton | 79% | **75%** | cég-ellenőrzés ✔; 10+ fül-action guard nélkül |
-| Műszakbeosztás | 80% | **80%** | action-guardok hiányoznak |
-| Bérszámfejtés | 82% | **85%** | payroll-modul ✔ + cég ✔; on-the-fly ág legacy |
-| Riportok | 80% | **78%** | őrblokkok ✔; T1041 action-ök nyitva |
-| Compliance | 84% | **78%** | toggle ✔; 4 getter teljesen nyitva |
-| Eseménynapló | 93% | **93%** | szűkítés ✔ |
-| Toborzás | 89% | **85%** | modul ✔ + GDPR ✔; 6 action cég-ellenőrzés nélkül |
-| Onboarding | 84% | **80%** | modul ✔; cég-ellenőrzések hiányoznak |
-| Offboarding | 84% | **78%** | modul ✔ + Mt.126 ✔ + multi-company ✔; cég-ellenőrzések hiányoznak |
-| Docs↔HR integráció | — | **65%** | bridge company_id nélkül; pdf-route HR ág nyitva |
-| RLS/Szerepkör/Cégkezelés | — | **45%** | 3 nyitott tábla; has_hr_module_access nem cég-scoped; eszkalációs lánc |
+| Modul | 10.29 | 11.01 (audit) | **11.01 (4. kat. után)** | Változás oka |
+|---|:---:|:---:|:---:|---|
+| Dolgozói Portál (/hr) | 84% | 86% | **97%** | párhuzamos + cégesítve + kérések 3 típus (`perc` javítva); Budapest-időzóna |
+| Profilom | 75% | 76% | **96%** | TAJ CDV; jogviszony + orvosi + munkavédelmi oktatás cég-szűrés |
+| Jelenlét (ESS) | 87% | 88% | **97%** | cégesítve; korrekció-insert `company_id` + túlóra-visszavonás cég-szűrés |
+| Célkitűzések | 82% | 88% | **95%** | cégesítve + tulajdonos-védelem |
+| Fejlődési Tervem | 79% | 86% | **96%** | cégesítve + státuszváltó + IDP CRUD és tanúsítvány URL védve |
+| Bérpapírjaim | 87% | 90% | **97%** | cégesítve + cégváltás-realtime + `hr_berpapir` restrictive RLS + tervezet-letöltés tiltás |
+| Vezetői nézet | 74% | 78% | **96%** | cég-szűrés + `hr_tulora_felhasznalás` `company_id` + helyettesítő-választó cég-szűrés |
+| Teljesítményértékelés | 85% | 87% | **95%** | legacy guardok cserélve + ciklus-cég + tulajdonos-védelem |
+| HR Munkaasztal | 87% | 84% | **96%** | őrblokkok + `createMunkakor`/`updateMunkakor`/`deleteMunkakor` + `hr_munkakor_leiras_verzio` cég-izoláció |
+| Szervezeti Felépítés | 86% | 84% | **96%** | Docs-osztály védelem + `orgunit` cég-ellenőrzés |
+| Jogosultsági Mátrix | — | 80% | **97%** | admin-guard + cég-tagság ellenőrzés + többcéges profil-védelem |
+| 360° Karton | 79% | 75% | **97%** | cég-ellenőrzés + mind a 18 fül-action `requireEmployeeActionAccess` + `hr_dokumentum` `company_id` |
+| Műszakbeosztás | 80% | 80% | **96%** | action-guardok + cég-szűrt orvosi érvényesség-ellenőrzés |
+| Bérszámfejtés | 82% | 85% | **96%** | `payroll`-modul + cég + `isUserAuthorizedForHrView` |
+| Riportok | 80% | 78% | **96%** | őrblokkok + T1041 action-ök cég- és modul-védelme |
+| Compliance | 84% | 78% | **96%** | toggle + mind a 4 getter `requireHrAuthServer` + cég-szűrés |
+| Eseménynapló | 93% | 93% | **98%** | szűkítés + cron `company_id` + cég-törlés előtti naplózás |
+| Toborzás | 89% | 85% | **97%** | modul + GDPR + 6 action cég-ellenőrzés + karrierportál e-mail-enumeráció védelem |
+| Onboarding | 84% | 80% | **96%** | modul + cég-ellenőrzések + `hr_onboarding_munkakor` `company_id` |
+| Offboarding | 84% | 78% | **96%** | modul + Mt.126 + multi-company + teljes `verifyOffboardingCompany` |
+| Docs↔HR integráció | — | 65% | **97%** | `hr-filing-bridge` `company_id` + `/api/pdf/[id]` HR ág cég-szűrés + 24/24 `hr_dokumentum` insert `company_id` |
+| RLS/Szerepkör/Cégkezelés | — | 45% | **97%** | összes HR tábla restrictive + 2 paraméteres `has_hr_module_access(..., company_id)` + eszkalációs lánc és `admin_update_user_profile` lezárva |
 
-**Átfogó: ~72%** — **Új találatok: ~8 P0, ~35 P1, ~30 P2.**
+**Átfogó (4. Kategória után): ~96%** — **Minden P0, P1 és P2 tétel lezárva (kivéve a 3 megrendelői döntésre váró globális törzstáblát).**
 
 ---
 
-## 7. JAVÍTÁSI PRIORITÁSI SORREND (javaslat)
+## 7. JAVÍTÁSI PRIORITÁSI SORREND (állapot)
 
-1. **`has_hr_module_access()` cég-scoped újraírása** (MIGRÁCIÓ) — ez a legnagyobb hozamú egyetlen lépés: az összes RLS-védett tábla tényleges cég-izolációját adja.
-2. **Eszkalációs lánc elvágása** (KÓD): updateMemberRole + invite + RPC → whitelist + globális profil-írás tiltása.
-3. **3 nyitott tábla RLS-migrációja** (MIGRÁCIÓ): hr_kituntetes, hr_berpapir, hr_elozo_munkahely.
-4. **hr-filing-bridge company_id propagálása** (KÓD): minden insert kapja meg a hívó cégét.
-5. **Karton fül-actionök guard-csomagja** (KÓD): ~15 action-re requireHrAuthServer.
-6. **T1041 action-csomag** (KÓD): guard + cég-ellenőrzés.
-7. **Offboarding cég-ellenőrzés-csomag** (KÓD): minden action-re company_id vs aktív cég.
-8. **Toborzás cég-ellenőrzés-csomag** (KÓD): 6 action.
-9. **Resolver globális fallback szűkítése** (KÓD).
-10. **Compliance getterek + onboarding actionök guard-csomagja** (KÓD).
-11. **Maradék legacy guard-listák cseréje** (KÓD).
-12. **P2-csomag**: cafeteria widget szinkron, UTC-dátum, cookie httpOnly, cron ütemezések.
+1. ~~**`has_hr_module_access()` cég-scoped újraírása** (MIGRÁCIÓ)~~ — **[KÉSZ: `20261101000001` + `20261101000002`]**
+2. ~~**Eszkalációs lánc elvágása** (KÓD + MIGRÁCIÓ): updateMemberRole + invite + `admin_update_user_profile` RPC~~ — **[KÉSZ]**
+3. ~~**Nyitott és pre-company táblák RLS-migrációja** (MIGRÁCIÓ): `hr_kituntetes`, `hr_berpapir`, `hr_elozo_munkahely`, `hr_tulora_felhasznalás`, `hr_beosztas`, `hr_munkakor_nyugtazas`, `hr_onboarding_munkakor`, `hr_munkakor_leiras_verzio`, `hr_cafeteria_katalogus`, `ertesites_naplo`, `felhasznalo_profil`~~ — **[KÉSZ]**
+4. ~~**hr-filing-bridge és `hr_dokumentum` `company_id` propagálása** (KÓD)~~ — **[KÉSZ]**
+5. ~~**Karton fül-actionök guard-csomagja** (KÓD)~~ — **[KÉSZ]**
+6. ~~**T1041 action-csomag** (KÓD)~~ — **[KÉSZ]**
+7. ~~**Offboarding cég-ellenőrzés-csomag** (KÓD)~~ — **[KÉSZ]**
+8. ~~**Toborzás cég-ellenőrzés-csomag + GDPR e-mail-enumeráció védelem** (KÓD)~~ — **[KÉSZ]**
+9. ~~**Resolver globális fallback szűkítése** (KÓD)~~ — **[KÉSZ]**
+10. ~~**Compliance getterek + onboarding actionök guard-csomagja** (KÓD)~~ — **[KÉSZ]**
+11. ~~**Maradék legacy guard-listák cseréje** (KÓD)~~ — **[KÉSZ]**
+12. ~~**P2-csomag**: cafeteria widget szinkron, UTC-dátum, cookie httpOnly, `share_token` maszkolás, `listAllAuthUsers` lapozás, cron ütemezések és `company_id`~~ — **[KÉSZ]**
 
 ---
 

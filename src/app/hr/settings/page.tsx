@@ -13,6 +13,7 @@ import { updateProfile } from "@/app/settings/settings-actions"
 import { AvatarUploadSection } from "./avatar-upload"
 import { CompanySettingsTab } from "@/components/settings/company-settings-tab"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 
 export default async function HrSettingsPage() {
   const supabase = await createClient()
@@ -27,19 +28,25 @@ export default async function HrSettingsPage() {
     .single()
 
   const activeCompanyId = await getActiveCompanyIdServer()
-  const { hrRole, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
   const { data: mfaData } = await supabase.auth.mfa.listFactors()
   const totpFactor = mfaData?.totp?.find((f: any) => f.status === "verified") ?? null
 
-  const isHrOrAdmin = isCompanyAdmin || ["hr_munkatars", "hr_vezeto", "admin"].includes(hrRole)
+  const isHrOrAdmin =
+    isCompanyAdmin ||
+    isUserAuthorizedForHrView(hrRole, ["admin", "settings"], hrModules)
 
   let szabalyok: any[] = []
   if (isHrOrAdmin) {
-    const { data: fetchedSzabalyok } = await supabase
+    let szabalyQuery = supabase
       .from("ertesitesi_szabaly")
       .select("*")
       .order("esemeny_tipus")
+    if (activeCompanyId) {
+      szabalyQuery = szabalyQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: fetchedSzabalyok } = await szabalyQuery
     if (fetchedSzabalyok) szabalyok = fetchedSzabalyok
   }
 

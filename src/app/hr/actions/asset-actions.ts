@@ -4,19 +4,134 @@ import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import crypto from "crypto"
-import { 
-  generateAssetHandoverHtml, 
+import {
+  generateAssetHandoverHtml,
   generateAssetHandoverPdf,
   type AssetItemData,
-  type AssetHandoverPdfData 
+  type AssetHandoverPdfData,
 } from "@/utils/hr/asset-handover-pdf-generator"
 import { executeHrDocumentFiling, HR_FILING_CONSTANTS } from "@/utils/hr-filing-bridge"
+import { getActiveCompanyIdServer, resolveCompanyDetailsServer } from "@/utils/company-server"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 function getAdminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+}
+
+async function verifyAssetAccess(
+  adminClient: ReturnType<typeof getAdminClient>,
+  target: {
+    dolgozoId?: string | null
+    onboardingId?: string | null
+    assetId?: string | null
+    documentId?: string | null
+  },
+  options: { allowSelfRead?: boolean } = {}
+): Promise<{
+  ok: boolean
+  error?: string
+  user?: any
+  activeCompanyId: string | null
+}> {
+  const auth = await requireHrAuthServer(
+    ["onboarding", "employees", "offboarding", "organization", "admin"],
+    null
+  )
+  if (!auth.user) {
+    return { ok: false, error: "Nincs bejelentkezve", activeCompanyId: null }
+  }
+
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+  const isSelfRead =
+    Boolean(options.allowSelfRead) &&
+    Boolean(target.dolgozoId) &&
+    target.dolgozoId === auth.user.id &&
+    !target.onboardingId &&
+    !target.assetId &&
+    !target.documentId
+
+  if (!auth.authorized && !isSelfRead) {
+    return {
+      ok: false,
+      error: "Nincs jogosultságod a munkahelyi eszközök kezeléséhez.",
+      activeCompanyId,
+    }
+  }
+
+  if (activeCompanyId) {
+    if (target.dolgozoId && target.dolgozoId !== auth.user.id) {
+      const [{ data: member }, { data: adatlap }] = await Promise.all([
+        adminClient
+          .from("company_members")
+          .select("user_id")
+          .eq("company_id", activeCompanyId)
+          .eq("user_id", target.dolgozoId)
+          .maybeSingle(),
+        adminClient
+          .from("hr_dolgozo_adatlap")
+          .select("company_id")
+          .eq("id", target.dolgozoId)
+          .maybeSingle(),
+      ])
+      if (!member && adatlap?.company_id !== activeCompanyId) {
+        return {
+          ok: false,
+          error: "A megadott munkavállaló nem tartozik az aktív vállalathoz.",
+          activeCompanyId,
+        }
+      }
+    }
+
+    if (target.onboardingId) {
+      const { data: ob } = await adminClient
+        .from("hr_onboarding")
+        .select("company_id")
+        .eq("id", target.onboardingId)
+        .maybeSingle()
+      if (!ob || (ob.company_id && ob.company_id !== activeCompanyId)) {
+        return {
+          ok: false,
+          error: "A beléptetési folyamat nem tartozik az aktív vállalathoz.",
+          activeCompanyId,
+        }
+      }
+    }
+
+    if (target.assetId) {
+      const { data: asset } = await adminClient
+        .from("hr_munkahelyi_eszkoz")
+        .select("company_id")
+        .eq("id", target.assetId)
+        .maybeSingle()
+      if (!asset || (asset.company_id && asset.company_id !== activeCompanyId)) {
+        return {
+          ok: false,
+          error: "A kiválasztott eszköz nem tartozik az aktív vállalathoz.",
+          activeCompanyId,
+        }
+      }
+    }
+
+    if (target.documentId) {
+      const { data: doc } = await adminClient
+        .from("hr_dokumentum")
+        .select("company_id")
+        .eq("id", target.documentId)
+        .maybeSingle()
+      if (!doc || (doc.company_id && doc.company_id !== activeCompanyId)) {
+        return {
+          ok: false,
+          error: "A dokumentum nem tartozik az aktív vállalathoz.",
+          activeCompanyId,
+        }
+      }
+    }
+  }
+
+  return { ok: true, user: auth.user, activeCompanyId }
 }
 
 /**
@@ -26,16 +141,24 @@ export async function getEmployeeAssets(options: {
   dolgozoId?: string | null
   onboardingId?: string | null
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve", data: [] }
-
   const adminClient = getAdminClient()
+  const access = await verifyAssetAccess(
+    adminClient,
+    { dolgozoId: options.dolgozoId, onboardingId: options.onboardingId },
+    { allowSelfRead: true }
+  )
+  if (!access.ok) {
+    return { error: access.error, data: [] }
+  }
 
   let query = adminClient
     .from("hr_munkahelyi_eszkoz")
     .select("*")
     .order("created_at", { ascending: true })
+
+  if (access.activeCompanyId) {
+    query = query.eq("company_id", access.activeCompanyId)
+  }
 
   if (options.dolgozoId && options.onboardingId) {
     query = query.or(`dolgozo_id.eq.${options.dolgozoId},onboarding_id.eq.${options.onboardingId}`)
@@ -55,13 +178,13 @@ export async function getEmployeeAssets(options: {
 
   // Lekérjük a kapcsolt jegyzőkönyvet (ha már készült)
   let existingDocument: any = null
-  const docId = data?.find(item => item.dokumentum_id)?.dokumentum_id
+  const docId = data?.find((item) => item.dokumentum_id)?.dokumentum_id
   if (docId) {
-    const { data: doc } = await adminClient
-      .from("hr_dokumentum")
-      .select("*")
-      .eq("id", docId)
-      .single()
+    let docQuery = adminClient.from("hr_dokumentum").select("*").eq("id", docId)
+    if (access.activeCompanyId) {
+      docQuery = docQuery.eq("company_id", access.activeCompanyId)
+    }
+    const { data: doc } = await docQuery.maybeSingle()
 
     if (doc) {
       let viewUrl = doc.url
@@ -92,14 +215,16 @@ export async function saveAssetItem(data: {
   allapot?: string | null
   megjegyzes?: string | null
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
   const adminClient = getAdminClient()
+  const access = await verifyAssetAccess(adminClient, {
+    dolgozoId: data.dolgozoId,
+    onboardingId: data.onboardingId,
+    assetId: data.id || null,
+  })
+  if (!access.ok) return { error: access.error }
 
   if (data.id) {
-    const { error } = await adminClient
+    let updQuery = adminClient
       .from("hr_munkahelyi_eszkoz")
       .update({
         eszkoz_kategoria: data.eszkoz_kategoria,
@@ -107,26 +232,30 @@ export async function saveAssetItem(data: {
         gyari_szam: data.gyari_szam || null,
         tartozekok: data.tartozekok || null,
         allapot: data.allapot || "uj",
-        megjegyzes: data.megjegyzes || null
+        megjegyzes: data.megjegyzes || null,
       })
       .eq("id", data.id)
 
+    if (access.activeCompanyId) {
+      updQuery = updQuery.eq("company_id", access.activeCompanyId)
+    }
+
+    const { error } = await updQuery
     if (error) return { error: error.message }
   } else {
-    const { error } = await adminClient
-      .from("hr_munkahelyi_eszkoz")
-      .insert({
-        dolgozo_id: data.dolgozoId || null,
-        onboarding_id: data.onboardingId || null,
-        eszkoz_kategoria: data.eszkoz_kategoria,
-        megnevezes: data.megnevezes,
-        gyari_szam: data.gyari_szam || null,
-        tartozekok: data.tartozekok || null,
-        allapot: data.allapot || "uj",
-        megjegyzes: data.megjegyzes || null,
-        statusz: "kiadva",
-        atadas_datuma: new Date().toISOString().split("T")[0]
-      })
+    const { error } = await adminClient.from("hr_munkahelyi_eszkoz").insert({
+      dolgozo_id: data.dolgozoId || null,
+      onboarding_id: data.onboardingId || null,
+      eszkoz_kategoria: data.eszkoz_kategoria,
+      megnevezes: data.megnevezes,
+      gyari_szam: data.gyari_szam || null,
+      tartozekok: data.tartozekok || null,
+      allapot: data.allapot || "uj",
+      megjegyzes: data.megjegyzes || null,
+      statusz: "kiadva",
+      atadas_datuma: new Date().toISOString().split("T")[0],
+      company_id: access.activeCompanyId,
+    })
 
     if (error) return { error: error.message }
   }
@@ -141,16 +270,16 @@ export async function saveAssetItem(data: {
  * Eszköz törlése a listából
  */
 export async function deleteAssetItem(assetId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
   const adminClient = getAdminClient()
-  const { error } = await adminClient
-    .from("hr_munkahelyi_eszkoz")
-    .delete()
-    .eq("id", assetId)
+  const access = await verifyAssetAccess(adminClient, { assetId })
+  if (!access.ok) return { error: access.error }
 
+  let delQuery = adminClient.from("hr_munkahelyi_eszkoz").delete().eq("id", assetId)
+  if (access.activeCompanyId) {
+    delQuery = delQuery.eq("company_id", access.activeCompanyId)
+  }
+
+  const { error } = await delQuery
   if (error) return { error: error.message }
 
   revalidatePath("/hr/onboarding")
@@ -167,16 +296,18 @@ export async function generateAndFileAssetHandoverAction(params: {
   munkakor?: string | null
   notes?: string | null
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
   const adminClient = getAdminClient()
+  const access = await verifyAssetAccess(adminClient, {
+    dolgozoId: params.dolgozoId,
+    onboardingId: params.onboardingId,
+  })
+  if (!access.ok || !access.user) return { error: access.error || "Nincs jogosultságod." }
+  const user = access.user
 
   // 1. Lekérjük a kiadott eszközöket
   const { data: assets, error: assetErr } = await getEmployeeAssets({
     dolgozoId: params.dolgozoId,
-    onboardingId: params.onboardingId
+    onboardingId: params.onboardingId,
   })
 
   if (assetErr) return { error: assetErr }
@@ -197,10 +328,14 @@ export async function generateAndFileAssetHandoverAction(params: {
       .eq("id", params.dolgozoId)
       .maybeSingle()
 
-    const { data: munkaszerzodes } = await adminClient
+    let contractQuery = adminClient
       .from("hr_munkaszerzodes")
       .select("lakcim, taj_szam, adoazonosito_jel")
       .eq("dolgozo_id", params.dolgozoId)
+    if (access.activeCompanyId) {
+      contractQuery = contractQuery.eq("company_id", access.activeCompanyId)
+    }
+    const { data: munkaszerzodes } = await contractQuery
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -209,6 +344,8 @@ export async function generateAndFileAssetHandoverAction(params: {
     tajSzam = munkaszerzodes?.taj_szam || null
     adoazonosito = munkaszerzodes?.adoazonosito_jel || null
   }
+
+  const cegAdatok = await resolveCompanyDetailsServer(access.activeCompanyId, adminClient)
 
   const pdfData: AssetHandoverPdfData = {
     employeeName: params.employeeName,
@@ -219,18 +356,18 @@ export async function generateAndFileAssetHandoverAction(params: {
     tajSzam,
     adoazonosito,
     atadasDatuma: new Date().toISOString().split("T")[0],
-    cegNev: "eaisyDocs Zrt.",
-    cegSzekhely: "1111 Budapest, Példa utca 1.",
-    cegAdoszam: "12345678-2-41",
-    cegKepviselo: "Ügyvezető Igazgató",
+    cegNev: cegAdatok.nev,
+    cegSzekhely: cegAdatok.szekhely,
+    cegAdoszam: cegAdatok.adoszam,
+    cegKepviselo: cegAdatok.kepviselo,
     items: assets.map((a: any) => ({
       megnevezes: a.megnevezes,
       eszkoz_kategoria: a.eszkoz_kategoria,
       gyari_szam: a.gyari_szam,
       tartozekok: a.tartozekok,
       allapot: a.allapot,
-      megjegyzes: a.megjegyzes
-    }))
+      megjegyzes: a.megjegyzes,
+    })),
   }
 
   try {
@@ -247,7 +384,7 @@ export async function generateAndFileAssetHandoverAction(params: {
       .from("irat_files")
       .upload(storagePath, pdfBuffer, {
         contentType: "application/pdf",
-        upsert: true
+        upsert: true,
       })
 
     if (uploadError) {
@@ -260,6 +397,7 @@ export async function generateAndFileAssetHandoverAction(params: {
       .createSignedUrl(storagePath, 3600)
 
     // 5. Bejegyzés a hr_dokumentum táblába
+    const activeCompanyId = (assets[0] as any)?.company_id || access.activeCompanyId
     const docNev = `Munkahelyi Eszköz Átadás-Átvételi Jegyzőkönyv - ${params.employeeName}`
     const { data: newDoc, error: docError } = await adminClient
       .from("hr_dokumentum")
@@ -268,7 +406,8 @@ export async function generateAndFileAssetHandoverAction(params: {
         nev: docNev,
         kategoria: "Eszközfelelősség",
         url: storagePath,
-        alairas_statusz: "vazlat"
+        alairas_statusz: "vazlat",
+        company_id: activeCompanyId,
       })
       .select()
       .single()
@@ -292,7 +431,7 @@ export async function generateAndFileAssetHandoverAction(params: {
           documentId: newDoc.id,
           employeeId: params.dolgozoId,
           customTargy: docNev,
-          currentUserId: user.id
+          currentUserId: user.id,
         })
       } catch (err: any) {
         console.error("Hiba az eszközátadás iktatásakor:", err)
@@ -306,10 +445,11 @@ export async function generateAndFileAssetHandoverAction(params: {
         .select("id, cim, statusz")
         .eq("onboarding_id", params.onboardingId)
 
-      const assetTask = (tasks || []).find((t: any) => 
-        t.cim.toLowerCase().includes("eszköz") || 
-        t.cim.toLowerCase().includes("laptop") || 
-        t.cim.toLowerCase().includes("telefon")
+      const assetTask = (tasks || []).find(
+        (t: any) =>
+          t.cim.toLowerCase().includes("eszköz") ||
+          t.cim.toLowerCase().includes("laptop") ||
+          t.cim.toLowerCase().includes("telefon")
       )
 
       if (assetTask && assetTask.statusz !== "done") {
@@ -326,23 +466,24 @@ export async function generateAndFileAssetHandoverAction(params: {
       esemeny_tipus: "adat_letrehozas",
       entitas_tipus: "hr_dokumentum",
       entitas_id: newDoc.id,
+      company_id: activeCompanyId,
       megjegyzes: `Munkahelyi Eszköz Átadás-Átvételi Jegyzőkönyv legenerálva és elmentve: ${params.employeeName}${
         filingResult?.iktatoszam ? ` (Iktatva: ${filingResult.iktatoszam})` : ""
-      }`
+      }`,
     })
 
     revalidatePath("/hr/onboarding")
     if (params.dolgozoId) revalidatePath(`/hr/employee/${params.dolgozoId}`)
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       document: {
         id: newDoc.id,
         nev: newDoc.nev,
         url: signedUrlData?.signedUrl || storagePath,
-        iktatoszam: filingResult?.iktatoszam || null
+        iktatoszam: filingResult?.iktatoszam || null,
       },
-      isFiled: !!filingResult?.iktatoszam
+      isFiled: !!filingResult?.iktatoszam,
     }
   } catch (err: any) {
     console.error("Váratlan hiba az eszközátadás generálásakor:", err)
@@ -359,11 +500,13 @@ export async function fileExistingAssetHandoverDocument(params: {
   dolgozoId: string
   employeeName: string
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
   const adminClient = getAdminClient()
+  const access = await verifyAssetAccess(adminClient, {
+    documentId: params.documentId,
+    dolgozoId: params.dolgozoId,
+  })
+  if (!access.ok || !access.user) return { error: access.error || "Nincs jogosultságod." }
+
   const docNev = `Munkahelyi Eszköz Átadás-Átvételi Jegyzőkönyv - ${params.employeeName}`
 
   try {
@@ -371,19 +514,18 @@ export async function fileExistingAssetHandoverDocument(params: {
       documentId: params.documentId,
       employeeId: params.dolgozoId,
       customTargy: docNev,
-      currentUserId: user.id
+      currentUserId: access.user.id,
     })
 
     revalidatePath("/hr/onboarding")
     revalidatePath(`/hr/employee/${params.dolgozoId}`)
 
-    return { 
-      success: true, 
-      iktatoszam: filingResult.iktatoszam 
+    return {
+      success: true,
+      iktatoszam: filingResult.iktatoszam,
     }
   } catch (err: any) {
     console.error("Hiba a jegyzőkönyv iktatásakor:", err)
     return { error: err?.message || "Nem sikerült az iktatás a dossziéba." }
   }
 }
-

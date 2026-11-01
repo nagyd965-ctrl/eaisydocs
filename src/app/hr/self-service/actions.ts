@@ -55,27 +55,29 @@ async function resolveFallbackHrApproverId(activeCompanyId: string | null): Prom
   )
 
   if (activeCompanyId) {
+    const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
     const { data: companyAdmins } = await supabaseAdmin
       .from("company_members")
-      .select("user_id, role, hr_szerepkor")
+      .select("user_id, role, hr_szerepkor, hr_modulok")
       .eq("company_id", activeCompanyId)
 
     const hrOrAdminMember = (companyAdmins || []).find(
       (m: any) =>
+        m.role === "owner" ||
         m.role === "admin" ||
-        m.hr_szerepkor === "hr_vezeto" ||
-        m.hr_szerepkor === "admin" ||
-        (typeof m.hr_szerepkor === "string" && m.hr_szerepkor.includes("admin"))
+        isUserAuthorizedForHrView(
+          m.hr_szerepkor,
+          ["admin", "time"],
+          Array.isArray(m.hr_modulok) ? m.hr_modulok : []
+        )
     )
-    if (hrOrAdminMember?.user_id) {
-      return hrOrAdminMember.user_id
-    }
+    return hrOrAdminMember?.user_id || null
   }
 
   const { data: hrAdmin } = await supabaseAdmin
     .from("felhasznalo_profil")
     .select("id")
-    .in("hr_szerepkor", ["hr_vezeto", "admin"])
+    .in("hr_szerepkor", ["admin", "rendszergazda"])
     .limit(1)
     .maybeSingle()
 
@@ -345,11 +347,14 @@ export async function submitLeaveRequest(formData: FormData) {
 
   // Értesítés küldése az aktuális jóváhagyónak, ha van
   if (aktualisJovahagyoId) {
-    const { data: szabaly } = await supabase
+    let szabalyQuery = supabase
       .from("ertesitesi_szabaly")
       .select("aktiv, csatorna, kinek")
       .eq("esemeny_tipus", "szabadsag_jovahagyas")
-      .maybeSingle();
+    if (activeCompanyId) {
+      szabalyQuery = szabalyQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: szabaly } = await szabalyQuery.limit(1).maybeSingle();
 
     if (szabaly && szabaly.aktiv) {
       const csatornak = szabaly.csatorna || [];
@@ -1328,11 +1333,15 @@ export async function withdrawSelfServiceRequest(
       ...(row.company_id || activeCompanyId ? { company_id: row.company_id || activeCompanyId } : {}),
     })
   } else if (category === "tulora") {
-    const { data: row } = await supabaseAdmin
+    let tuloraQuery = supabaseAdmin
       .from("hr_tulora_felhasznalás")
       .select("*")
       .eq("id", id)
-      .maybeSingle()
+      .eq("dolgozo_id", user.id)
+    if (activeCompanyId) {
+      tuloraQuery = tuloraQuery.or(`company_id.eq.${activeCompanyId},company_id.is.null`)
+    }
+    const { data: row } = await tuloraQuery.maybeSingle()
 
     if (!row || row.dolgozo_id !== user.id) {
       return { error: "A kérelem nem található vagy nincs jogosultságod a visszavonására." }

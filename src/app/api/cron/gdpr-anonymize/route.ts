@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   // ── 1. Elutasított jelöltek anonimizálása (30 nap után) ──
   const { data: rejectedCandidates } = await supabaseAdmin
     .from("hr_toborzas")
-    .select("id, nev, cv_storage_path, updated_at, statusz")
+    .select("id, nev, cv_storage_path, updated_at, statusz, company_id")
     .eq("statusz", "elutasitva")
     .lt("updated_at", thirtyDaysAgo.toISOString())
     .neq("nev", "[Anonimizált jelölt]") // még nem anonimizált
@@ -80,6 +80,7 @@ export async function GET(request: NextRequest) {
           entitas_tipus: "hr_toborzas",
           entitas_id: candidate.id,
           megjegyzes: `GDPR anonimizálás: elutasított jelölt (30 nap után) — eredeti név törölve.`,
+          ...(candidate.company_id ? { company_id: candidate.company_id } : {}),
         })
       }
     }
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
   // ── 2. Talent Pool jelöltek anonimizálása (12 hónap után) ──
   const { data: talentPoolCandidates } = await supabaseAdmin
     .from("hr_toborzas")
-    .select("id, nev, cv_storage_path, created_at, statusz")
+    .select("id, nev, cv_storage_path, created_at, statusz, company_id")
     .in("statusz", ["talent_pool", "nem_foglalkoztathato", "visszavonta"])
     .lt("created_at", twelveMonthsAgo.toISOString())
     .neq("nev", "[Anonimizált jelölt]")
@@ -128,6 +129,7 @@ export async function GET(request: NextRequest) {
           entitas_tipus: "hr_toborzas",
           entitas_id: candidate.id,
           megjegyzes: `GDPR anonimizálás: Talent Pool jelölt (12 hónap után) — eredeti név törölve.`,
+          ...(candidate.company_id ? { company_id: candidate.company_id } : {}),
         })
       }
     }

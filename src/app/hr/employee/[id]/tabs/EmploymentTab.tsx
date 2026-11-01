@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -53,7 +53,11 @@ export function EmploymentTab({
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const canViewSalary = ["hr_vezeto", "admin"].includes(currentUserRole) || employeeId === loggedInUserId;
+  const canViewSalary =
+    isHrOrAdmin ||
+    currentUserRole === "admin" ||
+    currentUserRole === "rendszergazda" ||
+    employeeId === loggedInUserId;
 
   // A jelenlegi jogviszony és beosztás kiválasztása
   const currentJogviszony = jogviszonyok?.find(j => !j.kilepes_datuma) || jogviszonyok?.[0]
@@ -100,6 +104,21 @@ export function EmploymentTab({
   const [munkarend, setMunkarend] = useState(currentBeosztas?.munkarend || adatlap?.munkarend || "")
   const [munkakorId, setMunkakorId] = useState(currentBeosztas?.munkakor_id || "")
   const [szerzodesTipusa, setSzerzodesTipusa] = useState(adatlap?.szerzodes_tipusa || "határozatlan")
+
+  useEffect(() => {
+    setMunkaviszonyTipusa(currentBeosztas?.munkaviszony_tipusa || adatlap?.munkaviszony_tipusa || "")
+    setMunkarend(currentBeosztas?.munkarend || adatlap?.munkarend || "")
+    setMunkakorId(currentBeosztas?.munkakor_id || "")
+    setSzerzodesTipusa(adatlap?.szerzodes_tipusa || "határozatlan")
+  }, [
+    currentBeosztas?.id,
+    currentBeosztas?.munkaviszony_tipusa,
+    currentBeosztas?.munkarend,
+    currentBeosztas?.munkakor_id,
+    adatlap?.munkaviszony_tipusa,
+    adatlap?.munkarend,
+    adatlap?.szerzodes_tipusa,
+  ])
   
   // Jövőbeli dátum inicializálása (alapértelmezés holnap)
   const tomorrow = new Date()

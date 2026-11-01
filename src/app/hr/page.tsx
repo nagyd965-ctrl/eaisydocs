@@ -7,7 +7,7 @@ import { EmployeeKpiWidget } from "@/components/hr/employee-kpi-widget"
 import { CafeteriaDeclaration } from "@/components/hr/cafeteria-declaration"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { calculateAnnualLeave, calculateWorkingDays } from "@/utils/hr/leave-calculator"
+import { calculateAnnualLeave, calculateWorkingDays, resolveEffectiveHolidays } from "@/utils/hr/leave-calculator"
 import { KpiCard } from "@/components/kpi-card"
 
 export default async function SelfServicePage() {
@@ -76,12 +76,19 @@ export default async function SelfServicePage() {
       .select("*")
       .eq("dolgozo_id", user.id))
       .order("created_at", { ascending: false }),
-    supabase
-      .from("hr_munkaszuneti_nap")
-      .select("datum")
-      .gte("datum", `${currentYear}-01-01`)
-      .lte("datum", `${currentYear}-12-31`)
-      .eq("athelye_munkanap", false),
+    (activeCompanyId
+      ? supabase
+          .from("hr_munkaszuneti_nap")
+          .select("datum, athelye_munkanap, company_id")
+          .gte("datum", `${currentYear}-01-01`)
+          .lte("datum", `${currentYear}-12-31`)
+          .or(`company_id.is.null,company_id.eq.${activeCompanyId}`)
+      : supabase
+          .from("hr_munkaszuneti_nap")
+          .select("datum, athelye_munkanap, company_id")
+          .gte("datum", `${currentYear}-01-01`)
+          .lte("datum", `${currentYear}-12-31`)
+          .is("company_id", null)),
     cs(supabase
       .from("hr_jelenlet")
       .select("becsekkolas_ideje, kicsekkolas_ideje, szunet_perc, szunet_ms, szunet_kezdete")
@@ -124,14 +131,14 @@ export default async function SelfServicePage() {
     (async () => {
       const res = await cs(supabase
         .from("hr_tulora_felhasznalás")
-        .select("id, tipus, orak, statusz, created_at")
+        .select("id, tipus, perc, datum, megjegyzes, statusz, elutasitas_oka, created_at")
         .eq("dolgozo_id", user.id))
         .order("created_at", { ascending: false })
         .limit(5)
       if (res.error && activeCompanyId) {
         return supabase
           .from("hr_tulora_felhasznalás")
-          .select("id, tipus, orak, statusz, created_at")
+          .select("id, tipus, perc, datum, megjegyzes, statusz, elutasitas_oka, created_at")
           .eq("dolgozo_id", user.id)
           .order("created_at", { ascending: false })
           .limit(5)
@@ -144,10 +151,10 @@ export default async function SelfServicePage() {
       .eq("dolgozo_id", user.id)
       .eq("ev", currentYear))
       .maybeSingle(),
-    supabase
+    cs(supabase
       .from("hr_cafeteria_katalogus")
       .select("id, nev, leiras, szorzo, kategoria")
-      .eq("aktiv", true)
+      .eq("aktiv", true))
       .order("nev"),
     cs(supabase
       .from("hr_cafeteria_valasztas")
@@ -193,8 +200,8 @@ export default async function SelfServicePage() {
   const munkakorMegnevezes = activeMunkakor?.megnevezes || null
   const belepesDatuma = jogviszony?.belepes_datuma || null
 
-  // 1. Szabadság egyenleg számítás (a párhuzamos lekérdezés eredményeiből)
-  const holidayDates = (holidaysData || []).map((h: any) => h.datum as string)
+  // 1. Szabadság egyenleg számítás (a párhuzamos lekérdezés eredményeiből, áthelyezett munkanapokkal és vállalati felülbírálással)
+  const { holidays: holidayDates, transferredWorkdays } = resolveEffectiveHolidays(holidaysData as any[], activeCompanyId)
 
   const yearStart = `${currentYear}-01-01`
   const yearEnd = `${currentYear}-12-31`
@@ -207,7 +214,7 @@ export default async function SelfServicePage() {
     }
     const startStr = t.kezdet_datuma > yearStart ? t.kezdet_datuma : yearStart
     const endStr = t.veg_datuma < yearEnd ? t.veg_datuma : yearEnd
-    return calculateWorkingDays(startStr, endStr, holidayDates)
+    return calculateWorkingDays(startStr, endStr, holidayDates, transferredWorkdays)
   }
 
   const isPaidLeaveType = (tipus: string | undefined) =>
@@ -264,14 +271,27 @@ export default async function SelfServicePage() {
       statusz: k.statusz,
       createdAt: k.created_at,
     })),
-    ...(tuloraListRes.data || []).map((o: any) => ({
-      id: o.id,
-      type: "tulora" as const,
-      title: o.tipus === "kifizetes" ? "Túlóra kifizetés" : "Túlóra lecsúsztatás",
-      detail: `${o.orak || "?"} óra`,
-      statusz: o.statusz,
-      createdAt: o.created_at,
-    })),
+    ...(tuloraListRes.data || []).map((o: any) => {
+      const totalMins = Number(o.perc) || 0
+      const hours = Math.floor(totalMins / 60)
+      const mins = totalMins % 60
+      const durationLabel =
+        totalMins <= 0
+          ? "0 perc"
+          : hours > 0 && mins > 0
+            ? `${hours} óra ${mins} perc`
+            : hours > 0
+              ? `${hours} óra`
+              : `${mins} perc`
+      return {
+        id: o.id,
+        type: "tulora" as const,
+        title: o.tipus === "kifizetes" ? "Túlóra kifizetés" : "Túlóra lecsúsztatás",
+        detail: o.datum ? `${o.datum} · ${durationLabel}` : durationLabel,
+        statusz: o.statusz,
+        createdAt: o.created_at,
+      }
+    }),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
   const recentRequests = allRequests.slice(0, 5)

@@ -542,13 +542,16 @@ export async function executeBatchHrDocumentsFiling(
 ): Promise<BatchFilingResult> {
   const { employeeId, currentUserId, companyId, clientInfo } = params
 
-  // 1. Lekérjük a dolgozó összes még nem iktatott dokumentumát időrendben
-  const { data: unfiledDocs, error: fetchErr } = await supabase
+  // 1. Lekérjük a dolgozó összes még nem iktatott dokumentumát időrendben (aktív cégre szűrve, ha adott)
+  let unfiledQuery = supabase
     .from("hr_dokumentum")
     .select("id, nev, kategoria, url, created_at, company_id")
     .eq("dolgozo_id", employeeId)
     .is("iktatoszam", null)
-    .order("created_at", { ascending: true })
+  if (companyId) {
+    unfiledQuery = unfiledQuery.eq("company_id", companyId)
+  }
+  const { data: unfiledDocs, error: fetchErr } = await unfiledQuery.order("created_at", { ascending: true })
 
   if (fetchErr) {
     return { success: false, error: "Hiba a dokumentumok lekérésekor: " + fetchErr.message, filedCount: 0 }
@@ -723,6 +726,7 @@ export async function executeBatchHrDocumentsFiling(
         ip_cim: clientInfo?.ip || null,
         user_agent: clientInfo?.userAgent || null,
         indoklas: `Kötegelt eaisyHR iktatás: ${fullIktatoszam} (${iratTargy})`,
+        ...(targetCompanyId ? { company_id: targetCompanyId } : {}),
       })
 
       await supabase.from("hr_esemeny_naplo").insert({
@@ -731,6 +735,7 @@ export async function executeBatchHrDocumentsFiling(
         esemeny_tipus: "iktatva",
         felhasznalo_id: currentUserId || null,
         megjegyzes: `Kötegelt iktatás az eaisyDocs rendszerbe: ${fullIktatoszam}`,
+        ...(targetCompanyId ? { company_id: targetCompanyId } : {}),
       })
     } catch (auditErr) {
       console.warn("[BatchHrFiling] Audit napló hiba:", auditErr)

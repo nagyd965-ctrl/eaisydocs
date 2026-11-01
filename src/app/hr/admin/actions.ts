@@ -60,9 +60,10 @@ export async function onboardEmployee(data: {
 
     let isExistingUser = false
     if (authError || !authData.user) {
-      // Ha a felhasználó már létezik ezzel az email címmel, megkeressük
-      const { data: userList } = await supabaseAdmin.auth.admin.listUsers()
-      const existingUser = userList?.users?.find(u => u.email?.toLowerCase() === candidate.email?.toLowerCase())
+      // Ha a felhasználó már létezik ezzel az email címmel, megkeressük (lapozva)
+      const { listAllAuthUsers } = await import("@/utils/supabase/admin-users")
+      const allUsers = await listAllAuthUsers(supabaseAdmin)
+      const existingUser = allUsers.find(u => u.email?.toLowerCase() === candidate.email?.toLowerCase())
       if (existingUser) {
         finalUserId = existingUser.id
         isExistingUser = true
@@ -121,9 +122,10 @@ export async function onboardEmployee(data: {
     })
 
     if (authError || !authData.user) {
-      // Ha már létezik, feloldjuk a meglévőt
-      const { data: userList } = await supabaseAdmin.auth.admin.listUsers()
-      const existingUser = userList?.users?.find(u => u.email?.toLowerCase() === data.email?.toLowerCase())
+      // Ha már létezik, feloldjuk a meglévőt (lapozva)
+      const { listAllAuthUsers } = await import("@/utils/supabase/admin-users")
+      const allUsers = await listAllAuthUsers(supabaseAdmin)
+      const existingUser = allUsers.find(u => u.email?.toLowerCase() === data.email?.toLowerCase())
       if (existingUser) {
         finalUserId = existingUser.id
         isExistingUser = true
@@ -171,8 +173,12 @@ export async function onboardEmployee(data: {
 
   const updateData: any = {}
 
-  // SOHA ne fokozzunk le admint vagy hr_vezetőt munkavállalóvá!
-  const isHighPrivilege = existingProf?.hr_szerepkor === "admin" || existingProf?.szerepkor === "admin" || existingProf?.hr_szerepkor === "hr_vezeto"
+  // SOHA ne fokozzunk le admint vagy rendszergazdát munkavállalóvá!
+  const isHighPrivilege =
+    existingProf?.hr_szerepkor === "admin" ||
+    existingProf?.hr_szerepkor === "rendszergazda" ||
+    existingProf?.szerepkor === "admin" ||
+    existingProf?.szerepkor === "rendszergazda"
   if (!isHighPrivilege) {
     updateData.hr_szerepkor = data.role
   }

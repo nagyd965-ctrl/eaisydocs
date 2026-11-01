@@ -207,8 +207,9 @@ export default async function HrAdminPage() {
     .contains("elerheto_modulok", ["docs"])
     .order("nev", { ascending: true })
 
-  const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
-  const emailMap = new Map(authUsers?.users?.map(u => [u.id, u.email]) || [])
+  const { listAllAuthUsers } = await import("@/utils/supabase/admin-users")
+  const allAuthUsers = await listAllAuthUsers(supabaseAdmin)
+  const emailMap = new Map(allAuthUsers.map(u => [u.id, u.email]))
 
   const availableDocsUsers = (docsProfiles || []).map(u => ({
     id: u.id,
@@ -224,7 +225,7 @@ export default async function HrAdminPage() {
     .eq("company_id", companyScope)
     .eq("statusz", "elfogadva")
 
-  const userEmails = authUsers?.users?.map(u => u.email) || []
+  const userEmails = allAuthUsers.map(u => u.email)
   const availableCandidates = elfogadottJelentkezok?.filter(j => !userEmails.includes(j.email)) || []
 
   const activeAdsCount = allashirdetesek.length

@@ -39,22 +39,46 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const viewAuth = await requireHrAuthServer(
+    ["admin", "organization", "employees", "onboarding", "vezeto", "auditor"],
+    null
+  )
+  if (!viewAuth.authorized) {
+    redirect("/hr")
+  }
+
+  const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
+  const activeCompanyId = viewAuth.activeCompanyId || (await getActiveCompanyIdServer())
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("elerheto_modulok, hr_szerepkor")
+    .select("elerheto_modulok, hr_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  if (!profile || !profile.elerheto_modulok.includes("hr")) redirect("/dashboard")
+  if (!profile || (!profile.elerheto_modulok.includes("hr") && scopedRoles.hrModules.length === 0)) {
+    redirect("/dashboard")
+  }
 
-  // 1. Szervezeti egység adatai (szülő nevével)
-  const { data: orgUnit, error: orgUnitError } = await admin
+  const effectiveModules = scopedRoles.hrModules.length > 0 ? scopedRoles.hrModules : ((profile as any).hr_modulok || [])
+  const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
+  const isHrOrAdmin =
+    scopedRoles.isCompanyAdmin ||
+    isUserAuthorizedForHrView(scopedRoles.hrRole || profile.hr_szerepkor, ["admin", "organization"], effectiveModules)
+
+  // 1. Szervezeti egység adatai (szülő nevével + cég-ellenőrzéssel)
+  let orgUnitQuery = admin
     .from("hr_szervezeti_egyseg")
     .select("*, parent:szulo_id(id, nev)")
     .eq("id", id)
-    .single()
+  if (activeCompanyId) {
+    orgUnitQuery = orgUnitQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: orgUnit, error: orgUnitError } = await orgUnitQuery.single()
 
-  if (orgUnitError || !orgUnit) {
+  if (orgUnitError || !orgUnit || (activeCompanyId && orgUnit.company_id && orgUnit.company_id !== activeCompanyId)) {
     return (
       <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
         <Building2 className="w-12 h-12 text-muted-foreground/30" />
@@ -66,13 +90,29 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
     )
   }
 
-  // 2. Az egységhez rendelt dolgozók (gazdagabb adatokkal)
+  const targetCompanyId = orgUnit.company_id || activeCompanyId
+
+  // 2. Az egységhez rendelt dolgozók (aktív cégre szűrve)
+  let companyEmployeeIds: Set<string> | null = null
+  if (targetCompanyId) {
+    const [{ data: companyCards }, { data: companyMembers }] = await Promise.all([
+      admin.from("hr_dolgozo_adatlap").select("id").eq("company_id", targetCompanyId),
+      admin.from("company_members").select("user_id").eq("company_id", targetCompanyId),
+    ])
+    companyEmployeeIds = new Set<string>([
+      ...(companyCards || []).map((c: any) => c.id),
+      ...(companyMembers || []).map((m: any) => m.user_id),
+    ])
+  }
+
   const { data: employeesRaw } = await admin
     .from("felhasznalo_profil")
     .select("id, nev, hr_szerepkor")
     .eq("hr_szervezeti_egyseg_id", id)
 
-  const employees = employeesRaw || []
+  const employees = (employeesRaw || []).filter(
+    (emp) => !companyEmployeeIds || companyEmployeeIds.has(emp.id)
+  )
 
   // 3. Dolgozók beosztás (munkakör) adatai – külön query a hr_dolgozo_adatlap-on át
   const employeeIds = employees.map(e => e.id)
@@ -166,7 +206,9 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
             </div>
           </div>
         </div>
-        <AssignEmployeeOrgDialog orgUnitId={orgUnit.id} availableEmployees={availableEmployees} />
+        {isHrOrAdmin && (
+          <AssignEmployeeOrgDialog orgUnitId={orgUnit.id} availableEmployees={availableEmployees} />
+        )}
       </div>
 
       {/* ── Stat kártyák (Linear Flat KPI Grid) ── */}
@@ -261,7 +303,9 @@ export default async function OrgUnitProfilePage({ params }: { params: Promise<{
                             )}
                           </TableCell>
                           <TableCell className="text-right pr-6">
-                            <RemoveEmployeeOrgButton orgUnitId={orgUnit.id} employeeId={emp.id} employeeName={emp.nev} />
+                            {isHrOrAdmin && (
+                              <RemoveEmployeeOrgButton orgUnitId={orgUnit.id} employeeId={emp.id} employeeName={emp.nev} />
+                            )}
                           </TableCell>
                         </TableRow>
                       )

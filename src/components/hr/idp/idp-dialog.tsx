@@ -91,6 +91,20 @@ export function IdpDialog({
   const router = useRouter()
 
   useEffect(() => {
+    if (existingGoal) {
+      setTipus(existingGoal.tipus ?? "kepzes")
+      setMegnevezes(existingGoal.megnevezes ?? "")
+      setLeiras(existingGoal.leiras ?? "")
+      setHatarido(existingGoal.hatarido ?? "")
+      setMentorId(existingGoal.mentor_id ?? "")
+      setIntezmeny(existingGoal.intezmeny ?? "")
+      setKoltseg(existingGoal.koltseg ? String(existingGoal.koltseg) : "")
+      setFinanszirozas(existingGoal.finanszirozas ?? "ceg")
+      setTanulmanyiSzerzodesId(existingGoal.tanulmanyi_szerzodes_id ?? "")
+    }
+  }, [existingGoal, open])
+
+  useEffect(() => {
     if (open) {
       setLoadingOptions(true)
       Promise.all([

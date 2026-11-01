@@ -10,29 +10,20 @@ import { generateAssetReturnPdfBuffer, type AssetReturnItem, type AssetReturnPdf
 import { generateExitCertificatePdfBuffer } from "@/utils/hr/exit-certificate-pdf-generator"
 import { type ExitCertificatePdfData, DEFAULT_EXIT_DOCUMENTS } from "@/utils/hr/exit-certificate-constants"
 import { executeHrDocumentFiling, findEmployeeDossier } from "@/utils/hr-filing-bridge"
+import { calculateWorkingDays, resolveEffectiveHolidays } from "@/utils/hr/leave-calculator"
 
 /**
- * Munkanapok számítása egy adott évre — magyar munkaszüneti napokkal.
- * (P1-javítás 2026-11-01, Mt. 126. §: korábban csak szombaton-vasárnapot zárt ki,
- *  a magyar ünnepek is munkanapként számítódtak → felfújt betegszabadság-szám.)
+ * Munkanapok számítása egy adott évre — magyar munkaszüneti napokkal, áthelyezett munkanapokkal
+ * és vállalati felülbírálásokkal, időzóna-eltolódás nélkül.
  */
 async function countWorkdaysWithHolidays(
   supabaseAdmin: any,
   kezdetDatuma: string,
   vegDatuma: string,
-  year: number
+  year: number,
+  companyId?: string | null
 ): Promise<number> {
   if (!kezdetDatuma || !vegDatuma) return 0
-
-  // Magyar munkaszüneti napok lekérése az adott évre
-  const { data: holidaysData } = await supabaseAdmin
-    .from("hr_munkaszuneti_nap")
-    .select("datum")
-    .gte("datum", `${year}-01-01`)
-    .lte("datum", `${year}-12-31`)
-    .eq("athelye_munkanap", false)
-
-  const holidaySet = new Set((holidaysData || []).map((h: any) => h.datum))
 
   const yearStart = `${year}-01-01`
   const yearEnd = `${year}-12-31`
@@ -40,18 +31,21 @@ async function countWorkdaysWithHolidays(
   const end = vegDatuma < yearEnd ? vegDatuma : yearEnd
   if (start > end) return 0
 
-  let workDays = 0
-  const cur = new Date(`${start}T00:00:00`)
-  const endD = new Date(`${end}T00:00:00`)
-  while (cur <= endD) {
-    const day = cur.getDay()
-    const dateStr = cur.toISOString().split("T")[0]
-    if (day !== 0 && day !== 6 && !holidaySet.has(dateStr)) {
-      workDays++
-    }
-    cur.setDate(cur.getDate() + 1)
+  const effectiveCompanyId = companyId || (await getActiveCompanyIdServer())
+  let holidaysQuery = supabaseAdmin
+    .from("hr_munkaszuneti_nap")
+    .select("datum, athelye_munkanap, company_id")
+    .gte("datum", yearStart)
+    .lte("datum", yearEnd)
+  if (effectiveCompanyId) {
+    holidaysQuery = holidaysQuery.or(`company_id.is.null,company_id.eq.${effectiveCompanyId}`)
+  } else {
+    holidaysQuery = holidaysQuery.is("company_id", null)
   }
-  return Math.max(1, workDays)
+  const { data: holidaysData } = await holidaysQuery
+
+  const { holidays, transferredWorkdays } = resolveEffectiveHolidays(holidaysData as any[], effectiveCompanyId)
+  return calculateWorkingDays(start, end, holidays, transferredWorkdays)
 }
 
 function getAdminClient() {
@@ -275,6 +269,26 @@ export async function createOffboarding(
 
   const activeCompanyId = extraParams?.companyId || auth.activeCompanyId || (await getActiveCompanyIdServer())
 
+  if (activeCompanyId) {
+    const [{ data: card }, { data: member }] = await Promise.all([
+      adminClient
+        .from("hr_dolgozo_adatlap")
+        .select("id")
+        .eq("id", dolgozoId)
+        .eq("company_id", activeCompanyId)
+        .maybeSingle(),
+      adminClient
+        .from("company_members")
+        .select("user_id")
+        .eq("user_id", dolgozoId)
+        .eq("company_id", activeCompanyId)
+        .maybeSingle(),
+    ])
+    if (!card && !member) {
+      return { error: "A dolgozó nem tartozik az aktív vállalathoz." }
+    }
+  }
+
   // Check if active offboarding already exists (within the active company)
   let existingQuery = adminClient
     .from("hr_offboarding")
@@ -309,13 +323,16 @@ export async function createOffboarding(
   let resolvedMunkakor = extraParams?.munkakor || null
 
   // 1. hr_munkaszerzodes
-  const { data: contract } = await adminClient
+  let contractQuery = adminClient
     .from("hr_munkaszerzodes")
     .select("munkakor, reszleg")
     .eq("dolgozo_id", dolgozoId)
     .order("created_at", { ascending: false })
     .limit(1)
-    .maybeSingle()
+  if (activeCompanyId) {
+    contractQuery = contractQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: contract } = await contractQuery.maybeSingle()
 
   if (contract) {
     if (!resolvedMunkakor) resolvedMunkakor = contract.munkakor || null
@@ -324,13 +341,16 @@ export async function createOffboarding(
 
   // 2. hr_jogviszony -> hr_beosztas -> hr_munkakor
   if (!resolvedMunkakor || !resolvedReszleg) {
-    const { data: jogviszony } = await adminClient
+    let jvQuery = adminClient
       .from("hr_jogviszony")
       .select("hr_beosztas(hr_munkakor(megnevezes, szervezeti_egyseg:szervezeti_egyseg_id(nev)))")
       .eq("dolgozo_id", dolgozoId)
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle()
+    if (activeCompanyId) {
+      jvQuery = jvQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: jogviszony } = await jvQuery.maybeSingle()
 
     const beosztas: any = Array.isArray(jogviszony?.hr_beosztas) ? jogviszony?.hr_beosztas[0] : jogviszony?.hr_beosztas
     const munkakorData: any = Array.isArray(beosztas?.hr_munkakor) ? beosztas?.hr_munkakor[0] : beosztas?.hr_munkakor
@@ -1492,11 +1512,6 @@ export async function generateAssetReturnSheetAction(
 }
 
 export async function getSignedFileUrl(storagePath: string): Promise<{ signedUrl: string | null; error?: string }> {
-  // ── HR deep-analysis 20261029 (2.6) P1-javítás (2026-11-01): őrblokk ──
-  // Korábban EGYSZERŰ ellenőrzés nélkül adott 1 órás aláírt URL-t tetszőleges
-  // útvonalra az irat_files bucketból — bejelentkezés nélkül is. Mostantól
-  // bejelentkezés kötelező (a dolgozók saját dokumentumaikhoz — bérpapír,
-  // cafeteria stb. — továbbra is jogosan érik el).
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { signedUrl: null, error: "Nincs bejelentkezve" }
@@ -1507,8 +1522,44 @@ export async function getSignedFileUrl(storagePath: string): Promise<{ signedUrl
   }
   try {
     const adminClient = getAdminClient()
-    // Rövidebb érvényesség (15 perc) — a megtekintéshez elegendő, a kiszivárgott
-    // linkek élő ideje jelentősen csökken
+    const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+    const auth = await requireHrAuthServer(
+      ["offboarding", "onboarding", "employees", "payroll", "compliance", "admin", "auditor", "time", "performance"],
+      null
+    )
+    const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+
+    if (!auth.authorized) {
+      // Sima munkavállaló kizárólag a saját dokumentumaihoz tartozó path-ra kérhet aláírt URL-t
+      const isOwnPathSegment =
+        storagePath.includes(`/${user.id}/`) ||
+        storagePath.startsWith(`dolgozo_${user.id}/`)
+      if (!isOwnPathSegment) {
+        const { data: ownDoc } = await adminClient
+          .from("hr_dokumentum")
+          .select("id")
+          .eq("dolgozo_id", user.id)
+          .or(`url.eq.${storagePath},alairt_fajl_url.eq.${storagePath}`)
+          .limit(1)
+          .maybeSingle()
+        if (!ownDoc) {
+          return { signedUrl: null, error: "Nincs jogosultságod a fájl megtekintéséhez." }
+        }
+      }
+    } else if (activeCompanyId) {
+      // Ha a fájl hr_dokumentum rekordhoz tartozik, ellenőrizzük a cég-egyezést
+      const { data: docRow } = await adminClient
+        .from("hr_dokumentum")
+        .select("company_id")
+        .or(`url.eq.${storagePath},alairt_fajl_url.eq.${storagePath}`)
+        .limit(1)
+        .maybeSingle()
+      if (docRow?.company_id && docRow.company_id !== activeCompanyId) {
+        return { signedUrl: null, error: "A dokumentum másik vállalathoz tartozik." }
+      }
+    }
+
+    // Rövidebb érvényesség (15 perc)
     const { data, error } = await adminClient.storage.from("irat_files").createSignedUrl(storagePath, 900)
     if (error || !data?.signedUrl) {
       return { error: error?.message || "Nem sikerült aláírt URL-t generálni", signedUrl: null }
@@ -1524,15 +1575,25 @@ export async function getSignedFileUrl(storagePath: string): Promise<{ signedUrl
 // ---------------------------------------------------------------------------
 
 export async function getExitInterview(offboardingId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["offboarding", "admin", "auditor"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod a kilépési interjú megtekintéséhez." }
+  }
+  const adminClient = getAdminClient()
+  const check = await verifyOffboardingCompany(adminClient, offboardingId, auth.activeCompanyId)
+  if (!check.ok) return { error: check.error }
 
-  const { data, error } = await supabase
+  const supabase = await createClient()
+
+  let query = supabase
     .from("hr_kilepes_interju")
     .select("*")
     .eq("offboarding_id", offboardingId)
-    .maybeSingle()
+  if (check.companyId) {
+    query = query.eq("company_id", check.companyId)
+  }
+  const { data, error } = await query.maybeSingle()
 
   if (error) {
     console.error("Hiba az exit interjú lekérésekor:", error)

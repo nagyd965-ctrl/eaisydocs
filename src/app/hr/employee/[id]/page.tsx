@@ -67,7 +67,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     scopedRoles.isCompanyAdmin ||
     currentHrRole === "admin" ||
     isUserAuthorizedForHrView(currentHrRole, ["admin", "employees"], currentHrModules)
-  const isPayroll = currentHrRole === "admin" || currentHrModules.includes("payroll") || currentHrRole === "berugyi"
+  const isPayroll = isUserAuthorizedForHrView(currentHrRole, ["admin", "payroll"], currentHrModules)
   const isCompliance = currentHrRole === "admin" || currentHrModules.includes("compliance") || currentHrRole === "munkavedelmi"
   const isAudit = currentHrRole === "admin" || currentHrModules.includes("audit") || currentHrRole === "auditor"
 
@@ -266,6 +266,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           ? rawAdatlap.orvosi_alkalmassag_ervenyesseg
           : null,
         hr_tavollet: filterByActiveCompany(rawAdatlap.hr_tavollet),
+        hr_elozo_munkahely: filterByActiveCompany(rawAdatlap.hr_elozo_munkahely),
+        hr_kepzettseg: filterByActiveCompany(rawAdatlap.hr_kepzettseg),
         hr_orvosi_vizsgalat: filterByActiveCompany(rawAdatlap.hr_orvosi_vizsgalat),
         hr_fegyelmi: filterByActiveCompany(rawAdatlap.hr_fegyelmi),
         hr_kituntetes: filterByActiveCompany(rawAdatlap.hr_kituntetes),
@@ -329,11 +331,15 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   }
   const { data: cafeteriaKeret } = await cafeteriaKeretQuery.maybeSingle()
 
-  const { data: cafeteriaKatalogus } = await supabaseAdmin
+  let cafeteriaKatalogusQuery = supabaseAdmin
     .from("hr_cafeteria_katalogus")
     .select("*")
     .eq("aktiv", true)
     .order("nev")
+  if (activeCompanyId) {
+    cafeteriaKatalogusQuery = cafeteriaKatalogusQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: cafeteriaKatalogus } = await cafeteriaKatalogusQuery
 
   let cafeteriaValasztasokQuery = supabaseAdmin
     .from("hr_cafeteria_valasztas")
@@ -504,6 +510,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               budgetData={cafeteriaKeret}
               catalog={cafeteriaKatalogus || []}
               choices={cafeteriaValasztasok || []}
+              isHrOrAdmin={isHrOrAdmin || isPayroll}
             />
           </TabsContent>
 
