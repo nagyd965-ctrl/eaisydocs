@@ -264,6 +264,23 @@ export async function deleteDevelopmentGoal(celId: string) {
 export async function updateDevelopmentGoalStatus(celId: string, statusz: IDPStatus) {
   const supabase = await createClient();
 
+  // ── HR deep-analysis 20261029 (2.1) P0-javítás (2026-11-01): őrblokk ──
+  // Korábban EGYSZERŰ ellenőrzés nélkül futott — bárki bármelyik célt "teljesitve"-re
+  // tehette, ami AUTOMATIKUS hamis hr_kepzettseg rekordot hozott létre a vezetői
+  // jóváhagyás megkerülésével.
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: false, error: 'Nincs bejelentkezve.' };
+  }
+
+  // Ezen a műveleten keresztül CSAK a dolgozói saját státuszváltások engedélyezettek;
+  // a teljesítés (és a képzettség-rögzítés) kizárólag a vezetői approveDevelopmentGoal úton
+  // történhet (l. alább), az elutasítás a vezetői reject úton.
+  const allowedSelfStatuses: IDPStatus[] = ['folyamatban', 'jovahagyasra_var'];
+  if (!allowedSelfStatuses.includes(statusz)) {
+    return { success: false, error: 'A cél teljesítése vagy elutasítása kizárólag a vezetői jóváhagyási folyamaton keresztül történhet.' };
+  }
+
   const { data: cel, error: fetchError } = await supabase
     .from('hr_fejlesztesi_cel')
     .select('*')
@@ -272,6 +289,11 @@ export async function updateDevelopmentGoalStatus(celId: string, statusz: IDPSta
 
   if (fetchError || !cel) {
     return { success: false, error: fetchError?.message || 'Cél nem található' };
+  }
+
+  // Csak a SAJÁT céljának státuszát módosíthatja a dolgozó
+  if (cel.dolgozo_id !== user.id) {
+    return { success: false, error: 'Csak a saját fejlesztési célod státuszát módosíthatod.' };
   }
 
   let kepzettsegId = cel.eredmeny_kepzettseg_id;

@@ -4,6 +4,26 @@ import { createClient } from "@/utils/supabase/server"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+
+/**
+ * HR deep-analysis 20261029 (2.3) P0-javítás (2026-11-01):
+ * a settings-műveletek közös őrblokkja — bejelentkezés + HR-szerepkör/modul.
+ * (Korábban az updateEmployeeInfo / removeEmployeeFromHR / szervezeti CRUD
+ * EGYETLEN ellenőrzés nélkül futott — öneszkaláció és CASCADE-törlés volt lehetséges.)
+ */
+async function requireHrSettingsAccess(): Promise<{
+  error?: string
+  auth?: Awaited<ReturnType<typeof requireHrAuthServer>>
+  activeCompanyId?: string | null
+}> {
+  const auth = await requireHrAuthServer(["admin", "organization"], null)
+  if (!auth.authorized) {
+    return { error: "Nincs jogosultságod ehhez a művelethez (HR admin vagy Szervezet/Állomány modul szükséges)." }
+  }
+  const activeCompanyId = await getActiveCompanyIdServer()
+  return { auth, activeCompanyId }
+}
 
 export async function createMunkakor(formData: FormData) {
   const supabase = await createClient()
@@ -73,6 +93,10 @@ export async function updateEmployeeInfo(formData: FormData) {
     return { error: "Nincs bejelentkezve" }
   }
 
+  // ── P0-javítás (2026-11-01): őrblokk — csak HR admin vagy Szervezet/Állomány modullal rendelkezők szerkeszthetnek ──
+  const guard = await requireHrSettingsAccess()
+  if (guard.error || !guard.auth) return { error: guard.error }
+
   const employeeId = formData.get("employeeId") as string
   const role = formData.get("role") as string
   const munkakorId = formData.get("munkakorId") as string
@@ -80,6 +104,11 @@ export async function updateEmployeeInfo(formData: FormData) {
   const jogviszonyId = formData.get("jogviszonyId") as string
   const formDataOrgUnitId = formData.get("orgUnitId") as string
   const managerId = formData.get("managerId") as string
+
+  // ── P0-javítás: SZEREPKÖR-VÁLTOZTATÁS kizárólag valódi HR admin szerepkörrel ──
+  // (nem elég az Állomány modul — a szerepkörök egyetlen forrása a Jogosultsági Mátrix;
+  //  ezen a dialogon keresztül sima dolgozó ne írhasson admin szerepkört senkinek)
+  const canChangeRole = guard.auth.hrRole === "admin"
 
   // 0. Szerviz kliens inicializálása (mivel RLS miatt a profilt csak admin joggal tudjuk módosítani)
   const supabaseAdmin = createSupabaseClient(
@@ -108,8 +137,9 @@ export async function updateEmployeeInfo(formData: FormData) {
     : (formDataOrgUnitId === "none" ? null : defaultOrgUnitId)
 
   // 2. Profil (Szerepkör és Szervezeti Egység) frissítése admin klienssel
+  // (szerepkör csak valódi HR admintől fogadva el — l. fent canChangeRole)
   const profileUpdateData: any = {}
-  if (role) profileUpdateData.hr_szerepkor = role
+  if (role && canChangeRole) profileUpdateData.hr_szerepkor = role
   
   if (finalOrgUnitId !== undefined) {
     profileUpdateData.hr_szervezeti_egyseg_id = finalOrgUnitId
@@ -129,7 +159,7 @@ export async function updateEmployeeInfo(formData: FormData) {
 
     // Ha szerepkört módosítottak és van aktív cég, a cégtagsági szerepkört is szinkronizáljuk
     const activeCompanyId = await getActiveCompanyIdServer()
-    if (activeCompanyId && role) {
+    if (activeCompanyId && role && canChangeRole) {
       await supabaseAdmin
         .from("company_members")
         .update({ hr_szerepkor: role })
@@ -297,6 +327,31 @@ export async function deleteMunkakor(id: string) {
 }
 
 export async function removeEmployeeFromHR(employeeId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  // ── P0-javítás (2026-11-01): őrblokk — destruktív művelet, kizárólag VALÓDI HR admin szerepkörrel
+  // (az Állomány modul nem elég — a teljes karton CASCADE-törlése nem lehet modul-jogosultságon)
+  const guard = await requireHrSettingsAccess()
+  if (guard.error || !guard.auth) return { error: guard.error }
+  if (guard.auth.hrRole !== "admin") {
+    return { error: "Dolgozó törlése kizárólag HR adminisztrátori szerepkörrel lehetséges." }
+  }
+
+  // Cég-ellenőrzés: a dolgozó az aktív céghez tartozzon
+  if (guard.activeCompanyId) {
+    const { data: adatlap } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select("company_id")
+      .eq("id", employeeId)
+      .maybeSingle()
+    if (adatlap?.company_id && adatlap.company_id !== guard.activeCompanyId) {
+      return { error: "A dolgozó másik céghez tartozik — nincs jogosultságod a törléséhez." }
+    }
+  }
+
   const supabaseAdmin = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -331,6 +386,10 @@ export async function createHrDepartment(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  // ── P0-javítás (2026-11-01): őrblokk
+  const guard = await requireHrSettingsAccess()
+  if (guard.error) return { error: guard.error }
+
   const nev = formData.get("nev") as string
   if (!nev) return { error: "Név megadása kötelező!" }
 
@@ -364,6 +423,20 @@ export async function updateHrDepartment(id: string, formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  // ── P0-javítás (2026-11-01): őrblokk + cég-ellenőrzés (más cég egysége nem módosítható)
+  const guard = await requireHrSettingsAccess()
+  if (guard.error || !guard.auth) return { error: guard.error }
+  if (guard.activeCompanyId) {
+    const { data: unit } = await supabase
+      .from("hr_szervezeti_egyseg")
+      .select("company_id")
+      .eq("id", id)
+      .maybeSingle()
+    if (unit?.company_id && unit.company_id !== guard.activeCompanyId) {
+      return { error: "A szervezeti egység másik céghez tartozik." }
+    }
+  }
+
   const nev = formData.get("nev") as string
   if (!nev) return { error: "Név megadása kötelező!" }
 
@@ -396,6 +469,20 @@ export async function deleteHrDepartment(id: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
+
+  // ── P0-javítás (2026-11-01): őrblokk + cég-ellenőrzés (más cég egysége nem törölhető)
+  const guard = await requireHrSettingsAccess()
+  if (guard.error || !guard.auth) return { error: guard.error }
+  if (guard.activeCompanyId) {
+    const { data: unit } = await supabase
+      .from("hr_szervezeti_egyseg")
+      .select("company_id")
+      .eq("id", id)
+      .maybeSingle()
+    if (unit?.company_id && unit.company_id !== guard.activeCompanyId) {
+      return { error: "A szervezeti egység másik céghez tartozik." }
+    }
+  }
 
   const supabaseAdmin = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -666,6 +666,15 @@ export async function handleAttendanceCorrectionApproval(
     return { error: "Nincs bejelentkezve" }
   }
 
+  // ── HR deep-analysis 20261029 (2.1) P0-javítás (2026-11-01): őrblokk ──
+  // A jóváhagyás közvetlenül a BÉRSZÁMFEJTÉS alapját író hr_jelenlet-adatot módosítja —
+  // korábban csak bejelentkezést ellenőrzött, a dolgozó saját magának is jóváhagyhatott.
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["vezeto"], null)
+  if (!auth.authorized) {
+    return { error: "A jelenlétkorrekció elbírálása csak vezetői vagy adminisztrátori szerepkörrel lehetséges." }
+  }
+
   // Lekérjük a kérelmet
   const { data: request, error: reqErr } = await supabase
     .from("hr_jelenlet_korrekcio")
@@ -679,6 +688,16 @@ export async function handleAttendanceCorrectionApproval(
 
   if (request.statusz !== "jovahagyasra_var") {
     return { error: "Ez a kérelem már el lett bírálva!" }
+  }
+
+  // Saját maga kérelmét senki nem bíálhatja el (önjóváhagyás tiltása)
+  if (request.dolgozo_id === user.id) {
+    return { error: "Saját jelenlétkorrekciós kérelmedet nem hagyhatod jóvá önmagadnak." }
+  }
+
+  // Cég-ellenőrzés: a kérelem az aktív céghez tartozzon
+  if (auth.activeCompanyId && request.company_id && request.company_id !== auth.activeCompanyId) {
+    return { error: "A kérelem másik céghez tartozik." }
   }
 
   const nowIso = new Date().toISOString()
