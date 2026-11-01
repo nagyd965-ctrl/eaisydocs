@@ -96,6 +96,18 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const isManager = currentHrRole === 'vezeto' && isSubordinate
   const isAllowed = isHrOrAdmin || isPayroll || isCompliance || isAudit || isSelf || isManager
 
+  // ── HR deep-analysis 20261029 (2.4) P0-javítás (2026-11-01): CÉG-ELLENŐRZÉS ──
+  // A kartont service-role klienssel töltjük (RLS-bypass) — a látogató
+  // aktív cégéhez kell tartozzon a dolgozó (kivéve saját magát).
+  if (profile && !isSelf && activeCompanyId) {
+    const adatlap = Array.isArray(profile.hr_dolgozo_adatlap)
+      ? profile.hr_dolgozo_adatlap[0]
+      : profile.hr_dolgozo_adatlap
+    if (adatlap?.company_id && adatlap.company_id !== activeCompanyId) {
+      redirect("/hr/admin")
+    }
+  }
+
   if (profile && !isAllowed) {
     redirect("/hr/self-service/profile")
   }

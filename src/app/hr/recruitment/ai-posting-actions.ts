@@ -44,6 +44,17 @@ export async function generateJobPostingWithAiAction(
     return { success: false, error: "Nincs érvényes bejelentkezett munkamenet." }
   }
 
+  // ── P2-javítás (2026-11-01, deep-analysis 2.6): AI-költségvisszaélés megakadályozása ──
+  // Korábban csak login-check volt — bárki (pl. sima dolgozó) korlátlan Gemini-hívást
+  // provokálhatott. Mostantól a Toborzás modulhoz kötjük (a többi toborzási action mintájára).
+  const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
+  const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  if (!isCompanyAdmin && !isUserAuthorizedForHrView(hrRole, ["recruitment"], hrModules)) {
+    return { success: false, error: "Nincs jogosultságod az AI hirdetés-generáláshoz (Toborzás modul szükséges)." }
+  }
+
   const cim = input.cim?.trim()
   if (!cim) {
     return { success: false, error: "Kérlek, add meg a hirdetés nyilvános címét a generáláshoz!" }

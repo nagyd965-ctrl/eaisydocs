@@ -102,6 +102,26 @@ export default async function SelfServicePage() {
   const pendingLeavesCount = tavolletek?.filter(t => t.statusz === "jovahagyasra_var").length || 0
   const remainingLeave = Math.max(0, totalLeave - usedLeave)
 
+  // P1-javítás (2026-11-01, deep-analysis 2.1): a „Függőben Lévő" KPI korábban CSAK
+  // a szabadságkérelmeket számolta — a jelenlétkorrekciókat és túlóra-kérelmeket nem
+  // (aluljelentette a valós teendőket)
+  const [korrekcioRes, tuloraRes] = await Promise.all([
+    supabase
+      .from("hr_jelenlet_korrekcio")
+      .select("id", { count: "exact", head: true })
+      .eq("dolgozo_id", user.id)
+      .eq("statusz", "jovahagyasra_var"),
+    supabase
+      .from("hr_tulora_felhasznalás")
+      .select("id", { count: "exact", head: true })
+      .eq("dolgozo_id", user.id)
+      .eq("statusz", "jovahagyasra_var"),
+  ])
+  const pendingRequestsCount =
+    pendingLeavesCount +
+    (korrekcioRes.count || 0) +
+    (tuloraRes.count || 0)
+
   // Legutóbbi 3 távollét kérelem
   const recentLeaves = tavolletek?.slice(0, 3) || []
 
@@ -237,8 +257,8 @@ export default async function SelfServicePage() {
         />
         <KpiCard
           label="Függőben Lévő"
-          value={`${pendingLeavesCount} kérelem`}
-          highlight={pendingLeavesCount > 0}
+          value={`${pendingRequestsCount} kérelem`}
+          highlight={pendingRequestsCount > 0}
           href="/hr/self-service/time"
         />
         <KpiCard
