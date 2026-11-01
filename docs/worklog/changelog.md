@@ -2,6 +2,14 @@
 
 Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplója.
 
+## [Unreleased] – Fejlesztés alatt (2026-11-01)
+
+### [eaisyHR]: Hármas P0 Őrblokk-csomag — Settings Action-ök, IDP-státuszváltó, Korrekció-önjóváhagyás (Deep-Analysis 2.3/2.1)
+- **HR settings action-ök őrzése (`src/app/hr/settings/actions.ts`, commit `7777aea`):** `updateEmployeeInfo` közös őrblokkot kapott (HR admin vagy Szervezet/Állomány modul), és a **szerepkör-írás kizárólag valódi HR admin szerepkörrel** engedélyezett (`canChangeRole`) — korábban bármely bejelentkezett felhasználó saját magának írhatott admin szerepkört; `removeEmployeeFromHR` (CASCADE-törlés) mostantól kizárólag valódi HR admin szerepkörrel fut, cég-ellenőrzéssel; a szervezeti egység CRUD (create/update/delete) őrblokkot és cég-ellenőrzést kapott.
+- **IDP státuszváltó leszűkítése (`src/app/hr/actions/idp-actions.ts`):** az `updateDevelopmentGoalStatus` korábban egyetlen ellenőrzés nélkül futott — bárki bármelyik célt teljesítettre tehette, automatikus hamis `hr_kepzettseg`-rögzítéssel a vezetői jóváhagyás megkerülésével. Mostantól: bejelentkezés + státusz-whitelist (csak „folyamatban"/„elbírálásra vár" a saját célon) — a teljesítés kizárólag a vezetői jóváhagyási úton.
+- **Jelenlétkorrekció-önjóváhagyás tiltása (`src/app/hr/attendance-actions.ts`):** a `handleAttendanceCorrectionApproval` (a bérszámfejtés alapját író `hr_jelenlet`-adatot módosítja) korábban csak bejelentkezést ellenőrzött. Mostantól: csak vezető/admin SZEREPKÖR (modulkulcs nem nyitja), saját kérelmet senki nem bíálhatja el, + cég-ellenőrzés.
+- **Állomány modul jogosultsági modell — UI-igazítás (commit `1f104ae`):** a megrendelő döntése szerint az Állomány-modulos munkavállaló látja a dolgozókat, szerkesztheti a profilokat (munkakör, osztály, vezető, belépés) és újakat vehet fel — de a „Rendszer Szerepkör" mezőt és a törlés-kukát **nem is látja** (szerepkörváltás/törlés kizárólag valódi HR admin; a szerveroldali őrblokkokkal kettős védelem).
+
 ## [Unreleased] – Fejlesztés alatt (2026-10-31)
 
 ### [eaisyDocs]: Szabályok Modul CSAK Admin/Rendszergazda Szerepkörrel (Deep-Analysis P1, audit #20)
