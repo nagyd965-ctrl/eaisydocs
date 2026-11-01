@@ -43,6 +43,11 @@ export function TimeTrackingCard({
   const [internalCheckIn, setInternalCheckIn] = useState(checkInTime)
   const [internalCheckOut, setInternalCheckOut] = useState(checkOutTime)
 
+  useEffect(() => {
+    setInternalCheckIn(checkInTime)
+    setInternalCheckOut(checkOutTime)
+  }, [checkInTime, checkOutTime])
+
   // LocalStorage szünet adatok összevetése az adatbázissal (visszafelé kompatibilitás)
   useEffect(() => {
     try {

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: string) {
-  const auth = await requireHrAuthServer(["admin"], null)
+  const auth = await requireHrAuthServer(["admin", "organization"], null)
   if (!auth.authorized || !auth.user) {
     return { error: "Nincs jogosultságod szervezeti egység módosításához." }
   }
@@ -14,6 +14,34 @@ export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: str
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  if (auth.activeCompanyId) {
+    const [{ data: orgUnit }, { data: member }, { data: adatlap }] = await Promise.all([
+      supabaseAdmin
+        .from("hr_szervezeti_egyseg")
+        .select("company_id")
+        .eq("id", orgUnitId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("company_members")
+        .select("id")
+        .eq("company_id", auth.activeCompanyId)
+        .eq("user_id", employeeId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("hr_dolgozo_adatlap")
+        .select("company_id")
+        .eq("id", employeeId)
+        .maybeSingle(),
+    ])
+
+    if (orgUnit?.company_id && orgUnit.company_id !== auth.activeCompanyId) {
+      return { error: "A szervezeti egység másik céghez tartozik." }
+    }
+    if (!member && adatlap?.company_id && adatlap.company_id !== auth.activeCompanyId) {
+      return { error: "A kiválasztott dolgozó másik céghez tartozik." }
+    }
+  }
 
   // ── HR deep-analysis 20261029 (2.3) P0-javítás (2026-11-01): Docs-mező védelme ──
   // Korábban az update a `szervezeti_egyseg_id`-t is felülírta — ez a DOCS-oldali
@@ -41,7 +69,7 @@ export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: str
 }
 
 export async function removeEmployeeFromOrgUnit(orgUnitId: string, employeeId: string) {
-  const auth = await requireHrAuthServer(["admin"], null)
+  const auth = await requireHrAuthServer(["admin", "organization"], null)
   if (!auth.authorized || !auth.user) {
     return { error: "Nincs jogosultságod szervezeti egység módosításához." }
   }
@@ -50,6 +78,34 @@ export async function removeEmployeeFromOrgUnit(orgUnitId: string, employeeId: s
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  if (auth.activeCompanyId) {
+    const [{ data: orgUnit }, { data: member }, { data: adatlap }] = await Promise.all([
+      supabaseAdmin
+        .from("hr_szervezeti_egyseg")
+        .select("company_id")
+        .eq("id", orgUnitId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("company_members")
+        .select("id")
+        .eq("company_id", auth.activeCompanyId)
+        .eq("user_id", employeeId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("hr_dolgozo_adatlap")
+        .select("company_id")
+        .eq("id", employeeId)
+        .maybeSingle(),
+    ])
+
+    if (orgUnit?.company_id && orgUnit.company_id !== auth.activeCompanyId) {
+      return { error: "A szervezeti egység másik céghez tartozik." }
+    }
+    if (!member && adatlap?.company_id && adatlap.company_id !== auth.activeCompanyId) {
+      return { error: "A kiválasztott dolgozó másik céghez tartozik." }
+    }
+  }
 
   // ── P0-javítás: a Docs-oldali szervezeti_egyseg_id itt SEM írható felül ──
   const { error } = await supabaseAdmin

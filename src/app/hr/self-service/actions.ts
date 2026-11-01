@@ -34,6 +34,54 @@ function getBudapestOffsetMs(dateStr: string): number {
   }
 }
 
+function getBudapestDateStr(date: Date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Budapest",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date)
+  } catch {
+    return date.toISOString().split("T")[0]
+  }
+}
+
+async function resolveFallbackHrApproverId(activeCompanyId: string | null): Promise<string | null> {
+  const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  if (activeCompanyId) {
+    const { data: companyAdmins } = await supabaseAdmin
+      .from("company_members")
+      .select("user_id, role, hr_szerepkor")
+      .eq("company_id", activeCompanyId)
+
+    const hrOrAdminMember = (companyAdmins || []).find(
+      (m: any) =>
+        m.role === "admin" ||
+        m.hr_szerepkor === "hr_vezeto" ||
+        m.hr_szerepkor === "admin" ||
+        (typeof m.hr_szerepkor === "string" && m.hr_szerepkor.includes("admin"))
+    )
+    if (hrOrAdminMember?.user_id) {
+      return hrOrAdminMember.user_id
+    }
+  }
+
+  const { data: hrAdmin } = await supabaseAdmin
+    .from("felhasznalo_profil")
+    .select("id")
+    .in("hr_szerepkor", ["hr_vezeto", "admin"])
+    .limit(1)
+    .maybeSingle()
+
+  return hrAdmin?.id || null
+}
+
 export async function submitLeaveRequest(formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -51,8 +99,9 @@ export async function submitLeaveRequest(formData: FormData) {
   }
 
   // --- ESZKALÁCIÓS MOTOR ---
+  const activeCompanyId = await getActiveCompanyIdServer()
   let aktualisJovahagyoId: string | null = null;
-  const today = new Date().toISOString().split('T')[0];
+  const today = getBudapestDateStr();
 
   // 1. Lekérjük a dolgozó profilját (ki a vezetője?)
   const { data: profile } = await supabase
@@ -99,24 +148,9 @@ export async function submitLeaveRequest(formData: FormData) {
     }
   }
 
-  // 4. Ha nincs vezető, vagy a vezető távol van és nincs helyettes -> HR/Admin
+  // 4. Ha nincs vezető, vagy a vezető távol van és nincs helyettes -> Aktív cég HR/Admin
   if (!currentManagerId && !aktualisJovahagyoId) {
-    const { createClient: createAdminClient } = await import("@supabase/supabase-js");
-    const supabaseAdmin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    const { data: hrAdmin } = await supabaseAdmin
-      .from("felhasznalo_profil")
-      .select("id")
-      .in("hr_szerepkor", ["hr_vezeto", "admin"])
-      .limit(1)
-      .maybeSingle();
-    
-    if (hrAdmin) {
-      aktualisJovahagyoId = hrAdmin.id;
-    }
+    aktualisJovahagyoId = await resolveFallbackHrApproverId(activeCompanyId);
   }
 
   const note = (formData.get("note") as string) || null
@@ -196,11 +230,14 @@ export async function submitLeaveRequest(formData: FormData) {
   if (type === "csusztatas") {
     requiredMinutes = workDays * 480 // 8 óra / munkanap
 
-    const { data: balanceData } = await supabase
+    let balQuery = supabase
       .from("hr_tulora_egyenleg")
       .select("perc")
       .eq("dolgozo_id", user.id)
-      .maybeSingle()
+    if (activeCompanyId) {
+      balQuery = balQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: balanceData } = await balQuery.maybeSingle()
 
     const currentBalance = balanceData?.perc ?? 0
     if (currentBalance < requiredMinutes) {
@@ -213,18 +250,18 @@ export async function submitLeaveRequest(formData: FormData) {
     }
   }
 
-  const activeCompanyId = await getActiveCompanyIdServer()
-
   // Ellenőrizzük, hogy nincs-e átfedő, nem elutasított távollét ugyanebben az időszakban
-  const { data: overlapping } = await supabase
+  let overlapQuery = supabase
     .from("hr_tavollet")
     .select("id, kezdet_datuma, veg_datuma, tipus")
     .eq("dolgozo_id", user.id)
     .neq("statusz", "elutasitva")
     .lte("kezdet_datuma", endDate)
     .gte("veg_datuma", startDate)
-    .limit(1)
-    .maybeSingle()
+  if (activeCompanyId) {
+    overlapQuery = overlapQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: overlapping } = await overlapQuery.limit(1).maybeSingle()
 
   if (overlapping) {
     return {
@@ -273,7 +310,7 @@ export async function submitLeaveRequest(formData: FormData) {
 
   // Ha csúsztatás, létrehozzuk a kapcsolt túlóra felhasználási tételt is
   if (type === "csusztatas" && tavolletRow) {
-    const { error: tuloraErr } = await supabase
+    let { error: tuloraErr } = await supabase
       .from("hr_tulora_felhasznalás")
       .insert({
         dolgozo_id: user.id,
@@ -282,8 +319,24 @@ export async function submitLeaveRequest(formData: FormData) {
         statusz: "jovahagyasra_var",
         datum: startDate,
         tavollet_id: tavolletRow.id,
-        megjegyzes: note || "Csúsztatás (Túlóra terhére)"
+        megjegyzes: note || "Csúsztatás (Túlóra terhére)",
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
       })
+
+    if (tuloraErr && (tuloraErr.message?.includes("company_id") || tuloraErr.code === "PGRST204")) {
+      const retry = await supabase
+        .from("hr_tulora_felhasznalás")
+        .insert({
+          dolgozo_id: user.id,
+          tipus: "kiveszi_szabinak",
+          perc: requiredMinutes,
+          statusz: "jovahagyasra_var",
+          datum: startDate,
+          tavollet_id: tavolletRow.id,
+          megjegyzes: note || "Csúsztatás (Túlóra terhére)",
+        })
+      tuloraErr = retry.error
+    }
 
     if (tuloraErr) {
       console.error("Tulora usage link error:", tuloraErr)
@@ -385,12 +438,17 @@ export async function submitOvertimeRequest(data: {
     return { error: "Kérjük adj meg érvényes, 0-nál nagyobb időtartamot!" }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   // Ellenőrizzük az egyenleget
-  const { data: balanceData } = await supabase
+  let balQuery = supabase
     .from("hr_tulora_egyenleg")
     .select("perc")
     .eq("dolgozo_id", user.id)
-    .maybeSingle()
+  if (activeCompanyId) {
+    balQuery = balQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: balanceData } = await balQuery.maybeSingle()
 
   const currentBalance = balanceData?.perc ?? 0
   if (currentBalance < data.perc) {
@@ -401,7 +459,7 @@ export async function submitOvertimeRequest(data: {
 
   // Megkeressük a jóváhagyót (eszkalációs motor)
   let aktualisJovahagyoId: string | null = null
-  const today = new Date().toISOString().split("T")[0]
+  const today = getBudapestDateStr()
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
@@ -445,21 +503,7 @@ export async function submitOvertimeRequest(data: {
   }
 
   if (!aktualisJovahagyoId) {
-    const { createClient: createAdminClient } = await import("@supabase/supabase-js")
-    const supabaseAdmin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-    const { data: hrAdmin } = await supabaseAdmin
-      .from("felhasznalo_profil")
-      .select("id")
-      .in("hr_szerepkor", ["hr_vezeto", "admin"])
-      .limit(1)
-      .maybeSingle()
-
-    if (hrAdmin) {
-      aktualisJovahagyoId = hrAdmin.id
-    }
+    aktualisJovahagyoId = await resolveFallbackHrApproverId(activeCompanyId)
   }
 
   let tavolletId: string | null = null
@@ -469,7 +513,6 @@ export async function submitOvertimeRequest(data: {
       return { error: "Kérjük válassz dátumot a csúsztatáshoz!" }
     }
 
-    const activeCompanyId = await getActiveCompanyIdServer()
     const { data: tavolletRow, error: tavolletErr } = await supabase
       .from("hr_tavollet")
       .insert({
@@ -491,7 +534,7 @@ export async function submitOvertimeRequest(data: {
     tavolletId = tavolletRow.id
   }
 
-  const { error: tuloraErr } = await supabase
+  let { error: tuloraErr } = await supabase
     .from("hr_tulora_felhasznalás")
     .insert({
       dolgozo_id: user.id,
@@ -500,8 +543,24 @@ export async function submitOvertimeRequest(data: {
       statusz: "jovahagyasra_var",
       datum: data.datum || null,
       tavollet_id: tavolletId,
-      megjegyzes: data.megjegyzes || (data.tipus === "kiveszi_szabinak" ? "Csúsztatás (Túlóra terhére)" : "Túlóra kifizetési igény")
+      megjegyzes: data.megjegyzes || (data.tipus === "kiveszi_szabinak" ? "Csúsztatás (Túlóra terhére)" : "Túlóra kifizetési igény"),
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
     })
+
+  if (tuloraErr && (tuloraErr.message?.includes("company_id") || tuloraErr.code === "PGRST204")) {
+    const retry = await supabase
+      .from("hr_tulora_felhasznalás")
+      .insert({
+        dolgozo_id: user.id,
+        tipus: data.tipus,
+        perc: data.perc,
+        statusz: "jovahagyasra_var",
+        datum: data.datum || null,
+        tavollet_id: tavolletId,
+        megjegyzes: data.megjegyzes || (data.tipus === "kiveszi_szabinak" ? "Csúsztatás (Túlóra terhére)" : "Túlóra kifizetési igény"),
+      })
+    tuloraErr = retry.error
+  }
 
   if (tuloraErr) {
     console.error("Tulora felhasznalas error:", tuloraErr)
@@ -683,32 +742,55 @@ export async function toggleCheckIn(clientAccumulatedBreakMs?: number) {
     return { error: "Nincs bejelentkezve" }
   }
 
-  const todayStr = new Date().toISOString().split('T')[0]
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const todayStr = getBudapestDateStr()
 
-  // Get current date's record
-  const { data: todayRecord, error: fetchError } = await supabase
+  // Get current date's record (cégre szűrve, ha van aktív cég)
+  let todayQuery = supabase
     .from("hr_jelenlet")
     .select("*")
     .eq("dolgozo_id", user.id)
     .eq("datum", todayStr)
-    .single()
+  if (activeCompanyId) {
+    todayQuery = todayQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: todayRecord, error: fetchError } = await todayQuery.maybeSingle()
 
   if (fetchError && fetchError.code !== "PGRST116") {
     console.error("Jelenlét lekérdezési hiba:", fetchError)
     return { error: "Nem sikerült lekérdezni a jelenlétet." }
   }
 
-  // Orvosi alkalmasság ellenőrzése becsekkolás előtt (HR-TASK-05, Mvt. 49. §)
+  // Orvosi alkalmasság cégszintű ellenőrzése becsekkolás előtt (HR-TASK-05, Mvt. 49. §)
   // Csak becsekkoláskor (új munkakezdés vagy folytatás) ellenőrizzük, a kicsekkolást soha nem blokkoljuk!
   if (!todayRecord || todayRecord.kicsekkolas_ideje) {
-    const { data: adatlap } = await supabase
-      .from("hr_dolgozo_adatlap")
-      .select("orvosi_alkalmassag_ervenyesseg")
-      .eq("id", user.id)
-      .maybeSingle()
+    let examQuery = supabase
+      .from("hr_orvosi_vizsgalat")
+      .select("ervenyesseg_datuma")
+      .eq("dolgozo_id", user.id)
+      .order("vizsgalat_datuma", { ascending: false })
+      .limit(1)
+    if (activeCompanyId) {
+      examQuery = examQuery.eq("company_id", activeCompanyId)
+    }
+
+    const [{ data: latestExam }, { data: adatlap }] = await Promise.all([
+      examQuery.maybeSingle(),
+      supabase
+        .from("hr_dolgozo_adatlap")
+        .select("company_id, orvosi_alkalmassag_ervenyesseg")
+        .eq("id", user.id)
+        .maybeSingle(),
+    ])
+
+    const isAdatlapForCompany =
+      !activeCompanyId || !adatlap?.company_id || adatlap.company_id === activeCompanyId
+    const effectiveMedicalExpiry =
+      latestExam?.ervenyesseg_datuma ||
+      (isAdatlapForCompany ? adatlap?.orvosi_alkalmassag_ervenyesseg : null)
 
     const medicalCheck = checkMedicalValidityForDate(
-      adatlap?.orvosi_alkalmassag_ervenyesseg,
+      effectiveMedicalExpiry,
       todayStr
     )
 
@@ -724,7 +806,6 @@ export async function toggleCheckIn(clientAccumulatedBreakMs?: number) {
 
   if (!todayRecord) {
     // Check-in (Create record)
-    const activeCompanyId = await getActiveCompanyIdServer()
     const { error: insertError } = await supabase
       .from("hr_jelenlet")
       .insert({
@@ -804,13 +885,17 @@ export async function toggleBreak() {
     return { error: "Nincs bejelentkezve" }
   }
 
-  const todayStr = new Date().toISOString().split('T')[0]
-  const { data: todayRecord, error: fetchError } = await supabase
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const todayStr = getBudapestDateStr()
+  let breakQuery = supabase
     .from("hr_jelenlet")
     .select("*")
     .eq("dolgozo_id", user.id)
     .eq("datum", todayStr)
-    .single()
+  if (activeCompanyId) {
+    breakQuery = breakQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: todayRecord, error: fetchError } = await breakQuery.maybeSingle()
 
   if (fetchError || !todayRecord) {
     return { error: "Nincs aktív mai jelenléti rekord." }
@@ -929,8 +1014,9 @@ export async function submitAttendanceCorrection(params: {
   let aktualisJovahagyoId = profile?.kozvetlen_vezeto_id || null
 
   // Ha a vezető távol van, ellenőrizzük a helyettesítést
+  const activeCompanyId = await getActiveCompanyIdServer()
   if (aktualisJovahagyoId) {
-    const today = new Date().toISOString().split("T")[0]
+    const today = getBudapestDateStr()
     const { data: substitute } = await supabase
       .from("hr_helyettesites")
       .select("helyettes_id")
@@ -946,18 +1032,9 @@ export async function submitAttendanceCorrection(params: {
     }
   }
 
-  // Ha nincs közvetlen vezető, HR vezetőt vagy admint keresünk
+  // Ha nincs közvetlen vezető, az aktív cég HR vezetőjét vagy adminját keressük
   if (!aktualisJovahagyoId) {
-    const { data: hrAdmin } = await supabase
-      .from("felhasznalo_profil")
-      .select("id")
-      .in("hr_szerepkor", ["hr_vezeto", "admin"])
-      .limit(1)
-      .maybeSingle()
-
-    if (hrAdmin) {
-      aktualisJovahagyoId = hrAdmin.id
-    }
+    aktualisJovahagyoId = await resolveFallbackHrApproverId(activeCompanyId)
   }
 
   // Korrekciós kérelem rögzítése a hr_jelenlet_korrekcio táblába
@@ -972,7 +1049,8 @@ export async function submitAttendanceCorrection(params: {
       uj_kicsekkolas: kicsekIso,
       indoklas: indoklas.trim(),
       statusz: "jovahagyasra_var",
-      jovahagyo_id: aktualisJovahagyoId
+      jovahagyo_id: aktualisJovahagyoId,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
     })
     .select("id")
     .single()
@@ -1252,7 +1330,7 @@ export async function withdrawSelfServiceRequest(
   } else if (category === "tulora") {
     const { data: row } = await supabaseAdmin
       .from("hr_tulora_felhasznalás")
-      .select("id, dolgozo_id, statusz, tavollet_id, perc, company_id")
+      .select("*")
       .eq("id", id)
       .maybeSingle()
 

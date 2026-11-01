@@ -264,18 +264,22 @@ export function resolveUserCompanyRoles(
   }
 
   // HR szerepkör és modulok feloldása
-  const rawHrRole =
+  const hasExplicitMemberHrRole = Boolean(
     membership.hr_szerepkor && membership.hr_szerepkor.trim() !== ""
-      ? membership.hr_szerepkor
-      : isCompanyAdmin
-      ? "admin"
-      : profile?.hr_szerepkor && profile.hr_szerepkor.trim() !== ""
-      ? profile.hr_szerepkor
-      : "munkavallalo"
+  )
+  const rawHrRole = hasExplicitMemberHrRole
+    ? membership.hr_szerepkor!
+    : isCompanyAdmin
+    ? "admin"
+    : profile?.hr_szerepkor && profile.hr_szerepkor.trim() !== ""
+    ? profile.hr_szerepkor
+    : "munkavallalo"
 
   const rawHrModules =
     membership.hr_modulok && membership.hr_modulok.length > 0
       ? membership.hr_modulok
+      : hasExplicitMemberHrRole && membership.hr_szerepkor !== profile?.hr_szerepkor
+      ? []
       : profile?.hr_modulok || []
 
   const normalized = normalizeHrRoleAndModules(rawHrRole, rawHrModules)

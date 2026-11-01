@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -44,20 +44,20 @@ export interface ExistingCafeteriaChoice {
   [key: string]: unknown
 }
 
-export function CafeteriaDeclaration({ 
-  employeeId, 
-  year, 
-  budget, 
-  isClosed, 
+export function CafeteriaDeclaration({
+  employeeId,
+  year,
+  budget,
+  isClosed,
   catalog,
   existingChoices,
   iktatoszam,
   inDialog,
   onSuccess,
-}: { 
-  employeeId: string, 
-  year: number, 
-  budget: number, 
+}: {
+  employeeId: string,
+  year: number,
+  budget: number,
   isClosed: boolean,
   catalog: CatalogItem[],
   existingChoices: ExistingCafeteriaChoice[],
@@ -75,6 +75,19 @@ export function CafeteriaDeclaration({
   const [loading, setLoading] = useState(false)
   const [selectedItem, setSelectedItem] = useState<string>("")
   const [amount, setAmount] = useState<string>("")
+
+  // Cégváltás vagy szerveroldali frissítés esetén a választott elemek szinkronizálása
+  useEffect(() => {
+    setChoices(
+      existingChoices.map(c => ({
+        katalogus_elem_id: c.katalogus_elem_id,
+        kert_osszeg: c.kert_osszeg,
+        levont_keret_osszeg: c.levont_keret_osszeg
+      }))
+    )
+    setSelectedItem("")
+    setAmount("")
+  }, [existingChoices, year, budget])
 
   const totalUsed = useMemo(() => {
     return choices.reduce((sum, choice) => sum + choice.levont_keret_osszeg, 0)
@@ -128,11 +141,11 @@ export function CafeteriaDeclaration({
       toast.error("Nem választottál egyetlen elemet sem!")
       return
     }
-    
+
     setLoading(true)
     const result = await submitCafeteriaDeclaration(employeeId, year, choices)
     setLoading(false)
-    
+
     if (result.error) {
       toast.error(result.error)
     } else {
@@ -302,7 +315,7 @@ export function CafeteriaDeclaration({
         <div className="grid gap-3 md:grid-cols-12 items-end bg-background p-3 border rounded-lg">
           <div className="md:col-span-5 space-y-1.5">
             <Label htmlFor="dialog-item" className="text-xs">Juttatási elem</Label>
-            <select 
+            <select
               id="dialog-item"
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               value={selectedItem}
@@ -316,10 +329,10 @@ export function CafeteriaDeclaration({
           </div>
           <div className="md:col-span-4 space-y-1.5">
             <Label htmlFor="dialog-amount" className="text-xs">Kért nettó összeg (Ft)</Label>
-            <Input 
-              id="dialog-amount" 
-              type="number" 
-              placeholder="pl. 100000" 
+            <Input
+              id="dialog-amount"
+              type="number"
+              placeholder="pl. 100000"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               min="0"
@@ -374,9 +387,9 @@ export function CafeteriaDeclaration({
           <div className="text-xs text-muted-foreground flex items-center gap-1.5">
             <AlertCircle className="w-3.5 h-3.5 text-warning" /> A nyilatkozat leadás után nem módosítható.
           </div>
-          
+
           <AlertDialog>
-            <AlertDialogTrigger 
+            <AlertDialogTrigger
               disabled={loading || choices.length === 0}
               className={buttonVariants()}
             >
@@ -386,7 +399,7 @@ export function CafeteriaDeclaration({
               <AlertDialogHeader>
                 <AlertDialogTitle>Biztosan véglegesíted a nyilatkozatot?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Utána már nem tudod módosítani a választott cafeteria elemeket. 
+                  Utána már nem tudod módosítani a választott cafeteria elemeket.
                   Gondold át, mert az adatok véglegesek lesznek erre az évre.
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -411,7 +424,7 @@ export function CafeteriaDeclaration({
         </CardTitle>
         <CardDescription>Állítsd össze a saját juttatási csomagodat a megadott keretből!</CardDescription>
       </CardHeader>
-      
+
       <CardContent className="space-y-6">
         {/* Keret vizualizáció */}
         <div className="bg-muted/30 p-4 rounded-lg border">
@@ -433,7 +446,7 @@ export function CafeteriaDeclaration({
         <div className="grid gap-4 md:grid-cols-12 items-end bg-background p-4 border rounded-lg">
           <div className="md:col-span-5 space-y-2">
             <Label htmlFor="item">Juttatási elem</Label>
-            <select 
+            <select
               id="item"
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               value={selectedItem}
@@ -447,10 +460,10 @@ export function CafeteriaDeclaration({
           </div>
           <div className="md:col-span-4 space-y-2">
             <Label htmlFor="amount">Kért nettó összeg (Ft)</Label>
-            <Input 
-              id="amount" 
-              type="number" 
-              placeholder="pl. 100000" 
+            <Input
+              id="amount"
+              type="number"
+              placeholder="pl. 100000"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               min="0"
@@ -500,15 +513,15 @@ export function CafeteriaDeclaration({
           </div>
         )}
       </CardContent>
-      
+
       <CardFooter className="bg-muted/20 border-t p-6">
         <div className="flex w-full justify-between items-center">
           <div className="text-sm text-muted-foreground flex items-center gap-2">
             <AlertCircle className="w-4 h-4" /> A nyilatkozat leadás után nem módosítható.
           </div>
-          
+
           <AlertDialog>
-            <AlertDialogTrigger 
+            <AlertDialogTrigger
               disabled={loading || choices.length === 0}
               className={buttonVariants()}
             >
@@ -518,7 +531,7 @@ export function CafeteriaDeclaration({
               <AlertDialogHeader>
                 <AlertDialogTitle>Biztosan véglegesíted a nyilatkozatot?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Utána már nem tudod módosítani a választott cafeteria elemeket. 
+                  Utána már nem tudod módosítani a választott cafeteria elemeket.
                   Gondold át, mert az adatok véglegesek lesznek erre az évre.
                 </AlertDialogDescription>
               </AlertDialogHeader>

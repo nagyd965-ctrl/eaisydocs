@@ -6,12 +6,61 @@ import { revalidatePath } from "next/cache"
 import { generateJobDescriptionPdfBuffer } from "@/utils/hr/job-description-pdf-generator"
 import { type JobDescriptionPdfData } from "@/utils/hr/job-description-constants"
 import { executeHrDocumentFiling } from "@/utils/hr-filing-bridge"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+
+const ONBOARDING_JOB_ALLOWED_MODULES = ["onboarding", "employees", "organization", "admin"]
 
 function getAdminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+}
+
+async function verifyOnboardingJobAccess(
+  adminClient: ReturnType<typeof getAdminClient>,
+  params: {
+    onboardingId?: string | null
+    dolgozoId?: string | null
+  }
+) {
+  const auth = await requireHrAuthServer(ONBOARDING_JOB_ALLOWED_MODULES, null)
+  if (!auth.authorized || !auth.user) {
+    return { authorized: false as const, error: "Nincs jogosultsága a munkaköri leírás kezeléséhez.", auth }
+  }
+
+  const activeCompanyId = auth.activeCompanyId
+  if (activeCompanyId) {
+    if (params.onboardingId) {
+      const { data: onb } = await adminClient
+        .from("hr_onboarding")
+        .select("company_id")
+        .eq("id", params.onboardingId)
+        .maybeSingle()
+      if (onb?.company_id && onb.company_id !== activeCompanyId) {
+        return { authorized: false as const, error: "A beléptetési folyamat másik céghez tartozik.", auth }
+      }
+    } else if (params.dolgozoId) {
+      const [{ data: memberRow }, { data: adatlapRow }] = await Promise.all([
+        adminClient
+          .from("company_members")
+          .select("id")
+          .eq("company_id", activeCompanyId)
+          .eq("user_id", params.dolgozoId)
+          .maybeSingle(),
+        adminClient
+          .from("hr_dolgozo_adatlap")
+          .select("company_id")
+          .eq("id", params.dolgozoId)
+          .maybeSingle(),
+      ])
+      if (!memberRow && adatlapRow?.company_id && adatlapRow.company_id !== activeCompanyId) {
+        return { authorized: false as const, error: "A munkavállaló másik céghez tartozik.", auth }
+      }
+    }
+  }
+
+  return { authorized: true as const, error: null, auth }
 }
 
 export interface OnboardingJobDataResult {
@@ -34,6 +83,20 @@ export async function getOnboardingJobData(params: {
 }): Promise<OnboardingJobDataResult> {
   const adminClient = getAdminClient()
   const { onboardingId, dolgozoId } = params
+
+  const access = await verifyOnboardingJobAccess(adminClient, { onboardingId, dolgozoId })
+  if (!access.authorized) {
+    return {
+      candidateName: "",
+      munkakorMegnevezes: "",
+      reszleg: "",
+      belepesDatuma: "",
+      jobCatalog: null,
+      catalogVersions: [],
+      existingAssignment: null,
+      existingDoc: null,
+    }
+  }
 
   let candidateName = "Munkavállaló"
   let munkakorMegnevezes = ""
@@ -182,6 +245,10 @@ export async function assignCatalogJobDescriptionAction(params: {
     const adminClient = getAdminClient()
     const { onboardingId, dolgozoId, munkakorId, versionId, employeeName, munkakorNev, feorKod } = params
 
+    const access = await verifyOnboardingJobAccess(adminClient, { onboardingId, dolgozoId })
+    if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
+    const activeCompanyId = access.auth.activeCompanyId
+
     // 1. Lekérjük a kiválasztott verziót
     const { data: version, error: vErr } = await adminClient
       .from("hr_munkakor_leiras_verzio")
@@ -202,7 +269,8 @@ export async function assignCatalogJobDescriptionAction(params: {
         dolgozo_id: dolgozoId || null,
         nev: docName,
         kategoria: "Munkaköri leírás",
-        url: version.fajl_path
+        url: version.fajl_path,
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
       })
       .select()
       .single()
@@ -303,6 +371,10 @@ export async function generateJobDescriptionPdfAction(params: {
     const adminClient = getAdminClient()
     const { onboardingId, dolgozoId, data, munkakorId } = params
 
+    const access = await verifyOnboardingJobAccess(adminClient, { onboardingId, dolgozoId })
+    if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
+    const activeCompanyId = access.auth.activeCompanyId
+
     // 1. PDF Buffer előállítása
     const pdfBuffer = await generateJobDescriptionPdfBuffer(data)
 
@@ -332,7 +404,8 @@ export async function generateJobDescriptionPdfAction(params: {
         dolgozo_id: dolgozoId || null,
         nev: docName,
         kategoria: "Munkaköri leírás",
-        url: storagePath
+        url: storagePath,
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
       })
       .select()
       .single()
@@ -433,6 +506,10 @@ export async function uploadCustomJobDescriptionAction(formData: FormData) {
     const munkakorId = formData.get("munkakorId") as string | null
     const feorKod = formData.get("feorKod") as string | null
 
+    const access = await verifyOnboardingJobAccess(adminClient, { onboardingId, dolgozoId })
+    if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
+    const activeCompanyId = access.auth.activeCompanyId
+
     if (!file) {
       return { error: "Nincs kiválasztva fájl." }
     }
@@ -465,7 +542,8 @@ export async function uploadCustomJobDescriptionAction(formData: FormData) {
         dolgozo_id: dolgozoId || null,
         nev: docName,
         kategoria: "Munkaköri leírás",
-        url: storagePath
+        url: storagePath,
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
       })
       .select()
       .single()
@@ -560,6 +638,8 @@ export async function fileExistingJobDescriptionDocument(params: {
 
   const adminClient = getAdminClient()
   const { documentId, dolgozoId } = params
+  const access = await verifyOnboardingJobAccess(adminClient, { dolgozoId })
+  if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
 
   const { data: docData } = await adminClient
     .from("hr_dokumentum")

@@ -202,6 +202,14 @@ export async function activateOnboardingAccount(onboardingId: string) {
     return { error: "Nem található az onboarding profil." }
   }
 
+  if (
+    companyRoles?.companyId &&
+    onboarding.company_id &&
+    onboarding.company_id !== companyRoles.companyId
+  ) {
+    return { error: "Az onboarding folyamat egy másik céghez tartozik." }
+  }
+
   if (onboarding.fiok_allapot === "aktivalva" && onboarding.dolgozo_id) {
     return { error: "Ez a munkavállalói fiók már korábban aktiválva lett." }
   }

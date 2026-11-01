@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/utils/supabase/server"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { PersonalDataCard } from "@/components/hr/personal-data-card"
 import { JobDescriptionAcknowledgment } from "@/components/hr/job-description-acknowledgment"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
@@ -25,32 +26,45 @@ export default async function SelfServiceProfilePage() {
     redirect("/login")
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  let jogviszonyQuery = supabase
+    .from("hr_jogviszony")
+    .select("*, hr_beosztas(*, hr_munkakor(*))")
+    .eq("dolgozo_id", user.id)
+    .is("kilepes_datuma", null)
+    .order("belepes_datuma", { ascending: false })
+    .limit(1)
+
+  let orvosiQuery = supabase
+    .from("hr_orvosi_vizsgalat")
+    .select("ervenyesseg_datuma, company_id")
+    .eq("dolgozo_id", user.id)
+    .order("ervenyesseg_datuma", { ascending: false })
+    .limit(1)
+
+  let safetyTrainingQuery = supabase
+    .from("hr_munkavedelmi_oktatas")
+    .select("id, oktatas_tipusa, oktatas_datuma, ervenyesseg_vege, oktato_neve, oktato_beosztasa, company_id")
+    .eq("dolgozo_id", user.id)
+    .order("oktatas_datuma", { ascending: false })
+    .limit(1)
+
+  if (activeCompanyId) {
+    jogviszonyQuery = jogviszonyQuery.eq("company_id", activeCompanyId)
+    orvosiQuery = orvosiQuery.eq("company_id", activeCompanyId)
+    safetyTrainingQuery = safetyTrainingQuery.eq("company_id", activeCompanyId)
+  }
+
   const [adatlapRes, jogviszonyRes, orvosiRes, safetyTrainingRes] = await Promise.all([
     supabase
       .from("hr_dolgozo_adatlap")
       .select("*, felhasznalo_profil(nev, hr_szerepkor, avatar_url)")
       .eq("id", user.id)
       .single(),
-    supabase
-      .from("hr_jogviszony")
-      .select("*, hr_beosztas(*, hr_munkakor(*))")
-      .eq("dolgozo_id", user.id)
-      .is("kilepes_datuma", null)
-      .maybeSingle(),
-    supabase
-      .from("hr_orvosi_vizsgalat")
-      .select("ervenyesseg_datuma")
-      .eq("dolgozo_id", user.id)
-      .order("ervenyesseg_datuma", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("hr_munkavedelmi_oktatas")
-      .select("id, oktatas_tipusa, oktatas_datuma, ervenyesseg_vege, oktato_neve, oktato_beosztasa")
-      .eq("dolgozo_id", user.id)
-      .order("oktatas_datuma", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    jogviszonyQuery.maybeSingle(),
+    orvosiQuery.maybeSingle(),
+    safetyTrainingQuery.maybeSingle(),
   ])
 
   const adatlap = adatlapRes.data
@@ -68,7 +82,12 @@ export default async function SelfServiceProfilePage() {
   const activeMunkakor = activeBeosztas?.hr_munkakor || null
   const munkakorMegnevezes = activeMunkakor?.megnevezes || null
   const belepesDatuma = jogviszonyInfo?.belepes_datuma || null
-  const orvosiErvenyesseg = orvosi?.ervenyesseg_datuma || adatlap?.orvosi_alkalmassag_ervenyesseg || null
+  const isAdatlapForActiveCompany =
+    !activeCompanyId || !adatlap?.company_id || adatlap.company_id === activeCompanyId
+  const orvosiErvenyesseg =
+    orvosi?.ervenyesseg_datuma ||
+    (isAdatlapForActiveCompany ? adatlap?.orvosi_alkalmassag_ervenyesseg : null) ||
+    null
   const nev = adatlap?.felhasznalo_profil?.nev || "Dolgozó"
   const szerepkor = adatlap?.felhasznalo_profil?.hr_szerepkor || null
   const avatarUrl = adatlap?.felhasznalo_profil?.avatar_url || null

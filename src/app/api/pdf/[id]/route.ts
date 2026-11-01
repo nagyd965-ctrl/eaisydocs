@@ -26,7 +26,7 @@ export async function GET(
   // Fetch user profile
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("docs_szerepkor, max_minosites, szervezeti_egyseg_id")
+    .select("docs_szerepkor, hr_szerepkor, hr_modulok, max_minosites, szervezeti_egyseg_id")
     .eq("id", user.id)
     .single()
   const isBetekinto = profile?.docs_szerepkor === "betekinto"
@@ -35,12 +35,66 @@ export async function GET(
   // 2. Fetch document details
   const { data: irat } = await supabase
     .from("irat")
-    .select("minosites, erkeztetoszam, ugyirat_id")
+    .select("minosites, erkeztetoszam, ugyirat_id, company_id")
     .eq("id", iratId)
     .single()
 
   if (!irat) {
     return new NextResponse("Irat nem található vagy nincs hozzáférése", { status: 404 })
+  }
+
+  // Segédfüggvény: ellenőrzi, hogy az irat HR dokumentum-e, és a hívó a dokumentum
+  // tulajdonosa (dolgozó) vagy az adott cégben jogosult HR/cég-admin szereplő-e.
+  let cachedHrAccess: boolean | null = null
+  const checkHrDocumentAccess = async (): Promise<boolean> => {
+    if (cachedHrAccess !== null) return cachedHrAccess
+
+    const { data: hrDoc } = await supabase
+      .from("hr_dokumentum")
+      .select("id, dolgozo_id, company_id")
+      .eq("irat_id", iratId)
+      .limit(1)
+      .maybeSingle()
+
+    if (!hrDoc) {
+      cachedHrAccess = false
+      return false
+    }
+
+    if (hrDoc.dolgozo_id === user.id) {
+      cachedHrAccess = true
+      return true
+    }
+
+    const { getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
+    const { isUserAuthorizedForHrView, normalizeHrRoleAndModules } = await import("@/utils/hr/company-role-resolver")
+    const targetCompanyId = hrDoc.company_id || irat.company_id || null
+    const companyRoles = await getActiveCompanyMemberRolesServer(targetCompanyId)
+    const fallbackNormalized = normalizeHrRoleAndModules(
+      profile?.hr_szerepkor,
+      Array.isArray(profile?.hr_modulok) ? profile.hr_modulok : []
+    )
+    const effectiveHrRole =
+      companyRoles.hrRole && companyRoles.hrRole !== "none"
+        ? companyRoles.hrRole
+        : fallbackNormalized.role
+    const effectiveHrModules =
+      companyRoles.hrModules && companyRoles.hrModules.length > 0
+        ? companyRoles.hrModules
+        : fallbackNormalized.modules
+
+    cachedHrAccess = Boolean(
+      companyRoles.isCompanyAdmin ||
+      companyRoles.docsRole === "admin" ||
+      effectiveHrRole === "admin" ||
+      effectiveHrRole === "rendszergazda" ||
+      isUserAuthorizedForHrView(
+        effectiveHrRole,
+        ["employees", "compliance", "payroll", "onboarding", "offboarding", "auditor", "admin"],
+        effectiveHrModules
+      )
+    )
+    return cachedHrAccess
   }
 
   // 2.1 Szigorú biztonsági minősítés ellenőrzése (Clearance check)
@@ -54,15 +108,9 @@ export async function GET(
   const docLevel = minositesHierarchy[irat.minosites || 'nyilt'] || 1
 
   if (!isAdmin && userLevel < docLevel) {
-    // Ellenőrizzük, hogy a felhasználó a saját HR dokumentumát tekinti-e meg
-    const { data: hrDocOwner } = await supabase
-      .from("hr_dokumentum")
-      .select("id")
-      .eq("irat_id", iratId)
-      .eq("dolgozo_id", user.id)
-      .maybeSingle()
+    const hasHrAccess = await checkHrDocumentAccess()
 
-    if (!hrDocOwner) {
+    if (!hasHrAccess) {
       return new NextResponse(
         `Hozzáférés megtagadva: A dokumentum megtekintéséhez legalább '${irat.minosites}' biztonsági minősítés szükséges (Az Ön szintje: ${profile?.max_minosites || 'nyilt'}).`,
         { status: 403 }
@@ -86,21 +134,13 @@ export async function GET(
       .eq("user_id", user.id)
       .maybeSingle()
 
-    // HR dolgozói hozzáférés: a munkavállaló megtekintheti a saját iktatott HR iratait
-    let isEmployeeOwner = false
+    // HR hozzáférés: saját HR irat vagy jogosult HR / cég-admin
+    let hasHrAccess = false
     if (!inDepartment && !explicitAccess) {
-      const { data: hrDocOwner } = await supabase
-        .from("hr_dokumentum")
-        .select("id")
-        .eq("irat_id", iratId)
-        .eq("dolgozo_id", user.id)
-        .maybeSingle()
-      if (hrDocOwner) {
-        isEmployeeOwner = true
-      }
+      hasHrAccess = await checkHrDocumentAccess()
     }
 
-    if (!inDepartment && !explicitAccess && !isEmployeeOwner) {
+    if (!inDepartment && !explicitAccess && !hasHrAccess) {
       return new NextResponse("Hozzáférés megtagadva: Nincs jogosultsága ehhez az ügyirathoz.", { status: 403 })
     }
   }
@@ -146,7 +186,7 @@ export async function GET(
     const { data: hrDoc } = await supabase
       .from("hr_dokumentum")
       .select("url, alairt_fajl_url, nev")
-      .or(`irat_id.eq.${iratId}${fileId ? `,id.eq.${fileId}` : ""}`)
+      .eq("irat_id", iratId)
       .limit(1)
       .maybeSingle()
 

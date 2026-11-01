@@ -324,13 +324,19 @@ export async function deleteCandidate(candidateId: string) {
 
   const adminClient = getAdminClient()
 
-  // ── GDPR P1-javítás (2026-11-01): CV-fájl törlése a Storage-ből ──
-  // Korábban csak a DB-rekord törölt — a CV-fájl árva maradt a Storage-ben.
+  // ── GDPR P1-javítás (2026-11-01): CV-fájl törlése a Storage-ből + cég-ellenőrzés ──
   const { data: candidate } = await adminClient
     .from("hr_toborzas")
-    .select("cv_storage_path")
+    .select("cv_storage_path, company_id")
     .eq("id", candidateId)
     .maybeSingle()
+
+  if (!candidate) {
+    return { error: "A jelölt nem található." }
+  }
+  if (candidate.company_id && candidate.company_id !== auth.activeCompanyId) {
+    return { error: "A jelölt egy másik céghez tartozik." }
+  }
 
   if (candidate?.cv_storage_path) {
     try {
@@ -346,6 +352,7 @@ export async function deleteCandidate(candidateId: string) {
     .from("hr_toborzas")
     .delete()
     .eq("id", candidateId)
+    .or(`company_id.eq.${auth.activeCompanyId},company_id.is.null`)
 
   if (error) {
     console.error("Hiba a jelölt törlésekor:", error)
@@ -361,12 +368,31 @@ export async function generateCvSignedUrl(candidateId: string, storagePath: stri
   if (!auth.allowed || !auth.user) {
     return { error: auth.error || "Hozzáférés megtagadva" }
   }
+  if (!storagePath || storagePath.includes("..")) {
+    return { error: "Érvénytelen fájlútvonal." }
+  }
 
   const adminClient = getAdminClient()
+
+  const { data: candidate } = await adminClient
+    .from("hr_toborzas")
+    .select("id, company_id, cv_storage_path")
+    .eq("id", candidateId)
+    .maybeSingle()
+
+  if (!candidate) {
+    return { error: "A jelölt nem található." }
+  }
+  if (auth.activeCompanyId && candidate.company_id && candidate.company_id !== auth.activeCompanyId) {
+    return { error: "A jelölt egy másik céghez tartozik." }
+  }
+  if (candidate.cv_storage_path && candidate.cv_storage_path !== storagePath) {
+    return { error: "A megadott CV útvonal nem egyezik a jelölt rögzített önéletrajzával." }
+  }
   
   const { data, error } = await adminClient.storage
     .from('hr_dokumentumok')
-    .createSignedUrl(storagePath, 60)
+    .createSignedUrl(candidate.cv_storage_path || storagePath, 60)
     
   if (error) {
     console.error("Signed URL hiba:", error)
@@ -378,6 +404,7 @@ export async function generateCvSignedUrl(candidateId: string, storagePath: stri
     entitas_id: candidateId,
     esemeny_tipus: "letoltes",
     user_id: auth.user.id,
+    company_id: candidate.company_id || auth.activeCompanyId || null,
     uj_ertek: { fajl: storagePath, esemeny: "CV megtekintése" }
   })
 
@@ -400,9 +427,16 @@ export async function updateCandidateNote(candidateId: string, note: string) {
 
   const { data: candidate } = await adminClient
     .from("hr_toborzas")
-    .select("naptar_jegyzet")
+    .select("naptar_jegyzet, company_id")
     .eq("id", candidateId)
     .single()
+
+  if (!candidate) {
+    return { error: "A jelölt nem található." }
+  }
+  if (candidate.company_id && candidate.company_id !== auth.activeCompanyId) {
+    return { error: "A jelölt egy másik céghez tartozik." }
+  }
 
   let notes = []
   if (candidate?.naptar_jegyzet) {
@@ -516,10 +550,24 @@ export async function saveJobPostingAction(payload: SaveJobPostingPayload) {
   }
 
   if (payload.id) {
+    const { data: existingPosting } = await adminClient
+      .from("hr_allashirdetes")
+      .select("company_id")
+      .eq("id", payload.id)
+      .maybeSingle()
+
+    if (!existingPosting) {
+      return { error: "Az álláshirdetés nem található." }
+    }
+    if (existingPosting.company_id && existingPosting.company_id !== auth.activeCompanyId) {
+      return { error: "Az álláshirdetés egy másik céghez tartozik." }
+    }
+
     const { data: updated, error } = await adminClient
       .from("hr_allashirdetes")
       .update(recordData)
       .eq("id", payload.id)
+      .eq("company_id", auth.activeCompanyId)
       .select("*, hr_munkakor (megnevezes)")
       .single()
 
@@ -563,10 +611,24 @@ export async function updateJobPostingFlagsAction(
 
   const adminClient = getAdminClient()
 
+  const { data: existingPosting } = await adminClient
+    .from("hr_allashirdetes")
+    .select("company_id")
+    .eq("id", id)
+    .maybeSingle()
+
+  if (!existingPosting) {
+    return { error: "Az álláshirdetés nem található." }
+  }
+  if (existingPosting.company_id && existingPosting.company_id !== auth.activeCompanyId) {
+    return { error: "Az álláshirdetés egy másik céghez tartozik." }
+  }
+
   const { error } = await adminClient
     .from("hr_allashirdetes")
     .update(updates)
     .eq("id", id)
+    .eq("company_id", auth.activeCompanyId)
 
   if (error) {
     console.error("Hiba az álláshirdetés státuszának frissítésekor:", error)
@@ -605,6 +667,13 @@ export async function assignCandidateToPostingAction(
 
   if (!candidate || !posting) {
     return { error: "A kiválasztott jelölt vagy álláshirdetés nem található." }
+  }
+
+  if (
+    (candidate.company_id && candidate.company_id !== auth.activeCompanyId) ||
+    (posting.company_id && posting.company_id !== auth.activeCompanyId)
+  ) {
+    return { error: "A kiválasztott jelölt vagy álláshirdetés egy másik céghez tartozik." }
   }
 
   // Ellenőrizzük, hogy van-e már pályázata erre az álláshirdetésre

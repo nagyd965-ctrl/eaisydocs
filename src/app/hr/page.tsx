@@ -26,6 +26,18 @@ export default async function SelfServicePage() {
 
   // Cégszűrő feltétel (van company_id oszlop a táblán és van aktív cég)
   const cs = (q: any) => activeCompanyId ? q.eq("company_id", activeCompanyId) : q
+  const todayBudapestStr = (() => {
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Budapest",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date())
+    } catch {
+      return new Date().toISOString().split("T")[0]
+    }
+  })()
 
   // ── Párhuzamos adatbetöltés (P3-javítás 2026-11-01): minden DB-hívás egyszerre ──
   // P1-javítás (2026-11-01): minden céges táblára aktív-cég szűrés — korábban a
@@ -74,7 +86,7 @@ export default async function SelfServicePage() {
       .from("hr_jelenlet")
       .select("becsekkolas_ideje, kicsekkolas_ideje, szunet_perc, szunet_ms, szunet_kezdete")
       .eq("dolgozo_id", user.id)
-      .eq("datum", new Date().toISOString().split("T")[0]))
+      .eq("datum", todayBudapestStr))
       .single(),
     cs(supabase
       .from("hr_tulora_egyenleg")
@@ -87,12 +99,21 @@ export default async function SelfServicePage() {
       .select("id", { count: "exact", head: true })
       .eq("dolgozo_id", user.id)
       .eq("statusz", "jovahagyasra_var")),
-    // Megjegyzés: a hr_tulora_felhasznalás táblán nincs company_id oszlop (migrációs tétel)
-    supabase
-      .from("hr_tulora_felhasznalás")
-      .select("id", { count: "exact", head: true })
-      .eq("dolgozo_id", user.id)
-      .eq("statusz", "jovahagyasra_var"),
+    (async () => {
+      const res = await cs(supabase
+        .from("hr_tulora_felhasznalás")
+        .select("id", { count: "exact", head: true })
+        .eq("dolgozo_id", user.id)
+        .eq("statusz", "jovahagyasra_var"))
+      if (res.error && activeCompanyId) {
+        return supabase
+          .from("hr_tulora_felhasznalás")
+          .select("id", { count: "exact", head: true })
+          .eq("dolgozo_id", user.id)
+          .eq("statusz", "jovahagyasra_var")
+      }
+      return res
+    })(),
     // Kérések listája — korrekciók és túlórák is (P1-javítás 2026-11-01)
     cs(supabase
       .from("hr_jelenlet_korrekcio")
@@ -100,13 +121,23 @@ export default async function SelfServicePage() {
       .eq("dolgozo_id", user.id))
       .order("created_at", { ascending: false })
       .limit(5),
-    // Megjegyzés: hr_tulora_felhasznalás — nincs company_id (migrációs tétel)
-    supabase
-      .from("hr_tulora_felhasznalás")
-      .select("id, tipus, orak, statusz, created_at")
-      .eq("dolgozo_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(5),
+    (async () => {
+      const res = await cs(supabase
+        .from("hr_tulora_felhasznalás")
+        .select("id, tipus, orak, statusz, created_at")
+        .eq("dolgozo_id", user.id))
+        .order("created_at", { ascending: false })
+        .limit(5)
+      if (res.error && activeCompanyId) {
+        return supabase
+          .from("hr_tulora_felhasznalás")
+          .select("id, tipus, orak, statusz, created_at")
+          .eq("dolgozo_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5)
+      }
+      return res
+    })(),
     cs(supabase
       .from("hr_cafeteria_keret")
       .select("ev, osszeg, nyilatkozat_lezarva, iktatoszam")

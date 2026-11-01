@@ -47,12 +47,45 @@ export function formatDocumentSubject(docName: string, category?: string | null)
 }
 
 /**
+ * Segédfüggvény a munkavállaló / művelet cég-azonosítójának biztonságos feloldásához.
+ */
+async function resolveFilingCompanyId(
+  supabase: SupabaseClient,
+  employeeId: string,
+  explicitCompanyId?: string | null
+): Promise<string | null> {
+  if (explicitCompanyId) return explicitCompanyId
+
+  try {
+    const { data: adatlap } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select("company_id")
+      .eq("id", employeeId)
+      .maybeSingle()
+    if (adatlap?.company_id) return adatlap.company_id
+  } catch {
+    // Mockolt kliens esetén figyelmen kívül hagyjuk
+  }
+
+  try {
+    const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+    const activeCompanyId = await getActiveCompanyIdServer()
+    if (activeCompanyId) return activeCompanyId
+  } catch {
+    // Unit teszt vagy nem-Next.js kontextus esetén figyelmen kívül hagyjuk
+  }
+
+  return null
+}
+
+/**
  * Megkeresi a dolgozó meglévő személyi dossziéját az irat_kapcsolat tábla alapján.
  */
 export async function findEmployeeDossier(
   supabase: SupabaseClient,
-  employeeId: string
-): Promise<{ id: string; iktatoszam: string; statusz: string; ugy_id?: string } | null> {
+  employeeId: string,
+  companyId?: string | null
+): Promise<{ id: string; iktatoszam: string; statusz: string; ugy_id?: string; company_id?: string | null } | null> {
   // 1. Keresés az irat_kapcsolat táblában (ahol entitas_tipus = 'munkavallalo' és ugyirat_id ki van töltve)
   const { data: relations, error } = await supabase
     .from("irat_kapcsolat")
@@ -62,29 +95,44 @@ export async function findEmployeeDossier(
         id,
         iktatoszam,
         statusz,
-        ugy_id
+        ugy_id,
+        company_id
       )
     `)
     .eq("entitas_tipus", "munkavallalo")
     .eq("entitas_id", employeeId)
     .not("ugyirat_id", "is", null)
     .order("created_at", { ascending: false })
-    .limit(1)
+    .limit(10)
 
   if (error || !relations || relations.length === 0) {
     return null
   }
 
-  const dossier = (relations[0] as any).ugyirat
-  if (!dossier || !dossier.id) {
+  const dossiers = relations
+    .map((r: any) => (Array.isArray(r.ugyirat) ? r.ugyirat[0] : r.ugyirat))
+    .filter((d: any) => d && d.id)
+
+  if (dossiers.length === 0) {
+    return null
+  }
+
+  const matchedDossier = companyId
+    ? dossiers.find((d: any) => d.company_id === companyId) ||
+    dossiers.find((d: any) => !d.company_id) ||
+    null
+    : dossiers[0]
+
+  if (!matchedDossier) {
     return null
   }
 
   return {
-    id: dossier.id,
-    iktatoszam: dossier.iktatoszam,
-    statusz: dossier.statusz,
-    ugy_id: dossier.ugy_id,
+    id: matchedDossier.id,
+    iktatoszam: matchedDossier.iktatoszam,
+    statusz: matchedDossier.statusz,
+    ugy_id: matchedDossier.ugy_id,
+    company_id: matchedDossier.company_id || null,
   }
 }
 
@@ -95,10 +143,13 @@ export async function getOrCreateEmployeeDossier(
   supabase: SupabaseClient,
   employeeId: string,
   employeeName: string,
-  currentUserId?: string | null
-): Promise<{ id: string; iktatoszam: string; isNew: boolean }> {
-  // 1. Ellenőrizzük, hogy létezik-e már dosszié
-  const existing = await findEmployeeDossier(supabase, employeeId)
+  currentUserId?: string | null,
+  companyId?: string | null
+): Promise<{ id: string; iktatoszam: string; isNew: boolean; companyId: string | null }> {
+  const effectiveCompanyId = await resolveFilingCompanyId(supabase, employeeId, companyId)
+
+  // 1. Ellenőrizzük, hogy létezik-e már dosszié az adott cégben
+  const existing = await findEmployeeDossier(supabase, employeeId, effectiveCompanyId)
   if (existing) {
     const CLOSED_STATUSES = ["lezart", "selejtezheto", "selejtezett"]
     if (existing.statusz && CLOSED_STATUSES.includes(existing.statusz)) {
@@ -106,29 +157,41 @@ export async function getOrCreateEmployeeDossier(
         `A dolgozó személyi dossziéja (${existing.iktatoszam}) lezárt vagy selejtezett státuszú! Visszaállítás szükséges az iktatáshoz.`
       )
     }
-    return { id: existing.id, iktatoszam: existing.iktatoszam, isNew: false }
+    return {
+      id: existing.id,
+      iktatoszam: existing.iktatoszam,
+      isNew: false,
+      companyId: existing.company_id || effectiveCompanyId,
+    }
   }
 
   // 2. Ha nincs, létrehozzuk az új személyi dossziét
   const currentYear = new Date().getFullYear()
 
-  // 2a. Lekérjük a 3.1 irattári tételt
-  const { data: tetel } = await supabase
+  // 2a. Lekérjük a 3.1 irattári tételt (cégre szűrve, ha van aktív cég)
+  let tetelQuery = supabase
     .from("irattari_terv")
     .select("id, tetelszam")
     .eq("tetelszam", HR_FILING_CONSTANTS.RETENTION_CODE)
-    .maybeSingle()
 
+  if (effectiveCompanyId) {
+    tetelQuery = tetelQuery.eq("company_id", effectiveCompanyId)
+  }
+
+  const { data: tetel } = await tetelQuery.limit(1).maybeSingle()
   const irattariTetelId = tetel?.id || null
 
-  // 2b. Lekérjük a HR szervezeti egységet (ha létezik)
-  const { data: hrDept } = await supabase
+  // 2b. Lekérjük a HR szervezeti egységet (cégre szűrve, ha van aktív cég)
+  let hrDeptQuery = supabase
     .from("szervezeti_egyseg")
     .select("id")
     .ilike("nev", "%HR%")
-    .limit(1)
-    .maybeSingle()
 
+  if (effectiveCompanyId) {
+    hrDeptQuery = hrDeptQuery.eq("company_id", effectiveCompanyId)
+  }
+
+  const { data: hrDept } = await hrDeptQuery.limit(1).maybeSingle()
   const hrDeptId = hrDept?.id || null
 
   // 2c. Ügyszám allokáció
@@ -151,6 +214,7 @@ export async function getOrCreateEmployeeDossier(
       ugytipus_id: irattariTetelId,
       statusz: "folyamatban",
       felelos_user_id: currentUserId || null,
+      ...(effectiveCompanyId ? { company_id: effectiveCompanyId } : {}),
     })
     .select("id")
     .single()
@@ -181,6 +245,7 @@ export async function getOrCreateEmployeeDossier(
       statusz: "iktatva",
       szervezeti_egyseg_id: hrDeptId,
       iktato_user_id: currentUserId || null,
+      ...(effectiveCompanyId ? { company_id: effectiveCompanyId } : {}),
     })
     .select("id")
     .single()
@@ -202,6 +267,7 @@ export async function getOrCreateEmployeeDossier(
     id: ugyiratData.id,
     iktatoszam,
     isNew: true,
+    companyId: effectiveCompanyId,
   }
 }
 
@@ -215,15 +281,16 @@ export async function executeHrDocumentFiling(
     employeeId: string
     customTargy?: string
     currentUserId?: string | null
+    companyId?: string | null
     clientInfo?: { ip?: string; userAgent?: string }
   }
 ): Promise<FilingResult> {
-  const { documentId, employeeId, customTargy, currentUserId, clientInfo } = params
+  const { documentId, employeeId, customTargy, currentUserId, companyId, clientInfo } = params
 
   // 1. Lekérjük a HR dokumentum rekordot
   const { data: doc, error: docErr } = await supabase
     .from("hr_dokumentum")
-    .select("id, nev, kategoria, url, iktatoszam, dolgozo_id")
+    .select("id, nev, kategoria, url, iktatoszam, dolgozo_id, company_id")
     .eq("id", documentId)
     .single()
 
@@ -239,6 +306,12 @@ export async function executeHrDocumentFiling(
     }
   }
 
+  const effectiveCompanyId = await resolveFilingCompanyId(
+    supabase,
+    employeeId,
+    companyId || (doc as any).company_id || null
+  )
+
   // 3. Lekérjük a dolgozó profil nevét
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
@@ -249,12 +322,14 @@ export async function executeHrDocumentFiling(
   const employeeName = profile?.nev || "Ismeretlen munkavállaló"
 
   // 4. Megkeressük vagy létrehozzuk a munkavállalói személyi dossziét
-  let dossier: { id: string; iktatoszam: string; isNew: boolean }
+  let dossier: { id: string; iktatoszam: string; isNew: boolean; companyId: string | null }
   try {
-    dossier = await getOrCreateEmployeeDossier(supabase, employeeId, employeeName, currentUserId)
+    dossier = await getOrCreateEmployeeDossier(supabase, employeeId, employeeName, currentUserId, effectiveCompanyId)
   } catch (err: any) {
     return { success: false, error: err.message || "Nem sikerült a személyi dossziét megnyitni." }
   }
+
+  const targetCompanyId = dossier.companyId || effectiveCompanyId
 
   // 5. Kiszámítjuk a következő alszámot az adott ügyiraton belül
   const { data: existingIratok, error: iratokErr } = await supabase
@@ -286,6 +361,7 @@ export async function executeHrDocumentFiling(
       leiras: iratLeiras,
       adathordozo_tipus: HR_FILING_CONSTANTS.ADATHORDOZO,
       minosites: HR_FILING_CONSTANTS.MINOSITES,
+      ...(targetCompanyId ? { company_id: targetCompanyId } : {}),
     })
     .select("id")
     .single()
@@ -396,6 +472,7 @@ export async function executeHrDocumentFiling(
       ip_cim: clientInfo?.ip || null,
       user_agent: clientInfo?.userAgent || null,
       indoklas: `eaisyHR dokumentum hivatalosan iktatva: ${fullIktatoszam} (${iratTargy})`,
+      ...(targetCompanyId ? { company_id: targetCompanyId } : {}),
     })
 
     // 11b. eaisyHR esemény napló
@@ -405,6 +482,7 @@ export async function executeHrDocumentFiling(
       esemeny_tipus: "iktatva",
       felhasznalo_id: currentUserId || null,
       megjegyzes: `Hivatalosan iktatva az eaisyDocs rendszerbe: ${fullIktatoszam}`,
+      ...(targetCompanyId ? { company_id: targetCompanyId } : {}),
     })
   } catch (auditErr) {
     console.warn("[HrFiling] Audit naplózási hiba:", auditErr)
@@ -458,15 +536,16 @@ export async function executeBatchHrDocumentsFiling(
   params: {
     employeeId: string
     currentUserId?: string | null
+    companyId?: string | null
     clientInfo?: { ip?: string; userAgent?: string }
   }
 ): Promise<BatchFilingResult> {
-  const { employeeId, currentUserId, clientInfo } = params
+  const { employeeId, currentUserId, companyId, clientInfo } = params
 
   // 1. Lekérjük a dolgozó összes még nem iktatott dokumentumát időrendben
   const { data: unfiledDocs, error: fetchErr } = await supabase
     .from("hr_dokumentum")
-    .select("id, nev, kategoria, url, created_at")
+    .select("id, nev, kategoria, url, created_at, company_id")
     .eq("dolgozo_id", employeeId)
     .is("iktatoszam", null)
     .order("created_at", { ascending: true })
@@ -479,6 +558,12 @@ export async function executeBatchHrDocumentsFiling(
     return { success: false, error: "Nincs iktatásra váró vázlat dokumentum ehhez a munkavállalóhoz.", filedCount: 0 }
   }
 
+  const effectiveCompanyId = await resolveFilingCompanyId(
+    supabase,
+    employeeId,
+    companyId || (unfiledDocs[0] as any)?.company_id || null
+  )
+
   // 2. Lekérjük a dolgozó profil nevét
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
@@ -489,12 +574,14 @@ export async function executeBatchHrDocumentsFiling(
   const employeeName = profile?.nev || "Ismeretlen munkavállaló"
 
   // 3. Megkeressük vagy megnyitjuk a munkavállalói személyi dossziét
-  let dossier: { id: string; iktatoszam: string; isNew: boolean }
+  let dossier: { id: string; iktatoszam: string; isNew: boolean; companyId: string | null }
   try {
-    dossier = await getOrCreateEmployeeDossier(supabase, employeeId, employeeName, currentUserId)
+    dossier = await getOrCreateEmployeeDossier(supabase, employeeId, employeeName, currentUserId, effectiveCompanyId)
   } catch (err: any) {
     return { success: false, error: err.message || "Nem sikerült a személyi dossziét megnyitni.", filedCount: 0 }
   }
+
+  const targetCompanyId = dossier.companyId || effectiveCompanyId
 
   // 4. Alszám bázis meghatározása
   const { data: existingIratok, error: iratokErr } = await supabase
@@ -530,6 +617,7 @@ export async function executeBatchHrDocumentsFiling(
         leiras: iratLeiras,
         adathordozo_tipus: HR_FILING_CONSTANTS.ADATHORDOZO,
         minosites: HR_FILING_CONSTANTS.MINOSITES,
+        ...(targetCompanyId ? { company_id: targetCompanyId } : {}),
       })
       .select("id")
       .single()

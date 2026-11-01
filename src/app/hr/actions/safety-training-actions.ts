@@ -29,6 +29,18 @@ export async function getSafetyTrainingRecord(options: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve", data: null, existingDocument: null }
 
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const isSelf = !!options.dolgozoId && options.dolgozoId === user.id && !options.onboardingId
+
+  if (!isSelf) {
+    const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+    const auth = await requireHrAuthServer(["compliance", "onboarding", "employees", "admin", "auditor"], null)
+    if (!auth.authorized) {
+      return { error: "Nincs jogosultságod a munkavédelmi oktatás megtekintéséhez.", data: null, existingDocument: null }
+    }
+  }
+
   const adminClient = getAdminClient()
 
   let query = adminClient
@@ -36,6 +48,10 @@ export async function getSafetyTrainingRecord(options: {
     .select("*")
     .order("created_at", { ascending: false })
     .limit(1)
+
+  if (activeCompanyId) {
+    query = query.eq("company_id", activeCompanyId)
+  }
 
   if (options.dolgozoId && options.onboardingId) {
     query = query.or(`dolgozo_id.eq.${options.dolgozoId},onboarding_id.eq.${options.onboardingId}`)
@@ -98,6 +114,13 @@ export async function generateAndFileSafetyTrainingAction(params: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["compliance", "onboarding", "employees", "admin"], null)
+  if (!auth.authorized) {
+    return { error: "Nincs jogosultságod munkavédelmi oktatási jegyzőkönyv generálásához." }
+  }
+  const activeCompanyId = auth.activeCompanyId
+
   const adminClient = getAdminClient()
 
   // 1. Kiegészítő adatok (profil, munkakör, lakcím)
@@ -110,17 +133,32 @@ export async function generateAndFileSafetyTrainingAction(params: {
   if (params.dolgozoId) {
     const { data: adatlap } = await adminClient
       .from("hr_dolgozo_adatlap")
-      .select("lakcim, szuletesi_datum, anyja_neve")
+      .select("lakcim, szuletesi_datum, anyja_neve, company_id")
       .eq("id", params.dolgozoId)
       .maybeSingle()
 
-    const { data: munkaszerzodes } = await adminClient
+    if (activeCompanyId && adatlap?.company_id && adatlap.company_id !== activeCompanyId) {
+      const { data: member } = await adminClient
+        .from("company_members")
+        .select("id")
+        .eq("company_id", activeCompanyId)
+        .eq("user_id", params.dolgozoId)
+        .maybeSingle()
+      if (!member) {
+        return { error: "A munkavállaló másik céghez tartozik." }
+      }
+    }
+
+    let msQuery = adminClient
       .from("hr_munkaszerzodes")
       .select("lakcim, szuletesi_datum, szuletesi_hely, anyja_neve, reszleg")
       .eq("dolgozo_id", params.dolgozoId)
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle()
+    if (activeCompanyId) {
+      msQuery = msQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: munkaszerzodes } = await msQuery.maybeSingle()
 
     lakcim = adatlap?.lakcim || munkaszerzodes?.lakcim || null
     szuletesiDatum = adatlap?.szuletesi_datum || munkaszerzodes?.szuletesi_datum || null
@@ -130,21 +168,27 @@ export async function generateAndFileSafetyTrainingAction(params: {
   } else if (params.onboardingId) {
     const { data: onb } = await adminClient
       .from("hr_onboarding")
-      .select("reszleg, munkakor")
+      .select("reszleg, munkakor, company_id")
       .eq("id", params.onboardingId)
       .single()
 
     if (onb) {
+      if (activeCompanyId && onb.company_id && onb.company_id !== activeCompanyId) {
+        return { error: "Az onboarding folyamat másik céghez tartozik." }
+      }
       if (!reszleg) reszleg = onb.reszleg || null
     }
   }
 
-  // 2. Céginformációk lekérése
-  const { data: orgSettings } = await adminClient
+  // 2. Céginformációk lekérése (aktív cégre szűrve)
+  let orgSettingsQuery = adminClient
     .from("szervezeti_beallitasok")
     .select("cegnev, szekhely, adoszam, kepviselo_neve")
     .limit(1)
-    .single()
+  if (activeCompanyId) {
+    orgSettingsQuery = orgSettingsQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: orgSettings } = await orgSettingsQuery.maybeSingle()
 
   const cegNev = orgSettings?.cegnev || "ThinkAI Munkaügyi és Szolgáltató Kft."
   const cegSzekhely = orgSettings?.szekhely || "1138 Budapest, Váci út 140."
@@ -209,7 +253,8 @@ export async function generateAndFileSafetyTrainingAction(params: {
         nev: docNev,
         kategoria: "Munkavédelem",
         url: storagePath,
-        alairas_statusz: "vazlat"
+        alairas_statusz: "vazlat",
+        company_id: activeCompanyId
       })
       .select()
       .single()
@@ -236,7 +281,8 @@ export async function generateAndFileSafetyTrainingAction(params: {
         oktato_beosztasa: params.oktatoBeosztasa || "Munkavédelmi és Tűzvédelmi Megbízott",
         tematika: trainingTopics,
         megjegyzes: params.megjegyzes || null,
-        dokumentum_id: newDoc.id
+        dokumentum_id: newDoc.id,
+        company_id: activeCompanyId
       })
       .select()
       .single()
@@ -253,7 +299,8 @@ export async function generateAndFileSafetyTrainingAction(params: {
           documentId: newDoc.id,
           employeeId: params.dolgozoId,
           customTargy: docNev,
-          currentUserId: user.id
+          currentUserId: user.id,
+          companyId: activeCompanyId
         })
       } catch (err: any) {
         console.error("Hiba a munkavédelmi oktatás iktatásakor:", err)
@@ -287,12 +334,14 @@ export async function generateAndFileSafetyTrainingAction(params: {
       esemeny_tipus: "adat_letrehozas",
       entitas_tipus: "hr_munkavedelmi_oktatas",
       entitas_id: trainingRecord?.id || newDoc.id,
+      company_id: activeCompanyId,
       megjegyzes: `Munkavédelmi és Tűzvédelmi Oktatási Jegyzőkönyv kiállítva: ${params.employeeName}${
         filingResult?.iktatoszam ? ` (Iktatva: ${filingResult.iktatoszam})` : ""
       }`
     })
 
     revalidatePath("/hr/onboarding")
+    revalidatePath("/hr/self-service/profile")
     if (params.dolgozoId) {
       revalidatePath(`/hr/employee/${params.dolgozoId}`)
       revalidatePath(`/hr/employee/${params.dolgozoId}/health`)
@@ -326,6 +375,12 @@ export async function fileExistingSafetyTrainingDocument(params: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["compliance", "onboarding", "employees", "admin"], null)
+  if (!auth.authorized) {
+    return { error: "Nincs jogosultságod a munkavédelmi jegyzőkönyv iktatásához." }
+  }
+
   const adminClient = getAdminClient()
   const docNev = `Munkavédelmi és Tűzvédelmi Oktatási Jegyzőkönyv - ${params.employeeName}`
 
@@ -334,7 +389,8 @@ export async function fileExistingSafetyTrainingDocument(params: {
       documentId: params.documentId,
       employeeId: params.dolgozoId,
       customTargy: docNev,
-      currentUserId: user.id
+      currentUserId: user.id,
+      companyId: auth.activeCompanyId
     })
 
     revalidatePath("/hr/onboarding")

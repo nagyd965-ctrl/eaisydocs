@@ -267,14 +267,65 @@ export async function getMyReferralsAction(): Promise<EmployeeReferral[]> {
 
 /**
  * Aláírt letöltési URL generálása a feltöltött önéletrajzhoz
+ * (Tulajdonosi vagy aktív céges HR/Toborzás jogosultság ellenőrzéssel)
  */
 export async function getReferralCvSignedUrlAction(storagePath: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return { url: null, error: "Nincs bejelentkezett felhasználó." }
+  if (!storagePath || storagePath.includes("..")) {
+    return { url: null, error: "Érvénytelen fájlútvonal." }
+  }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   const adminClient = getAdminClient()
+
+  // 1. Ellenőrizzük, hogy saját ajánláshoz tartozik-e
+  const { data: ownReferral } = await adminClient
+    .from("hr_dolgozoi_ajanlas")
+    .select("id, company_id, ajanlo_dolgozo_id")
+    .eq("cv_storage_path", storagePath)
+    .maybeSingle()
+
+  let authorized = false
+  if (ownReferral?.ajanlo_dolgozo_id === user.id) {
+    authorized = true
+  } else {
+    // 2. Saját belső pályázat vagy céges HR/Recruitment hozzáférés ellenőrzése
+    const [{ data: profile }, { data: candidate }] = await Promise.all([
+      adminClient
+        .from("felhasznalo_profil")
+        .select("email")
+        .eq("id", user.id)
+        .maybeSingle(),
+      adminClient
+        .from("hr_toborzas")
+        .select("id, email, company_id")
+        .eq("cv_storage_path", storagePath)
+        .maybeSingle(),
+    ])
+
+    const userEmail = (profile?.email || user.email || "").trim().toLowerCase()
+    if (candidate && userEmail && (candidate.email || "").trim().toLowerCase() === userEmail) {
+      authorized = true
+    } else {
+      const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+      const auth = await requireHrAuthServer(["recruitment", "admin"], null)
+      const recordCompanyId = ownReferral?.company_id || candidate?.company_id
+      if (
+        auth.authorized &&
+        (!activeCompanyId || !recordCompanyId || recordCompanyId === activeCompanyId)
+      ) {
+        authorized = true
+      }
+    }
+  }
+
+  if (!authorized) {
+    return { url: null, error: "Nincs jogosultságod a dokumentum letöltéséhez." }
+  }
+
   const { data, error } = await adminClient.storage
     .from("hr_dokumentumok")
     .createSignedUrl(storagePath, 300)

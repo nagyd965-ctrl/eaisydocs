@@ -24,7 +24,8 @@ test("eaisyHR Multi-Tenancy & Scoped Role Resolver Engine", async (t) => {
     }
 
     const resolved = resolveUserCompanyRoles(membership, profile)
-    assert.strictEqual(resolved.hrRole, "hr_munkatars", "A tagságban lévő hr_szerepkor felül kell bírálja a globális profilt")
+    assert.strictEqual(resolved.hrRole, "munkavallalo", "A legacy hr_munkatars a kanonikus munkavallalo alapszerepkörre normalizálódik")
+    assert.strictEqual(resolved.hrModules.includes("admin"), true, "A legacy hr_munkatars megkapja a HR modulokat")
     assert.strictEqual(resolved.docsRole, "iktato", "A tagságban lévő docs_szerepkor felül kell bírálja a globális profilt")
     assert.strictEqual(resolved.isMember, true)
   })
@@ -44,7 +45,8 @@ test("eaisyHR Multi-Tenancy & Scoped Role Resolver Engine", async (t) => {
     }
 
     const resolved = resolveUserCompanyRoles(membership, profile)
-    assert.strictEqual(resolved.hrRole, "hr_vezeto", "Explicit hiány esetén a globális profil HR szerepköre lép érvénybe")
+    assert.strictEqual(resolved.hrRole, "vezeto", "Explicit hiány esetén a globális profil HR szerepköre normalizálva lép érvénybe")
+    assert.strictEqual(resolved.hrModules.includes("admin"), true, "A legacy hr_vezeto megkapja az összes HR modult")
     assert.strictEqual(resolved.docsRole, "vezeto", "Explicit hiány esetén a globális profil Docs szerepköre lép érvénybe")
   })
 
@@ -84,8 +86,8 @@ test("eaisyHR Multi-Tenancy & Scoped Role Resolver Engine", async (t) => {
       hr_szerepkor: "hr_vezeto",
     }
     const rolesCompanyA = resolveUserCompanyRoles(membershipCompanyA, profile)
-    assert.strictEqual(rolesCompanyA.hrRole, "hr_vezeto")
-    assert.strictEqual(isUserAuthorizedForHrView(rolesCompanyA.hrRole, ["hr_vezeto", "admin"]), true)
+    assert.strictEqual(rolesCompanyA.hrRole, "vezeto")
+    assert.strictEqual(isUserAuthorizedForHrView(rolesCompanyA.hrRole, ["hr_vezeto", "admin"], rolesCompanyA.hrModules), true)
 
     // Kiss Péter Teszt Kft-nél csak egyszerű munkavállaló
     const membershipCompanyB: CompanyMembershipRoleInput = {
@@ -97,7 +99,7 @@ test("eaisyHR Multi-Tenancy & Scoped Role Resolver Engine", async (t) => {
     const rolesCompanyB = resolveUserCompanyRoles(membershipCompanyB, profile)
     assert.strictEqual(rolesCompanyB.hrRole, "munkavallalo")
     // A Teszt Kft-nél NEM nyithatja meg a HR vezetői nézetet vagy a bérszámfejtést!
-    assert.strictEqual(isUserAuthorizedForHrView(rolesCompanyB.hrRole, ["hr_vezeto", "admin"]), false)
+    assert.strictEqual(isUserAuthorizedForHrView(rolesCompanyB.hrRole, ["hr_vezeto", "admin"], rolesCompanyB.hrModules), false)
   })
 
   // --- TEST 5: Nem tag a kiválasztott cégben ---

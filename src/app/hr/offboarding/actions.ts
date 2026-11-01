@@ -61,23 +61,57 @@ function getAdminClient() {
   )
 }
 
+async function verifyOffboardingCompany(
+  adminClient: any,
+  offboardingId: string,
+  activeCompanyId: string | null
+): Promise<{ ok: boolean; companyId: string | null; dolgozoId: string | null; error?: string }> {
+  const { data: offb } = await adminClient
+    .from("hr_offboarding")
+    .select("company_id, dolgozo_id")
+    .eq("id", offboardingId)
+    .maybeSingle()
+
+  if (!offb) {
+    return { ok: false, companyId: null, dolgozoId: null, error: "Nem található az offboarding folyamat." }
+  }
+  if (activeCompanyId && offb.company_id && offb.company_id !== activeCompanyId) {
+    return { ok: false, companyId: offb.company_id, dolgozoId: offb.dolgozo_id, error: "A kiléptetési folyamat másik céghez tartozik." }
+  }
+  return { ok: true, companyId: offb.company_id || activeCompanyId, dolgozoId: offb.dolgozo_id }
+}
+
 // ---------------------------------------------------------------------------
 // 1. Feladatok kezelése
 // ---------------------------------------------------------------------------
 
 export async function toggleOffboardingTaskStatus(taskId: string, currentStatus: string) {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["offboarding"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod a kiléptetési feladatok módosításához." }
+  }
+  const user = auth.user
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
 
   const newStatus = currentStatus === 'pending' ? 'done' : 'pending'
 
   const { data: taskData } = await supabase
     .from("hr_offboarding_feladat")
-    .select(`cim, offboarding_id, hr_offboarding(dolgozo_id)`)
+    .select(`cim, offboarding_id, company_id, hr_offboarding(dolgozo_id, company_id)`)
     .eq("id", taskId)
     .single()
+
+  const taskCompanyId =
+    (taskData as any)?.company_id ||
+    (Array.isArray((taskData as any)?.hr_offboarding)
+      ? (taskData as any)?.hr_offboarding[0]?.company_id
+      : (taskData as any)?.hr_offboarding?.company_id) ||
+    null
+
+  if (auth.activeCompanyId && taskCompanyId && taskCompanyId !== auth.activeCompanyId) {
+    return { error: "A feladat másik céghez tartozik." }
+  }
 
   const { error } = await supabase
     .from("hr_offboarding_feladat")
@@ -90,11 +124,11 @@ export async function toggleOffboardingTaskStatus(taskId: string, currentStatus:
   }
 
   if (taskData) {
-    const activeCompanyId = await getActiveCompanyIdServer()
+    const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
     const statusText = newStatus === 'done' ? 'Elvégezve' : 'Folyamatban'
     await supabase.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
-      esemeny_tipus: "adat_megtekintes", 
+      esemeny_tipus: "adat_megtekintes",
       entitas_tipus: "hr_offboarding_feladat",
       entitas_id: taskId,
       megjegyzes: `Offboarding feladat (${taskData.cim}) státusza átállítva: ${statusText}`,
@@ -107,10 +141,17 @@ export async function toggleOffboardingTaskStatus(taskId: string, currentStatus:
 }
 
 export async function updateOffboardingDate(offboardingId: string, newDate: string) {
-  const supabase = await createClient()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["offboarding"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod a kilépési dátum módosításához." }
+  }
+  const user = auth.user
+  const adminClient = getAdminClient()
+  const check = await verifyOffboardingCompany(adminClient, offboardingId, auth.activeCompanyId)
+  if (!check.ok) return { error: check.error }
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
+  const supabase = await createClient()
 
   const { error } = await supabase
     .from("hr_offboarding")
@@ -122,10 +163,10 @@ export async function updateOffboardingDate(offboardingId: string, newDate: stri
     return { error: error.message }
   }
 
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = check.companyId || (await getActiveCompanyIdServer())
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
-    esemeny_tipus: "munkatars_modositas", 
+    esemeny_tipus: "munkatars_modositas",
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
     megjegyzes: `Kilépési dátum frissítve erre: ${newDate}`,
@@ -137,15 +178,23 @@ export async function updateOffboardingDate(offboardingId: string, newDate: stri
 }
 
 export async function addOffboardingTask(offboardingId: string, cim: string, felelos_reszleg: string) {
-  const supabase = await createClient()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["offboarding"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod kiléptetési feladat hozzáadásához." }
+  }
+  const user = auth.user
+  const adminClient = getAdminClient()
+  const check = await verifyOffboardingCompany(adminClient, offboardingId, auth.activeCompanyId)
+  if (!check.ok) return { error: check.error }
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
+  const supabase = await createClient()
 
   const { error } = await supabase
     .from("hr_offboarding_feladat")
     .insert([{
       offboarding_id: offboardingId,
+      company_id: check.companyId,
       cim,
       felelos_reszleg,
       statusz: 'pending'
@@ -156,10 +205,10 @@ export async function addOffboardingTask(offboardingId: string, cim: string, fel
     return { error: error.message }
   }
 
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = check.companyId || (await getActiveCompanyIdServer())
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
-    esemeny_tipus: "munkatars_modositas", 
+    esemeny_tipus: "munkatars_modositas",
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
     megjegyzes: `Új offboarding feladat rögzítve: ${cim} (${felelos_reszleg})`,
@@ -171,15 +220,21 @@ export async function addOffboardingTask(offboardingId: string, cim: string, fel
 }
 
 export async function deleteOffboardingTask(taskId: string) {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["offboarding"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod kiléptetési feladat törléséhez." }
+  }
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
-
-  const { error } = await supabase
+  let query = supabase
     .from("hr_offboarding_feladat")
     .delete()
     .eq("id", taskId)
+  if (auth.activeCompanyId) {
+    query = query.eq("company_id", auth.activeCompanyId)
+  }
+  const { error } = await query
 
   if (error) {
     console.error("Hiba a feladat törlésekor:", error)
@@ -206,8 +261,8 @@ export interface CreateOffboardingParams {
 }
 
 export async function createOffboarding(
-  dolgozoId: string, 
-  kilepesDatuma: string, 
+  dolgozoId: string,
+  kilepesDatuma: string,
   extraParams?: Partial<CreateOffboardingParams>
 ) {
   const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
@@ -220,24 +275,30 @@ export async function createOffboarding(
 
   const activeCompanyId = extraParams?.companyId || auth.activeCompanyId || (await getActiveCompanyIdServer())
 
-  // Check if active offboarding already exists
-  const { data: existing } = await adminClient
+  // Check if active offboarding already exists (within the active company)
+  let existingQuery = adminClient
     .from("hr_offboarding")
     .select("id, statusz")
     .eq("dolgozo_id", dolgozoId)
     .eq("statusz", "folyamatban")
-    .maybeSingle()
+  if (activeCompanyId) {
+    existingQuery = existingQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: existing } = await existingQuery.maybeSingle()
 
   if (existing) {
     return { error: "Ennek a dolgozónak már van folyamatban lévő kiléptetési folyamata." }
   }
 
-  const { data: closedExisting } = await adminClient
+  let closedExistingQuery = adminClient
     .from("hr_offboarding")
     .select("id, statusz")
     .eq("dolgozo_id", dolgozoId)
     .eq("statusz", "lezart")
-    .maybeSingle()
+  if (activeCompanyId) {
+    closedExistingQuery = closedExistingQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: closedExisting } = await closedExistingQuery.maybeSingle()
 
   if (closedExisting) {
     return { error: "Ennek a dolgozónak a kiléptetése már korábban lezárult." }
@@ -383,6 +444,10 @@ export async function closeOffboarding(
 
   if (fetchErr || !offboarding) {
     return { error: "Nem található az offboarding folyamat." }
+  }
+
+  if (auth.activeCompanyId && offboarding.company_id && offboarding.company_id !== auth.activeCompanyId) {
+    return { error: "A kiléptetési folyamat másik céghez tartozik." }
   }
 
   const employeeName = offboarding.felhasznalo_profil?.nev || "Munkatárs"
@@ -573,8 +638,8 @@ export async function closeOffboarding(
   }
 
   // 6. Audit naplózás
-  const filingNote = filedResults.length > 0 
-    ? `${filedResults.length} kilépő irat beiktatva a személyi dossziéba (${filedResults.map(f => f.iktatoszam).join(", ")}).` 
+  const filingNote = filedResults.length > 0
+    ? `${filedResults.length} kilépő irat beiktatva a személyi dossziéba (${filedResults.map(f => f.iktatoszam).join(", ")}).`
     : "Nincsenek új iktatandó dokumentumok."
 
   const isForceClose = pendingTasks.length > 0
@@ -588,7 +653,7 @@ export async function closeOffboarding(
 
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
-    esemeny_tipus: "munkatars_modositas", 
+    esemeny_tipus: "munkatars_modositas",
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
     megjegyzes: `Kiléptetés lezárva (${employeeName}). ${taskAuditNote} ${authBanNote} ${filingNote}`,
@@ -602,8 +667,8 @@ export async function closeOffboarding(
   if (offboarding.dolgozo_id) {
     revalidatePath(`/hr/employee/${offboarding.dolgozo_id}`)
   }
-  return { 
-    success: true, 
+  return {
+    success: true,
     filedCount: filedResults.length,
     filedDocs: filedResults
   }
@@ -623,9 +688,13 @@ export async function reopenOffboarding(
 
   const { data: offboarding } = await adminClient
     .from("hr_offboarding")
-    .select("dolgozo_id, felhasznalo_profil(nev)")
+    .select("dolgozo_id, company_id, felhasznalo_profil(nev)")
     .eq("id", offboardingId)
     .single()
+
+  if (auth.activeCompanyId && offboarding?.company_id && offboarding.company_id !== auth.activeCompanyId) {
+    return { error: "A kiléptetési folyamat másik céghez tartozik." }
+  }
 
   const { error } = await adminClient
     .from("hr_offboarding")
@@ -647,7 +716,7 @@ export async function reopenOffboarding(
 
   // Személyi dosszié újranyitása iktatva státuszra az irat_kapcsolat táblán keresztül, hogy lehessen módosítani / új iratot felvenni
   if (offboarding?.dolgozo_id) {
-    const existingDossier = await findEmployeeDossier(adminClient, offboarding.dolgozo_id)
+    const existingDossier = await findEmployeeDossier(adminClient, offboarding.dolgozo_id, offboarding.company_id)
 
     if (existingDossier && existingDossier.statusz === "irattarban") {
       await adminClient
@@ -665,17 +734,35 @@ export async function reopenOffboarding(
       console.error("Nem sikerült feloldani a ban-t:", unbanErr)
     }
 
-    // HR jogosultság visszaállítása
+    // HR jogosultság visszaállítása (globális + céges tagság)
     await adminClient
       .from("felhasznalo_profil")
       .update({ hr_szerepkor: "munkavallalo" })
       .eq("id", offboarding.dolgozo_id)
+      .eq("hr_szerepkor", "inaktiv")
 
-    // Munkaviszony vége törlése
-    await adminClient
+    if (offboarding.company_id) {
+      await adminClient
+        .from("company_members")
+        .update({ hr_szerepkor: "munkavallalo" })
+        .eq("user_id", offboarding.dolgozo_id)
+        .eq("company_id", offboarding.company_id)
+        .eq("hr_szerepkor", "inaktiv")
+    }
+
+    // Munkaviszony vége törlése (ha az elsődleges céghez tartozik)
+    const { data: adatlap } = await adminClient
       .from("hr_dolgozo_adatlap")
-      .update({ munkaviszony_vege: null })
+      .select("company_id")
       .eq("id", offboarding.dolgozo_id)
+      .maybeSingle()
+
+    if (!offboarding.company_id || !adatlap?.company_id || adatlap.company_id === offboarding.company_id) {
+      await adminClient
+        .from("hr_dolgozo_adatlap")
+        .update({ munkaviszony_vege: null })
+        .eq("id", offboarding.dolgozo_id)
+    }
   }
 
   const profil = Array.isArray(offboarding?.felhasznalo_profil) ? offboarding.felhasznalo_profil[0] : offboarding?.felhasznalo_profil
@@ -703,10 +790,15 @@ export async function reopenOffboarding(
 }
 
 export async function resetOffboardingTasks(offboardingId: string) {
-  const supabase = await createClient()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["offboarding"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod a kiléptetési feladatok visszaállításához." }
+  }
+  const user = auth.user
   const adminClient = getAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
+  const check = await verifyOffboardingCompany(adminClient, offboardingId, auth.activeCompanyId)
+  if (!check.ok) return { error: check.error }
 
   const { error } = await adminClient
     .from("hr_offboarding_feladat")
@@ -717,7 +809,7 @@ export async function resetOffboardingTasks(offboardingId: string) {
     return { error: error.message }
   }
 
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = check.companyId || (await getActiveCompanyIdServer())
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "munkatars_modositas",
@@ -740,23 +832,40 @@ export async function fileSingleOffboardingDocument({
   dolgozoId: string
   customTargy?: string
 }) {
-  const supabase = await createClient()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["offboarding"], null)
+  if (!auth.authorized || !auth.user) {
+    return { error: "Nincs jogosultságod a kilépő dokumentum iktatásához." }
+  }
+  const user = auth.user
   const adminClient = getAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: docRecord } = await adminClient
+    .from("hr_dokumentum")
+    .select("company_id, dolgozo_id")
+    .eq("id", documentId)
+    .maybeSingle()
+
+  if (!docRecord) {
+    return { error: "A dokumentum nem található." }
+  }
+  if (auth.activeCompanyId && docRecord.company_id && docRecord.company_id !== auth.activeCompanyId) {
+    return { error: "A dokumentum másik céghez tartozik." }
+  }
 
   const filingResult = await executeHrDocumentFiling(adminClient, {
     documentId,
     employeeId: dolgozoId,
     customTargy,
-    currentUserId: user.id
+    currentUserId: user.id,
+    companyId: docRecord.company_id || auth.activeCompanyId
   })
 
   if (!filingResult.success) {
     return { error: filingResult.error || "Nem sikerült beiktatni a dokumentumot." }
   }
 
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = docRecord.company_id || auth.activeCompanyId || (await getActiveCompanyIdServer())
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
     esemeny_tipus: "irat_letrehozas",
@@ -767,11 +876,11 @@ export async function fileSingleOffboardingDocument({
   })
 
   revalidatePath("/hr/offboarding")
-  return { 
-    success: true, 
-    iktatoszam: filingResult.iktatoszam, 
+  return {
+    success: true,
+    iktatoszam: filingResult.iktatoszam,
     ugyiratId: filingResult.ugyirat_id,
-    iratId: filingResult.irat_id 
+    iratId: filingResult.irat_id
   }
 }
 
@@ -786,12 +895,19 @@ export async function deleteOffboardingProcess(offboardingId: string) {
     return { error: "Nincs jogosultságod a kiléptetési folyamat törléséhez." }
   }
   const user = auth.user
+  const adminClient = getAdminClient()
+  const check = await verifyOffboardingCompany(adminClient, offboardingId, auth.activeCompanyId)
+  if (!check.ok) return { error: check.error }
   const supabase = await createClient()
 
-  const { error } = await supabase
+  let query = supabase
     .from("hr_offboarding")
     .delete()
     .eq("id", offboardingId)
+  if (auth.activeCompanyId) {
+    query = query.eq("company_id", auth.activeCompanyId)
+  }
+  const { error } = await query
 
   if (error) {
     console.error("Hiba a kiléptetés törlésekor:", error)
@@ -801,7 +917,7 @@ export async function deleteOffboardingProcess(offboardingId: string) {
   const activeCompanyId = await getActiveCompanyIdServer()
   await supabase.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
-    esemeny_tipus: "adat_torles", 
+    esemeny_tipus: "adat_torles",
     entitas_tipus: "hr_offboarding",
     entitas_id: offboardingId,
     megjegyzes: `Kiléptetési folyamat véglegesen törölve`,
@@ -840,6 +956,10 @@ export async function getOffboardingDetailData(offboardingId: string) {
 
     if (error || !offboarding) {
       return { error: error?.message || "Nem található offboarding folyamat." }
+    }
+
+    if (auth.activeCompanyId && offboarding.company_id && offboarding.company_id !== auth.activeCompanyId) {
+      return { error: "A kiléptetési folyamat másik céghez tartozik." }
     }
 
     // Dolgozó adatlap lekérése (személyi és azonosító adatok)
@@ -906,8 +1026,8 @@ export async function getOffboardingDetailData(offboardingId: string) {
         const { data: s } = await adminClient.storage.from("irat_files").createSignedUrl(tUrl, 3600)
         if (s?.signedUrl) tUrl = s.signedUrl
       }
-      terminationDoc = { 
-        url: tUrl, 
+      terminationDoc = {
+        url: tUrl,
         storagePath: offboarding.szerzodes_pdf_url,
         iktatoszam: termHrDoc?.iktatoszam || null,
         iktatvaEkor: termHrDoc?.iktatva_ekor || null,
@@ -923,8 +1043,8 @@ export async function getOffboardingDetailData(offboardingId: string) {
         const { data: s } = await adminClient.storage.from("irat_files").createSignedUrl(aUrl, 3600)
         if (s?.signedUrl) aUrl = s.signedUrl
       }
-      assetReturnDoc = { 
-        url: aUrl, 
+      assetReturnDoc = {
+        url: aUrl,
         storagePath: offboarding.eszkoz_elszamolas_pdf_url,
         iktatoszam: assetHrDoc?.iktatoszam || null,
         iktatvaEkor: assetHrDoc?.iktatva_ekor || null,
@@ -940,8 +1060,8 @@ export async function getOffboardingDetailData(offboardingId: string) {
         const { data: s } = await adminClient.storage.from("irat_files").createSignedUrl(kUrl, 3600)
         if (s?.signedUrl) kUrl = s.signedUrl
       }
-      kilepoIgazolasDoc = { 
-        url: kUrl, 
+      kilepoIgazolasDoc = {
+        url: kUrl,
         storagePath: offboarding.kilepo_igazolas_pdf_url,
         iktatoszam: kilepoHrDoc?.iktatoszam || null,
         iktatvaEkor: kilepoHrDoc?.iktatva_ekor || null,
@@ -1039,7 +1159,7 @@ export async function getOffboardingDetailData(offboardingId: string) {
 // ---------------------------------------------------------------------------
 
 export async function generateTerminationAgreementAction(
-  offboardingId: string, 
+  offboardingId: string,
   payload: Partial<TerminationPdfData>
 ) {
   const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
@@ -1058,6 +1178,10 @@ export async function generateTerminationAgreementAction(
 
   if (offErr || !offboarding) {
     return { error: "Nem található az offboarding folyamat." }
+  }
+
+  if (auth.activeCompanyId && offboarding.company_id && offboarding.company_id !== auth.activeCompanyId) {
+    return { error: "A kiléptetési folyamat másik céghez tartozik." }
   }
 
   const employeeName = payload.employeeName || offboarding.felhasznalo_profil?.nev || "Munkavállaló"
@@ -1135,6 +1259,7 @@ export async function generateTerminationAgreementAction(
     .from("hr_dokumentum")
     .insert({
       dolgozo_id: offboarding.dolgozo_id,
+      company_id: offboarding.company_id || auth.activeCompanyId,
       nev: docName,
       kategoria: "Munkaviszony megszüntetés",
       url: storagePath,
@@ -1161,8 +1286,8 @@ export async function generateTerminationAgreementAction(
     .select("id, cim, statusz")
     .eq("offboarding_id", offboardingId)
 
-  const matchTask = terminationTasks?.find(t => 
-    t.cim.toLowerCase().includes("megszüntet") || 
+  const matchTask = terminationTasks?.find(t =>
+    t.cim.toLowerCase().includes("megszüntet") ||
     t.cim.toLowerCase().includes("kilépő papír") ||
     t.cim.toLowerCase().includes("szerződés")
   )
@@ -1187,8 +1312,8 @@ export async function generateTerminationAgreementAction(
   revalidatePath("/hr/offboarding")
   const { data: sData } = await adminClient.storage.from("irat_files").createSignedUrl(storagePath, 3600)
 
-  return { 
-    success: true, 
+  return {
+    success: true,
     storagePath,
     pdfUrl: sData?.signedUrl || null,
     documentId: newDoc.id,
@@ -1202,7 +1327,7 @@ export async function generateTerminationAgreementAction(
 // ---------------------------------------------------------------------------
 
 export async function generateAssetReturnSheetAction(
-  offboardingId: string, 
+  offboardingId: string,
   payload: {
     items: AssetReturnItem[]
     visszavetelDatuma: string
@@ -1226,6 +1351,10 @@ export async function generateAssetReturnSheetAction(
 
   if (offErr || !offboarding) {
     return { error: "Nem található az offboarding folyamat." }
+  }
+
+  if (auth.activeCompanyId && offboarding.company_id && offboarding.company_id !== auth.activeCompanyId) {
+    return { error: "A kiléptetési folyamat másik céghez tartozik." }
   }
 
   const employeeName = offboarding.felhasznalo_profil?.nev || "Munkavállaló"
@@ -1293,6 +1422,7 @@ export async function generateAssetReturnSheetAction(
     .from("hr_dokumentum")
     .insert({
       dolgozo_id: offboarding.dolgozo_id,
+      company_id: offboarding.company_id || auth.activeCompanyId,
       nev: docName,
       kategoria: "Eszköz átadás-átvétel",
       url: storagePath,
@@ -1319,9 +1449,9 @@ export async function generateAssetReturnSheetAction(
     .select("id, cim, statusz")
     .eq("offboarding_id", offboardingId)
 
-  const matchTasks = tasks?.filter(t => 
-    t.cim.toLowerCase().includes("eszköz") || 
-    t.cim.toLowerCase().includes("laptop") || 
+  const matchTasks = tasks?.filter(t =>
+    t.cim.toLowerCase().includes("eszköz") ||
+    t.cim.toLowerCase().includes("laptop") ||
     t.cim.toLowerCase().includes("telefon") ||
     t.cim.toLowerCase().includes("belépőkártya") ||
     t.cim.toLowerCase().includes("kulcs")
@@ -1351,8 +1481,8 @@ export async function generateAssetReturnSheetAction(
   revalidatePath("/hr/offboarding")
   const { data: sData } = await adminClient.storage.from("irat_files").createSignedUrl(storagePath, 3600)
 
-  return { 
-    success: true, 
+  return {
+    success: true,
     storagePath,
     pdfUrl: sData?.signedUrl || null,
     documentId: newDoc.id,
@@ -1431,11 +1561,14 @@ export async function saveExitInterview(offboardingId: string, formData: {
   }
   const user = auth.user
   const adminClient = getAdminClient()
+  const check = await verifyOffboardingCompany(adminClient, offboardingId, auth.activeCompanyId)
+  if (!check.ok) return { error: check.error }
 
   const { error } = await adminClient
     .from("hr_kilepes_interju")
     .upsert({
       offboarding_id: offboardingId,
+      ...(check.companyId ? { company_id: check.companyId } : {}),
       ...formData,
       rogzito_id: user.id,
     }, { onConflict: "offboarding_id" })
@@ -1497,6 +1630,10 @@ export async function generateExitCertificateAction(
 
   if (offErr || !offboarding) {
     return { error: "Nem található az offboarding folyamat." }
+  }
+
+  if (auth.activeCompanyId && offboarding.company_id && offboarding.company_id !== auth.activeCompanyId) {
+    return { error: "A kiléptetési folyamat másik céghez tartozik." }
   }
 
   const employeeName = payload.employeeName || offboarding.felhasznalo_profil?.nev || "Munkavállaló"
@@ -1598,6 +1735,7 @@ export async function generateExitCertificateAction(
     .from("hr_dokumentum")
     .insert({
       dolgozo_id: offboarding.dolgozo_id,
+      company_id: offboarding.company_id || auth.activeCompanyId,
       nev: docName,
       kategoria: "Kilépő igazolások",
       url: storagePath,
@@ -1634,9 +1772,9 @@ export async function generateExitCertificateAction(
     .select("id, cim, statusz")
     .eq("offboarding_id", offboardingId)
 
-  const certTask = tasks?.find(t => 
-    t.cim.toLowerCase().includes("kilépő igazolás") || 
-    t.cim.toLowerCase().includes("igazolások kiadása") || 
+  const certTask = tasks?.find(t =>
+    t.cim.toLowerCase().includes("kilépő igazolás") ||
+    t.cim.toLowerCase().includes("igazolások kiadása") ||
     t.cim.toLowerCase().includes("mt. 80")
   )
   if (certTask && certTask.statusz !== "done") {
@@ -1661,9 +1799,9 @@ export async function generateExitCertificateAction(
   })
 
   revalidatePath("/hr/offboarding")
-  return { 
-    success: true, 
-    pdfUrl: signedData?.signedUrl || storagePath, 
+  return {
+    success: true,
+    pdfUrl: signedData?.signedUrl || storagePath,
     storagePath,
     documentId: newDoc.id
   }

@@ -13,6 +13,7 @@ import {
 import { addDays, format, parseISO, startOfWeek, endOfWeek, subDays } from "date-fns"
 import { checkMedicalValidityForDate } from "@/utils/hr/medical-compliance-checker"
 import { checkWeeklyHoursCompliance } from "@/utils/hr/overtime-engine"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export async function getCompanyShiftTemplates(): Promise<ShiftTemplate[]> {
   const supabase = await createClient()
@@ -65,32 +66,47 @@ export async function getWeeklyShiftRoster(
   // 1. Sablonok lekérése
   const templates = await getCompanyShiftTemplates()
 
-  // 2. Dolgozók és orvosi adatok lekérése
-  const { data: rawEmployees } = await supabase
-    .from("hr_jogviszony")
-    .select(`
-      id,
-      dolgozo_id,
-      kilepes_datuma,
-      created_at,
-      hr_dolgozo_adatlap (
+  // 2. Dolgozók és cégszintű orvosi adatok lekérése
+  const [{ data: rawEmployees }, { data: companyMedicalExams }] = await Promise.all([
+    supabase
+      .from("hr_jogviszony")
+      .select(`
         id,
-        orvosi_alkalmassag_ervenyesseg,
-        felhasznalo_profil (
+        dolgozo_id,
+        kilepes_datuma,
+        created_at,
+        hr_dolgozo_adatlap (
           id,
-          nev,
-          avatar_url,
-          hr_szervezeti_egyseg_id,
-          hr_szervezeti_egyseg:hr_szervezeti_egyseg_id ( id, nev )
+          company_id,
+          orvosi_alkalmassag_ervenyesseg,
+          felhasznalo_profil (
+            id,
+            nev,
+            avatar_url,
+            hr_szervezeti_egyseg_id,
+            hr_szervezeti_egyseg:hr_szervezeti_egyseg_id ( id, nev )
+          )
+        ),
+        hr_beosztas (
+          ervenyes_ig,
+          hr_munkakor ( megnevezes )
         )
-      ),
-      hr_beosztas (
-        ervenyes_ig,
-        hr_munkakor ( megnevezes )
-      )
-    `)
-    .eq("company_id", companyScope)
-    .order("created_at", { ascending: false })
+      `)
+      .eq("company_id", companyScope)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("hr_orvosi_vizsgalat")
+      .select("dolgozo_id, ervenyesseg_datuma, vizsgalat_datuma")
+      .eq("company_id", companyScope)
+      .order("vizsgalat_datuma", { ascending: false }),
+  ])
+
+  const latestMedExamByEmployee = new Map<string, string>()
+  for (const exam of (companyMedicalExams as any[]) || []) {
+    if (exam.dolgozo_id && exam.ervenyesseg_datuma && !latestMedExamByEmployee.has(exam.dolgozo_id)) {
+      latestMedExamByEmployee.set(exam.dolgozo_id, exam.ervenyesseg_datuma)
+    }
+  }
 
   const employeeMap = new Map<string, ShiftPlannerEmployee>()
   for (const j of (rawEmployees as any[]) || []) {
@@ -104,8 +120,13 @@ export async function getWeeklyShiftRoster(
         : prof?.hr_szervezeti_egyseg
       const activeBeosztas = (j.hr_beosztas || []).find((b: any) => !b.ervenyes_ig)
 
-      const medExpiry = adatlap?.orvosi_alkalmassag_ervenyesseg
-        ? format(parseISO(adatlap.orvosi_alkalmassag_ervenyesseg), "yyyy-MM-dd")
+      const examExpiry = latestMedExamByEmployee.get(j.dolgozo_id) || null
+      const fallbackExpiry =
+        adatlap?.company_id === companyScope ? adatlap?.orvosi_alkalmassag_ervenyesseg : null
+      const rawMedExpiry = examExpiry || fallbackExpiry
+
+      const medExpiry = rawMedExpiry
+        ? format(parseISO(rawMedExpiry), "yyyy-MM-dd")
         : null
 
       let medStatus: "ervenyes" | "lejar_hamarosan" | "lejart" | "nincs_adat" = "nincs_adat"
@@ -240,13 +261,13 @@ export async function saveShiftAssignmentAction(params: {
   megjegyzes?: string | null
 }): Promise<{ success: boolean; error?: string; warning?: string }> {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return { success: false, error: "Nincs bejelentkezve" }
+    const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
+    if (!auth.authorized) {
+      return { success: false, error: "Nincs jogosultságod a műszakbeosztás módosításához." }
+    }
 
-    const activeCompanyId = await getActiveCompanyIdServer()
+    const supabase = await createClient()
+    const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
     if (!activeCompanyId) return { success: false, error: "Nincs aktív cég kiválasztva" }
 
     const { dolgozo_id, datum, sablon_id, egyedi_kezdes, egyedi_befejezes, megjegyzes } =
@@ -272,21 +293,36 @@ export async function saveShiftAssignmentAction(params: {
         .from("hr_muszak_sablon")
         .select("munkaora")
         .eq("id", sablon_id)
+        .eq("company_id", activeCompanyId)
         .single()
       if (tmpl?.munkaora) {
         oraszam = Number(tmpl.munkaora)
       }
     }
 
-    // Orvosi érvényesség szigorú ellenőrzése és blokkolás (HR-TASK-05, Mvt. 49. §)
-    const { data: adatlap } = await supabase
-      .from("hr_dolgozo_adatlap")
-      .select("orvosi_alkalmassag_ervenyesseg")
-      .eq("id", dolgozo_id)
-      .maybeSingle()
+    // Orvosi érvényesség szigorú cégszintű ellenőrzése és blokkolás (HR-TASK-05, Mvt. 49. §)
+    const [{ data: latestExam }, { data: adatlap }] = await Promise.all([
+      supabase
+        .from("hr_orvosi_vizsgalat")
+        .select("ervenyesseg_datuma")
+        .eq("dolgozo_id", dolgozo_id)
+        .eq("company_id", activeCompanyId)
+        .order("vizsgalat_datuma", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("hr_dolgozo_adatlap")
+        .select("company_id, orvosi_alkalmassag_ervenyesseg")
+        .eq("id", dolgozo_id)
+        .maybeSingle(),
+    ])
+
+    const effectiveMedicalExpiry =
+      latestExam?.ervenyesseg_datuma ||
+      (adatlap?.company_id === activeCompanyId ? adatlap?.orvosi_alkalmassag_ervenyesseg : null)
 
     const medicalCheck = checkMedicalValidityForDate(
-      adatlap?.orvosi_alkalmassag_ervenyesseg,
+      effectiveMedicalExpiry,
       datum
     )
 
@@ -299,7 +335,7 @@ export async function saveShiftAssignmentAction(params: {
 
     let warningMsg: string | undefined
     if (medicalCheck.status === "lejar_hamarosan") {
-      warningMsg = `Figyelem: A dolgozó orvosi alkalmassága hamarosan lejár (${adatlap?.orvosi_alkalmassag_ervenyesseg})!`
+      warningMsg = `Figyelem: A dolgozó orvosi alkalmassága hamarosan lejár (${effectiveMedicalExpiry})!`
     }
 
     // Mt. 99. § heti 48 órás maximális munkaidő figyelése (HR-TASK-02)
@@ -337,7 +373,7 @@ export async function saveShiftAssignmentAction(params: {
         tervezett_ora: oraszam,
         megjegyzes: megjegyzes || null,
         statusz: "tervezett",
-        letrehozo_id: user.id,
+        letrehozo_id: auth.user?.id || null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "dolgozo_id,datum" }
@@ -360,13 +396,13 @@ export async function copyPreviousWeekRosterAction(
   targetWeekStartStr: string
 ): Promise<{ success: boolean; copiedCount?: number; skippedMedicalCount?: number; error?: string; message?: string }> {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return { success: false, error: "Nincs bejelentkezve" }
+    const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
+    if (!auth.authorized) {
+      return { success: false, error: "Nincs jogosultságod a műszakbeosztás módosításához." }
+    }
 
-    const activeCompanyId = await getActiveCompanyIdServer()
+    const supabase = await createClient()
+    const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
     if (!activeCompanyId) return { success: false, error: "Nincs aktív cég" }
 
     const targetMonday = parseISO(targetWeekStartStr)
@@ -411,16 +447,31 @@ export async function copyPreviousWeekRosterAction(
       )
     }
 
-    // 3. Dolgozók orvosi érvényességének lekérése (HR-TASK-05 másolási védelem)
+    // 3. Dolgozók cégszintű orvosi érvényességének lekérése (HR-TASK-05 másolási védelem)
     const distinctEmployeeIds = Array.from(new Set(sourceShifts.map((s) => s.dolgozo_id)))
-    const { data: employeeAdatlaps } = await supabase
-      .from("hr_dolgozo_adatlap")
-      .select("id, orvosi_alkalmassag_ervenyesseg")
-      .in("id", distinctEmployeeIds)
+    const [{ data: companyExams }, { data: employeeAdatlaps }] = await Promise.all([
+      supabase
+        .from("hr_orvosi_vizsgalat")
+        .select("dolgozo_id, ervenyesseg_datuma, vizsgalat_datuma")
+        .eq("company_id", activeCompanyId)
+        .in("dolgozo_id", distinctEmployeeIds)
+        .order("vizsgalat_datuma", { ascending: false }),
+      supabase
+        .from("hr_dolgozo_adatlap")
+        .select("id, company_id, orvosi_alkalmassag_ervenyesseg")
+        .in("id", distinctEmployeeIds),
+    ])
 
     const medicalExpiryMap = new Map<string, string | null>()
-    for (const a of employeeAdatlaps || []) {
-      medicalExpiryMap.set(a.id, a.orvosi_alkalmassag_ervenyesseg)
+    for (const exam of (companyExams as any[]) || []) {
+      if (exam.dolgozo_id && exam.ervenyesseg_datuma && !medicalExpiryMap.has(exam.dolgozo_id)) {
+        medicalExpiryMap.set(exam.dolgozo_id, exam.ervenyesseg_datuma)
+      }
+    }
+    for (const a of (employeeAdatlaps as any[]) || []) {
+      if (!medicalExpiryMap.has(a.id)) {
+        medicalExpiryMap.set(a.id, a.company_id === activeCompanyId ? a.orvosi_alkalmassag_ervenyesseg : null)
+      }
     }
 
     // 4. Új beosztások előkészítése (+7 nappal eltolva)
@@ -454,7 +505,7 @@ export async function copyPreviousWeekRosterAction(
         tervezett_ora: shift.tervezett_ora,
         megjegyzes: shift.megjegyzes,
         statusz: "tervezett",
-        letrehozo_id: user.id,
+        letrehozo_id: auth.user?.id || null,
         updated_at: new Date().toISOString(),
       })
     }
@@ -491,8 +542,13 @@ export async function saveShiftTemplateAction(template: {
   szin_kod: string
 }): Promise<{ success: boolean; error?: string }> {
   try {
+    const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
+    if (!auth.authorized) {
+      return { success: false, error: "Nincs jogosultságod a műszakbeosztás módosításához." }
+    }
+
     const supabase = await createClient()
-    const activeCompanyId = await getActiveCompanyIdServer()
+    const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
     if (!activeCompanyId) return { success: false, error: "Nincs aktív cég" }
 
     if (template.id) {
@@ -540,8 +596,13 @@ export async function deleteShiftTemplateAction(
   templateId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
+    if (!auth.authorized) {
+      return { success: false, error: "Nincs jogosultságod a műszakbeosztás módosításához." }
+    }
+
     const supabase = await createClient()
-    const activeCompanyId = await getActiveCompanyIdServer()
+    const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
     if (!activeCompanyId) return { success: false, error: "Nincs aktív cég" }
 
     // Soft delete: inaktiváljuk a sablont

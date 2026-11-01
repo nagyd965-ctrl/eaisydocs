@@ -9,17 +9,107 @@ import {
   formatDossierSubject,
 } from "@/utils/hr-filing-bridge"
 import { getClientInfo } from "@/utils/client-info"
-import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isUserAuthorizedForHrView, normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
 import { generateAnnualLeavePdfBuffer } from "@/utils/hr/annual-leave-pdf-generator"
 
-function hasHrOrDocsAdminProfile(userProfile: any): boolean {
-  if (!userProfile) return false
-  const hrModules: string[] = Array.isArray(userProfile.hr_modulok) ? userProfile.hr_modulok : []
-  return (
-    ["hr_munkatars", "hr_vezeto", "admin"].includes(userProfile.hr_szerepkor || "") ||
-    userProfile.docs_szerepkor === "admin" ||
-    hrModules.some((m) => ["admin", "compliance", "payroll", "onboarding", "offboarding"].includes(m))
-  )
+const HR_DOC_FILING_MODULES = ["admin", "employees", "compliance", "payroll", "onboarding", "offboarding"]
+
+async function hasHrOrDocsAdminProfile(userProfile: any): Promise<boolean> {
+  try {
+    const companyRoles = await getActiveCompanyMemberRolesServer()
+    if (
+      companyRoles.isCompanyAdmin ||
+      companyRoles.docsRole === "admin" ||
+      companyRoles.hrRole === "admin" ||
+      companyRoles.hrRole === "rendszergazda" ||
+      isUserAuthorizedForHrView(companyRoles.hrRole, HR_DOC_FILING_MODULES, companyRoles.hrModules)
+    ) {
+      return true
+    }
+    if (companyRoles.isMember) {
+      return false
+    }
+  } catch {
+    // Ha nincs kérés-kontextus, marad a profil-alapú ellenőrzés
+  }
+
+  if (userProfile) {
+    if (userProfile.docs_szerepkor === "admin") return true
+    const normalized = normalizeHrRoleAndModules(
+      userProfile.hr_szerepkor,
+      Array.isArray(userProfile.hr_modulok) ? userProfile.hr_modulok : []
+    )
+    if (
+      normalized.role === "admin" ||
+      isUserAuthorizedForHrView(normalized.role, HR_DOC_FILING_MODULES, normalized.modules)
+    ) {
+      return true
+    }
+  }
+
+  return false
+}
+
+async function requireEmployeeActionAccess(
+  employeeId: string,
+  allowedModules: string[] = ["employees", "admin"],
+  options: { allowSelf?: boolean } = {}
+): Promise<{
+  ok: boolean
+  error?: string
+  userId: string | null
+  activeCompanyId: string | null
+}> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { ok: false, error: "Nincs bejelentkezve", userId: null, activeCompanyId: null }
+  }
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (options.allowSelf && user.id === employeeId) {
+    return { ok: true, userId: user.id, activeCompanyId }
+  }
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(allowedModules, null)
+  if (!auth.authorized) {
+    return {
+      ok: false,
+      error: "Nincs jogosultságod a művelet végrehajtásához.",
+      userId: user.id,
+      activeCompanyId: auth.activeCompanyId || activeCompanyId,
+    }
+  }
+  const effectiveCompanyId = auth.activeCompanyId || activeCompanyId
+  if (effectiveCompanyId) {
+    const { data: adatlap } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select("company_id")
+      .eq("id", employeeId)
+      .maybeSingle()
+    if (adatlap?.company_id && adatlap.company_id !== effectiveCompanyId) {
+      const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
+      const adminClient = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+      const { data: member } = await adminClient
+        .from("company_members")
+        .select("id")
+        .eq("company_id", effectiveCompanyId)
+        .eq("user_id", employeeId)
+        .maybeSingle()
+      if (!member) {
+        return {
+          ok: false,
+          error: "A munkavállaló másik céghez tartozik.",
+          userId: user.id,
+          activeCompanyId: effectiveCompanyId,
+        }
+      }
+    }
+  }
+  return { ok: true, userId: user.id, activeCompanyId: effectiveCompanyId }
 }
 
 // -----------------------------------------------------------------------------
@@ -27,6 +117,8 @@ function hasHrOrDocsAdminProfile(userProfile: any): boolean {
 // -----------------------------------------------------------------------------
 
 export async function addWorkplace(employeeId: string, formData: FormData) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"], { allowSelf: true })
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
 
   const munkaltato_neve = formData.get("munkaltato_neve") as string
@@ -63,8 +155,10 @@ export async function addWorkplace(employeeId: string, formData: FormData) {
 }
 
 export async function deleteWorkplace(id: string, employeeId: string) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"], { allowSelf: true })
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
-  const { error } = await supabase.from("hr_elozo_munkahely").delete().eq("id", id)
+  const { error } = await supabase.from("hr_elozo_munkahely").delete().eq("id", id).eq("dolgozo_id", employeeId)
   if (error) return { error: error.message }
   revalidatePath(`/hr/employee/${employeeId}`)
   return { success: true }
@@ -75,6 +169,8 @@ export async function deleteWorkplace(id: string, employeeId: string) {
 // -----------------------------------------------------------------------------
 
 export async function addQualification(employeeId: string, formData: FormData) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"], { allowSelf: true })
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
 
   const tipus = formData.get("tipus") as string
@@ -133,14 +229,36 @@ export async function addQualification(employeeId: string, formData: FormData) {
 
 export async function getQualificationFileUrl(filePath: string) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Nincs bejelentkezve" }
+
+  const { data: qual } = await supabase
+    .from("hr_kepzettseg")
+    .select("dolgozo_id")
+    .eq("dokumentum_url", filePath)
+    .maybeSingle()
+
+  if (!qual) {
+    return { error: "A keresett képzettségi dokumentum nem található vagy nincs hozzáférésed." }
+  }
+
+  if (qual.dolgozo_id !== user.id) {
+    const access = await requireEmployeeActionAccess(qual.dolgozo_id, ["employees", "admin", "auditor", "compliance"])
+    if (!access.ok) {
+      return { error: access.error || "Nincs jogosultságod a fájl megtekintéséhez." }
+    }
+  }
+
   const { data, error } = await supabase.storage.from("irat_files").createSignedUrl(filePath, 3600)
   if (error || !data) return { error: "Nem sikerült legenerálni a linket." }
   return { url: data.signedUrl }
 }
 
 export async function deleteQualification(id: string, employeeId: string) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"], { allowSelf: true })
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
-  const { error } = await supabase.from("hr_kepzettseg").delete().eq("id", id)
+  const { error } = await supabase.from("hr_kepzettseg").delete().eq("id", id).eq("dolgozo_id", employeeId)
   if (error) return { error: error.message }
   revalidatePath(`/hr/employee/${employeeId}`)
   return { success: true }
@@ -151,6 +269,8 @@ export async function deleteQualification(id: string, employeeId: string) {
 // -----------------------------------------------------------------------------
 
 export async function addStudyContract(employeeId: string, formData: FormData) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"])
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
 
   const kepzes_neve = (formData.get("kepzes_neve") as string)?.trim()
@@ -215,7 +335,8 @@ export async function addStudyContract(employeeId: string, formData: FormData) {
           dolgozo_id: employeeId,
           nev: `Tanulmányi szerződés - ${kepzes_neve}`,
           kategoria: "Tanulmányi szerződés",
-          url: storagePath
+          url: storagePath,
+          ...(access.activeCompanyId ? { company_id: access.activeCompanyId } : {})
         })
         .select("id")
         .single()
@@ -241,6 +362,7 @@ export async function addStudyContract(employeeId: string, formData: FormData) {
     fajl_url: storagePath,
     dokumentum_url: storagePath,
     dokumentum_id: docId,
+    ...(access.activeCompanyId ? { company_id: access.activeCompanyId } : {})
   })
 
   if (error) return { error: error.message }
@@ -250,6 +372,8 @@ export async function addStudyContract(employeeId: string, formData: FormData) {
 }
 
 export async function deleteStudyContract(id: string, employeeId: string) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"])
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
 
   // Ellenőrizzük, hogy iktatva van-e már
@@ -280,7 +404,7 @@ export async function fileStudyContractAction(contractId: string, employeeId: st
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
+  const isHrOrAdmin = await hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { success: false, error: "Nincs jogosultsága tanulmányi szerződést iktatni!" }
@@ -420,6 +544,8 @@ export async function fileStudyContractAction(contractId: string, employeeId: st
 }
 
 export async function addOrvosiVizsgalat(employeeId: string, formData: FormData) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "compliance", "admin"])
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
 
   const tipus = formData.get("tipus") as string
@@ -510,7 +636,8 @@ export async function addOrvosiVizsgalat(employeeId: string, formData: FormData)
           dolgozo_id: employeeId,
           nev: docName,
           kategoria: "Orvosi alkalmassági igazolás",
-          url: storagePath
+          url: storagePath,
+          ...(access.activeCompanyId ? { company_id: access.activeCompanyId } : {})
         })
         .select("id")
         .single()
@@ -537,22 +664,24 @@ export async function addOrvosiVizsgalat(employeeId: string, formData: FormData)
       orvos_neve: orvos_neve || null,
       szakrendeles: szakrendeles || null,
       fajl_url: storagePath,
-      dokumentum_id: docId
+      dokumentum_id: docId,
+      ...(access.activeCompanyId ? { company_id: access.activeCompanyId } : {})
     })
     .select("id")
     .single()
 
   if (error) return { error: error.message }
 
-  // 4. Szinkronizáljuk a hr_dolgozo_adatlap orvosi_alkalmassag_ervenyesseg mezőjét
+  // 4. Szinkronizáljuk a hr_dolgozo_adatlap orvosi_alkalmassag_ervenyesseg mezőjét (csak az elsődleges céghez)
   try {
     const { data: adatlap } = await supabase
       .from("hr_dolgozo_adatlap")
-      .select("orvosi_alkalmassag_ervenyesseg")
+      .select("orvosi_alkalmassag_ervenyesseg, company_id")
       .eq("id", employeeId)
       .maybeSingle()
 
-    if (!adatlap?.orvosi_alkalmassag_ervenyesseg || ervenyesseg_datuma >= adatlap.orvosi_alkalmassag_ervenyesseg) {
+    const isPrimaryCompany = !access.activeCompanyId || !adatlap?.company_id || adatlap.company_id === access.activeCompanyId
+    if (isPrimaryCompany && (!adatlap?.orvosi_alkalmassag_ervenyesseg || ervenyesseg_datuma >= adatlap.orvosi_alkalmassag_ervenyesseg)) {
       await supabase
         .from("hr_dolgozo_adatlap")
         .update({ orvosi_alkalmassag_ervenyesseg: ervenyesseg_datuma })
@@ -570,12 +699,14 @@ export async function addOrvosiVizsgalat(employeeId: string, formData: FormData)
 }
 
 export async function deleteOrvosiVizsgalat(id: string, employeeId: string) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "compliance", "admin"])
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
 
   // 1. Integritási védelem: iktatott irat nem törölhető!
   const { data: orvosi } = await supabase
     .from("hr_orvosi_vizsgalat")
-    .select("iktatoszam")
+    .select("iktatoszam, company_id")
     .eq("id", id)
     .single()
 
@@ -586,20 +717,32 @@ export async function deleteOrvosiVizsgalat(id: string, employeeId: string) {
   const { error } = await supabase.from("hr_orvosi_vizsgalat").delete().eq("id", id).eq("dolgozo_id", employeeId)
   if (error) return { error: error.message }
 
-  // Frissítjük a dolgozó adatlap orvosi érvényességét a legújabb érvényes vizsgálatra
+  // Frissítjük a dolgozó adatlap orvosi érvényességét a legújabb érvényes vizsgálatra (ha az elsődleges cégben vagyunk)
   try {
-    const { data: latest } = await supabase
-      .from("hr_orvosi_vizsgalat")
-      .select("ervenyesseg_datuma")
-      .eq("dolgozo_id", employeeId)
-      .order("ervenyesseg_datuma", { ascending: false })
-      .limit(1)
+    const { data: adatlap } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select("company_id")
+      .eq("id", employeeId)
       .maybeSingle()
 
-    await supabase
-      .from("hr_dolgozo_adatlap")
-      .update({ orvosi_alkalmassag_ervenyesseg: latest?.ervenyesseg_datuma || null })
-      .eq("id", employeeId)
+    const isPrimaryCompany = !access.activeCompanyId || !adatlap?.company_id || adatlap.company_id === access.activeCompanyId
+    if (isPrimaryCompany) {
+      let latestQuery = supabase
+        .from("hr_orvosi_vizsgalat")
+        .select("ervenyesseg_datuma")
+        .eq("dolgozo_id", employeeId)
+        .order("ervenyesseg_datuma", { ascending: false })
+        .limit(1)
+      if (adatlap?.company_id) {
+        latestQuery = latestQuery.eq("company_id", adatlap.company_id)
+      }
+      const { data: latest } = await latestQuery.maybeSingle()
+
+      await supabase
+        .from("hr_dolgozo_adatlap")
+        .update({ orvosi_alkalmassag_ervenyesseg: latest?.ervenyesseg_datuma || null })
+        .eq("id", employeeId)
+    }
   } catch (e) {
     console.warn("Hiba az orvosi érvényesség újraszámításakor törlés után:", e)
   }
@@ -621,7 +764,7 @@ export async function fileMedicalExaminationAction(orvosiId: string, employeeId:
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
+  const isHrOrAdmin = await hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { success: false, error: "Nincs jogosultsága orvosi alkalmassági dokumentumot iktatni!" }
@@ -769,6 +912,8 @@ export async function fileMedicalExaminationAction(orvosiId: string, employeeId:
 }
 
 export async function addFegyelmi(employeeId: string, formData: FormData) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"])
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
 
   const tipus = formData.get("tipus") as string
@@ -852,7 +997,8 @@ export async function addFegyelmi(employeeId: string, formData: FormData) {
           dolgozo_id: employeeId,
           nev: `${label} - ${datum}`,
           kategoria: "Fegyelmi és kártérítési ügyek",
-          url: storagePath
+          url: storagePath,
+          ...(access.activeCompanyId ? { company_id: access.activeCompanyId } : {})
         })
         .select("id")
         .single()
@@ -878,6 +1024,7 @@ export async function addFegyelmi(employeeId: string, formData: FormData) {
     fajl_url: storagePath,
     dokumentum_url: storagePath,
     dokumentum_id: docId,
+    ...(access.activeCompanyId ? { company_id: access.activeCompanyId } : {})
   })
 
   if (error) return { error: error.message }
@@ -887,6 +1034,8 @@ export async function addFegyelmi(employeeId: string, formData: FormData) {
 }
 
 export async function deleteFegyelmi(id: string, employeeId: string) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"])
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
 
   // Ellenőrizzük, hogy iktatva van-e már
@@ -917,7 +1066,7 @@ export async function fileDisciplinaryAction(disciplinaryId: string, employeeId:
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
+  const isHrOrAdmin = await hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { success: false, error: "Nincs jogosultsága fegyelmi határozatot iktatni!" }
@@ -1070,6 +1219,8 @@ export async function fileDisciplinaryAction(disciplinaryId: string, employeeId:
 // -----------------------------------------------------------------------------
 
 export async function addKituntetes(employeeId: string, formData: FormData) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"])
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
 
   const megnevezes = (formData.get("megnevezes") as string)?.trim()
@@ -1135,7 +1286,8 @@ export async function addKituntetes(employeeId: string, formData: FormData) {
           dolgozo_id: employeeId,
           nev: `Elismerő Oklevél - ${megnevezes}`,
           kategoria: "Kitüntetések és elismerések",
-          url: storagePath
+          url: storagePath,
+          ...(access.activeCompanyId ? { company_id: access.activeCompanyId } : {})
         })
         .select("id")
         .single()
@@ -1158,6 +1310,7 @@ export async function addKituntetes(employeeId: string, formData: FormData) {
     jutalom_osszeg: jutalom_osszeg ? parseFloat(jutalom_osszeg) : null,
     fajl_url: storagePath,
     dokumentum_id: docId,
+    ...(access.activeCompanyId ? { company_id: access.activeCompanyId } : {})
   })
 
   if (error) return { error: error.message }
@@ -1167,6 +1320,8 @@ export async function addKituntetes(employeeId: string, formData: FormData) {
 }
 
 export async function deleteKituntetes(id: string, employeeId: string) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"])
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
 
   // Ellenőrizzük, hogy iktatva van-e már
@@ -1197,7 +1352,7 @@ export async function fileKituntetesAction(awardId: string, employeeId: string) 
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
+  const isHrOrAdmin = await hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { success: false, error: "Nincs jogosultsága elismerést iktatni!" }
@@ -1414,6 +1569,8 @@ export async function updateEmployeeSecretData(employeeId: string, formData: For
 }
 
 export async function updateGeneralPersonalInfo(employeeId: string, formData: FormData) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"], { allowSelf: true })
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
@@ -1472,6 +1629,8 @@ export async function updateGeneralPersonalInfo(employeeId: string, formData: Fo
 }
 
 export async function updateJogviszonyData(employeeId: string, formData: FormData) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin"])
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
@@ -1539,12 +1698,16 @@ export async function updateJogviszonyData(employeeId: string, formData: FormDat
     .eq("id", employeeId)
 
   // Update active hr_jogviszony kilepes_datuma
-  const { data: jogviszonyData } = await supabase
+  let jogviszonyQuery = supabase
     .from("hr_jogviszony")
     .select("id")
     .eq("dolgozo_id", employeeId)
     .order("belepes_datuma", { ascending: false })
     .limit(1)
+  if (access.activeCompanyId) {
+    jogviszonyQuery = jogviszonyQuery.eq("company_id", access.activeCompanyId)
+  }
+  const { data: jogviszonyData } = await jogviszonyQuery
     
   if (jogviszonyData && jogviszonyData.length > 0) {
     await supabase.from("hr_jogviszony")
@@ -1557,6 +1720,8 @@ export async function updateJogviszonyData(employeeId: string, formData: FormDat
 }
 
 export async function uploadHrDocument(employeeId: string, formData: FormData) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "compliance", "payroll", "onboarding", "offboarding", "admin"])
+  if (!access.ok) return { error: access.error }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
@@ -1598,7 +1763,8 @@ export async function uploadHrDocument(employeeId: string, formData: FormData) {
         dolgozo_id: employeeId,
         nev: nev,
         kategoria: kategoria || "Egyéb",
-        url: filePath
+        url: filePath,
+        ...(access.activeCompanyId ? { company_id: access.activeCompanyId } : {})
       }
     ])
 
@@ -1701,13 +1867,19 @@ export async function hrSubmitLeaveRequest(employeeId: string, formData: FormDat
 }
 
 export async function getEmployeeAuditLogs(employeeId: string) {
+  const access = await requireEmployeeActionAccess(employeeId, ["employees", "admin", "auditor", "audit"])
+  if (!access.ok) return { data: [], error: access.error || "Nincs jogosultságod." }
   const supabase = await createClient()
 
   // 1. Dolgozóhoz kapcsolódó dokumentumok azonosítóinak lekérése
-  const { data: employeeDocs } = await supabase
+  let docsQuery = supabase
     .from("hr_dokumentum")
     .select("id")
     .eq("dolgozo_id", employeeId)
+  if (access.activeCompanyId) {
+    docsQuery = docsQuery.eq("company_id", access.activeCompanyId)
+  }
+  const { data: employeeDocs } = await docsQuery
 
   const docIds = (employeeDocs || []).map(d => d.id).filter(Boolean)
 
@@ -1727,6 +1899,10 @@ export async function getEmployeeAuditLogs(employeeId: string) {
       felhasznalo_profil(nev)
     `)
     .order("created_at", { ascending: false })
+
+  if (access.activeCompanyId) {
+    query = query.eq("company_id", access.activeCompanyId)
+  }
 
   if (docIds.length > 0) {
     query = query.or(`entitas_id.eq.${employeeId},entitas_id.in.(${docIds.join(",")})`)
@@ -1805,7 +1981,7 @@ export async function fileHrDocumentAction(
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
+  const isHrOrAdmin = await hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { error: "Nincs jogosultságod HR dokumentumot iktatni az eaisyDocs rendszerbe!" }
@@ -1859,7 +2035,7 @@ export async function fileAllHrDocumentsAction(employeeId: string) {
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
+  const isHrOrAdmin = await hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { error: "Nincs jogosultságod HR dokumentumokat kötegelten iktatni az eaisyDocs rendszerbe!", filedCount: 0 }
@@ -1902,13 +2078,17 @@ export async function fileAllHrDocumentsAction(employeeId: string) {
 
 export async function getAnnualLeaveDocument(employeeId: string, year: number) {
   const supabase = await createClient()
-  const { data } = await supabase
+  const activeCompanyId = await getActiveCompanyIdServer()
+  let q = supabase
     .from("hr_dokumentum")
     .select("id, nev, iktatoszam, created_at, url")
     .eq("dolgozo_id", employeeId)
     .eq("kategoria", "Éves szabadság nyilvántartás")
     .ilike("nev", `%${year}%`)
-    .maybeSingle()
+  if (activeCompanyId) {
+    q = q.eq("company_id", activeCompanyId)
+  }
+  const { data } = await q.maybeSingle()
 
   if (!data) return null
 
@@ -1939,7 +2119,7 @@ export async function fileAnnualLeaveSheet(employeeId: string, year: number) {
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
+  const isHrOrAdmin = await hasHrOrDocsAdminProfile(userProfile)
 
   if (!isHrOrAdmin) {
     return { success: false, error: "Nincs jogosultsága éves szabadság-nyilvántartást iktatni!" }
@@ -2087,7 +2267,11 @@ export async function uploadSignedDocumentAction(
     return { success: false, error: "Dokumentum nem található!" }
   }
 
-  const isHrOrAdmin = hasHrOrDocsAdminProfile(userProfile)
+  if (activeCompanyId && doc.company_id && doc.company_id !== activeCompanyId) {
+    return { success: false, error: "A dokumentum másik céghez tartozik!" }
+  }
+
+  const isHrOrAdmin = await hasHrOrDocsAdminProfile(userProfile)
 
   const isSelf = user.id === doc.dolgozo_id && user.id === employeeId
 

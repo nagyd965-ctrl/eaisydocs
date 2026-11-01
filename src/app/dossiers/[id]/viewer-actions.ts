@@ -13,13 +13,13 @@ export async function getDocumentSignedUrl(filePath: string, iratId: string, fil
   // Check user clearance
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("docs_szerepkor, max_minosites")
+    .select("docs_szerepkor, hr_szerepkor, hr_modulok, max_minosites")
     .eq("id", user.id)
     .single()
 
   const { data: irat } = await supabase
     .from("irat")
-    .select("minosites")
+    .select("minosites, company_id")
     .eq("id", iratId)
     .single()
 
@@ -33,15 +33,53 @@ export async function getDocumentSignedUrl(filePath: string, iratId: string, fil
   const docLevel = minositesHierarchy[irat?.minosites || 'nyilt'] || 1
 
   if (profile?.docs_szerepkor !== 'admin' && userLevel < docLevel) {
-    // Ellenőrizzük, hogy a felhasználó a saját HR dokumentumát tekinti-e meg
-    const { data: hrDocOwner } = await supabase
+    // Ellenőrizzük, hogy HR dokumentumról van-e szó (saját irat vagy jogosult HR/cég-admin)
+    const { data: hrDoc } = await supabase
       .from("hr_dokumentum")
-      .select("id")
+      .select("id, dolgozo_id, company_id")
       .eq("irat_id", iratId)
-      .eq("dolgozo_id", user.id)
+      .limit(1)
       .maybeSingle()
 
-    if (!hrDocOwner) {
+    let hasHrAccess = false
+    if (hrDoc) {
+      if (hrDoc.dolgozo_id === user.id) {
+        hasHrAccess = true
+      } else {
+        const { getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
+        const { isUserAuthorizedForHrView, normalizeHrRoleAndModules } = await import("@/utils/hr/company-role-resolver")
+        const targetCompanyId = hrDoc.company_id || irat?.company_id || null
+        const companyRoles = await getActiveCompanyMemberRolesServer(targetCompanyId)
+        const fallbackNormalized = normalizeHrRoleAndModules(
+          profile?.hr_szerepkor,
+          Array.isArray(profile?.hr_modulok) ? profile.hr_modulok : []
+        )
+        const effectiveHrRole =
+          companyRoles.hrRole && companyRoles.hrRole !== "none"
+            ? companyRoles.hrRole
+            : fallbackNormalized.role
+        const effectiveHrModules =
+          companyRoles.hrModules && companyRoles.hrModules.length > 0
+            ? companyRoles.hrModules
+            : fallbackNormalized.modules
+
+        if (
+          companyRoles.isCompanyAdmin ||
+          companyRoles.docsRole === "admin" ||
+          effectiveHrRole === "admin" ||
+          effectiveHrRole === "rendszergazda" ||
+          isUserAuthorizedForHrView(
+            effectiveHrRole,
+            ["employees", "compliance", "payroll", "onboarding", "offboarding", "auditor", "admin"],
+            effectiveHrModules
+          )
+        ) {
+          hasHrAccess = true
+        }
+      }
+    }
+
+    if (!hasHrAccess) {
       return { 
         error: `Hozzáférés megtagadva: A dokumentum megtekintéséhez legalább '${irat?.minosites || 'bizalmas'}' biztonsági minősítés szükséges (Az Ön szintje: ${profile?.max_minosites || 'nyilt'}).` 
       }

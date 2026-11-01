@@ -34,9 +34,24 @@ export async function getCompanyLeaveComplianceData(
   targetYear?: number
 ): Promise<CompanyComplianceOverview> {
   const supabase = await createClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
-  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["compliance", "admin", "auditor"], null)
   const year = targetYear || new Date().getFullYear()
+  if (!auth.authorized) {
+    return {
+      year,
+      totalEmployees: 0,
+      fulfilled14DaysCount: 0,
+      waiverCount: 0,
+      missing14DaysCount: 0,
+      totalRemainingDays: 0,
+      criticalRiskCount: 0,
+      warningRiskCount: 0,
+      employees: [],
+    }
+  }
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   // 1. Dolgozók lekérése az aktív cégből
   const { data: rawEmployees } = await supabase
@@ -302,7 +317,12 @@ export async function toggle14DayWaiverAction(
  */
 export async function getCompanySafetyComplianceData(): Promise<CompanySafetyOverview> {
   const supabase = await createClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["compliance", "admin", "auditor"], null)
+  if (!auth.authorized) {
+    return calculateCompanySafetyOverview([], new Date())
+  }
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   // 1. Dolgozók lekérése az aktív cégből
@@ -328,12 +348,13 @@ export async function getCompanySafetyComplianceData(): Promise<CompanySafetyOve
     .eq("company_id", companyScope)
     .order("created_at", { ascending: false })
 
-  // 2. Munkavédelmi oktatások lekérése
+  // 2. Munkavédelmi oktatások lekérése (aktív cégre szűrve)
   const { data: rawTrainings } = await supabase
     .from("hr_munkavedelmi_oktatas")
     .select(`
       id,
       dolgozo_id,
+      company_id,
       oktatas_tipusa,
       oktatas_datuma,
       ervenyesseg_vege,
@@ -348,6 +369,7 @@ export async function getCompanySafetyComplianceData(): Promise<CompanySafetyOve
         ugyirat_id
       )
     `)
+    .eq("company_id", companyScope)
     .order("oktatas_datuma", { ascending: false })
 
   // Csoportosítás dolgozónként (legfrissebb oktatás kiválasztása)
@@ -439,8 +461,8 @@ export async function getCompanyOvertimeComplianceData(
   targetYear?: number
 ): Promise<CompanyOvertimeComplianceOverview> {
   const supabase = await createClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
-  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["compliance", "admin", "auditor"], null)
   const year = targetYear || new Date().getFullYear()
 
   // 1. Aktuális naptári hét határai (Hétfő – Vasárnap)
@@ -449,6 +471,23 @@ export async function getCompanyOvertimeComplianceData(
   const sunday = endOfWeek(now, { weekStartsOn: 1 })
   const weekStartStr = format(monday, "yyyy-MM-dd")
   const weekEndStr = format(sunday, "yyyy-MM-dd")
+
+  if (!auth.authorized) {
+    return {
+      year,
+      currentWeekStart: weekStartStr,
+      currentWeekEnd: weekEndStr,
+      totalEmployees: 0,
+      exceeded48hCount: 0,
+      nearOvertimeLimitCount: 0,
+      exceededOvertimeLimitCount: 0,
+      voluntaryAgreementCount: 0,
+      totalCompanyOvertimeHours: 0,
+      records: [],
+    }
+  }
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   // 2. Dolgozók lekérése az aktív cégből
   const { data: rawEmployees } = await supabase
@@ -491,10 +530,11 @@ export async function getCompanyOvertimeComplianceData(
     plannedHoursByEmployee.set(s.dolgozo_id, current + (Number(s.tervezett_ora) || 0))
   }
 
-  // 4. Jelenlétek az aktuális hétre (tény heti munkaidő)
+  // 4. Jelenlétek az aktuális hétre (tény heti munkaidő, aktív cégre szűrve)
   const { data: weeklyAttendance } = await supabase
     .from("hr_jelenlet")
     .select("dolgozo_id, datum, becsekkolas_ideje, kicsekkolas_ideje")
+    .eq("company_id", companyScope)
     .gte("datum", weekStartStr)
     .lte("datum", weekEndStr)
 
@@ -508,10 +548,11 @@ export async function getCompanyOvertimeComplianceData(
     actualHoursByEmployee.set(a.dolgozo_id, current + hours)
   }
 
-  // 5. Éves jelenlétek az éves túlóra számlálóhoz
+  // 5. Éves jelenlétek az éves túlóra számlálóhoz (aktív cégre szűrve)
   const { data: annualAttendance } = await supabase
     .from("hr_jelenlet")
     .select("dolgozo_id, datum, becsekkolas_ideje, kicsekkolas_ideje")
+    .eq("company_id", companyScope)
     .gte("datum", `${year}-01-01`)
     .lte("datum", `${year}-12-31`)
 
@@ -715,7 +756,12 @@ export async function toggleVoluntaryOvertimeAgreementAction(
  */
 export async function getCompanyMedicalComplianceData(): Promise<CompanyMedicalOverview> {
   const supabase = await createClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["compliance", "admin", "auditor"], null)
+  if (!auth.authorized) {
+    return calculateCompanyMedicalOverview([], new Date())
+  }
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   // 1. Dolgozók lekérése az aktív cégből
@@ -727,6 +773,7 @@ export async function getCompanyMedicalComplianceData(): Promise<CompanyMedicalO
       kilepes_datuma,
       hr_dolgozo_adatlap (
         id,
+        company_id,
         orvosi_alkalmassag_ervenyesseg,
         felhasznalo_profil (
           id,
@@ -742,12 +789,13 @@ export async function getCompanyMedicalComplianceData(): Promise<CompanyMedicalO
     .eq("company_id", companyScope)
     .order("created_at", { ascending: false })
 
-  // 2. Orvosi vizsgálatok lekérése (legfrissebb elöl)
+  // 2. Orvosi vizsgálatok lekérése (aktív cégre szűrve, legfrissebb elöl)
   const { data: rawExams } = await supabase
     .from("hr_orvosi_vizsgalat")
     .select(`
       id,
       dolgozo_id,
+      company_id,
       tipus,
       vizsgalat_datuma,
       ervenyesseg_datuma,
@@ -760,6 +808,7 @@ export async function getCompanyMedicalComplianceData(): Promise<CompanyMedicalO
       iktatoszam,
       ugyirat_id
     `)
+    .eq("company_id", companyScope)
     .order("vizsgalat_datuma", { ascending: false })
     .order("created_at", { ascending: false })
 
@@ -800,7 +849,8 @@ export async function getCompanyMedicalComplianceData(): Promise<CompanyMedicalO
       : (j.hr_beosztas as any)?.hr_munkakor?.megnevezes || "Nincs megadva"
 
     const exam = examsByEmployee.get(j.dolgozo_id)
-    const fallbackExpiry = adatlap?.orvosi_alkalmassag_ervenyesseg || null
+    const isAdatlapForCompany = !adatlap?.company_id || adatlap.company_id === companyScope
+    const fallbackExpiry = isAdatlapForCompany ? (adatlap?.orvosi_alkalmassag_ervenyesseg || null) : null
 
     if (exam) {
       employeeRecords.push({

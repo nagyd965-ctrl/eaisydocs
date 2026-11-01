@@ -43,7 +43,7 @@ export interface T1041ReportResponse {
  */
 async function loadHrMasterData(adminClient: any, targetCompanyId?: string | null) {
   const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-  const auth = await requireHrAuthServer(["payroll", "admin", "auditor"], null)
+  const auth = await requireHrAuthServer(["reports", "payroll", "admin", "auditor"], null)
   if (!auth.authorized) {
     return {
       activeCompanyId: null,
@@ -163,6 +163,22 @@ async function loadHrMasterData(adminClient: any, targetCompanyId?: string | nul
  * NAV T1041 Havi Hatósági Riport Adatgyűjtés
  */
 export async function getT1041ReportData(yearMonth: string): Promise<T1041ReportResponse> {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["reports", "payroll", "admin", "auditor"], null)
+  if (!auth.authorized) {
+    return {
+      yearMonth,
+      items: [],
+      metrics: {
+        totalCount: 0,
+        newIntakeCount: 0,
+        exitCount: 0,
+        changeCount: 0,
+        verifiedCount: 0,
+      },
+    }
+  }
+
   const adminClient = getAdminClient()
   const activeCompanyId = await getActiveCompanyIdServer()
   const firstDay = `${yearMonth}-01`

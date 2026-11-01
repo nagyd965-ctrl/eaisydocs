@@ -33,7 +33,10 @@ export async function createMunkakor(formData: FormData) {
     return { error: "Nincs bejelentkezve" }
   }
 
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const guard = await requireHrSettingsAccess()
+  if (guard.error) return { error: guard.error }
+
+  const activeCompanyId = guard.activeCompanyId || (await getActiveCompanyIdServer())
 
   const megnevezes = formData.get("megnevezes") as string
   const feor_kod = formData.get("feor_kod") as string
@@ -118,6 +121,28 @@ export async function updateEmployeeInfo(formData: FormData) {
 
   if (!employeeId) return { error: "Hiányzó dolgozó azonosító" }
 
+  const activeCompanyId = guard.activeCompanyId || (await getActiveCompanyIdServer())
+  if (activeCompanyId) {
+    const [{ data: memberRow }, { data: adatlapRow }] = await Promise.all([
+      supabaseAdmin
+        .from("company_members")
+        .select("id")
+        .eq("company_id", activeCompanyId)
+        .eq("user_id", employeeId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("hr_dolgozo_adatlap")
+        .select("company_id")
+        .eq("id", employeeId)
+        .maybeSingle(),
+    ])
+    const belongsToActiveCompany =
+      Boolean(memberRow) || (adatlapRow?.company_id === activeCompanyId)
+    if (!belongsToActiveCompany) {
+      return { error: "A kiválasztott dolgozó nem tartozik az aktív céghez." }
+    }
+  }
+
   // 1. Megnézzük, hogy változott-e a munkakör, és ha igen, lekérjük a hozzá tartozó szervezeti egységet
   const targetMunkakor = munkakorId === "none" ? null : munkakorId
   let defaultOrgUnitId = null;
@@ -138,8 +163,15 @@ export async function updateEmployeeInfo(formData: FormData) {
 
   // 2. Profil (Szerepkör és Szervezeti Egység) frissítése admin klienssel
   // (szerepkör csak valódi HR admintől fogadva el — l. fent canChangeRole)
+  const { count: membershipCount } = await supabaseAdmin
+    .from("company_members")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", employeeId)
+
   const profileUpdateData: any = {}
-  if (role && canChangeRole) profileUpdateData.hr_szerepkor = role
+  if (role && canChangeRole && (membershipCount || 0) <= 1) {
+    profileUpdateData.hr_szerepkor = role
+  }
   
   if (finalOrgUnitId !== undefined) {
     profileUpdateData.hr_szervezeti_egyseg_id = finalOrgUnitId
@@ -156,16 +188,15 @@ export async function updateEmployeeInfo(formData: FormData) {
       .eq("id", employeeId)
 
     if (profileError) return { error: "Hiba a profil frissítésekor: " + profileError.message }
+  }
 
-    // Ha szerepkört módosítottak és van aktív cég, a cégtagsági szerepkört is szinkronizáljuk
-    const activeCompanyId = await getActiveCompanyIdServer()
-    if (activeCompanyId && role && canChangeRole) {
-      await supabaseAdmin
-        .from("company_members")
-        .update({ hr_szerepkor: role })
-        .eq("company_id", activeCompanyId)
-        .eq("user_id", employeeId)
-    }
+  // Ha szerepkört módosítottak és van aktív cég, a cégtagsági szerepkört szinkronizáljuk
+  if (activeCompanyId && role && canChangeRole) {
+    await supabaseAdmin
+      .from("company_members")
+      .update({ hr_szerepkor: role })
+      .eq("company_id", activeCompanyId)
+      .eq("user_id", employeeId)
   }
 
   if (jogviszonyId) {
@@ -228,6 +259,19 @@ export async function updateMunkakor(id: string, formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return { error: "Nincs bejelentkezve" }
+
+  const guard = await requireHrSettingsAccess()
+  if (guard.error) return { error: guard.error }
+  if (guard.activeCompanyId) {
+    const { data: existingJob } = await supabase
+      .from("hr_munkakor")
+      .select("company_id")
+      .eq("id", id)
+      .maybeSingle()
+    if (existingJob?.company_id && existingJob.company_id !== guard.activeCompanyId) {
+      return { error: "A munkakör másik céghez tartozik." }
+    }
+  }
 
   const megnevezes = formData.get("megnevezes") as string
   const feor_kod = formData.get("feor_kod") as string
@@ -301,6 +345,19 @@ export async function deleteMunkakor(id: string) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return { error: "Nincs bejelentkezve" }
+
+  const guard = await requireHrSettingsAccess()
+  if (guard.error) return { error: guard.error }
+  if (guard.activeCompanyId) {
+    const { data: existingJob } = await supabase
+      .from("hr_munkakor")
+      .select("company_id")
+      .eq("id", id)
+      .maybeSingle()
+    if (existingJob?.company_id && existingJob.company_id !== guard.activeCompanyId) {
+      return { error: "A munkakör másik céghez tartozik." }
+    }
+  }
 
   // ── HR deep-analysis 20261029 (2.3) P1-javítás (2026-11-01): ──
   // Korábban a törlés ELŐRE törölte az összes hr_beosztas sort (a dolgozók
@@ -378,12 +435,19 @@ export async function removeEmployeeFromHR(employeeId: string) {
     return { error: "Hiba a HR profil törlésekor: " + error.message }
   }
 
-  // 2. Visszaállítjuk a hr_szerepkort az alapértelmezett "ugyintezo"-re, 
-  // így az illető elveszíti az eaisyHR hozzáférését (de a sima eaisyDocs-ba be tud lépni).
-  await supabaseAdmin
-    .from("felhasznalo_profil")
-    .update({ hr_szerepkor: "ugyintezo" })
-    .eq("id", employeeId)
+  // 2. Visszaállítjuk a hr_szerepkort az alapértelmezett "ugyintezo"-re kizárólag akkor,
+  // ha nem tagja másik cégnek (egyébként csak az aktív cégben veszíti el a HR jogosultságát).
+  const { count: remainingMemberships } = await supabaseAdmin
+    .from("company_members")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", employeeId)
+
+  if ((remainingMemberships || 0) <= 1) {
+    await supabaseAdmin
+      .from("felhasznalo_profil")
+      .update({ hr_szerepkor: "ugyintezo" })
+      .eq("id", employeeId)
+  }
 
   revalidatePath("/hr/settings")
   revalidatePath("/hr/admin")
@@ -539,6 +603,19 @@ export async function uploadJobDescription(munkakorId: string, formData: FormDat
 
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  const guard = await requireHrSettingsAccess()
+  if (guard.error) return { error: guard.error }
+  if (guard.activeCompanyId) {
+    const { data: existingJob } = await supabase
+      .from("hr_munkakor")
+      .select("company_id")
+      .eq("id", munkakorId)
+      .maybeSingle()
+    if (existingJob?.company_id && existingJob.company_id !== guard.activeCompanyId) {
+      return { error: "A munkakör másik céghez tartozik." }
+    }
+  }
+
   const file = formData.get("file") as File
   const megjegyzes = formData.get("megjegyzes") as string
 
@@ -576,7 +653,8 @@ export async function uploadJobDescription(munkakorId: string, formData: FormDat
       fajl_path: filePath,
       fajl_nev: file.name,
       feltolto_id: user.id,
-      megjegyzes: megjegyzes || null
+      megjegyzes: megjegyzes || null,
+      ...(guard.activeCompanyId ? { company_id: guard.activeCompanyId } : {})
     })
 
   if (dbError) {
@@ -593,6 +671,19 @@ export async function deleteJobDescriptionVersion(versionId: string, munkakorId:
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return { error: "Nincs bejelentkezve" }
+
+  const guard = await requireHrSettingsAccess()
+  if (guard.error) return { error: guard.error }
+  if (guard.activeCompanyId) {
+    const { data: existingJob } = await supabase
+      .from("hr_munkakor")
+      .select("company_id")
+      .eq("id", munkakorId)
+      .maybeSingle()
+    if (existingJob?.company_id && existingJob.company_id !== guard.activeCompanyId) {
+      return { error: "A munkakör másik céghez tartozik." }
+    }
+  }
 
   // Get file path first
   const { data: version } = await supabase
@@ -626,8 +717,11 @@ export async function getCegesDokumentumokAdmin() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve", data: null }
 
-  // Az összes aktív céges dokumentum lekérése a nyugtázásokkal
-  const { data: dokumentumok, error } = await supabase
+  const guard = await requireHrSettingsAccess()
+  if (guard.error) return { error: guard.error, data: null }
+
+  // Az összes aktív céges dokumentum lekérése a nyugtázásokkal (aktív cégre szűrve)
+  let docsQuery = supabase
     .from("hr_ceges_dokumentum")
     .select(`
       id,
@@ -650,13 +744,21 @@ export async function getCegesDokumentumokAdmin() {
     `)
     .eq("aktiv", true)
     .order("created_at", { ascending: false })
+  if (guard.activeCompanyId) {
+    docsQuery = docsQuery.eq("company_id", guard.activeCompanyId)
+  }
+  const { data: dokumentumok, error } = await docsQuery
 
   if (error) return { error: error.message, data: null }
 
   // Az összes aktív dolgozó lekérése (hogy tudjuk, ki NEM nyugtázott)
-  const { data: osszesDolgozo } = await supabase
+  let empQuery = supabase
     .from("hr_dolgozo_adatlap")
     .select("id, felhasznalo_profil(id, nev, email)")
+  if (guard.activeCompanyId) {
+    empQuery = empQuery.eq("company_id", guard.activeCompanyId)
+  }
+  const { data: osszesDolgozo } = await empQuery
 
   return { data: { dokumentumok, osszesDolgozo }, error: null }
 }
@@ -667,6 +769,9 @@ export async function createCegesDokumentum(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  const guard = await requireHrSettingsAccess()
+  if (guard.error) return { error: guard.error }
+
   const cim = formData.get("cim") as string
   const leiras = formData.get("leiras") as string | null
   const fajl_path = formData.get("fajl_path") as string | null
@@ -676,7 +781,14 @@ export async function createCegesDokumentum(formData: FormData) {
 
   const { error } = await supabase
     .from("hr_ceges_dokumentum")
-    .insert({ cim, leiras, fajl_path, kotelezo_mindenkinek: kotelezo, feltolto_id: user.id })
+    .insert({
+      cim,
+      leiras,
+      fajl_path,
+      kotelezo_mindenkinek: kotelezo,
+      feltolto_id: user.id,
+      ...(guard.activeCompanyId ? { company_id: guard.activeCompanyId } : {})
+    })
 
   if (error) return { error: error.message }
 
@@ -690,10 +802,17 @@ export async function deleteCegesDokumentum(id: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const { error } = await supabase
+  const guard = await requireHrSettingsAccess()
+  if (guard.error) return { error: guard.error }
+
+  let query = supabase
     .from("hr_ceges_dokumentum")
     .update({ aktiv: false })
     .eq("id", id)
+  if (guard.activeCompanyId) {
+    query = query.eq("company_id", guard.activeCompanyId)
+  }
+  const { error } = await query
 
   if (error) return { error: error.message }
 
@@ -706,6 +825,9 @@ export async function sendAcknowledgmentReminder(dokumentumId: string, dokumentu
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
+
+  const guard = await requireHrSettingsAccess()
+  if (guard.error) return { error: guard.error }
 
   const apiKey = process.env.BREVO_API_KEY
   if (!apiKey) return { error: "Hiányzó BREVO_API_KEY" }
@@ -753,7 +875,8 @@ export async function sendAcknowledgmentReminder(dokumentumId: string, dokumentu
     esemeny_tipus: "dokumentum_emlekezteto_kuldve",
     entitas_tipus: "hr_ceges_dokumentum",
     entitas_id: dokumentumId,
-    megjegyzes: `Emlékeztető elküldve ${sikerCount} főnek (${hibaCount} hiba)`
+    megjegyzes: `Emlékeztető elküldve ${sikerCount} főnek (${hibaCount} hiba)`,
+    ...(guard.activeCompanyId ? { company_id: guard.activeCompanyId } : {})
   })
 
   revalidatePath("/hr/settings")

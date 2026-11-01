@@ -27,6 +27,7 @@ import { SafetyTrainingEmployeeCard } from "@/components/hr/safety-training-empl
 import { PayslipsTab } from "./tabs/PayslipsTab"
 import { OfficialDocumentsTab } from "./tabs/OfficialDocumentsTab"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isUserAuthorizedForHrView, normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params
@@ -50,12 +51,22 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     .eq("id", user.id)
     .single()
 
-  const currentHrRole = scopedRoles.hrRole || currentUserProfile?.hr_szerepkor || "munkavallalo"
-  const currentHrModules = scopedRoles.hrModules.length > 0 ? scopedRoles.hrModules : ((currentUserProfile as any)?.hr_modulok || [])
+  const fallbackNormalized = normalizeHrRoleAndModules(
+    currentUserProfile?.hr_szerepkor,
+    Array.isArray((currentUserProfile as any)?.hr_modulok) ? (currentUserProfile as any).hr_modulok : []
+  )
+  const currentHrRole =
+    scopedRoles.hrRole && scopedRoles.hrRole !== "none"
+      ? scopedRoles.hrRole
+      : fallbackNormalized.role
+  const currentHrModules =
+    scopedRoles.hrModules && scopedRoles.hrModules.length > 0
+      ? scopedRoles.hrModules
+      : fallbackNormalized.modules
   const isHrOrAdmin =
+    scopedRoles.isCompanyAdmin ||
     currentHrRole === "admin" ||
-    currentHrModules.includes("admin") ||
-    ["hr_munkatars", "hr_vezeto", "admin"].includes(currentUserProfile?.hr_szerepkor || "")
+    isUserAuthorizedForHrView(currentHrRole, ["admin", "employees"], currentHrModules)
   const isPayroll = currentHrRole === "admin" || currentHrModules.includes("payroll") || currentHrRole === "berugyi"
   const isCompliance = currentHrRole === "admin" || currentHrModules.includes("compliance") || currentHrRole === "munkavedelmi"
   const isAudit = currentHrRole === "admin" || currentHrModules.includes("audit") || currentHrRole === "auditor"
@@ -104,7 +115,15 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       ? profile.hr_dolgozo_adatlap[0]
       : profile.hr_dolgozo_adatlap
     if (adatlap?.company_id && adatlap.company_id !== activeCompanyId) {
-      redirect("/hr/admin")
+      const { data: targetMembership } = await supabaseAdmin
+        .from("company_members")
+        .select("id")
+        .eq("company_id", activeCompanyId)
+        .eq("user_id", resolvedParams.id)
+        .maybeSingle()
+      if (!targetMembership) {
+        redirect("/hr/admin")
+      }
     }
   }
 
@@ -112,11 +131,15 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     redirect("/hr/self-service/profile")
   }
 
-  // 3. Lekérjük a választható munkaköröket
-  const { data: munkakorok } = await supabaseAdmin
+  // 3. Lekérjük a választható munkaköröket (aktív cégre szűrve)
+  let munkakorQuery = supabaseAdmin
     .from("hr_munkakor")
     .select("id, megnevezes")
     .order("megnevezes")
+  if (activeCompanyId) {
+    munkakorQuery = munkakorQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: munkakorok } = await munkakorQuery
 
   let vezetoNev = ""
   if (profile?.kozvetlen_vezeto_id) {
@@ -139,18 +162,23 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     }
   }
 
-  const { data: hrDocumentsList } = await supabaseAdmin
+  let hrDocsQuery = supabaseAdmin
     .from("hr_dokumentum")
     .select("*")
     .eq("dolgozo_id", resolvedParams.id)
     .order("created_at", { ascending: false })
+  if (activeCompanyId) {
+    hrDocsQuery = hrDocsQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: hrDocumentsList } = await hrDocsQuery
 
-  // Munkavédelmi és tűzvédelmi oktatások lekérése
-  const { data: safetyTrainingsData } = await supabaseAdmin
+  // Munkavédelmi és tűzvédelmi oktatások lekérése (aktív cégre szűrve)
+  let safetyTrainingsQuery = supabaseAdmin
     .from("hr_munkavedelmi_oktatas")
     .select(`
       id,
       dolgozo_id,
+      company_id,
       oktatas_tipusa,
       oktatas_datuma,
       ervenyesseg_vege,
@@ -169,6 +197,10 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     `)
     .eq("dolgozo_id", resolvedParams.id)
     .order("oktatas_datuma", { ascending: false })
+  if (activeCompanyId) {
+    safetyTrainingsQuery = safetyTrainingsQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: safetyTrainingsData } = await safetyTrainingsQuery
 
   // Aláírt URL-ek generálása a privát fájlokhoz (eredeti és aláírt példány)
   const hrDocuments = await Promise.all(
@@ -211,7 +243,36 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     )
   }
 
-  const adatlap = profile?.hr_dolgozo_adatlap as any
+  const rawAdatlap = Array.isArray(profile?.hr_dolgozo_adatlap)
+    ? profile.hr_dolgozo_adatlap[0]
+    : (profile?.hr_dolgozo_adatlap as any)
+
+  const filterByActiveCompany = <T extends { company_id?: string | null }>(items?: T[] | null): T[] => {
+    if (!Array.isArray(items)) return []
+    if (!activeCompanyId) return items
+    const isPrimaryCompany = !rawAdatlap?.company_id || rawAdatlap.company_id === activeCompanyId
+    return items.filter((item) =>
+      item.company_id === activeCompanyId || (item.company_id == null && isPrimaryCompany)
+    )
+  }
+
+  const isPrimaryAdatlapCompany =
+    !activeCompanyId || !rawAdatlap?.company_id || rawAdatlap.company_id === activeCompanyId
+
+  const adatlap = rawAdatlap
+    ? {
+        ...rawAdatlap,
+        orvosi_alkalmassag_ervenyesseg: isPrimaryAdatlapCompany
+          ? rawAdatlap.orvosi_alkalmassag_ervenyesseg
+          : null,
+        hr_tavollet: filterByActiveCompany(rawAdatlap.hr_tavollet),
+        hr_orvosi_vizsgalat: filterByActiveCompany(rawAdatlap.hr_orvosi_vizsgalat),
+        hr_fegyelmi: filterByActiveCompany(rawAdatlap.hr_fegyelmi),
+        hr_kituntetes: filterByActiveCompany(rawAdatlap.hr_kituntetes),
+        hr_jogviszony: filterByActiveCompany(rawAdatlap.hr_jogviszony),
+        hr_tanulmanyi_szerzodes: filterByActiveCompany(rawAdatlap.hr_tanulmanyi_szerzodes),
+      }
+    : null
 
   // Munkakör adatok és legfrissebb hivatalos munkaköri leírás verzió feloldása
   const jogviszonyok = adatlap?.hr_jogviszony || []
@@ -255,15 +316,18 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     d.kategoria === "Munkaköri leírás" || d.nev?.toLowerCase().includes("munkaköri leírás")
   ) || null
 
-  // Cafeteria adatok
+  // Cafeteria adatok (aktív cégre szűrve)
   const currentYear = new Date().getFullYear()
   
-  const { data: cafeteriaKeret } = await supabaseAdmin
+  let cafeteriaKeretQuery = supabaseAdmin
     .from("hr_cafeteria_keret")
     .select("*")
     .eq("dolgozo_id", resolvedParams.id)
     .eq("ev", currentYear)
-    .single()
+  if (activeCompanyId) {
+    cafeteriaKeretQuery = cafeteriaKeretQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: cafeteriaKeret } = await cafeteriaKeretQuery.maybeSingle()
 
   const { data: cafeteriaKatalogus } = await supabaseAdmin
     .from("hr_cafeteria_katalogus")
@@ -271,22 +335,30 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     .eq("aktiv", true)
     .order("nev")
 
-  const { data: cafeteriaValasztasok } = await supabaseAdmin
+  let cafeteriaValasztasokQuery = supabaseAdmin
     .from("hr_cafeteria_valasztas")
     .select("*")
     .eq("dolgozo_id", resolvedParams.id)
     .eq("ev", currentYear)
+  if (activeCompanyId) {
+    cafeteriaValasztasokQuery = cafeteriaValasztasokQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: cafeteriaValasztasok } = await cafeteriaValasztasokQuery
 
   // Bérpapírok lekérése (biztonság: HR/Admin, Bérügyi, Auditor vagy a dolgozó saját maga férhet hozzá)
   const canViewSalary = isHrOrAdmin || isPayroll || isSelf || isAudit
   let employeePayslips: any[] = []
   if (canViewSalary) {
-    const { data: pData } = await supabaseAdmin
+    let payslipsQuery = supabaseAdmin
       .from("hr_berpapir")
       .select("*")
       .eq("dolgozo_id", resolvedParams.id)
       .order("ev", { ascending: false })
       .order("honap", { ascending: false })
+    if (activeCompanyId) {
+      payslipsQuery = payslipsQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: pData } = await payslipsQuery
 
     employeePayslips = (pData || []).filter((p: any) => isHrOrAdmin || isPayroll || p.statusz === "kikuldve" || p.statusz === "atveve")
   }
@@ -301,14 +373,17 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   }
   const displayRole = roleMap[profile.hr_szerepkor] || profile.hr_szerepkor
 
-  // Offboarding státusz lekérése a dolgozóhoz
-  const { data: employeeOffboarding } = await supabaseAdmin
+  // Offboarding státusz lekérése a dolgozóhoz (aktív cégre szűrve)
+  let offboardingQuery = supabaseAdmin
     .from("hr_offboarding")
     .select("id, statusz, kilepes_datuma, utolso_munkaban_toltott_nap, megszunes_modja")
     .eq("dolgozo_id", resolvedParams.id)
     .order("created_at", { ascending: false })
     .limit(1)
-    .maybeSingle()
+  if (activeCompanyId) {
+    offboardingQuery = offboardingQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: employeeOffboarding } = await offboardingQuery.maybeSingle()
 
   const isOffboardingActive = employeeOffboarding?.statusz === "folyamatban"
   const isOffboardingClosed = employeeOffboarding?.statusz === "lezart"
@@ -415,7 +490,9 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           <TabsTrigger value="dokumentumok" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">
             Hivatalos dokumentumok
           </TabsTrigger>
-          <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Előzmények</TabsTrigger>
+          {(isHrOrAdmin || isAudit) && (
+            <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Előzmények</TabsTrigger>
+          )}
         </TabsList>
 
         <div className="pt-6">
@@ -436,9 +513,11 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           </TabsContent>
 
           {/* Új: Audit */}
-          <TabsContent value="audit" className="mt-0 outline-none">
-            <AuditLogTab employeeId={profile.id} />
-          </TabsContent>
+          {(isHrOrAdmin || isAudit) && (
+            <TabsContent value="audit" className="mt-0 outline-none">
+              <AuditLogTab employeeId={profile.id} />
+            </TabsContent>
+          )}
 
           {/* Új: Távollét */}
           <TabsContent value="tavollet" className="mt-0 outline-none">

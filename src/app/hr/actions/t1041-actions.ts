@@ -8,12 +8,79 @@ import { generateT1041PdfBuffer } from "@/utils/hr/t1041-pdf-generator"
 import { type T1041PdfData } from "@/utils/hr/t1041-constants"
 import { DEFAULT_COMPANY_DETAILS, type CompanyDetails } from "@/utils/hr/employment-contract-constants"
 import { executeHrDocumentFiling } from "@/utils/hr-filing-bridge"
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+
+const T1041_ALLOWED_MODULES = [
+  "onboarding",
+  "offboarding",
+  "payroll",
+  "employees",
+  "compliance",
+  "auditor",
+  "admin",
+]
 
 function getAdminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+}
+
+async function verifyT1041Access(
+  adminClient: ReturnType<typeof getAdminClient>,
+  params: {
+    onboardingId?: string | null
+    offboardingId?: string | null
+    dolgozoId?: string | null
+  }
+) {
+  const auth = await requireHrAuthServer(T1041_ALLOWED_MODULES, null)
+  if (!auth.authorized || !auth.user) {
+    return { authorized: false as const, error: "Nincs jogosultsága a T1041 adatok kezeléséhez.", auth }
+  }
+
+  const activeCompanyId = auth.activeCompanyId
+  if (activeCompanyId) {
+    if (params.offboardingId) {
+      const { data: offb } = await adminClient
+        .from("hr_offboarding")
+        .select("company_id")
+        .eq("id", params.offboardingId)
+        .maybeSingle()
+      if (offb?.company_id && offb.company_id !== activeCompanyId) {
+        return { authorized: false as const, error: "A kiléptetési folyamat másik céghez tartozik.", auth }
+      }
+    } else if (params.onboardingId) {
+      const { data: onb } = await adminClient
+        .from("hr_onboarding")
+        .select("company_id")
+        .eq("id", params.onboardingId)
+        .maybeSingle()
+      if (onb?.company_id && onb.company_id !== activeCompanyId) {
+        return { authorized: false as const, error: "A beléptetési folyamat másik céghez tartozik.", auth }
+      }
+    } else if (params.dolgozoId) {
+      const [{ data: memberRow }, { data: adatlapRow }] = await Promise.all([
+        adminClient
+          .from("company_members")
+          .select("id")
+          .eq("company_id", activeCompanyId)
+          .eq("user_id", params.dolgozoId)
+          .maybeSingle(),
+        adminClient
+          .from("hr_dolgozo_adatlap")
+          .select("company_id")
+          .eq("id", params.dolgozoId)
+          .maybeSingle(),
+      ])
+      if (!memberRow && adatlapRow?.company_id && adatlapRow.company_id !== activeCompanyId) {
+        return { authorized: false as const, error: "A munkavállaló másik céghez tartozik.", auth }
+      }
+    }
+  }
+
+  return { authorized: true as const, error: null, auth }
 }
 
 export interface GetT1041Result {
@@ -52,6 +119,31 @@ export async function getT1041Data(params: {
 }): Promise<GetT1041Result> {
   const adminClient = getAdminClient()
   const { onboardingId, dolgozoId, offboardingId } = params
+
+  const access = await verifyT1041Access(adminClient, { onboardingId, offboardingId, dolgozoId })
+  if (!access.authorized) {
+    return {
+      record: null,
+      prefilled: {
+        bejelentesTipus: "U",
+        employeeName: "",
+        tajSzam: "",
+        adoazonositoJel: "",
+        munkakor: "",
+        feorKod: "",
+        reszleg: "",
+        jogviszonyKezdete: "",
+        hetiMunkaidoOra: 40,
+        szuletesiHely: "",
+        szuletesiDatum: "",
+        anyjaNeve: "",
+        lakcim: "",
+        bekuldesDatuma: new Date().toISOString().split("T")[0],
+      },
+      adatlapDoc: null,
+      nyugtaDoc: null,
+    }
+  }
 
   let query = adminClient.from("hr_t1041_bejelentes").select("*")
   if (offboardingId) {
@@ -392,6 +484,12 @@ export async function saveT1041Record(data: {
   if (!user) return { error: "Nincs bejelentkezve" }
 
   const adminClient = getAdminClient()
+  const access = await verifyT1041Access(adminClient, {
+    onboardingId: data.onboardingId,
+    offboardingId: data.offboardingId,
+    dolgozoId: data.dolgozoId,
+  })
+  if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
 
   // Meglévő rekord keresése
   let query = adminClient.from("hr_t1041_bejelentes").select("id")
@@ -467,8 +565,12 @@ export async function generateT1041PdfAction(params: {
     const adminClient = getAdminClient()
     const { onboardingId, offboardingId, dolgozoId, data } = params
 
+    const access = await verifyT1041Access(adminClient, { onboardingId, offboardingId, dolgozoId })
+    if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
+    const activeCompanyId = access.auth.activeCompanyId
+
     // 1. Cégadatok feloldása az aktív vállalatból (vagy fallback)
-    const companyDetails = await resolveCompanyDetailsServer(null, adminClient)
+    const companyDetails = await resolveCompanyDetailsServer(activeCompanyId || null, adminClient)
     const effectiveData: T1041PdfData = {
       ...data,
       cegNev: (data.cegNev && data.cegNev !== DEFAULT_COMPANY_DETAILS.nev) ? data.cegNev : companyDetails.nev,
@@ -505,7 +607,8 @@ export async function generateT1041PdfAction(params: {
         dolgozo_id: dolgozoId || null,
         nev: docName,
         kategoria: "Hatósági bejelentés",
-        url: storagePath
+        url: storagePath,
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
       })
       .select()
       .single()
@@ -594,6 +697,10 @@ export async function uploadT1041ReceiptAction(formData: FormData) {
     const dolgozoId = formData.get("dolgozoId") as string | null
     const employeeName = formData.get("employeeName") as string || "Munkavállaló"
 
+    const access = await verifyT1041Access(adminClient, { onboardingId, offboardingId, dolgozoId })
+    if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
+    const activeCompanyId = access.auth.activeCompanyId
+
     if (!file) {
       return { error: "Nincs kiválasztva feltöltendő fájl." }
     }
@@ -626,7 +733,8 @@ export async function uploadT1041ReceiptAction(formData: FormData) {
         dolgozo_id: dolgozoId || null,
         nev: docName,
         kategoria: "Hatósági bejelentés",
-        url: storagePath
+        url: storagePath,
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
       })
       .select()
       .single()
@@ -714,6 +822,7 @@ export async function uploadT1041ReceiptAction(formData: FormData) {
     // Audit napló
     await adminClient.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
+      company_id: activeCompanyId || null,
       esemeny_tipus: "adat_letrehozas",
       entitas_tipus: "hr_t1041_bejelentes",
       entitas_id: newDoc.id,
@@ -749,6 +858,8 @@ export async function fileExistingT1041Document(params: {
 
   const adminClient = getAdminClient()
   const { documentId, dolgozoId } = params
+  const access = await verifyT1041Access(adminClient, { dolgozoId })
+  if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
 
   const { data: docData } = await adminClient
     .from("hr_dokumentum")

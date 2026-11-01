@@ -2,15 +2,35 @@
 
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
-import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isUserAuthorizedForHrView, normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
 
-function hasCafeteriaAdminAccess(profile: any): boolean {
+async function hasCafeteriaAdminAccess(profile: any, activeCompanyId?: string | null): Promise<boolean> {
+  try {
+    const scoped = await getActiveCompanyMemberRolesServer(activeCompanyId)
+    if (
+      scoped.isCompanyAdmin ||
+      scoped.hrRole === "admin" ||
+      scoped.hrRole === "rendszergazda" ||
+      isUserAuthorizedForHrView(scoped.hrRole, ["admin", "payroll", "employees"], scoped.hrModules)
+    ) {
+      return true
+    }
+    if (scoped.isMember) {
+      return false
+    }
+  } catch {
+    // Ha nincs kérés-kontextus, marad a profil-alapú fallback
+  }
+
   if (!profile) return false
-  const hrModules: string[] = Array.isArray(profile.hr_modulok) ? profile.hr_modulok : []
+  const normalized = normalizeHrRoleAndModules(
+    profile.hr_szerepkor,
+    Array.isArray(profile.hr_modulok) ? profile.hr_modulok : []
+  )
   return (
-    ["admin", "hr_vezeto", "hr_munkatars"].includes(profile.hr_szerepkor || "") ||
-    ["admin", "rendszergazda"].includes(profile.docs_szerepkor || "") ||
-    hrModules.some((m) => ["admin", "payroll"].includes(m))
+    normalized.role === "admin" ||
+    isUserAuthorizedForHrView(normalized.role, ["admin", "payroll", "employees"], normalized.modules)
   )
 }
 
@@ -43,6 +63,8 @@ export async function submitCafeteriaDeclaration(
     return { error: "Nincs bejelentkezve" }
   }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   // Szerepkör és azonosító ellenőrzése (saját maga vagy HR/admin)
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
@@ -50,19 +72,22 @@ export async function submitCafeteriaDeclaration(
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = hasCafeteriaAdminAccess(profile)
+  const isHrOrAdmin = await hasCafeteriaAdminAccess(profile, activeCompanyId)
 
   if (user.id !== employeeId && !isHrOrAdmin) {
     return { error: "Nincs jogosultságod más dolgozó nevében nyilatkozatot leadni!" }
   }
 
   // Check keret and if they already closed it
-  const { data: keretData } = await supabase
+  let keretQuery = supabase
     .from("hr_cafeteria_keret")
     .select("nyilatkozat_lezarva, osszeg")
     .eq("dolgozo_id", employeeId)
     .eq("ev", year)
-    .maybeSingle()
+  if (activeCompanyId) {
+    keretQuery = keretQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: keretData } = await keretQuery.maybeSingle()
 
   if (!keretData) {
     return { error: "Nincs érvényes cafeteria keret megállapítva erre az évre!" }
@@ -83,15 +108,18 @@ export async function submitCafeteriaDeclaration(
   }
 
   // Delete previous choices for this year
-  await supabase
+  let deleteQuery = supabase
     .from("hr_cafeteria_valasztas")
     .delete()
     .eq("dolgozo_id", employeeId)
     .eq("ev", year)
+  if (activeCompanyId) {
+    deleteQuery = deleteQuery.eq("company_id", activeCompanyId)
+  }
+  await deleteQuery
 
   // Insert new choices
   if (choices.length > 0) {
-    const activeCompanyId = await getActiveCompanyIdServer()
     const records = choices.map(c => ({
       dolgozo_id: employeeId,
       ev: year,
@@ -112,7 +140,7 @@ export async function submitCafeteriaDeclaration(
   }
 
   // Close the declaration and record timestamp
-  const { error: updateError } = await supabase
+  let updateKeretQuery = supabase
     .from("hr_cafeteria_keret")
     .update({ 
       nyilatkozat_lezarva: true,
@@ -120,6 +148,10 @@ export async function submitCafeteriaDeclaration(
     })
     .eq("dolgozo_id", employeeId)
     .eq("ev", year)
+  if (activeCompanyId) {
+    updateKeretQuery = updateKeretQuery.eq("company_id", activeCompanyId)
+  }
+  const { error: updateError } = await updateKeretQuery
 
   if (updateError) {
     console.error("Error closing declaration:", updateError)
@@ -131,7 +163,8 @@ export async function submitCafeteriaDeclaration(
     felhasznalo_id: user.id,
     esemeny_tipus: "adat_letrehozas",
     entitas_tipus: "hr_cafeteria_keret",
-    megjegyzes: `Cafeteria nyilatkozat (${year}) sikeresen leadva és lezárva.`
+    megjegyzes: `Cafeteria nyilatkozat (${year}) sikeresen leadva és lezárva.`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath("/hr")
@@ -148,13 +181,15 @@ export async function setCafeteriaBudget(employeeId: string, year: number, amoun
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
     .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = hasCafeteriaAdminAccess(profile)
+  const isHrOrAdmin = await hasCafeteriaAdminAccess(profile, activeCompanyId)
 
   if (!isHrOrAdmin) {
     return { error: "Csak HR munkatárs vagy adminisztrátor állíthat be cafeteria keretet!" }
@@ -167,7 +202,8 @@ export async function setCafeteriaBudget(employeeId: string, year: number, amoun
       dolgozo_id: employeeId,
       ev: year,
       osszeg: amount,
-      nyilatkozat_lezarva: false // Re-open if they change the budget
+      nyilatkozat_lezarva: false, // Re-open if they change the budget
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
     }, { onConflict: 'dolgozo_id, ev' })
 
   if (error) {
@@ -186,27 +222,32 @@ export async function reopenCafeteriaDeclaration(employeeId: string, year: numbe
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
     .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = hasCafeteriaAdminAccess(profile)
+  const isHrOrAdmin = await hasCafeteriaAdminAccess(profile, activeCompanyId)
 
   if (!isHrOrAdmin) {
     return { error: "Csak HR munkatárs vagy adminisztrátor nyithatja újra a nyilatkozatot!" }
   }
 
   // Ellenőrizzük a korábbi iktatási állapotot
-  const { data: keret } = await supabase
+  let keretQuery = supabase
     .from("hr_cafeteria_keret")
     .select("iktatoszam, dokumentum_id")
     .eq("dolgozo_id", employeeId)
     .eq("ev", year)
-    .maybeSingle()
+  if (activeCompanyId) {
+    keretQuery = keretQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: keret } = await keretQuery.maybeSingle()
   
-  const { error } = await supabase
+  let updateQuery = supabase
     .from("hr_cafeteria_keret")
     .update({ 
       nyilatkozat_lezarva: false,
@@ -218,6 +259,10 @@ export async function reopenCafeteriaDeclaration(employeeId: string, year: numbe
     })
     .eq("dolgozo_id", employeeId)
     .eq("ev", year)
+  if (activeCompanyId) {
+    updateQuery = updateQuery.eq("company_id", activeCompanyId)
+  }
+  const { error } = await updateQuery
 
   if (error) {
     console.error("Error reopening declaration:", error)
@@ -230,7 +275,8 @@ export async function reopenCafeteriaDeclaration(employeeId: string, year: numbe
       felhasznalo_id: user.id,
       esemeny_tipus: "adat_modositas",
       entitas_tipus: "hr_cafeteria_keret",
-      megjegyzes: `Cafeteria nyilatkozat (${year}) újranyitva év közbeni módosításra. Korábbi iktatott iratszám a személyi dossziéban: ${keret.iktatoszam}.`
+      megjegyzes: `Cafeteria nyilatkozat (${year}) újranyitva év közbeni módosításra. Korábbi iktatott iratszám a személyi dossziéban: ${keret.iktatoszam}.`,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
     })
   }
 
@@ -245,25 +291,30 @@ export async function fileCafeteriaDeclarationAction(employeeId: string, year: n
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
     .select("hr_szerepkor, docs_szerepkor, hr_modulok")
     .eq("id", user.id)
     .single()
 
-  const isHrOrAdmin = hasCafeteriaAdminAccess(userProfile)
+  const isHrOrAdmin = await hasCafeteriaAdminAccess(userProfile, activeCompanyId)
 
   if (!isHrOrAdmin) {
     return { success: false, error: "Nincs jogosultsága cafeteria nyilatkozatot iktatni!" }
   }
 
   // 1. Keret ellenőrzése
-  const { data: keret, error: keretErr } = await supabase
+  let keretQuery = supabase
     .from("hr_cafeteria_keret")
     .select("*")
     .eq("dolgozo_id", employeeId)
     .eq("ev", year)
-    .maybeSingle()
+  if (activeCompanyId) {
+    keretQuery = keretQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: keret, error: keretErr } = await keretQuery.maybeSingle()
 
   if (keretErr || !keret) {
     return { success: false, error: "A megadott évhez nem található cafeteria keret!" }
@@ -332,7 +383,8 @@ export async function fileCafeteriaDeclarationAction(employeeId: string, year: n
       dolgozo_id: employeeId,
       nev: docSubject,
       kategoria: "Cafeteria / Béren kívüli juttatások",
-      url: storagePath
+      url: storagePath,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {})
     })
     .select("id")
     .single()
@@ -348,7 +400,8 @@ export async function fileCafeteriaDeclarationAction(employeeId: string, year: n
     documentId: docId,
     employeeId,
     customTargy: docSubject,
-    currentUserId: user.id
+    currentUserId: user.id,
+    companyId: activeCompanyId
   })
 
   if (!filingResult.success) {
@@ -356,7 +409,7 @@ export async function fileCafeteriaDeclarationAction(employeeId: string, year: n
   }
 
   // 6. Frissítjük a hr_cafeteria_keret rekordot
-  await supabase
+  let updateKeretIktatasQuery = supabase
     .from("hr_cafeteria_keret")
     .update({
       dokumentum_id: docId,
@@ -368,6 +421,10 @@ export async function fileCafeteriaDeclarationAction(employeeId: string, year: n
     })
     .eq("dolgozo_id", employeeId)
     .eq("ev", year)
+  if (activeCompanyId) {
+    updateKeretIktatasQuery = updateKeretIktatasQuery.eq("company_id", activeCompanyId)
+  }
+  await updateKeretIktatasQuery
 
   // 7. Audit naplózás
   await supabase.from("hr_esemeny_naplo").insert({
@@ -375,7 +432,8 @@ export async function fileCafeteriaDeclarationAction(employeeId: string, year: n
     esemeny_tipus: "adat_letrehozas",
     entitas_tipus: "hr_dokumentum",
     entitas_id: docId,
-    megjegyzes: `Cafeteria nyilatkozat (${year}) hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`
+    megjegyzes: `Cafeteria nyilatkozat (${year}) hivatalosan beiktatva a dolgozó személyi dossziéjába (${filingResult.iktatoszam}).`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
   })
 
   revalidatePath(`/hr/employee/${employeeId}`)
@@ -392,16 +450,23 @@ export async function fileCafeteriaDeclarationAction(employeeId: string, year: n
 
 // 6. Get export data for Excel
 export async function getCafeteriaExportData(year: number) {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["payroll", "admin", "employees"], null)
+  if (!auth.authorized) {
+    throw new Error("Nincs jogosultságod a cafeteria exportáláshoz.")
+  }
+
   const supabase = await createClient()
-  
-  // We need to fetch employees and their choices
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+
+  // We need to fetch employees and their choices (scoped to active company)
   const { data: employees, error: empError } = await supabase
     .from("felhasznalo_profil")
     .select("id, nev")
 
   if (empError) throw empError
 
-  const { data: choices, error: choicesError } = await supabase
+  let choicesQuery = supabase
     .from("hr_cafeteria_valasztas")
     .select(`
       dolgozo_id,
@@ -409,6 +474,10 @@ export async function getCafeteriaExportData(year: number) {
       hr_cafeteria_katalogus(nev, kategoria)
     `)
     .eq("ev", year)
+  if (activeCompanyId) {
+    choicesQuery = choicesQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: choices, error: choicesError } = await choicesQuery
 
   if (choicesError) throw choicesError
 

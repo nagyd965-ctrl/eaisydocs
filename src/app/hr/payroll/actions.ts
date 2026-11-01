@@ -850,25 +850,32 @@ export async function downloadPayslipPdfAction(
   }
 
   if (!p && dolgozoId && year && month) {
-    const { data } = await adminClient
+    let q = adminClient
       .from("hr_berpapir")
       .select("*")
       .eq("dolgozo_id", dolgozoId)
       .eq("ev", year)
       .eq("honap", month)
-      .maybeSingle()
+    if (activeCompanyId) {
+      q = q.eq("company_id", activeCompanyId)
+    }
+    const { data } = await q.maybeSingle()
     if (data) p = data
   }
 
   // 1. Ha megtalálható az adatbázisban (kiküldött vagy mentett tervezet):
   if (p) {
     const isOwner = p.dolgozo_id === user.id
-    if (!isOwner) {
-      const targetCompId = p.company_id || activeCompanyId
-      const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(targetCompId)
-      const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
-      const isHr = isCompanyAdmin || isUserAuthorizedForHrView(hrRole, ["payroll"], hrModules)
-      if (!isHr) return { error: "Nincs jogosultságod a bérpapír letöltéséhez" }
+    const targetCompId = p.company_id || activeCompanyId
+    const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(targetCompId)
+    const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
+    const isHr = isCompanyAdmin || isUserAuthorizedForHrView(hrRole, ["payroll", "admin"], hrModules)
+
+    if (!isOwner && !isHr) {
+      return { error: "Nincs jogosultságod a bérpapír letöltéséhez" }
+    }
+    if (isOwner && !isHr && p.statusz === "tervezet") {
+      return { error: "A tervezet állapotú bérpapír még nem tölthető le (csak kiküldés után érhető el)." }
     }
 
     const { data: prof } = await adminClient
@@ -994,13 +1001,13 @@ export async function downloadPayslipPdfAction(
     }
   }
 
-  // 2. Ha még nincs mentve az adatbázisban (még "nem_generalt"), on-the-fly generálás:
+  // 2. Ha még nincs mentve az adatbázisban (még "nem_generalt"), on-the-fly generálás (kizárólag bérszámfejtő / HR admin részére):
   if (dolgozoId && year && month) {
-    const isOwner = dolgozoId === user.id
-    if (!isOwner) {
-      const { hrRole, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
-      const isHr = isCompanyAdmin || ["admin", "hr_vezeto", "hr_munkatars"].includes(hrRole)
-      if (!isHr) return { error: "Nincs jogosultságod a bérpapír letöltéséhez" }
+    const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+    const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
+    const isHr = isCompanyAdmin || isUserAuthorizedForHrView(hrRole, ["payroll", "admin"], hrModules)
+    if (!isHr) {
+      return { error: "Még nem kiküldött bérpapír előnézetét csak bérszámfejtési jogosultsággal lehet generálni." }
     }
 
     const dash = await getPayrollDashboardData(year, month)

@@ -139,6 +139,21 @@ export async function joinCompanyByTokenAction(shareToken: string) {
   }
 
   if (result.company_id) {
+    // Ha meghívókóddal csatlakozott sima tagként (member), explicit alapértelmezett
+    // szerepkört rögzítünk a cégtagságon, hogy egy másik cégbeli globális admin profil ne szivárogjon át.
+    const admin = getAdminClient()
+    await admin
+      .from("company_members")
+      .update({
+        docs_szerepkor: "ugyintezo",
+        hr_szerepkor: "munkavallalo",
+        hr_modulok: [],
+      })
+      .eq("company_id", result.company_id)
+      .eq("user_id", user.id)
+      .eq("role", "member")
+      .is("hr_szerepkor", null)
+
     const cookieStore = await cookies()
     cookieStore.set(SELECTED_COMPANY_COOKIE, result.company_id, {
       path: "/",
@@ -604,6 +619,40 @@ export async function updateCompanyMemberRoleAction(data: {
     return { success: false, error: "A cég tulajdonosának szerepköre nem módosítható." }
   }
 
+  if (data.role !== "admin" && data.role !== "member") {
+    return { success: false, error: "Érvénytelen szerepkör (csak admin vagy member engedélyezett)." }
+  }
+
+  const VALID_DOCS_ROLES = new Set([
+    "ugyintezo",
+    "iktato",
+    "vezeto",
+    "betekinto",
+    "auditor",
+    "admin",
+    "rendszergazda",
+    "irattaros",
+  ])
+  const VALID_HR_ROLES = new Set([
+    "munkavallalo",
+    "hr_munkatars",
+    "hr_vezeto",
+    "vezeto",
+    "berugyi",
+    "toborzo",
+    "munkavedelmi",
+    "auditor",
+    "admin",
+    "rendszergazda",
+  ])
+
+  if (data.docs_szerepkor && !VALID_DOCS_ROLES.has(data.docs_szerepkor)) {
+    return { success: false, error: "Érvénytelen eaisyDocs szerepkör." }
+  }
+  if (data.hr_szerepkor && !VALID_HR_ROLES.has(data.hr_szerepkor)) {
+    return { success: false, error: "Érvénytelen eaisyHR szerepkör." }
+  }
+
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const { createClient: createAdminClient } = await import("@supabase/supabase-js")
   const adminClient = serviceRoleKey
@@ -632,25 +681,32 @@ export async function updateCompanyMemberRoleAction(data: {
     return { success: false, error: memberError.message }
   }
 
-  // 2. Frissítjük a célfelhasználó profilját is a szinkronitásért
-  const profileUpdates: Record<string, any> = {}
-  if (data.docs_szerepkor) {
-    profileUpdates.docs_szerepkor = data.docs_szerepkor
-    if (data.docs_szerepkor === "admin" || data.docs_szerepkor === "rendszergazda") {
-      profileUpdates.szerepkor = "admin"
-    } else {
-      profileUpdates.szerepkor = "ugyintezo"
-    }
-  }
-  if (data.hr_szerepkor) {
-    profileUpdates.hr_szerepkor = data.hr_szerepkor
-  }
+  // 2. Globális profil szinkronizálása kizárólag akkor, ha a felhasználó csak ennek az egy cégnek a tagja
+  const { count: membershipCount } = await adminClient
+    .from("company_members")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", targetMember.user_id)
 
-  if (Object.keys(profileUpdates).length > 0) {
-    await adminClient
-      .from("felhasznalo_profil")
-      .update(profileUpdates)
-      .eq("id", targetMember.user_id)
+  if ((membershipCount || 0) <= 1) {
+    const profileUpdates: Record<string, any> = {}
+    if (data.docs_szerepkor) {
+      profileUpdates.docs_szerepkor = data.docs_szerepkor
+      if (data.docs_szerepkor === "admin" || data.docs_szerepkor === "rendszergazda") {
+        profileUpdates.szerepkor = "admin"
+      } else {
+        profileUpdates.szerepkor = "ugyintezo"
+      }
+    }
+    if (data.hr_szerepkor) {
+      profileUpdates.hr_szerepkor = data.hr_szerepkor
+    }
+
+    if (Object.keys(profileUpdates).length > 0) {
+      await adminClient
+        .from("felhasznalo_profil")
+        .update(profileUpdates)
+        .eq("id", targetMember.user_id)
+    }
   }
 
   revalidatePath("/", "layout")
@@ -928,17 +984,23 @@ export async function inviteCompanyMemberAction(data: {
   if (existingProfile) {
     targetUserId = existingProfile.id
 
-    // Modulok bővítése ha szükséges
+    // Modulok bővítése ha szükséges (meglévő globális szerepkört nem írjuk felül más cégből)
     const currentModules: string[] = Array.isArray(existingProfile.elerheto_modulok)
       ? existingProfile.elerheto_modulok
       : []
     if (!currentModules.includes(data.module)) {
+      const profileUpdate: Record<string, any> = {
+        elerheto_modulok: [...currentModules, data.module],
+      }
+      if (data.module === "docs" && !existingProfile.docs_szerepkor) {
+        profileUpdate.docs_szerepkor = data.role
+      }
+      if (data.module === "hr" && !existingProfile.hr_szerepkor) {
+        profileUpdate.hr_szerepkor = data.role
+      }
       await supabaseAdmin
         .from("felhasznalo_profil")
-        .update({
-          elerheto_modulok: [...currentModules, data.module],
-          ...(data.module === "docs" ? { docs_szerepkor: data.role } : { hr_szerepkor: data.role }),
-        })
+        .update(profileUpdate)
         .eq("id", targetUserId)
     }
   } else {

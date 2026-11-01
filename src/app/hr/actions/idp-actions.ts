@@ -62,13 +62,33 @@ export interface IDPMegjegyzes {
 // Terv műveletek
 // ---------------------------------------------------------------------------
 
+async function requireIdpManagerAuth(): Promise<{
+  ok: boolean;
+  error?: string;
+  activeCompanyId: string | null;
+}> {
+  const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
+  const auth = await requireHrAuthServer(['performance', 'employees', 'admin', 'vezeto'], null);
+  if (!auth.authorized) {
+    return {
+      ok: false,
+      error: 'Nincs jogosultságod a fejlesztési tervek módosításához.',
+      activeCompanyId: auth.activeCompanyId,
+    };
+  }
+  return { ok: true, activeCompanyId: auth.activeCompanyId || (await getActiveCompanyIdServer()) };
+}
+
 export async function createDevelopmentPlan(data: {
   dolgozo_id: string;
   ciklus_id?: string;
   megnevezes: string;
 }) {
+  const auth = await requireIdpManagerAuth();
+  if (!auth.ok) return { success: false, error: auth.error };
+
   const supabase = await createClient();
-  const companyId = await getActiveCompanyIdServer();
+  const companyId = auth.activeCompanyId;
 
   const { data: plan, error } = await supabase
     .from('hr_fejlesztesi_terv')
@@ -87,11 +107,18 @@ export async function createDevelopmentPlan(data: {
 }
 
 export async function deleteDevelopmentPlan(id: string) {
+  const auth = await requireIdpManagerAuth();
+  if (!auth.ok) return { success: false, error: auth.error };
+
   const supabase = await createClient();
-  const { error } = await supabase
+  let query = supabase
     .from('hr_fejlesztesi_terv')
     .delete()
     .eq('id', id);
+  if (auth.activeCompanyId) {
+    query = query.eq('company_id', auth.activeCompanyId);
+  }
+  const { error } = await query;
 
   if (error) {
     console.error('Hiba az IDP terv törlésekor:', error);
@@ -103,12 +130,19 @@ export async function deleteDevelopmentPlan(id: string) {
 }
 
 export async function closeDevelopmentPlan(id: string) {
+  const auth = await requireIdpManagerAuth();
+  if (!auth.ok) return { success: false, error: auth.error };
+
   const supabase = await createClient();
   const { data: plan } = await supabase
     .from('hr_fejlesztesi_terv')
-    .select('dolgozo_id')
+    .select('dolgozo_id, company_id')
     .eq('id', id)
     .single();
+
+  if (auth.activeCompanyId && plan?.company_id && plan.company_id !== auth.activeCompanyId) {
+    return { success: false, error: 'A fejlesztési terv másik céghez tartozik.' };
+  }
 
   const { error } = await supabase
     .from('hr_fejlesztesi_terv')
@@ -129,12 +163,19 @@ export async function closeDevelopmentPlan(id: string) {
 }
 
 export async function reopenDevelopmentPlan(id: string) {
+  const auth = await requireIdpManagerAuth();
+  if (!auth.ok) return { success: false, error: auth.error };
+
   const supabase = await createClient();
   const { data: plan } = await supabase
     .from('hr_fejlesztesi_terv')
-    .select('dolgozo_id')
+    .select('dolgozo_id, company_id')
     .eq('id', id)
     .single();
+
+  if (auth.activeCompanyId && plan?.company_id && plan.company_id !== auth.activeCompanyId) {
+    return { success: false, error: 'A fejlesztési terv másik céghez tartozik.' };
+  }
 
   const { error } = await supabase
     .from('hr_fejlesztesi_terv')
@@ -173,8 +214,11 @@ export async function createDevelopmentGoal(data: {
   finanszirozas?: string;
   tanulmanyi_szerzodes_id?: string;
 }) {
+  const auth = await requireIdpManagerAuth();
+  if (!auth.ok) return { success: false, error: auth.error };
+
   const supabase = await createClient();
-  const companyId = await getActiveCompanyIdServer();
+  const companyId = auth.activeCompanyId;
 
   const insertData: Record<string, any> = {
     prioritas: 'kozepes',
@@ -218,6 +262,9 @@ export async function updateDevelopmentGoal(celId: string, data: {
   finanszirozas?: string | null;
   tanulmanyi_szerzodes_id?: string | null;
 }) {
+  const auth = await requireIdpManagerAuth();
+  if (!auth.ok) return { success: false, error: auth.error };
+
   const supabase = await createClient();
 
   const updateData: Record<string, any> = {
@@ -229,10 +276,14 @@ export async function updateDevelopmentGoal(celId: string, data: {
   if (updateData.tanulmanyi_szerzodes_id === '') updateData.tanulmanyi_szerzodes_id = null;
   if (updateData.hatarido === '') updateData.hatarido = null;
 
-  const { error } = await supabase
+  let query = supabase
     .from('hr_fejlesztesi_cel')
     .update(updateData)
     .eq('id', celId);
+  if (auth.activeCompanyId) {
+    query = query.eq('company_id', auth.activeCompanyId);
+  }
+  const { error } = await query;
 
   if (error) {
     console.error('Hiba az IDP cél frissítésekor:', error);
@@ -245,11 +296,18 @@ export async function updateDevelopmentGoal(celId: string, data: {
 }
 
 export async function deleteDevelopmentGoal(celId: string) {
+  const auth = await requireIdpManagerAuth();
+  if (!auth.ok) return { success: false, error: auth.error };
+
   const supabase = await createClient();
-  const { error } = await supabase
+  let query = supabase
     .from('hr_fejlesztesi_cel')
     .delete()
     .eq('id', celId);
+  if (auth.activeCompanyId) {
+    query = query.eq('company_id', auth.activeCompanyId);
+  }
+  const { error } = await query;
 
   if (error) {
     console.error('Hiba az IDP cél törlésekor:', error);
@@ -473,6 +531,11 @@ export async function approveDevelopmentGoal(celId: string, megjegyzes?: string)
     return { success: false, error: 'Cél nem található' };
   }
 
+  const targetGoalCompanyId = cel.company_id || cel.hr_fejlesztesi_terv?.company_id || null;
+  if (auth.activeCompanyId && targetGoalCompanyId && targetGoalCompanyId !== auth.activeCompanyId) {
+    return { success: false, error: 'A fejlesztési cél egy másik céghez tartozik.' };
+  }
+
   const today = new Date().toISOString().split('T')[0];
 
   // 1. Képzettség rögzítése a dolgozó profiljához
@@ -563,9 +626,23 @@ export async function rejectDevelopmentGoal(celId: string, indoklas: string) {
 
   const { data: cel } = await adminClient
     .from('hr_fejlesztesi_cel')
-    .select('dolgozo_id')
+    .select('dolgozo_id, company_id, hr_fejlesztesi_terv(company_id)')
     .eq('id', celId)
     .single();
+
+  if (!cel) {
+    return { success: false, error: 'Cél nem található' };
+  }
+
+  const targetGoalCompanyId =
+    (cel as any).company_id ||
+    (Array.isArray((cel as any).hr_fejlesztesi_terv)
+      ? (cel as any).hr_fejlesztesi_terv[0]?.company_id
+      : (cel as any).hr_fejlesztesi_terv?.company_id) ||
+    null;
+  if (auth.activeCompanyId && targetGoalCompanyId && targetGoalCompanyId !== auth.activeCompanyId) {
+    return { success: false, error: 'A fejlesztési cél egy másik céghez tartozik.' };
+  }
 
   const { error } = await adminClient
     .from('hr_fejlesztesi_cel')
@@ -599,12 +676,83 @@ export async function rejectDevelopmentGoal(celId: string, indoklas: string) {
 }
 
 export async function getSignedCertificateUrl(storagePath: string) {
-  if (!storagePath) return null;
+  if (!storagePath || storagePath.includes('..')) return null;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const activeCompanyId = await getActiveCompanyIdServer();
+
   const { createClient: createAdminClient } = await import('@supabase/supabase-js');
   const adminClient = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+
+  // Ellenőrizzük, hogy a fájl egy jogosult fejlesztési célhoz vagy képzettséghez tartozik-e
+  const { data: cel } = await adminClient
+    .from('hr_fejlesztesi_cel')
+    .select('dolgozo_id, company_id')
+    .eq('tanusitvany_url', storagePath)
+    .limit(1)
+    .maybeSingle();
+
+  if (cel) {
+    const isOwner = cel.dolgozo_id === user.id;
+    if (!isOwner) {
+      const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
+      const auth = await requireHrAuthServer(['admin', 'vezeto', 'employees', 'compliance', 'auditor'], null);
+      if (!auth.authorized) return null;
+      if (activeCompanyId && cel.company_id && cel.company_id !== activeCompanyId) {
+        return null;
+      }
+    }
+  } else {
+    // Ha nem fejlesztési cél tanúsítványa, ellenőrizzük, hogy képzettséghez vagy HR dokumentumhoz tartozik-e
+    const [{ data: kepzettseg }, { data: hrDok }] = await Promise.all([
+      adminClient
+        .from('hr_kepzettseg')
+        .select('dolgozo_id, company_id')
+        .eq('dokumentum_url', storagePath)
+        .limit(1)
+        .maybeSingle(),
+      adminClient
+        .from('hr_dokumentum')
+        .select('dolgozo_id, company_id')
+        .eq('url', storagePath)
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const matchedRecord = kepzettseg || hrDok;
+    if (matchedRecord) {
+      const isOwner = matchedRecord.dolgozo_id === user.id;
+      if (!isOwner) {
+        const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
+        const auth = await requireHrAuthServer(['admin', 'vezeto', 'employees', 'compliance', 'auditor'], null);
+        if (!auth.authorized) return null;
+        if (activeCompanyId && matchedRecord.company_id && matchedRecord.company_id !== activeCompanyId) {
+          return null;
+        }
+      }
+    } else {
+      // Kizárólag a saját user.id-t tartalmazó vagy explicit IDP/tanúsítvány mappabeli fájlok engedélyezettek
+      const isOwnPath = storagePath.includes(user.id);
+      const isIdpOrCertPrefix =
+        storagePath.startsWith('idp/') ||
+        storagePath.startsWith('certificates/') ||
+        storagePath.startsWith('kepzettseg/');
+      if (!isOwnPath && !isIdpOrCertPrefix) {
+        return null;
+      }
+      if (!isOwnPath) {
+        const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
+        const auth = await requireHrAuthServer(['admin', 'vezeto', 'employees', 'compliance', 'auditor'], null);
+        if (!auth.authorized) return null;
+      }
+    }
+  }
 
   const { data, error } = await adminClient.storage
     .from('irat_files')

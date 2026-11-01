@@ -327,15 +327,36 @@ export async function saveAttendanceRecord(
 export async function deleteAttendanceRecord(id: string, employeeId: string, datum: string) {
   try {
     const supabase = await createClient()
-    
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Nincs bejelentkezve")
+
+    const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+    const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
+    if (!auth.authorized && user.id !== employeeId) {
+      throw new Error("Nincs jogosultságod a jelenléti rekord törléséhez!")
+    }
+
     if (await checkIsMonthClosed(supabase, employeeId, datum)) {
       throw new Error("Ez a hónap már le van zárva, nem törölhető!")
     }
 
-    const { error } = await supabase
+    const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+    const adminClient = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const activeCompanyId = await getActiveCompanyIdServer()
+
+    let delQuery = adminClient
       .from("hr_jelenlet")
       .delete()
       .eq("id", id)
+      .eq("dolgozo_id", employeeId)
+    if (activeCompanyId) {
+      delQuery = delQuery.eq("company_id", activeCompanyId)
+    }
+
+    const { error } = await delQuery
 
     if (error) throw new Error(error.message)
 
@@ -413,7 +434,19 @@ export async function approveMonthlyTimesheet(employeeId: string, year: number, 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error("Nincs bejelentkezve")
 
-    const { error } = await supabase
+    const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+    const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
+    if (!auth.authorized) {
+      throw new Error("Nincs jogosultságod a havi jelenléti ív jóváhagyásához!")
+    }
+
+    // Önjóváhagyás tiltása (kivéve cégadmin)
+    if (employeeId === user.id && !auth.isCompanyAdmin && auth.hrRole !== "admin") {
+      throw new Error("Saját havi jelenléti ívedet nem hagyhatod jóvá önmagadnak!")
+    }
+
+    const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+    let updateQuery = supabase
       .from("hr_havi_jelenlet_zaras")
       .update({ 
         statusz: 'jovahagyva', 
@@ -423,6 +456,11 @@ export async function approveMonthlyTimesheet(employeeId: string, year: number, 
       .eq("dolgozo_id", employeeId)
       .eq("ev", year)
       .eq("honap", month)
+    if (activeCompanyId) {
+      updateQuery = updateQuery.eq("company_id", activeCompanyId)
+    }
+
+    const { error } = await updateQuery
 
     if (error) throw new Error(error.message)
 

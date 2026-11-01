@@ -39,22 +39,29 @@ export async function updateEmployeePermissionsAction(params: {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // 1. Profil frissítése
-  const { data: targetProfile, error: profileError } = await supabaseAdmin
-    .from("felhasznalo_profil")
-    .update({
-      hr_szerepkor: normalizedRole,
-      hr_modulok: sanitizedModules,
-    })
-    .eq("id", employeeId)
-    .select("nev")
-    .maybeSingle()
-
-  if (profileError) {
-    return { error: "Hiba a profil jogosultságainak mentésekor: " + profileError.message }
+  // 0. Ellenőrizzük, hogy a cél-dolgozó az aktív céghez tartozik-e
+  if (auth.activeCompanyId) {
+    const [{ data: memberRow }, { data: adatlapRow }] = await Promise.all([
+      supabaseAdmin
+        .from("company_members")
+        .select("id")
+        .eq("company_id", auth.activeCompanyId)
+        .eq("user_id", employeeId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("hr_dolgozo_adatlap")
+        .select("company_id")
+        .eq("id", employeeId)
+        .maybeSingle(),
+    ])
+    const belongsToActiveCompany =
+      Boolean(memberRow) || (adatlapRow?.company_id === auth.activeCompanyId)
+    if (!belongsToActiveCompany) {
+      return { error: "A kiválasztott dolgozó nem tartozik az aktív céghez." }
+    }
   }
 
-  // 2. Aktív cégtagság szinkronizálása
+  // 1. Aktív cégtagság szinkronizálása
   if (auth.activeCompanyId) {
     const { error: memberError } = await supabaseAdmin
       .from("company_members")
@@ -68,6 +75,37 @@ export async function updateEmployeePermissionsAction(params: {
     if (memberError) {
       return { error: "Hiba a cégtagsági jogosultságok mentésekor: " + memberError.message }
     }
+  }
+
+  // 2. Globális profil frissítése kizárólag akkor, ha a felhasználó legfeljebb 1 cégnek tagja
+  const { count: membershipCount } = await supabaseAdmin
+    .from("company_members")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", employeeId)
+
+  let targetProfile: { nev?: string } | null = null
+  if ((membershipCount || 0) <= 1) {
+    const { data: updatedProfile, error: profileError } = await supabaseAdmin
+      .from("felhasznalo_profil")
+      .update({
+        hr_szerepkor: normalizedRole,
+        hr_modulok: sanitizedModules,
+      })
+      .eq("id", employeeId)
+      .select("nev")
+      .maybeSingle()
+
+    if (profileError) {
+      return { error: "Hiba a profil jogosultságainak mentésekor: " + profileError.message }
+    }
+    targetProfile = updatedProfile
+  } else {
+    const { data: existingProfile } = await supabaseAdmin
+      .from("felhasznalo_profil")
+      .select("nev")
+      .eq("id", employeeId)
+      .maybeSingle()
+    targetProfile = existingProfile
   }
 
   // 3. Audit napló bejegyzés
