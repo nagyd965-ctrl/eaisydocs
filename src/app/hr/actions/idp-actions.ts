@@ -741,7 +741,14 @@ export async function addIDPNote(celId: string, szoveg: string) {
 
 export async function getDevelopmentPlansByEmployee(dolgozoId: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+
+  // HR deep-analysis 20261029 (2.1) P0-javítás (2026-11-01): CÉG-SZŰRÉS —
+  // korábban csak dolgozo_id-ra szűrt, így többcéges dolgozó MINDEN cég
+  // fejlesztési terve minden cég-nézetben megjelent (a megrendelő igazolta:
+  // ugyanaz a hiba, mint a Célkitűzéseknél).
+  const activeCompanyId = await getActiveCompanyIdServer();
+
+  let query = supabase
     .from('hr_fejlesztesi_terv')
     .select(`
       *,
@@ -752,8 +759,13 @@ export async function getDevelopmentPlansByEmployee(dolgozoId: string) {
         megjegyzesek:hr_idp_megjegyzes(*, iro:felhasznalo_profil(nev))
       )
     `)
-    .eq('dolgozo_id', dolgozoId)
-    .order('created_at', { ascending: false });
+    .eq('dolgozo_id', dolgozoId);
+
+  if (activeCompanyId) {
+    query = query.eq('company_id', activeCompanyId);
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) {
     console.error('Hiba az IDP lekérdezésekor:', error);
