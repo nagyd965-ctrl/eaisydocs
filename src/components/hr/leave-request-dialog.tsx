@@ -23,11 +23,12 @@ const leaveTypeMap: Record<string, string> = {
 
 function formatMins(perc: number): string {
   const abs = Math.abs(perc)
+  const sign = perc < 0 ? "-" : ""
   const h = Math.floor(abs / 60)
   const m = abs % 60
-  if (h === 0) return `${m} perc`
-  if (m === 0) return `${h} óra`
-  return `${h} óra ${m} perc`
+  if (h === 0) return `${sign}${m} perc`
+  if (m === 0) return `${sign}${h} óra`
+  return `${sign}${h} óra ${m} perc`
 }
 
 export function LeaveRequestDialog() {
