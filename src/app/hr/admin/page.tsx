@@ -188,7 +188,10 @@ export default async function HrAdminPage() {
   const offboardings = offboardingsRes.data || []
 
   // Jogosultság ellenőrzése admin műveletekhez (szerkesztés, törlés a törzsadatbázisban)
+  // Megrendelői döntés (2026-11-01): az Állomány modul a NÉZETET és a dolgozói adatok
+  // szerkesztését adja — SZEREPKÖR-VÁLTÁS és TÖRLÉS kizárólag valódi HR admin szerepkör.
   const canEdit = hrRole === "admin" || hrModules.includes("admin")
+  const canManage = hrRole === "admin"
 
   // Felvételi adatokhoz meglévő fiókok - csak az aktuális céghez tartozó Docs profilok
   const assignedIds = employees.filter(e => {
@@ -585,6 +588,8 @@ export default async function HrAdminPage() {
             jobs={jobs} 
             orgUnits={orgUnits} 
             canEdit={canEdit} 
+            canChangeRole={canManage}
+            canDelete={canManage}
           />
         </CardContent>
       </Card>

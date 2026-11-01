@@ -54,12 +54,14 @@ export function EmployeeEditDialog({
   employee, 
   jobs, 
   orgUnits = [], 
-  managers = [] 
+  managers = [],
+  canChangeRole = true
 }: { 
   employee: EmployeeEditData
   jobs: EmployeeJobOption[]
   orgUnits?: EmployeeOrgUnitOption[]
-  managers?: EmployeeManagerOption[] 
+  managers?: EmployeeManagerOption[]
+  canChangeRole?: boolean
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -145,24 +147,29 @@ export function EmployeeEditDialog({
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-          <div className="space-y-2">
-            <Label htmlFor="role">Rendszer Szerepkör (Jogosultságok)</Label>
-            {/* Rejtett input a form submithoz */}
-            <input type="hidden" name="role" value={role} />
-            <Select value={role} onValueChange={setRole as any}>
-              <SelectTrigger>
-                <span>{roleMap[role] || "Válassz szerepkört"}</span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="munkavallalo">Munkavállaló</SelectItem>
-                <SelectItem value="vezeto">Vezető</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-[11px] text-muted-foreground">
-              Az egyedi modul-hozzáféréseket a Jogosultságkezelő mátrixban kapcsolhatod be.
-            </p>
-          </div>
+          {/* Szerepkör-mező kizárólag valódi HR admin számára látszik
+              (megrendelői döntés 2026-11-01: az Állomány modul a nézetet és a dolgozói
+               adatok szerkesztését adja — szerepköröt csak a Jogosultsági Mátrixból/közvetlenül admin írhat) */}
+          {canChangeRole && (
+            <div className="space-y-2">
+              <Label htmlFor="role">Rendszer Szerepkör (Jogosultságok)</Label>
+              {/* Rejtett input a form submithoz */}
+              <input type="hidden" name="role" value={role} />
+              <Select value={role} onValueChange={setRole as any}>
+                <SelectTrigger>
+                  <span>{roleMap[role] || "Válassz szerepkört"}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="munkavallalo">Munkavállaló</SelectItem>
+                  <SelectItem value="vezeto">Vezető</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Az egyedi modul-hozzáféréseket a Jogosultságkezelő mátrixban kapcsolhatod be.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="munkakorId">Betöltött Munkakör</Label>

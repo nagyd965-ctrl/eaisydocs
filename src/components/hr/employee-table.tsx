@@ -48,11 +48,15 @@ export function EmployeeTable({
   jobs = [],
   orgUnits = [],
   canEdit = false,
+  canChangeRole = false,
+  canDelete = false,
 }: {
   employees: Employee[]
   jobs?: EmployeeJobOption[]
   orgUnits?: EmployeeOrgUnitOption[]
   canEdit?: boolean
+  canChangeRole?: boolean
+  canDelete?: boolean
 }) {
   const [search, setSearch]         = useState("")
   const [selectedRoles, setRoles]   = useState<string[]>([])
@@ -316,11 +320,14 @@ export function EmployeeTable({
                               jobs={jobs} 
                               orgUnits={orgUnits} 
                               managers={employees} 
+                              canChangeRole={canChangeRole}
                             />
-                            <EmployeeDeleteDialog 
-                              employeeId={emp.id} 
-                              employeeName={emp.nev} 
-                            />
+                            {canDelete && (
+                              <EmployeeDeleteDialog 
+                                employeeId={emp.id} 
+                                employeeName={emp.nev} 
+                              />
+                            )}
                           </>
                         )}
                       </div>
