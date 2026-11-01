@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V1 — Proaktív Dashboard</title>
+<style>
+:root {
+  --primary: hsl(174, 83%, 32%); --primary-fg: white;
+  --bg: hsl(220, 7%, 97%); --card: white; --border: hsl(222, 10%, 89%);
+  --muted: hsl(220, 7%, 94%); --muted-fg: hsl(220, 5%, 40%);
+  --success: hsl(142, 71%, 45%); --success-subtle: hsl(142, 71%, 97%);
+  --warning: hsl(41, 100%, 30%); --warning-subtle: hsl(41, 80%, 95%);
+  --destructive: hsl(0, 65%, 56%); --destructive-subtle: hsl(0, 65%, 97%);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:#18181b; padding:24px; max-width:1200px; margin:0 auto; }
+h1 { font-size:1.5rem; font-weight:600; margin-bottom:20px; }
+
+/* Hero */
+.hero { background:linear-gradient(135deg, var(--primary), hsl(174,60%,22%)); border-radius:12px; padding:24px 28px; color:var(--primary-fg); display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+.hero-info h2 { font-size:1.4rem; font-weight:600; }
+.hero-info p { font-size:0.85rem; opacity:0.8; margin-top:4px; }
+.hero-right { text-align:right; }
+.hero-badge { display:inline-block; padding:6px 14px; border-radius:999px; font-size:0.75rem; font-weight:600; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); }
+.hero-date { font-size:0.75rem; opacity:0.6; margin-top:6px; }
+
+/* KPI Row */
+.kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+.kpi { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 20px; cursor:pointer; transition:all .15s; }
+.kpi:hover { border-color:var(--primary); box-shadow:0 2px 8px rgba(13,148,136,.06); }
+.kpi-label { font-size:0.7rem; font-weight:500; color:var(--muted-fg); text-transform:uppercase; letter-spacing:0.5px; }
+.kpi-value { font-size:1.8rem; font-weight:700; margin-top:4px; color:#18181b; }
+.kpi-sub { font-size:0.75rem; color:var(--muted-fg); margin-top:2px; }
+.kpi.highlight .kpi-value { color:var(--warning); }
+
+/* Main Grid */
+.main-grid { display:grid; grid-template-columns:340px 1fr; gap:16px; margin-bottom:20px; }
+
+/* Time Card */
+.time-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px; display:flex; flex-direction:column; align-items:center; }
+.time-label { font-size:0.7rem; font-weight:500; color:var(--muted-fg); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px; }
+.time-clock { font-size:3.2rem; font-weight:200; font-variant-numeric:tabular-nums; color:var(--primary); line-height:1; margin-bottom:4px; }
+.time-sub { font-size:0.8rem; color:var(--muted-fg); margin-bottom:20px; }
+.check-btn { width:100%; padding:14px; border:none; border-radius:10px; font-size:0.95rem; font-weight:600; cursor:pointer; background:var(--primary); color:var(--primary-fg); transition:all .15s; }
+.check-btn:hover { filter:brightness(1.1); }
+.check-btn.secondary { background:var(--card); border:1px solid var(--border); color:var(--muted-fg); font-weight:500; margin-top:8px; padding:10px; font-size:0.85rem; }
+.break-row { display:flex; justify-content:center; gap:8px; margin-top:12px; width:100%; }
+.break-btn { padding:8px 16px; border:1px solid var(--border); border-radius:8px; font-size:0.8rem; background:var(--card); color:var(--muted-fg); cursor:pointer; }
+.break-btn.active { border-color:var(--warning); color:var(--warning); background:var(--warning-subtle); }
+
+/* Right column */
+.right-col { display:flex; flex-direction:column; gap:16px; }
+
+/* TODO panel */
+.todo-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px 24px; }
+.todo-title { font-size:0.9rem; font-weight:600; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
+.todo-count { background:var(--warning-subtle); color:var(--warning); font-size:0.7rem; font-weight:700; padding:2px 8px; border-radius:999px; }
+.todo-item { display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid var(--muted); }
+.todo-item:last-child { border-bottom:none; }
+.todo-dot { width:8px; height:8px; border-radius:50%; margin-top:6px; flex-shrink:0; }
+.todo-dot.urgent { background:var(--destructive); }
+.todo-dot.warn { background:var(--warning); }
+.todo-dot.info { background:var(--primary); }
+.todo-text { font-size:0.85rem; color:#18181b; }
+.todo-sub { font-size:0.75rem; color:var(--muted-fg); margin-top:2px; }
+.todo-link { font-size:0.8rem; color:var(--primary); font-weight:500; margin-left:auto; white-space:nowrap; }
+
+/* Requests panel */
+.req-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px 24px; flex:1; }
+.req-title { font-size:0.9rem; font-weight:600; margin-bottom:12px; }
+.req-item { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--muted); }
+.req-item:last-child { border-bottom:none; }
+.req-left { display:flex; flex-direction:column; gap:2px; }
+.req-type { font-size:0.8rem; font-weight:500; color:#18181b; }
+.req-type .req-icon { display:inline-block; width:16px; height:16px; border-radius:4px; vertical-align:middle; margin-right:6px; font-size:0.65rem; text-align:center; line-height:16px; color:white; font-weight:600; }
+.req-date { font-size:0.75rem; color:var(--muted-fg); font-variant-numeric:tabular-nums; }
+.req-badge { padding:3px 10px; border-radius:6px; font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+.req-badge.approved { background:var(--success-subtle); color:var(--success); }
+.req-badge.pending { background:var(--warning-subtle); color:var(--warning); }
+.req-badge.rejected { background:var(--destructive-subtle); color:var(--destructive); }
+
+/* Leave progress */
+.leave-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px 24px; }
+.leave-header { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px; }
+.leave-title { font-size:0.9rem; font-weight:600; }
+.leave-big { font-size:2.2rem; font-weight:700; color:var(--primary); font-variant-numeric:tabular-nums; }
+.leave-big span { font-size:0.85rem; font-weight:400; color:var(--muted-fg); }
+.progress-bar { height:8px; background:var(--muted); border-radius:999px; overflow:hidden; margin:12px 0 8px; }
+.progress-fill { height:100%; background:var(--primary); border-radius:999px; }
+.leave-meta { display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted-fg); font-variant-numeric:tabular-nums; }
+
+/* Bottom row */
+.bottom-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.bottom-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px 24px; }
+.bottom-title { font-size:0.9rem; font-weight:600; margin-bottom:14px; }
+.kpi-mini { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--muted); font-size:0.8rem; }
+.kpi-mini:last-child { border-bottom:none; }
+.kpi-mini-label { color:var(--muted-fg); }
+.kpi-mini-value { font-weight:600; font-variant-numeric:tabular-nums; }
+.caf-cta { display:block; padding:14px; background:var(--primary); color:var(--primary-fg); border-radius:10px; text-align:center; font-size:0.9rem; font-weight:600; text-decoration:none; margin-top:8px; }
+
+/* Responsive */
+@media (max-width: 900px) { .kpi-row { grid-template-columns:repeat(2,1fr); } .main-grid { grid-template-columns:1fr; } .bottom-row { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Áttekintés</h1>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-info">
+    <h2>Jó reggelt, Nagy Dániel!</h2>
+    <p>Fejlesztő · Belépés: 2024. március 1.</p>
+  </div>
+  <div class="hero-right">
+    <span class="hero-badge">Még nincs becsekkolva</span>
+    <p class="hero-date">2026. november 2., hétfő</p>
+  </div>
+</div>
+
+<!-- KPI Row -->
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="kpi-label">Szabadság Marad</div>
+    <div class="kpi-value">14 nap</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Felhasznált</div>
+    <div class="kpi-value">6 nap</div>
+  </div>
+  <div class="kpi highlight">
+    <div class="kpi-label">Függő Kérelem</div>
+    <div class="kpi-value">3</div>
+    <div class="kpi-sub">1 szabadság · 1 korrekció · 1 túlóra</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Munkaidő Egyenleg</div>
+    <div class="kpi-value">+4 ó 30 p</div>
+    <div class="kpi-sub">Túlóra többlet</div>
+  </div>
+</div>
+
+<!-- Main Grid: Time (left) + TODO/Requests (right) -->
+<div class="main-grid">
+
+  <!-- Time Card -->
+  <div class="time-card">
+    <div class="time-label">Mai Munkaidő</div>
+    <div class="time-clock">--:--</div>
+    <div class="time-sub">Még nem indult el a munkaidő</div>
+    <button class="check-btn">Becsekkolás</button>
+    <div class="break-row">
+      <button class="break-btn">Ebédszünet</button>
+      <button class="break-btn">Korrekció kérése</button>
+    </div>
+  </div>
+
+  <!-- Right: TODO + Requests -->
+  <div class="right-col">
+
+    <!-- TODO -->
+    <div class="todo-card">
+      <div class="todo-title">
+        Teendőim
+        <span class="todo-count">2 függő</span>
+      </div>
+      <div class="todo-item">
+        <div class="todo-dot warn"></div>
+        <div>
+          <div class="todo-text">Cafeteria nyilatkozat leadása</div>
+          <div class="todo-sub">Határidő: november 15.</div>
+        </div>
+        <a href="#" class="todo-link">Megnyitás →</a>
+      </div>
+      <div class="todo-item">
+        <div class="todo-dot info"></div>
+        <div>
+          <div class="todo-text">Új munkavédelmi oktatás elolvasása</div>
+          <div class="todo-sub">Tűzvédelmi oktatás — 2026. ősz</div>
+        </div>
+        <a href="#" class="todo-link">Elolvasom →</a>
+      </div>
+    </div>
+
+    <!-- Requests -->
+    <div class="req-card">
+      <div class="req-title">Kéréseim — legutóbbi 5</div>
+
+      <div class="req-item">
+        <div class="req-left">
+          <div class="req-type"><span class="req-icon" style="background:var(--primary)">S</span> Szabadság</div>
+          <div class="req-date">2026.11.10 – 2026.11.13</div>
+        </div>
+        <span class="req-badge pending">Függő</span>
+      </div>
+
+      <div class="req-item">
+        <div class="req-left">
+          <div class="req-type"><span class="req-icon" style="background:var(--warning)">K</span> Jelenlétkorrekció</div>
+          <div class="req-date">2026.10.28 — 08:30 → 09:00</div>
+        </div>
+        <span class="req-badge pending">Függő</span>
+      </div>
+
+      <div class="req-item">
+        <div class="req-left">
+          <div class="req-type"><span class="req-icon" style="background:var(--destructive)">T</span> Túlóra kifizetés</div>
+          <div class="req-date">2026.10.25 — 3 óra</div>
+        </div>
+        <span class="req-badge rejected">Elutasítva</span>
+      </div>
+
+      <div class="req-item">
+        <div class="req-left">
+          <div class="req-type"><span class="req-icon" style="background:var(--primary)">S</span> Szabadság</div>
+          <div class="req-date">2026.09.14 – 2026.09.20</div>
+        </div>
+        <span class="req-badge approved">Jóváhagyva</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom: Leave + Cafeteria/KPI -->
+<div class="bottom-row">
+
+  <!-- Leave -->
+  <div class="leave-card">
+    <div class="leave-header">
+      <div class="leave-title">Szabadság 2026</div>
+      <div class="leave-big">14<span> / 20 nap</span></div>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:30%"></div></div>
+    <div class="leave-meta">
+      <span>Felhasznált: 6 nap</span>
+      <span>Tervezett: 4 nap</span>
+      <span>Marad: 10 nap</span>
+    </div>
+  </div>
+
+  <!-- Cafeteria CTA + KPI -->
+  <div class="bottom-card">
+    <div class="bottom-title">Juttatások & Céljaim</div>
+
+    <div class="kpi-mini">
+      <span class="kpi-mini-label">Cafeteria keret</span>
+      <span class="kpi-mini-value">300 000 Ft</span>
+    </div>
+    <div class="kpi-mini">
+      <span class="kpi-mini-label">Felhasznált</span>
+      <span class="kpi-mini-value">120 000 Ft</span>
+    </div>
+    <a href="#" class="caf-cta">Nyilatkozat leadása →</a>
+
+    <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--muted);">
+      <div class="kpi-mini">
+        <span class="kpi-mini-label">Aktív KPI-k</span>
+        <span class="kpi-mini-value">3 db</span>
+      </div>
+      <div class="kpi-mini">
+        <span class="kpi-mini-label">Átlagos teljesülés</span>
+        <span class="kpi-mini-value">72%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

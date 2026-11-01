@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V2 — Minimal Clean</title>
+<style>
+:root {
+  --primary: hsl(174, 83%, 32%); --primary-fg: white;
+  --bg: hsl(220, 7%, 97%); --card: white; --border: hsl(222, 10%, 89%);
+  --muted: hsl(220, 7%, 94%); --muted-fg: hsl(220, 5%, 40%);
+  --success: hsl(142, 71%, 45%); --success-subtle: hsl(142, 71%, 97%);
+  --warning: hsl(41, 100%, 30%); --warning-subtle: hsl(41, 80%, 95%);
+  --destructive: hsl(0, 65%, 56%); --destructive-subtle: hsl(0, 65%, 97%);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:#18181b; padding:24px; max-width:1100px; margin:0 auto; }
+
+/* Header — compact, no hero */
+.page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; }
+.page-title { font-size:1.4rem; font-weight:600; }
+.page-meta { display:flex; align-items:center; gap:12px; }
+.page-date { font-size:0.8rem; color:var(--muted-fg); }
+.status-pill { padding:5px 12px; border-radius:999px; font-size:0.75rem; font-weight:600; border:1px solid var(--border); color:var(--muted-fg); background:var(--card); }
+
+/* KPI Strip — single row, flat */
+.kpi-strip { display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:20px; }
+.kpi-cell { background:var(--card); padding:16px 20px; }
+.kpi-cell:first-child { border-left:none; }
+.kpi-label { font-size:0.65rem; font-weight:600; color:var(--muted-fg); text-transform:uppercase; letter-spacing:0.5px; }
+.kpi-value { font-size:1.5rem; font-weight:700; margin-top:4px; color:#18181b; }
+.kpi-value.accent { color:var(--primary); }
+.kpi-value.alert { color:var(--warning); }
+.kpi-sub { font-size:0.7rem; color:var(--muted-fg); }
+
+/* Two-column layout */
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+
+/* Panel */
+.panel { background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.panel-header { padding:16px 20px 12px; border-bottom:1px solid var(--muted); display:flex; justify-content:space-between; align-items:center; }
+.panel-title { font-size:0.85rem; font-weight:600; }
+.panel-link { font-size:0.75rem; color:var(--primary); font-weight:500; text-decoration:none; }
+.panel-body { padding:16px 20px; }
+
+/* Time — inline, not card-in-card */
+.time-display { display:flex; align-items:center; gap:20px; }
+.time-big { font-size:2.4rem; font-weight:200; color:var(--primary); font-variant-numeric:tabular-nums; }
+.time-actions { display:flex; flex-direction:column; gap:8px; }
+.btn-primary { padding:10px 20px; background:var(--primary); color:var(--primary-fg); border:none; border-radius:8px; font-size:0.85rem; font-weight:600; cursor:pointer; }
+.btn-outline { padding:8px 16px; background:var(--card); border:1px solid var(--border); border-radius:8px; font-size:0.8rem; color:var(--muted-fg); cursor:pointer; }
+.time-meta { display:flex; gap:16px; margin-top:14px; padding-top:12px; border-top:1px solid var(--muted); font-size:0.75rem; color:var(--muted-fg); }
+.time-meta-item { display:flex; flex-direction:column; }
+.time-meta-label { font-size:0.65rem; text-transform:uppercase; letter-spacing:0.5px; }
+.time-meta-value { font-weight:600; color:#18181b; margin-top:2px; }
+
+/* Leave — progress ring */
+.leave-visual { display:flex; align-items:center; gap:24px; }
+.ring { width:100px; height:100px; border-radius:50%; border:8px solid var(--muted); border-top-color:var(--primary); transform:rotate(0deg); display:flex; align-items:center; justify-content:center; position:relative; }
+.ring-inner { text-align:center; }
+.ring-value { font-size:1.6rem; font-weight:700; color:var(--primary); }
+.ring-label { font-size:0.65rem; color:var(--muted-fg); }
+.leave-details { display:flex; flex-direction:column; gap:8px; }
+.leave-row { display:flex; justify-content:space-between; font-size:0.8rem; min-width:160px; }
+.leave-row-label { color:var(--muted-fg); }
+.leave-row-value { font-weight:600; font-variant-numeric:tabular-nums; }
+
+/* Requests — compact table */
+.req-table { width:100%; }
+.req-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--muted); }
+.req-row:last-child { border-bottom:none; }
+.req-info { display:flex; flex-direction:column; gap:2px; }
+.req-name { font-size:0.8rem; font-weight:500; }
+.req-detail { font-size:0.7rem; color:var(--muted-fg); }
+.req-status { padding:2px 8px; border-radius:5px; font-size:0.65rem; font-weight:600; text-transform:uppercase; }
+.req-status.ok { background:var(--success-subtle); color:var(--success); }
+.req-status.wait { background:var(--warning-subtle); color:var(--warning); }
+.req-status.no { background:var(--destructive-subtle); color:var(--destructive); }
+
+/* Bottom row */
+.bottom-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+.bottom-panel { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 20px; }
+.bottom-title { font-size:0.8rem; font-weight:600; margin-bottom:12px; color:var(--muted-fg); text-transform:uppercase; letter-spacing:0.5px; }
+.bottom-item { display:flex; justify-content:space-between; font-size:0.8rem; padding:6px 0; }
+.bottom-item:last-child { border-bottom:none; }
+.bottom-item-label { color:var(--muted-fg); }
+.bottom-item-value { font-weight:600; font-variant-numeric:tabular-nums; }
+.cta-btn { display:block; margin-top:12px; padding:10px; background:var(--card); border:1px solid var(--primary); border-radius:8px; text-align:center; font-size:0.8rem; font-weight:500; color:var(--primary); text-decoration:none; }
+
+@media (max-width: 900px) {
+  .kpi-strip { grid-template-columns:repeat(2,1fr); }
+  .two-col { grid-template-columns:1fr; }
+  .bottom-row { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header — compact, no hero -->
+<div class="page-header">
+  <div class="page-title">Áttekintés</div>
+  <div class="page-meta">
+    <span class="status-pill">Becsekkolva 08:32</span>
+    <span class="page-date">2026. november 2., hétfő</span>
+  </div>
+</div>
+
+<!-- KPI Strip — 5 data points, single flat row -->
+<div class="kpi-strip">
+  <div class="kpi-cell">
+    <div class="kpi-label">Szabadság</div>
+    <div class="kpi-value accent">14 nap</div>
+  </div>
+  <div class="kpi-cell">
+    <div class="kpi-label">Felhasznált</div>
+    <div class="kpi-value">6 nap</div>
+  </div>
+  <div class="kpi-cell">
+    <div class="kpi-label">Függő</div>
+    <div class="kpi-value alert">3</div>
+  </div>
+  <div class="kpi-cell">
+    <div class="kpi-label">Munkaidő</div>
+    <div class="kpi-value">+4:30</div>
+    <div class="kpi-sub">Túlóra</div>
+  </div>
+  <div class="kpi-cell">
+    <div class="kpi-label">Cafeteria</div>
+    <div class="kpi-value">180k</div>
+    <div class="kpi-sub">/ 300k Ft</div>
+  </div>
+</div>
+
+<!-- Two columns: Time + Leave -->
+<div class="two-col">
+
+  <!-- Time -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Mai munkaidő</span>
+      <a href="#" class="panel-link">Jelenléti ív →</a>
+    </div>
+    <div class="panel-body">
+      <div class="time-display">
+        <div class="time-big">02:14</div>
+        <div class="time-actions">
+          <button class="btn-primary">Kicsekkolás</button>
+          <button class="btn-outline">Ebédszünet</button>
+        </div>
+      </div>
+      <div class="time-meta">
+        <div class="time-meta-item">
+          <span class="time-meta-label">Becsekkolás</span>
+          <span class="time-meta-value">08:32</span>
+        </div>
+        <div class="time-meta-item">
+          <span class="time-meta-label">Szünet</span>
+          <span class="time-meta-value">30 perc</span>
+        </div>
+        <div class="time-meta-item">
+          <span class="time-meta-label">Becsült vég</span>
+          <span class="time-meta-value">17:02</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leave -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Szabadság 2026</span>
+      <a href="#" class="panel-link">Szabadságkérelem →</a>
+    </div>
+    <div class="panel-body">
+      <div class="leave-visual">
+        <div class="ring" style="border-top-color:var(--primary); border-right-color:var(--primary); border-bottom-color:var(--primary); border-left-color:var(--primary); transform:rotate(-108deg);">
+          <div class="ring-inner">
+            <div class="ring-value">70%</div>
+          </div>
+        </div>
+        <div class="leave-details">
+          <div class="leave-row">
+            <span class="leave-row-label">Éves keret</span>
+            <span class="leave-row-value">20 nap</span>
+          </div>
+          <div class="leave-row">
+            <span class="leave-row-label">Felhasznált</span>
+            <span class="leave-row-value">6 nap</span>
+          </div>
+          <div class="leave-row">
+            <span class="leave-row-label">Tervezett</span>
+            <span class="leave-row-value">4 nap</span>
+          </div>
+          <div class="leave-row">
+            <span class="leave-row-label" style="color:var(--primary); font-weight:600;">Elérhető</span>
+            <span class="leave-row-value" style="color:var(--primary);">10 nap</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Requests — all types -->
+<div class="panel" style="margin-bottom:20px;">
+  <div class="panel-header">
+    <span class="panel-title">Kéréseim</span>
+    <a href="#" class="panel-link">Összes →</a>
+  </div>
+  <div class="panel-body">
+    <div class="req-table">
+      <div class="req-row">
+        <div class="req-info">
+          <span class="req-name">Szabadság</span>
+          <span class="req-detail">2026.11.10 – 11.13 · 4 nap</span>
+        </div>
+        <span class="req-status wait">Függő</span>
+      </div>
+      <div class="req-row">
+        <div class="req-info">
+          <span class="req-name">Jelenlétkorrekció</span>
+          <span class="req-detail">2026.10.28 · becsekkolás 08:30 → 09:00</span>
+        </div>
+        <span class="req-status wait">Függő</span>
+      </div>
+      <div class="req-row">
+        <div class="req-info">
+          <span class="req-name">Túlóra kifizetés</span>
+          <span class="req-detail">2026.10.25 · 3 óra</span>
+        </div>
+        <span class="req-status no">Elutasítva</span>
+      </div>
+      <div class="req-row">
+        <div class="req-info">
+          <span class="req-name">Szabadság</span>
+          <span class="req-detail">2026.09.14 – 09.20 · 5 nap</span>
+        </div>
+        <span class="req-status ok">Jóváhagyva</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom: 3 equal panels -->
+<div class="bottom-row">
+  <div class="bottom-panel">
+    <div class="bottom-title">Cafeteria</div>
+    <div class="bottom-item">
+      <span class="bottom-item-label">Éves keret</span>
+      <span class="bottom-item-value">300 000 Ft</span>
+    </div>
+    <div class="bottom-item">
+      <span class="bottom-item-label">Felhasznált</span>
+      <span class="bottom-item-value">120 000 Ft</span>
+    </div>
+    <a href="#" class="cta-btn">Nyilatkozat leadása</a>
+  </div>
+
+  <div class="bottom-panel">
+    <div class="bottom-title">Céljaim</div>
+    <div class="bottom-item">
+      <span class="bottom-item-label">Aktív KPI</span>
+      <span class="bottom-item-value">3 db</span>
+    </div>
+    <div class="bottom-item">
+      <span class="bottom-item-label">Átlag teljesülés</span>
+      <span class="bottom-item-value">72%</span>
+    </div>
+    <a href="#" class="cta-btn">Részletek</a>
+  </div>
+
+  <div class="bottom-panel">
+    <div class="bottom-title">Dokumentumaim</div>
+    <div class="bottom-item">
+      <span class="bottom-item-label">Legutóbbi</span>
+      <span class="bottom-item-value">Munkaszerződés</span>
+    </div>
+    <div class="bottom-item">
+      <span class="bottom-item-label">Aláírandó</span>
+      <span class="bottom-item-value" style="color:var(--warning);">1 db</span>
+    </div>
+    <a href="#" class="cta-btn">Megtekintés</a>
+  </div>
+</div>
+
+</body>
+</html>

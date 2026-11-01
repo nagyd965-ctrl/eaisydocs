@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HR Áttekintés Újratervezés — Választó</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:#f4f4f5; color:#18181b; padding:40px 20px; }
+  .container { max-width:800px; margin:0 auto; }
+  h1 { font-size:1.8rem; font-weight:700; margin-bottom:8px; color:#0d9488; }
+  .subtitle { color:#71717a; margin-bottom:32px; font-size:0.9rem; }
+  .card { background:white; border:1px solid #e4e4e7; border-radius:12px; padding:0; margin-bottom:16px; overflow:hidden; text-decoration:none; display:block; transition:all .2s; }
+  .card:hover { border-color:#0d9488; box-shadow:0 4px 12px rgba(13,148,136,.08); }
+  .card-header { padding:20px 24px 16px; border-bottom:1px solid #f4f4f5; }
+  .card-title { font-size:1.1rem; font-weight:600; color:#18181b; }
+  .card-badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:600; margin-left:8px; vertical-align:middle; }
+  .badge-rec { background:#dcfce7; color:#16a34a; }
+  .badge-alt { background:#fef3c7; color:#d97706; }
+  .card-body { padding:16px 24px 20px; }
+  .card-desc { font-size:0.85rem; color:#71717a; line-height:1.5; }
+  .card-link { display:inline-flex; align-items:center; gap:4px; margin-top:12px; font-size:0.85rem; font-weight:500; color:#0d9488; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>HR Áttekintés — Újratervezési Koncepciók</h1>
+  <p class="subtitle">3 élő mockup — mindegyik a rendszer design-tokenjeivel (teal primary, Linear-flat). Kattints a megtekintéshez.</p>
+
+  <a href="v4-command.html" class="card">
+    <div class="card-header">
+      <span class="card-title">V4 — Command Center</span>
+      <span class="card-badge badge-rec">Bento Grid</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">Professzionális bento-grid elrendezés: idő / szabadság / teendők a felső sorban, metrikus sáv + kérések-idővonal középen, gyorsműveletek + alsó kártyák lent. Minden widget élő felső vonallal (accent csík), trend-mutatókkal és timeline-stílusú kéréslistával.</p>
+      <span class="card-link">Megtekintés →</span>
+    </div>
+  </a>
+
+  <a href="v5-glass.html" class="card">
+    <div class="card-header">
+      <span class="card-title">V5 — Dark Glass</span>
+      <span class="card-badge badge-rec">Premium</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">Sötét mód, glassmorphism (backdrop-blur), neon-teal primary glow, pulzáló státusz-jelzők. A rendszer dark-mode tokenjeivel készült — ugyanaz a bento-struktúra mint V4, de teljesen más karakter: luxus, mélység, éjszakai műszak-hangulat.</p>
+      <span class="card-link">Megtekintés →</span>
+    </div>
+  </a>
+
+  <a href="v1-proactive.html" class="card">
+    <div class="card-header">
+      <span class="card-title">V1 — Proaktív Dashboard</span>
+      <span class="card-badge badge-rec">Ajánlott</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">"Teendőim" panel + nagy óra + CSEKK gomb. Minden 3 kérelestípus (szabadság, korrekció, túlóra) egy listában. Cafeteria helyett prezentációs kártya. Actionable: a dolgozó pontosan tudja, mit kell tennie.</p>
+      <span class="card-link">Megtekintés →</span>
+    </div>
+  </a>
+
+  <a href="v2-minimal.html" class="card">
+    <div class="card-header">
+      <span class="card-title">V2 — Minimal Clean</span>
+      <span class="card-badge badge-alt">Alternatíva</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">Hero banner ELTÁVOLÍTVA. Adat-first: kompakt KPI sor + két nagy kártya (idő + szabadság). Csendesebb, professzionálisabb hang. Akiknek nem kell a "jó reggelt" élmény, csak a számok.</p>
+      <span class="card-link">Megtekintés →</span>
+    </div>
+  </a>
+
+  <a href="v3-split.html" class="card">
+    <div class="card-header">
+      <span class="card-title">V3 — Split Layout</span>
+      <span class="card-badge badge-alt">Merész</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">Bal oldal: "Ma" (óra, csekk, szünet). Jobb oldal: "Ez a hónap" (szabadság, kérelmek, egyenleg). Idővonal-szerű elrendezés — a dolgozó "reggel balra néz, délután jobbra". Cafeteria és KPI alsó sorban.</p>
+      <span class="card-link">Megtekintés →</span>
+    </div>
+  </a>
+</div>
+</body>
+</html>
