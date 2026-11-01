@@ -129,6 +129,16 @@ export async function submitApplication(formData: FormData) {
         (!targetCompanyId || empCtx.employeeCompanyIds.includes(targetCompanyId))
     )
 
+    // ── HR deep-analysis 20261029 (2.6) P1-javítás (2026-11-01): ──
+    // belső hirdetésre kizárólag az adott cég igazolt dolgozója jelentkezhet.
+    // A page-réteg notFound() védelmét az action-réteg is kikényszeríti —
+    // korábban ismert hirdetés-UUID-val külső jelentkezés átcsúszott.
+    if (isPostingInternal && !isStrictlyInternalApplication) {
+      return {
+        error: "Ez a hirdetés kizárólag a vállalat belső munkavállalói számára érhető el.",
+      }
+    }
+
     if (!isStrictlyInternalApplication && !hasCvFile) {
       return { error: "Kérjük, csatolja a szakmai önéletrajzát!" }
     }

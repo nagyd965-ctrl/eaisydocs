@@ -1311,13 +1311,24 @@ export async function generateAssetReturnSheetAction(
 }
 
 export async function getSignedFileUrl(storagePath: string): Promise<{ signedUrl: string | null; error?: string }> {
+  // ── HR deep-analysis 20261029 (2.6) P1-javítás (2026-11-01): őrblokk ──
+  // Korábban EGYSZERŰ ellenőrzés nélkül adott 1 órás aláírt URL-t tetszőleges
+  // útvonalra az irat_files bucketból — bejelentkezés nélkül is. Mostantól
+  // bejelentkezés kötelező (a dolgozók saját dokumentumaikhoz — bérpapír,
+  // cafeteria stb. — továbbra is jogosan érik el).
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { signedUrl: null, error: "Nincs bejelentkezve" }
+
   if (!storagePath) return { signedUrl: null }
   if (storagePath.startsWith("http://") || storagePath.startsWith("https://") || storagePath.startsWith("blob:") || storagePath.startsWith("data:")) {
     return { signedUrl: storagePath }
   }
   try {
     const adminClient = getAdminClient()
-    const { data, error } = await adminClient.storage.from("irat_files").createSignedUrl(storagePath, 3600)
+    // Rövidebb érvényesség (15 perc) — a megtekintéshez elegendő, a kiszivárgott
+    // linkek élő ideje jelentősen csökken
+    const { data, error } = await adminClient.storage.from("irat_files").createSignedUrl(storagePath, 900)
     if (error || !data?.signedUrl) {
       return { error: error?.message || "Nem sikerült aláírt URL-t generálni", signedUrl: null }
     }

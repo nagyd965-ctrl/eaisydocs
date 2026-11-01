@@ -302,13 +302,23 @@ export async function deleteMunkakor(id: string) {
 
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  // 1. Töröljük a beosztásokat is, amik erre a munkakörre hivatkoznak (hogy a tesztadatokat lehessen törölni)
-  await supabase
+  // ── HR deep-analysis 20261029 (2.3) P1-javítás (2026-11-01): ──
+  // Korábban a törlés ELŐRE törölte az összes hr_beosztas sort (a dolgozók
+  // munkakör-előzményeit!), hogy a ForeignKey ne akadályozza. Mostantól:
+  // ha bármilyen beosztás (folyamatban lévő vagy történelmi) hivatkozik a
+  // munkakörre, a törlés TILTVA — a beosztás-történet megőrzése érdekében.
+  const { count: beosztasCount } = await supabase
     .from("hr_beosztas")
-    .delete()
+    .select("id", { count: "exact", head: true })
     .eq("munkakor_id", id)
 
-  // 2. Töröljük a munkakört
+  if ((beosztasCount ?? 0) > 0) {
+    return {
+      error: "A munkakör nem törölhető, mert dolgozók beosztás-előzményei hivatkoznak rá. A munkakör-előzmények megőrzése érdekében csak olyan munkakör törölhető, amelyre nincs egyetlen beosztás sem.",
+    }
+  }
+
+  // 2. Töröljük a munkakört (a beosztásokra már nem kell előre-törölni — fent tiltva)
   const { error } = await supabase
     .from("hr_munkakor")
     .delete()
