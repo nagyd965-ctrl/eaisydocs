@@ -263,6 +263,24 @@ export async function toggle14DayWaiverAction(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
+  // P0-javítás (2026-11-01): őrblokk — korábban EGYSZERŰ ellenőrzés nélkül futott,
+  // bármely bejelentkezett dolgozó átírhatta más munkavállaló megállapodását
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["compliance"], null)
+  if (!auth.authorized) {
+    return { success: false, error: "Nincs jogosultságod a megállapodás módosításához (Munkaügyi Megfelelőség modul szükséges)." }
+  }
+  if (auth.activeCompanyId) {
+    const { data: adatlap } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select("company_id")
+      .eq("id", employeeId)
+      .maybeSingle()
+    if (adatlap?.company_id && adatlap.company_id !== auth.activeCompanyId) {
+      return { success: false, error: "A munkavállaló másik céghez tartozik." }
+    }
+  }
+
   const { error } = await supabase
     .from("hr_dolgozo_adatlap")
     .update({ eltero_megallapodas_14_nap: hasWaiver })
@@ -654,6 +672,23 @@ export async function toggleVoluntaryOvertimeAgreementAction(
   hasAgreement: boolean
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
+
+  // P0-javítás (2026-11-01): őrblokk + cég-ellenőrzés (a toggle14DayWaiverAction mintájára)
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["compliance"], null)
+  if (!auth.authorized) {
+    return { success: false, error: "Nincs jogosultságod a megállapodás módosításához (Munkaügyi Megfelelőség modul szükséges)." }
+  }
+  if (auth.activeCompanyId) {
+    const { data: adatlap } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select("company_id")
+      .eq("id", employeeId)
+      .maybeSingle()
+    if (adatlap?.company_id && adatlap.company_id !== auth.activeCompanyId) {
+      return { success: false, error: "A munkavállaló másik céghez tartozik." }
+    }
+  }
 
   const { error } = await supabase
     .from("hr_dolgozo_adatlap")

@@ -646,10 +646,14 @@ export async function updateSinglePayslipAction(
     return { success: false, error: "Nincs kiválasztott cég" }
   }
 
-  const { hrRole, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
-  const isAuthorized = isCompanyAdmin || ["admin", "hr_vezeto", "hr_munkatars"].includes(hrRole)
+  const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  // P0-javítás (2026-11-01): legacy szerepkörnevek helyett kanonikus modulkulcs-ellenőrzés
+  // (Bérszámfejtés modul vagy admin) — korábban csak admin ment át, más cég bérpapírja pedig
+  // ellenőrizetlenül felülírható volt
+  const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
+  const isAuthorized = isCompanyAdmin || isUserAuthorizedForHrView(hrRole, ["payroll"], hrModules)
   if (!isAuthorized) {
-    return { success: false, error: "Nincs jogosultságod a bérpapír módosításához" }
+    return { success: false, error: "Nincs jogosultságod a bérpapír módosításához (Bérszámfejtés modul szükséges)." }
   }
 
   const adminClient = getAdminClient()
@@ -668,6 +672,11 @@ export async function updateSinglePayslipAction(
       year = current.ev
       month = current.honap
     }
+  }
+
+  // P0-javítás (2026-11-01): cross-tenant írás tiltása — a bérpapír az aktív céghez tartozzon
+  if (current?.company_id && current.company_id !== activeCompanyId) {
+    return { success: false, error: "A bérpapír másik céghez tartozik — nincs jogosultságod a módosításához." }
   }
 
   if (!current && dolgozoId && year && month) {

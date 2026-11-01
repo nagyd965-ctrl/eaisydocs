@@ -18,9 +18,14 @@
 | 5 | **2.1 P0:** `updateDevelopmentGoalStatus` egyetlen ellenőrzés nélkül — bárki bármelyik célt teljesítettre tehetett, automatikus hamis `hr_kepzettseg`-rögzítéssel | `7777aea` | Bejelentkezés + státusz-whitelist (csak „folyamatban"/„elbírálásra vár" a SAJÁT célon) — a teljesítés/képzettség-rögzítés kizárólag a vezetői `approveDevelopmentGoal` úton | ✔ |
 | 6 | **2.1 P0:** `handleAttendanceCorrectionApproval` — dolgozó saját magának hagyhatott jóvá jelenlétkorrekciót (a bérszámfejtés alapját írva) | `7777aea` | Őrblokk (csak vezető/admin SZEREPKÖR, modulkulcs nem nyitja) + önjóváhagyás tiltása + cég-ellenőrzés | ✔ |
 | 7 | **Kiegészítő UI-döntés (2026-11-01):** az Állomány modul jogosultsági modellje — Állomány-modulos munkavállaló csak lát/szerkeszt/újat vesz fel, szerepkörváltás és törlés kizárólag HR admin | `1f104ae` | A szerepkör-mező és a törlés-kuka nem is látszik nem-adminnak (a szerveroldali őrblokkokkal kettős rétegben) | ✔ |
+| 8 | **2.1 P0:** `/hr/self-service/goals` — a KPI-k, ciklusok és teljesítmény-eseménynapló CÉG-SZŰRÉS NÉLKÜL töltődtek service-role kliensen (a megrendelő igazolta: mindkét cégnél ugyanazok a célkitűzések jelentek meg) | `8c1a2d2` | Mindhárom lekérdezés `.eq("company_id", activeCompanyId)` szűrést kapott | ✔ A megrendelő tesztelte és igazolta |
+| 9 | **2.5 P0:** `updateSinglePayslipAction` cross-tenant bérpapír-írás (legacy guard-lista miatt nem-adminnak nem is működött); `uploadT1041ReceiptFromReport` csak login-check; `deleteArchiveRecordAdmin` cég-ellenőrzés nélkül; compliance író action-ök (14-napos eltérés, önkéntes túlóra-szerződés) teljesen nyitva | `8c1a2d2` | Bérszámfejtés: `["payroll"]` modulkulcs + cég-ellenőrzés a bérpapíron; Riportok: `["reports"]` őrblokk a nyugta-feltöltésre + cég-ellenőrzés a törlésre; Compliance: `["compliance"]` őrblokk + cég-ellenőrzés mindkét toggle-en | ✔ |
 
 **Élőben megerősített, MÉG NYITVA (2026.10.31.):**
 - **1.3 gyökérok („admin" modulkulcs-ütközés):** a megrendelő élő tesztje igazolta — „Kelemen Roberta" (`hr_szerepkor: munkavallalo`) **látja a Vezetői nézetet**, mert a Mátrixból kapott „Állomány" modul kulcsa `admin`, és a menü (`hr-sidebar.tsx:127`) valamint a `/hr/manager` oldal (`requireHrAuthServer(["...","admin"])`) modulkulcsként is egyezteti. A vezetői nézet adatszűrése eközben rendben van (csak közvetlen beosztottak). **A javítás elhalasztva a megrendelő döntése szerint; a teljes elemzés (3 réteg: menü / ~30 action / titkosítás-RPC) a session-naplóban.**
+
+**Elvetett találatok (2026.11.01., a megrendelő tesztje alapján):**
+- **2.2 P0 (részben):** „túlóra-kérelmek újra-birálhatása" — a megrendelő UI-tesztje szerint **elutasított kérelemnél nem kattintható újra jóváhagyás** (nem reprodukálható a felületen; a szerveroldali státusz-őr hiánya marad kód-szintű megjegyzés).
 
 ---
 

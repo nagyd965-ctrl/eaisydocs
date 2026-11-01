@@ -841,6 +841,14 @@ export async function uploadT1041ReceiptFromReport(formData: FormData) {
     } = await supabase.auth.getUser()
     if (!user) return { error: "Nincs bejelentkezve" }
 
+    // P0-javítás (2026-11-01): őrblokk — korábban CSAK bejelentkezést ellenőrzött,
+    // bármely dolgozó bármely cég T1041-jét tehette "igazolva" állapotba
+    const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+    const auth = await requireHrAuthServer(["reports"], null)
+    if (!auth.authorized || !auth.user) {
+      return { error: "Nincs jogosultságod a T1041 nyugta feltöltéséhez (Riportok modul szükséges)." }
+    }
+
     const adminClient = getAdminClient()
     const file = formData.get("file") as File
     const t1041Id = formData.get("t1041Id") as string
@@ -1049,12 +1057,25 @@ export async function getArchiveRecords() {
  */
 export async function deleteArchiveRecordAdmin(id: string, filePath: string) {
   const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi"], null)
+  const auth = await requireHrAuthServer(["reports"], null)
   if (!auth.authorized || !auth.user) {
-    return { success: false, error: "Nincs jogosultságod bevallás törléséhez." }
+    return { success: false, error: "Nincs jogosultságod bevallás törléséhez (Riportok modul szükséges)." }
   }
 
   const adminClient = getAdminClient()
+
+  // P0-javítás (2026-11-01): cég-ellenőrzés — más cég archív bejegyzése nem törölhető
+  if (auth.activeCompanyId) {
+    const { data: record } = await adminClient
+      .from("hr_bevallas_archivum")
+      .select("company_id")
+      .eq("id", id)
+      .maybeSingle()
+    if (record?.company_id && record.company_id !== auth.activeCompanyId) {
+      return { success: false, error: "A bevallás másik céghez tartozik — nincs jogosultságod a törléséhez." }
+    }
+  }
+
   const { error: storageError } = await adminClient.storage.from("hr_reports").remove([filePath])
 
   if (storageError) {

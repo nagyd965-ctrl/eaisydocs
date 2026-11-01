@@ -20,23 +20,36 @@ export default async function SelfServiceGoalsPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  // HR deep-analysis 20261029 (2.1) P0-javítás (2026-11-01):
+  // a lekérdezések korábban CÉG-SZŰRÉS NÉLKÜL futottak service-role kliensen —
+  // a dolgozó más cég(ek) KPI-jait, AZ ÖSSZES cég ciklusait és teljesítmény-
+  // eseménynaplóját is megkapta (a megrendelő igazolta: mindkét cégnél ugyanazok
+  // a célkitűzések jelentek meg).
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  let kpisQuery = supabaseAdmin
+    .from("hr_teljesitmeny")
+    .select("*, hr_teljesitmeny_ciklus(megnevezes, kezdo_datum, befejezo_datum, statusz)")
+    .eq("dolgozo_id", user.id)
+  let cyclesQuery = supabaseAdmin
+    .from("hr_teljesitmeny_ciklus")
+    .select("*")
+  let kpiLogsQuery = supabaseAdmin
+    .from("hr_esemeny_naplo")
+    .select("*, felhasznalo_profil(nev)")
+    .eq("entitas_tipus", "hr_teljesitmeny")
+
+  if (activeCompanyId) {
+    kpisQuery = kpisQuery.eq("company_id", activeCompanyId)
+    cyclesQuery = cyclesQuery.eq("company_id", activeCompanyId)
+    kpiLogsQuery = kpiLogsQuery.eq("company_id", activeCompanyId)
+  }
+
   const [kpisRes, cyclesRes, kpiLogsRes] = await Promise.all([
-    supabaseAdmin
-      .from("hr_teljesitmeny")
-      .select("*, hr_teljesitmeny_ciklus(megnevezes, kezdo_datum, befejezo_datum, statusz)")
-      .eq("dolgozo_id", user.id)
-      .order("created_at", { ascending: false }),
-
-    supabaseAdmin
-      .from("hr_teljesitmeny_ciklus")
-      .select("*")
-      .order("kezdo_datum", { ascending: false }),
-
-    supabaseAdmin
-      .from("hr_esemeny_naplo")
-      .select("*, felhasznalo_profil(nev)")
-      .eq("entitas_tipus", "hr_teljesitmeny")
-      .order("created_at", { ascending: true })
+    kpisQuery.order("created_at", { ascending: false }),
+    cyclesQuery.order("kezdo_datum", { ascending: false }),
+    kpiLogsQuery.order("created_at", { ascending: true }),
   ])
 
   const kpis = kpisRes.data || []
