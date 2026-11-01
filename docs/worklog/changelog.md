@@ -4,6 +4,17 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-11-01)
 
+### [eaisyHR]: SZEPE-Teljes Lezárás — 38 Legacy Guard-Lista Cseréje 6 Fájlban (Deep-Analysis 1.1 Gyökérok, audit #29)
+- **A „kompatibilitási szepe" bezárása:** a resolver 3. kompatibilitási szabála miatt bármely **1 HR-modullal** rendelkező felhasználó átjutott azokon az action-ökön, amelyek listája `hr_munkatars` vagy `hr_vezeto` elemet tartalmazott. Ezzel a commit-tal ez a réteg **teljesen lezárult** a HR-actionök szintjén.
+- **38 pont cseréje 6 fájlban (commit `2841d00`):**
+  - `performance/actions.ts` (17): `["admin","vezeto"]` vagy `["admin"]` — performance-hoz nincs külön modulkulcs, szerepkör-alapú
+  - `payroll/actions.ts` (5+2 inline): `["payroll","admin"]` vagy `["payroll","reports","audit","admin"]` + 2 inline `.includes()` cseréje `isUserAuthorizedForHrView`-re
+  - `reports/actions.ts` (10): ugyanaz a minta
+  - `admin/actions.ts` (1): `["admin"]`
+  - `orgunit/[id]/actions.ts` (2): `["admin"]`
+  - `actions/idp-actions.ts` (3): `["admin","vezeto"]`
+- **Eredmény:** a Jogosultsági Mátrixban kiosztott modulok mostantól **valóban csak a saját moduljuk műveleteire** adnak hozzáférést — korábban bármely 1 modul „mindent nyitott".
+
 ### [eaisyHR]: Audit-Authorize Szűkítés + TAJ-CDV Validáció + Offboarding Szepe-Csere (Deep-Analysis 2.5/2.1/1.1, audit #26-#28)
 - **Audit authorize szűkítés (`src/app/hr/audit/actions.ts`, commit `b2af02c`):** a HR audit `authorizeAuditRequest` listája korábban `["hr_vezeto", "hr_munkatars"]` mellett a resolver „szepe" miatt **bármely 1 modulos felhasználónak átengedte** — beleértve a **Kiküldési Napló** e-mail/SMS tartalmait (szabadságigénylés-szövegek, orvosi adatok). Szűkítés: `["admin", "audit", "compliance"]` modulkulcsokra.
 - **TAJ/adóazonosító/bankszámla CDV-validáció (`src/app/hr/self-service/actions.ts`):** az `updateSecretData` korábban **formai validáció nélkül** fogadta a titkos adatokat — elírt TAJ-szám vagy bankszámlaszám **közvetlenül a bérszámfejtésbe** került. Mostantól: TAJ CDV (9 számjegy, 3-7 súlyok), adóazonosító CDV (10 számjegy, 1-9 súlyok), bankszámla hossz-ellenőrzés (16-24 számjegy).
