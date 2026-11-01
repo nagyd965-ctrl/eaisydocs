@@ -4,6 +4,13 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-11-01)
 
+### [eaisyHR]: GDPR Toborzás-Csomag + Mt.126 + KPI-Tulajdonos + Docs-Osztály Védelem (Deep-Analysis 2.6/2.1/2.3, audit #30-#33)
+- **KPI önértékelés tulajdonos-védelme (`performance/actions.ts`, commit `7e2d832`):** az `addKpiSelfEvaluation` korábban nem ellenőrizte, hogy a hívó a KPI tulajdonosa-e — bárki bármely KPI-ra írhatott önértékelést/pontszámot. Mostantól: `kpiData.dolgozo_id !== user.id` → elutasítás.
+- **Docs-osztály védelme HR-műveletekből (`orgunit/[id]/actions.ts`):** az `assignEmployeeToOrgUnit` és `removeEmployeeFromOrgUnit` korábban a `szervezeti_egyseg_id`-t (Docs-oldali osztály, iratláthatóság!) is felülírta — a HR-oldali áthelyezés csendben megváltoztatta a dolgozó Docs-láthatóságát. Mostantól csak a `hr_szervezeti_egyseg_id` íródik.
+- **Mt. 126. § kilépő igazolás pontosítása (`offboarding/actions.ts`):** (a) a `countWorkdaysInYear` csak szombaton-vasárnapot zárt ki — a magyar munkaszüneti napok is betegnapként számítódtak; (b) a `"beteg"` (TB-táppénz) típus is beszámítódtak, pedig az Mt. 126. szerint csak betegszabadság számít. Javítás: `countWorkdaysWithHolidays` (hr_munkaszuneti_nap-ból) + csak `"betegszabadsag"` típus.
+- **GDPR toborzás-csomag (commit `7ce6e19`):** (a) **Consent perzisztálás** — minden jelentkezésnél audit-napló bejegyzés a hozzájárulásról (ki, mikor, melyik cégnél, milyen tájékoztató-verzió); (b) **Tájékoztató javítása** — „6 hónap" → „30 nap (elutasított) / 12 hónap (Talent Pool)"; (c) **Anonimizáló cron** — új `/api/cron/gdpr-anonymize` (vercel.json-ban napi 3:00-kor ütemezve); (d) **CV-takarítás** — jelölt-törléskor a CV-fájl is törlődik a Storage-ből.
+- **Elvetve:** orvosi/fegyelmi PDF-ek a „Hivatalos dokumentumok" fülről — a megrendelő szerint nem hiba, mert a 360° kartonra úgyis csak HR/vezetők/compliance/audit jut be (az `isAllowed` guard már védi).
+
 ### [eaisyHR]: Áttekintés Oldal — Kérések Mind a 3 Típusból + Párhuzamos Betöltés + Cégszűrés (P1+P3)
 - **Kérések-lista bővítése (`src/app/hr/page.tsx`, commit `cc09fb0`):** a „Legutóbbi Kérelmek" kártya korábban **csak szabadságokat** mutatott — mostantól mind a 3 típus (szabadság + jelenlétkorrekció + túlóra) listázódik típus-jelölővel, dátum szerint csökkenő sorrendben.
 - **Párhuzamos adatbetöltés:** a ~10 szekvenciális DB-hívás egy `Promise.all`-ban fut — az oldal betöltési ideje jelentősen csökken.
