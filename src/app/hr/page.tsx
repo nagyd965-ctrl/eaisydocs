@@ -20,7 +20,16 @@ export default async function SelfServicePage() {
 
   const currentYear = new Date().getFullYear()
 
+  // Aktív cég feloldása (cégszűrés a több-bérlős elkülönítéshez)
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  // Cégszűrő feltétel (van company_id oszlop a táblán és van aktív cég)
+  const cs = (q: any) => activeCompanyId ? q.eq("company_id", activeCompanyId) : q
+
   // ── Párhuzamos adatbetöltés (P3-javítás 2026-11-01): minden DB-hívás egyszerre ──
+  // P1-javítás (2026-11-01): minden céges táblára aktív-cég szűrés — korábban a
+  // többcéges dolgozó MINDEN cég adatait látta mindkét nézetben
   const [
     adatlapRes,
     jogviszonyRes,
@@ -42,18 +51,18 @@ export default async function SelfServicePage() {
       .select("*, felhasznalo_profil(nev)")
       .eq("id", user.id)
       .single(),
-    supabase
+    cs(supabase
       .from("hr_jogviszony")
       .select("belepes_datuma, hr_beosztas(ervenyes_ig, hr_munkakor(megnevezes))")
       .eq("dolgozo_id", user.id)
       .is("kilepes_datuma", null)
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false }))
       .limit(1)
       .maybeSingle(),
-    supabase
+    cs(supabase
       .from("hr_tavollet")
       .select("*")
-      .eq("dolgozo_id", user.id)
+      .eq("dolgozo_id", user.id))
       .order("created_at", { ascending: false }),
     supabase
       .from("hr_munkaszuneti_nap")
@@ -61,59 +70,62 @@ export default async function SelfServicePage() {
       .gte("datum", `${currentYear}-01-01`)
       .lte("datum", `${currentYear}-12-31`)
       .eq("athelye_munkanap", false),
-    supabase
+    cs(supabase
       .from("hr_jelenlet")
       .select("becsekkolas_ideje, kicsekkolas_ideje, szunet_perc, szunet_ms, szunet_kezdete")
       .eq("dolgozo_id", user.id)
-      .eq("datum", new Date().toISOString().split("T")[0])
+      .eq("datum", new Date().toISOString().split("T")[0]))
       .single(),
-    supabase
+    cs(supabase
       .from("hr_tulora_egyenleg")
       .select("perc")
-      .eq("dolgozo_id", user.id)
+      .eq("dolgozo_id", user.id))
       .maybeSingle(),
     // Függő kérelmek száma (mind a 3 típus — a KPI-hoz)
-    supabase
+    cs(supabase
       .from("hr_jelenlet_korrekcio")
       .select("id", { count: "exact", head: true })
       .eq("dolgozo_id", user.id)
-      .eq("statusz", "jovahagyasra_var"),
+      .eq("statusz", "jovahagyasra_var")),
+    // Megjegyzés: a hr_tulora_felhasznalás táblán nincs company_id oszlop (migrációs tétel)
     supabase
       .from("hr_tulora_felhasznalás")
       .select("id", { count: "exact", head: true })
       .eq("dolgozo_id", user.id)
       .eq("statusz", "jovahagyasra_var"),
     // Kérések listája — korrekciók és túlórák is (P1-javítás 2026-11-01)
-    supabase
+    cs(supabase
       .from("hr_jelenlet_korrekcio")
       .select("id, datum, uj_becsekkolas, uj_kicsekkolas, statusz, created_at")
-      .eq("dolgozo_id", user.id)
+      .eq("dolgozo_id", user.id))
       .order("created_at", { ascending: false })
       .limit(5),
+    // Megjegyzés: hr_tulora_felhasznalás — nincs company_id (migrációs tétel)
     supabase
       .from("hr_tulora_felhasznalás")
       .select("id, tipus, orak, statusz, created_at")
       .eq("dolgozo_id", user.id)
       .order("created_at", { ascending: false })
       .limit(5),
-    supabase
+    cs(supabase
       .from("hr_cafeteria_keret")
       .select("ev, osszeg, nyilatkozat_lezarva, iktatoszam")
       .eq("dolgozo_id", user.id)
-      .eq("ev", currentYear)
+      .eq("ev", currentYear))
       .maybeSingle(),
     supabase
       .from("hr_cafeteria_katalogus")
       .select("id, nev, leiras, szorzo, kategoria")
       .eq("aktiv", true)
       .order("nev"),
-    supabase
+    cs(supabase
       .from("hr_cafeteria_valasztas")
       .select("katalogus_elem_id, kert_osszeg, levont_keret_osszeg")
       .eq("dolgozo_id", user.id)
-      .eq("ev", currentYear),
+      .eq("ev", currentYear)),
     // KPI-k: session-kliensen az RLS blokkolja a sima dolgozó elől (a hr_teljesitmeny
     // tábla csak HR-modulos usernek nyitott) — service-role kell a saját KPI-k olvasásához
+    // + cég-szűrés (P1-javítás: többcéges dolgozó csak az aktív cég KPI-jait látja)
     (async () => {
       const { createClient: createAdminClient } = await import("@supabase/supabase-js")
       const adminClient = createAdminClient(
@@ -121,17 +133,20 @@ export default async function SelfServicePage() {
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
         { auth: { autoRefreshToken: false, persistSession: false } }
       )
-      return adminClient
+      let q = adminClient
         .from("hr_teljesitmeny")
         .select("*, hr_teljesitmeny_ciklus(megnevezes)")
         .eq("dolgozo_id", user.id)
-        .order("created_at", { ascending: false })
+      if (activeCompanyId) {
+        q = q.eq("company_id", activeCompanyId)
+      }
+      return q.order("created_at", { ascending: false })
     })(),
   ])
 
   const adatlap = adatlapRes.data
   const jogviszony = jogviszonyRes.data
-  const tavolletek = tavolletekRes.data || []
+  const tavolletek: any[] = tavolletekRes.data || []
   const holidaysData = holidaysRes.data
   const jelenlet = jelenletRes.data
   const kpis = kpisRes.data
