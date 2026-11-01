@@ -18,7 +18,25 @@ export default async function SelfServicePage() {
     redirect("/login")
   }
 
-  const [adatlapRes, jogviszonyRes] = await Promise.all([
+  const currentYear = new Date().getFullYear()
+
+  // ── Párhuzamos adatbetöltés (P3-javítás 2026-11-01): minden DB-hívás egyszerre ──
+  const [
+    adatlapRes,
+    jogviszonyRes,
+    tavolletekRes,
+    holidaysRes,
+    jelenletRes,
+    tuloraEgyenlegRes,
+    korrekcioCountRes,
+    tuloraCountRes,
+    korrekcioListRes,
+    tuloraListRes,
+    cafeteriaKeretRes,
+    cafeteriaKatalogusRes,
+    cafeteriaValasztasokRes,
+    kpisRes,
+  ] = await Promise.all([
     supabase
       .from("hr_dolgozo_adatlap")
       .select("*, felhasznalo_profil(nev)")
@@ -32,10 +50,81 @@ export default async function SelfServicePage() {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("hr_tavollet")
+      .select("*")
+      .eq("dolgozo_id", user.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("hr_munkaszuneti_nap")
+      .select("datum")
+      .gte("datum", `${currentYear}-01-01`)
+      .lte("datum", `${currentYear}-12-31`)
+      .eq("athelye_munkanap", false),
+    supabase
+      .from("hr_jelenlet")
+      .select("becsekkolas_ideje, kicsekkolas_ideje, szunet_perc, szunet_ms, szunet_kezdete")
+      .eq("dolgozo_id", user.id)
+      .eq("datum", new Date().toISOString().split("T")[0])
+      .single(),
+    supabase
+      .from("hr_tulora_egyenleg")
+      .select("perc")
+      .eq("dolgozo_id", user.id)
+      .maybeSingle(),
+    // Függő kérelmek száma (mind a 3 típus — a KPI-hoz)
+    supabase
+      .from("hr_jelenlet_korrekcio")
+      .select("id", { count: "exact", head: true })
+      .eq("dolgozo_id", user.id)
+      .eq("statusz", "jovahagyasra_var"),
+    supabase
+      .from("hr_tulora_felhasznalás")
+      .select("id", { count: "exact", head: true })
+      .eq("dolgozo_id", user.id)
+      .eq("statusz", "jovahagyasra_var"),
+    // Kérések listája — korrekciók és túlórák is (P1-javítás 2026-11-01)
+    supabase
+      .from("hr_jelenlet_korrekcio")
+      .select("id, datum, uj_becsekkolas, uj_kicsekkolas, statusz, created_at")
+      .eq("dolgozo_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("hr_tulora_felhasznalás")
+      .select("id, tipus, orak, statusz, created_at")
+      .eq("dolgozo_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("hr_cafeteria_keret")
+      .select("ev, osszeg, nyilatkozat_lezarva, iktatoszam")
+      .eq("dolgozo_id", user.id)
+      .eq("ev", currentYear)
+      .maybeSingle(),
+    supabase
+      .from("hr_cafeteria_katalogus")
+      .select("id, nev, leiras, szorzo, kategoria")
+      .eq("aktiv", true)
+      .order("nev"),
+    supabase
+      .from("hr_cafeteria_valasztas")
+      .select("katalogus_elem_id, kert_osszeg, levont_keret_osszeg")
+      .eq("dolgozo_id", user.id)
+      .eq("ev", currentYear),
+    supabase
+      .from("hr_teljesitmeny")
+      .select("*, hr_teljesitmeny_ciklus(megnevezes)")
+      .eq("dolgozo_id", user.id)
+      .order("created_at", { ascending: false }),
   ])
 
   const adatlap = adatlapRes.data
   const jogviszony = jogviszonyRes.data
+  const tavolletek = tavolletekRes.data || []
+  const holidaysData = holidaysRes.data
+  const jelenlet = jelenletRes.data
+  const kpis = kpisRes.data
   const beosztasList = Array.isArray(jogviszony?.hr_beosztas)
     ? jogviszony.hr_beosztas
     : jogviszony?.hr_beosztas
@@ -48,23 +137,7 @@ export default async function SelfServicePage() {
   const munkakorMegnevezes = activeMunkakor?.megnevezes || null
   const belepesDatuma = jogviszony?.belepes_datuma || null
 
-  // 1. Szabadság egyenleg számítása
-  const currentYear = new Date().getFullYear()
-
-  const [{ data: tavolletek }, { data: holidaysData }] = await Promise.all([
-    supabase
-      .from("hr_tavollet")
-      .select("*")
-      .eq("dolgozo_id", user.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("hr_munkaszuneti_nap")
-      .select("datum")
-      .gte("datum", `${currentYear}-01-01`)
-      .lte("datum", `${currentYear}-12-31`)
-      .eq("athelye_munkanap", false),
-  ])
-
+  // 1. Szabadság egyenleg számítás (a párhuzamos lekérdezés eredményeiből)
   const holidayDates = (holidaysData || []).map((h: any) => h.datum as string)
 
   const yearStart = `${currentYear}-01-01`
@@ -102,51 +175,70 @@ export default async function SelfServicePage() {
   const pendingLeavesCount = tavolletek?.filter(t => t.statusz === "jovahagyasra_var").length || 0
   const remainingLeave = Math.max(0, totalLeave - usedLeave)
 
-  // P1-javítás (2026-11-01, deep-analysis 2.1): a „Függőben Lévő" KPI korábban CSAK
-  // a szabadságkérelmeket számolta — a jelenlétkorrekciókat és túlóra-kérelmeket nem
-  // (aluljelentette a valós teendőket)
-  const [korrekcioRes, tuloraRes] = await Promise.all([
-    supabase
-      .from("hr_jelenlet_korrekcio")
-      .select("id", { count: "exact", head: true })
-      .eq("dolgozo_id", user.id)
-      .eq("statusz", "jovahagyasra_var"),
-    supabase
-      .from("hr_tulora_felhasznalás")
-      .select("id", { count: "exact", head: true })
-      .eq("dolgozo_id", user.id)
-      .eq("statusz", "jovahagyasra_var"),
-  ])
+  // P1-javítás (2026-11-01): a „Függőben Lévő" KPI mind a 3 típusból számol
+  // (a párhuzamos lekérdezés eredményeiből)
   const pendingRequestsCount =
     pendingLeavesCount +
-    (korrekcioRes.count || 0) +
-    (tuloraRes.count || 0)
+    (korrekcioCountRes.count || 0) +
+    (tuloraCountRes.count || 0)
 
-  // Legutóbbi 3 távollét kérelem
-  const recentLeaves = tavolletek?.slice(0, 3) || []
+  // ── P1-javítás (2026-11-01): Kérések listája — mind a 3 típus (szabadság + korrekció + túlóra) ──
+  type AllRequest = {
+    id: string
+    type: "szabadsag" | "korrekcio" | "tulora"
+    title: string
+    detail: string
+    statusz: string
+    createdAt: string
+  }
+  const allRequests: AllRequest[] = [
+    ...(tavolletek || []).slice(0, 5).map((t: any) => ({
+      id: t.id,
+      type: "szabadsag" as const,
+      title: t.tipus === "szabadsag" ? "Szabadság" : t.tipus === "beteg" ? "Betegszabadság" : t.tipus === "betegszabadsag" ? "Betegszabadság" : t.tipus,
+      detail: `${t.kezdet_datuma?.slice(0, 10) || "–"} – ${t.veg_datuma?.slice(0, 10) || "–"}`,
+      statusz: t.statusz,
+      createdAt: t.created_at,
+    })),
+    ...(korrekcioListRes.data || []).map((k: any) => ({
+      id: k.id,
+      type: "korrekcio" as const,
+      title: "Jelenlétkorrekció",
+      detail: `${k.datum} · ${(k.uj_becsekkolas || "").slice(0, 5)} → ${(k.uj_kicsekkolas || "").slice(0, 5)}`,
+      statusz: k.statusz,
+      createdAt: k.created_at,
+    })),
+    ...(tuloraListRes.data || []).map((o: any) => ({
+      id: o.id,
+      type: "tulora" as const,
+      title: o.tipus === "kifizetes" ? "Túlóra kifizetés" : "Túlóra lecsúsztatás",
+      detail: `${o.orak || "?"} óra`,
+      statusz: o.statusz,
+      createdAt: o.created_at,
+    })),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-  // 2. Időrögzítés státusz
-  const { data: jelenlet } = await supabase
-    .from("hr_jelenlet")
-    .select("becsekkolas_ideje, kicsekkolas_ideje, szunet_perc, szunet_ms, szunet_kezdete")
-    .eq("dolgozo_id", user.id)
-    .eq("datum", new Date().toISOString().split("T")[0])
-    .single()
+  const recentRequests = allRequests.slice(0, 5)
+  const requestTypeLabel: Record<string, string> = {
+    szabadsag: "Szabadság",
+    korrekcio: "Korrekció",
+    tulora: "Túlóra",
+  }
+  const requestTypeColor: Record<string, string> = {
+    szabadsag: "bg-primary/10 text-primary",
+    korrekcio: "bg-info/10 text-info",
+    tulora: "bg-warning/10 text-warning",
+  }
 
+  // 2. Időrögzítés státusz (párhuzamos eredményből)
   let timeStatus: "none" | "checked_in" | "checked_out" = "none"
   if (jelenlet) {
     if (jelenlet.kicsekkolas_ideje) timeStatus = "checked_out"
     else timeStatus = "checked_in"
   }
 
-  // 3. Túlóra / Munkaidő egyenleg
-  const { data: tuloraData } = await supabase
-    .from("hr_tulora_egyenleg")
-    .select("perc")
-    .eq("dolgozo_id", user.id)
-    .maybeSingle()
-
-  const overtimeMinutes = tuloraData?.perc ?? 0
+  // 3. Túlóra / Munkaidő egyenleg (párhuzamos eredményből)
+  const overtimeMinutes = tuloraEgyenlegRes.data?.perc ?? 0
 
   const formatOvertime = (perc: number) => {
     const abs = Math.abs(perc)
@@ -158,41 +250,10 @@ export default async function SelfServicePage() {
     return `${sign}${h} ó ${m} p`
   }
 
-  // Cafeteria
-  const [
-    { data: cafeteriaKeret },
-    { data: cafeteriaKatalogus },
-    { data: cafeteriaValasztasok },
-  ] = await Promise.all([
-    supabase
-      .from("hr_cafeteria_keret")
-      .select("ev, osszeg, nyilatkozat_lezarva, iktatoszam")
-      .eq("dolgozo_id", user.id)
-      .eq("ev", currentYear)
-      .maybeSingle(),
-    supabase
-      .from("hr_cafeteria_katalogus")
-      .select("id, nev, leiras, szorzo, kategoria")
-      .eq("aktiv", true)
-      .order("nev"),
-    supabase
-      .from("hr_cafeteria_valasztas")
-      .select("katalogus_elem_id, kert_osszeg, levont_keret_osszeg")
-      .eq("dolgozo_id", user.id)
-      .eq("ev", currentYear),
-  ])
-
-  const { createClient: createAdminClient } = await import("@supabase/supabase-js")
-  const supabaseAdmin = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
-  const { data: kpis } = await supabaseAdmin
-    .from("hr_teljesitmeny")
-    .select("*, hr_teljesitmeny_ciklus(megnevezes)")
-    .eq("dolgozo_id", user.id)
-    .order("created_at", { ascending: false })
+  // Cafeteria (párhuzamos eredményekből)
+  const cafeteriaKeret = cafeteriaKeretRes.data
+  const cafeteriaKatalogus = cafeteriaKatalogusRes.data
+  const cafeteriaValasztasok = cafeteriaValasztasokRes.data
 
   const nev = adatlap?.felhasznalo_profil?.nev || "Dolgozó"
 
@@ -314,38 +375,33 @@ export default async function SelfServicePage() {
           </CardContent>
         </Card>
 
-        {/* Legutóbbi Kérelmek */}
+        {/* Legutóbbi Kérelmek — mind a 3 típus */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">Legutóbbi Kérelmek</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {recentLeaves.length > 0 ? (
-                recentLeaves.map((leave: any) => (
-                  <div key={leave.id} className="flex justify-between items-center text-sm border-b border-border pb-3 last:border-0 last:pb-0">
-                    <div>
-                      <p className="font-medium text-foreground">
-                        {leave.tipus === "szabadsag" ? "Szabadság" : leave.tipus}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">
-                        {leave.kezdet_datuma && !isNaN(new Date(leave.kezdet_datuma).getTime())
-                          ? new Date(leave.kezdet_datuma).toLocaleDateString("hu-HU")
-                          : "–"}
-                        {" – "}
-                        {leave.veg_datuma && !isNaN(new Date(leave.veg_datuma).getTime())
-                          ? new Date(leave.veg_datuma).toLocaleDateString("hu-HU")
-                          : "–"}
-                      </p>
+              {recentRequests.length > 0 ? (
+                recentRequests.map((req) => (
+                  <div key={req.id} className="flex justify-between items-center text-sm border-b border-border pb-3 last:border-0 last:pb-0">
+                    <div className="flex items-start gap-2.5">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide shrink-0 ${requestTypeColor[req.type] || "bg-muted text-muted-foreground"}`}>
+                        {requestTypeLabel[req.type] || req.type}
+                      </span>
+                      <div>
+                        <p className="font-medium text-foreground">{req.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">{req.detail}</p>
+                      </div>
                     </div>
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
-                      leave.statusz === "jovahagyva"
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider shrink-0 ${
+                      req.statusz === "jovahagyva"
                         ? "bg-success/10 text-success border border-success/20"
-                        : leave.statusz === "elutasitva"
+                        : req.statusz === "elutasitva"
                         ? "bg-destructive/10 text-destructive border border-destructive/20"
                         : "bg-warning/10 text-warning border border-warning/20"
                     }`}>
-                      {statuszLabel[leave.statusz] ?? leave.statusz}
+                      {statuszLabel[req.statusz] ?? req.statusz}
                     </span>
                   </div>
                 ))
