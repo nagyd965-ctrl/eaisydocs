@@ -52,6 +52,7 @@
 - **2.2 P0 (részben):** „túlóra-kérelmek újra-birálhatása" — a megrendelő UI-tesztje szerint **elutasított kérelemnél nem kattintható újra jóváhagyás** (nem reprodukálható a felületen; a szerveroldali státusz-őr hiánya marad kód-szintű megjegyzés).
 - **2.4 P1:** „pótszabadság-alapok önmódosíthatók" — a megrendelő tesztje szerint a sima dolgozó **nem éri el a kartont** és a Profilom nézetben **nem módosítható** — nem hiba.
 - **2.6 P1:** „belső-publikus hirdetés egyszerre" — a megrendelő tesztje szerint **az UI már kizárja** az egyszerre bekapcsolást (a szerveroldali kiegészítő védelem P2-es szintű maradvány).
+- **2.4 P1:** „orvosi/fegyelmi PDF-ek a Hivatalos dokumentumok fülről mindenkinek" — a megrendelő szerint **nem hiba**: a 360° kartonra úgyis csak HR, vezetők, compliance, audit és a dolgozó maga tud bejönni (az `isAllowed` guard már védi) — ezek a szerepkörök jogosultak az adatokra.
 
 ---
 
