@@ -4,6 +4,12 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-11-01)
 
+### [eaisyHR]: Áttekintés Oldal — Kérések Mind a 3 Típusból + Párhuzamos Betöltés + Cégszűrés (P1+P3)
+- **Kérések-lista bővítése (`src/app/hr/page.tsx`, commit `cc09fb0`):** a „Legutóbbi Kérelmek" kártya korábban **csak szabadságokat** mutatott — mostantól mind a 3 típus (szabadság + jelenlétkorrekció + túlóra) listázódik típus-jelölővel, dátum szerint csökkenő sorrendben.
+- **Párhuzamos adatbetöltés:** a ~10 szekvenciális DB-hívás egy `Promise.all`-ban fut — az oldal betöltési ideje jelentősen csökken.
+- **KPI-lekérés vissza service-role-ra (`88b0630`):** a párhuzamos átírásnál session-kliensre került a KPI-lekérés, de az RLS blokkolta a sima dolgozót — „Nincs aktív célkitűzésed" jelent meg. Visszaállítva service-role-ra (a Promise.all-ban, a gyorsulás megmarad).
+- **Cégszűrés minden táblára (`3e3e6f2`):** a megrendelő találta — Nagy Dánielnél ugyanazok az adatok jelentek meg mindkét cégnél. Minden céges táblára (jogviszony, távollét, jelenlet, túlóra-egyenleg, korrekció, cafeteria, KPI) aktív-cég szűrés került. *(Kivétel: `hr_tulora_felhasznalás` — nincs `company_id` oszlop, migrációs tétel.)*
+
 ### [eaisyHR]: SZEPE-Teljes Lezárás — 38 Legacy Guard-Lista Cseréje 6 Fájlban (Deep-Analysis 1.1 Gyökérok, audit #29)
 - **A „kompatibilitási szepe" bezárása:** a resolver 3. kompatibilitási szabála miatt bármely **1 HR-modullal** rendelkező felhasználó átjutott azokon az action-ökön, amelyek listája `hr_munkatars` vagy `hr_vezeto` elemet tartalmazott. Ezzel a commit-tal ez a réteg **teljesen lezárult** a HR-actionök szintjén.
 - **38 pont cseréje 6 fájlban (commit `2841d00`):**
