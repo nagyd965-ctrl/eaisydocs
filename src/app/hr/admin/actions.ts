@@ -19,7 +19,7 @@ export async function onboardEmployee(data: {
   munkakorId: string
   belepes_datuma: string
 }) {
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  const auth = await requireHrAuthServer(["admin"], null)
   if (!auth.authorized || !auth.user) {
     return { error: "Nincs jogosultságod új munkavállaló beléptetéséhez." }
   }

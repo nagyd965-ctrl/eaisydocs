@@ -43,7 +43,7 @@ export interface T1041ReportResponse {
  */
 async function loadHrMasterData(adminClient: any, targetCompanyId?: string | null) {
   const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi", "auditor"], null)
+  const auth = await requireHrAuthServer(["payroll", "admin", "auditor"], null)
   if (!auth.authorized) {
     return {
       activeCompanyId: null,
@@ -935,7 +935,7 @@ export async function saveArchiveRecord(
   feltolto_id: string
 ) {
   const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi"], null)
+  const auth = await requireHrAuthServer(["payroll", "admin"], null)
   if (!auth.authorized || !auth.user) {
     return { success: false, error: "Nincs jogosultságod bevallás archiválásához." }
   }
@@ -967,7 +967,7 @@ export async function saveArchiveRecord(
  */
 export async function uploadArchiveFileAdmin(formData: FormData) {
   const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi"], null)
+  const auth = await requireHrAuthServer(["payroll", "admin"], null)
   if (!auth.authorized || !auth.user) {
     return { success: false, error: "Nincs jogosultságod bevallás feltöltéséhez." }
   }
@@ -1026,7 +1026,7 @@ export async function uploadArchiveFileAdmin(formData: FormData) {
  */
 export async function getArchiveRecords() {
   const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi", "auditor"], null)
+  const auth = await requireHrAuthServer(["payroll", "admin", "auditor"], null)
   if (!auth.authorized) {
     return []
   }

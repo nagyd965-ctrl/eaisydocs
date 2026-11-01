@@ -16,7 +16,7 @@ function getAdminClient() {
 
 export async function addKpi(formData: FormData) {
   const auth = await requireHrAuthServer(
-    ["hr_munkatars", "hr_vezeto", "admin", "vezeto"],
+    ["admin", "vezeto"],
     null
   )
   if (!auth.authorized || !auth.user) {
@@ -118,7 +118,7 @@ export async function updateKpiProgress(kpiId: string, newValue: number) {
 
   if (kpiData.dolgozo_id !== user.id) {
     const auth = await requireHrAuthServer(
-      ["hr_munkatars", "hr_vezeto", "admin", "vezeto"],
+      ["admin", "vezeto"],
       null
     )
     const canManage = await canManageEmployeePerformance(
@@ -173,7 +173,7 @@ export async function updateKpiProgress(kpiId: string, newValue: number) {
 
 export async function deleteKpi(kpiId: string) {
   const auth = await requireHrAuthServer(
-    ["hr_munkatars", "hr_vezeto", "admin", "vezeto"],
+    ["admin", "vezeto"],
     null
   )
   if (!auth.authorized || !auth.user) {
@@ -227,7 +227,7 @@ export async function deleteKpi(kpiId: string) {
 
 export async function addCycle(formData: FormData) {
   const auth = await requireHrAuthServer(
-    ["hr_munkatars", "hr_vezeto", "admin"],
+    ["admin"],
     null
   )
   if (!auth.authorized || !auth.user) {
@@ -267,7 +267,7 @@ export async function addCycle(formData: FormData) {
 
 export async function updateCycleStatus(cycleId: string, newStatus: string) {
   const auth = await requireHrAuthServer(
-    ["hr_munkatars", "hr_vezeto", "admin"],
+    ["admin"],
     null
   )
   if (!auth.authorized || !auth.user) {
@@ -305,7 +305,7 @@ export async function updateCycleStatus(cycleId: string, newStatus: string) {
 
 export async function deleteCycle(cycleId: string) {
   const auth = await requireHrAuthServer(
-    ["hr_munkatars", "hr_vezeto", "admin"],
+    ["admin"],
     null
   )
   if (!auth.authorized || !auth.user) {
@@ -424,7 +424,7 @@ export async function addKpiManagerEvaluation(
   aktualisErtek?: number
 ) {
   const auth = await requireHrAuthServer(
-    ["hr_munkatars", "hr_vezeto", "admin", "vezeto"],
+    ["admin", "vezeto"],
     null
   )
   if (!auth.authorized || !auth.user) {
@@ -495,7 +495,7 @@ export async function addKpiManagerEvaluation(
 
 export async function confirmMeeting(kpiId: string, megjegyzes?: string) {
   const auth = await requireHrAuthServer(
-    ["hr_munkatars", "hr_vezeto", "admin", "vezeto"],
+    ["admin", "vezeto"],
     null
   )
   if (!auth.authorized || !auth.user) {
@@ -553,7 +553,7 @@ export async function confirmMeeting(kpiId: string, megjegyzes?: string) {
 
 export async function finalCloseKpi(kpiId: string) {
   const auth = await requireHrAuthServer(
-    ["hr_munkatars", "hr_vezeto", "admin", "vezeto"],
+    ["admin", "vezeto"],
     null
   )
   if (!auth.authorized || !auth.user) {
@@ -610,7 +610,7 @@ export async function finalCloseKpi(kpiId: string) {
 
 export async function editKpi(kpiId: string, formData: FormData) {
   const auth = await requireHrAuthServer(
-    ["hr_munkatars", "hr_vezeto", "admin", "vezeto"],
+    ["admin", "vezeto"],
     null
   )
   if (!auth.authorized || !auth.user) {

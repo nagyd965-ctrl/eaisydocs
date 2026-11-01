@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: string) {
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  const auth = await requireHrAuthServer(["admin"], null)
   if (!auth.authorized || !auth.user) {
     return { error: "Nincs jogosultságod szervezeti egység módosításához." }
   }
@@ -37,7 +37,7 @@ export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: str
 }
 
 export async function removeEmployeeFromOrgUnit(orgUnitId: string, employeeId: string) {
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin"], null)
+  const auth = await requireHrAuthServer(["admin"], null)
   if (!auth.authorized || !auth.user) {
     return { error: "Nincs jogosultságod szervezeti egység módosításához." }
   }

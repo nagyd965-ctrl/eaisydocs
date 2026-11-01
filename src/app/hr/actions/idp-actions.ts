@@ -390,7 +390,7 @@ export async function uploadIDPCertificateAction(formData: FormData) {
   }
   if (cel.dolgozo_id !== user.id) {
     const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
-    const auth = await requireHrAuthServer(['hr_munkatars', 'hr_vezeto', 'admin', 'vezeto'], null);
+    const auth = await requireHrAuthServer(['admin', 'vezeto'], null);
     if (!auth.authorized) {
       return { success: false, error: 'Nincs jogosultságod más dolgozó tanúsítványának feltöltéséhez.' };
     }
@@ -451,7 +451,7 @@ export async function uploadIDPCertificateAction(formData: FormData) {
 
 export async function approveDevelopmentGoal(celId: string, megjegyzes?: string) {
   const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
-  const auth = await requireHrAuthServer(['hr_munkatars', 'hr_vezeto', 'admin', 'vezeto'], null);
+  const auth = await requireHrAuthServer(['admin', 'vezeto'], null);
   if (!auth.authorized || !auth.user) {
     return { success: false, error: 'Nincs jogosultságod a fejlesztési cél jóváhagyásához.' };
   }
@@ -549,7 +549,7 @@ export async function approveDevelopmentGoal(celId: string, megjegyzes?: string)
 
 export async function rejectDevelopmentGoal(celId: string, indoklas: string) {
   const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
-  const auth = await requireHrAuthServer(['hr_munkatars', 'hr_vezeto', 'admin', 'vezeto'], null);
+  const auth = await requireHrAuthServer(['admin', 'vezeto'], null);
   if (!auth.authorized || !auth.user) {
     return { success: false, error: 'Nincs jogosultságod a fejlesztési cél elutasításához.' };
   }

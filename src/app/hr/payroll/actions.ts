@@ -102,7 +102,7 @@ export async function getPayrollDashboardData(
   targetCompanyId?: string
 ): Promise<{ data: PayrollDashboardData | null; error?: string }> {
   const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi", "auditor"], null)
+  const auth = await requireHrAuthServer(["payroll", "admin", "auditor"], null)
   if (!auth.authorized || !auth.user) {
     return { data: null, error: "Nincs jogosultságod a bérszámfejtési adatok megtekintéséhez." }
   }
@@ -498,7 +498,7 @@ export async function generateMonthlyPayslipsAction(params: {
   publishImmediately?: boolean
 }): Promise<{ success: boolean; count?: number; error?: string }> {
   const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-  const auth = await requireHrAuthServer(["hr_munkatars", "hr_vezeto", "admin", "berugyi"], null)
+  const auth = await requireHrAuthServer(["payroll", "admin"], null)
   if (!auth.authorized || !auth.user) {
     return { success: false, error: "Nincs jogosultságod bérjegyzékek előállításához." }
   }
@@ -865,8 +865,9 @@ export async function downloadPayslipPdfAction(
     const isOwner = p.dolgozo_id === user.id
     if (!isOwner) {
       const targetCompId = p.company_id || activeCompanyId
-      const { hrRole, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(targetCompId)
-      const isHr = isCompanyAdmin || ["admin", "hr_vezeto", "hr_munkatars"].includes(hrRole)
+      const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(targetCompId)
+      const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
+      const isHr = isCompanyAdmin || isUserAuthorizedForHrView(hrRole, ["payroll"], hrModules)
       if (!isHr) return { error: "Nincs jogosultságod a bérpapír letöltéséhez" }
     }
 
