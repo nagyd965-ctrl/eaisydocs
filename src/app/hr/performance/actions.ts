@@ -373,6 +373,13 @@ export async function addKpiSelfEvaluation(
 
   if (!kpiData) return { error: "Célkitűzés nem található." }
 
+  // ── HR deep-analysis 20261029 (2.1) P0-javítás (2026-11-01): tulajdonos-ellenőrzés ──
+  // Korábban bárki bármely KPI-ra írhatott önértékelést/pontszámot — mostantól
+  // csak a SAJÁT célkitűzésére írhat a bejelentkezett dolgozó.
+  if (kpiData.dolgozo_id !== user.id) {
+    return { error: "Csak a saját célkitűzésedre írhat önértékelést." }
+  }
+
   const updatePayload: any = {
     onertekeles_szovege: ertekelesSzovege,
     workflow_fazis: "onertekeles",

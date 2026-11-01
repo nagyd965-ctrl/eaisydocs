@@ -11,19 +11,42 @@ import { generateExitCertificatePdfBuffer } from "@/utils/hr/exit-certificate-pd
 import { type ExitCertificatePdfData, DEFAULT_EXIT_DOCUMENTS } from "@/utils/hr/exit-certificate-constants"
 import { executeHrDocumentFiling, findEmployeeDossier } from "@/utils/hr-filing-bridge"
 
-function countWorkdaysInYear(kezdetDatuma: string, vegDatuma: string, year: number): number {
+/**
+ * Munkanapok számítása egy adott évre — magyar munkaszüneti napokkal.
+ * (P1-javítás 2026-11-01, Mt. 126. §: korábban csak szombaton-vasárnapot zárt ki,
+ *  a magyar ünnepek is munkanapként számítódtak → felfújt betegszabadság-szám.)
+ */
+async function countWorkdaysWithHolidays(
+  supabaseAdmin: any,
+  kezdetDatuma: string,
+  vegDatuma: string,
+  year: number
+): Promise<number> {
   if (!kezdetDatuma || !vegDatuma) return 0
-  const yearStart = new Date(`${year}-01-01T00:00:00`)
-  const yearEnd = new Date(`${year}-12-31T00:00:00`)
-  const start = new Date(Math.max(new Date(`${kezdetDatuma}T00:00:00`).getTime(), yearStart.getTime()))
-  const end = new Date(Math.min(new Date(`${vegDatuma}T00:00:00`).getTime(), yearEnd.getTime()))
-  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return 0
+
+  // Magyar munkaszüneti napok lekérése az adott évre
+  const { data: holidaysData } = await supabaseAdmin
+    .from("hr_munkaszuneti_nap")
+    .select("datum")
+    .gte("datum", `${year}-01-01`)
+    .lte("datum", `${year}-12-31`)
+    .eq("athelye_munkanap", false)
+
+  const holidaySet = new Set((holidaysData || []).map((h: any) => h.datum))
+
+  const yearStart = `${year}-01-01`
+  const yearEnd = `${year}-12-31`
+  const start = kezdetDatuma > yearStart ? kezdetDatuma : yearStart
+  const end = vegDatuma < yearEnd ? vegDatuma : yearEnd
+  if (start > end) return 0
 
   let workDays = 0
-  const cur = new Date(start)
-  while (cur <= end) {
+  const cur = new Date(`${start}T00:00:00`)
+  const endD = new Date(`${end}T00:00:00`)
+  while (cur <= endD) {
     const day = cur.getDay()
-    if (day !== 0 && day !== 6) {
+    const dateStr = cur.toISOString().split("T")[0]
+    if (day !== 0 && day !== 6 && !holidaySet.has(dateStr)) {
       workDays++
     }
     cur.setDate(cur.getDate() + 1)
@@ -841,19 +864,24 @@ export async function getOffboardingDetailData(offboardingId: string) {
       .order("created_at", { ascending: false })
 
     // Tárgyévi jóváhagyott betegszabadság napok lekérése (Mt. 126. §)
+    // P1-javítás (2026-11-01): csak "betegszabadsag" típus — a "beteg" (TB-táppénz)
+    // NEM számít az Mt. 126. § szerint a munkáltató általi felmondási okba
     const currentYear = new Date().getFullYear()
     const { data: sickLeaves } = await adminClient
       .from("hr_tavollet")
       .select("kezdet_datuma, veg_datuma, tipus")
       .eq("dolgozo_id", offboarding.dolgozo_id)
-      .in("tipus", ["beteg", "betegszabadsag"])
+      .eq("tipus", "betegszabadsag")
       .eq("statusz", "jovahagyva")
       .lte("kezdet_datuma", `${currentYear}-12-31`)
       .gte("veg_datuma", `${currentYear}-01-01`)
 
-    const targyeviBetegszabadsagNapok = (sickLeaves || []).reduce(
-      (acc: number, curr: any) => acc + countWorkdaysInYear(curr.kezdet_datuma, curr.veg_datuma, currentYear),
-      0
+    const targyeviBetegszabadsagNapok = await (sickLeaves || []).reduce(
+      async (accPromise: Promise<number>, curr: any) => {
+        const acc = await accPromise
+        return acc + await countWorkdaysWithHolidays(adminClient, curr.kezdet_datuma, curr.veg_datuma, currentYear)
+      },
+      Promise.resolve(0)
     )
 
     // Kapcsolódó dokumentumok lekérése a hr_dokumentum táblából (iktatási metaadatokkal)
@@ -1489,6 +1517,7 @@ export async function generateExitCertificateAction(
     .maybeSingle()
 
   // Tárgyévi betegszabadság automatikus feloldása ha nem lett manuálisan megadva
+  // P1-javítás (2026-11-01): csak "betegszabadsag" típus + magyar ünnepnapok
   let resolvedBetegszabi = payload.betegszabadsagNapok
   if (resolvedBetegszabi === undefined || resolvedBetegszabi === null) {
     const currentYear = new Date().getFullYear()
@@ -1496,15 +1525,17 @@ export async function generateExitCertificateAction(
       .from("hr_tavollet")
       .select("kezdet_datuma, veg_datuma, tipus")
       .eq("dolgozo_id", offboarding.dolgozo_id)
-      .in("tipus", ["beteg", "betegszabadsag"])
+      .eq("tipus", "betegszabadsag")
       .eq("statusz", "jovahagyva")
       .lte("kezdet_datuma", `${currentYear}-12-31`)
       .gte("veg_datuma", `${currentYear}-01-01`)
 
-    resolvedBetegszabi = (sickLeaves || []).reduce(
-      (acc: number, curr: any) => acc + countWorkdaysInYear(curr.kezdet_datuma, curr.veg_datuma, currentYear),
-      0
+    const sickDayCounts = await Promise.all(
+      (sickLeaves || []).map((s: any) =>
+        countWorkdaysWithHolidays(adminClient, s.kezdet_datuma, s.veg_datuma, currentYear)
+      )
     )
+    resolvedBetegszabi = sickDayCounts.reduce((a: number, b: number) => a + b, 0)
   }
 
   // 1. PDF Adatok összeállítása

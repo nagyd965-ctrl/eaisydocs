@@ -15,9 +15,13 @@ export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: str
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  // ── HR deep-analysis 20261029 (2.3) P0-javítás (2026-11-01): Docs-mező védelme ──
+  // Korábban az update a `szervezeti_egyseg_id`-t is felülírta — ez a DOCS-oldali
+  // osztály, ami az iratláthatóságot (4-dim RLS) határozza meg! A HR-oldali
+  // áthelyezés mostantól CSAK a hr_szervezeti_egyseg_id-t módosítja.
   const { data: updated, error } = await supabaseAdmin
     .from("felhasznalo_profil")
-    .update({ hr_szervezeti_egyseg_id: orgUnitId, szervezeti_egyseg_id: orgUnitId })
+    .update({ hr_szervezeti_egyseg_id: orgUnitId })
     .eq("id", employeeId)
     .select("id, hr_szervezeti_egyseg_id")
 
@@ -47,9 +51,10 @@ export async function removeEmployeeFromOrgUnit(orgUnitId: string, employeeId: s
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  // ── P0-javítás: a Docs-oldali szervezeti_egyseg_id itt SEM írható felül ──
   const { error } = await supabaseAdmin
     .from("felhasznalo_profil")
-    .update({ hr_szervezeti_egyseg_id: null, szervezeti_egyseg_id: null })
+    .update({ hr_szervezeti_egyseg_id: null })
     .eq("id", employeeId)
 
   if (error) {
