@@ -9,6 +9,35 @@ import { getClientInfo } from "@/utils/client-info"
  */
 export async function getDossierExplicitAccess(ugyiratId: string) {
   const supabase = await createClient()
+
+  // ── HR/Docs deep-analysis P1-javítás (2026-11-01): őrblokk ──
+  // Korábban guard nélkül futott és az ugyirat_hozzaferes SELECT-policyje
+  // USING (true) — bárki bárminek a hozzáférési listáját felsorolhatta.
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: "Nincs bejelentkezve", data: [] }
+  }
+
+  // Ellenőrzés: a hívó látja-e az ügyiratot (admin/iktató/auditor vagy van explicit joga)
+  const { data: profile } = await supabase
+    .from("felhasznalo_profil")
+    .select("docs_szerepkor")
+    .eq("id", user.id)
+    .single()
+
+  const privilegedRole = ["admin", "rendszergazda", "iktato", "auditor"].includes(profile?.docs_szerepkor || "")
+  if (!privilegedRole) {
+    const { data: access } = await supabase
+      .from("ugyirat_hozzaferes")
+      .select("id")
+      .eq("ugyirat_id", ugyiratId)
+      .eq("user_id", user.id)
+      .maybeSingle()
+    if (!access) {
+      return { error: "Nincs jogosultságod az ügyirat hozzáférési listájának megtekintéséhez.", data: [] }
+    }
+  }
+
   const { data, error } = await supabase
     .from("ugyirat_hozzaferes")
     .select(`

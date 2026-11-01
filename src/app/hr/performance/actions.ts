@@ -276,6 +276,18 @@ export async function updateCycleStatus(cycleId: string, newStatus: string) {
 
   const adminClient = getAdminClient()
 
+  // P1-javítás (2026-11-01): cég-ellenőrzés — más cég ciklusa nem módosítható
+  if (auth.activeCompanyId) {
+    const { data: cycle } = await adminClient
+      .from("hr_teljesitmeny_ciklus")
+      .select("company_id")
+      .eq("id", cycleId)
+      .maybeSingle()
+    if (cycle?.company_id && cycle.company_id !== auth.activeCompanyId) {
+      return { error: "Az értékelési ciklus másik céghez tartozik." }
+    }
+  }
+
   const { error } = await adminClient
     .from("hr_teljesitmeny_ciklus")
     .update({ statusz: newStatus })
@@ -301,6 +313,18 @@ export async function deleteCycle(cycleId: string) {
   }
 
   const adminClient = getAdminClient()
+
+  // P1-javítás (2026-11-01): cég-ellenőrzés — más cég ciklusa nem törölhető
+  if (auth.activeCompanyId) {
+    const { data: cycle } = await adminClient
+      .from("hr_teljesitmeny_ciklus")
+      .select("company_id")
+      .eq("id", cycleId)
+      .maybeSingle()
+    if (cycle?.company_id && cycle.company_id !== auth.activeCompanyId) {
+      return { error: "Az értékelési ciklus másik céghez tartozik." }
+    }
+  }
 
   const { count } = await adminClient
     .from("hr_teljesitmeny")

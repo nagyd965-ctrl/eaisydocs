@@ -1616,15 +1616,39 @@ export async function uploadHrDocument(employeeId: string, formData: FormData) {
 export async function hrSubmitLeaveRequest(employeeId: string, formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) {
     return { error: "Nincs bejelentkezve" }
+  }
+
+  // ── HR deep-analysis 20261029 (2.4) P0-javítás (2026-11-01): őrblokk + admin-kliens ──
+  // Korábban guard nélküli volt — a dolgozó is meghívhatta (önjóváhagyott
+  // szabadság, keret-ellenőrzés megkerülésével), a HR-es insertjét viszont az
+  // RLS elutasította (dolgozo_id ≠ auth.uid()). Mostantól:
+  // 1) Csak HR admin/vezető hívhatja
+  // 2) Az insert admin-kliensen fut (RLS-bypass a HR-rögzítéshez)
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["vezeto"], null)
+  if (!auth.authorized) {
+    return { error: "Csak HR vezető vagy adminisztrátor rögzíthet távollétet a dolgozó helyett." }
+  }
+
+  // Cég-ellenőrzés: a dolgozó az aktív céghez tartozzon
+  if (auth.activeCompanyId) {
+    const { data: adatlap } = await supabase
+      .from("hr_dolgozo_adatlap")
+      .select("company_id")
+      .eq("id", employeeId)
+      .maybeSingle()
+    if (adatlap?.company_id && adatlap.company_id !== auth.activeCompanyId) {
+      return { error: "A dolgozó másik céghez tartozik." }
+    }
   }
 
   const type = formData.get("type") as string
   const startDate = formData.get("startDate") as string
   const endDate = formData.get("endDate") as string
-  
+
   if (!type || !startDate || !endDate) {
     return { error: "Minden kötelező mezőt ki kell tölteni!" }
   }
@@ -1635,7 +1659,15 @@ export async function hrSubmitLeaveRequest(employeeId: string, formData: FormDat
 
   const activeCompanyId = await getActiveCompanyIdServer()
 
-  const { error } = await supabase
+  // Admin-kliens: a HR-es más dolgozójának szúr be — az RLS ezt user-kliensen elutasítaná
+  const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const { error } = await adminClient
     .from("hr_tavollet")
     .insert({
       dolgozo_id: employeeId,
@@ -1651,6 +1683,16 @@ export async function hrSubmitLeaveRequest(employeeId: string, formData: FormDat
     console.error("HR submit leave error:", error)
     return { error: "Hiba történt a távollét rögzítésekor." }
   }
+
+  // Audit napló
+  await adminClient.from("hr_esemeny_naplo").insert({
+    felhasznalo_id: user.id,
+    esemeny_tipus: "tavollet_hr_rögzítés",
+    entitas_tipus: "hr_tavollet",
+    entitas_id: employeeId,
+    megjegyzes: `HR rögzítette a távollétet (${type}: ${startDate} → ${endDate}, jóváhagyva)`,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {})
+  })
 
   revalidatePath(`/hr/employee/${employeeId}`)
   revalidatePath("/hr/manager")
