@@ -606,25 +606,26 @@ export function ApplicationForm({
                 </p>
 
                 <h4 className="font-semibold text-sm text-foreground">
-                  3. Adatkezelés időtartama (6 hónap Talent Pool)
+                  3. Adatkezelés időtartama
                 </h4>
                 <p>
-                  A személyes adatokat a jelentkezés benyújtásától számított <strong>6 hónapig</strong> tároljuk a vállalat saját tehetségbázisában (Talent Pool), ezt követően az adatok törlésre vagy anonimizálásra kerülnek.
+                  Elutasított jelöltek személyes adatait a döntés közlésétől számított <strong>30 nap</strong> elteltével anonimizáljuk (név és elérhetősékek törlése).
+                  A Tehetségbázisba (Talent Pool) átvezetett jelöltek adatait a jelentkezés benyújtásától számított <strong>12 hónapig</strong> tároljuk, ezt követően az adatok törlésre vagy anonimizálásra kerülnek.
                 </p>
 
                 <h4 className="font-semibold text-sm text-foreground">
                   4. Az érintett jogai
                 </h4>
                 <p>
-                  Bármikor jogosult tájékoztatást kérni adatai kezeléséről, kérheti azok helyesbítését, vagy a 6 hónapos időtartam lejárta előtt is kérheti adatai azonnali törlését.
+                  Bármikor jogosult tájékoztatást kérni adatai kezeléséről, kérheti azok helyesbítését, vagy a fenti időtartamok lejárta előtt is kérheti adatai azonnali törlését.
                 </p>
               </div>
             </DialogContent>
           </Dialog>
           , és hozzájárulok ahhoz, hogy a(z){" "}
           <strong className="text-foreground">{resolvedCompanyName}</strong> az
-          önéletrajzomat és a megadott adataimat a kiválasztási folyamat céljából{" "}
-          <strong className="text-foreground">6 hónapig</strong> kezelje.{" "}
+          önéletrajzomat és a megadott adataimat a kiválasztási folyamat céljából, valamint a
+          Tehetségbázisban <strong className="text-foreground">12 hónapig</strong> kezelje.{" "}
           <span className="text-destructive">*</span>
         </label>
       </div>

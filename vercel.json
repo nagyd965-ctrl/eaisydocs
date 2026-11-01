@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/nightly",
       "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/cron/gdpr-anonymize",
+      "schedule": "0 3 * * *"
     }
   ]
 }

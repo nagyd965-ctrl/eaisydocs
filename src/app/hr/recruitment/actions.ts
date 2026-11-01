@@ -324,6 +324,24 @@ export async function deleteCandidate(candidateId: string) {
 
   const adminClient = getAdminClient()
 
+  // ── GDPR P1-javítás (2026-11-01): CV-fájl törlése a Storage-ből ──
+  // Korábban csak a DB-rekord törölt — a CV-fájl árva maradt a Storage-ben.
+  const { data: candidate } = await adminClient
+    .from("hr_toborzas")
+    .select("cv_storage_path")
+    .eq("id", candidateId)
+    .maybeSingle()
+
+  if (candidate?.cv_storage_path) {
+    try {
+      await adminClient.storage
+        .from("hr_dokumentumok")
+        .remove([candidate.cv_storage_path])
+    } catch (storageErr) {
+      console.warn("CV Storage-törlési hiba (nem blokkoló):", storageErr)
+    }
+  }
+
   const { error } = await adminClient
     .from("hr_toborzas")
     .delete()

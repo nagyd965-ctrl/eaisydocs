@@ -204,7 +204,7 @@ export async function submitApplication(formData: FormData) {
         : null
 
     // 4. Adatbázis bejegyzés létrehozása a hr_toborzas táblában
-    const { error: dbError } = await supabaseAdmin.from("hr_toborzas").insert({
+    const { data: insertedCandidate, error: dbError } = await supabaseAdmin.from("hr_toborzas").insert({
       allashirdetes_id: allashirdetesId || null,
       megpalyazott_munkakor_id: resolvedMunkakorId || null,
       nev: nev.trim(),
@@ -221,13 +221,37 @@ export async function submitApplication(formData: FormData) {
       statusz: "uj",
       ...(targetCompanyId ? { company_id: targetCompanyId } : {}),
     })
+    .select("id")
+    .single()
 
-    if (dbError) {
-      console.error("Adatbázis hiba:", dbError)
+    if (dbError || !insertedCandidate) {
+      console.error("DB insert hiba:", dbError)
       return {
-        error: "Nem sikerült elmenteni a jelentkezést. Kérjük, próbálja újra később.",
+        error: "Nem sikerült rögzíteni a jelentkezést. Kérjük, próbálja újra később.",
       }
     }
+
+    // ── GDPR P1-javítás (2026-11-01): hozzájárulás (consent) perzisztálása ──
+    // A hozzájárulás bizonyíthatósága érdekében audit-napló bejegyzés készül,
+    // ami rögzíti: ki, mikor, melyik cégnél, milyen tájékoztató-verzió mellett
+    // adta a hozzájárulását (BRD-007 / A-014).
+    if (targetCompanyId) {
+      try {
+        await supabaseAdmin.from("hr_esemeny_naplo").insert({
+          company_id: targetCompanyId,
+          esemeny_tipus: "gdpr_hozzajarulas",
+          entitas_tipus: "hr_toborzas",
+          entitas_id: insertedCandidate.id,
+          megjegyzes: `GDPR hozzájárulás rögzítve: ${nev.trim()} (${email.trim()}) — Verzió: 2026-11 (30 nap elutasított / 12 hónap Talent Pool)`,
+        })
+      } catch (consentErr) {
+        console.error("Consent naplózási hiba (nem blokkoló):", consentErr)
+      }
+    }
+
+    // ── GDPR P1-javítás vége ──
+
+    // 5. Visszaigazoló e-mail küldése
 
     const positionName =
       postingTitle ||
