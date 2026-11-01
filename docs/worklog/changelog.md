@@ -4,6 +4,11 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-11-01)
 
+### [eaisyHR]: Audit-Authorize Szűkítés + TAJ-CDV Validáció + Offboarding Szepe-Csere (Deep-Analysis 2.5/2.1/1.1, audit #26-#28)
+- **Audit authorize szűkítés (`src/app/hr/audit/actions.ts`, commit `b2af02c`):** a HR audit `authorizeAuditRequest` listája korábban `["hr_vezeto", "hr_munkatars"]` mellett a resolver „szepe" miatt **bármely 1 modulos felhasználónak átengedte** — beleértve a **Kiküldési Napló** e-mail/SMS tartalmait (szabadságigénylés-szövegek, orvosi adatok). Szűkítés: `["admin", "audit", "compliance"]` modulkulcsokra.
+- **TAJ/adóazonosító/bankszámla CDV-validáció (`src/app/hr/self-service/actions.ts`):** az `updateSecretData` korábban **formai validáció nélkül** fogadta a titkos adatokat — elírt TAJ-szám vagy bankszámlaszám **közvetlenül a bérszámfejtésbe** került. Mostantól: TAJ CDV (9 számjegy, 3-7 súlyok), adóazonosító CDV (10 számjegy, 1-9 súlyok), bankszámla hossz-ellenőrzés (16-24 számjegy).
+- **Offboarding 9 legacy guard-lista cseréje (`src/app/hr/offboarding/actions.ts`):** a „szepe" bezárásának első nagy lépéseként mind a 9 offboarding action legacy `["hr_munkatars","hr_vezeto","admin"]` listája `["offboarding"]` modulkulcsra cserélve (auditor-változat: `["offboarding","audit"]`). Ezzel a kiléptetési műveletek (létrehozás, lezárás, törlés, dokumentumok) **nem érhetők el** többé pl. egy csak Műszakbeosztás-modulos usernek.
+
 ### [eaisyHR]: Hármas Csomag — Karton Cég-Ellenőrzés, Függő KPI, AI-Generátor Őrblokk (Deep-Analysis 2.4/2.1/2.6, audit #18-#20)
 - **360° dolgozói karton cég-ellenőrzése (`src/app/hr/employee/[id]/page.tsx`, commit `3cd9fd3`):** a karton **service-role klienssel** töltődött, a belépési guard nem hasonlította össze a dolgozó cégét a hívó aktív cégével — modullal rendelkező felhasználó **más cég dolgozójának teljes kartonját** láthatta (GDPR). Mostantól a `hr_dolgozo_adatlap.company_id` egyezik az aktív céggel (saját maga kivételével).
 - **„Függőben Lévő" KPI pontosítása (`src/app/hr/page.tsx`):** a kártya korábban **csak a szabadságkérelmeket** számolta — a jelenlétkorrekciókat és túlóra-kérelmeket nem. Mindhárom kérelestípus számolása (count+head lekérdezésekkel).
