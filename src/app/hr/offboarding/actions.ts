@@ -497,19 +497,42 @@ export async function closeOffboarding(
       .eq("id", offboarding.dolgozo_id)
 
     if (!isSelfOffboarding) {
-      // 4c. Jogosultságok azonnali megvonása (eaisyHR szerepkör inaktiválása)
-      await adminClient
-        .from("felhasznalo_profil")
-        .update({ hr_szerepkor: "inaktiv" })
-        .eq("id", offboarding.dolgozo_id)
+      // ── P1-javítás (2026-11-01, deep-analysis 2.4): multi-company dolgozó védelme ──
+      // Korábban a globális hr_szerepkor inaktiválása és a 100 éves Auth-ban
+      // FÜGGETLENÜL attól futott, hogy a dolgozónak van-e MÁSIK cégnél aktív
+      // jogviszonya — egy cég kiléptetése elvághatta a dolgozót a teljes
+      // platformtól. Mostantól csak akkor tiltjuk a fiókot, ha a dolgozónak
+      // egyetlen másik aktív cégtagsága sincs.
+      const { data: otherMemberships } = await adminClient
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", offboarding.dolgozo_id)
+        .neq("company_id", offboarding.company_id || "")
+      const hasOtherCompany = (otherMemberships || []).length > 0
 
-      // 4d. Automatikus Supabase Auth fiókletiltás (100 év ban)
-      try {
-        await adminClient.auth.admin.updateUserById(offboarding.dolgozo_id, {
-          ban_duration: '876000h'
-        })
-      } catch (authBanErr) {
-        console.error("Nem sikerült letiltani az auth fiókot:", authBanErr)
+      if (hasOtherCompany) {
+        // Multi-company dolgozó: csak az adott cég tagságát zárjuk le,
+        // a globális fiókot NEM bannoljuk
+        await adminClient
+          .from("company_members")
+          .update({ hr_szerepkor: "inaktiv" })
+          .eq("user_id", offboarding.dolgozo_id)
+          .eq("company_id", offboarding.company_id)
+      } else {
+        // Egy-céges dolgozó: a régi viselkedés (globális inaktiválás + Auth-ban)
+        await adminClient
+          .from("felhasznalo_profil")
+          .update({ hr_szerepkor: "inaktiv" })
+          .eq("id", offboarding.dolgozo_id)
+
+        // 4d. Automatikus Supabase Auth fiókletiltás (100 év ban)
+        try {
+          await adminClient.auth.admin.updateUserById(offboarding.dolgozo_id, {
+            ban_duration: '876000h'
+          })
+        } catch (authBanErr) {
+          console.error("Nem sikerült letiltani az auth fiókot:", authBanErr)
+        }
       }
     }
   }
