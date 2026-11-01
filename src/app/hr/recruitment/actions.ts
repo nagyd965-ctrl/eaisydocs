@@ -196,14 +196,29 @@ export async function scheduleInterview(candidateId: string, idopont: string, he
 
   const adminClient = getAdminClient()
 
+  // ── P1-javítás (2026-11-01, deep-analysis 2.6): cég-ellenőrzés + rekord-cég védelme ──
+  // Korábban az update company_id-ja MINDIG a hívó cégére írta felül a jelölt cégét —
+  // idegen cég jelöltjének "egyeztetése" végleg áthelyezte a rekordot a hívó céghez.
+  const { data: existingCandidate } = await adminClient
+    .from("hr_toborzas")
+    .select("id, company_id")
+    .eq("id", candidateId)
+    .maybeSingle()
+
+  if (!existingCandidate) {
+    return { error: "A jelölt nem található." }
+  }
+  if (existingCandidate.company_id && existingCandidate.company_id !== auth.activeCompanyId) {
+    return { error: "Nincs jogosultságod más cég jelöltjének interjú-egyeztetéséhez." }
+  }
+
   const { error } = await adminClient
     .from("hr_toborzas")
-    .update({ 
+    .update({
       statusz: "interju",
       interju_idopont: idopont,
       interju_helyszin: helyszin,
-      sms_emlekezteto_kerve: smsKerve,
-      company_id: auth.activeCompanyId
+      sms_emlekezteto_kerve: smsKerve
     })
     .eq("id", candidateId)
 
