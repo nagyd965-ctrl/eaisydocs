@@ -312,7 +312,18 @@ export function OfficialDocumentsTab({
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">Kategória: {doc.kategoria || "Egyéb"}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm text-muted-foreground">Kategória: {doc.kategoria || "Egyéb"}</p>
+                          {/* Érzékeny kategóriák megjelölése (a megrendelő kérése, 2026-11-01):
+                              GDPR Art. 9 szerinti egészségügyi adatok és fegyelmi eljárások */}
+                          {doc.kategoria && ["orvosi", "fegyelmi", "egészség"].some(k =>
+                            doc.kategoria!.toLowerCase().includes(k)
+                          ) && (
+                            <Badge variant="outline" className="text-xs font-medium bg-destructive/10 text-destructive border-destructive/20 py-0.5">
+                              Bizalmas
+                            </Badge>
+                          )}
+                        </div>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                           <span>Létrehozva: {new Date(doc.created_at).toLocaleString("hu-HU")}</span>
                           {doc.iktatva_ekor && (

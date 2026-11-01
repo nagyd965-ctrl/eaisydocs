@@ -6,6 +6,34 @@ import { checkMedicalValidityForDate } from "@/utils/hr/medical-compliance-check
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { calculateAnnualLeave, calculateWorkingDays } from "@/utils/hr/leave-calculator"
 
+/**
+ * P1-javítás (2026-11-01, HR deep-analysis 2.1): a Budapest-i időzóna (CET/CEST)
+ * eltólása ezredmásodpercben a MEGADOTT dátumra — a nyári/téli időszámítás
+ * váltásnapjain is helyes (a `Intl` API zónaszámítása alapján).
+ * Használat: a kliens által beírt HH:mm helyi idő → UTC ISO string
+ * (`new Date(localEpoch - getBudapestOffsetMs(datum))`).
+ */
+function getBudapestOffsetMs(dateStr: string): number {
+  try {
+    // A dátum déli 12:00-át vizsgáljuk (a váltás éjszaka történik — délben mindig
+    // a "tiszta" nyári vagy téli offset él)
+    const probe = new Date(`${dateStr}T12:00:00Z`)
+    const formatted = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Europe/Budapest",
+      timeZoneName: "longOffset",
+    }).format(probe)
+    // Formátum: "11/1/2026, GMT+01:00" vagy "GMT+02:00"
+    const match = formatted.match(/GMT([+-])(\d{2}):(\d{2})/)
+    if (!match) return 60 * 60 * 1000 // fallback: CET (+1)
+    const sign = match[1] === "-" ? -1 : 1
+    const hours = parseInt(match[2], 10)
+    const minutes = parseInt(match[3], 10)
+    return sign * (hours * 60 + minutes) * 60 * 1000
+  } catch {
+    return 60 * 60 * 1000 // fallback: CET (+1)
+  }
+}
+
 export async function submitLeaveRequest(formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -815,8 +843,12 @@ export async function submitAttendanceCorrection(params: {
   }
 
   // Időpontok összeállítása ISO formátumban
-  const becsekIso = new Date(`${datum}T${becsekkolas}:00`).toISOString()
-  const kicsekIso = new Date(`${datum}T${kicsekkolas}:00`).toISOString()
+  // P1-javítás (2026-11-01): a `${datum}T${ido}:00` string a SZERVER lokális
+  // időzónájában értelmeződik (Vercel = UTC) — a beírt 08:30-ból 09:30 lett a
+  // jelenléti ívben és a bérszámfejtésben. Explicit magyar időzónás értelmezés:
+  const tzOffsetMs = getBudapestOffsetMs(datum)
+  const becsekIso = new Date(new Date(`${datum}T${becsekkolas}:00`).getTime() - tzOffsetMs).toISOString()
+  const kicsekIso = new Date(new Date(`${datum}T${kicsekkolas}:00`).getTime() - tzOffsetMs).toISOString()
 
   if (new Date(kicsekIso).getTime() <= new Date(becsekIso).getTime()) {
     return { error: "A távozás időpontja nem lehet korábbi vagy egyenlő az érkezésnél!" }
