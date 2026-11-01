@@ -112,11 +112,21 @@ export default async function SelfServicePage() {
       .select("katalogus_elem_id, kert_osszeg, levont_keret_osszeg")
       .eq("dolgozo_id", user.id)
       .eq("ev", currentYear),
-    supabase
-      .from("hr_teljesitmeny")
-      .select("*, hr_teljesitmeny_ciklus(megnevezes)")
-      .eq("dolgozo_id", user.id)
-      .order("created_at", { ascending: false }),
+    // KPI-k: session-kliensen az RLS blokkolja a sima dolgozó elől (a hr_teljesitmeny
+    // tábla csak HR-modulos usernek nyitott) — service-role kell a saját KPI-k olvasásához
+    (async () => {
+      const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+      const adminClient = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      )
+      return adminClient
+        .from("hr_teljesitmeny")
+        .select("*, hr_teljesitmeny_ciklus(megnevezes)")
+        .eq("dolgozo_id", user.id)
+        .order("created_at", { ascending: false })
+    })(),
   ])
 
   const adatlap = adatlapRes.data
