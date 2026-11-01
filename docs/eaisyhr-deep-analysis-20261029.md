@@ -26,12 +26,15 @@
 | 13 | **2.6 P1:** `submitApplication` — a page-réteg `notFound()` védelmét az action nem kényszerítette ki: belső hirdetésre ismert UUID-val külső jelentkezés átcsúszott | `a47255f` | `is_internal` hirdetésre csak az adott cég igazolt dolgozójának jelentkezése fogadtat el (`isStrictlyInternalApplication` kötelezővé tétele) | ✔ |
 | 14 | **2.3 P1:** `deleteMunkakor` előre törölte az összes `hr_beosztas` sort — a dolgozók munkakör-előzményei visszavonhatatlanul elvesztek | `a47255f` | Beosztás-történet-védelem: ha bármilyen beosztás hivatkozik a munkakörre, a törlés tiltás érthető üzenettel; csak névtelen munkakör törölhető | ✔ |
 | 15 | **[Közös extra]:** Cégváltásnál a `useState(initial...)` anti-pattern miatt beragadtak az adatok (Bérpapírjaim, Kanban, Irattári terv, Napi csekkolás) — a megrendelő kérte a valódi idejű frissülést | `c2271f3` | `useEffect` prop-szinkron minta a 4 komponensre (az inbox-tábla mintájára); a többi HR-nézet direkt prop-használattal már jó volt | ✔ A megrendelő tesztelte |
+| 16 | **2.1 P1:** Jelenlétkorrekció időzóna-torzulása — a `${datum}T${ido}:00` string a szerver (UTC) időzónájában értelmezett, a beírt 08:30-ból 09:30 lett a jelenléti ívben és a bérszámfejtésben | `9d48938` | `getBudapestOffsetMs()` segédfüggvény (nyári/téli váltáskezelés) — explicit Budapest-i időzónás értelmezés | ✔ |
+| 17 | **2.4 P1 (részleges, UI):** Orvosi/fegyelmi dokumentumok a „Hivatalos dokumentumok" fülről jelzés nélkül | `9d48938` | A megrendelő ötlete alapján: érzékeny kategóriájú dokumentumok piros „Bizalmas" jelvényt kapnak (GDPR Art. 9 figyelemfelhívás) | ✔ |
 
 **Élőben megerősített, MÉG NYITVA (2026.10.31.):**
 - **1.3 gyökérok („admin" modulkulcs-ütközés):** a megrendelő élő tesztje igazolta — „Kelemen Roberta" (`hr_szerepkor: munkavallalo`) **látja a Vezetői nézetet**, mert a Mátrixból kapott „Állomány" modul kulcsa `admin`, és a menü (`hr-sidebar.tsx:127`) valamint a `/hr/manager` oldal (`requireHrAuthServer(["...","admin"])`) modulkulcsként is egyezteti. A vezetői nézet adatszűrése eközben rendben van (csak közvetlen beosztottak). **A javítás elhalasztva a megrendelő döntése szerint; a teljes elemzés (3 réteg: menü / ~30 action / titkosítás-RPC) a session-naplóban.**
 
 **Elvetett találatok (2026.11.01., a megrendelő tesztje alapján):**
 - **2.2 P0 (részben):** „túlóra-kérelmek újra-birálhatása" — a megrendelő UI-tesztje szerint **elutasított kérelemnél nem kattintható újra jóváhagyás** (nem reprodukálható a felületen; a szerveroldali státusz-őr hiánya marad kód-szintű megjegyzés).
+- **2.4 P1:** „pótszabadság-alapok önmódosíthatók" — a megrendelő tesztje szerint a sima dolgozó **nem éri el a kartont** és a Profilom nézetben **nem módosítható** — nem hiba.
 
 ---
 
