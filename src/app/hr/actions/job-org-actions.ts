@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient } from "@/utils/supabase/server"
-import { createClient as createAdminClient } from "@supabase/supabase-js"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export interface OrgUnitOption {
   id: string
@@ -18,7 +18,7 @@ export interface JobOption {
 }
 
 /**
- * Lekéri a hivatalos eaisyHR munkakör-katalógust és a szervezeti egységeket.
+ * Lekéri az aktív vállalat hivatalos eaisyHR munkakör-katalógusát és szervezeti egységeit.
  */
 export async function getJobsAndOrgUnitsAction(): Promise<{
   orgUnits: OrgUnitOption[]
@@ -27,43 +27,36 @@ export async function getJobsAndOrgUnitsAction(): Promise<{
 }> {
   try {
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { orgUnits: [], jobs: [], error: "Bejelentkezés szükséges." }
+    }
 
-    // 1. Szervezeti egységek
+    const activeCompanyId = await getActiveCompanyIdServer()
+    if (!activeCompanyId) {
+      return { orgUnits: [], jobs: [] }
+    }
+
+    // 1. Szervezeti egységek (aktív cégre szűrve)
     const { data: orgUnits, error: orgErr } = await supabase
       .from("hr_szervezeti_egyseg")
       .select("id, nev, szulo_id")
+      .eq("company_id", activeCompanyId)
       .order("nev")
 
-    // 2. Munkakörök
+    if (orgErr) {
+      throw new Error(orgErr.message)
+    }
+
+    // 2. Munkakörök (aktív cégre szűrve)
     const { data: jobs, error: jobErr } = await supabase
       .from("hr_munkakor")
       .select("id, megnevezes, feor_kod, szervezeti_egyseg_id")
+      .eq("company_id", activeCompanyId)
       .order("megnevezes")
 
-    // Ha a bejelentkezett felhasználó RLS-e miatt üres lenne, admin fallback
-    if ((!orgUnits || orgUnits.length === 0) || (!jobs || jobs.length === 0)) {
-      const adminClient = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
-
-      const [fallbackOrg, fallbackJob] = await Promise.all([
-        adminClient.from("hr_szervezeti_egyseg").select("id, nev, szulo_id").order("nev"),
-        adminClient.from("hr_munkakor").select("id, megnevezes, feor_kod, szervezeti_egyseg_id").order("megnevezes")
-      ])
-
-      const finalOrgs = fallbackOrg.data || []
-      const orgMap = new Map(finalOrgs.map(o => [o.id, o.nev]))
-
-      const finalJobs = (fallbackJob.data || []).map(j => ({
-        ...j,
-        szervezeti_egyseg_nev: j.szervezeti_egyseg_id ? orgMap.get(j.szervezeti_egyseg_id) || null : null
-      }))
-
-      return {
-        orgUnits: finalOrgs,
-        jobs: finalJobs
-      }
+    if (jobErr) {
+      throw new Error(jobErr.message)
     }
 
     const orgMap = new Map((orgUnits || []).map(o => [o.id, o.nev]))

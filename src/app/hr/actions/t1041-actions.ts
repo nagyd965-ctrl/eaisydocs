@@ -491,8 +491,13 @@ export async function saveT1041Record(data: {
   })
   if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
 
-  // Meglévő rekord keresése
+  const activeCompanyId = access.auth.activeCompanyId || (await getActiveCompanyIdServer())
+
+  // Meglévő rekord keresése (aktív vállalatra szűrve)
   let query = adminClient.from("hr_t1041_bejelentes").select("id")
+  if (activeCompanyId) {
+    query = query.eq("company_id", activeCompanyId)
+  }
   if (data.offboardingId) {
     query = query.eq("offboarding_id", data.offboardingId)
   } else if (data.onboardingId) {
@@ -503,8 +508,6 @@ export async function saveT1041Record(data: {
 
   const { data: existing } = await query.limit(1)
   const existingId = existing?.[0]?.id
-
-  const activeCompanyId = await getActiveCompanyIdServer()
 
   const payload: any = {
     onboarding_id: data.onboardingId || null,
@@ -640,6 +643,9 @@ export async function generateT1041PdfAction(params: {
       adatlap_dokumentum_id: newDoc.id,
       adatlap_url: storagePath
     })
+    if (activeCompanyId) {
+      query = query.eq("company_id", activeCompanyId)
+    }
 
     if (offboardingId) {
       query = query.eq("offboarding_id", offboardingId)
@@ -750,6 +756,9 @@ export async function uploadT1041ReceiptAction(formData: FormData) {
       allapot: "igazolva",
       updated_at: new Date().toISOString()
     })
+    if (activeCompanyId) {
+      tQuery = tQuery.eq("company_id", activeCompanyId)
+    }
 
     if (offboardingId) {
       tQuery = tQuery.eq("offboarding_id", offboardingId)
@@ -860,12 +869,21 @@ export async function fileExistingT1041Document(params: {
   const { documentId, dolgozoId } = params
   const access = await verifyT1041Access(adminClient, { dolgozoId })
   if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
+  const activeCompanyId = access.auth.activeCompanyId
 
-  const { data: docData } = await adminClient
+  let docQuery = adminClient
     .from("hr_dokumentum")
-    .select("nev, iktatoszam")
+    .select("nev, iktatoszam, company_id, dolgozo_id")
     .eq("id", documentId)
-    .single()
+    .eq("dolgozo_id", dolgozoId)
+  if (activeCompanyId) {
+    docQuery = docQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: docData } = await docQuery.maybeSingle()
+
+  if (!docData) {
+    return { error: "A T1041 dokumentum nem található az aktív vállalatban." }
+  }
 
   if (docData?.iktatoszam) {
     return { success: true, iktatoszam: docData.iktatoszam }
@@ -875,7 +893,8 @@ export async function fileExistingT1041Document(params: {
     documentId,
     employeeId: dolgozoId,
     customTargy: docData?.nev || "NAV T1041 Bejelentési Dokumentum",
-    currentUserId: user.id
+    currentUserId: user.id,
+    companyId: activeCompanyId,
   })
 
   revalidatePath("/hr/onboarding")

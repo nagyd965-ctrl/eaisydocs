@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/utils/supabase/server"
 import { generateAwardCertificatePdfBuffer } from "@/utils/hr/award-certificate-pdf-generator"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,27 +16,51 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // 1. Felhasználói munkamenet ellenőrzése
+    // 1. Felhasználói munkamenet és aktív cég ellenőrzése
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return new NextResponse("Nincs bejelentkezve", { status: 401 })
     }
 
-    // 2. Kitüntetés rekord lekérése
+    const activeCompanyId = await getActiveCompanyIdServer()
+    if (!activeCompanyId) {
+      return new NextResponse("Nincs kiválasztott aktív cég", { status: 403 })
+    }
+
+    const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+    if (!scopedRoles.isCompanyAdmin && scopedRoles.hrRole === "none") {
+      return new NextResponse("Nincs hozzáférése az aktív céghez", { status: 403 })
+    }
+
+    // 2. Kitüntetés rekord lekérése cég-szűréssel
     const { data: item, error: itemErr } = await supabase
       .from("hr_kituntetes")
-      .select("id, dolgozo_id, fajl_url, iktatoszam, megnevezes")
+      .select("id, dolgozo_id, company_id, fajl_url, iktatoszam, megnevezes")
       .eq("id", awardId)
+      .eq("company_id", activeCompanyId)
       .maybeSingle()
 
     if (itemErr || !item) {
       return new NextResponse("A megadott kitüntetés / elismerés nem található", { status: 404 })
     }
 
+    const isOwn = item.dolgozo_id === user.id
+    const isHrOrAdmin =
+      scopedRoles.isCompanyAdmin ||
+      isUserAuthorizedForHrView(
+        scopedRoles.hrRole,
+        ["admin", "employees", "compliance", "auditor", "reports"],
+        scopedRoles.hrModules
+      )
+
+    if (!isOwn && !isHrOrAdmin) {
+      return new NextResponse("Nincs jogosultsága az elismerő oklevél megtekintéséhez", { status: 403 })
+    }
+
     const dispositionType = isPreview ? "inline" : "attachment"
 
     // 3. Ha már van feltöltött / iktatott fájl, azt szolgáljuk ki
-    if (item.fajl_url) {
+    if (item.fajl_url && !String(item.fajl_url).includes("..")) {
       let fileBlob: Blob | null = null
       const { data: blob, error: downloadErr } = await supabase.storage
         .from("irat_files")

@@ -68,17 +68,16 @@ async function loadHrMasterData(adminClient: any, targetCompanyId?: string | nul
   }
 
   // 1. Profilok (csak az aktív cég tagjai)
-  let profQuery = adminClient
-    .from("felhasznalo_profil")
-    .select("id, nev, szervezeti_egyseg_id, hr_szervezeti_egyseg_id")
-  if (activeCompanyId && memberUserIds.length > 0) {
-    profQuery = profQuery.in("id", memberUserIds)
-  }
-  const { data: profiles } = await profQuery
   const profMap = new Map<string, { nev: string; orgId: string | null }>()
-  profiles?.forEach((p: any) =>
-    profMap.set(p.id, { nev: p.nev, orgId: p.hr_szervezeti_egyseg_id || p.szervezeti_egyseg_id })
-  )
+  if (activeCompanyId && memberUserIds.length > 0) {
+    const { data: profiles } = await adminClient
+      .from("felhasznalo_profil")
+      .select("id, nev, szervezeti_egyseg_id, hr_szervezeti_egyseg_id")
+      .in("id", memberUserIds)
+    profiles?.forEach((p: any) =>
+      profMap.set(p.id, { nev: p.nev, orgId: p.hr_szervezeti_egyseg_id || p.szervezeti_egyseg_id })
+    )
+  }
 
   // 2. Szervezeti egységek (csak az aktív cég, mind a Docs-os, mind a HR-es táblából)
   let orgQuery = adminClient.from("szervezeti_egyseg").select("id, nev")
@@ -105,10 +104,14 @@ async function loadHrMasterData(adminClient: any, targetCompanyId?: string | nul
     mkMap.set(m.id, { megnevezes: m.megnevezes, feor: m.feor_kod, orgId: m.szervezeti_egyseg_id })
   )
 
-  // 4. Beosztások
-  const { data: beosztasok } = await adminClient
+  // 4. Beosztások (csak az aktív cég)
+  let beosztasQuery = adminClient
     .from("hr_beosztas")
     .select("id, jogviszony_id, munkakor_id, munkaido_fte")
+  if (activeCompanyId) {
+    beosztasQuery = beosztasQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: beosztasok } = await beosztasQuery
   const beosztasMap = new Map<string, { fte: number; munkakor: string; feor: string; orgId: string | null }>()
   beosztasok?.forEach((b: any) => {
     const mk = b.munkakor_id ? mkMap.get(b.munkakor_id) : null
@@ -121,20 +124,21 @@ async function loadHrMasterData(adminClient: any, targetCompanyId?: string | nul
   })
 
   // 5. Titkos bér- és azonosító adatok (csak az aktív cég tagjai)
-  let secretQuery = adminClient.from("hr_dolgozo_titkos_adat").select("*")
-  if (activeCompanyId && memberUserIds.length > 0) {
-    secretQuery = secretQuery.in("dolgozo_id", memberUserIds)
-  }
-  const { data: secretData } = await secretQuery
   const secretMap = new Map<string, { taj: string | null; ado: string | null; brutto: number | null }>()
-  secretData?.forEach((s: any) => {
-    const bruttoStr = hexToAscii(s.brutto_ber_titkositott)
-    secretMap.set(s.dolgozo_id, {
-      taj: hexToAscii(s.taj_szam_titkositott),
-      ado: hexToAscii(s.adoazonosito_titkositott),
-      brutto: bruttoStr ? parseInt(bruttoStr, 10) : null,
+  if (activeCompanyId && memberUserIds.length > 0) {
+    const { data: secretData } = await adminClient
+      .from("hr_dolgozo_titkos_adat")
+      .select("*")
+      .in("dolgozo_id", memberUserIds)
+    secretData?.forEach((s: any) => {
+      const bruttoStr = hexToAscii(s.brutto_ber_titkositott)
+      secretMap.set(s.dolgozo_id, {
+        taj: hexToAscii(s.taj_szam_titkositott),
+        ado: hexToAscii(s.adoazonosito_titkositott),
+        brutto: bruttoStr ? parseInt(bruttoStr, 10) : null,
+      })
     })
-  })
+  }
 
   // 6. Jogviszonyok (csak az aktív cég, aktív jogviszonyok elöl)
   let jogvQuery = adminClient
@@ -283,15 +287,15 @@ export async function getT1041ReportData(yearMonth: string): Promise<T1041Report
       r.bejelentes_tipus === "U"
         ? "Új bejelentés (U)"
         : r.bejelentes_tipus === "T"
-        ? "Kijelentés / Törlés (T)"
-        : "Változás / Módosítás (V)"
+          ? "Kijelentés / Törlés (T)"
+          : "Változás / Módosítás (V)"
 
     const allapotLabel =
       r.allapot === "igazolva" || r.nyugta_url
         ? "Igazolva (Nyugta csatolva)"
         : r.allapot === "bekuldve"
-        ? "Beküldve a NAV-hoz"
-        : "Előkészítve"
+          ? "Beküldve a NAV-hoz"
+          : "Előkészítve"
 
     results.push({
       id: r.id,
@@ -386,8 +390,32 @@ export async function getT1041ReportData(yearMonth: string): Promise<T1041Report
  * KSH Havi Munkaügyi Jelentés Adatgyűjtés és Aggregáció
  */
 export async function getKshReportData(yearMonth: string): Promise<KshReportData> {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["reports", "payroll", "admin", "auditor"], null)
+  if (!auth.authorized) {
+    return {
+      yearMonth,
+      zaroLetszam: 0,
+      atlagosFte: 0,
+      belepettFo: 0,
+      kilepettFo: 0,
+      normaMunkaora: 0,
+      osszesLedolgozottOra: 0,
+      teljesitesiArany: 0,
+      rendesMunkaora: 0,
+      tulora: 0,
+      szabadsagNap: 0,
+      szabadsagOra: 0,
+      betegszabadsagNap: 0,
+      betegszabadsagOra: 0,
+      tappenzNap: 0,
+      egyebTavolletNap: 0,
+      reszlegek: [],
+    }
+  }
+
   const adminClient = getAdminClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   const [yearStr, monthStr] = yearMonth.split("-")
   const year = parseInt(yearStr, 10)
   const month = parseInt(monthStr, 10)
@@ -625,8 +653,25 @@ export async function getKshReportData(yearMonth: string): Promise<KshReportData
  * Havi Bérszámfejtési Csomag és Jelenlét Adatgyűjtés
  */
 export async function getPayrollReportData(yearMonth: string) {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["reports", "payroll", "admin", "auditor"], null)
+  if (!auth.authorized) {
+    return {
+      yearMonth,
+      items: [] as PayrollReportRow[],
+      metrics: {
+        totalEmployees: 0,
+        closedCount: 0,
+        pendingCount: 0,
+        totalPlannedHours: 0,
+        totalWorkedHours: 0,
+        totalCafeteriaGross: 0,
+      },
+    }
+  }
+
   const adminClient = getAdminClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   const [yearStr, monthStr] = yearMonth.split("-")
   const year = parseInt(yearStr, 10)
   const month = parseInt(monthStr, 10)
@@ -791,15 +836,15 @@ export async function getPayrollReportData(yearMonth: string) {
       zarasStatuszRaw === "jovahagyva"
         ? "jovahagyva"
         : zarasStatuszRaw === "jovahagyasra_var"
-        ? "jovahagyasra_var"
-        : "nyitott"
+          ? "jovahagyasra_var"
+          : "nyitott"
 
     const zarasStatuszLabel =
       zarasStatusz === "jovahagyva"
         ? "Vezető által jóváhagyva"
         : zarasStatusz === "jovahagyasra_var"
-        ? "Jóváhagyásra vár"
-        : "Jelenlét még nyitott"
+          ? "Jóváhagyásra vár"
+          : "Jelenlét még nyitott"
 
     results.push({
       dolgozoId: dId,
@@ -980,13 +1025,13 @@ export async function saveArchiveRecord(
   const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   const { data, error } = await adminClient
     .from("hr_bevallas_archivum")
-    .insert([{ 
-      tipus, 
-      idoszak, 
-      fajl_nev, 
-      fajl_utvonal, 
+    .insert([{
+      tipus,
+      idoszak,
+      fajl_nev,
+      fajl_utvonal,
       feltolto_id: auth.user.id || feltolto_id,
-      company_id: activeCompanyId 
+      company_id: activeCompanyId
     }])
     .select()
 

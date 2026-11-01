@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/utils/supabase/server"
 import { generateAnnualLeavePdfBuffer } from "@/utils/hr/annual-leave-pdf-generator"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,14 +27,35 @@ export async function GET(request: NextRequest) {
       return new NextResponse("Nincs bejelentkezve", { status: 401 })
     }
 
-    // Biztonsági ellenőrzés: saját vagy HR / Admin
-    const { data: profile } = await supabase
-      .from("felhasznalo_profil")
-      .select("hr_szerepkor")
-      .eq("id", user.id)
-      .single()
+    const activeCompanyId = await getActiveCompanyIdServer()
+    if (!activeCompanyId) {
+      return new NextResponse("Nincs kiválasztott aktív cég", { status: 403 })
+    }
 
-    const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin"].includes(profile?.hr_szerepkor || "")
+    const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+    if (!scopedRoles.isCompanyAdmin && scopedRoles.hrRole === "none") {
+      return new NextResponse("Nincs hozzáférése az aktív céghez", { status: 403 })
+    }
+
+    // Ellenőrizzük, hogy a cél dolgozó tagja-e az aktív cégnek
+    const { data: targetMembership } = await supabase
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", activeCompanyId)
+      .eq("user_id", employeeId)
+      .maybeSingle()
+
+    if (!targetMembership) {
+      return new NextResponse("A dolgozó nem található az aktív cégben", { status: 404 })
+    }
+
+    const isHrOrAdmin =
+      scopedRoles.isCompanyAdmin ||
+      isUserAuthorizedForHrView(
+        scopedRoles.hrRole,
+        ["admin", "employees", "time", "payroll", "compliance", "auditor", "reports"],
+        scopedRoles.hrModules
+      )
     const isOwn = employeeId === user.id
 
     if (!isOwn && !isHrOrAdmin) {

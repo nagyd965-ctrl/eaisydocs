@@ -55,12 +55,15 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     currentUserProfile?.hr_szerepkor,
     Array.isArray((currentUserProfile as any)?.hr_modulok) ? (currentUserProfile as any).hr_modulok : []
   )
-  const currentHrRole =
-    scopedRoles.hrRole && scopedRoles.hrRole !== "none"
+  const useScopedOnly = Boolean(activeCompanyId) && !scopedRoles.isCompanyAdmin
+  const currentHrRole = useScopedOnly
+    ? scopedRoles.hrRole
+    : scopedRoles.hrRole && scopedRoles.hrRole !== "none"
       ? scopedRoles.hrRole
       : fallbackNormalized.role
-  const currentHrModules =
-    scopedRoles.hrModules && scopedRoles.hrModules.length > 0
+  const currentHrModules = useScopedOnly
+    ? scopedRoles.hrModules
+    : scopedRoles.hrModules && scopedRoles.hrModules.length > 0
       ? scopedRoles.hrModules
       : fallbackNormalized.modules
   const isHrOrAdmin =
@@ -250,10 +253,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const filterByActiveCompany = <T extends { company_id?: string | null }>(items?: T[] | null): T[] => {
     if (!Array.isArray(items)) return []
     if (!activeCompanyId) return items
-    const isPrimaryCompany = !rawAdatlap?.company_id || rawAdatlap.company_id === activeCompanyId
-    return items.filter((item) =>
-      item.company_id === activeCompanyId || (item.company_id == null && isPrimaryCompany)
-    )
+    return items.filter((item) => item.company_id === activeCompanyId)
   }
 
   const isPrimaryAdatlapCompany =

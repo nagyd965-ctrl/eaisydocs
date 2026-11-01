@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/utils/supabase/server"
 import { generateStudyContractPdfBuffer } from "@/utils/hr/study-contract-pdf-generator"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,17 +16,28 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // 1. Felhasználói munkamenet és jogosultság ellenőrzése
+    // 1. Felhasználói munkamenet és aktív cég ellenőrzése
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return new NextResponse("Nincs bejelentkezve", { status: 401 })
     }
 
-    // 2. Szerződés rekord lekérése
+    const activeCompanyId = await getActiveCompanyIdServer()
+    if (!activeCompanyId) {
+      return new NextResponse("Nincs kiválasztott aktív cég", { status: 403 })
+    }
+
+    const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+    if (!scopedRoles.isCompanyAdmin && scopedRoles.hrRole === "none") {
+      return new NextResponse("Nincs hozzáférése az aktív céghez", { status: 403 })
+    }
+
+    // 2. Szerződés rekord lekérése cég-szűréssel
     const { data: contract, error: contractErr } = await supabase
       .from("hr_tanulmanyi_szerzodes")
-      .select("id, dolgozo_id, fajl_url, iktatoszam, kepzes_neve")
+      .select("id, dolgozo_id, company_id, fajl_url, iktatoszam, kepzes_neve")
       .eq("id", contractId)
+      .eq("company_id", activeCompanyId)
       .maybeSingle()
 
     if (contractErr || !contract) {
@@ -33,15 +46,13 @@ export async function GET(request: NextRequest) {
 
     const employeeId = contract.dolgozo_id
 
-    const { data: profile } = await supabase
-      .from("felhasznalo_profil")
-      .select("hr_szerepkor, docs_szerepkor")
-      .eq("id", user.id)
-      .single()
-
     const isHrOrAdmin =
-      ["hr_munkatars", "hr_vezeto", "admin"].includes(profile?.hr_szerepkor || "") ||
-      profile?.docs_szerepkor === "admin"
+      scopedRoles.isCompanyAdmin ||
+      isUserAuthorizedForHrView(
+        scopedRoles.hrRole,
+        ["admin", "employees", "compliance", "auditor", "payroll"],
+        scopedRoles.hrModules
+      )
     const isOwn = employeeId === user.id
 
     if (!isOwn && !isHrOrAdmin) {
@@ -51,14 +62,13 @@ export async function GET(request: NextRequest) {
     const dispositionType = isPreview ? "inline" : "attachment"
 
     // 3. Ha már van archivált / feltöltött fájl a storage-ban, azt szolgáljuk ki
-    if (contract.fajl_url) {
+    if (contract.fajl_url && !String(contract.fajl_url).includes("..")) {
       let fileBlob: Blob | null = null
       const { data: blob, error: downloadErr } = await supabase.storage
         .from("irat_files")
         .download(contract.fajl_url)
 
       if (downloadErr || !blob) {
-        // Fallback: service role client ha az RLS policy blokkolná
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
         if (serviceRoleKey) {
           const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")

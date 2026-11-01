@@ -125,14 +125,20 @@ export async function submitReferralAction(formData: FormData) {
 
     const referrerName = profile?.nev || user.email || "Munkatárs"
 
-    // 4. Ha konkrét álláshirdetésre történik az ajánlás, lekérjük a munkakörét
+    // 4. Ha konkrét álláshirdetésre történik az ajánlás, lekérjük a munkakörét (cégre szűrve)
     let munkakorId: string | null = null
     if (allashirdetesId) {
-      const { data: hirdetes } = await adminClient
+      let hirdetesQuery = adminClient
         .from("hr_allashirdetes")
-        .select("megpalyazott_munkakor_id, munkakor_id")
+        .select("megpalyazott_munkakor_id, munkakor_id, company_id")
         .eq("id", allashirdetesId)
-        .maybeSingle()
+      if (activeCompanyId) {
+        hirdetesQuery = hirdetesQuery.eq("company_id", activeCompanyId)
+      }
+      const { data: hirdetes } = await hirdetesQuery.maybeSingle()
+      if (!hirdetes) {
+        return { success: false, error: "A kiválasztott álláshirdetés nem található az aktív vállalatban." }
+      }
 
       munkakorId = (hirdetes as any)?.megpalyazott_munkakor_id || (hirdetes as any)?.munkakor_id || null
     }
@@ -608,12 +614,18 @@ export async function submitInternalApplicationAction(formData: FormData) {
       cvStoragePath = uploadData.path
     }
 
-    // Hirdetés és munkakör lekérése
-    const { data: hirdetes } = await adminClient
+    // Hirdetés és munkakör lekérése (aktív vállalatra szűrve)
+    let hirdetesQuery = adminClient
       .from("hr_allashirdetes")
-      .select("id, cim, munkakor_id")
+      .select("id, cim, munkakor_id, company_id")
       .eq("id", allashirdetesId)
-      .maybeSingle()
+    if (activeCompanyId) {
+      hirdetesQuery = hirdetesQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: hirdetes } = await hirdetesQuery.maybeSingle()
+    if (!hirdetes) {
+      return { success: false, error: "A kiválasztott álláshirdetés nem található az aktív vállalatban." }
+    }
 
     const munkakorId = (hirdetes as any)?.munkakor_id || null
     const pozicioCim = (hirdetes as any)?.cim || "Belső pozíció"

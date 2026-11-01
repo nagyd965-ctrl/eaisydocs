@@ -97,17 +97,24 @@ export async function getEaisyBooksPayrollEmployeesAction(
   targetCompanyId?: string
 ): Promise<GetEaisyBooksEmployeesResult> {
   try {
-    const docsClient = await createClient()
-    const { data: { user } } = await docsClient.auth.getUser()
-
-    if (!user) {
-      return { success: false, error: "Nincs bejelentkezett felhasználó." }
+    const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+    const auth = await requireHrAuthServer(["admin", "employees", "payroll", "onboarding"], null)
+    if (!auth.authorized || !auth.user) {
+      return { success: false, error: "Nincs jogosultsága a bérszámfejtési törzsadatok lekéréséhez." }
     }
+
+    if (targetCompanyId && auth.activeCompanyId && targetCompanyId !== auth.activeCompanyId) {
+      return { success: false, error: "A megadott vállalat nem egyezik az aktív vállalattal." }
+    }
+
+    const docsClient = await createClient()
+    const user = auth.user
 
     // 1. Cég meghatározása
     let activeCompany = null
-    if (targetCompanyId) {
-      const { data } = await docsClient.from("companies").select("*").eq("id", targetCompanyId).maybeSingle()
+    const effectiveCompanyId = targetCompanyId || auth.activeCompanyId
+    if (effectiveCompanyId) {
+      const { data } = await docsClient.from("companies").select("*").eq("id", effectiveCompanyId).maybeSingle()
       activeCompany = data
     } else {
       activeCompany = await getActiveCompanyServer()
@@ -336,11 +343,18 @@ export async function importEaisyBooksPayrollEmployeesAction(input: {
       return { success: false, error: "Nincs kijelölt importálandó foglalkoztatott." }
     }
 
-    const docsClient = await createClient()
-    const { data: { user } } = await docsClient.auth.getUser()
-    if (!user) {
-      return { success: false, error: "Nincs bejelentkezett felhasználó." }
+    const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+    const auth = await requireHrAuthServer(["admin", "employees", "payroll", "onboarding"], null)
+    if (!auth.authorized || !auth.user) {
+      return { success: false, error: "Nincs jogosultsága a foglalkoztatottak importálásához." }
     }
+
+    if (auth.activeCompanyId && targetCompanyId !== auth.activeCompanyId) {
+      return { success: false, error: "A megadott vállalat nem egyezik az aktív vállalattal." }
+    }
+
+    const docsClient = await createClient()
+    const user = auth.user
 
     const { data: company } = await docsClient
       .from("companies")

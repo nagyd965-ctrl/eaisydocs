@@ -665,12 +665,21 @@ export async function fileExistingJobDescriptionDocument(params: {
   const { documentId, dolgozoId } = params
   const access = await verifyOnboardingJobAccess(adminClient, { dolgozoId })
   if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
+  const activeCompanyId = access.auth.activeCompanyId
 
-  const { data: docData } = await adminClient
+  let docQuery = adminClient
     .from("hr_dokumentum")
-    .select("nev, iktatoszam")
+    .select("nev, iktatoszam, company_id, dolgozo_id")
     .eq("id", documentId)
-    .single()
+    .eq("dolgozo_id", dolgozoId)
+  if (activeCompanyId) {
+    docQuery = docQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: docData } = await docQuery.maybeSingle()
+
+  if (!docData) {
+    return { error: "A dokumentum nem található az aktív vállalatban." }
+  }
 
   if (docData?.iktatoszam) {
     return { success: true, iktatoszam: docData.iktatoszam }
@@ -680,7 +689,8 @@ export async function fileExistingJobDescriptionDocument(params: {
     documentId,
     employeeId: dolgozoId,
     customTargy: docData?.nev || "Munkaköri Leírás",
-    currentUserId: user.id
+    currentUserId: user.id,
+    companyId: activeCompanyId,
   })
 
   revalidatePath("/hr/onboarding")

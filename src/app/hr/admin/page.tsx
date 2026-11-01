@@ -148,6 +148,7 @@ export default async function HrAdminPage() {
         id, dolgozo_id, datum, uj_becsekkolas, uj_kicsekkolas, indoklas, statusz,
         dolgozo:felhasznalo_profil!dolgozo_id ( id, nev, avatar_url )
       `)
+      .eq("company_id", companyScope)
       .in("dolgozo_id", safeMemberIds)
       .eq("statusz", "jovahagyasra_var")
       .order("created_at", { ascending: false }),
@@ -584,11 +585,11 @@ export default async function HrAdminPage() {
           </Link>
         </CardHeader>
         <CardContent className="p-0">
-          <EmployeeTable 
-            employees={activeEmployees} 
-            jobs={jobs} 
-            orgUnits={orgUnits} 
-            canEdit={canEdit} 
+          <EmployeeTable
+            employees={activeEmployees}
+            jobs={jobs}
+            orgUnits={orgUnits}
+            canEdit={canEdit}
             canChangeRole={canManage}
             canDelete={canManage}
           />

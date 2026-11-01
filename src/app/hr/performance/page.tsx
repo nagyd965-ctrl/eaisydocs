@@ -53,7 +53,7 @@ export default async function PerformancePage() {
       .from("hr_teljesitmeny")
       .select("*, hr_teljesitmeny_ciklus(megnevezes, statusz), hr_dolgozo_adatlap(felhasznalo_profil(nev))")
       .in("dolgozo_id", safeMemberIds)
-      .or(`company_id.eq.${companyScope},company_id.is.null`)
+      .eq("company_id", companyScope)
       .order("created_at", { ascending: false }),
 
     supabaseAdmin
@@ -62,7 +62,9 @@ export default async function PerformancePage() {
         id,
         felhasznalo_profil ( nev, avatar_url ),
         hr_jogviszony (
+          company_id,
           hr_beosztas (
+            company_id,
             ervenyes_ig,
             hr_munkakor ( megnevezes )
           )
@@ -73,13 +75,14 @@ export default async function PerformancePage() {
     supabaseAdmin
       .from("hr_teljesitmeny_ciklus")
       .select("*")
-      .or(`company_id.eq.${companyScope},company_id.is.null`)
+      .eq("company_id", companyScope)
       .order("kezdo_datum", { ascending: false }),
 
     supabaseAdmin
       .from("hr_esemeny_naplo")
       .select("*, felhasznalo_profil(nev)")
       .eq("entitas_tipus", "hr_teljesitmeny")
+      .eq("company_id", companyScope)
       .in("felhasznalo_id", safeMemberIds)
       .order("created_at", { ascending: true }),
 
@@ -92,7 +95,19 @@ export default async function PerformancePage() {
   ])
 
   const kpis = kpisRes.data || []
-  const employees = employeesRes.data || []
+  const employees = (employeesRes.data || []).map((emp: any) => ({
+    ...emp,
+    hr_jogviszony: Array.isArray(emp.hr_jogviszony)
+      ? emp.hr_jogviszony
+          .filter((jv: any) => !companyScope || jv?.company_id === companyScope)
+          .map((jv: any) => ({
+            ...jv,
+            hr_beosztas: Array.isArray(jv?.hr_beosztas)
+              ? jv.hr_beosztas.filter((b: any) => !companyScope || b?.company_id === companyScope)
+              : jv?.hr_beosztas,
+          }))
+      : emp.hr_jogviszony,
+  }))
   const cycles = cyclesRes.data || []
   const logs = logsRes.data || []
   const catalogue: KpiCatalogueItem[] = catalogueRes.data || []

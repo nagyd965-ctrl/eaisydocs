@@ -55,13 +55,16 @@ export default async function OffboardingPage() {
 
       if ((!munkakor || !reszleg) && item.dolgozo_id) {
         // 1. Megpróbáljuk hr_jogviszony -> hr_beosztas -> hr_munkakor-ból
-        const { data: jogviszony } = await supabaseAdmin
+        let jogviszonyQuery = supabaseAdmin
           .from("hr_jogviszony")
           .select("hr_beosztas(hr_munkakor(megnevezes, szervezeti_egyseg:szervezeti_egyseg_id(nev)))")
           .eq("dolgozo_id", item.dolgozo_id)
           .order("created_at", { ascending: false })
           .limit(1)
-          .maybeSingle()
+        if (activeCompanyId) {
+          jogviszonyQuery = jogviszonyQuery.eq("company_id", activeCompanyId)
+        }
+        const { data: jogviszony } = await jogviszonyQuery.maybeSingle()
 
         const beosztas: any = Array.isArray(jogviszony?.hr_beosztas) ? jogviszony?.hr_beosztas[0] : jogviszony?.hr_beosztas
         const munkakorData: any = Array.isArray(beosztas?.hr_munkakor) ? beosztas?.hr_munkakor[0] : beosztas?.hr_munkakor
@@ -150,16 +153,16 @@ export default async function OffboardingPage() {
   const offboardingIds = (rawOffboardings || []).map((o: any) => o.id)
   const { data: exitInterviews, error: interviewError } = offboardingIds.length > 0
     ? await supabaseAdmin
-        .from("hr_kilepes_interju")
-        .select(`
+      .from("hr_kilepes_interju")
+      .select(`
           *,
           hr_offboarding (
             kilepes_datuma,
             felhasznalo_profil (nev)
           )
         `)
-        .in("offboarding_id", offboardingIds)
-        .order("created_at", { ascending: false })
+      .in("offboarding_id", offboardingIds)
+      .order("created_at", { ascending: false })
     : { data: [], error: null }
 
   if (interviewError) {
@@ -170,7 +173,7 @@ export default async function OffboardingPage() {
   const flatInterviews = (exitInterviews || []).map((i: any) => ({
     ...i,
     felhasznalo_profil: i.hr_offboarding?.felhasznalo_profil,
-    kilepes_datuma:     i.hr_offboarding?.kilepes_datuma,
+    kilepes_datuma: i.hr_offboarding?.kilepes_datuma,
   }))
 
   return (

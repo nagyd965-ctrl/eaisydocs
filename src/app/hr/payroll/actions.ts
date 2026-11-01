@@ -107,7 +107,11 @@ export async function getPayrollDashboardData(
     return { data: null, error: "Nincs jogosultságod a bérszámfejtési adatok megtekintéséhez." }
   }
 
-  const activeCompanyId = targetCompanyId || auth.activeCompanyId || (await getActiveCompanyIdServer())
+  if (targetCompanyId && auth.activeCompanyId && targetCompanyId !== auth.activeCompanyId) {
+    return { data: null, error: "A megadott cég nem egyezik az aktív céggel." }
+  }
+
+  const activeCompanyId = auth.activeCompanyId || targetCompanyId || (await getActiveCompanyIdServer())
   if (!activeCompanyId) {
     return { data: null, error: "Nincs kiválasztott cég." }
   }

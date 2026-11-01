@@ -382,6 +382,22 @@ export async function fileExistingSafetyTrainingDocument(params: {
   }
 
   const adminClient = getAdminClient()
+  let docQuery = adminClient
+    .from("hr_dokumentum")
+    .select("id, nev, iktatoszam, company_id, dolgozo_id")
+    .eq("id", params.documentId)
+    .eq("dolgozo_id", params.dolgozoId)
+  if (auth.activeCompanyId) {
+    docQuery = docQuery.eq("company_id", auth.activeCompanyId)
+  }
+  const { data: docRow } = await docQuery.maybeSingle()
+  if (!docRow) {
+    return { error: "A munkavédelmi jegyzőkönyv nem található az aktív vállalatban." }
+  }
+  if (docRow.iktatoszam) {
+    return { success: true, iktatoszam: docRow.iktatoszam }
+  }
+
   const docNev = `Munkavédelmi és Tűzvédelmi Oktatási Jegyzőkönyv - ${params.employeeName}`
 
   try {

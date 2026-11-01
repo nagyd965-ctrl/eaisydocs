@@ -1,30 +1,21 @@
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/utils/supabase/server";
 import { GoogleGenAI } from "@google/genai";
+import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard";
+
 if (typeof global !== "undefined" && typeof (global as any).DOMMatrix === "undefined") {
   (global as any).DOMMatrix = class {};
 }
 
 export async function POST(req: Request) {
-  const supabaseUser = await createServerClient();
-  const { data: { user } } = await supabaseUser.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized: Bejelentkezés szükséges" }, { status: 401 });
+  const auth = await requireHrAuthServer(["admin", "recruitment"], null);
+  if (!auth.authorized) {
+    const status = auth.user ? 403 : 401;
+    return NextResponse.json({ error: "Nincs jogosultsága AI önéletrajz elemzés indításához" }, { status });
   }
 
-  const { data: profile } = await supabaseUser
-    .from("felhasznalo_profil")
-    .select("hr_szerepkor, docs_szerepkor")
-    .eq("id", user.id)
-    .single();
-
-  const isHr = ["hr_munkatars", "hr_vezeto", "admin"].includes(profile?.hr_szerepkor || "") ||
-               ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "");
-
-  if (!isHr) {
-    return NextResponse.json({ error: "Forbidden: Nincs jogosultsága AI önéletrajz elemzés indításához" }, { status: 403 });
+  if (!auth.activeCompanyId) {
+    return NextResponse.json({ error: "Nincs kiválasztott aktív cég." }, { status: 403 });
   }
 
   let toborzas_id: string | null = null;
@@ -40,7 +31,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing toborzas_id" }, { status: 400 });
     }
 
-    // Get candidate and job description
+    // Get candidate and job description scoped to the active company
     const { data: candidate, error: candidateError } = await supabaseAdmin
       .from("hr_toborzas")
       .select(`
@@ -48,19 +39,27 @@ export async function POST(req: Request) {
         hr_allashirdetes ( cim, rovid_leiras, reszletes_leiras )
       `)
       .eq("id", toborzas_id)
+      .eq("company_id", auth.activeCompanyId)
       .single();
 
     if (candidateError || !candidate) {
       console.error("Supabase Error finding candidate:", candidateError);
-      return NextResponse.json({ error: "Candidate nem található: " + (candidateError?.message || 'Nincs adat') }, { status: 404 });
+      return NextResponse.json(
+        { error: "Candidate nem található az aktív cégben: " + (candidateError?.message || "Nincs adat") },
+        { status: 404 }
+      );
     }
 
-    if (!candidate.cv_storage_path) {
-      return NextResponse.json({ error: "No CV uploaded" }, { status: 400 });
+    if (!candidate.cv_storage_path || String(candidate.cv_storage_path).includes("..")) {
+      return NextResponse.json({ error: "No valid CV uploaded" }, { status: 400 });
     }
 
     // Set status to processing
-    await supabaseAdmin.from("hr_toborzas").update({ ai_status: 'processing' }).eq("id", toborzas_id);
+    await supabaseAdmin
+      .from("hr_toborzas")
+      .update({ ai_status: "processing" })
+      .eq("id", toborzas_id)
+      .eq("company_id", auth.activeCompanyId);
 
     // Download CV PDF
     const { data: fileData, error: downloadError } = await supabaseAdmin.storage
@@ -68,19 +67,23 @@ export async function POST(req: Request) {
       .download(candidate.cv_storage_path);
 
     if (downloadError || !fileData) {
-      await supabaseAdmin.from("hr_toborzas").update({ ai_status: 'error' }).eq("id", toborzas_id);
+      await supabaseAdmin
+        .from("hr_toborzas")
+        .update({ ai_status: "error" })
+        .eq("id", toborzas_id)
+        .eq("company_id", auth.activeCompanyId);
       return NextResponse.json({ error: "Could not download CV" }, { status: 500 });
     }
 
     // Parse PDF text
     const buffer = Buffer.from(await fileData.arrayBuffer());
-    
+
     // Parse PDF text using Vercel-safe pdf-extractor
     const { extractPdfText } = await import("@/utils/pdf-extractor");
     const cvText = await extractPdfText(buffer);
 
     // Construct prompt
-    const jobDescription = candidate.hr_allashirdetes 
+    const jobDescription = candidate.hr_allashirdetes
       ? `Pozíció: ${candidate.hr_allashirdetes.cim}\nRövid leírás: ${candidate.hr_allashirdetes.rovid_leiras}\nRészletek: ${candidate.hr_allashirdetes.reszletes_leiras}`
       : "Nincs megadva specifikus munkaköri leírás, általános értékelést kérünk.";
 
@@ -100,17 +103,17 @@ ${cvText}
 `;
 
     const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
-    
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
       config: {
-        responseMimeType: "application/json"
-      }
+        responseMimeType: "application/json",
+      },
     });
 
     let responseText = response.text || "";
-    
+
     // Parse JSON safely
     responseText = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
     let aiResult;
@@ -118,25 +121,36 @@ ${cvText}
       aiResult = JSON.parse(responseText);
     } catch (parseError) {
       console.error("JSON parse error. Raw response:", responseText);
-      await supabaseAdmin.from("hr_toborzas").update({ ai_status: 'error' }).eq("id", toborzas_id);
+      await supabaseAdmin
+        .from("hr_toborzas")
+        .update({ ai_status: "error" })
+        .eq("id", toborzas_id)
+        .eq("company_id", auth.activeCompanyId);
       return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
     }
 
     // Update candidate
-    await supabaseAdmin.from("hr_toborzas").update({
-      ai_summary: aiResult.summary,
-      ai_relevance_score: aiResult.relevance_score,
-      ai_skills: aiResult.skills,
-      ai_status: 'completed'
-    }).eq("id", toborzas_id);
+    await supabaseAdmin
+      .from("hr_toborzas")
+      .update({
+        ai_summary: aiResult.summary,
+        ai_relevance_score: aiResult.relevance_score,
+        ai_skills: aiResult.skills,
+        ai_status: "completed",
+      })
+      .eq("id", toborzas_id)
+      .eq("company_id", auth.activeCompanyId);
 
     return NextResponse.json({ success: true, result: aiResult });
-
   } catch (error: any) {
     console.error("AI CV Parse error:", error);
     if (toborzas_id) {
       try {
-        await supabaseAdmin.from("hr_toborzas").update({ ai_status: 'error' }).eq("id", toborzas_id);
+        await supabaseAdmin
+          .from("hr_toborzas")
+          .update({ ai_status: "error" })
+          .eq("id", toborzas_id)
+          .eq("company_id", auth.activeCompanyId);
       } catch (e) {
         console.error("Could not reset status", e);
       }

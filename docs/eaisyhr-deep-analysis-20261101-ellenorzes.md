@@ -131,8 +131,14 @@ Megerősített erősségek: mindkét migráció szerkezete hibátlan (a loop-reg
 3. **Döntések meghozatala** (3 tétel) — a ertesitesi_szabaly funkcionális hibája itt zárul
 4. **P2-csomagok** (guardok → cég-szűrések → adat-pontosság → UI/state)
 
-## 7. Megjegyzések
+## 7. Megjegyzések és 3. körös (független mély) audit lezárása (2026-11-01)
 
 - Az ellenőrzés nem módosított kódot; az élő DB-n csak olvasó lekérdezés futott (0 NULL company_id minden érintett táblán).
 - A 3 "nem-listázott" action-fájl (asset/employment-contract/contract) P0-jai **nem a korábbi javítások hibái** — ezek az eredeti audit blind spot-jai voltak; a `hr_dokumentum` company_id javítás (#21) érintette a fájlokat, de guard-réteg sosem volt rájuk tervezve.
 - A hr_kituntetes policy-név hiba ugyanaz a minta, mint a korábbi `hr_tulora_felhasznalás`-nál elfogott hiba — **tanulság**: migrációban a `DROP POLICY`-neveket mindig a ténylegesen létrehozó migrációból kell ellenőrizni, nem emlékezetből.
+- **3. körös független mélyaudit és a 2 további döntési pont (A opció — 2026-11-01):**
+  - **Élő DB (`supabase/migrations/20261101000006_replace_remaining_global_profile_rls_policies.sql`, élő DB-n lefuttatva és ellenőrizve):** Minden maradék `PERMISSIVE` policy, amely a globális `felhasznalo_profil.hr_szerepkor` / `szerepkor` / `elerheto_modulok` mezőkre vagy literál `USING (true)` feltételre támaszkodott 16 HR táblán (`hr_beosztas`, `hr_bevallas_archivum`, `hr_ceges_dokumentum`, `hr_ceges_dokumentum_nyugtazas`, `hr_fejlesztesi_cel`, `hr_fejlesztesi_terv`, `hr_idp_megjegyzes`, `hr_munkakor`, `hr_munkaszerzodes`, `hr_szervezeti_egyseg`, `hr_t1041_bejelentes`, `hr_tavollet`, `hr_teljesitmeny_ciklus`, `hr_helyettesites`, `hr_muszak_sablon`, `hr_munkavedelmi_oktatas`), lecserélve `public.has_hr_module_access(..., company_id)` és `public.user_has_company_access(company_id)` alapú szabályokra.
+  - **Döntés 1 (`hr_beosztas` — A opció):** A cégen belüli olvasási láthatóság (`SELECT USING (public.user_has_company_access(company_id))`) megmaradt, a literál `USING (true)` megszűnt.
+  - **Döntés 2 (`deleteAttendanceRecord` — A opció):** A dolgozói közvetlen ön-törlés (`service_role`-on keresztül) letiltva (`allowSelf: false`, `requiredModules: ["time", "admin", "vezeto"]`), így a dolgozók nyitott hónapban is a jóváhagyáshoz kötött jelenlét-korrekciós kérelmet használják.
+  - **Kód-szintű P0/P1/P2 lezárások (17 tétel):** `eaisybooks-employee-actions.ts`, `payroll/actions.ts`, `/api/hr/download-document`, `/api/hr/parse-cv`, `company-actions.ts`, mind a 9 `/api/hr/*-pdf` végpont, `performance-access.ts` + `performance/actions.ts`, `job-org-actions.ts`, `idp-actions.ts`, `offboarding/actions.ts`, `attendance-actions.ts`, `reports/actions.ts`, `t1041-actions.ts`, `hr/settings/actions.ts`, `hr/admin/actions.ts`, `onboarding-job-actions.ts` + `safety-training-actions.ts`, `referral-actions.ts`, `cafeteria-actions.ts`, valamint a másodlagos oldal-lekérdezések (`employee/[id]/page.tsx`, `admin/page.tsx`, `performance/page.tsx`, `performance/dashboard/page.tsx`, `offboarding/page.tsx`, `manager/page.tsx`) teljes körűen cég-szűrt és modul-védett állapotba kerültek.
+

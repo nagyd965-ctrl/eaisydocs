@@ -16,7 +16,7 @@ async function hasCafeteriaAdminAccess(profile: any, activeCompanyId?: string | 
     ) {
       return true
     }
-    if (scoped.isMember) {
+    if (scoped.isMember || scoped.hrRole === "none") {
       return false
     }
   } catch {
@@ -465,15 +465,11 @@ export async function getCafeteriaExportData(year: number) {
 
   const supabase = await createClient()
   const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+  if (!activeCompanyId) {
+    throw new Error("Nincs kiválasztott aktív cég.")
+  }
 
-  // We need to fetch employees and their choices (scoped to active company)
-  const { data: employees, error: empError } = await supabase
-    .from("felhasznalo_profil")
-    .select("id, nev")
-
-  if (empError) throw empError
-
-  let choicesQuery = supabase
+  const { data: choices, error: choicesError } = await supabase
     .from("hr_cafeteria_valasztas")
     .select(`
       dolgozo_id,
@@ -481,12 +477,18 @@ export async function getCafeteriaExportData(year: number) {
       hr_cafeteria_katalogus(nev, kategoria)
     `)
     .eq("ev", year)
-  if (activeCompanyId) {
-    choicesQuery = choicesQuery.eq("company_id", activeCompanyId)
-  }
-  const { data: choices, error: choicesError } = await choicesQuery
+    .eq("company_id", activeCompanyId)
 
   if (choicesError) throw choicesError
+  if (!choices || choices.length === 0) return []
+
+  const choiceEmployeeIds = Array.from(new Set(choices.map((c) => c.dolgozo_id).filter(Boolean)))
+  const { data: employees, error: empError } = await supabase
+    .from("felhasznalo_profil")
+    .select("id, nev")
+    .in("id", choiceEmployeeIds)
+
+  if (empError) throw empError
 
   // Aggregate by employee
   const exportData = employees.map(emp => {

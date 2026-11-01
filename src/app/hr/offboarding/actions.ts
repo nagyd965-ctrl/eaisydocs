@@ -267,7 +267,10 @@ export async function createOffboarding(
   const user = auth.user
   const adminClient = getAdminClient()
 
-  const activeCompanyId = extraParams?.companyId || auth.activeCompanyId || (await getActiveCompanyIdServer())
+  if (extraParams?.companyId && auth.activeCompanyId && extraParams.companyId !== auth.activeCompanyId) {
+    return { error: "Nincs jogosultságod másik vállalat nevében kiléptetést indítani." }
+  }
+  const activeCompanyId = auth.activeCompanyId || extraParams?.companyId || (await getActiveCompanyIdServer())
 
   if (activeCompanyId) {
     const [{ data: card }, { data: member }] = await Promise.all([
@@ -1517,6 +1520,9 @@ export async function getSignedFileUrl(storagePath: string): Promise<{ signedUrl
   if (!user) return { signedUrl: null, error: "Nincs bejelentkezve" }
 
   if (!storagePath) return { signedUrl: null }
+  if (storagePath.includes("..")) {
+    return { signedUrl: null, error: "Érvénytelen fájlútvonal." }
+  }
   if (storagePath.startsWith("http://") || storagePath.startsWith("https://") || storagePath.startsWith("blob:") || storagePath.startsWith("data:")) {
     return { signedUrl: storagePath }
   }
@@ -1530,33 +1536,43 @@ export async function getSignedFileUrl(storagePath: string): Promise<{ signedUrl
     const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
 
     if (!auth.authorized) {
-      // Sima munkavállaló kizárólag a saját dokumentumaihoz tartozó path-ra kérhet aláírt URL-t
-      const isOwnPathSegment =
-        storagePath.includes(`/${user.id}/`) ||
-        storagePath.startsWith(`dolgozo_${user.id}/`)
-      if (!isOwnPathSegment) {
-        const { data: ownDoc } = await adminClient
-          .from("hr_dokumentum")
-          .select("id")
-          .eq("dolgozo_id", user.id)
-          .or(`url.eq.${storagePath},alairt_fajl_url.eq.${storagePath}`)
-          .limit(1)
-          .maybeSingle()
-        if (!ownDoc) {
-          return { signedUrl: null, error: "Nincs jogosultságod a fájl megtekintéséhez." }
-        }
-      }
-    } else if (activeCompanyId) {
-      // Ha a fájl hr_dokumentum rekordhoz tartozik, ellenőrizzük a cég-egyezést
-      const { data: docRow } = await adminClient
+      // Sima munkavállaló kizárólag a saját dokumentumához tartozó fájlt töltheti le az aktív cégben
+      let ownDocQuery = adminClient
         .from("hr_dokumentum")
-        .select("company_id")
+        .select("id")
+        .eq("dolgozo_id", user.id)
         .or(`url.eq.${storagePath},alairt_fajl_url.eq.${storagePath}`)
         .limit(1)
-        .maybeSingle()
-      if (docRow?.company_id && docRow.company_id !== activeCompanyId) {
-        return { signedUrl: null, error: "A dokumentum másik vállalathoz tartozik." }
+      if (activeCompanyId) {
+        ownDocQuery = ownDocQuery.eq("company_id", activeCompanyId)
       }
+      const { data: ownDoc } = await ownDocQuery.maybeSingle()
+      if (!ownDoc) {
+        return { signedUrl: null, error: "Nincs jogosultságod a fájl megtekintéséhez." }
+      }
+    } else if (activeCompanyId) {
+      // HR/Admin: ellenőrizzük, hogy a fájl az aktív vállalathoz tartozó hr_dokumentum vagy hr_offboarding rekordban szerepel-e
+      const [{ data: docRow }, { data: offboardingRow }] = await Promise.all([
+        adminClient
+          .from("hr_dokumentum")
+          .select("id, company_id")
+          .eq("company_id", activeCompanyId)
+          .or(`url.eq.${storagePath},alairt_fajl_url.eq.${storagePath}`)
+          .limit(1)
+          .maybeSingle(),
+        adminClient
+          .from("hr_offboarding")
+          .select("id, company_id")
+          .eq("company_id", activeCompanyId)
+          .or(`szerzodes_pdf_url.eq.${storagePath},eszkoz_elszamolas_pdf_url.eq.${storagePath},t1041_nyugta_url.eq.${storagePath},kilepo_igazolas_pdf_url.eq.${storagePath}`)
+          .limit(1)
+          .maybeSingle(),
+      ])
+      if (!docRow && !offboardingRow) {
+        return { signedUrl: null, error: "A dokumentum nem található az aktív vállalat nyilvántartásában." }
+      }
+    } else {
+      return { signedUrl: null, error: "Nincs kiválasztott aktív vállalat." }
     }
 
     // Rövidebb érvényesség (15 perc)

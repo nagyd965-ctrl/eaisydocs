@@ -116,6 +116,11 @@ export async function updateKpiProgress(kpiId: string, newValue: number) {
 
   if (!kpiData) return { error: "Célkitűzés nem található." }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (activeCompanyId && kpiData.company_id && kpiData.company_id !== activeCompanyId) {
+    return { error: "A célkitűzés másik vállalathoz tartozik." }
+  }
+
   if (kpiData.dolgozo_id !== user.id) {
     const auth = await requireHrAuthServer(
       ["admin", "vezeto"],
@@ -153,11 +158,11 @@ export async function updateKpiProgress(kpiId: string, newValue: number) {
     return { error: error.message }
   }
 
-  const activeCompanyId = kpiData.company_id || (await getActiveCompanyIdServer())
+  const auditCompanyId = kpiData.company_id || activeCompanyId
 
   await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
-    company_id: activeCompanyId,
+    company_id: auditCompanyId,
     esemeny_tipus: "kpi_frissites",
     entitas_tipus: "hr_teljesitmeny",
     entitas_id: kpiId,
@@ -189,6 +194,10 @@ export async function deleteKpi(kpiId: string) {
     .single()
 
   if (!kpiData) return { error: "Célkitűzés nem található." }
+
+  if (auth.activeCompanyId && kpiData.company_id && kpiData.company_id !== auth.activeCompanyId) {
+    return { error: "A célkitűzés másik vállalathoz tartozik." }
+  }
 
   const canManage = await canManageEmployeePerformance(
     adminClient,
@@ -448,6 +457,10 @@ export async function addKpiManagerEvaluation(
 
   if (!kpiData) return { error: "Célkitűzés nem található." }
 
+  if (auth.activeCompanyId && kpiData.company_id && kpiData.company_id !== auth.activeCompanyId) {
+    return { error: "A célkitűzés másik vállalathoz tartozik." }
+  }
+
   const canManage = await canManageEmployeePerformance(
     adminClient,
     auth,
@@ -519,6 +532,10 @@ export async function confirmMeeting(kpiId: string, megjegyzes?: string) {
 
   if (!kpiData) return { error: "Célkitűzés nem található." }
 
+  if (auth.activeCompanyId && kpiData.company_id && kpiData.company_id !== auth.activeCompanyId) {
+    return { error: "A célkitűzés másik vállalathoz tartozik." }
+  }
+
   const canManage = await canManageEmployeePerformance(
     adminClient,
     auth,
@@ -576,6 +593,10 @@ export async function finalCloseKpi(kpiId: string) {
     .single()
 
   if (!kpiData) return { error: "Célkitűzés nem található." }
+
+  if (auth.activeCompanyId && kpiData.company_id && kpiData.company_id !== auth.activeCompanyId) {
+    return { error: "A célkitűzés másik vállalathoz tartozik." }
+  }
 
   const canManage = await canManageEmployeePerformance(
     adminClient,
@@ -643,6 +664,10 @@ export async function editKpi(kpiId: string, formData: FormData) {
 
   if (!currKpi) return { error: "Célkitűzés nem található." }
 
+  if (auth.activeCompanyId && currKpi.company_id && currKpi.company_id !== auth.activeCompanyId) {
+    return { error: "A célkitűzés másik vállalathoz tartozik." }
+  }
+
   const canManage = await canManageEmployeePerformance(
     adminClient,
     auth,
@@ -705,9 +730,35 @@ export async function addKpiActivity(kpiId: string, megjegyzes: string) {
   const adminClient = getAdminClient()
   const activeCompanyId = await getActiveCompanyIdServer()
 
+  const { data: kpiData } = await adminClient
+    .from("hr_teljesitmeny")
+    .select("id, dolgozo_id, company_id")
+    .eq("id", kpiId)
+    .maybeSingle()
+
+  if (!kpiData) {
+    return { error: "Célkitűzés nem található." }
+  }
+
+  if (activeCompanyId && kpiData.company_id && kpiData.company_id !== activeCompanyId) {
+    return { error: "A célkitűzés másik vállalathoz tartozik." }
+  }
+
+  if (kpiData.dolgozo_id !== user.id) {
+    const auth = await requireHrAuthServer(["admin", "vezeto"], null)
+    const canManage = await canManageEmployeePerformance(
+      adminClient,
+      auth,
+      kpiData.dolgozo_id
+    )
+    if (!canManage) {
+      return { error: "Nincs jogosultságod megjegyzést fűzni ehhez a célkitűzéshez." }
+    }
+  }
+
   const { error } = await adminClient.from("hr_esemeny_naplo").insert({
     felhasznalo_id: user.id,
-    company_id: activeCompanyId,
+    company_id: kpiData.company_id || activeCompanyId,
     esemeny_tipus: "kpi_bejegyzes",
     entitas_tipus: "hr_teljesitmeny",
     entitas_id: kpiId,

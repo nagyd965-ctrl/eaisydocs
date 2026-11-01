@@ -14,61 +14,69 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const filePath = searchParams.get("path")
     const bucket = searchParams.get("bucket") || "irat_files"
+    const ALLOWED_BUCKETS = new Set(["irat_files", "hr_dokumentumok"])
 
-    if (!filePath || filePath.includes("..") || filePath.startsWith("/") || filePath.startsWith("\\")) {
-      return new NextResponse("Érvénytelen fájl útvonal", { status: 400 })
+    if (
+      !filePath ||
+      filePath.includes("..") ||
+      filePath.startsWith("/") ||
+      filePath.startsWith("\\") ||
+      !ALLOWED_BUCKETS.has(bucket)
+    ) {
+      return new NextResponse("Érvénytelen fájl útvonal vagy tároló", { status: 400 })
     }
 
     // 1. Felhasználói profil és cég-szintű szerepkörök lekérése
     const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
     const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
     const activeCompanyId = await getActiveCompanyIdServer()
+    if (!activeCompanyId) {
+      return new NextResponse("Nincs kiválasztott aktív vállalat.", { status: 403 })
+    }
     const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
-    const { data: profile } = await supabase
-      .from("felhasznalo_profil")
-      .select("hr_szerepkor, docs_szerepkor, hr_modulok")
-      .eq("id", user.id)
-      .single()
-
-    const effectiveHrRole =
-      scopedRoles.hrRole && scopedRoles.hrRole !== "none" ? scopedRoles.hrRole : profile?.hr_szerepkor
-    const effectiveHrModules =
-      scopedRoles.hrModules.length > 0 ? scopedRoles.hrModules : ((profile as any)?.hr_modulok || [])
+    const effectiveHrRole = scopedRoles.hrRole || "none"
+    const effectiveHrModules = scopedRoles.hrModules || []
 
     const isHrOrAdmin =
       scopedRoles.isCompanyAdmin ||
       scopedRoles.docsRole === "admin" ||
-      ["admin", "rendszergazda"].includes(profile?.docs_szerepkor || "") ||
       isUserAuthorizedForHrView(
         effectiveHrRole,
         ["admin", "employees", "compliance", "payroll", "onboarding", "offboarding", "auditor"],
         effectiveHrModules
       )
 
-    // 2. Dokumentum jogosultság ellenőrzése
-    // Ellenőrizzük, hogy a fájl munkaköri leírás-e (publikus a cégen belül minden munkavállalónak)
-    let jobDocQuery = supabase
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const dbClient = serviceRoleKey
+      ? createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey)
+      : supabase
+
+    // 2. Dokumentum jogosultság ellenőrzése az aktív vállalaton belül
+    // Ellenőrizzük, hogy a fájl munkaköri leírás-e (publikus a cégen belül minden tagnak)
+    const { data: jobDoc } = await dbClient
       .from("hr_munkakor_leiras_verzio")
       .select("id, company_id")
       .eq("fajl_path", filePath)
-    if (activeCompanyId) {
-      jobDocQuery = jobDocQuery.eq("company_id", activeCompanyId)
-    }
-    const { data: jobDoc } = await jobDocQuery.maybeSingle()
+      .eq("company_id", activeCompanyId)
+      .limit(1)
+      .maybeSingle()
 
-    // Vagy személyes HR dokumentum-e (csak saját maga vagy HR/Admin férhet hozzá az adott cégnél)
-    let empDocQuery = supabase
+    // Vagy személyes HR dokumentum-e az adott cégnél
+    const { data: empDoc } = await dbClient
       .from("hr_dokumentum")
       .select("id, dolgozo_id, company_id")
       .or(`url.eq.${filePath},alairt_fajl_url.eq.${filePath}`)
-    if (activeCompanyId) {
-      empDocQuery = empDocQuery.eq("company_id", activeCompanyId)
-    }
-    const { data: empDoc } = await empDocQuery.maybeSingle()
+      .eq("company_id", activeCompanyId)
+      .limit(1)
+      .maybeSingle()
 
-    const isOwnDocument = empDoc?.dolgozo_id === user.id
-    const isAuthorized = isHrOrAdmin || Boolean(jobDoc) || isOwnDocument
+    const isOwnDocument = Boolean(empDoc && empDoc.dolgozo_id === user.id)
+    const belongsToActiveCompanyHr = Boolean(jobDoc) || Boolean(empDoc)
+    const isAuthorized =
+      (Boolean(jobDoc) && effectiveHrRole !== "none") ||
+      isOwnDocument ||
+      (isHrOrAdmin && belongsToActiveCompanyHr)
 
     if (!isAuthorized) {
       return new NextResponse("Hozzáférés megtagadva: Nincs jogosultsága a kért dokumentum letöltéséhez.", { status: 403 })

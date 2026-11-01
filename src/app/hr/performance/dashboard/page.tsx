@@ -55,7 +55,7 @@ export default async function DashboardPage() {
     supabaseAdmin
       .from("hr_teljesitmeny_ciklus")
       .select("*")
-      .or(`company_id.eq.${companyScope},company_id.is.null`)
+      .eq("company_id", companyScope)
       .order("kezdo_datum", { ascending: false }),
 
     supabaseAdmin
@@ -68,7 +68,9 @@ export default async function DashboardPage() {
           szervezeti_egyseg_id
         ),
         hr_jogviszony (
+          company_id,
           hr_beosztas (
+            company_id,
             ervenyes_ig,
             hr_munkakor (
               megnevezes,
@@ -82,13 +84,13 @@ export default async function DashboardPage() {
     supabaseAdmin
       .from("szervezeti_egyseg")
       .select("id, nev")
-      .or(`company_id.eq.${companyScope},company_id.is.null`),
+      .eq("company_id", companyScope),
   ])
 
   const deptMap = new Map<string, string>()
-  ;(departmentsRes.data || []).forEach((d: any) => {
-    if (d.id && d.nev) deptMap.set(d.id, d.nev)
-  })
+    ; (departmentsRes.data || []).forEach((d: any) => {
+      if (d.id && d.nev) deptMap.set(d.id, d.nev)
+    })
 
   const inferDepartmentFromRole = (roleName: string): string => {
     const lower = roleName.toLowerCase()
@@ -118,19 +120,25 @@ export default async function DashboardPage() {
     const nev = profil?.nev || "Ismeretlen munkavállaló"
     const avatar_url = profil?.avatar_url || null
 
-    const jogviszonyList = Array.isArray(emp.hr_jogviszony)
+    const rawJogviszonyList = Array.isArray(emp.hr_jogviszony)
       ? emp.hr_jogviszony
       : emp.hr_jogviszony
-      ? [emp.hr_jogviszony]
-      : []
+        ? [emp.hr_jogviszony]
+        : []
+    const jogviszonyList = rawJogviszonyList.filter(
+      (jv: any) => !companyScope || jv?.company_id === companyScope
+    )
 
     let activeBeosztas: any = null
     for (const jv of jogviszonyList) {
-      const beosztasList = Array.isArray(jv?.hr_beosztas)
+      const rawBeosztasList = Array.isArray(jv?.hr_beosztas)
         ? jv.hr_beosztas
         : jv?.hr_beosztas
-        ? [jv.hr_beosztas]
-        : []
+          ? [jv.hr_beosztas]
+          : []
+      const beosztasList = rawBeosztasList.filter(
+        (b: any) => !companyScope || b?.company_id === companyScope
+      )
       const found = beosztasList.find((b: any) => b.ervenyes_ig === null) || beosztasList[0]
       if (found) {
         activeBeosztas = found

@@ -147,11 +147,17 @@ export async function updateEmployeeInfo(formData: FormData) {
   const targetMunkakor = munkakorId === "none" ? null : munkakorId
   let defaultOrgUnitId = null;
   if (targetMunkakor) {
-    const { data: jobData } = await supabaseAdmin
+    let jobQuery = supabaseAdmin
       .from("hr_munkakor")
       .select("szervezeti_egyseg_id")
       .eq("id", targetMunkakor)
-      .single()
+    if (activeCompanyId) {
+      jobQuery = jobQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: jobData } = await jobQuery.maybeSingle()
+    if (!jobData) {
+      return { error: "A kiválasztott munkakör nem található az aktív cégben." }
+    }
     if (jobData?.szervezeti_egyseg_id) {
       defaultOrgUnitId = jobData.szervezeti_egyseg_id
     }
@@ -200,25 +206,47 @@ export async function updateEmployeeInfo(formData: FormData) {
   }
 
   if (jogviszonyId) {
+    // Ellenőrizzük, hogy a jogviszony az aktív céghez és a dolgozóhoz tartozik-e
+    let verifyJogvQuery = supabaseAdmin
+      .from("hr_jogviszony")
+      .select("id")
+      .eq("id", jogviszonyId)
+      .eq("dolgozo_id", employeeId)
+    if (activeCompanyId) {
+      verifyJogvQuery = verifyJogvQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: verifiedJogv } = await verifyJogvQuery.maybeSingle()
+    if (!verifiedJogv) {
+      return { error: "A megadott jogviszony nem tartozik az aktív céghez." }
+    }
+
     // 3. Jogviszony frissítése (Belépés dátuma)
     if (entryDate) {
-      const { error: hrError } = await supabaseAdmin
+      let updateJogvQuery = supabaseAdmin
         .from("hr_jogviszony")
         .update({ belepes_datuma: entryDate })
         .eq("id", jogviszonyId)
+      if (activeCompanyId) {
+        updateJogvQuery = updateJogvQuery.eq("company_id", activeCompanyId)
+      }
+      const { error: hrError } = await updateJogvQuery
 
       if (hrError) return { error: "Hiba a jogviszony frissítésekor: " + hrError.message }
     }
 
     // 4. Munkakör (Beosztás) frissítése
     // Megnézzük mi az aktív beosztás
-    const { data: beosztasok } = await supabaseAdmin
+    let beosztasQuery = supabaseAdmin
       .from("hr_beosztas")
       .select("id, munkakor_id")
       .eq("jogviszony_id", jogviszonyId)
       .is("ervenyes_ig", null)
       .order("ervenyes_tol", { ascending: false })
       .limit(1)
+    if (activeCompanyId) {
+      beosztasQuery = beosztasQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: beosztasok } = await beosztasQuery
 
     const activeBeosztas = beosztasok?.[0]
 
@@ -239,7 +267,8 @@ export async function updateEmployeeInfo(formData: FormData) {
           .insert([{
             jogviszony_id: jogviszonyId,
             munkakor_id: targetMunkakor,
-            ervenyes_tol: new Date().toISOString().split("T")[0]
+            ervenyes_tol: new Date().toISOString().split("T")[0],
+            ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
           }])
       }
     }

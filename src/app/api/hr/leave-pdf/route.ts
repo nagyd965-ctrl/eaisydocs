@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/utils/supabase/server"
 import { launchPdfBrowser } from "@/utils/pdf-browser"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 
 const TIPUS_LABEL: Record<string, string> = {
   szabadsag: "Szabadság",
@@ -27,11 +29,22 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Nincs bejelentkezve", { status: 401 })
   }
 
-  // 1. Lekéri a távollétet
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (!activeCompanyId) {
+    return new NextResponse("Nincs kiválasztott aktív cég", { status: 403 })
+  }
+
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  if (!scopedRoles.isCompanyAdmin && scopedRoles.hrRole === "none") {
+    return new NextResponse("Nincs hozzáférése az aktív céghez", { status: 403 })
+  }
+
+  // 1. Lekéri a távollétet cég-szűréssel
   const { data: tavollet, error } = await supabase
     .from("hr_tavollet")
-    .select("id, tipus, kezdet_datuma, veg_datuma, statusz, created_at, dolgozo_id, jovahagyo_id")
+    .select("id, company_id, tipus, kezdet_datuma, veg_datuma, statusz, created_at, dolgozo_id, jovahagyo_id")
     .eq("id", tavolletId)
+    .eq("company_id", activeCompanyId)
     .single()
 
   if (error || !tavollet) {
@@ -48,14 +61,14 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // 2. Biztonsági ellenőrzés: saját igazolás vagy HR
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("hr_szerepkor")
-    .eq("id", user.id)
-    .single()
-
-  const isHrOrAdmin = ["hr_munkatars", "hr_vezeto", "admin"].includes(profile?.hr_szerepkor || "")
+  // 2. Biztonsági ellenőrzés: saját igazolás, céghez rendelt HR, vagy közvetlen vezető
+  const isHrOrAdmin =
+    scopedRoles.isCompanyAdmin ||
+    isUserAuthorizedForHrView(
+      scopedRoles.hrRole,
+      ["admin", "employees", "time", "payroll", "compliance", "auditor", "reports"],
+      scopedRoles.hrModules
+    )
   const isOwn = tavollet.dolgozo_id === user.id
 
   let isManager = false
@@ -96,12 +109,13 @@ export async function GET(request: NextRequest) {
     jovahagyoNev = jovahagyoProfil?.nev ?? "—"
   }
 
-  // 5. Munkakör lekérése az aktív jogviszonyból
+  // 5. Munkakör lekérése az aktív jogviszonyból (cégre szűrve)
   let munkakori = "—"
   const { data: jogviszony } = await supabase
     .from("hr_jogviszony")
     .select(`id, hr_beosztas ( hr_munkakor ( megnevezes ) )`)
     .eq("dolgozo_id", tavollet.dolgozo_id)
+    .eq("company_id", activeCompanyId)
     .is("kilepes_datuma", null)
     .order("belepes_datuma", { ascending: false })
     .limit(1)

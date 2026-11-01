@@ -469,15 +469,14 @@ export async function saveAttendanceRecord(
 // 3. Delete Attendance Record
 export async function deleteAttendanceRecord(id: string, employeeId: string, datum: string) {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error("Nincs bejelentkezve")
-
-    const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-    const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
-    if (!auth.authorized && user.id !== employeeId) {
-      throw new Error("Nincs jogosultságod a jelenléti rekord törléséhez!")
+    const access = await verifyTimesheetEmployeeAccess(employeeId, {
+      allowSelf: false,
+      requiredModules: ["time", "admin", "vezeto"],
+    })
+    if (!access.ok) {
+      throw new Error(access.error)
     }
+    const { supabase, activeCompanyId } = access
 
     if (await checkIsMonthClosed(supabase, employeeId, datum)) {
       throw new Error("Ez a hónap már le van zárva, nem törölhető!")
@@ -488,7 +487,6 @@ export async function deleteAttendanceRecord(id: string, employeeId: string, dat
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-    const activeCompanyId = await getActiveCompanyIdServer()
 
     let delQuery = adminClient
       .from("hr_jelenlet")

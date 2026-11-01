@@ -208,11 +208,17 @@ export default async function ManagerPage() {
   // 8b. Mai jelenlét (becsekkolás / kicsekkolás) adatok lekérése a csapattagokhoz
   let todayAttendances: any[] = []
   if (allTeamIds.length > 0) {
-    const { data: attData } = await supabase
+    let attQuery = supabase
       .from("hr_jelenlet")
       .select("dolgozo_id, datum, becsekkolas_ideje, kicsekkolas_ideje")
       .eq("datum", todayStr)
       .in("dolgozo_id", allTeamIds)
+
+    if (activeCompanyId) {
+      attQuery = attQuery.eq("company_id", activeCompanyId)
+    }
+
+    const { data: attData } = await attQuery
 
     todayAttendances = attData || []
   }

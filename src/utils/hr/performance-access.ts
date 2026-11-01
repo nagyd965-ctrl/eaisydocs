@@ -35,19 +35,23 @@ export async function getScopedPerformanceEmployeeIds(
   }
 
   const userId = auth.user?.id
-  if (!userId) return []
+  if (!userId || companyMemberIds.length === 0) return []
 
   const companySet = new Set(companyMemberIds)
   const todayStr = new Date().toISOString().split("T")[0]
 
-  // 1. Aktív helyettesítések lekérése (ha a vezető jelenleg más vezetőt is helyettesít)
-  const { data: activeSubs } = await supabaseAdmin
+  // 1. Aktív helyettesítések lekérése (csak az aktív vállalatban)
+  let subsQuery = supabaseAdmin
     .from("hr_helyettesites")
     .select("helyettesitett_id")
     .eq("helyettes_id", userId)
     .eq("aktiv", true)
     .lte("kezdet_datuma", todayStr)
     .gte("veg_datuma", todayStr)
+  if (auth.activeCompanyId) {
+    subsQuery = subsQuery.eq("company_id", auth.activeCompanyId)
+  }
+  const { data: activeSubs } = await subsQuery
 
   const managerIds = Array.from(
     new Set([
@@ -63,15 +67,21 @@ export async function getScopedPerformanceEmployeeIds(
     .in("kozvetlen_vezeto_id", managerIds)
 
   // 3. Szervezeti egység vezetés alapján (`szervezeti_egyseg.vezeto_id` és `hr_szervezeti_egyseg.vezeto_id`)
+  let docsUnitsQuery = supabaseAdmin
+    .from("szervezeti_egyseg")
+    .select("id")
+    .in("vezeto_id", managerIds)
+  let hrUnitsQuery = supabaseAdmin
+    .from("hr_szervezeti_egyseg")
+    .select("id")
+    .in("vezeto_id", managerIds)
+  if (auth.activeCompanyId) {
+    docsUnitsQuery = docsUnitsQuery.eq("company_id", auth.activeCompanyId)
+    hrUnitsQuery = hrUnitsQuery.eq("company_id", auth.activeCompanyId)
+  }
   const [{ data: docsUnits }, { data: hrUnits }] = await Promise.all([
-    supabaseAdmin
-      .from("szervezeti_egyseg")
-      .select("id")
-      .in("vezeto_id", managerIds),
-    supabaseAdmin
-      .from("hr_szervezeti_egyseg")
-      .select("id")
-      .in("vezeto_id", managerIds),
+    docsUnitsQuery,
+    hrUnitsQuery,
   ])
 
   const managedUnitIds = Array.from(
@@ -99,28 +109,35 @@ export async function getScopedPerformanceEmployeeIds(
 
   // Kizárólag az aktív vállalat tagjai (és saját magát kizárva, ha részlegvezetőként benne lenne)
   return allTeamIds.filter(
-    (id: string) => id !== userId && (companySet.size === 0 || companySet.has(id))
+    (id: string) => id !== userId && companySet.has(id)
   )
 }
 
 /**
  * Ellenőrzi, hogy a bejelentkezett vezető/HR-es jogosult-e a megadott dolgozó
- * (`targetEmployeeId`) KPI-jainak módosítására / értékelésére.
+ * (`targetEmployeeId`) KPI-jainak módosítására / értékelésére az aktív cégben.
  */
 export async function canManageEmployeePerformance(
   supabaseAdmin: any,
   auth: HrAuthContext,
   targetEmployeeId: string
 ): Promise<boolean> {
-  if (!auth.authorized || !targetEmployeeId) return false
-  if (hasFullCompanyPerformanceAccess(auth)) return true
+  if (!auth.authorized || !targetEmployeeId || !auth.activeCompanyId) return false
 
-  const companyScope = auth.activeCompanyId || "00000000-0000-0000-0000-000000000000"
   const { data: companyMembers } = await supabaseAdmin
     .from("company_members")
     .select("user_id")
-    .eq("company_id", companyScope)
+    .eq("company_id", auth.activeCompanyId)
   const memberUserIds = (companyMembers || []).map((m: any) => m.user_id)
+
+  // A cél dolgozónak kötelezően az aktív vállalat tagjának kell lennie
+  if (!memberUserIds.includes(targetEmployeeId)) {
+    return false
+  }
+
+  if (hasFullCompanyPerformanceAccess(auth)) {
+    return true
+  }
 
   const allowedIds = await getScopedPerformanceEmployeeIds(
     supabaseAdmin,

@@ -35,15 +35,18 @@ export async function onboardEmployee(data: {
   let isNewAccountCreated = false
 
   if (data.mode === "select_candidate") {
-    // 1. Kikeressük a jelentkezőt
-    const { data: candidate } = await supabaseAdmin
+    // 1. Kikeressük a jelentkezőt (cégre szűrve)
+    let candQuery = supabaseAdmin
       .from("hr_toborzas")
       .select("nev, email")
       .eq("id", data.candidateId)
-      .single()
+    if (activeCompanyId) {
+      candQuery = candQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: candidate } = await candQuery.maybeSingle()
 
     if (!candidate) {
-      return { error: "Nem található a kiválasztott jelentkező." }
+      return { error: "Nem található a kiválasztott jelentkező az aktív cégben." }
     }
 
     const generatedPassword = `Eaisy${Math.random().toString(36).slice(-6)}!26`
@@ -151,14 +154,20 @@ export async function onboardEmployee(data: {
     return { error: "Hiányzik a felhasználó azonosítója." }
   }
 
-  // 0.5. Határozzuk meg a szervezeti egységet a munkakör alapján
+  // 0.5. Határozzuk meg a szervezeti egységet a munkakör alapján (cégre szűrve)
   let orgUnitId = null
   if (data.munkakorId && data.munkakorId !== "none") {
-    const { data: jobData } = await supabaseAdmin
+    let jobQuery = supabaseAdmin
       .from("hr_munkakor")
       .select("szervezeti_egyseg_id")
       .eq("id", data.munkakorId)
-      .single()
+    if (activeCompanyId) {
+      jobQuery = jobQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: jobData } = await jobQuery.maybeSingle()
+    if (!jobData) {
+      return { error: "A kiválasztott munkakör nem található az aktív cégben." }
+    }
     if (jobData?.szervezeti_egyseg_id) {
       orgUnitId = jobData.szervezeti_egyseg_id
     }

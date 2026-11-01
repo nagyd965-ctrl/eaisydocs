@@ -1182,6 +1182,29 @@ export async function getEaisyBillCompaniesAction(): Promise<{
       return { success: false, companies: [], error: "Nincs bejelentkezett felhasználó." }
     }
 
+    const [{ data: callerProfile }, { data: adminMemberships }] = await Promise.all([
+      supabase
+        .from("felhasznalo_profil")
+        .select("szerepkor, docs_szerepkor")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("company_members")
+        .select("id")
+        .eq("user_id", user.id)
+        .in("role", ["owner", "admin"])
+        .limit(1),
+    ])
+
+    const isGlobalSysadmin =
+      ["rendszergazda", "admin"].includes(callerProfile?.szerepkor || "") ||
+      ["rendszergazda", "admin"].includes(callerProfile?.docs_szerepkor || "")
+    const isAnyCompanyAdmin = Boolean(adminMemberships && adminMemberships.length > 0)
+
+    if (!isGlobalSysadmin && !isAnyCompanyAdmin) {
+      return { success: false, companies: [], error: "Nincs jogosultsága az eaisyBill vállalatok lekérdezéséhez." }
+    }
+
     const billClient = createEaisyBillClient()
 
     // 1. Lekérjük az eaisyBill cégeket
@@ -1239,6 +1262,29 @@ export async function importEaisyBillCompanyAction(eaisybillCompanyId: string): 
       return { success: false, error: "Nincs bejelentkezett felhasználó." }
     }
 
+    const [{ data: callerProfile }, { data: adminMemberships }] = await Promise.all([
+      supabase
+        .from("felhasznalo_profil")
+        .select("szerepkor, docs_szerepkor")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("company_members")
+        .select("id")
+        .eq("user_id", user.id)
+        .in("role", ["owner", "admin"])
+        .limit(1),
+    ])
+
+    const isGlobalSysadmin =
+      callerProfile?.szerepkor === "rendszergazda" ||
+      callerProfile?.docs_szerepkor === "rendszergazda"
+    const isAnyCompanyAdmin = Boolean(adminMemberships && adminMemberships.length > 0)
+
+    if (!isGlobalSysadmin && !isAnyCompanyAdmin) {
+      return { success: false, error: "Nincs jogosultsága vállalat importálásához." }
+    }
+
     const billClient = createEaisyBillClient()
 
     // 1. Lekérjük a céget az eaisyBill-ből
@@ -1273,6 +1319,12 @@ export async function importEaisyBillCompanyAction(eaisybillCompanyId: string): 
         .maybeSingle()
 
       if (!membership) {
+        if (!isGlobalSysadmin) {
+          return {
+            success: false,
+            error: "Ez a vállalat már importálva lett a rendszerbe. Kérj meghívót a vállalat adminisztrátorától!",
+          }
+        }
         await supabase
           .from("company_members")
           .insert({

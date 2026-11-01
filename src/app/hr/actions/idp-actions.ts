@@ -742,19 +742,10 @@ export async function getSignedCertificateUrl(storagePath: string) {
         }
       }
     } else {
-      // Kizárólag a saját user.id-t tartalmazó vagy explicit IDP/tanúsítvány mappabeli fájlok engedélyezettek
-      const isOwnPath = storagePath.includes(user.id);
-      const isIdpOrCertPrefix =
-        storagePath.startsWith('idp/') ||
-        storagePath.startsWith('certificates/') ||
-        storagePath.startsWith('kepzettseg/');
-      if (!isOwnPath && !isIdpOrCertPrefix) {
-        return null;
-      }
+      // Kizárólag a saját user.id-t tartalmazó fájlelérés engedélyezett, ha nincs DB-rekord
+      const isOwnPath = storagePath.includes(`/${user.id}/`);
       if (!isOwnPath) {
-        const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
-        const auth = await requireHrAuthServer(['admin', 'vezeto', 'employees', 'compliance', 'auditor'], null);
-        if (!auth.authorized) return null;
+        return null;
       }
     }
   }
@@ -775,7 +766,24 @@ export async function getSignedCertificateUrl(storagePath: string) {
 // ---------------------------------------------------------------------------
 
 export async function getCompanyMentorsAction(companyId?: string) {
-  const activeCompanyId = companyId || (await getActiveCompanyIdServer());
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const serverActiveCompanyId = await getActiveCompanyIdServer();
+  if (companyId && serverActiveCompanyId && companyId !== serverActiveCompanyId) {
+    return [];
+  }
+  const activeCompanyId = serverActiveCompanyId || companyId;
+  if (!activeCompanyId) return [];
+
+  const { data: callerMember } = await supabase
+    .from('company_members')
+    .select('user_id')
+    .eq('company_id', activeCompanyId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (!callerMember) return [];
 
   const { createClient: createAdminClient } = await import('@supabase/supabase-js');
   const adminClient = createAdminClient(
@@ -785,65 +793,51 @@ export async function getCompanyMentorsAction(companyId?: string) {
 
   const map = new Map<string, { id: string; nev: string; munkakor?: string }>();
 
-  if (activeCompanyId) {
-    // 1. Céghez tartozó jogviszonyok és munkakörök lekérése
-    const { data: jogviszonyok } = await adminClient
-      .from('hr_jogviszony')
-      .select(`
-        dolgozo_id,
-        kilepes_datuma,
-        felhasznalo_profil(id, nev, pozicio),
-        hr_beosztas(
-          hr_munkakor(megnevezes)
-        )
-      `)
-      .eq('company_id', activeCompanyId)
-      .order('kilepes_datuma', { ascending: false, nullsFirst: true });
+  // 1. Céghez tartozó jogviszonyok és munkakörök lekérése
+  const { data: jogviszonyok } = await adminClient
+    .from('hr_jogviszony')
+    .select(`
+      dolgozo_id,
+      kilepes_datuma,
+      felhasznalo_profil(id, nev, pozicio),
+      hr_beosztas(
+        hr_munkakor(megnevezes)
+      )
+    `)
+    .eq('company_id', activeCompanyId)
+    .order('kilepes_datuma', { ascending: false, nullsFirst: true });
 
-    if (jogviszonyok) {
-      for (const j of jogviszonyok as any[]) {
-        const p = Array.isArray(j.felhasznalo_profil) ? j.felhasznalo_profil[0] : j.felhasznalo_profil;
-        if (p?.id && p?.nev && !map.has(p.id)) {
-          const beosztas = Array.isArray(j.hr_beosztas) ? j.hr_beosztas[0] : j.hr_beosztas;
-          const mkObj = Array.isArray(beosztas?.hr_munkakor) ? beosztas.hr_munkakor[0] : beosztas?.hr_munkakor;
-          const munkakor = mkObj?.megnevezes || p.pozicio || undefined;
-          map.set(p.id, { id: p.id, nev: p.nev, munkakor });
-        }
-      }
-    }
-
-    // 2. Tagok a company_members táblából
-    const { data: members } = await adminClient
-      .from('company_members')
-      .select('user_id')
-      .eq('company_id', activeCompanyId);
-
-    const userIds = (members || []).map((m: any) => m.user_id);
-    if (userIds.length > 0) {
-      const { data: profs } = await adminClient
-        .from('felhasznalo_profil')
-        .select('id, nev, pozicio')
-        .in('id', userIds);
-
-      if (profs) {
-        for (const p of profs as any[]) {
-          if (!map.has(p.id) && p.nev) {
-            map.set(p.id, { id: p.id, nev: p.nev, munkakor: p.pozicio || undefined });
-          }
-        }
+  if (jogviszonyok) {
+    for (const j of jogviszonyok as any[]) {
+      const p = Array.isArray(j.felhasznalo_profil) ? j.felhasznalo_profil[0] : j.felhasznalo_profil;
+      if (p?.id && p?.nev && !map.has(p.id)) {
+        const beosztas = Array.isArray(j.hr_beosztas) ? j.hr_beosztas[0] : j.hr_beosztas;
+        const mkObj = Array.isArray(beosztas?.hr_munkakor) ? beosztas.hr_munkakor[0] : beosztas?.hr_munkakor;
+        const munkakor = mkObj?.megnevezes || p.pozicio || undefined;
+        map.set(p.id, { id: p.id, nev: p.nev, munkakor });
       }
     }
   }
 
-  // Fallback csak akkor, ha nincs kiválasztott vállalat (soha ne szivárogjon át másik cég névsora)
-  if (map.size === 0 && !activeCompanyId) {
-    const supabase = await createClient();
-    const { data: allProfs } = await supabase
+  // 2. Tagok a company_members táblából
+  const { data: members } = await adminClient
+    .from('company_members')
+    .select('user_id')
+    .eq('company_id', activeCompanyId);
+
+  const userIds = (members || []).map((m: any) => m.user_id);
+  if (userIds.length > 0) {
+    const { data: profs } = await adminClient
       .from('felhasznalo_profil')
       .select('id, nev, pozicio')
-      .order('nev');
-    for (const p of (allProfs as any[] || [])) {
-      if (p.nev) map.set(p.id, { id: p.id, nev: p.nev, munkakor: p.pozicio || undefined });
+      .in('id', userIds);
+
+    if (profs) {
+      for (const p of profs as any[]) {
+        if (!map.has(p.id) && p.nev) {
+          map.set(p.id, { id: p.id, nev: p.nev, munkakor: p.pozicio || undefined });
+        }
+      }
     }
   }
 
@@ -932,12 +926,17 @@ export async function addIDPNote(celId: string, szoveg: string) {
 
 export async function getDevelopmentPlansByEmployee(dolgozoId: string) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
 
-  // HR deep-analysis 20261029 (2.1) P0-javítás (2026-11-01): CÉG-SZŰRÉS —
-  // korábban csak dolgozo_id-ra szűrt, így többcéges dolgozó MINDEN cég
-  // fejlesztési terve minden cég-nézetben megjelent (a megrendelő igazolta:
-  // ugyanaz a hiba, mint a Célkitűzéseknél).
   const activeCompanyId = await getActiveCompanyIdServer();
+  if (user.id !== dolgozoId) {
+    const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
+    const auth = await requireHrAuthServer(['performance', 'employees', 'admin', 'vezeto', 'auditor'], null);
+    if (!auth.authorized) {
+      return [];
+    }
+  }
 
   let query = supabase
     .from('hr_fejlesztesi_terv')
