@@ -31,6 +31,7 @@
 | 18 | **2.4 P0:** A 360° dolgozói karton cég-ellenőrzés nélkül töltődött service-role-lal — modullal rendelkező felhasználó más cég dolgozójának teljes kartonját láthatta (GDPR) | `3cd9fd3` | `hr_dolgozo_adatlap.company_id` vs aktív cég ellenőrzés a betöltésnél (saját maga kivételével) | ✔ |
 | 19 | **2.1 P1:** A `/hr` „Függőben Lévő" KPI csak a szabadságkérelmeket számolta — a jelenlétkorrekciókat és túlóra-kérelmeket nem | `3cd9fd3` | Mindhárom kérelestípus számolása (count+head lekérdezések) | ✔ |
 | 20 | **2.6 P2:** AI-hirdetés-generátor csak login-check — bárki korlátlan Gemini-hívást provokálhatott | `3cd9fd3` | `["recruitment"]` modulkulcs őrblokk | ✔ |
+| 21 | **2.4 P1:** `closeOffboarding` a dolgozó globális `hr_szerepkor`-ját inaktiválta és az Auth-fiókot 100 évre bannolta — **multi-company dolgozónál a másik cégben lévő jogviszonyát is megsemmisítette** | `7d40491` | Előbb `company_members` ellenőrzés: ha a dolgozónak **másik cégnél is van tagsága**, csak az adott cég tagságát zárjuk le; egy-céges dolgozónál marad a régi (globális + Auth-ban) | ✔ |
 
 **Élőben megerősített, MÉG NYITVA (2026.10.31.):**
 - **1.3 gyökérok („admin" modulkulcs-ütközés):** a megrendelő élő tesztje igazolta — „Kelemen Roberta" (`hr_szerepkor: munkavallalo`) **látja a Vezetői nézetet**, mert a Mátrixból kapott „Állomány" modul kulcsa `admin`, és a menü (`hr-sidebar.tsx:127`) valamint a `/hr/manager` oldal (`requireHrAuthServer(["...","admin"])`) modulkulcsként is egyezteti. A vezetői nézet adatszűrése eközben rendben van (csak közvetlen beosztottak). **A javítás elhalasztva a megrendelő döntése szerint; a teljes elemzés (3 réteg: menü / ~30 action / titkosítás-RPC) a session-naplóban.**
@@ -38,6 +39,7 @@
 **Elvetett találatok (2026.11.01., a megrendelő tesztje alapján):**
 - **2.2 P0 (részben):** „túlóra-kérelmek újra-birálhatása" — a megrendelő UI-tesztje szerint **elutasított kérelemnél nem kattintható újra jóváhagyás** (nem reprodukálható a felületen; a szerveroldali státusz-őr hiánya marad kód-szintű megjegyzés).
 - **2.4 P1:** „pótszabadság-alapok önmódosíthatók" — a megrendelő tesztje szerint a sima dolgozó **nem éri el a kartont** és a Profilom nézetben **nem módosítható** — nem hiba.
+- **2.6 P1:** „belső-publikus hirdetés egyszerre" — a megrendelő tesztje szerint **az UI már kizárja** az egyszerre bekapcsolást (a szerveroldali kiegészítő védelem P2-es szintű maradvány).
 
 ---
 
