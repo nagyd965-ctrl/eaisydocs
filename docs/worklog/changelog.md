@@ -4,7 +4,10 @@ Minden jelentős fejlesztési mérföldkő, release és sprint időrendi naplój
 
 ## [Unreleased] – Fejlesztés alatt (2026-11-01)
 
-### [eaisyHR]: Időzóna-Javítás + Bizalmas Jelvény (Deep-Analysis 2.1/2.4, audit #16-#17)
+### [eaisyHR]: Hármas Csomag — Karton Cég-Ellenőrzés, Függő KPI, AI-Generátor Őrblokk (Deep-Analysis 2.4/2.1/2.6, audit #18-#20)
+- **360° dolgozói karton cég-ellenőrzése (`src/app/hr/employee/[id]/page.tsx`, commit `3cd9fd3`):** a karton **service-role klienssel** töltődött, a belépési guard nem hasonlította össze a dolgozó cégét a hívó aktív cégével — modullal rendelkező felhasználó **más cég dolgozójának teljes kartonját** láthatta (GDPR). Mostantól a `hr_dolgozo_adatlap.company_id` egyezik az aktív céggel (saját maga kivételével).
+- **„Függőben Lévő" KPI pontosítása (`src/app/hr/page.tsx`):** a kártya korábban **csak a szabadságkérelmeket** számolta — a jelenlétkorrekciókat és túlóra-kérelmeket nem. Mindhárom kérelestípus számolása (count+head lekérdezésekkel).
+- **AI-hirdetés-generátor őrblokk (`src/app/hr/recruitment/ai-posting-actions.ts`):** a `generateJobPostingWithAiAction` korábban **csak login-check** volt — bárki korlátlan Gemini-hívást provokálhatott (AI-költségvisszaélés). Mostantól `["recruitment"]` modulkulcs-ellenőrzés.
 - **Jelenlétkorrekció időzóna-torzulás javítva (`src/app/hr/self-service/actions.ts`, commit `9d48938`):** a `${datum}T${ido}:00` string a **szerver (UTC) időzónájában** értelmezett — a dolgozó által beírt 08:30 **09:30-ként** jelent meg a jelenléti ívben, a PDF-igazolásban és a bérszámfejtésben. Új `getBudapestOffsetMs()` segédfüggvény (nyári/téli időszámítás-váltáskezeléssel, `Intl` alapján) — az időpontok explicit Budapest-i időzónában értelmeződnek.
 - **Bizalmas jelvény érzékeny dokumentumokra (`OfficialDocumentsTab.tsx`):** a megrendelő ötlete alapján a Hivatalos Dokumentumok fülről az **orvosi / fegyelmi / egészségügyi** kategóriájú dokumentumok piros „Bizalmas" jelvényt kapnak (GDPR Art. 9 figyelemfelhívás).
 - **Elvetve:** „pótszabadság-alapok önmódosíthatók" — a megrendelő tesztje szerint sima dolgozó nem éri el a kartont és a Profilom nézetben nem módosítható — nem hiba.
