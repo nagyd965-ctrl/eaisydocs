@@ -27,6 +27,11 @@ export function TimeTrackingCard({
   const [elapsedTime, setElapsedTime] = useState("-- : --")
   const [breakElapsedTime, setBreakElapsedTime] = useState("")
 
+  // Cégváltás-valódi idejű frissülés: új props → státusz szinkronizálása
+  useEffect(() => {
+    setStatus(initialStatus)
+  }, [initialStatus])
+
   // Break / ebéd state (adatbázisból inicializálva + localStorage szinkron)
   const [onBreak, setOnBreak] = useState(Boolean(initialBreakStart))
   const [breakStart, setBreakStart] = useState<number | null>(

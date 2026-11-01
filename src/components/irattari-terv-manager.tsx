@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -57,6 +57,11 @@ export function IrattariTervManager({ initialTervek }: IrattariTervManagerProps)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState<string | null>(null)
+
+  // Cégváltás-valódi idejű frissülés: új props → state szinkronizálása
+  useEffect(() => {
+    setTervek(initialTervek)
+  }, [initialTervek])
 
   const openCreate = () => {
     setEditingId(null)

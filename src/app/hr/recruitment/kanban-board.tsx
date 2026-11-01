@@ -131,7 +131,12 @@ function DroppableColumn({ id, title, candidates, onCandidateClick }: { id: stri
 export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] }) {
   const [candidates, setCandidates] = useState(initialCandidates)
   const [activeId, setActiveId] = useState<string | null>(null)
-  
+
+  // Cégváltás-valódi idejű frissülés: új props → state szinkronizálása
+  useEffect(() => {
+    setCandidates(initialCandidates)
+  }, [initialCandidates])
+
   const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   

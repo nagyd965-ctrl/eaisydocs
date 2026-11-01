@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { 
   Receipt, 
   Download, 
@@ -43,6 +43,13 @@ export interface MyPayslipsViewProps {
 export function MyPayslipsView({ initialItems }: MyPayslipsViewProps) {
   const [items, setItems] = useState<MyPayslipItem[]>(initialItems)
   const [selectedId, setSelectedId] = useState<string>(initialItems[0]?.id || "")
+
+  // Cégváltás-valódi idejű frissülés: új props → state szinkronizálása
+  // (korábban a useState egyszer inicializált, cégváltásnál a régi cég bérpapírjai maradtak)
+  useEffect(() => {
+    setItems(initialItems)
+    setSelectedId(initialItems[0]?.id || "")
+  }, [initialItems])
   
   // Átvételi nyugtázás megerősítő modál
   const [confirmModalOpen, setConfirmModalOpen] = useState(false)
