@@ -405,9 +405,22 @@ export async function ingestSplitDocuments(
 ): Promise<IngestedDocumentResult[]> {
   const results: IngestedDocumentResult[] = []
 
+  let resolvedBatchCompanyId = metadata.companyId
+  if (!resolvedBatchCompanyId) {
+    try {
+      const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+      resolvedBatchCompanyId = await getActiveCompanyIdServer()
+    } catch {
+      // Not in server request context
+    }
+  }
+
   for (const doc of splitDocs) {
     const currentYear = new Date().getFullYear()
-    const { data: erkezId } = await supabase.rpc("generate_erkeztetoszam", { p_ev: currentYear })
+    const { data: erkezId } = await supabase.rpc("generate_erkeztetoszam", {
+      p_ev: currentYear,
+      p_company_id: resolvedBatchCompanyId || null,
+    })
     const erkeztetoszam = erkezId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
 
     const fileExt = "pdf"

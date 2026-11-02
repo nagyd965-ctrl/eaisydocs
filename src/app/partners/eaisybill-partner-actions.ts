@@ -418,8 +418,9 @@ export async function importEaisyBillPartnersAction(
     try {
       await docsClient.from("esemeny_naplo").insert({
         entitas_tipus: "partner",
-        esemeny_tipus: "letrehozas",
+        esemeny_tipus: "adat_modositas",
         user_id: user.id,
+        company_id: activeCompany.id,
         indoklas: `${importedCount} partner importálva eaisyBill partnertörzsből (${activeCompany.name})`
       })
     } catch (logErr) {
@@ -704,7 +705,7 @@ export async function syncEaisyBillPartnerInvoicesAction(
           kulso_hivatkozas_id: inv.id,
           company_id: activeCompany.id,
           erkezes_datuma: docDate,
-          statusz: "erkeztetett"
+          statusz: "erkeztetve"
         })
         .select("id")
         .single()
@@ -749,8 +750,9 @@ export async function syncEaisyBillPartnerInvoicesAction(
         await docsClient.from("esemeny_naplo").insert({
           entitas_tipus: "partner",
           entitas_id: input?.partnerId || null,
-          esemeny_tipus: "modositas",
+          esemeny_tipus: "erkeztetve",
           user_id: user.id,
+          company_id: activeCompany.id,
           indoklas: `${syncedCount} db eaisyBill számla automatikusan szinkronizálva az iratforgalomba (${activeCompany.name})`
         })
       } catch (logErr) {
@@ -759,6 +761,7 @@ export async function syncEaisyBillPartnerInvoicesAction(
 
       if (!input?.skipRevalidate) {
         try {
+          revalidatePath("/inbox")
           revalidatePath("/partners")
           if (input?.partnerId) {
             revalidatePath(`/partners/${input.partnerId}`)

@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/utils/supabase/server"
 import { sendEmailWithAttachment } from "@/utils/mailer"
+import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return new NextResponse("Hozzáférés megtagadva: Bejelentkezés szükséges a levélküldéshez.", { status: 401 })
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    if (!auth.authorized || !auth.user) {
+      return new NextResponse(
+        auth.error || "Hozzáférés megtagadva: Bejelentkezés és megfelelő jogosultság szükséges a levélküldéshez.",
+        { status: auth.user ? 403 : 401 }
+      )
     }
+    const user = auth.user
 
     const { to, subject, text, html, iratId, ugyiratId, saveToPartnerId } = await request.json()
 

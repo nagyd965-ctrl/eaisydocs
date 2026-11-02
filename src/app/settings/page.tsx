@@ -16,16 +16,62 @@ export default async function SettingsPage() {
 
   const supabase = await createClient()
 
+  const DOCS_RULE_TYPES = [
+    "hatarido_kozeledik",
+    "hatarido_lejart",
+    "uj_szignalas",
+    "allapotvaltozas",
+    "megorzesi_ido_lejart",
+    "uj_irat_erkezett",
+    "uj_feladat_szignalva",
+    "megjegyzes_emlitve",
+    "explicit_hozzaferes",
+    "mentett_kereses_talalat",
+  ]
+
+  // Biztosítjuk, hogy az aktív vállalatnál minden eaisyDocs értesítési szabály létezzen az adatbázisban
+  if (activeCompanyId && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const { createClient: createSupabaseAdminClient } = await import("@supabase/supabase-js")
+      const supabaseAdmin = createSupabaseAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      )
+      const defaultDocsRules = [
+        { esemeny_tipus: "hatarido_kozeledik", kinek: "felelos", aktiv: true, csatorna: ["in_app", "email"], company_id: activeCompanyId },
+        { esemeny_tipus: "hatarido_lejart", kinek: "felelos", aktiv: true, csatorna: ["in_app", "email"], company_id: activeCompanyId },
+        { esemeny_tipus: "hatarido_lejart", kinek: "vezeto", aktiv: true, csatorna: ["in_app", "email"], company_id: activeCompanyId },
+        { esemeny_tipus: "uj_szignalas", kinek: "felelos", aktiv: true, csatorna: ["in_app", "email"], company_id: activeCompanyId },
+        { esemeny_tipus: "allapotvaltozas", kinek: "vezeto", aktiv: true, csatorna: ["in_app", "email"], company_id: activeCompanyId },
+        { esemeny_tipus: "megorzesi_ido_lejart", kinek: "iratkezelo", aktiv: true, csatorna: ["in_app", "email"], company_id: activeCompanyId },
+        { esemeny_tipus: "uj_irat_erkezett", kinek: "iratkezelo", aktiv: true, csatorna: ["in_app"], company_id: activeCompanyId },
+        { esemeny_tipus: "uj_feladat_szignalva", kinek: "felelos", aktiv: true, csatorna: ["in_app"], company_id: activeCompanyId },
+        { esemeny_tipus: "megjegyzes_emlitve", kinek: "erintett", aktiv: true, csatorna: ["in_app"], company_id: activeCompanyId },
+        { esemeny_tipus: "explicit_hozzaferes", kinek: "erintett", aktiv: true, csatorna: ["in_app"], company_id: activeCompanyId },
+        { esemeny_tipus: "mentett_kereses_talalat", kinek: "erintett", aktiv: true, csatorna: ["in_app"], company_id: activeCompanyId },
+      ]
+      await supabaseAdmin
+        .from("ertesitesi_szabaly")
+        .upsert(defaultDocsRules, {
+          onConflict: "company_id,esemeny_tipus,kinek",
+          ignoreDuplicates: true,
+        })
+    } catch (seedErr) {
+      console.warn("eaisyDocs értesítési szabályok automatikus pótlása sikertelen:", seedErr)
+    }
+  }
+
   let szabalyokQuery = supabase
     .from("ertesitesi_szabaly")
     .select("*")
-    .order("created_at", { ascending: false })
+    .order("created_at", { ascending: true })
   if (activeCompanyId) {
     szabalyokQuery = szabalyokQuery.eq("company_id", activeCompanyId)
   }
   const { data: szabalyok } = await szabalyokQuery
 
-  const isAdmin = profile.szerepkor === 'admin' || profile.docs_szerepkor === 'admin' || profile.szerepkor === 'rendszergazda' || profile.docs_szerepkor === 'rendszergazda'
+  const isAdmin = profile?.szerepkor === 'admin' || profile?.docs_szerepkor === 'admin' || profile?.szerepkor === 'rendszergazda' || profile?.docs_szerepkor === 'rendszergazda'
   const naplo: any[] = []
 
   const { data: userData } = await supabase.auth.getUser()
@@ -127,7 +173,7 @@ export default async function SettingsPage() {
           email={email} 
           teamMembers={teamMembers || []} 
           departments={departments || []}
-          szabalyok={(szabalyok || []).filter(s => ['hatarido_kozeledik', 'hatarido_lejart', 'uj_szignalas', 'allapotvaltozas', 'megorzesi_ido_lejart'].includes(s.esemeny_tipus))}
+          szabalyok={(szabalyok || []).filter(s => DOCS_RULE_TYPES.includes(s.esemeny_tipus))}
           naplo={naplo || []}
           helyettesitesek={helyettesitesek || []}
           incomingHelyettesitesek={incomingHelyettesitesek || []}

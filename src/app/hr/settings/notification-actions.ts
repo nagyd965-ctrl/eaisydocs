@@ -1,12 +1,19 @@
 "use server"
 
 import { createClient } from "@/utils/supabase/server"
+import { createClient as createSupabaseAdmin } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
+const supabaseAdmin = createSupabaseAdmin(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+)
+
 export async function getNotificationRules() {
-  const auth = await requireHrAuthServer(["admin", "organization"], null)
+  const auth = await requireHrAuthServer(["admin", "settings", "organization"], null)
   if (!auth.authorized) {
     return []
   }
@@ -34,18 +41,17 @@ export async function getNotificationRules() {
 }
 
 export async function updateNotificationRule(id: string, aktiv: boolean, csatorna: string[]) {
-  const auth = await requireHrAuthServer(["admin", "organization"], null)
+  const auth = await requireHrAuthServer(["admin", "settings", "organization"], null)
   if (!auth.authorized) {
     return { error: "Nincs jogosultságod az értesítési szabályok módosításához." }
   }
 
-  const supabase = await createClient()
   const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
   if (!activeCompanyId) {
     return { error: "Nincs kiválasztott vállalat." }
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from("ertesitesi_szabaly")
     .update({ aktiv, csatorna })
     .eq("id", id)

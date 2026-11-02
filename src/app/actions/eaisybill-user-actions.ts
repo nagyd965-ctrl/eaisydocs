@@ -87,6 +87,12 @@ export async function getEaisyBillCompanyMembersAction(
       return { success: false, error: "Nem található a kiválasztott cég." }
     }
 
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda"], activeCompany.id)
+    if (!auth.authorized) {
+      return { success: false, error: auth.error || "Nincs jogosultságod a vállalati tagok lekérdezéséhez." }
+    }
+
     const billClient = createEaisyBillClient()
 
     // 2. eaisyBill Company ID meghatározása
@@ -372,44 +378,29 @@ export async function importEaisyBillCompanyMembersAction(
           importedCount++
         }
 
-        // Létező felhasználó esetén recovery link generálása és e-mail küldése
+        // Létező felhasználó esetén értesítő e-mail küldése (meglévő jelszava érintetlen marad)
         try {
-          const { data: recLinkData } = await supabaseAdmin.auth.admin.generateLink({
-            type: "recovery",
-            email,
-            options: {
-              redirectTo: redirectUrl,
-            },
+          const loginUrl = `${appUrl}/login`
+          const emailHtml = buildHtmlEmail(
+            "Meghívás az eaisyDocs rendszerébe",
+            `Kedves <strong>${name}</strong>!<br/><br/>Hozzáférést kaptál a(z) <strong>${company.name}</strong> iratkezelő munkaterületéhez az eaisyDocs rendszerben (<a href="${appUrl}">${appUrl}</a>). Mivel már rendelkezel fiókkal, a meglévő belépési adataiddal azonnal beléphetsz a rendszerbe.`,
+            [
+              { label: "Alkalmazás", value: appUrl },
+              { label: "Munkaterület / Cég", value: company.name },
+              { label: "Felhasználónév (E-mail)", value: email },
+              { label: "Szerepkör", value: docsRole },
+            ],
+            "Belépés az eaisyDocs rendszerbe",
+            loginUrl
+          )
+
+          await sendNotificationEmail({
+            to: email,
+            subject: `Meghívás az eaisyDocs rendszerébe – ${company.name}`,
+            html: emailHtml,
+            senderName: "eaisyDocs Rendszer",
           })
-
-          const tokenHash = recLinkData?.properties?.hashed_token
-          const verificationType = recLinkData?.properties?.verification_type || "recovery"
-          const inviteUrl = tokenHash
-            ? `${appUrl}/auth/callback?token_hash=${tokenHash}&type=${verificationType}&next=/auth/set-password`
-            : recLinkData?.properties?.action_link
-
-          if (inviteUrl) {
-            const emailHtml = buildHtmlEmail(
-              "Meghívás az eaisyDocs rendszerébe",
-              `Kedves <strong>${name}</strong>!<br/><br/>Hozzáférést kaptál a(z) <strong>${company.name}</strong> iratkezelő munkaterületéhez az eaisyDocs rendszerben (<a href="${appUrl}">${appUrl}</a>). Az alábbi gombra kattintva beállíthatod a jelszavadat, és azonnal beléphetsz a rendszerbe.`,
-              [
-                { label: "Alkalmazás", value: appUrl },
-                { label: "Munkaterület / Cég", value: company.name },
-                { label: "Felhasználónév (E-mail)", value: email },
-                { label: "Szerepkör", value: docsRole },
-              ],
-              "Meghívás elfogadása és jelszó beállítása",
-              inviteUrl
-            )
-
-            await sendNotificationEmail({
-              to: email,
-              subject: `Meghívás az eaisyDocs rendszerébe – ${company.name}`,
-              html: emailHtml,
-              senderName: "eaisyDocs Rendszer",
-            })
-            invitedCount++
-          }
+          invitedCount++
         } catch (emailErr) {
           console.error(`[eaisyBill] Hiba az értesítő e-mail kiküldésekor (${email}):`, emailErr)
         }

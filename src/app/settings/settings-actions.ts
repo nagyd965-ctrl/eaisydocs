@@ -769,7 +769,13 @@ export async function toggleNotificationRule(id: string, active: boolean) {
     return { error: "Nincs adminisztrátor jogosultságod a művelethez." }
   }
 
-  const { error } = await supabase
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const { error } = await supabaseAdmin
     .from("ertesitesi_szabaly")
     .update({ aktiv: active })
     .eq("id", id)

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
 import { getClientInfo } from "@/utils/client-info"
 import { TaskStatus, TaskPriority, TaskCategory, TaskTemplate } from "@/types/tasks"
 import { DEFAULT_TASK_TEMPLATES } from "@/utils/task-templates"
@@ -28,7 +29,7 @@ export async function updateTaskStatus(
     // 1. Ügyirat és meglévő állapot lekérése
     const { data: currentUgyirat, error: fetchErr } = await supabase
       .from("ugyirat")
-      .select("id, statusz, ugy_id, iktatoszam, ugy!inner ( id, statusz, felelos_user_id, targy )")
+      .select("id, company_id, statusz, ugy_id, iktatoszam, ugy!inner ( id, statusz, felelos_user_id, targy )")
       .eq("id", ugyiratId)
       .single()
 
@@ -39,15 +40,10 @@ export async function updateTaskStatus(
     const ugy = currentUgyirat.ugy as any
     const isAssignee = ugy?.felelos_user_id === user.id
 
-    // 2. Jogosultság ellenőrzése
-    const { data: profile } = await supabase
-      .from("felhasznalo_profil")
-      .select("docs_szerepkor")
-      .eq("id", user.id)
-      .single()
-
-    const role = profile?.docs_szerepkor || "ugyintezo"
-    const isPrivileged = ["admin", "iktato", "vezeto", "rendszergazda"].includes(role)
+    // 2. Jogosultság ellenőrzése cég-hatókörben
+    const auth = await requireDocsAuthServer(undefined, currentUgyirat.company_id || null)
+    const role = auth.docsRole || "ugyintezo"
+    const isPrivileged = auth.authorized && ["admin", "iktato", "vezeto", "rendszergazda"].includes(role)
 
     let isSubstitute = false
     if (!isAssignee && !isPrivileged && ugy?.felelos_user_id) {
@@ -172,7 +168,7 @@ export async function updateTaskStatus(
   // 1. Feladat és meglévő állapot lekérése
   const { data: currentTask, error: fetchErr } = await supabase
     .from("feladat")
-    .select("id, ugyirat_id, felelos_user_id, allapot, leiras")
+    .select("id, company_id, ugyirat_id, felelos_user_id, allapot, leiras")
     .eq("id", taskId)
     .single()
 
@@ -180,15 +176,10 @@ export async function updateTaskStatus(
     return { success: false, error: "A feladat nem található." }
   }
 
-  // 2. Jogosultság ellenőrzése: Csak a feladat felelőse VAGY iktató / admin / vezető módosíthatja
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor")
-    .eq("id", user.id)
-    .single()
-
-  const role = profile?.docs_szerepkor || "ugyintezo"
-  const isPrivileged = ["admin", "iktato", "vezeto", "rendszergazda"].includes(role)
+  // 2. Jogosultság ellenőrzése cég-hatókörben: Csak a feladat felelőse VAGY iktató / admin / vezető módosíthatja
+  const auth = await requireDocsAuthServer(undefined, currentTask.company_id || null)
+  const role = auth.docsRole || "ugyintezo"
+  const isPrivileged = auth.authorized && ["admin", "iktato", "vezeto", "rendszergazda"].includes(role)
   const isAssignee = currentTask.felelos_user_id === user.id
 
   let isSubstitute = false
@@ -319,20 +310,15 @@ export async function deleteTask(taskId: string) {
 
   const { data: currentTask } = await supabase
     .from("feladat")
-    .select("id, ugyirat_id, felelos_user_id, leiras")
+    .select("id, company_id, ugyirat_id, felelos_user_id, leiras")
     .eq("id", taskId)
     .single()
 
   if (!currentTask) return { success: false, error: "A feladat nem található." }
 
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor")
-    .eq("id", user.id)
-    .single()
-
-  const role = profile?.docs_szerepkor || "ugyintezo"
-  const isPrivileged = ["admin", "iktato", "vezeto", "rendszergazda", "ugyintezo"].includes(role)
+  const auth = await requireDocsAuthServer(undefined, currentTask.company_id || null)
+  const role = auth.docsRole || "ugyintezo"
+  const isPrivileged = auth.authorized && ["admin", "iktato", "vezeto", "rendszergazda", "ugyintezo"].includes(role)
   const isAssignee = currentTask.felelos_user_id === user.id
 
   if (!isAssignee && !isPrivileged) {
@@ -410,15 +396,15 @@ export async function createTask(
   }
 
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return { success: false, error: "Nincs bejelentkezve" }
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs jogosultságod új feladat létrehozásához." }
+  }
+  const user = auth.user
 
   if (!cleanTitle) return { success: false, error: "A feladat megnevezése kötelező!" }
 
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
 
   // 1. Első kísérlet natív metaadat oszlopokkal
   const primaryPayload: Record<string, any> = {
@@ -492,7 +478,7 @@ export async function createTask(
 
     const { data: ugyiratData } = await supabase
       .from("ugyirat")
-      .select("iktatoszam")
+      .select("iktatoszam, company_id")
       .eq("id", ugyiratId)
       .single()
 
@@ -500,12 +486,30 @@ export async function createTask(
     const iktatoszam = ugyiratData?.iktatoszam || ""
     const hataridoFormatted = new Date(hatarido).toLocaleDateString("hu-HU")
 
-    await supabase.from("alkalmazas_ertesites").insert({
-      user_id: felelosUserId,
-      cim: `Új feladat szignálva${iktatoszam ? ` (${iktatoszam})` : ""}`,
-      szoveg: `${senderName} feladatot írt ki: ${cleanTitle} — Határidő: ${hataridoFormatted}`,
-      link_url: `/dossiers/${ugyiratId}?tab=feladatok`,
-    })
+    if (felelosUserId) {
+      const { dispatchDocsNotification } = await import("@/utils/docs-notification-dispatcher")
+      await dispatchDocsNotification({
+        esemenyTipus: "uj_feladat_szignalva",
+        kinek: "felelos",
+        companyId: ugyiratData?.company_id || null,
+        recipientUserIds: [felelosUserId],
+        inAppTitle: `Új feladat szignálva${iktatoszam ? ` (${iktatoszam})` : ""}`,
+        inAppBody: `${senderName} feladatot írt ki: ${cleanTitle} — Határidő: ${hataridoFormatted}`,
+        linkPath: `/dossiers/${ugyiratId}?tab=feladatok`,
+        emailSubject: `Új részfeladat szignálva${iktatoszam ? ` (${iktatoszam})` : ""}`,
+        emailHeading: "Új részfeladatot kaptál!",
+        emailIntroHtml: `${senderName} új részfeladatot írt ki a számodra az eaisyDocs rendszerben.`,
+        emailDetails: [
+          ...(iktatoszam ? [{ label: "Ügyirat", value: iktatoszam }] : []),
+          { label: "Feladat", value: cleanTitle },
+          { label: "Határidő", value: hataridoFormatted },
+        ],
+        emailCtaLabel: "Feladat megtekintése",
+        smsBody: `eaisyDocs: Új részfeladat (${iktatoszam || cleanTitle}) — Határidő: ${hataridoFormatted}`,
+        dossierId: ugyiratId,
+        defaultChannels: ["in_app"],
+      })
+    }
 
     revalidatePath(`/dossiers/${ugyiratId}`)
   }

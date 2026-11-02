@@ -33,12 +33,19 @@ export default async function RulesPage() {
   const activeCompanyId = await getActiveCompanyIdServer()
   const activeCompany = await getActiveCompanyServer()
 
+  let deptQuery = supabase.from("szervezeti_egyseg").select("id, nev").order("nev")
+  let planQuery = supabase.from("irattari_terv").select("id, tetelszam, megnevezes").order("tetelszam")
+  if (activeCompanyId) {
+    deptQuery = deptQuery.eq("company_id", activeCompanyId)
+    planQuery = planQuery.eq("company_id", activeCompanyId)
+  }
+
   // Lekérdezések párhuzamosan
   const [initialPromptRules, initialFilingRules, deptsRes, plansRes] = await Promise.all([
     getCompanyPromptRules(activeCompanyId || undefined),
     getCompanyFilingRules(activeCompanyId || undefined),
-    supabase.from("szervezeti_egyseg").select("id, nev").order("nev"),
-    supabase.from("irattari_terv").select("id, tetelszam, megnevezes").order("tetelszam"),
+    deptQuery,
+    planQuery,
   ])
 
   const companyScope = activeCompanyId || "default"

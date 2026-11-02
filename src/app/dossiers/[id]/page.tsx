@@ -120,7 +120,7 @@ export default async function DossierPage({
   
   const isUgyintezo = currentUserProfile?.docs_szerepkor === 'ugyintezo'
   const isVezeto = currentUserProfile?.docs_szerepkor === 'vezeto'
-  const isAdmin = currentUserProfile?.docs_szerepkor === 'admin'
+  const isAdmin = currentUserProfile?.docs_szerepkor === 'admin' || currentUserProfile?.docs_szerepkor === 'rendszergazda'
   const isIktato = currentUserProfile?.docs_szerepkor === 'iktato'
 
   const userMap = (users || []).reduce((acc: any, user: any) => {

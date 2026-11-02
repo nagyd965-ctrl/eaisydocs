@@ -150,27 +150,66 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
 }> {
   const docsClient = await createClient()
 
-  const { data: { user } } = await docsClient.auth.getUser()
-  if (!user) return { success: false, error: "Nincs bejelentkezve." }
+  const activeCompany = await getActiveCompanyServer()
+  const activeCompanyId = activeCompany?.id || (await getActiveCompanyIdServer())
 
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato"], activeCompanyId)
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs jogosultságod az érkeztetéshez." }
+  }
 
-  // Jogosultság ellenőrzés
-  const { data: profile } = await docsClient
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor")
-    .eq("id", user.id)
-    .single()
+  // Szerveroldali számla-ellenőrzés az eaisyBill adatbázisból (SSRF és idegen számla elleni védelem)
+  const billClient = createEaisyBillClient()
+  const eaisybillCompanyId = activeCompany?.eaisybill_company_id
+  let billQuery = billClient
+    .from("invoices")
+    .select(`
+      id, company_id, bizonylatsorszam, kibocsatas_datuma, fizetesi_hatarido,
+      elado_nev, elado_vat_id, vevo_nev,
+      brutto_vegosszeg, penznem, statusz,
+      melleklet_url, invoice_direction, fizetve
+    `)
+    .eq("id", invoice.id)
 
-  const isAllowed = ["admin", "rendszergazda", "iktato"].includes(profile?.docs_szerepkor || "")
-  if (!isAllowed) return { success: false, error: "Nincs jogosultságod az érkeztetéshez." }
+  if (eaisybillCompanyId) {
+    billQuery = billQuery.eq("company_id", eaisybillCompanyId)
+  }
+
+  const { data: verifiedInvoice } = await billQuery.maybeSingle()
+  const safeInvoice = verifiedInvoice || invoice
+
+  if (verifiedInvoice === null && eaisybillCompanyId) {
+    return { success: false, error: "A kiválasztott számla nem található az aktív vállalat eaisyBill fiókjában." }
+  }
+
+  const verifiedUrl = verifiedInvoice?.melleklet_url ?? null
+  if (verifiedUrl) {
+    try {
+      const parsed = new URL(verifiedUrl)
+      const host = parsed.hostname.toLowerCase()
+      if (
+        parsed.protocol !== "https:" ||
+        host === "localhost" ||
+        host === "127.0.0.1" ||
+        host === "169.254.169.254" ||
+        host.startsWith("10.") ||
+        host.startsWith("192.168.") ||
+        /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+      ) {
+        return { success: false, error: "Érvénytelen vagy nem biztonságos melléklet URL." }
+      }
+    } catch {
+      return { success: false, error: "Érvénytelen melléklet URL formátum." }
+    }
+  }
 
   // Duplikáció ellenőrzés az aktív céghez
   let existingQuery = docsClient
     .from("irat")
     .select("id, erkeztetoszam")
     .eq("kulso_forras", "eaisybill")
-    .eq("kulso_hivatkozas_id", invoice.id)
+    .eq("kulso_hivatkozas_id", safeInvoice.id)
 
   if (activeCompanyId) {
     existingQuery = existingQuery.eq("company_id", activeCompanyId)
@@ -184,14 +223,14 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
 
   // Partner keresés / létrehozás az aktív céghez
   let partner_id: string | null = null
-  if (invoice.elado_nev) {
+  if (safeInvoice.elado_nev) {
     const { findOrCreatePartner } = await import("@/utils/partner-matcher")
     try {
       const partnerResult = await findOrCreatePartner(docsClient, {
         company_id: activeCompanyId,
-        nev: invoice.elado_nev,
+        nev: safeInvoice.elado_nev,
         tipus: "ceg",
-        adoszam: invoice.elado_vat_id
+        adoszam: safeInvoice.elado_vat_id
       })
       partner_id = partnerResult.id
     } catch (err) {
@@ -201,11 +240,14 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
 
   // Érkeztetőszám generálás
   const currentYear = new Date().getFullYear()
-  const { data: erkezId } = await docsClient.rpc("generate_erkeztetoszam", { p_ev: currentYear })
+  const { data: erkezId } = await docsClient.rpc("generate_erkeztetoszam", {
+    p_ev: currentYear,
+    p_company_id: activeCompanyId || null,
+  })
   const erkeztetoszam = erkezId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
 
   // Tárgy összeállítás
-  const targy = `${invoice.elado_nev} – ${invoice.bizonylatsorszam} sz. számla (${invoice.brutto_vegosszeg} ${invoice.penznem})`
+  const targy = `${safeInvoice.elado_nev} – ${safeInvoice.bizonylatsorszam} sz. számla (${safeInvoice.brutto_vegosszeg} ${safeInvoice.penznem})`
 
   // Irat rekord létrehozása az aktív céghez
   const insertPayload: Record<string, any> = {
@@ -214,10 +256,11 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
     adathordozo_tipus:  "elektronikus_eredeti",
     minosites:          "nyilt",
     irany:              "bejovo",
+    statusz:            "erkeztetve",
     kuldo_partner_id:   partner_id,
     erkeztetoszam,
     kulso_forras:       "eaisybill",
-    kulso_hivatkozas_id: invoice.id,
+    kulso_hivatkozas_id: safeInvoice.id,
   }
   if (activeCompanyId) {
     insertPayload.company_id = activeCompanyId
@@ -234,18 +277,18 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
   }
 
   // irat_fajl rekord – a fájl a külső URL-en van, nem töltjük fel
-  const fajlnev = invoice.melleklet_url?.split("/").pop() ?? `${invoice.bizonylatsorszam}.pdf`
+  const fajlnev = verifiedUrl?.split("/").pop() ?? `${safeInvoice.bizonylatsorszam}.pdf`
   const placeholderHash = crypto
     .createHash("sha256")
-    .update(invoice.id)
+    .update(safeInvoice.id)
     .digest("hex")
 
   const { data: fajlResult, error: fajlError } = await docsClient
     .from("irat_fajl")
     .insert({
       irat_id:          iratData.id,
-      storage_path:     `eaisybill:${invoice.id}`,  // placeholder – a valódi fájl kulso_fajl_url-ben van
-      kulso_fajl_url:   invoice.melleklet_url,
+      storage_path:     `eaisybill:${safeInvoice.id}`,  // placeholder – a valódi fájl kulso_fajl_url-ben van
+      kulso_fajl_url:   verifiedUrl,
       eredeti_fajlnev:  fajlnev,
       mime_type:        "application/pdf",
       meret_byte:       0,

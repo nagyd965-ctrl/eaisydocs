@@ -8,25 +8,38 @@ import { getClientInfo } from "@/utils/client-info"
 import { generateDisposalProtocolPdf, DisposalProtocolItem } from "@/utils/disposal-protocol-pdf"
 import { isFourEyesDisposalRequired } from "@/utils/system-settings"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
 
 // 1. Felterjesztés Selejtezésre (Iratkezelő csinálja)
 export async function proposeDisposal(ugyiratIds: string[], note?: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs jogosultságod selejtezési javaslat felterjesztéséhez." }
+  }
+  const user = auth.user
 
-  if (!user) return { error: "Nincs bejelentkezve." }
   if (!ugyiratIds || ugyiratIds.length === 0) {
     return { error: "Nincs kiválasztva felterjesztendő ügyirat." }
   }
 
-  // Ellenőrizzük, hogy csak irattárban lévő (irattározott vagy lezárt) ügyiratot lehessen felterjeszteni
+  const supabase = await createClient()
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+
+  // Ellenőrizzük, hogy csak az aktív céghez tartozó, irattárban lévő és lejárt megőrzési idejű ügyiratot lehessen felterjeszteni
   const { data: dossiersToPropose } = await supabase
     .from("ugyirat")
-    .select("id, iktatoszam, statusz, megorzesi_ido_vege")
+    .select("id, company_id, iktatoszam, statusz, megorzesi_ido_vege")
     .in("id", ugyiratIds)
 
   if (!dossiersToPropose || dossiersToPropose.length === 0) {
     return { error: "Nem találhatók a kiválasztott ügyiratok." }
+  }
+
+  if (activeCompanyId) {
+    const foreignDossiers = dossiersToPropose.filter((d) => d.company_id && d.company_id !== activeCompanyId)
+    if (foreignDossiers.length > 0) {
+      return { error: "A kiválasztott ügyiratok nem mindegyike tartozik az aktív vállalathoz." }
+    }
   }
 
   const notInArchive = dossiersToPropose.filter((d) => !["irattarban", "lezart"].includes(d.statusz))
@@ -36,7 +49,15 @@ export async function proposeDisposal(ugyiratIds: string[], note?: string) {
     }
   }
 
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const todayIso = new Date().toISOString().split("T")[0]
+  const notExpired = dossiersToPropose.filter(
+    (d) => d.megorzesi_ido_vege && d.megorzesi_ido_vege > todayIso
+  )
+  if (notExpired.length > 0) {
+    return {
+      error: `Csak lejárt megőrzési idejű ügyirat terjeszthető fel selejtezésre! Még nem járt le: ${notExpired.map((d) => `${d.iktatoszam} (${d.megorzesi_ido_vege})`).join(", ")}`,
+    }
+  }
 
   // Létrehozunk egy új Selejtezési Csomagot az aktív céghez
   const csomagPayload: Record<string, any> = {
@@ -93,55 +114,31 @@ export async function proposeDisposal(ugyiratIds: string[], note?: string) {
 
   // Értesítés a vezetőknek a selejtezési felterjesztésről
   try {
-    let szabalyQuery = supabase
-      .from("ertesitesi_szabaly")
-      .select("aktiv")
-      .eq("esemeny_tipus", "allapotvaltozas")
-      .eq("kinek", "vezeto")
-    if (activeCompanyId) {
-      szabalyQuery = szabalyQuery.eq("company_id", activeCompanyId)
-    }
-    const { data: szabaly } = await szabalyQuery.limit(1).maybeSingle()
+    const { data: vezetok } = await supabase
+      .from("felhasznalo_profil")
+      .select("id")
+      .or("docs_szerepkor.in.(admin,vezeto,rendszergazda),szerepkor.in.(admin,vezeto,rendszergazda)")
 
-    if (szabaly?.aktiv) {
-      const { data: vezetok } = await supabase
-        .from("felhasznalo_profil")
-        .select("id")
-        .or("docs_szerepkor.in.(admin,vezeto,rendszergazda),szerepkor.in.(admin,vezeto,rendszergazda)")
-
-      if (vezetok && vezetok.length > 0) {
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-        if (serviceRoleKey) {
-          const { createClient: createSupabaseClient } = await import("@supabase/supabase-js")
-          const supabaseAdmin = createSupabaseClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            serviceRoleKey,
-            { auth: { autoRefreshToken: false, persistSession: false } }
-          )
-
-          for (const vezeto of vezetok) {
-            const { data: adminData } = await supabaseAdmin.auth.admin.getUserById(vezeto.id)
-            const userEmail = adminData?.user?.email
-
-            if (userEmail) {
-              await sendNotificationEmail({
-                to: userEmail,
-                subject: "Új iratselejtezési javaslat jóváhagyásra vár",
-                html: buildHtmlEmail(
-                  "Iratselejtezési jóváhagyás szükséges",
-                  `Egy munkatárs felterjesztett <b>${ugyiratIds.length} db</b> ügyiratot végleges selejtezésre. Kérlek, lépj be az Irattár felületre, vizsgáld felül az iratokat, és a "Négy Szem Elve" alapján hagyd jóvá a megsemmisítésüket és a jegyzőkönyv kiállítását.`,
-                  [],
-                  "Irattár megnyitása",
-                  `${getBaseUrl()}/archive`
-                ),
-              })
-            }
-          }
-        }
-      }
+    if (vezetok && vezetok.length > 0) {
+      const { dispatchDocsNotification } = await import("@/utils/docs-notification-dispatcher")
+      await dispatchDocsNotification({
+        esemenyTipus: "allapotvaltozas",
+        kinek: "vezeto",
+        companyId: activeCompanyId,
+        recipientUserIds: vezetok.map((v: any) => v.id),
+        inAppTitle: "Új iratselejtezési javaslat jóváhagyásra vár",
+        inAppBody: `${ugyiratIds.length} db ügyiratot terjesztettek fel végleges selejtezésre.`,
+        linkPath: "/archive",
+        emailSubject: "Új iratselejtezési javaslat jóváhagyásra vár",
+        emailHeading: "Iratselejtezési jóváhagyás szükséges",
+        emailIntroHtml: `Egy munkatárs felterjesztett <b>${ugyiratIds.length} db</b> ügyiratot végleges selejtezésre. Kérlek, lépj be az Irattár felületre, vizsgáld felül az iratokat, és a "Négy Szem Elve" alapján hagyd jóvá a megsemmisítésüket és a jegyzőkönyv kiállítását.`,
+        emailCtaLabel: "Irattár megnyitása",
+        smsBody: `eaisyDocs: ${ugyiratIds.length} db ügyirat selejtezési jóváhagyásra vár az Irattárban.`,
+        defaultChannels: ["in_app", "email"],
+      })
     }
   } catch (err) {
-    console.error("Hiba az értesítő e-mail küldésekor:", err)
+    console.error("Hiba az értesítő küldésekor:", err)
   }
 
   revalidatePath("/archive")
@@ -155,14 +152,20 @@ export async function approveDisposal(
   csomagId?: string
 ) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) return { error: "Nincs bejelentkezve." }
   if (!approverName || approverName.trim() === "") {
     return { error: "A jóváhagyó nevének megadása kötelező!" }
   }
 
   const activeCompanyId = await getActiveCompanyIdServer()
+  const auth = await requireDocsAuthServer(["admin", "vezeto", "rendszergazda"], activeCompanyId)
+  if (!auth.authorized || !auth.user) {
+    return {
+      error:
+        auth.error ||
+        "A selejtezési jegyzéket kizárólag Vezető vagy Rendszergazda hagyhatja jóvá! Ügyintéző szerepkörrel a jóváhagyás nem engedélyezett.",
+    }
+  }
+  const user = auth.user
 
   // Admin kliens az RLS akadályok és megbízható csomagfrissítés kezelésére
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -176,19 +179,7 @@ export async function approveDisposal(
     )
   }
 
-  // 1. Jogosultság ellenőrzése: Kizárólag Vezető vagy Adminisztrátor hagyhat jóvá selejtezést
-  const { data: approverProfile } = await dbAdmin
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor, szerepkor, nev")
-    .eq("id", user.id)
-    .single()
-
-  const approverRole = approverProfile?.docs_szerepkor || approverProfile?.szerepkor || "ugyintezo"
-  if (!["admin", "vezeto", "rendszergazda"].includes(approverRole)) {
-    return {
-      error: "A selejtezési jegyzéket kizárólag Vezető vagy Rendszergazda hagyhatja jóvá! Ügyintéző szerepkörrel a jóváhagyás nem engedélyezett."
-    }
-  }
+  const approverProfile = { nev: auth.nev }
 
   let finalProposerName = "Iratkezelő"
 
@@ -268,6 +259,7 @@ export async function approveDisposal(
     .from("ugyirat")
     .select(`
       id,
+      company_id,
       iktatoszam,
       statusz,
       megorzesi_ido_vege,
@@ -280,6 +272,13 @@ export async function approveDisposal(
 
   if (!dossierDetails || dossierDetails.length === 0) {
     return { error: "Nem találhatók a kiválasztott ügyiratok." }
+  }
+
+  if (activeCompanyId) {
+    const foreignDossiers = dossierDetails.filter((d) => d.company_id && d.company_id !== activeCompanyId)
+    if (foreignDossiers.length > 0) {
+      return { error: "A kiválasztott ügyiratok nem mindegyike tartozik az aktív vállalathoz." }
+    }
   }
 
   // Párhuzamos jóváhagyás elleni védelem: ellenőrizzük a státuszokat
@@ -480,6 +479,7 @@ export async function approveDisposal(
           statusz: "jovahagyva",
           jovahagyva_at: now.toISOString(),
           jegyzokonyv_path: storagePath,
+          ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
         })
         .select("id")
         .single()
@@ -513,6 +513,7 @@ export async function approveDisposal(
         statusz: "jovahagyva",
         jovahagyva_at: now.toISOString(),
         jegyzokonyv_path: storagePath,
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
       })
       .select("id")
       .single()
@@ -548,6 +549,11 @@ export async function getDisposalProtocolDownloadUrl(storagePath: string) {
 
   if (!user) return { error: "Nincs bejelentkezve." }
 
+  const normalizedPath = (storagePath || "").trim()
+  if (!normalizedPath.startsWith("selejtezes/") || normalizedPath.includes("..")) {
+    return { error: "Érvénytelen jegyzőkönyv elérési útvonal." }
+  }
+
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   let storageClient = supabase
   if (serviceRoleKey) {
@@ -559,14 +565,45 @@ export async function getDisposalProtocolDownloadUrl(storagePath: string) {
     )
   }
 
+  // Ellenőrizzük, hogy az útvonal valóban egy létező selejtezési csomaghoz tartozik-e,
+  // és a felhasználónak van-e jogosultsága a csomag vállalatához
+  const { data: csomag } = await storageClient
+    .from("selejtezes_csomag")
+    .select("id, company_id")
+    .eq("jegyzokonyv_path", normalizedPath)
+    .limit(1)
+    .maybeSingle()
+
+  if (!csomag) {
+    return { error: "A kért selejtezési jegyzőkönyv nem található." }
+  }
+
+  const auth = await requireDocsAuthServer(undefined, csomag.company_id || null)
+  if (!auth.authorized) {
+    return { error: auth.error || "Nincs jogosultságod a selejtezési jegyzőkönyv letöltéséhez." }
+  }
+
   const { data, error } = await storageClient.storage
     .from("irat_files")
-    .createSignedUrl(storagePath, 3600) // 1 órás érvényesség
+    .createSignedUrl(normalizedPath, 300) // 5 perces rövid érvényesség
 
   if (error || !data?.signedUrl) {
     console.error("Hiba az aláírt URL létrehozásakor:", error)
     return { error: "Nem sikerült legenerálni a letöltési hivatkozást." }
   }
+
+  // Audit naplózás a selejtezési jegyzőkönyv letöltéséről
+  const { ip, userAgent } = await getClientInfo()
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "selejtezes_csomag",
+    entitas_id: csomag.id,
+    esemeny_tipus: "letoltve",
+    user_id: user.id,
+    company_id: csomag.company_id || auth.activeCompanyId || null,
+    indoklas: `Selejtezési jegyzőkönyv letöltve: ${normalizedPath}`,
+    ip_cim: ip,
+    user_agent: userAgent,
+  })
 
   return { success: true, signedUrl: data.signedUrl }
 }

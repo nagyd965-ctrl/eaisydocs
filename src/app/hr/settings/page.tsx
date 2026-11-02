@@ -37,11 +37,57 @@ export default async function HrSettingsPage() {
     isCompanyAdmin ||
     isUserAuthorizedForHrView(hrRole, ["admin", "settings"], hrModules)
 
+  const HR_RULE_TYPES = [
+    "orvosi_vizsgalat_lejarat",
+    "tanulmanyi_szerzodes_lejarat",
+    "hatarozott_szerzodes_lejarat",
+    "probaido_lejarat",
+    "t1041_bejelentes",
+    "szabadsag_jovahagyas",
+    "tavollet_elbiralas",
+    "jelenlet_korrekcio_kerelem",
+    "jelenlet_korrekcio_elbiralas",
+    "teljesitmeny_ertekeles",
+  ]
+
+  const HR_DEFAULT_RULES: { esemeny_tipus: string; kinek: string; csatorna: string[] }[] = [
+    { esemeny_tipus: "orvosi_vizsgalat_lejarat", kinek: "HR, Érintett", csatorna: ["in_app", "email"] },
+    { esemeny_tipus: "tanulmanyi_szerzodes_lejarat", kinek: "HR, Érintett", csatorna: ["in_app", "email"] },
+    { esemeny_tipus: "hatarozott_szerzodes_lejarat", kinek: "HR, Vezető", csatorna: ["in_app", "email"] },
+    { esemeny_tipus: "probaido_lejarat", kinek: "HR, Vezető", csatorna: ["in_app", "email"] },
+    { esemeny_tipus: "t1041_bejelentes", kinek: "HR, Admin", csatorna: ["in_app", "email"] },
+    { esemeny_tipus: "szabadsag_jovahagyas", kinek: "Közvetlen Vezető", csatorna: ["in_app", "email"] },
+    { esemeny_tipus: "tavollet_elbiralas", kinek: "Érintett", csatorna: ["in_app", "email"] },
+    { esemeny_tipus: "jelenlet_korrekcio_kerelem", kinek: "Közvetlen Vezető", csatorna: ["in_app", "email"] },
+    { esemeny_tipus: "jelenlet_korrekcio_elbiralas", kinek: "Érintett", csatorna: ["in_app", "email"] },
+    { esemeny_tipus: "teljesitmeny_ertekeles", kinek: "Érintett, Vezető", csatorna: ["in_app", "email"] },
+  ]
+
   let szabalyok: any[] = []
   if (isHrOrAdmin) {
+    if (activeCompanyId && process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+      const adminClient = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      )
+      await adminClient.from("ertesitesi_szabaly").upsert(
+        HR_DEFAULT_RULES.map((r) => ({
+          company_id: activeCompanyId,
+          esemeny_tipus: r.esemeny_tipus,
+          kinek: r.kinek,
+          csatorna: r.csatorna,
+          aktiv: true,
+        })),
+        { onConflict: "company_id,esemeny_tipus,kinek", ignoreDuplicates: true }
+      )
+    }
+
     let szabalyQuery = supabase
       .from("ertesitesi_szabaly")
       .select("*")
+      .in("esemeny_tipus", HR_RULE_TYPES)
       .order("esemeny_tipus")
     if (activeCompanyId) {
       szabalyQuery = szabalyQuery.eq("company_id", activeCompanyId)

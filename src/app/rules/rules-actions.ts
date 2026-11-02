@@ -51,21 +51,21 @@ export async function createCompanyPromptRule(input: {
   category?: string
 }): Promise<RuleActionResult<PromptRuleItem>> {
   try {
-    // A-097 őrblokk: a Szabályok írása csak admin/rendszergazda szerepkörrel
-    const { requireRulesAdminAccess } = await import("./rules-guard")
-    const guardError = await requireRulesAdminAccess()
-    if (guardError) return { success: false, error: guardError }
-
-    const validation = validateRuleInput(input.ruleName, input.rulePrompt)
-    if (!validation.isValid) {
-      return { success: false, error: validation.error }
-    }
-
     const supabase = await createClient()
     const companyId = input.companyId || (await getActiveCompanyIdServer())
 
     if (!companyId) {
       return { success: false, error: "Nincs kiválasztva aktív cég a szabály rögzítéséhez." }
+    }
+
+    // A-097 / A-106 őrblokk: a Szabályok írása csak a célvállalatban érvényes admin/rendszergazda szerepkörrel
+    const { requireRulesAdminAccess } = await import("./rules-guard")
+    const guardError = await requireRulesAdminAccess(companyId)
+    if (guardError) return { success: false, error: guardError }
+
+    const validation = validateRuleInput(input.ruleName, input.rulePrompt)
+    if (!validation.isValid) {
+      return { success: false, error: validation.error }
     }
 
     const { data: userData } = await supabase.auth.getUser()
@@ -111,17 +111,26 @@ export async function updateCompanyPromptRule(input: {
   isActive?: boolean
 }): Promise<RuleActionResult> {
   try {
-    // A-097 őrblokk: a Szabályok írása csak admin/rendszergazda szerepkörrel
-    const { requireRulesAdminAccess } = await import("./rules-guard")
-    const guardError = await requireRulesAdminAccess()
-    if (guardError) return { success: false, error: guardError }
-
     const validation = validateRuleInput(input.ruleName, input.rulePrompt)
     if (!validation.isValid) {
       return { success: false, error: validation.error }
     }
 
     const supabase = await createClient()
+    const { data: existingRule } = await supabase
+      .from("company_prompt_rules")
+      .select("id, company_id")
+      .eq("id", input.ruleId)
+      .maybeSingle()
+
+    if (!existingRule) {
+      return { success: false, error: "A módosítani kívánt szabály nem található." }
+    }
+
+    // A-097 / A-106 őrblokk: a Szabályok írása csak a célvállalatban érvényes admin/rendszergazda szerepkörrel
+    const { requireRulesAdminAccess } = await import("./rules-guard")
+    const guardError = await requireRulesAdminAccess(existingRule.company_id)
+    if (guardError) return { success: false, error: guardError }
 
     const updatePayload: Record<string, any> = {
       rule_name: input.ruleName.trim(),
@@ -159,12 +168,21 @@ export async function toggleCompanyPromptRuleActive(
   isActive: boolean
 ): Promise<RuleActionResult> {
   try {
-    // A-097 őrblokk: a Szabályok írása csak admin/rendszergazda szerepkörrel
-    const { requireRulesAdminAccess } = await import("./rules-guard")
-    const guardError = await requireRulesAdminAccess()
-    if (guardError) return { success: false, error: guardError }
-
     const supabase = await createClient()
+    const { data: existingRule } = await supabase
+      .from("company_prompt_rules")
+      .select("id, company_id")
+      .eq("id", ruleId)
+      .maybeSingle()
+
+    if (!existingRule) {
+      return { success: false, error: "A szabály nem található." }
+    }
+
+    // A-097 / A-106 őrblokk: a Szabályok írása csak a célvállalatban érvényes admin/rendszergazda szerepkörrel
+    const { requireRulesAdminAccess } = await import("./rules-guard")
+    const guardError = await requireRulesAdminAccess(existingRule.company_id)
+    if (guardError) return { success: false, error: guardError }
 
     const { error } = await supabase
       .from("company_prompt_rules")
@@ -193,12 +211,21 @@ export async function toggleCompanyPromptRuleActive(
  */
 export async function deleteCompanyPromptRule(ruleId: string): Promise<RuleActionResult> {
   try {
-    // A-097 őrblokk: a Szabályok írása csak admin/rendszergazda szerepkörrel
-    const { requireRulesAdminAccess } = await import("./rules-guard")
-    const guardError = await requireRulesAdminAccess()
-    if (guardError) return { success: false, error: guardError }
-
     const supabase = await createClient()
+    const { data: existingRule } = await supabase
+      .from("company_prompt_rules")
+      .select("id, company_id")
+      .eq("id", ruleId)
+      .maybeSingle()
+
+    if (!existingRule) {
+      return { success: false, error: "A törölni kívánt szabály nem található." }
+    }
+
+    // A-097 / A-106 őrblokk: a Szabályok írása csak a célvállalatban érvényes admin/rendszergazda szerepkörrel
+    const { requireRulesAdminAccess } = await import("./rules-guard")
+    const guardError = await requireRulesAdminAccess(existingRule.company_id)
+    if (guardError) return { success: false, error: guardError }
 
     const { error } = await supabase
       .from("company_prompt_rules")

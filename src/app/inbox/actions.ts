@@ -13,19 +13,10 @@ export async function uploadIncomingDocument(formData: FormData) {
   const supabase = await createClient()
   const activeCompanyId = await getActiveCompanyIdServer()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve." }
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor, szerepkor")
-    .eq("id", user.id)
-    .single()
-
-  const userRole = (profile as any)?.docs_szerepkor || (profile as any)?.szerepkor || "ugyintezo"
-  const isAllowed = ["admin", "rendszergazda", "iktato"].includes(userRole)
-  if (!isAllowed) {
-    return { error: "Nincs jogosultságod új irat érkeztetéséhez." }
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato"], activeCompanyId)
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs jogosultságod új irat érkeztetéséhez." }
   }
 
   const targy = formData.get("targy") as string
@@ -59,6 +50,7 @@ export async function uploadIncomingDocument(formData: FormData) {
     const { findOrCreatePartner } = await import("@/utils/partner-matcher")
     try {
       const partnerResult = await findOrCreatePartner(supabase, {
+        company_id: activeCompanyId,
         nev: kuldo_nev,
         tipus: kuldo_tipus
       })
@@ -94,7 +86,10 @@ export async function uploadIncomingDocument(formData: FormData) {
 
   // 4. Érkeztetőszám generálás (szekvenciális, pl. E/2026/00001)
   const currentYear = new Date().getFullYear()
-  const { data: erkezId } = await supabase.rpc("generate_erkeztetoszam", { p_ev: currentYear })
+  const { data: erkezId } = await supabase.rpc("generate_erkeztetoszam", {
+    p_ev: currentYear,
+    p_company_id: activeCompanyId || null,
+  })
   const erkeztetoszam = erkezId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
 
   // 5. Irat rekord létrehozása
@@ -171,6 +166,11 @@ export async function uploadIncomingDocument(formData: FormData) {
 
 export async function syncIncomingEmailsAction() {
   try {
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    if (!auth.authorized) {
+      return { success: false, error: auth.error || "Nincs jogosultságod az e-mail szinkronizáláshoz." }
+    }
     const { processIncomingEmails } = await import("@/utils/imap-service")
     const res = await processIncomingEmails()
     revalidatePath("/inbox")

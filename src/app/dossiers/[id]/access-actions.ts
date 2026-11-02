@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { getClientInfo } from "@/utils/client-info"
+import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
 
 /**
  * Lekéri az adott ügyirathoz tartozó explicit hozzáféréseket
@@ -10,23 +11,27 @@ import { getClientInfo } from "@/utils/client-info"
 export async function getDossierExplicitAccess(ugyiratId: string) {
   const supabase = await createClient()
 
-  // ── HR/Docs deep-analysis P1-javítás (2026-11-01): őrblokk ──
-  // Korábban guard nélkül futott és az ugyirat_hozzaferes SELECT-policyje
-  // USING (true) — bárki bárminek a hozzáférési listáját felsorolhatta.
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: "Nincs bejelentkezve", data: [] }
+  const { data: ugyirat } = await supabase
+    .from("ugyirat")
+    .select("id, company_id, szervezeti_egyseg_id, ugy:ugy_id(felelos_user_id)")
+    .eq("id", ugyiratId)
+    .maybeSingle()
+
+  if (!ugyirat) {
+    return { error: "Ügyirat nem található.", data: [] }
   }
 
-  // Ellenőrzés: a hívó látja-e az ügyiratot (admin/iktató/auditor vagy van explicit joga)
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor")
-    .eq("id", user.id)
-    .single()
+  const auth = await requireDocsAuthServer(undefined, ugyirat.company_id || null)
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs bejelentkezve", data: [] }
+  }
 
-  const privilegedRole = ["admin", "rendszergazda", "iktato", "auditor"].includes(profile?.docs_szerepkor || "")
-  if (!privilegedRole) {
+  const user = auth.user
+  const privilegedRole = ["admin", "rendszergazda", "iktato", "auditor"].includes(auth.docsRole || "")
+  const inDept = Boolean(ugyirat.szervezeti_egyseg_id && ugyirat.szervezeti_egyseg_id === auth.szervezetiEgysegId)
+  const isAssigned = (ugyirat.ugy as any)?.felelos_user_id === user.id
+
+  if (!privilegedRole && !inDept && !isAssigned) {
     const { data: access } = await supabase
       .from("ugyirat_hozzaferes")
       .select("id")
@@ -73,30 +78,24 @@ export async function grantDossierExplicitAccess(
   indoklas?: string
 ) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) return { error: "Nincs bejelentkezve." }
   if (!ugyiratId || !targetUserId) return { error: "Hiányzó azonosító." }
-
-  // 1. Ellenőrizzük a kérő jogosultságát (Admin vagy a feladó osztály vezetője)
-  const { data: actorProfile } = await supabase
-    .from("felhasznalo_profil")
-    .select("id, docs_szerepkor, szerepkor, szervezeti_egyseg_id, nev")
-    .eq("id", user.id)
-    .single()
-
-  const actorRole = actorProfile?.docs_szerepkor || actorProfile?.szerepkor || "ugyintezo"
-  const isPrivileged = ["admin", "rendszergazda"].includes(actorRole)
 
   const { data: ugyirat } = await supabase
     .from("ugyirat")
-    .select("id, iktatoszam, szervezeti_egyseg_id")
+    .select("id, company_id, iktatoszam, szervezeti_egyseg_id")
     .eq("id", ugyiratId)
     .single()
 
   if (!ugyirat) return { error: "Ügyirat nem található." }
 
-  const isLeaderInDept = actorRole === "vezeto" && ugyirat.szervezeti_egyseg_id === actorProfile?.szervezeti_egyseg_id
+  const auth = await requireDocsAuthServer(undefined, ugyirat.company_id || null)
+  if (!auth.authorized || !auth.user) return { error: auth.error || "Nincs bejelentkezve." }
+  const user = auth.user
+
+  const actorRole = auth.docsRole || "ugyintezo"
+  const isPrivileged = ["admin", "rendszergazda"].includes(actorRole)
+  const isLeaderInDept = actorRole === "vezeto" && ugyirat.szervezeti_egyseg_id === auth.szervezetiEgysegId
+  const actorProfile = { nev: auth.nev }
 
   if (!isPrivileged && !isLeaderInDept) {
     return { error: "Kizárólag Rendszergazda, Adminisztrátor vagy az osztály vezetője oszthat meg ügyiratot!" }
@@ -151,13 +150,29 @@ export async function grantDossierExplicitAccess(
     user_agent: userAgent
   })
 
-  // 6. Értesítés a kedvezményezettnek
-  await dbAdmin.from("alkalmazas_ertesites").insert({
-    user_id: targetUserId,
-    cim: `Új ügyirat hozzáférés: ${ugyirat.iktatoszam}`,
-    szoveg: `${actorProfile?.nev || "Egy vezető"} explicit hozzáférést adott neked a(z) ${ugyirat.iktatoszam} számú ügyirathoz.`,
-    link_url: `/dossiers/${ugyiratId}`,
-    olvasott: false
+  // 6. Értesítés a kedvezményezettnek (a vállalati értesítési szabály alapján)
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const { dispatchDocsNotification } = await import("@/utils/docs-notification-dispatcher")
+  await dispatchDocsNotification({
+    esemenyTipus: "explicit_hozzaferes",
+    kinek: "erintett",
+    companyId: activeCompanyId,
+    recipientUserIds: [targetUserId],
+    inAppTitle: `Új ügyirat hozzáférés: ${ugyirat.iktatoszam}`,
+    inAppBody: `${actorProfile?.nev || "Egy vezető"} explicit hozzáférést adott neked a(z) ${ugyirat.iktatoszam} számú ügyirathoz.`,
+    linkPath: `/dossiers/${ugyiratId}`,
+    emailSubject: `Új ügyirat hozzáférés: ${ugyirat.iktatoszam}`,
+    emailHeading: "Explicit ügyirat-hozzáférést kaptál",
+    emailIntroHtml: `<b>${actorProfile?.nev || "Egy vezető"}</b> egyedi hozzáférést biztosított számodra a(z) <b>${ugyirat.iktatoszam}</b> számú ügyirathoz.`,
+    emailDetails: [
+      { label: "Iktatószám", value: ugyirat.iktatoszam },
+      ...(indoklas ? [{ label: "Indoklás", value: indoklas }] : []),
+    ],
+    emailCtaLabel: "Ügyirat megnyitása",
+    smsBody: `eaisyDocs: Explicit hozzáférést kaptál a(z) ${ugyirat.iktatoszam} ügyirathoz.`,
+    dossierId: ugyiratId,
+    defaultChannels: ["in_app"],
   })
 
   revalidatePath(`/dossiers/${ugyiratId}`)
@@ -170,28 +185,22 @@ export async function grantDossierExplicitAccess(
  */
 export async function revokeDossierExplicitAccess(ugyiratId: string, targetUserId: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) return { error: "Nincs bejelentkezve." }
-
-  const { data: actorProfile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor, szerepkor, szervezeti_egyseg_id, nev")
-    .eq("id", user.id)
-    .single()
-
-  const actorRole = actorProfile?.docs_szerepkor || actorProfile?.szerepkor || "ugyintezo"
-  const isPrivileged = ["admin", "rendszergazda"].includes(actorRole)
 
   const { data: ugyirat } = await supabase
     .from("ugyirat")
-    .select("id, iktatoszam, szervezeti_egyseg_id")
+    .select("id, company_id, iktatoszam, szervezeti_egyseg_id")
     .eq("id", ugyiratId)
     .single()
 
   if (!ugyirat) return { error: "Ügyirat nem található." }
 
-  const isLeaderInDept = actorRole === "vezeto" && ugyirat.szervezeti_egyseg_id === actorProfile?.szervezeti_egyseg_id
+  const auth = await requireDocsAuthServer(undefined, ugyirat.company_id || null)
+  if (!auth.authorized || !auth.user) return { error: auth.error || "Nincs bejelentkezve." }
+  const user = auth.user
+
+  const actorRole = auth.docsRole || "ugyintezo"
+  const isPrivileged = ["admin", "rendszergazda"].includes(actorRole)
+  const isLeaderInDept = actorRole === "vezeto" && ugyirat.szervezeti_egyseg_id === auth.szervezetiEgysegId
 
   if (!isPrivileged && !isLeaderInDept) {
     return { error: "Nincs jogosultságod a hozzáférés visszavonásához!" }

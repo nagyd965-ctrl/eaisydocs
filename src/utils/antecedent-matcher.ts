@@ -327,6 +327,7 @@ export async function findAntecedentSuggestion(
     .from("irat")
     .select(`
       id,
+      company_id,
       targy,
       leiras,
       kuldo_partner_id,
@@ -353,8 +354,8 @@ export async function findAntecedentSuggestion(
     }
   }
 
-  // 2. Query all open and closed dossiers
-  const { data: rawDossiers, error: dossierErr } = await supabase
+  // 2. Query all open and closed dossiers for the document's company
+  let dossierQuery = supabase
     .from("ugyirat")
     .select(`
       id,
@@ -372,6 +373,12 @@ export async function findAntecedentSuggestion(
     `)
     .order("iktatas_datuma", { ascending: false })
     .limit(150)
+
+  if ((targetIrat as any).company_id) {
+    dossierQuery = dossierQuery.eq("company_id", (targetIrat as any).company_id)
+  }
+
+  const { data: rawDossiers, error: dossierErr } = await dossierQuery
 
   if (dossierErr || !rawDossiers) {
     return {

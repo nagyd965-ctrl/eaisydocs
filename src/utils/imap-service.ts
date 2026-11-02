@@ -126,7 +126,10 @@ async function processMailboxForCompany(config: CompanyImapConfig): Promise<{
       // -------------------------------------------------------------
 
       const currentYear = date.getFullYear();
-      const { data: erkezId, error: erkezErr } = await supabase.rpc('generate_erkeztetoszam', { p_ev: currentYear });
+      const { data: erkezId, error: erkezErr } = await supabase.rpc('generate_erkeztetoszam', {
+        p_ev: currentYear,
+        p_company_id: config.companyId || null,
+      });
 
       const erkeztetoszam = !erkezErr && erkezId
         ? erkezId
@@ -403,14 +406,27 @@ async function notifyCompanyDocumentHandlers(
 
     if (recipients.length === 0) return;
 
-    const notifications = recipients.map((p: any) => ({
-      user_id: p.id,
-      cim: `Új irat érkezett (${erkeztetoszam})`,
-      szoveg: `Feladó: ${sender}\nTárgy: ${subject}`,
-      link_url: `/inbox/view/${iratId}`,
-    }));
-
-    await supabase.from('alkalmazas_ertesites').insert(notifications);
+    const { dispatchDocsNotification } = await import("@/utils/docs-notification-dispatcher");
+    await dispatchDocsNotification({
+      esemenyTipus: "uj_irat_erkezett",
+      kinek: "iratkezelo",
+      companyId,
+      recipientUserIds: recipients.map((p: any) => p.id),
+      inAppTitle: `Új irat érkezett (${erkeztetoszam})`,
+      inAppBody: `Feladó: ${sender}\nTárgy: ${subject}`,
+      linkPath: `/inbox/${iratId}`,
+      emailSubject: `Új bejövő irat érkezett (${erkeztetoszam})`,
+      emailHeading: "Új bejövő irat érkezett",
+      emailIntroHtml: "Új elektronikus küldemény érkezett az érkeztetőbe az IMAP postafiókon keresztül.",
+      emailDetails: [
+        { label: "Érkeztetőszám", value: erkeztetoszam },
+        { label: "Feladó", value: sender },
+        { label: "Tárgy", value: subject },
+      ],
+      emailCtaLabel: "Irat megnyitása",
+      smsBody: `eaisyDocs: Új bejövő irat érkezett (${erkeztetoszam}) — ${subject}`,
+      defaultChannels: ["in_app"],
+    });
   } catch (err) {
     console.warn("[IMAP] Értesítés-küldési hiba:", err);
   }

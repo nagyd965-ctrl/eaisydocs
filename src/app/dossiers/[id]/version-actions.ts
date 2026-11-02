@@ -4,29 +4,15 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import crypto from "crypto"
 import { getClientInfo } from "@/utils/client-info"
+import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
 
 export async function uploadDocumentNewVersion(iratId: string, ugyiratId: string, formData: FormData) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return { error: "Nincs bejelentkezve." }
-
-  // Felhasználó jogosultság ellenőrzése
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor, szervezeti_egyseg_id")
-    .eq("id", user.id)
-    .single()
-
-  const userRole = profile?.docs_szerepkor || "ugyintezo"
-  if (userRole === "betekinto" || userRole === "auditor") {
-    return { error: "Nincs jogosultsága új verzió feltöltéséhez (csak olvasási joggal rendelkezik)." }
-  }
-
-  // Ellenőrizzük az ügyirat státuszát (lezártba ne lehessen tölteni)
+  // Ellenőrizzük az ügyirat státuszát és vállalati tartozását
   const { data: ugyirat } = await supabase
     .from("ugyirat")
-    .select("id, statusz, iktatoszam, szervezeti_egyseg_id, ugy:ugy_id(felelos_user_id)")
+    .select("id, company_id, statusz, iktatoszam, szervezeti_egyseg_id, ugy:ugy_id(felelos_user_id)")
     .eq("id", ugyiratId)
     .single()
 
@@ -34,11 +20,34 @@ export async function uploadDocumentNewVersion(iratId: string, ugyiratId: string
     return { error: "Ügyirat nem található." }
   }
 
+  const auth = await requireDocsAuthServer(undefined, ugyirat.company_id || null)
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs bejelentkezve." }
+  }
+  const user = auth.user
+
+  const userRole = auth.docsRole || "ugyintezo"
+  if (userRole === "betekinto" || userRole === "auditor") {
+    return { error: "Nincs jogosultsága új verzió feltöltéséhez (csak olvasási joggal rendelkezik)." }
+  }
+
+  // Ellenőrizzük, hogy az irat valóban ehhez az ügyirathoz tartozik-e
+  const { data: iratRow } = await supabase
+    .from("irat")
+    .select("id, ugyirat_id")
+    .eq("id", iratId)
+    .eq("ugyirat_id", ugyiratId)
+    .maybeSingle()
+
+  if (!iratRow) {
+    return { error: "A megadott irat nem található a kiválasztott ügyiratban!" }
+  }
+
   if (["irattarban", "lezart", "selejtezheto", "selejtezett"].includes(ugyirat.statusz)) {
     return { error: `A kiválasztott ügyirat (${ugyirat.iktatoszam}) lezárt vagy irattározott állapotban van, ezért új fájlverzió már nem tölthető fel hozzá!` }
   }
 
-  if (!["admin", "iktato"].includes(userRole)) {
+  if (!["admin", "rendszergazda", "iktato"].includes(userRole)) {
     const { data: explicitAccess } = await supabase
       .from("ugyirat_hozzaferes")
       .select("id")
@@ -46,7 +55,7 @@ export async function uploadDocumentNewVersion(iratId: string, ugyiratId: string
       .eq("user_id", user.id)
       .maybeSingle()
 
-    const isSameDept = ugyirat.szervezeti_egyseg_id === profile?.szervezeti_egyseg_id
+    const isSameDept = ugyirat.szervezeti_egyseg_id === auth.szervezetiEgysegId
     const isAssigned = (ugyirat.ugy as any)?.felelos_user_id === user.id
 
     if (!isSameDept && !explicitAccess && !isAssigned) {

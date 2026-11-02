@@ -347,79 +347,26 @@ export async function submitLeaveRequest(formData: FormData) {
 
   // Értesítés küldése az aktuális jóváhagyónak, ha van
   if (aktualisJovahagyoId) {
-    let szabalyQuery = supabase
-      .from("ertesitesi_szabaly")
-      .select("aktiv, csatorna, kinek")
-      .eq("esemeny_tipus", "szabadsag_jovahagyas")
-    if (activeCompanyId) {
-      szabalyQuery = szabalyQuery.eq("company_id", activeCompanyId)
-    }
-    const { data: szabaly } = await szabalyQuery.limit(1).maybeSingle();
+    const { data: dolgozoProfil } = await supabase.from("felhasznalo_profil").select("nev").eq("id", user.id).maybeSingle();
+    const dolgozoNev = dolgozoProfil?.nev || 'Egy munkatárs';
+    const tipusNev = type === 'csusztatas' ? 'Csúsztatás (Túlóra)' : type === 'szabadsag' ? 'Szabadság' : 'Betegszabadság';
+    const { dispatchHrNotification } = await import("@/utils/hr-notification-dispatcher");
 
-    if (szabaly && szabaly.aktiv) {
-      const csatornak = szabaly.csatorna || [];
-      const { data: dolgozoProfil } = await supabase.from("felhasznalo_profil").select("nev").eq("id", user.id).maybeSingle();
-      const dolgozoNev = dolgozoProfil?.nev || 'Egy munkatárs';
-
-      if (csatornak.includes('in_app')) {
-        await supabase.from('alkalmazas_ertesites').insert({
-          user_id: aktualisJovahagyoId,
-          cim: type === 'csusztatas' ? 'Új csúsztatási kérelem' : 'Új távollét kérelem',
-          szoveg: `${dolgozoNev} új ${type === 'csusztatas' ? 'csúsztatási' : 'távollét'} kérelmet nyújtott be (${startDate} - ${endDate}).`,
-          link_url: '/hr/manager'
-        });
-      }
-
-      if (csatornak.includes('email')) {
-        const { createClient: createAdminClient } = await import("@supabase/supabase-js");
-        const adminClient = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-        const { data: userResp } = await adminClient.auth.admin.getUserById(aktualisJovahagyoId);
-        if (userResp?.user?.email) {
-          try {
-            const { sendNotificationEmail, buildHtmlEmail } = await import('@/utils/mailer');
-            const { getBaseUrl } = await import('@/utils/url');
-            await sendNotificationEmail({
-              to: userResp.user.email,
-              subject: `Új távollét kérelem jóváhagyásra: ${dolgozoNev}`,
-              senderName: "eaisyHR Rendszer",
-              senderEmail: "eaisyhr@thinkai.hu",
-              modul: "hr",
-              companyId: activeCompanyId || undefined,
-              html: buildHtmlEmail(
-                "Távollét kérelem jóváhagyása",
-                `${dolgozoNev} új távollét kérelmet nyújtott be, amely a jóváhagyásodra vár.`,
-                [
-                  { label: "Időszak", value: `${startDate} - ${endDate}` },
-                  { label: "Típus", value: type === 'csusztatas' ? 'Csúsztatás (Túlóra)' : type === 'szabadsag' ? 'Szabadság' : 'Betegszabadság' }
-                ],
-                "Kérelmek megtekintése",
-                `${getBaseUrl()}/hr/manager`,
-                "eaisyHR"
-              )
-            });
-          } catch (e) {
-            console.error("Failed to send instant leave email", e);
-          }
-        }
-      }
-
-      if (csatornak.includes('sms')) {
-        try {
-          const { data: jovahagyoProfil } = await supabase.from("felhasznalo_profil").select("telefon").eq("id", aktualisJovahagyoId).maybeSingle();
-          if (jovahagyoProfil?.telefon) {
-            const { sendSmsNotification } = await import('@/utils/sms/twilio');
-            await sendSmsNotification({
-              to: jovahagyoProfil.telefon,
-              body: `eaisyHR: ${dolgozoNev} új távollét kérelmet nyújtott be (${startDate} - ${endDate}), amely jóváhagyásra vár.`,
-              modul: "hr",
-              companyId: activeCompanyId || undefined,
-            });
-          }
-        } catch (e) {
-          console.error("Failed to send instant leave sms", e);
-        }
-      }
-    }
+    await dispatchHrNotification({
+      esemenyTipus: "szabadsag_jovahagyas",
+      companyId: activeCompanyId,
+      recipientUserIds: [aktualisJovahagyoId],
+      title: type === 'csusztatas' ? 'Új csúsztatási kérelem' : 'Új távollét kérelem',
+      message: `${dolgozoNev} új ${type === 'csusztatas' ? 'csúsztatási' : 'távollét'} kérelmet nyújtott be (${startDate} - ${endDate}).`,
+      linkPath: "/hr/manager",
+      emailDetails: [
+        { label: "Munkavállaló", value: dolgozoNev },
+        { label: "Időszak", value: `${startDate} - ${endDate}` },
+        { label: "Típus", value: tipusNev },
+      ],
+      emailCtaText: "Kérelmek megtekintése",
+      smsBody: `eaisyHR: ${dolgozoNev} új távollét kérelmet nyújtott be (${startDate} - ${endDate}), amely jóváhagyásra vár.`,
+    });
   }
 
   revalidatePath("/hr", "layout")
@@ -572,17 +519,27 @@ export async function submitOvertimeRequest(data: {
     return { error: "Hiba történt a kérelem benyújtásakor: " + tuloraErr.message }
   }
 
-  // Értesítés küldése a jóváhagyónak
+  // Értesítés küldése a jóváhagyónak (szabadsag_jovahagyas szabály alapján)
   if (aktualisJovahagyoId) {
     const dolgozoNev = profile?.nev || "Egy munkatárs"
     const tipusNev = data.tipus === "kiveszi_szabinak" ? "csúsztatási" : "túlóra kifizetési"
     const idotartam = `${Math.floor(data.perc / 60)} óra ${data.perc % 60 > 0 ? `${data.perc % 60} perc` : ""}`.trim()
+    const { dispatchHrNotification } = await import("@/utils/hr-notification-dispatcher")
 
-    await supabase.from("alkalmazas_ertesites").insert({
-      user_id: aktualisJovahagyoId,
-      cim: `Új ${tipusNev} kérelem`,
-      szoveg: `${dolgozoNev} új ${tipusNev} kérelmet nyújtott be (${idotartam}${data.datum ? `, dátum: ${data.datum}` : ""}).`,
-      link_url: "/hr/manager"
+    await dispatchHrNotification({
+      esemenyTipus: "szabadsag_jovahagyas",
+      companyId: activeCompanyId,
+      recipientUserIds: [aktualisJovahagyoId],
+      title: `Új ${tipusNev} kérelem`,
+      message: `${dolgozoNev} új ${tipusNev} kérelmet nyújtott be (${idotartam}${data.datum ? `, dátum: ${data.datum}` : ""}).`,
+      linkPath: "/hr/manager",
+      emailDetails: [
+        { label: "Munkavállaló", value: dolgozoNev },
+        { label: "Típus", value: data.tipus === "kiveszi_szabinak" ? "Csúsztatás" : "Túlóra kifizetés" },
+        { label: "Időtartam", value: idotartam },
+        ...(data.datum ? [{ label: "Dátum", value: data.datum }] : []),
+      ],
+      emailCtaText: "Kérelmek megtekintése",
     })
   }
 
@@ -1065,14 +1022,24 @@ export async function submitAttendanceCorrection(params: {
     return { error: "Nem sikerült benyújtani a kérelmet: " + insertError.message }
   }
 
-  // Értesítés a vezetőnek
+  // Értesítés a vezetőnek (jelenlet_korrekcio_kerelem szabály alapján)
   if (aktualisJovahagyoId) {
     const dolgozoNev = profile?.nev || "Egy munkatárs"
-    await supabase.from("alkalmazas_ertesites").insert({
-      user_id: aktualisJovahagyoId,
-      cim: "Új munkaidő korrekciós kérelem",
-      szoveg: `${dolgozoNev} munkaidő korrekciós kérelmet nyújtott be (${datum}: ${becsekkolas} - ${kicsekkolas}). Indoklás: ${indoklas}`,
-      link_url: "/hr/manager"
+    const { dispatchHrNotification } = await import("@/utils/hr-notification-dispatcher")
+    await dispatchHrNotification({
+      esemenyTipus: "jelenlet_korrekcio_kerelem",
+      companyId: activeCompanyId,
+      recipientUserIds: [aktualisJovahagyoId],
+      title: "Új munkaidő korrekciós kérelem",
+      message: `${dolgozoNev} munkaidő korrekciós kérelmet nyújtott be (${datum}: ${becsekkolas} - ${kicsekkolas}). Indoklás: ${indoklas}`,
+      linkPath: "/hr/manager",
+      emailDetails: [
+        { label: "Munkavállaló", value: dolgozoNev },
+        { label: "Dátum", value: datum },
+        { label: "Kért időtartam", value: `${becsekkolas} - ${kicsekkolas}` },
+        { label: "Indoklás", value: indoklas },
+      ],
+      emailCtaText: "Korrekció elbírálása",
     })
   }
 

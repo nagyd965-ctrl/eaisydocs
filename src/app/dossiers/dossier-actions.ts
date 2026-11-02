@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { sendNotificationEmail, buildHtmlEmail } from "@/utils/mailer"
 import { getBaseUrl } from "@/utils/url"
+import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
 
 export async function assignDossier(formData: FormData) {
   const ugy_id = formData.get("ugy_id") as string
@@ -15,28 +16,24 @@ export async function assignDossier(formData: FormData) {
 
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Nincs bejelentkezve." }
+  const { data: ugyiratTarget } = await supabase
+    .from("ugyirat")
+    .select("id, company_id, szervezeti_egyseg_id, statusz")
+    .eq("id", ugyirat_id)
+    .maybeSingle()
 
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor, szervezeti_egyseg_id")
-    .eq("id", user.id)
-    .single()
-
-  const userRole = profile?.docs_szerepkor || "ugyintezo"
-  const isAllowed = ["admin", "rendszergazda", "iktato", "vezeto"].includes(userRole)
-  if (!isAllowed) {
-    return { error: "Nincs jogosultságod az ügyirat kiosztásához/szignálásához." }
+  const auth = await requireDocsAuthServer(
+    ["admin", "rendszergazda", "iktato", "vezeto"],
+    ugyiratTarget?.company_id || null
+  )
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs jogosultságod az ügyirat kiosztásához/szignálásához." }
   }
 
-  if (userRole === "vezeto") {
-    const { data: ugyirat } = await supabase
-      .from("ugyirat")
-      .select("szervezeti_egyseg_id")
-      .eq("id", ugyirat_id)
-      .single()
+  const user = auth.user
+  const userRole = auth.docsRole || "ugyintezo"
 
+  if (userRole === "vezeto") {
     const { data: explicitAccess } = await supabase
       .from("ugyirat_hozzaferes")
       .select("id")
@@ -45,7 +42,7 @@ export async function assignDossier(formData: FormData) {
       .maybeSingle()
 
     const hasExplicit = !!explicitAccess
-    const inDept = ugyirat?.szervezeti_egyseg_id === profile?.szervezeti_egyseg_id
+    const inDept = ugyiratTarget?.szervezeti_egyseg_id === auth.szervezetiEgysegId
 
     if (!inDept && !hasExplicit) {
       return { error: "Vezetőként csak a saját osztályodhoz tartozó ügyiratokat oszthatod ki." }
@@ -129,9 +126,9 @@ export async function assignDossier(formData: FormData) {
     const { data: szabaly } = await szabalyQuery.limit(1).maybeSingle()
 
     if (szabaly?.aktiv) {
-      const csatornak = szabaly.csatorna || ['email']
+      const csatornak = szabaly.csatorna || ['in_app', 'email']
       
-      if (csatornak.includes('email') || csatornak.includes('sms')) {
+      if (csatornak.includes('in_app') || csatornak.includes('email') || csatornak.includes('sms')) {
         // Szervíz kulcs használata az email/telefon lekéréshez
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
         if (serviceRoleKey) {
@@ -142,36 +139,38 @@ export async function assignDossier(formData: FormData) {
             { auth: { autoRefreshToken: false, persistSession: false } }
           )
           
-          const { data: adminData } = await supabaseAdmin.auth.admin.getUserById(felelos_user_id)
-          const userEmail = adminData?.user?.email
-          
           const { data: ugyiratData } = await supabase.from("ugyirat").select("iktatoszam").eq("id", ugyirat_id).single()
           const iktatoszam = ugyiratData?.iktatoszam || "Ismeretlen"
 
-          // In-app értesítés mindig készül a felületen a felelősnek
-          await supabaseAdmin.from("alkalmazas_ertesites").insert({
-            user_id: felelos_user_id,
-            cim: `Új ügyirat szignálva: ${iktatoszam}`,
-            szoveg: `Egy új ügyiratot szignáltak rád (${iktatoszam}). Határidő: ${hatarido || "Nincs megadva"}`,
-            link_url: `/dossiers/${ugyirat_id}`
-          })
-
-          if (csatornak.includes('email') && userEmail) {
-            await sendNotificationEmail({
-              to: userEmail,
-              subject: `Új ügyirat szignálva: ${iktatoszam}`,
-              html: buildHtmlEmail(
-                "Új feladatot kaptál!",
-                "Egy új ügyiratot szignáltak rád az eaisyDocs rendszerben.",
-                [
-                  { label: "Iktatószám", value: iktatoszam },
-                  { label: "Határidő", value: hatarido || "Nincs megadva" }
-                ],
-                "Ügyirat megtekintése",
-                `${getBaseUrl()}/dossiers/${ugyirat_id}`
-              ),
-              dossierId: ugyirat_id
+          if (csatornak.includes('in_app')) {
+            await supabaseAdmin.from("alkalmazas_ertesites").insert({
+              user_id: felelos_user_id,
+              cim: `Új ügyirat szignálva: ${iktatoszam}`,
+              szoveg: `Egy új ügyiratot szignáltak rád (${iktatoszam}). Határidő: ${hatarido || "Nincs megadva"}`,
+              link_url: `/dossiers/${ugyirat_id}`
             })
+          }
+
+          if (csatornak.includes('email')) {
+            const { data: adminData } = await supabaseAdmin.auth.admin.getUserById(felelos_user_id)
+            const userEmail = adminData?.user?.email
+            if (userEmail) {
+              await sendNotificationEmail({
+                to: userEmail,
+                subject: `Új ügyirat szignálva: ${iktatoszam}`,
+                html: buildHtmlEmail(
+                  "Új feladatot kaptál!",
+                  "Egy új ügyiratot szignáltak rád az eaisyDocs rendszerben.",
+                  [
+                    { label: "Iktatószám", value: iktatoszam },
+                    { label: "Határidő", value: hatarido || "Nincs megadva" }
+                  ],
+                  "Ügyirat megtekintése",
+                  `${getBaseUrl()}/dossiers/${ugyirat_id}`
+                ),
+                dossierId: ugyirat_id
+              })
+            }
           }
 
           if (csatornak.includes('sms')) {

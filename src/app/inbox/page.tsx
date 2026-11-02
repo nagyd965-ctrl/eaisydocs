@@ -55,7 +55,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     `)
     .eq("company_id", companyScope)
     .is("ugyirat_id", null)
-    .or("statusz.is.null,statusz.eq.erkeztetve")
+    .or("statusz.is.null,statusz.eq.erkeztetve,statusz.eq.erkeztetett")
     .order("erkezes_datuma", { ascending: false })
 
   // 2. Nem iktatandó küldemények (félretett reklámok / tájékoztatók)

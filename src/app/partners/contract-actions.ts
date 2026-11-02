@@ -31,6 +31,15 @@ function getAdminClient() {
   return createAdminClient(url, key)
 }
 
+async function getContractTemplateKey(): Promise<{ key: string; activeCompanyId: string | null }> {
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  return {
+    key: activeCompanyId ? `szerzodes_sablonok:${activeCompanyId}` : "szerzodes_sablonok",
+    activeCompanyId,
+  }
+}
+
 /**
  * Lekérdezi az összes elérhető üzleti szerződéssablont (alapértelmezett + egyéni vállalati).
  * Ha a rendszerbeállítások még üresek, automatikusan inicializálja az alapsablonokkal.
@@ -42,12 +51,32 @@ export async function getContractTemplatesAction(): Promise<{
 }> {
   try {
     const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-    const { data: settingRow } = await supabase
+    if (!user) {
+      return { success: false, error: "Nincs bejelentkezve.", templates: [] }
+    }
+
+    const { key, activeCompanyId } = await getContractTemplateKey()
+
+    let { data: settingRow } = await supabase
       .from("rendszer_beallitas")
       .select("ertek")
-      .eq("kulcs", "szerzodes_sablonok")
+      .eq("kulcs", key)
       .maybeSingle()
+
+    const hadScopedRow = Boolean(settingRow)
+
+    if (!settingRow && activeCompanyId) {
+      const { data: fallbackRow } = await supabase
+        .from("rendszer_beallitas")
+        .select("ertek")
+        .eq("kulcs", "szerzodes_sablonok")
+        .maybeSingle()
+      settingRow = fallbackRow
+    }
 
     const customTemplates = Array.isArray(settingRow?.ertek)
       ? settingRow.ertek.filter((t: ContractTemplate) => t.isCustom)
@@ -55,18 +84,21 @@ export async function getContractTemplatesAction(): Promise<{
 
     const mergedTemplates: ContractTemplate[] = [...DEFAULT_CONTRACT_TEMPLATES, ...customTemplates]
 
-    const admin = getAdminClient()
-    await admin
-      .from("rendszer_beallitas")
-      .upsert(
-        {
-          kulcs: "szerzodes_sablonok",
-          ertek: mergedTemplates,
-          leiras: "Üzleti szerződéssablonok a szerződésgenerátor modulhoz.",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "kulcs" }
-      )
+    // Csak akkor inicializáljuk az adatbázisban, ha az adott cég kulcsa még nem létezett
+    if (!hadScopedRow) {
+      const admin = getAdminClient()
+      await admin
+        .from("rendszer_beallitas")
+        .upsert(
+          {
+            kulcs: key,
+            ertek: mergedTemplates,
+            leiras: "Üzleti szerződéssablonok a szerződésgenerátor modulhoz (cég-specifikus).",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "kulcs" }
+        )
+    }
 
     return { success: true, templates: mergedTemplates }
   } catch (err: any) {
@@ -92,14 +124,12 @@ export async function createCustomContractTemplateAction(templateData: {
   error?: string
 }> {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return { success: false, error: "Nincs bejelentkezve." }
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    if (!auth.authorized || !auth.user) {
+      return { success: false, error: auth.error || "Nincs jogosultságod szerződéssablon létrehozásához." }
     }
+    const user = auth.user
 
     if (!templateData.name.trim()) {
       return { success: false, error: "A sablon megnevezése kötelező!" }
@@ -131,11 +161,21 @@ export async function createCustomContractTemplateAction(templateData: {
     }
 
     const admin = getAdminClient()
-    const { data: settingRow } = await admin
+    const { key, activeCompanyId } = await getContractTemplateKey()
+    let { data: settingRow } = await admin
       .from("rendszer_beallitas")
       .select("ertek")
-      .eq("kulcs", "szerzodes_sablonok")
+      .eq("kulcs", key)
       .maybeSingle()
+
+    if (!settingRow && activeCompanyId) {
+      const { data: fallbackRow } = await admin
+        .from("rendszer_beallitas")
+        .select("ertek")
+        .eq("kulcs", "szerzodes_sablonok")
+        .maybeSingle()
+      settingRow = fallbackRow
+    }
 
     const existing: ContractTemplate[] =
       Array.isArray(settingRow?.ertek) && settingRow.ertek.length > 0
@@ -148,9 +188,9 @@ export async function createCustomContractTemplateAction(templateData: {
       .from("rendszer_beallitas")
       .upsert(
         {
-          kulcs: "szerzodes_sablonok",
+          kulcs: key,
           ertek: updated,
-          leiras: "Üzleti szerződéssablonok a szerződésgenerátor modulhoz.",
+          leiras: "Üzleti szerződéssablonok a szerződésgenerátor modulhoz (cég-specifikus).",
           updated_at: new Date().toISOString(),
           updated_by: user.id,
         },
@@ -178,21 +218,29 @@ export async function deleteContractTemplateAction(templateId: string): Promise<
   error?: string
 }> {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return { success: false, error: "Nincs bejelentkezve." }
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    if (!auth.authorized || !auth.user) {
+      return { success: false, error: auth.error || "Nincs jogosultságod szerződéssablon törléséhez." }
     }
+    const user = auth.user
 
     const admin = getAdminClient()
-    const { data: settingRow } = await admin
+    const { key, activeCompanyId } = await getContractTemplateKey()
+    let { data: settingRow } = await admin
       .from("rendszer_beallitas")
       .select("ertek")
-      .eq("kulcs", "szerzodes_sablonok")
+      .eq("kulcs", key)
       .maybeSingle()
+
+    if (!settingRow && activeCompanyId) {
+      const { data: fallbackRow } = await admin
+        .from("rendszer_beallitas")
+        .select("ertek")
+        .eq("kulcs", "szerzodes_sablonok")
+        .maybeSingle()
+      settingRow = fallbackRow
+    }
 
     const existing: ContractTemplate[] =
       Array.isArray(settingRow?.ertek) && settingRow.ertek.length > 0
@@ -205,9 +253,9 @@ export async function deleteContractTemplateAction(templateId: string): Promise<
       .from("rendszer_beallitas")
       .upsert(
         {
-          kulcs: "szerzodes_sablonok",
+          kulcs: key,
           ertek: filtered,
-          leiras: "Üzleti szerződéssablonok a szerződésgenerátor modulhoz.",
+          leiras: "Üzleti szerződéssablonok a szerződésgenerátor modulhoz (cég-specifikus).",
           updated_at: new Date().toISOString(),
           updated_by: user.id,
         },
@@ -239,38 +287,31 @@ export async function getContractGeneratorContextAction(partnerId: string): Prom
   error?: string
 }> {
   try {
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    if (!auth.authorized || !auth.user) {
+      return { success: false, error: auth.error || "Nincs jogosultságod a szerződésgenerátor eléréséhez." }
+    }
+
     const supabase = await createClient()
 
-    // 1. Partner adatok lekérése (biztonságos, beágyazott join hiba nélkül)
-    const partnerQuery = await supabase
+    // 1. Partner adatok lekérése (kizárólag az aktív vállalaton belül)
+    let partnerQuery = supabase
       .from("partner")
       .select("*")
       .eq("id", partnerId)
-      .maybeSingle()
-
-    let partner = partnerQuery.data
-    let partnerError = partnerQuery.error
-
-    if (partnerError || !partner) {
-      const admin = getAdminClient()
-      const adminPartnerQuery = await admin
-        .from("partner")
-        .select("*")
-        .eq("id", partnerId)
-        .maybeSingle()
-
-      partner = adminPartnerQuery.data
-      partnerError = adminPartnerQuery.error
+    if (auth.activeCompanyId) {
+      partnerQuery = partnerQuery.eq("company_id", auth.activeCompanyId)
     }
+    const { data: partner, error: partnerError } = await partnerQuery.maybeSingle()
 
     if (partnerError || !partner) {
       console.error("Partner kontextus betöltési hiba:", { partnerId, partnerError })
-      return { success: false, error: "A megadott partner nem található az adatbázisban." }
+      return { success: false, error: "A megadott partner nem található az aktív vállalatban." }
     }
 
     // Kapcsolattartók lekérése külön táblából
-    const dbClient = partnerQuery.data ? supabase : getAdminClient()
-    const { data: kapcsolattartok } = await dbClient
+    const { data: kapcsolattartok } = await supabase
       .from("partner_kapcsolattarto")
       .select("*")
       .eq("partner_id", partner.id)
@@ -280,8 +321,11 @@ export async function getContractGeneratorContextAction(partnerId: string): Prom
 
     // 2. Megbízó vállalati adatok — az AKTÍV CÉG valódi adataiból (companies tábla),
     //    kiegészítve a rendszerbeállításokban megadott extra mezőkkel (bankszámla, e-mail, telefon)
-    const { resolveCompanyDetailsServer } = await import("@/utils/company-server")
-    const companyDetails = await resolveCompanyDetailsServer()
+    const { resolveCompanyDetailsServer, getActiveCompanyIdServer } = await import("@/utils/company-server")
+    const [companyDetails, activeCompanyId] = await Promise.all([
+      resolveCompanyDetailsServer(),
+      getActiveCompanyIdServer(),
+    ])
 
     let megbizo = {
       ...DEFAULT_MEGBIZO_COMPANY,
@@ -292,11 +336,21 @@ export async function getContractGeneratorContextAction(partnerId: string): Prom
     }
 
     // Extra mezők a rendszerbeállításokból (bankszámla, e-mail, telefon — ezek nincsenek a companies táblában)
-    const { data: configRow } = await supabase
+    const configKey = activeCompanyId ? `szervezet_alapadatok:${activeCompanyId}` : "szervezet_alapadatok"
+    let { data: configRow } = await supabase
       .from("rendszer_beallitas")
       .select("ertek")
-      .eq("kulcs", "szervezet_alapadatok")
+      .eq("kulcs", configKey)
       .maybeSingle()
+
+    if (!configRow && activeCompanyId) {
+      const { data: fallbackConfig } = await supabase
+        .from("rendszer_beallitas")
+        .select("ertek")
+        .eq("kulcs", "szervezet_alapadatok")
+        .maybeSingle()
+      configRow = fallbackConfig
+    }
 
     if (configRow?.ertek && typeof configRow.ertek === "object") {
       megbizo = {
@@ -314,6 +368,7 @@ export async function getContractGeneratorContextAction(partnerId: string): Prom
       .select(`
         ugyirat:ugyirat_id (
           id,
+          company_id,
           iktatoszam,
           statusz,
           ugy:ugy_id ( targy )
@@ -326,7 +381,7 @@ export async function getContractGeneratorContextAction(partnerId: string): Prom
 
     const mappedPartnerDossiers = (partnerDossiers || [])
       .map((item: any) => item.ugyirat)
-      .filter((u: any) => u && u.id && u.statusz !== "irattarban" && u.statusz !== "selejtezett")
+      .filter((u: any) => u && u.id && u.statusz !== "irattarban" && u.statusz !== "selejtezett" && (!activeCompanyId || !u.company_id || u.company_id === activeCompanyId))
       .map((u: any) => ({
         id: u.id,
         iktatoszam: u.iktatoszam || "Nincs iktatószám",
@@ -335,12 +390,16 @@ export async function getContractGeneratorContextAction(partnerId: string): Prom
       }))
 
     // További aktív ügyiratok ha a partnernek nincs sok
-    const { data: recentDossiers } = await supabase
+    let recentQuery = supabase
       .from("ugyirat")
       .select("id, iktatoszam, statusz, ugy:ugy_id ( targy )")
       .in("statusz", ["iktatva", "folyamatban", "uj"])
       .order("created_at", { ascending: false })
       .limit(15)
+    if (activeCompanyId) {
+      recentQuery = recentQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: recentDossiers } = await recentQuery
 
     const mappedRecent = (recentDossiers || []).map((u: any) => ({
       id: u.id,
@@ -390,38 +449,31 @@ export async function generateContractDraftAction(
   error?: string
 }> {
   try {
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    if (!auth.authorized || !auth.user) {
+      return { success: false, error: auth.error || "Nincs jogosultságod szerződéstervezet generálásához." }
+    }
+
     const supabase = await createClient()
 
-    // 1. Partner adatok betöltése
-    const partnerQuery = await supabase
+    // 1. Partner adatok betöltése (kizárólag az aktív vállalaton belül)
+    let partnerQuery = supabase
       .from("partner")
       .select("*")
       .eq("id", params.partnerId)
-      .maybeSingle()
-
-    let partner = partnerQuery.data
-    let partnerError = partnerQuery.error
-
-    if (partnerError || !partner) {
-      const admin = getAdminClient()
-      const adminPartnerQuery = await admin
-        .from("partner")
-        .select("*")
-        .eq("id", params.partnerId)
-        .maybeSingle()
-
-      partner = adminPartnerQuery.data
-      partnerError = adminPartnerQuery.error
+    if (auth.activeCompanyId) {
+      partnerQuery = partnerQuery.eq("company_id", auth.activeCompanyId)
     }
+    const { data: partner, error: partnerError } = await partnerQuery.maybeSingle()
 
     if (partnerError || !partner) {
       console.error("Szerződő partner nem található a generáláshoz:", { partnerId: params.partnerId, partnerError })
-      return { success: false, error: "A szerződő partner nem található." }
+      return { success: false, error: "A szerződő partner nem található az aktív vállalatban." }
     }
 
     // Kapcsolattartók lekérése külön táblából
-    const dbClient = partnerQuery.data ? supabase : getAdminClient()
-    const { data: kapcsolattartok } = await dbClient
+    const { data: kapcsolattartok } = await supabase
       .from("partner_kapcsolattarto")
       .select("*")
       .eq("partner_id", partner.id)
@@ -627,14 +679,12 @@ export async function finalizeAndFileContractAction(
   error?: string
 }> {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return { success: false, error: "Nincs bejelentkezve." }
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    if (!auth.authorized || !auth.user) {
+      return { success: false, error: auth.error || "Nincs jogosultságod szerződés véglegesítéséhez és iktatásához." }
     }
+    const user = auth.user
 
     if (!params.partnerId) {
       return { success: false, error: "Partner azonosító megadása kötelező!" }
@@ -644,43 +694,31 @@ export async function finalizeAndFileContractAction(
       return { success: false, error: "A szerződés címe és tartalma kötelező!" }
     }
 
-    // 1. Partner törzsadat betöltése
-    const partnerQuery = await supabase
+    const supabase = await createClient()
+
+    // 1. Partner törzsadat betöltése (kizárólag az aktív vállalaton belül)
+    let partnerQuery = supabase
       .from("partner")
-      .select("id, nev, email")
+      .select("id, nev, email, company_id")
       .eq("id", params.partnerId)
-      .maybeSingle()
-
-    let partner = partnerQuery.data
-    let partnerErr = partnerQuery.error
-
-    if (partnerErr || !partner) {
-      const admin = getAdminClient()
-      const adminQuery = await admin
-        .from("partner")
-        .select("id, nev, email")
-        .eq("id", params.partnerId)
-        .maybeSingle()
-
-      partner = adminQuery.data
-      partnerErr = adminQuery.error
+    if (auth.activeCompanyId) {
+      partnerQuery = partnerQuery.eq("company_id", auth.activeCompanyId)
     }
+    const { data: partner, error: partnerErr } = await partnerQuery.maybeSingle()
 
     if (partnerErr || !partner) {
       console.error("Partner nem található a véglegesítéshez:", { partnerId: params.partnerId, partnerErr })
-      return { success: false, error: "A megadott partner nem található." }
+      return { success: false, error: "A megadott partner nem található az aktív vállalatban." }
     }
 
-    // 2. Felhasználó profil
-    const { data: profile } = await supabase
-      .from("felhasznalo_profil")
-      .select("nev, docs_szerepkor, szervezeti_egyseg_id")
-      .eq("id", user.id)
-      .single()
-
-    // Aktív cég feloldása: az ügy és ügyirat a létrehozó cégéhez kerül (multi-tenant)
+    // 2. Felhasználó profil és aktív cég feloldása
+    const profile = {
+      nev: auth.nev,
+      docs_szerepkor: auth.docsRole,
+      szervezeti_egyseg_id: auth.szervezetiEgysegId,
+    }
     const { getActiveCompanyIdServer } = await import("@/utils/company-server")
-    const activeCompanyId = await getActiveCompanyIdServer()
+    const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
 
     const currentYear = new Date().getFullYear()
     let ugyiratIdToUse = params.dossierId || null
@@ -709,6 +747,7 @@ export async function finalizeAndFileContractAction(
         const { data: rpcUgyszam } = await supabase.rpc("generate_ugyszam", {
           p_ev: currentYear,
           p_prefix: "SZERZ",
+          p_company_id: activeCompanyId || null,
         })
         if (rpcUgyszam) ugyszam = rpcUgyszam
       } catch (e) {
@@ -740,6 +779,7 @@ export async function finalizeAndFileContractAction(
         const { data: rpcIktatoszam } = await supabase.rpc("generate_iktatoszam", {
           p_ev: currentYear,
           p_prefix: "SZERZ",
+          p_company_id: activeCompanyId || null,
         })
         if (rpcIktatoszam) iktatoszam = rpcIktatoszam
       } catch (e) {
@@ -922,6 +962,7 @@ export async function finalizeAndFileContractAction(
         kezbesites_modja: params.sendEmailToPartner ? "email" : "szemelyes",
         kezbesites_statusz: params.sendEmailToPartner ? "folyamatban" : "vazlat",
         kuldo_partner_id: params.partnerId,
+        ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
       })
       .select("id")
       .single()
@@ -965,6 +1006,7 @@ export async function finalizeAndFileContractAction(
       indoklas: `Új üzleti szerződés generálva és iktatva: ${params.title} (${params.contractType})`,
       ip_cim: ip,
       user_agent: userAgent,
+      ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
     })
 
     // 6. Opcionális e-mail kiküldés a partnernek
@@ -998,7 +1040,7 @@ export async function finalizeAndFileContractAction(
           .from("irat")
           .update({
             kezbesites_statusz: "kezbesitve",
-            kezbesites_ideje: new Date().toISOString(),
+            kezbesites_datuma: new Date().toISOString(),
           })
           .eq("id", iratData.id)
       } else {

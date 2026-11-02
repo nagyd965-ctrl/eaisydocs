@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ShieldCheck, Loader2, AlertTriangle } from "lucide-react"
 import { verifyMfaLogin } from "@/app/settings/mfa-actions"
 import { useRouter } from "next/navigation"
+import { getSafeRedirectPath } from "@/utils/url"
 
 interface MfaVerifyFormProps {
   factorId: string
@@ -29,7 +30,7 @@ export function MfaVerifyForm({ factorId, redirectTo = "/" }: MfaVerifyFormProps
         setCode("")
         return
       }
-      router.push(redirectTo)
+      router.push(getSafeRedirectPath(redirectTo) ?? "/")
       router.refresh()
     })
   }

@@ -2,9 +2,23 @@
 
 import { createClient } from "@/utils/supabase/server"
 import { generateEmbedding } from "@/utils/embedding-service"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
+
+function sanitizeSearchSnippet(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/&lt;b&gt;/gi, "<b>")
+    .replace(/&lt;\/b&gt;/gi, "</b>")
+}
 
 export async function searchDocuments(query: string, filters: any = {}) {
   const supabase = await createClient()
+  const activeCompanyId = await getActiveCompanyIdServer()
   const cleanQuery = query?.trim() || ""
 
   try {
@@ -27,16 +41,28 @@ export async function searchDocuments(query: string, filters: any = {}) {
       p_partner: filters.partner || null,
       p_match_count: 50,
       p_similarity_threshold: 0.65,
+      p_company_id: activeCompanyId || null,
     })
 
     if (rpcError) {
       console.warn("[SearchActions] search_iratok_hybrid RPC warning/fallback:", rpcError)
-      // Graceful fallback to basic query if RPC has an issue
-      return await fallbackSearch(supabase, cleanQuery, filters)
+      return await fallbackSearch(supabase, cleanQuery, filters, activeCompanyId)
+    }
+
+    let filteredRpcData = rpcData || []
+    if (activeCompanyId && filteredRpcData.length > 0) {
+      const candidateIds = filteredRpcData.map((d: any) => d.id)
+      const { data: companyDocs } = await supabase
+        .from("irat")
+        .select("id")
+        .in("id", candidateIds)
+        .eq("company_id", activeCompanyId)
+      const allowedIdSet = new Set((companyDocs || []).map((row: any) => row.id))
+      filteredRpcData = filteredRpcData.filter((d: any) => allowedIdSet.has(d.id))
     }
 
     // 3. Format results into structured UI data
-    const formatted = (rpcData || []).map((d: any) => ({
+    const formatted = filteredRpcData.map((d: any) => ({
       id: d.id,
       targy: d.targy,
       leiras: d.leiras,
@@ -63,17 +89,22 @@ export async function searchDocuments(query: string, filters: any = {}) {
       vector_similarity: d.vector_similarity,
       combined_score: d.combined_score,
       match_type: d.match_type,
-      snippet: d.snippet,
+      snippet: sanitizeSearchSnippet(d.snippet),
     }))
 
     return { data: formatted, error: null }
   } catch (err: any) {
     console.error("[SearchActions] Error executing hybrid search:", err)
-    return await fallbackSearch(supabase, cleanQuery, filters)
+    return await fallbackSearch(supabase, cleanQuery, filters, activeCompanyId)
   }
 }
 
-async function fallbackSearch(supabase: any, query: string, filters: any) {
+async function fallbackSearch(
+  supabase: any,
+  query: string,
+  filters: any,
+  activeCompanyId?: string | null
+) {
   const baseSelect = `
     id, 
     targy, 
@@ -93,6 +124,10 @@ async function fallbackSearch(supabase: any, query: string, filters: any) {
   `
 
   let dbQuery = supabase.from("irat").select(baseSelect)
+
+  if (activeCompanyId) {
+    dbQuery = dbQuery.eq("company_id", activeCompanyId)
+  }
 
   if (query) {
     dbQuery = dbQuery.or(`targy.ilike.%${query}%,leiras.ilike.%${query}%,erkeztetoszam.ilike.%${query}%`)
@@ -136,12 +171,15 @@ export async function saveSearch(
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   const { error } = await supabase.from("mentett_kereses").insert({
     user_id: user.id,
     nev: name,
     kereso_parameterek: { query, filters },
     ertesites_bekapcsolva: Boolean(ertesites_bekapcsolva),
     utolso_ertesites_datuma: new Date().toISOString(),
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
   })
 
   if (error) return { success: false, error: error.message }
@@ -155,11 +193,19 @@ export async function toggleSavedSearchAlert(id: string, enabled: boolean) {
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Nincs bejelentkezve" }
 
-  const { error } = await supabase
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  let updateQuery = supabase
     .from("mentett_kereses")
     .update({ ertesites_bekapcsolva: enabled })
     .eq("id", id)
     .eq("user_id", user.id)
+
+  if (activeCompanyId) {
+    updateQuery = updateQuery.eq("company_id", activeCompanyId)
+  }
+
+  const { error } = await updateQuery
 
   if (error) return { success: false, error: error.message }
   return { success: true }
@@ -172,69 +218,108 @@ export async function getSavedSearches() {
   } = await supabase.auth.getUser()
   if (!user) return []
 
-  const { data } = await supabase
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  let query = supabase
     .from("mentett_kereses")
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
+
+  if (activeCompanyId) {
+    query = query.eq("company_id", activeCompanyId)
+  }
+
+  const { data } = await query
 
   return data || []
 }
 
 export async function deleteSavedSearch(id: string) {
   const supabase = await createClient()
-  const { error } = await supabase.from("mentett_kereses").delete().eq("id", id)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Nincs bejelentkezve" }
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+
+  let deleteQuery = supabase
+    .from("mentett_kereses")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id)
+
+  if (activeCompanyId) {
+    deleteQuery = deleteQuery.eq("company_id", activeCompanyId)
+  }
+
+  const { error } = await deleteQuery
   if (error) return { success: false, error: error.message }
   return { success: true }
 }
 
 /**
  * Fast autocomplete and header quick search.
- * Now extended to match within kereso_vektor (PDF content, tax numbers, contract codes).
+ * Scoped to the active company (`activeCompanyId`).
  */
 export async function quickSearch(query: string) {
   const supabase = await createClient()
   const clean = query?.trim()
   if (!clean || clean.length < 2) return { dossiers: [], documents: [], partners: [] }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+
   try {
+    let dossiersQuery = supabase
+      .from("ugyirat")
+      .select("id, iktatoszam, statusz, ugy:ugy_id(targy)")
+      .or(`iktatoszam.ilike.%${clean}%`)
+    if (activeCompanyId) {
+      dossiersQuery = dossiersQuery.eq("company_id", activeCompanyId)
+    }
+
+    let partnersQuery = supabase
+      .from("partner")
+      .select("id, nev, tipus, email, adoszam, kulfoldi_adoszam")
+      .or(`nev.ilike.%${clean}%,email.ilike.%${clean}%,adoszam.ilike.%${clean}%,kulfoldi_adoszam.ilike.%${clean}%`)
+    if (activeCompanyId) {
+      partnersQuery = partnersQuery.eq("company_id", activeCompanyId)
+    }
+
     const [dossiersRes, docsRes, partnersRes] = await Promise.all([
       // 1. Ügyiratok
-      supabase
-        .from("ugyirat")
-        .select("id, iktatoszam, statusz, ugy:ugy_id(targy)")
-        .or(`iktatoszam.ilike.%${clean}%`)
-        .limit(5),
+      dossiersQuery.limit(5),
 
       // 2. Iratok — first check title / registry number or FTS vector match
       (async () => {
-        // Direct title or registry number match
-        const { data: titleData } = await supabase
+        let titleQuery = supabase
           .from("irat")
           .select("id, targy, erkeztetoszam, ugyirat_id, ugyirat(iktatoszam), partner:kuldo_partner_id(nev)")
           .or(`targy.ilike.%${clean}%,erkeztetoszam.ilike.%${clean}%`)
-          .limit(5)
+        if (activeCompanyId) {
+          titleQuery = titleQuery.eq("company_id", activeCompanyId)
+        }
+        const { data: titleData } = await titleQuery.limit(5)
 
         if (titleData && titleData.length > 0) {
           return { data: titleData }
         }
 
-        // If not in title, search in kereso_vektor (e.g. tax number inside PDF)
-        const { data: ftsData } = await supabase
+        let ftsQuery = supabase
           .from("irat")
           .select("id, targy, erkeztetoszam, ugyirat_id, ugyirat(iktatoszam), partner:kuldo_partner_id(nev)")
           .textSearch("kereso_vektor", clean, { type: "plain", config: "simple" })
-          .limit(5)
+        if (activeCompanyId) {
+          ftsQuery = ftsQuery.eq("company_id", activeCompanyId)
+        }
+        const { data: ftsData } = await ftsQuery.limit(5)
 
         return { data: ftsData || [] }
       })(),
 
       // 3. Partnerek
-      supabase
-        .from("partner")
-        .select("id, nev, tipus, email, adoszam, kulfoldi_adoszam")
-        .or(`nev.ilike.%${clean}%,email.ilike.%${clean}%,adoszam.ilike.%${clean}%,kulfoldi_adoszam.ilike.%${clean}%`)
-        .limit(5),
+      partnersQuery.limit(5),
     ])
 
     return {

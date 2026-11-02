@@ -4,6 +4,7 @@ import crypto from "crypto"
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { ReplyTemplate, ReplyTemplateCategory } from "@/types/reply-templates"
 import { DEFAULT_REPLY_TEMPLATES } from "@/utils/reply-templates"
 
@@ -29,13 +30,19 @@ async function getTemplateKey(): Promise<string | null> {
 }
 
 /**
- * A-097 ŐRBLOKK a sablon-műveletekhez: bejelentkezett felhasználó + iktató/admin szerepkör.
+ * A-097 / A-106 ŐRBLOKK a sablon-műveletekhez:
+ * - Olvasáshoz: bejelentkezett felhasználó az aktív vállalatban
+ * - Íráshoz (létrehozás/módosítás/törlés/generálás): szerkesztési jogosultságú szerepkör
  */
-async function requireTemplateAccess(): Promise<string | null> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return "Nincs bejelentkezve."
-  return null // TODO: szerepkör-ellenőrzés (iktato/admin) — egyelőre bejelentkezés elegendő
+async function requireTemplateAccess(writeMode = false): Promise<string | null> {
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer(
+    writeMode ? ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"] : undefined
+  )
+  if (!auth.authorized || !auth.user) {
+    return auth.error || "Nincs jogosultságod a válaszlevél-sablonok kezeléséhez."
+  }
+  return null
 }
 
 /**
@@ -103,6 +110,9 @@ export async function createCustomReplyTemplate(templateData: {
   error?: string
 }> {
   try {
+    const authError = await requireTemplateAccess(true)
+    if (authError) return { success: false, error: authError }
+
     const supabase = await createClient()
     const {
       data: { user },
@@ -189,6 +199,9 @@ export async function updateCustomReplyTemplate(
   error?: string
 }> {
   try {
+    const authError = await requireTemplateAccess(true)
+    if (authError) return { success: false, error: authError }
+
     const supabase = await createClient()
     const {
       data: { user },
@@ -275,6 +288,9 @@ export async function deleteCustomReplyTemplate(
   error?: string
 }> {
   try {
+    const authError = await requireTemplateAccess(true)
+    if (authError) return { success: false, error: authError }
+
     const supabase = await createClient()
     const {
       data: { user },
@@ -334,11 +350,50 @@ export async function generateFromTemplate(
   formData: FormData
 ): Promise<{ success?: boolean; error?: string }> {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
 
-  if (!user) return { error: "Nincs bejelentkezve." }
+  // Ügyirat adatai a sablonhoz és jogosultság ellenőrzéshez
+  const { data: ugyirat } = await supabase
+    .from("ugyirat")
+    .select("id, statusz, iktatoszam, company_id, szervezeti_egyseg_id, ugy(targy, felelos_user_id)")
+    .eq("id", ugyiratId)
+    .single()
+
+  if (!ugyirat) {
+    return { error: "Ügyirat nem található." }
+  }
+
+  if (["irattarban", "lezart", "selejtezheto", "selejtezett"].includes(ugyirat.statusz)) {
+    return { error: `A kiválasztott ügyirat (${ugyirat.iktatoszam}) lezárt vagy irattározott állapotban van, ezért nem generálható bele új irat!` }
+  }
+
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer(
+    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"],
+    ugyirat.company_id || null
+  )
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs jogosultságod irat generálásához." }
+  }
+  const user = auth.user
+
+  if (!["admin", "rendszergazda", "iktato"].includes(auth.docsRole)) {
+    const { data: explicitAccess } = await supabase
+      .from("ugyirat_hozzaferes")
+      .select("id")
+      .eq("ugyirat_id", ugyiratId)
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    const inDept = ugyirat.szervezeti_egyseg_id === auth.szervezetiEgysegId
+    const isAssigned = (ugyirat.ugy as any)?.felelos_user_id === user.id
+
+    if (auth.docsRole === "vezeto" && !inDept && !explicitAccess) {
+      return { error: "Nincs jogosultságod ehhez a művelethez a szervezeti egységeden kívül." }
+    }
+    if (auth.docsRole === "ugyintezo" && !isAssigned && !explicitAccess) {
+      return { error: "Nincs jogosultságod ehhez a művelethez, mivel nem vagy felelőse az ügyiratnak." }
+    }
+  }
 
   const targy = formData.get("targy") as string
   const sablon_tipus = formData.get("sablon_tipus") as string
@@ -350,19 +405,7 @@ export async function generateFromTemplate(
     return { error: "A tárgy és a tartalom megadása kötelező!" }
   }
 
-  // Felhasználó profil lekérése a sablonhoz
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("nev")
-    .eq("id", user.id)
-    .single()
-
-  // Ügyirat adatai a sablonhoz
-  const { data: ugyirat } = await supabase
-    .from("ugyirat")
-    .select("iktatoszam, ugy(targy)")
-    .eq("id", ugyiratId)
-    .single()
+  const profile = { nev: auth.nev }
 
   const iktatoszam = ugyirat?.iktatoszam || ""
   const ugyTargy = (ugyirat?.ugy as any)?.targy || ""
@@ -554,10 +597,12 @@ export async function generateFromTemplate(
   const alszam = maxAlszam + 1
 
   // Irat rekord (kimenő)
+  const dossierCompanyId = (ugyirat as any)?.company_id || (await getActiveCompanyIdServer())
   const { data: iratData, error: iratError } = await supabase
     .from("irat")
     .insert({
       ugyirat_id: ugyiratId,
+      company_id: dossierCompanyId,
       targy,
       irany: "kimeno",
       erkezes_modja: "rendszer",
@@ -591,6 +636,7 @@ export async function generateFromTemplate(
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
+    company_id: dossierCompanyId,
     esemeny_tipus: "modositva",
     user_id: user.id,
     indoklas: `Kimenő irat generálva sablonból: ${sablon_tipus || "Általános"} — ${targy}`,

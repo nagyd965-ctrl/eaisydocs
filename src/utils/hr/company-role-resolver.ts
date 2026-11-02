@@ -258,7 +258,10 @@ export function resolveUserCompanyRoles(
   } else if (isCompanyAdmin) {
     docsRole = "admin"
   } else if (profile?.docs_szerepkor && profile.docs_szerepkor.trim() !== "") {
-    docsRole = profile.docs_szerepkor
+    docsRole =
+      profile.docs_szerepkor === "admin" || profile.docs_szerepkor === "rendszergazda"
+        ? "ugyintezo"
+        : profile.docs_szerepkor
   } else {
     docsRole = "ugyintezo"
   }

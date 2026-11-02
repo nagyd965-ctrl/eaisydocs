@@ -96,7 +96,7 @@ assert.ok(res2.reszletek.some(d => d.includes("NYILV/2026/00012")))
 console.log("\n--- TEST 3: Match with Closed Dossier ---")
 const incomingEon: TargetIratInput = {
   id: "incoming-3",
-  targy: "E.ON elszámolási korrekció",
+  targy: "E.ON elszámolási rendezés",
   kuldo_partner_id: "partner-eon",
   partner_nev: "E.ON Energiamegoldások Kft."
 }
@@ -110,6 +110,20 @@ assert.strictEqual(res3.ugyirat_id, "dossier-eon-closed")
 assert.strictEqual(res3.statusz, "lezart")
 assert.strictEqual(res3.recommendation_type, "uj_ugy_nyitasa")
 assert.ok(res3.confidence_score >= 50)
+
+// TEST 3b: Corrective invoice against a CLOSED dossier attaches as alszám
+console.log("\n--- TEST 3b: Corrective Invoice on Closed Dossier ---")
+const incomingEonCorrective: TargetIratInput = {
+  id: "incoming-3b",
+  targy: "E.ON elszámolási korrekció",
+  kuldo_partner_id: "partner-eon",
+  partner_nev: "E.ON Energiamegoldások Kft."
+}
+const res3b = calculateAntecedentMatch(incomingEonCorrective, mockDossiers)
+assert.strictEqual(res3b.ugyirat_id, "dossier-eon-closed")
+assert.strictEqual(res3b.statusz, "lezart")
+assert.strictEqual(res3b.recommendation_type, "alszam_csatolas")
+assert.ok(res3b.confidence_score >= 50)
 
 // TEST 4: New Topic (Unknown partner, distinct subject)
 console.log("\n--- TEST 4: New Topic / Low Similarity ---")

@@ -120,6 +120,18 @@ function formatDate(dateStr: string | null) {
   })
 }
 
+function sanitizeSnippetHtml(raw: string | null | undefined): string {
+  if (!raw) return ""
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/&lt;b&gt;/gi, "<b>")
+    .replace(/&lt;\/b&gt;/gi, "</b>")
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function SearchClientPage() {
@@ -969,7 +981,7 @@ export function SearchClientPage() {
                             {item.snippet && (
                               <p
                                 className="text-[11px] text-muted-foreground leading-relaxed max-w-[480px] pl-5.5 line-clamp-2 [&>b]:text-foreground [&>b]:bg-primary/20 [&>b]:px-1 [&>b]:py-0.5 [&>b]:rounded font-normal"
-                                dangerouslySetInnerHTML={{ __html: item.snippet }}
+                                dangerouslySetInnerHTML={{ __html: sanitizeSnippetHtml(item.snippet) }}
                               />
                             )}
                           </div>

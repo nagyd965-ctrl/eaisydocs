@@ -2,10 +2,17 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
+import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export async function savePartner(formData: FormData) {
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs jogosultságod partner mentéséhez." }
+  }
   const supabase = await createClient()
-  
+  const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
+
   const id = formData.get("id")?.toString()
   const nev = formData.get("nev")?.toString()?.trim()
   const tipus = formData.get("tipus")?.toString()?.trim() || "ceg"
@@ -50,17 +57,22 @@ export async function savePartner(formData: FormData) {
     fizetesi_mod,
     weboldal,
     megjegyzes,
+    ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
   }
 
   let finalPartnerId = id
 
   if (id) {
-    // Frissítés
-    const { error } = await supabase
+    // Frissítés (kizárólag az aktív vállalaton belül)
+    let updateQuery = supabase
       .from("partner")
       .update(payload)
       .eq("id", id)
-      
+    if (activeCompanyId) {
+      updateQuery = updateQuery.eq("company_id", activeCompanyId)
+    }
+    const { error } = await updateQuery
+
     if (error) return { error: error.message }
   } else {
     // Új felvétel intelligens deduplikációval
@@ -97,13 +109,22 @@ export async function savePartner(formData: FormData) {
  * Partner státuszának gyors átváltása (aktív <-> inaktív)
  */
 export async function togglePartnerStatus(partnerId: string, currentStatus: string) {
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs jogosultságod partner státuszának módosításához." }
+  }
+
   const supabase = await createClient()
   const nextStatus = currentStatus === "aktiv" ? "inaktiv" : "aktiv"
 
-  const { error } = await supabase
+  let updateQuery = supabase
     .from("partner")
     .update({ statusz: nextStatus })
     .eq("id", partnerId)
+  if (auth.activeCompanyId) {
+    updateQuery = updateQuery.eq("company_id", auth.activeCompanyId)
+  }
+  const { error } = await updateQuery
 
   if (error) {
     return { error: error.message }
@@ -118,6 +139,11 @@ export async function togglePartnerStatus(partnerId: string, currentStatus: stri
  * Partner kapcsolattartó mentése (hozzáadás vagy szerkesztés)
  */
 export async function savePartnerContact(formData: FormData) {
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs jogosultságod kapcsolattartó mentéséhez." }
+  }
+
   const supabase = await createClient()
 
   const id = formData.get("id")?.toString()?.trim()
@@ -134,6 +160,16 @@ export async function savePartnerContact(formData: FormData) {
   }
   if (!nev) {
     return { error: "A kapcsolattartó neve kötelező." }
+  }
+
+  // Ellenőrizzük, hogy a partner az aktív vállalathoz tartozik-e
+  let partnerCheckQuery = supabase.from("partner").select("id").eq("id", partner_id)
+  if (auth.activeCompanyId) {
+    partnerCheckQuery = partnerCheckQuery.eq("company_id", auth.activeCompanyId)
+  }
+  const { data: targetPartner } = await partnerCheckQuery.maybeSingle()
+  if (!targetPartner) {
+    return { error: "A megadott partner nem található az aktív vállalatban." }
   }
 
   // Ha ez elsődleges, a többinél levehetjük az elsődleges jelölést
@@ -160,6 +196,7 @@ export async function savePartnerContact(formData: FormData) {
       .from("partner_kapcsolattarto")
       .update(payload)
       .eq("id", id)
+      .eq("partner_id", partner_id)
 
     if (error) return { error: error.message }
   } else {
@@ -179,12 +216,27 @@ export async function savePartnerContact(formData: FormData) {
  * Partner kapcsolattartó törlése
  */
 export async function deletePartnerContact(contactId: string, partnerId: string) {
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs jogosultságod kapcsolattartó törléséhez." }
+  }
+
   const supabase = await createClient()
+
+  let partnerCheckQuery = supabase.from("partner").select("id").eq("id", partnerId)
+  if (auth.activeCompanyId) {
+    partnerCheckQuery = partnerCheckQuery.eq("company_id", auth.activeCompanyId)
+  }
+  const { data: targetPartner } = await partnerCheckQuery.maybeSingle()
+  if (!targetPartner) {
+    return { error: "A megadott partner nem található az aktív vállalatban." }
+  }
 
   const { error } = await supabase
     .from("partner_kapcsolattarto")
     .delete()
     .eq("id", contactId)
+    .eq("partner_id", partnerId)
 
   if (error) {
     return { error: error.message }
@@ -205,11 +257,16 @@ export async function checkPartnerDuplicate(params: {
   currentId?: string
 }) {
   const supabase = await createClient()
+  const activeCompanyId = await getActiveCompanyIdServer()
   const clean = (val?: string | null) => (val ? val.replace(/[-\s.,/]/g, "").toUpperCase().trim() : "")
 
-  const { data: all } = await supabase
+  let allQuery = supabase
     .from("partner")
     .select("id, nev, adoszam, kulfoldi_adoszam")
+  if (activeCompanyId) {
+    allQuery = allQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: all } = await allQuery
 
   if (!all || all.length === 0) return { duplicate: null }
 
@@ -259,9 +316,14 @@ export async function checkPartnerDuplicate(params: {
 
 export async function getPartnersLookup() {
   const supabase = await createClient()
-  const { data } = await supabase
+  const activeCompanyId = await getActiveCompanyIdServer()
+  let query = supabase
     .from("partner")
     .select("id, nev, tipus, szerepkor, statusz, email, adoszam")
     .order("nev")
+  if (activeCompanyId) {
+    query = query.eq("company_id", activeCompanyId)
+  }
+  const { data } = await query
   return data || []
 }

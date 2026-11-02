@@ -198,6 +198,7 @@ export async function getOrCreateEmployeeDossier(
   const { data: ugyszam, error: ugyszamErr } = await supabase.rpc("generate_ugyszam", {
     p_ev: currentYear,
     p_prefix: HR_FILING_CONSTANTS.PREFIX,
+    p_company_id: effectiveCompanyId || null,
   })
 
   if (ugyszamErr || !ugyszam) {
@@ -227,6 +228,7 @@ export async function getOrCreateEmployeeDossier(
   const { data: iktatoszam, error: iktatoszamErr } = await supabase.rpc("generate_iktatoszam", {
     p_ev: currentYear,
     p_prefix: HR_FILING_CONSTANTS.PREFIX,
+    p_company_id: effectiveCompanyId || null,
   })
 
   if (iktatoszamErr || !iktatoszam) {

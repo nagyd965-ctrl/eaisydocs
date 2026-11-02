@@ -1,6 +1,7 @@
 import test from "node:test"
 import assert from "node:assert"
 import { generateAiReplyAction, ReplyStyle } from "@/app/dossiers/[id]/ai-reply-actions"
+import { generateLetterPdfBuffer } from "@/utils/pdf-letter-generator"
 
 test("▶ eaisyDocs AI Reply Letter Wizard & Generator", async (t) => {
   await t.test("TEST 1: Üres instrukció elutasítása hibaüzenettel", async () => {
@@ -77,5 +78,18 @@ test("▶ eaisyDocs AI Reply Letter Wizard & Generator", async (t) => {
     assert.ok(res.tartalom?.includes("Tisztelt Címzett!"))
     assert.ok(res.tartalom?.includes("UGY/2026/00045"))
     assert.ok(res.tartalom?.includes("Az ügyintézés folyamatban van"))
+  })
+
+  await t.test("TEST 6: PDF levélgenerálás magyar ékezetes karakterekkel (ő, ű, Ő, Ű)", async () => {
+    const pdfBuffer = await generateLetterPdfBuffer({
+      targy: "Árvíztűrő tükörfúrógép — Határidős együttműködés",
+      tartalom: "Tisztelt Ügyfelünk!\n\nÖrömmel küldjük meg az Őszi-Téli működési és tűzvédelmi összefoglalót.\n\nÜdvözlettel:\neaisyDocs Csapat",
+      iktatoszam: "IKT/2026/00123",
+      cimzett: "Fővárosi Vízművek Zrt.",
+    })
+
+    assert.ok(Buffer.isBuffer(pdfBuffer))
+    assert.ok(pdfBuffer.length > 1000, "A generált PDF mérete túl kicsi")
+    assert.strictEqual(pdfBuffer.subarray(0, 5).toString("ascii"), "%PDF-")
   })
 })

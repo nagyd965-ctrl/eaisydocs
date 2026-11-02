@@ -29,8 +29,6 @@ export async function GET(
     .select("docs_szerepkor, hr_szerepkor, hr_modulok, max_minosites, szervezeti_egyseg_id")
     .eq("id", user.id)
     .single()
-  const isBetekinto = profile?.docs_szerepkor === "betekinto"
-  const isAdmin = profile?.docs_szerepkor === "admin"
 
   // 2. Fetch document details
   const { data: irat } = await supabase
@@ -42,6 +40,25 @@ export async function GET(
   if (!irat) {
     return new NextResponse("Irat nem található vagy nincs hozzáférése", { status: 404 })
   }
+
+  const { getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
+  const docCompanyRoles = await getActiveCompanyMemberRolesServer(irat.company_id || null)
+
+  if (irat.company_id && !docCompanyRoles.isMember && profile?.docs_szerepkor !== "rendszergazda") {
+    return new NextResponse("Hozzáférés megtagadva: Nincs jogosultsága az irat cégéhez.", { status: 403 })
+  }
+
+  const effectiveDocsRole =
+    docCompanyRoles.isMember && docCompanyRoles.docsRole && docCompanyRoles.docsRole !== "none"
+      ? docCompanyRoles.docsRole
+      : docCompanyRoles.isCompanyAdmin
+      ? "admin"
+      : !irat.company_id || docCompanyRoles.isMember || profile?.docs_szerepkor === "rendszergazda"
+      ? profile?.docs_szerepkor || "ugyintezo"
+      : "betekinto"
+
+  const isBetekinto = effectiveDocsRole === "betekinto"
+  const isAdmin = effectiveDocsRole === "admin" || effectiveDocsRole === "rendszergazda"
 
   // Segédfüggvény: ellenőrzi, hogy az irat HR dokumentum-e, és a hívó a dokumentum
   // tulajdonosa (dolgozó) vagy az adott cégben jogosult HR/cég-admin szereplő-e.
@@ -119,7 +136,7 @@ export async function GET(
   }
 
   // 2.2 Szervezeti egység / explicit hozzáférés ellenőrzése iktatott iratoknál
-  if (!isAdmin && profile?.docs_szerepkor !== 'iktato' && profile?.docs_szerepkor !== 'auditor' && irat.ugyirat_id) {
+  if (!isAdmin && effectiveDocsRole !== "iktato" && effectiveDocsRole !== "auditor" && irat.ugyirat_id) {
     const { data: ugyirat } = await supabase
       .from("ugyirat")
       .select("szervezeti_egyseg_id")
@@ -206,6 +223,9 @@ export async function GET(
     return new NextResponse("Fájl nem található az irathoz", { status: 404 })
   }
 
+  // 4. Determine if watermarking is needed
+  const isConfidential = isBetekinto || irat.minosites === "bizalmas" || irat.minosites === "szigoruan_bizalmas"
+
   // Képfájlok kezelése: letöltjük és EXIF alapján automatikusan forgatjuk (display only)
   const isImage = fajl.mime_type?.startsWith("image/") ||
     ["jpg","jpeg","png","gif","webp","bmp","tiff"].some(ext =>
@@ -213,13 +233,41 @@ export async function GET(
       fajl.kulso_fajl_url?.toLowerCase().includes(`.${ext}`)
     )
 
+  if (isImage && isBetekinto) {
+    return new NextResponse("Betekinto szerepkorrel csak PDF előnézet érhető el.", { status: 403 })
+  }
+
+  // 5. Audit naplózás: Megtekintés rögzítése az eseménynaplóban (AGENTS.md 3. szabály)
+  // MINDEN sikeresen engedélyezett fájlmegtekintésnél (kép, PDF, egyéb csatolmány) rögzítjük!
+  try {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || "127.0.0.1"
+    const userAgent = request.headers.get("user-agent") || "Ismeretlen"
+
+    await supabase.from("esemeny_naplo").insert({
+      entitas_tipus: "irat",
+      entitas_id: iratId,
+      esemeny_tipus: "megtekintve",
+      user_id: user.id,
+      company_id: irat.company_id || null,
+      indoklas: isImage
+        ? "Képfájl előnézet megtekintése"
+        : isConfidential
+        ? "Vízjelezett PDF megtekintése"
+        : "Dokumentum megtekintése",
+      ip_cim: ip,
+      user_agent: userAgent
+    })
+  } catch (auditErr) {
+    console.error("Audit naplózási hiba dokumentum megtekintéskor:", auditErr)
+  }
+
   if (isImage) {
-    if (isBetekinto) {
-      return new NextResponse("Betekinto szerepkorrel csak PDF előnézet érhető el.", { status: 403 })
-    }
     try {
       let imageBuffer: Buffer
       if (fajl.kulso_fajl_url) {
+        if (!isSafeExternalUrl(fajl.kulso_fajl_url)) {
+          return new NextResponse("Nem engedélyezett külső fájl URL.", { status: 400 })
+        }
         const resp = await fetch(fajl.kulso_fajl_url)
         imageBuffer = Buffer.from(await resp.arrayBuffer())
       } else {
@@ -272,34 +320,15 @@ export async function GET(
     return new NextResponse("Nem támogatott fájlformátum", { status: 415 })
   }
 
-  // 4. Determine if watermarking is needed
-  const isConfidential = isBetekinto || irat.minosites === "bizalmas" || irat.minosites === "szigoruan_bizalmas"
-
-  // 5. Audit naplózás: Megtekintés rögzítése az eseménynaplóban (AGENTS.md 3. szabály)
-  try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || "127.0.0.1"
-    const userAgent = request.headers.get("user-agent") || "Ismeretlen"
-
-    await supabase.from("esemeny_naplo").insert({
-      entitas_tipus: "irat",
-      entitas_id: iratId,
-      esemeny_tipus: "megtekintve",
-      user_id: user.id,
-      company_id: irat.company_id || null,
-      indoklas: isConfidential ? "Vízjelezett PDF megtekintése" : "PDF megtekintése",
-      ip_cim: ip,
-      user_agent: userAgent
-    })
-  } catch (auditErr) {
-    console.error("Audit naplózási hiba PDF megtekintéskor:", auditErr)
-  }
-
   // Ha PDF/A változatot kértek és rendelkezésre áll, a helyi irat_files tárolóból töltjük le
   const targetStoragePath = (isPdfaRequested && fajl.pdfa_path) ? fajl.pdfa_path : fajl.storage_path
 
   // Ha nem PDF/A és külső forrásból származik az eredeti fájl (pl. eaisyBill)
   if (!isPdfaRequested && fajl.kulso_fajl_url) {
     try {
+      if (!isSafeExternalUrl(fajl.kulso_fajl_url)) {
+        return new NextResponse("Nem engedélyezett külső fájl URL.", { status: 400 })
+      }
       const resp = await fetch(fajl.kulso_fajl_url)
       if (!resp.ok) {
         console.error(`Külső fájl letöltési hiba HTTP ${resp.status}:`, fajl.kulso_fajl_url)
@@ -344,6 +373,30 @@ export async function GET(
   }
 
   return await processPdf(fileData, isConfidential, isBetekinto, user.email || user.id, fajl.eredeti_fajlnev ?? undefined)
+}
+
+function isSafeExternalUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl)
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false
+    const host = parsed.hostname.toLowerCase()
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host === "[::1]" ||
+      host.endsWith(".local") ||
+      host.startsWith("10.") ||
+      host.startsWith("192.168.") ||
+      host.startsWith("169.254.") ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+    ) {
+      return false
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function detectPdfOrientationDegrees(pdfBuffer: ArrayBuffer): Promise<0 | 90 | 180 | 270> {
@@ -438,7 +491,7 @@ async function processPdf(fileBlob: Blob, isConfidential: boolean, isBetekinto: 
 
   try {
     // Load the PDF
-    const pdfDoc = await PDFDocument.load(arrayBuffer)
+    const pdfDoc = await PDFDocument.load(workingBuffer)
     const pages = pdfDoc.getPages()
     
     const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica)

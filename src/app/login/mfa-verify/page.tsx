@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import { MfaVerifyForm } from "@/components/mfa-verify-form"
+import { getSafeRedirectPath } from "@/utils/url"
 
 export default async function MfaVerifyPage({
   searchParams,
@@ -8,6 +9,7 @@ export default async function MfaVerifyPage({
   searchParams: Promise<{ redirectTo?: string }>
 }) {
   const { redirectTo } = await searchParams
+  const safeRedirectTo = getSafeRedirectPath(redirectTo) ?? "/"
   const supabase = await createClient()
 
   // Ha nincs bejelentkezve egyáltalán, visszük a login-ra
@@ -19,7 +21,7 @@ export default async function MfaVerifyPage({
   
   // Ha már AAL2 szinten van (MFA teljesítve), nincs szükség erre az oldalra
   if (aal?.currentLevel === "aal2") {
-    redirect(redirectTo ?? "/")
+    redirect(safeRedirectTo)
   }
 
   // Lekérjük a TOTP faktort a challengehez
@@ -27,7 +29,7 @@ export default async function MfaVerifyPage({
   const totpFactor = factors?.totp?.find((f: any) => f.status === "verified")
 
   // Ha nincs aktív TOTP faktor de mégis ide kerül, irányítsuk vissza
-  if (!totpFactor) redirect(redirectTo ?? "/")
+  if (!totpFactor) redirect(safeRedirectTo)
 
-  return <MfaVerifyForm factorId={totpFactor.id} redirectTo={redirectTo ?? "/"} />
+  return <MfaVerifyForm factorId={totpFactor.id} redirectTo={safeRedirectTo} />
 }

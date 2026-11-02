@@ -25,7 +25,10 @@ const eventTypeTranslations: Record<string, string> = {
   'hatarozott_szerzodes_lejarat': 'Határozott idejű szerződés lejárata',
   'probaido_lejarat': 'Próbaidő lejárata',
   't1041_bejelentes': 'T1041 Bejelentési figyelmeztetés',
-  'szabadsag_jovahagyas': 'Távollét / Szabadság jóváhagyása',
+  'szabadsag_jovahagyas': 'Távollét / Szabadság / Túlóra kérelem benyújtása',
+  'tavollet_elbiralas': 'Távollét / Túlóra kérelem elbírálása (Jóváhagyás / Elutasítás)',
+  'jelenlet_korrekcio_kerelem': 'Új munkaidő / jelenlét korrekciós kérelem',
+  'jelenlet_korrekcio_elbiralas': 'Munkaidő / jelenlét korrekció elbírálása (Jóváhagyás / Elutasítás)',
   'teljesitmeny_ertekeles': 'Teljesítményértékelés határidők',
   'hatarido_kozeledik': 'Iktatott ügyirat - Határidő közeledik',
   'hatarido_lejart': 'Iktatott ügyirat - Határidő lejárt',
@@ -40,7 +43,10 @@ const eventTypeDescriptions: Record<string, string> = {
   'hatarozott_szerzodes_lejarat': '15 nappal a határozott idejű munkaszerződés vége előtt küld figyelmeztetést.',
   'probaido_lejarat': '7 nappal a rögzített próbaidő lejárta előtt küld figyelmeztetést a háttérfolyamat.',
   't1041_bejelentes': '2 nappal a dolgozó belépési dátuma előtt küld figyelmeztetést, amennyiben nem rögzítetted még a T1041-et.',
-  'szabadsag_jovahagyas': 'Azonnal értesítést küld a vezetőnek, amint a dolgozó beküld egy új kérelmet a felületen.',
+  'szabadsag_jovahagyas': 'Azonnal értesítést küld a közvetlen vezetőnek (vagy helyettesének), amint a dolgozó új szabadság-, távollét-, csúsztatás- vagy túlóra-kérelmet nyújt be.',
+  'tavollet_elbiralas': 'Azonnal értesítést küld az érintett dolgozónak, amikor a vezető jóváhagyja vagy elutasítja a benyújtott szabadság- vagy túlóra-kérelmét.',
+  'jelenlet_korrekcio_kerelem': 'Azonnal értesítést küld a közvetlen vezetőnek, amikor a dolgozó utólagos munkaidő (jelenlét) korrekciós kérelmet nyújt be.',
+  'jelenlet_korrekcio_elbiralas': 'Azonnal értesítést küld az érintett dolgozónak, amikor a vezető jóváhagyja vagy elutasítja a munkaidő korrekciós kérelmét.',
   'teljesitmeny_ertekeles': 'A beállított teljesítményértékelési időszak lejárta előtt 7 nappal küld értesítést.',
   'hatarido_kozeledik': 'Iktatott ügyiratok esetén a határidő lejárta előtt küld emlékeztetőt.',
   'hatarido_lejart': 'Iktatott ügyiratok esetén a határidő napján vagy utána küld figyelmeztetést.',
@@ -181,8 +187,8 @@ export function HrNotificationSettings({ rules = [] }: { rules: Rule[] }) {
                     </button>
                   </div>
 
-                  <div className="flex items-center space-x-2 min-w-[100px] justify-end">
-                    <span className="text-sm text-muted-foreground">{rule.aktiv ? 'Aktív' : 'Kikapcsolva'}</span>
+                  <div className="flex items-center gap-2 w-[96px] shrink-0 justify-end">
+                    <span className="text-sm text-muted-foreground w-12 text-right">{rule.aktiv ? 'Aktív' : 'Inaktív'}</span>
                     <Switch
                       checked={rule.aktiv}
                       onCheckedChange={() => handleToggle(rule.id, rule.aktiv, ruleChannels)}

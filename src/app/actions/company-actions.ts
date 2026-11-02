@@ -292,11 +292,12 @@ export async function deleteCompanyAction(companyId: string): Promise<{
       .maybeSingle()
 
     const isOwner = company.owner_id === user.id || member?.role === "owner"
+    const isMemberSysAdmin = isSysAdmin && Boolean(member)
 
-    if (!isOwner && !isSysAdmin) {
+    if (!isOwner && !isMemberSysAdmin) {
       return {
         success: false,
-        error: "Csak a cég tulajdonosa vagy rendszergazda jogosult a vállalat törlésére."
+        error: "Csak a cég tulajdonosa vagy a céghez tartozó rendszergazda jogosult a vállalat törlésére."
       }
     }
 
@@ -1048,11 +1049,12 @@ export async function inviteCompanyMemberAction(data: {
       const profileUpdate: Record<string, any> = {
         elerheto_modulok: [...currentModules, data.module],
       }
+      const safeGlobalRole = data.role === "rendszergazda" ? "admin" : data.role
       if (data.module === "docs" && !existingProfile.docs_szerepkor) {
-        profileUpdate.docs_szerepkor = data.role
+        profileUpdate.docs_szerepkor = safeGlobalRole
       }
       if (data.module === "hr" && !existingProfile.hr_szerepkor) {
-        profileUpdate.hr_szerepkor = data.role
+        profileUpdate.hr_szerepkor = safeGlobalRole
       }
       await supabaseAdmin
         .from("felhasznalo_profil")
@@ -1073,6 +1075,7 @@ export async function inviteCompanyMemberAction(data: {
     }
 
     targetUserId = createData.user.id
+    const safeGlobalRole = data.role === "rendszergazda" ? "admin" : data.role
 
     const profilePayload: Record<string, any> = {
       id: targetUserId,
@@ -1082,10 +1085,10 @@ export async function inviteCompanyMemberAction(data: {
     }
 
     if (data.module === "docs") {
-      profilePayload.docs_szerepkor = data.role
+      profilePayload.docs_szerepkor = safeGlobalRole
       profilePayload.szerepkor = data.role === "admin" || data.role === "rendszergazda" ? "admin" : "ugyintezo"
     } else {
-      profilePayload.hr_szerepkor = data.role
+      profilePayload.hr_szerepkor = safeGlobalRole
       profilePayload.szerepkor = "munkavallalo"
     }
 
@@ -1185,7 +1188,7 @@ export async function getEaisyBillCompaniesAction(): Promise<{
     const [{ data: callerProfile }, { data: adminMemberships }] = await Promise.all([
       supabase
         .from("felhasznalo_profil")
-        .select("szerepkor, docs_szerepkor")
+        .select("szerepkor, docs_szerepkor, eaisybill_user_id")
         .eq("id", user.id)
         .maybeSingle(),
       supabase
@@ -1197,8 +1200,8 @@ export async function getEaisyBillCompaniesAction(): Promise<{
     ])
 
     const isGlobalSysadmin =
-      ["rendszergazda", "admin"].includes(callerProfile?.szerepkor || "") ||
-      ["rendszergazda", "admin"].includes(callerProfile?.docs_szerepkor || "")
+      callerProfile?.szerepkor === "rendszergazda" ||
+      callerProfile?.docs_szerepkor === "rendszergazda"
     const isAnyCompanyAdmin = Boolean(adminMemberships && adminMemberships.length > 0)
 
     if (!isGlobalSysadmin && !isAnyCompanyAdmin) {
@@ -1206,6 +1209,18 @@ export async function getEaisyBillCompaniesAction(): Promise<{
     }
 
     const billClient = createEaisyBillClient()
+
+    let allowedBillCompanyIds: Set<string> | null = null
+    if (!isGlobalSysadmin) {
+      const billUserId = callerProfile?.eaisybill_user_id || user.id
+      const { data: billMemberships } = await billClient
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", billUserId)
+      if (billMemberships && billMemberships.length > 0) {
+        allowedBillCompanyIds = new Set(billMemberships.map((m: any) => m.company_id))
+      }
+    }
 
     // 1. Lekérjük az eaisyBill cégeket
     const { data: billCompanies, error: billError } = await billClient
@@ -1216,6 +1231,10 @@ export async function getEaisyBillCompaniesAction(): Promise<{
     if (billError) {
       return { success: false, companies: [], error: "Hiba az eaisyBill cégek lekérésekor: " + billError.message }
     }
+
+    const filteredBillCompanies = allowedBillCompanyIds
+      ? (billCompanies || []).filter((bc) => allowedBillCompanyIds!.has(bc.id))
+      : billCompanies || []
 
     // 2. Lekérjük a helyi cégeket, amik már rendelkeznek eaisybill_company_id-val
     const { data: existingLocal } = await supabase
@@ -1230,7 +1249,7 @@ export async function getEaisyBillCompaniesAction(): Promise<{
       }
     }
 
-    const list: EaisyBillCompanyItem[] = (billCompanies || []).map(bc => ({
+    const list: EaisyBillCompanyItem[] = filteredBillCompanies.map(bc => ({
       id: bc.id,
       name: bc.name,
       tax_number: bc.tax_number || null,
@@ -1265,7 +1284,7 @@ export async function importEaisyBillCompanyAction(eaisybillCompanyId: string): 
     const [{ data: callerProfile }, { data: adminMemberships }] = await Promise.all([
       supabase
         .from("felhasznalo_profil")
-        .select("szerepkor, docs_szerepkor")
+        .select("szerepkor, docs_szerepkor, eaisybill_user_id")
         .eq("id", user.id)
         .maybeSingle(),
       supabase
@@ -1286,6 +1305,23 @@ export async function importEaisyBillCompanyAction(eaisybillCompanyId: string): 
     }
 
     const billClient = createEaisyBillClient()
+
+    if (!isGlobalSysadmin) {
+      const billUserId = callerProfile?.eaisybill_user_id || user.id
+      const { data: userBillMemberships } = await billClient
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", billUserId)
+      if (userBillMemberships && userBillMemberships.length > 0) {
+        const hasTargetAccess = userBillMemberships.some((m: any) => m.company_id === eaisybillCompanyId)
+        if (!hasTargetAccess) {
+          return {
+            success: false,
+            error: "Nincs jogosultsága ehhez az eaisyBill vállalathoz.",
+          }
+        }
+      }
+    }
 
     // 1. Lekérjük a céget az eaisyBill-ből
     const { data: billCompany, error: billError } = await billClient

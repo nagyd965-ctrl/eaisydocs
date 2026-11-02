@@ -3,17 +3,16 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { getClientInfo } from "@/utils/client-info"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
 
 export async function borrowDocument(iratId: string, kinekUserId: string, varhatoVisszahozatal: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Nincs bejelentkezve" }
-
-  // Jogosultság ellenőrzés (iktató, ügyintéző, vezető, admin)
-  const { data: profile } = await supabase.from("felhasznalo_profil").select('docs_szerepkor').eq("id", user.id).single()
-  if (!profile || !["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"].includes(profile.docs_szerepkor)) {
-    return { success: false, error: "Nincs jogosultságod a kölcsönzés rögzítéséhez." }
+  const auth = await requireDocsAuthServer(["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs jogosultságod a kölcsönzés rögzítéséhez." }
   }
+  const user = auth.user
 
   // Meglévő aktív kölcsönzés ellenőrzése
   const { data: akt } = await supabase
@@ -38,7 +37,7 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
   })
 
   if (error) {
-    if ((error as any).code === '23505') {
+    if ((error as any).code === "23505") {
       return { success: false, error: "Ez az irat időközben már kikölcsönzésre került egy másik munkatárs által." }
     }
     console.error("Kölcsönzés hiba:", error)
@@ -50,11 +49,11 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
   
   const { ip, userAgent } = await getClientInfo()
   await supabase.from("esemeny_naplo").insert({
-    entitas_tipus: 'ugyirat',
+    entitas_tipus: "ugyirat",
     entitas_id: irat?.ugyirat_id,
     user_id: user.id,
-    esemeny_tipus: 'modositva',
-    uj_ertek: { megjegyzes: `Irat kikölcsönözve. Kinek: ${kinek?.nev}. Várható visszahozatal: ${new Date(varhatoVisszahozatal).toLocaleDateString('hu-HU')}.` },
+    esemeny_tipus: "modositva",
+    uj_ertek: { megjegyzes: `Irat kikölcsönözve. Kinek: ${kinek?.nev}. Várható visszahozatal: ${new Date(varhatoVisszahozatal).toLocaleDateString("hu-HU")}.` },
     ip_cim: ip,
     user_agent: userAgent
   })
@@ -65,13 +64,11 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
 
 export async function returnDocument(kolcsonzesId: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Nincs bejelentkezve" }
-
-  const { data: profile } = await supabase.from("felhasznalo_profil").select('docs_szerepkor').eq("id", user.id).single()
-  if (!profile || !["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"].includes(profile.docs_szerepkor)) {
-    return { success: false, error: "Nincs jogosultság." }
+  const auth = await requireDocsAuthServer(["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs jogosultság." }
   }
+  const user = auth.user
 
   const { data: log } = await supabase.from("irat_kolcsonzes_naplo").select("irat_id, kinek_user_id").eq("id", kolcsonzesId).single()
 
@@ -85,23 +82,21 @@ export async function returnDocument(kolcsonzesId: string) {
 
   if (error) return { success: false, error: "Hiba történt." }
 
-  let ugyiratId: string | undefined;
+  let ugyiratId: string | undefined
 
   // Eseménynapló rögzítése
   if (log) {
     const { data: irat } = await supabase.from("irat").select("ugyirat_id").eq("id", log.irat_id).single()
-    ugyiratId = irat?.ugyirat_id;
+    ugyiratId = irat?.ugyirat_id
     const { data: kinek } = await supabase.from("felhasznalo_profil").select("nev").eq("id", log.kinek_user_id).single()
-    
-    // Eseménynapló rögzítése
 
     const { ip, userAgent } = await getClientInfo()
     await supabase.from("esemeny_naplo").insert({
-      entitas_tipus: 'ugyirat',
+      entitas_tipus: "ugyirat",
       entitas_id: irat?.ugyirat_id,
       user_id: user.id,
-      esemeny_tipus: 'modositva',
-      uj_ertek: { megjegyzes: `Irat visszavéve tőle: ${kinek?.nev || 'Ismeretlen'}.` },
+      esemeny_tipus: "modositva",
+      uj_ertek: { megjegyzes: `Irat visszavéve tőle: ${kinek?.nev || "Ismeretlen"}.` },
       ip_cim: ip,
       user_agent: userAgent
     })
@@ -114,8 +109,6 @@ export async function returnDocument(kolcsonzesId: string) {
   }
   return { success: true }
 }
-
-import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export async function getPhysicalLocationSuggestions() {
   const supabase = await createClient()
@@ -131,14 +124,7 @@ export async function getPhysicalLocationSuggestions() {
     .eq("company_id", companyScope)
     .limit(300)
 
-  let list = data || []
-  if (list.length === 0) {
-    const { data: fallback } = await supabase
-      .from("irat_fizikai_hely")
-      .select("polc, doboz")
-      .limit(300)
-    list = fallback || []
-  }
+  const list = data || []
 
   const polcok = Array.from(new Set(list.map((d: any) => d.polc).filter(Boolean))) as string[]
   const dobozok = Array.from(new Set(list.map((d: any) => d.doboz).filter(Boolean))) as string[]
@@ -151,16 +137,13 @@ export async function getPhysicalLocationSuggestions() {
 
 export async function setPhysicalLocation(iratId: string, doboz: string, polc: string, megjegyzes?: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Nincs bejelentkezve" }
-
-  const { data: profile } = await supabase.from("felhasznalo_profil").select('docs_szerepkor').eq("id", user.id).single()
-  if (!profile || !["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"].includes(profile.docs_szerepkor)) {
-    return { success: false, error: "Nincs jogosultság." }
+  const auth = await requireDocsAuthServer(["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs jogosultság." }
   }
+  const user = auth.user
 
-  const activeCompanyId = await getActiveCompanyIdServer()
-  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+  const companyScope = auth.activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   const trimmedDoboz = doboz?.trim() || ""
   const trimmedPolc = polc?.trim() || ""
@@ -200,14 +183,14 @@ export async function setPhysicalLocation(iratId: string, doboz: string, polc: s
   const { data: irat } = await supabase.from("irat").select("ugyirat_id").eq("id", iratId).single()
   const { ip, userAgent } = await getClientInfo()
   await supabase.from("esemeny_naplo").insert({
-    entitas_tipus: 'ugyirat',
+    entitas_tipus: "ugyirat",
     entitas_id: irat?.ugyirat_id,
     user_id: user.id,
-    esemeny_tipus: 'modositva',
+    esemeny_tipus: "modositva",
     uj_ertek: { 
       megjegyzes: isClearing 
         ? "Fizikai helyzet törölve" 
-        : `Fizikai helyzet módosítva: Polc: ${trimmedPolc || '-'}, Doboz: ${trimmedDoboz || '-'}${trimmedMegjegyzes ? ` (Megjegyzés: ${trimmedMegjegyzes})` : ''}` 
+        : `Fizikai helyzet módosítva: Polc: ${trimmedPolc || "-"}, Doboz: ${trimmedDoboz || "-"}${trimmedMegjegyzes ? ` (Megjegyzés: ${trimmedMegjegyzes})` : ""}` 
     },
     ip_cim: ip,
     user_agent: userAgent

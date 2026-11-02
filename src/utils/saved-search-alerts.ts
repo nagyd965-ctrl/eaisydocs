@@ -255,12 +255,26 @@ export async function checkSavedSearchesForNewIrat(
         continue
       }
 
-      await supabase.from("alkalmazas_ertesites").insert({
-        user_id: item.user_id,
-        cim: notifTitle,
-        szoveg: `Új dokumentum érkezett a mentett keresésedhez: "${irat.targy}" (${displayIdentifier})`,
-        link_url: linkUrl,
-        olvasott: false,
+      const { dispatchDocsNotification } = await import("@/utils/docs-notification-dispatcher")
+      await dispatchDocsNotification({
+        esemenyTipus: "mentett_kereses_talalat",
+        kinek: "erintett",
+        companyId: (irat as any).company_id || null,
+        recipientUserIds: [item.user_id],
+        inAppTitle: notifTitle,
+        inAppBody: `Új dokumentum érkezett a mentett keresésedhez: "${irat.targy}" (${displayIdentifier})`,
+        linkPath: linkUrl,
+        emailSubject: `Mentett keresés találat: "${item.nev}"`,
+        emailHeading: "Új találat a mentett keresésedre",
+        emailIntroHtml: `Új dokumentum érkezett, amely megfelel a(z) <b>"${item.nev}"</b> mentett keresésed feltételeinek.`,
+        emailDetails: [
+          { label: "Tárgy", value: irat.targy || "–" },
+          { label: "Azonosító", value: displayIdentifier },
+        ],
+        emailCtaLabel: "Dokumentum megnyitása",
+        smsBody: `eaisyDocs: Új találat a "${item.nev}" mentett keresésedre: ${irat.targy} (${displayIdentifier})`,
+        dossierId: irat.ugyirat_id || undefined,
+        defaultChannels: ["in_app"],
       })
 
       recentAlertsCache.set(dedupKey, now)

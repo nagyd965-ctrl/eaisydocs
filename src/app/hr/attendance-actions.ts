@@ -925,11 +925,21 @@ export async function handleOvertimeApproval(
     })
   }
 
-  await supabase.from("alkalmazas_ertesites").insert({
-    user_id: req.dolgozo_id,
-    cim,
-    szoveg,
-    link_url: "/hr/self-service/time"
+  const { dispatchHrNotification } = await import("@/utils/hr-notification-dispatcher")
+  await dispatchHrNotification({
+    esemenyTipus: "tavollet_elbiralas",
+    companyId: activeCompanyId,
+    recipientUserIds: [req.dolgozo_id],
+    title: cim,
+    message: szoveg,
+    linkPath: "/hr/self-service/time",
+    emailDetails: [
+      { label: "Típus", value: tipusNev },
+      { label: "Időtartam", value: durationStr },
+      { label: "Státusz", value: action === "jovahagyva" ? "Jóváhagyva" : "Elutasítva" },
+      ...(rejectReason?.trim() ? [{ label: "Indoklás", value: rejectReason.trim() }] : []),
+    ],
+    emailCtaText: "Jelenlét és túlórák megtekintése",
   })
 
   revalidatePath("/hr", "layout")
@@ -1055,12 +1065,20 @@ export async function handleAttendanceCorrectionApproval(
       ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
     })
 
-    // 4. Dolgozó értesítése
-    await adminClient.from("alkalmazas_ertesites").insert({
-      user_id: request.dolgozo_id,
-      cim: "Jelenléti korrekció jóváhagyva",
-      szoveg: `A(z) ${request.datum} napra benyújtott munkaidő korrekciódat a vezetőd jóváhagyta.`,
-      link_url: "/hr/self-service/time"
+    // 4. Dolgozó értesítése (jelenlet_korrekcio_elbiralas szabály alapján)
+    const { dispatchHrNotification } = await import("@/utils/hr-notification-dispatcher")
+    await dispatchHrNotification({
+      esemenyTipus: "jelenlet_korrekcio_elbiralas",
+      companyId: resolvedCompanyId,
+      recipientUserIds: [request.dolgozo_id],
+      title: "Jelenléti korrekció jóváhagyva",
+      message: `A(z) ${request.datum} napra benyújtott munkaidő korrekciódat a vezetőd jóváhagyta.`,
+      linkPath: "/hr/self-service/time",
+      emailDetails: [
+        { label: "Dátum", value: request.datum },
+        { label: "Státusz", value: "Jóváhagyva" },
+      ],
+      emailCtaText: "Jelenléti ív megtekintése",
     })
   } else {
     // Elutasítás
@@ -1085,12 +1103,21 @@ export async function handleAttendanceCorrectionApproval(
       ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
     })
 
-    // Dolgozó értesítése
-    await adminClient.from("alkalmazas_ertesites").insert({
-      user_id: request.dolgozo_id,
-      cim: "Jelenléti korrekció elutasítva",
-      szoveg: `A(z) ${request.datum} napra benyújtott munkaidő korrekciódat elutasították.${elutasitasOka ? ` Indoklás: ${elutasitasOka}` : ""}`,
-      link_url: "/hr/self-service/time"
+    // Dolgozó értesítése (jelenlet_korrekcio_elbiralas szabály alapján)
+    const { dispatchHrNotification } = await import("@/utils/hr-notification-dispatcher")
+    await dispatchHrNotification({
+      esemenyTipus: "jelenlet_korrekcio_elbiralas",
+      companyId: resolvedCompanyId,
+      recipientUserIds: [request.dolgozo_id],
+      title: "Jelenléti korrekció elutasítva",
+      message: `A(z) ${request.datum} napra benyújtott munkaidő korrekciódat elutasították.${elutasitasOka ? ` Indoklás: ${elutasitasOka}` : ""}`,
+      linkPath: "/hr/self-service/time",
+      emailDetails: [
+        { label: "Dátum", value: request.datum },
+        { label: "Státusz", value: "Elutasítva" },
+        ...(elutasitasOka ? [{ label: "Indoklás", value: elutasitasOka }] : []),
+      ],
+      emailCtaText: "Jelenléti ív megtekintése",
     })
   }
 

@@ -19,11 +19,16 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
     redirect("/dossiers")
   }
 
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || null
+
   // 1. Fetch the irat details
   const { data: irat } = await supabase
     .from("irat")
     .select(`
       id,
+      company_id,
       erkeztetoszam,
       erkezes_datuma,
       targy,
@@ -37,6 +42,10 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
 
   if (!irat) {
     notFound()
+  }
+
+  if (companyScope && (irat as any).company_id && (irat as any).company_id !== companyScope) {
+    redirect("/inbox")
   }
 
   // 2. Fetch the associated files (irat_fajl)
@@ -71,10 +80,6 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
   }
 
   // 3. Fetch data needed for the filing form
-  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
-  const activeCompanyId = await getActiveCompanyIdServer()
-  const companyScope = activeCompanyId || null
-
   // Irattari tetel lista — CEG-SZURVE (csak az aktiv ceg tetelei)
   let tervQuery = supabase
     .from("irattari_terv")
@@ -104,20 +109,28 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
     .order("iktatas_datuma", { ascending: false })
 
   if (companyScope) {
-    ugyiratQuery = ugyiratQuery.or(`company_id.eq.${companyScope},company_id.is.null`)
+    ugyiratQuery = ugyiratQuery.eq("company_id", companyScope)
   }
 
   const { data: allUgyiratok } = await ugyiratQuery
 
-  const { data: departments } = await supabase
+  let deptQuery = supabase
     .from("szervezeti_egyseg")
     .select("id, nev, iktato_prefix")
     .order("nev")
+  if (companyScope) {
+    deptQuery = deptQuery.eq("company_id", companyScope)
+  }
+  const { data: departments } = await deptQuery
 
-  const { data: partners } = await supabase
+  let partnerQuery = supabase
     .from("partner")
     .select("id, nev, adoszam, kulfoldi_adoszam")
     .order("nev")
+  if (companyScope) {
+    partnerQuery = partnerQuery.eq("company_id", companyScope)
+  }
+  const { data: partners } = await partnerQuery
 
   // Előzmény-ügyirat javaslat lekérése
   const { findAntecedentSuggestion } = await import("@/utils/antecedent-matcher")

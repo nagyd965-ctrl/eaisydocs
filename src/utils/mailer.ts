@@ -288,6 +288,63 @@ export async function sendEmailWithAttachment(params: SendExpeditionEmailParams)
       return { success: false, error: `Érvénytelen címzett e-mail formátum: ${to}` }
     }
 
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    let resolvedDocCompanyId: string | null = null
+
+    if (params.iratId) {
+      const { data: iratMeta } = await supabase
+        .from("irat")
+        .select("id, ugyirat_id, company_id, minosites")
+        .eq("id", params.iratId)
+        .maybeSingle()
+
+      if (!iratMeta) {
+        return { success: false, error: "A küldendő irat nem található vagy nincs hozzáférésed hozzá." }
+      }
+
+      if (params.ugyiratId && iratMeta.ugyirat_id && iratMeta.ugyirat_id !== params.ugyiratId) {
+        return { success: false, error: "A megadott irat nem a kiválasztott ügyirathoz tartozik." }
+      }
+
+      resolvedDocCompanyId = iratMeta.company_id || null
+      const auth = await requireDocsAuthServer(
+        ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"],
+        resolvedDocCompanyId
+      )
+      if (!auth.authorized) {
+        return {
+          success: false,
+          error: auth.error || "Nincs jogosultságod irat e-mailben történő kiküldéséhez.",
+        }
+      }
+
+      const minositesHierarchy: Record<string, number> = {
+        nyilt: 1,
+        belso: 2,
+        bizalmas: 3,
+        szigoruan_bizalmas: 4,
+      }
+      const userLevel = minositesHierarchy[auth.maxMinosites || "nyilt"] || 1
+      const docLevel = minositesHierarchy[iratMeta.minosites || "nyilt"] || 1
+      const isCompanyAdminRole = auth.docsRole === "admin" || auth.docsRole === "rendszergazda"
+
+      if (!isCompanyAdminRole && userLevel < docLevel) {
+        return {
+          success: false,
+          error: `Hozzáférés megtagadva: A dokumentum kiküldéséhez legalább '${iratMeta.minosites}' biztonsági minősítés szükséges.`,
+        }
+      }
+    } else {
+      const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+      if (!auth.authorized) {
+        return {
+          success: false,
+          error: auth.error || "Nincs jogosultságod e-mail küldéséhez.",
+        }
+      }
+      resolvedDocCompanyId = auth.activeCompanyId
+    }
+
     const smtpHost = process.env.SMTP_HOST || (process.env.EMAIL_HOST ? process.env.EMAIL_HOST.replace("imap.", "smtp.") : "")
     if (!smtpHost || !process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
       return { success: false, error: "SMTP konfiguráció hiányzik a szerveren (.env.local)!" }
@@ -385,10 +442,14 @@ export async function sendEmailWithAttachment(params: SendExpeditionEmailParams)
 
     if (params.saveToPartnerId) {
       try {
-        await supabase
+        let updatePartnerQuery = supabase
           .from("partner")
           .update({ email: to })
           .eq("id", params.saveToPartnerId)
+        if (resolvedDocCompanyId) {
+          updatePartnerQuery = updatePartnerQuery.eq("company_id", resolvedDocCompanyId)
+        }
+        await updatePartnerQuery
       } catch (pErr) {
         console.warn("Nem sikerült elmenteni az új központi e-mailt a partnerhez:", pErr)
       }

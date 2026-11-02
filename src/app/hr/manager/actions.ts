@@ -63,11 +63,19 @@ export async function approveLeaveRequest(id: string) {
     return { error: "Nem sikerült jóváhagyni a kérelmet." }
   }
 
-  await supabase.from("alkalmazas_ertesites").insert({
-    user_id: req.dolgozo_id,
-    cim: "Szabadság kérelem jóváhagyva",
-    szoveg: `A(z) ${req.kezdet_datuma} – ${req.veg_datuma} időszakra benyújtott szabadság kérelmedet a vezetőd jóváhagyta.`,
-    link_url: "/hr/self-service/time"
+  const { dispatchHrNotification } = await import("@/utils/hr-notification-dispatcher")
+  await dispatchHrNotification({
+    esemenyTipus: "tavollet_elbiralas",
+    companyId: req.company_id || activeCompanyId,
+    recipientUserIds: [req.dolgozo_id],
+    title: "Szabadság kérelem jóváhagyva",
+    message: `A(z) ${req.kezdet_datuma} – ${req.veg_datuma} időszakra benyújtott szabadság kérelmedet a vezetőd jóváhagyta.`,
+    linkPath: "/hr/self-service/time",
+    emailDetails: [
+      { label: "Időszak", value: `${req.kezdet_datuma} – ${req.veg_datuma}` },
+      { label: "Státusz", value: "Jóváhagyva" },
+    ],
+    emailCtaText: "Szabadságaim megtekintése",
   })
 
   // Audit log is handled automatically by PostgreSQL triggers!
@@ -155,11 +163,20 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string) {
     })
   }
 
-  await supabase.from("alkalmazas_ertesites").insert({
-    user_id: req.dolgozo_id,
-    cim: "Szabadság kérelem elutasítva",
-    szoveg: `A(z) ${req.kezdet_datuma} – ${req.veg_datuma} időszakra benyújtott szabadság kérelmedet elutasították.${cleanedReason ? ` Indoklás: ${cleanedReason}` : ""}`,
-    link_url: "/hr/self-service/time"
+  const { dispatchHrNotification } = await import("@/utils/hr-notification-dispatcher")
+  await dispatchHrNotification({
+    esemenyTipus: "tavollet_elbiralas",
+    companyId: targetCompanyId,
+    recipientUserIds: [req.dolgozo_id],
+    title: "Szabadság kérelem elutasítva",
+    message: `A(z) ${req.kezdet_datuma} – ${req.veg_datuma} időszakra benyújtott szabadság kérelmedet elutasították.${cleanedReason ? ` Indoklás: ${cleanedReason}` : ""}`,
+    linkPath: "/hr/self-service/time",
+    emailDetails: [
+      { label: "Időszak", value: `${req.kezdet_datuma} – ${req.veg_datuma}` },
+      { label: "Státusz", value: "Elutasítva" },
+      ...(cleanedReason ? [{ label: "Indoklás", value: cleanedReason }] : []),
+    ],
+    emailCtaText: "Szabadságaim megtekintése",
   })
 
   revalidatePath("/hr", "layout")

@@ -3,31 +3,37 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { getClientInfo } from "@/utils/client-info"
+import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
 import crypto from "crypto"
 
 async function checkDossierWritePermission(supabase: any, user: any, ugyiratId: string) {
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor, szervezeti_egyseg_id")
-    .eq("id", user.id)
-    .single()
+  const { data: ugyirat } = await supabase
+    .from("ugyirat")
+    .select("id, company_id, szervezeti_egyseg_id, ugy ( felelos_user_id )")
+    .eq("id", ugyiratId)
+    .maybeSingle()
 
-  if (!profile) {
-    return { error: "Felhasználói profil nem található." }
+  if (!ugyirat) {
+    return { error: "Ügyirat nem található vagy nincs hozzáférésed hozzá." }
   }
 
-  const userRole = profile.docs_szerepkor || "ugyintezo"
-  const isSzuper = ["admin", "iktato"].includes(userRole)
-  
+  const auth = await requireDocsAuthServer(undefined, ugyirat.company_id || null)
+  if (!auth.authorized) {
+    return { error: auth.error || "Nincs hozzáférésed ehhez a vállalathoz." }
+  }
+
+  const userRole = auth.docsRole || "ugyintezo"
+  const profile = {
+    docs_szerepkor: userRole,
+    szervezeti_egyseg_id: auth.szervezetiEgysegId,
+    company_id: ugyirat.company_id || auth.activeCompanyId,
+  }
+
+  const isSzuper = ["admin", "rendszergazda", "iktato"].includes(userRole)
   if (isSzuper) {
     return { success: true, profile }
   }
-
-  const { data: ugyirat } = await supabase
-    .from("ugyirat")
-    .select("szervezeti_egyseg_id, ugy ( felelos_user_id )")
-    .eq("id", ugyiratId)
-    .single()
 
   const { data: explicitAccess } = await supabase
     .from("ugyirat_hozzaferes")
@@ -35,16 +41,16 @@ async function checkDossierWritePermission(supabase: any, user: any, ugyiratId: 
     .eq("ugyirat_id", ugyiratId)
     .eq("user_id", user.id)
     .maybeSingle()
-  
+
   const hasExplicit = !!explicitAccess
 
   if (userRole === "vezeto") {
-    const inDept = ugyirat?.szervezeti_egyseg_id === profile.szervezeti_egyseg_id
+    const inDept = ugyirat.szervezeti_egyseg_id === profile.szervezeti_egyseg_id
     if (!inDept && !hasExplicit) {
       return { error: "Nincs jogosultságod ehhez a művelethez a szervezeti egységeden kívül." }
     }
   } else if (userRole === "ugyintezo") {
-    const isAssigned = (ugyirat?.ugy as any)?.felelos_user_id === user.id
+    const isAssigned = (ugyirat.ugy as any)?.felelos_user_id === user.id
     if (!isAssigned && !hasExplicit) {
       return { error: "Nincs jogosultságod ehhez a művelethez, mivel nem vagy felelőse az ügyiratnak." }
     }
@@ -65,7 +71,7 @@ export async function closeDossier(ugyiratId: string) {
 
   const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
   if (permCheck.error) return { error: permCheck.error }
-  if (permCheck.profile.docs_szerepkor === "ugyintezo") {
+  if (permCheck.profile?.docs_szerepkor === "ugyintezo") {
     return { error: "Ügyintéző nem zárhat le ügyiratot." }
   }
 
@@ -171,12 +177,21 @@ export async function restoreDossierToArchive(ugyiratId: string) {
 
   const { data: ugyirat } = await adminClient
     .from("ugyirat")
-    .select("id, ugy_id, iktatoszam, irattari_terv:irattari_tetel_id(megorzesi_ido_ev)")
+    .select("id, ugy_id, iktatoszam, statusz, company_id, irattari_terv:irattari_tetel_id(megorzesi_ido_ev)")
     .eq("id", ugyiratId)
     .single()
 
   if (!ugyirat) {
     return { error: "Ügyirat nem található." }
+  }
+
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (activeCompanyId && ugyirat.company_id && ugyirat.company_id !== activeCompanyId) {
+    return { error: "Az ügyirat nem az aktív vállalathoz tartozik." }
+  }
+
+  if (ugyirat.statusz === "selejtezett") {
+    return { error: "A véglegesen leselejtezett és megsemmisített ügyirat már nem állítható vissza az irattárba." }
   }
 
   const megorzesiEv = (ugyirat.irattari_terv as any)?.megorzesi_ido_ev || 50
@@ -272,7 +287,7 @@ async function notifyNoteMentions(
 
   const { data: ugyiratData } = await supabase
     .from("ugyirat")
-    .select("iktatoszam")
+    .select("iktatoszam, company_id")
     .eq("id", ugyiratId)
     .single()
 
@@ -280,16 +295,37 @@ async function notifyNoteMentions(
 
   // Hosszabb nevek először, hogy "Nagy Dániel" ne matcheljen "Nagy"-ként
   const sortedUsers = [...allUsers].sort((a: any, b: any) => b.nev.length - a.nev.length)
+  const mentionedUserIds: string[] = []
 
   for (const u of sortedUsers) {
     if (text.includes(`@${u.nev}`) && !previousText.includes(`@${u.nev}`)) {
-      await supabase.from("alkalmazas_ertesites").insert({
-        user_id: u.id,
-        cim: `Megemlítettek egy megjegyzésben${iktatoszam ? ` (${iktatoszam})` : ""}`,
-        szoveg: `${senderName}: ${text.length > 120 ? text.substring(0, 120) + "…" : text}`,
-        link_url: `/dossiers/${ugyiratId}?notes=1`
-      })
+      mentionedUserIds.push(u.id)
     }
+  }
+
+  if (mentionedUserIds.length > 0) {
+    const previewSnippet = text.length > 120 ? text.substring(0, 120) + "…" : text
+    const { dispatchDocsNotification } = await import("@/utils/docs-notification-dispatcher")
+    await dispatchDocsNotification({
+      esemenyTipus: "megjegyzes_emlitve",
+      kinek: "erintett",
+      companyId: ugyiratData?.company_id || null,
+      recipientUserIds: mentionedUserIds,
+      inAppTitle: `Megemlítettek egy megjegyzésben${iktatoszam ? ` (${iktatoszam})` : ""}`,
+      inAppBody: `${senderName}: ${previewSnippet}`,
+      linkPath: `/dossiers/${ugyiratId}?notes=1`,
+      emailSubject: `Megemlítettek egy megjegyzésben${iktatoszam ? ` (${iktatoszam})` : ""}`,
+      emailHeading: "Megemlítettek egy belső megjegyzésben",
+      emailIntroHtml: `<b>${senderName}</b> megemlített téged a(z) <b>${iktatoszam || "ügyirat"}</b> belső megjegyzésében:`,
+      emailDetails: [
+        ...(iktatoszam ? [{ label: "Ügyirat", value: iktatoszam }] : []),
+        { label: "Megjegyzés", value: previewSnippet },
+      ],
+      emailCtaLabel: "Megjegyzés megnyitása",
+      smsBody: `eaisyDocs: ${senderName} megemlített egy megjegyzésben (${iktatoszam}): ${previewSnippet}`,
+      dossierId: ugyiratId,
+      defaultChannels: ["in_app"],
+    })
   }
 }
 
@@ -741,7 +777,7 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
   // Ellenőrizzük, hogy az ügyirat nincs-e lezárva vagy irattárban
   const { data: ugyirat } = await supabase
     .from("ugyirat")
-    .select("statusz, iktatoszam")
+    .select("statusz, iktatoszam, company_id")
     .eq("id", ugyiratId)
     .single()
 
@@ -826,10 +862,12 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
 
   // 3. Irat rekord létrehozása (Kimenő)
   const initialKezbesitesStatusz = expediteMode === "none" ? "expedialasra_var" : "expedialasra_var"
+  const dossierCompanyId = (ugyirat as any)?.company_id || (await getActiveCompanyIdServer())
   const { data: iratData, error: iratError } = await supabase
     .from("irat")
     .insert({
       ugyirat_id: ugyiratId,
+      company_id: dossierCompanyId,
       targy,
       irany: "kimeno",
       erkezes_modja: "rendszer",
@@ -867,6 +905,7 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
+    company_id: dossierCompanyId,
     esemeny_tipus: "modositva",
     user_id: user.id,
     indoklas: `Válaszlevél feltöltve: ${file.name}`,
@@ -970,7 +1009,7 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
 
   const { data: ugyirat } = await supabase
     .from("ugyirat")
-    .select("statusz, iktatoszam, ugy(targy)")
+    .select("statusz, iktatoszam, company_id, ugy(targy)")
     .eq("id", ugyiratId)
     .single()
 
@@ -1110,10 +1149,12 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
 
   // 4. Irat rekord létrehozása
   const initialKezbesitesStatusz = "expedialasra_var"
+  const dossierCompanyId = (ugyirat as any)?.company_id || (await getActiveCompanyIdServer())
   const { data: iratData, error: iratError } = await supabase
     .from("irat")
     .insert({
       ugyirat_id: ugyiratId,
+      company_id: dossierCompanyId,
       targy,
       irany: "kimeno",
       erkezes_modja: "rendszer",
@@ -1182,6 +1223,7 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
+    company_id: dossierCompanyId,
     esemeny_tipus: "modositva",
     user_id: user.id,
     indoklas: auditDetails,
@@ -1266,6 +1308,17 @@ export async function expediteExistingDocument(ugyiratId: string, iratId: string
   const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
   if (permCheck.error) return { error: permCheck.error }
 
+  const { data: iratCheck } = await supabase
+    .from("irat")
+    .select("id, ugyirat_id")
+    .eq("id", iratId)
+    .eq("ugyirat_id", ugyiratId)
+    .maybeSingle()
+
+  if (!iratCheck) {
+    return { error: "A megadott irat nem található ebben az ügyiratban." }
+  }
+
   const expediteMode = (formData.get("expediteMode") as string) || "email"
   const recipientEmail = (formData.get("recipientEmail") as string)?.trim()
   const emailSubject = (formData.get("emailSubject") as string)?.trim()
@@ -1316,9 +1369,10 @@ export async function expediteExistingDocument(ugyiratId: string, iratId: string
  */
 export async function savePartnerCentralEmail(partnerId: string, email: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) return { error: "Nincs bejelentkezve." }
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs jogosultságod a partner adatainak módosításához." }
+  }
 
   const trimmed = email.trim()
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -1326,10 +1380,14 @@ export async function savePartnerCentralEmail(partnerId: string, email: string) 
     return { error: "Érvénytelen e-mail formátum!" }
   }
 
-  const { error } = await supabase
+  let updateQuery = supabase
     .from("partner")
     .update({ email: trimmed })
     .eq("id", partnerId)
+  if (auth.activeCompanyId) {
+    updateQuery = updateQuery.eq("company_id", auth.activeCompanyId)
+  }
+  const { error } = await updateQuery
 
   if (error) return { error: error.message }
 
@@ -1337,9 +1395,10 @@ export async function savePartnerCentralEmail(partnerId: string, email: string) 
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "partner",
     entitas_id: partnerId,
-    user_id: user.id,
+    user_id: auth.user.id,
     esemeny_tipus: "modositva",
-    indoklas: `Központi partner e-mail cím frissítve az expedíciós felületről: ${trimmed}`
+    indoklas: `Központi partner e-mail cím frissítve az expedíciós felületről: ${trimmed}`,
+    ...(auth.activeCompanyId ? { company_id: auth.activeCompanyId } : {}),
   })
 
   return { success: true }
@@ -1419,8 +1478,12 @@ export async function searchLinkPartners(query: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve.", results: [] as Array<{ id: string; nev: string; adoszam?: string | null }> }
 
+  const activeCompanyId = await getActiveCompanyIdServer()
   const term = (query || "").trim().replace(/[%_,()]/g, " ").trim()
   let q = supabase.from("partner").select("id, nev, adoszam").order("nev", { ascending: true }).limit(8)
+  if (activeCompanyId) {
+    q = q.eq("company_id", activeCompanyId)
+  }
   if (term) {
     q = q.or(`nev.ilike.%${term}%,adoszam.ilike.%${term}%`)
   }

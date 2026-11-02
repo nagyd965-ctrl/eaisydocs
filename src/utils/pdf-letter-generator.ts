@@ -1,4 +1,7 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib"
+import fontkit from "@pdf-lib/fontkit"
+import fs from "fs"
+import path from "path"
 
 export interface LetterPdfOptions {
   targy: string
@@ -10,13 +13,25 @@ export interface LetterPdfOptions {
   authorNev?: string
 }
 
+function sanitizeWinAnsiFallback(text: string | null | undefined): string {
+  if (!text) return ""
+  return String(text)
+    .replace(/ő/g, "ö")
+    .replace(/Ő/g, "Ö")
+    .replace(/ű/g, "ü")
+    .replace(/Ű/g, "Ü")
+    .replace(/[^\x20-\x7E\xA0-\xFF\n]/g, "")
+}
+
 /**
  * Szabványos kimenő hivatalos levél PDF generálása pdf-lib segítségével.
- * Kezeli az A4-es formátumot, margókat, iktatószámot, címzettet, tárgyat,
+ * Kezeli a magyar UTF-8 ékezetes karaktereket (ő, ű, Ő, Ű) a beágyazott LiberationSans fonttal,
+ * az A4-es formátumot, margókat, iktatószámot, címzettet, tárgyat,
  * többsoros és többoldalas szövegtördelést, valamint az aláírás blokkot és láblécet.
  */
 export async function generateLetterPdfBuffer(options: LetterPdfOptions): Promise<Buffer> {
   const pdfDoc = await PDFDocument.create()
+  pdfDoc.registerFontkit(fontkit)
 
   // PDF metaadatok
   pdfDoc.setTitle(options.targy)
@@ -25,8 +40,31 @@ export async function generateLetterPdfBuffer(options: LetterPdfOptions): Promis
   pdfDoc.setCreator("eaisyDocs - Elektronikus Iratkezelő Rendszer")
   pdfDoc.setCreationDate(new Date())
 
-  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  let regularFont
+  let boldFont
+  let hasUtf8Font = false
+
+  try {
+    const fontsDir = path.join(process.cwd(), "src", "assets", "fonts")
+    const regularBytes = fs.readFileSync(path.join(fontsDir, "LiberationSans-Regular.ttf"))
+    const boldBytes = fs.readFileSync(path.join(fontsDir, "LiberationSans-Bold.ttf"))
+    regularFont = await pdfDoc.embedFont(regularBytes)
+    boldFont = await pdfDoc.embedFont(boldBytes)
+    hasUtf8Font = true
+  } catch {
+    regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
+    boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  }
+
+  const fmt = (text: string | null | undefined): string => {
+    if (!text) return ""
+    if (hasUtf8Font) {
+      return String(text)
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+    }
+    return sanitizeWinAnsiFallback(text)
+  }
 
   const pageWidth = 595.28 // A4
   const pageHeight = 841.89
@@ -41,17 +79,17 @@ export async function generateLetterPdfBuffer(options: LetterPdfOptions): Promis
 
   // --- Fejléc ---
   const now = new Date()
-  const dateStr = now.toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })
+  const dateStr = fmt(now.toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" }))
 
   // Iktatószám jobb felső sarok
   if (options.iktatoszam) {
-    const iktatoText = `Iktatószám: ${options.iktatoszam}`
-    const iktatoWidth = helvetica.widthOfTextAtSize(iktatoText, 9)
+    const iktatoText = fmt(`Iktatószám: ${options.iktatoszam}`)
+    const iktatoWidth = regularFont.widthOfTextAtSize(iktatoText, 9)
     page.drawText(iktatoText, {
       x: pageWidth - margin - iktatoWidth,
       y,
       size: 9,
-      font: helvetica,
+      font: regularFont,
       color: rgb(0.4, 0.4, 0.4),
     })
   }
@@ -61,56 +99,56 @@ export async function generateLetterPdfBuffer(options: LetterPdfOptions): Promis
     x: margin,
     y,
     size: 9,
-    font: helvetica,
+    font: regularFont,
     color: rgb(0.4, 0.4, 0.4),
   })
   y -= lineHeight * 2
 
   // Címzett
   if (options.cimzett) {
-    page.drawText("Címzett:", {
+    page.drawText(fmt("Címzett:"), {
       x: margin,
       y,
       size: 9,
-      font: helvetica,
+      font: regularFont,
       color: rgb(0.4, 0.4, 0.4),
     })
     y -= lineHeight
-    page.drawText(options.cimzett, {
+    page.drawText(fmt(options.cimzett), {
       x: margin,
       y,
       size: fontSize,
-      font: helveticaBold,
+      font: boldFont,
       color: rgb(0, 0, 0),
     })
     y -= lineHeight * 2
   }
 
   // Tárgy
-  page.drawText("Tárgy:", {
+  page.drawText(fmt("Tárgy:"), {
     x: margin,
     y,
     size: 9,
-    font: helvetica,
+    font: regularFont,
     color: rgb(0.4, 0.4, 0.4),
   })
   y -= lineHeight
-  page.drawText(options.targy, {
+  page.drawText(fmt(options.targy), {
     x: margin,
     y,
     size: headerFontSize,
-    font: helveticaBold,
+    font: boldFont,
     color: rgb(0, 0, 0),
   })
   y -= lineHeight
 
   // Hivatkozás
   if (options.hivatkozas) {
-    page.drawText(`Hivatkozás: ${options.hivatkozas}`, {
+    page.drawText(fmt(`Hivatkozás: ${options.hivatkozas}`), {
       x: margin,
       y,
       size: 9,
-      font: helvetica,
+      font: regularFont,
       color: rgb(0.4, 0.4, 0.4),
     })
     y -= lineHeight
@@ -127,10 +165,7 @@ export async function generateLetterPdfBuffer(options: LetterPdfOptions): Promis
   y -= lineHeight * 1.5
 
   // --- Törzs szöveg (sortörés és szótördelés) ---
-  const cleanTartalom = options.tartalom
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .replace(/[^\x20-\x7E\xA0-\xFF\n]/g, "")
+  const cleanTartalom = fmt(options.tartalom)
   const lines = cleanTartalom.split("\n")
 
   for (const line of lines) {
@@ -143,7 +178,7 @@ export async function generateLetterPdfBuffer(options: LetterPdfOptions): Promis
     let currentLine = ""
     for (const word of words) {
       const testLine = currentLine ? `${currentLine} ${word}` : word
-      const textWidth = helvetica.widthOfTextAtSize(testLine, fontSize)
+      const textWidth = regularFont.widthOfTextAtSize(testLine, fontSize)
       if (textWidth > contentWidth) {
         if (y < margin + lineHeight * 3) {
           page = pdfDoc.addPage([pageWidth, pageHeight])
@@ -153,7 +188,7 @@ export async function generateLetterPdfBuffer(options: LetterPdfOptions): Promis
           x: margin,
           y,
           size: fontSize,
-          font: helvetica,
+          font: regularFont,
           color: rgb(0, 0, 0),
         })
         y -= lineHeight
@@ -172,7 +207,7 @@ export async function generateLetterPdfBuffer(options: LetterPdfOptions): Promis
         x: margin,
         y,
         size: fontSize,
-        font: helvetica,
+        font: regularFont,
         color: rgb(0, 0, 0),
       })
       y -= lineHeight
@@ -185,31 +220,31 @@ export async function generateLetterPdfBuffer(options: LetterPdfOptions): Promis
     page = pdfDoc.addPage([pageWidth, pageHeight])
     y = pageHeight - margin
   }
-  page.drawText("Üdvözlettel,", {
+  page.drawText(fmt("Üdvözlettel,"), {
     x: margin,
     y,
     size: fontSize,
-    font: helvetica,
+    font: regularFont,
     color: rgb(0, 0, 0),
   })
   y -= lineHeight * 2.5
-  page.drawText(options.authorNev || "Aláíró", {
+  page.drawText(fmt(options.authorNev || "Aláíró"), {
     x: margin,
     y,
     size: fontSize,
-    font: helveticaBold,
+    font: boldFont,
     color: rgb(0, 0, 0),
   })
 
   // --- Lábléc minden oldalon ---
-  const footerText = `Generálva: eaisyDocs | ${dateStr} | ${options.iktatoszam || "Iktatószám nélkül"}`
-  const footerWidth = helvetica.widthOfTextAtSize(footerText, 7)
+  const footerText = fmt(`Generálva: eaisyDocs | ${dateStr} | ${options.iktatoszam || "Iktatószám nélkül"}`)
+  const footerWidth = regularFont.widthOfTextAtSize(footerText, 7)
   for (const p of pdfDoc.getPages()) {
     p.drawText(footerText, {
       x: (pageWidth - footerWidth) / 2,
       y: 30,
       size: 7,
-      font: helvetica,
+      font: regularFont,
       color: rgb(0.5, 0.5, 0.5),
     })
   }

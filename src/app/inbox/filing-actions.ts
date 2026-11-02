@@ -9,6 +9,12 @@ export async function fileIncomingDocument(formData: FormData) {
   const activeCompany = await getActiveCompanyServer()
   const activeCompanyId = activeCompany?.id || await getActiveCompanyIdServer()
 
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"], activeCompanyId)
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs jogosultságod az irat iktatásához." }
+  }
+
   const mode = (formData.get("mode") as "new" | "existing") || "new"
   const irat_id = formData.get("irat_id") as string
   
@@ -29,12 +35,16 @@ export async function fileIncomingDocument(formData: FormData) {
   const hivatkozott_szam = (formData.get("hivatkozott_szam") as string)?.trim() || ""
   const hatarido = (formData.get("hatarido") as string)?.trim() || ""
 
-  // 0. Double-filing concurrency check: ensure document is still unfiled
+  // 0. Double-filing concurrency check: ensure document is still unfiled and belongs to activeCompanyId
   const { data: checkIrat } = await supabase
     .from("irat")
-    .select("id, ugyirat_id")
+    .select("id, company_id, ugyirat_id")
     .eq("id", irat_id)
     .single()
+
+  if (!checkIrat || (activeCompanyId && checkIrat.company_id && checkIrat.company_id !== activeCompanyId)) {
+    return { error: "Az irat nem található az aktív vállalatnál." }
+  }
 
   if (checkIrat?.ugyirat_id) {
     return { error: "Ezt az iratot már egy másik felhasználó vagy folyamat iktatta!" }
@@ -45,6 +55,7 @@ export async function fileIncomingDocument(formData: FormData) {
     try {
       const { findOrCreatePartner } = await import("@/utils/partner-matcher")
       const pRes = await findOrCreatePartner(supabase, { 
+        company_id: activeCompanyId || null,
         nev: partner_nev || "Ismeretlen partner", 
         adoszam: partner_adoszam || null,
         kulfoldi_adoszam: partner_kulfoldi_adoszam || null,
@@ -62,7 +73,11 @@ export async function fileIncomingDocument(formData: FormData) {
       const updates: Record<string, string> = {}
       if (partner_adoszam) updates.adoszam = normalizeAdoszam(partner_adoszam)
       if (partner_kulfoldi_adoszam) updates.kulfoldi_adoszam = partner_kulfoldi_adoszam.trim().toUpperCase()
-      await supabase.from("partner").update(updates).eq("id", kuldo_partner_id)
+      let partnerUpdateQuery = supabase.from("partner").update(updates).eq("id", kuldo_partner_id)
+      if (activeCompanyId) {
+        partnerUpdateQuery = partnerUpdateQuery.eq("company_id", activeCompanyId)
+      }
+      await partnerUpdateQuery
     } catch (pErr) {
       console.warn("[Filing] Partner adószám pótlási hiba:", pErr)
     }
@@ -79,7 +94,11 @@ export async function fileIncomingDocument(formData: FormData) {
       return { error: "Minden mező kitöltése kötelező új ügyirat esetén (Tárgy, Tételszám, Osztály)!" }
     }
 
-    const { data: ugyszam, error: ugyszamError } = await supabase.rpc('generate_ugyszam', { p_ev: ev, p_prefix: prefix })
+    const { data: ugyszam, error: ugyszamError } = await supabase.rpc('generate_ugyszam', {
+      p_ev: ev,
+      p_prefix: prefix,
+      p_company_id: activeCompanyId || null,
+    })
     if (ugyszamError) return { error: "Hiba az ügyszám generálásakor." }
 
     const ugyInsertData: Record<string, any> = {
@@ -108,7 +127,11 @@ export async function fileIncomingDocument(formData: FormData) {
       return { error: "Hiba az ügy létrehozásakor: " + msg }
     }
 
-    const { data: iktatoszamData, error: iktatoszamError } = await supabase.rpc('generate_iktatoszam', { p_ev: ev, p_prefix: prefix })
+    const { data: iktatoszamData, error: iktatoszamError } = await supabase.rpc('generate_iktatoszam', {
+      p_ev: ev,
+      p_prefix: prefix,
+      p_company_id: activeCompanyId || null,
+    })
     if (iktatoszamError) return { error: "Hiba az iktatószám generálásakor." }
     iktatoszam = iktatoszamData
 
@@ -147,10 +170,12 @@ export async function fileIncomingDocument(formData: FormData) {
     // Fetch existing ugyirat to get its iktatószám, ugy_id and statusz
     const { data: existingDossier, error: dossierError } = await supabase
       .from("ugyirat")
-      .select("id, iktatoszam, ugy_id, statusz")
+      .select("id, company_id, iktatoszam, ugy_id, statusz")
       .eq("id", ugyiratIdToUse)
       .single()
-    if (dossierError || !existingDossier) return { error: "A kiválasztott ügyirat nem található." }
+    if (dossierError || !existingDossier || (activeCompanyId && existingDossier.company_id && existingDossier.company_id !== activeCompanyId)) {
+      return { error: "A kiválasztott ügyirat nem található az aktív vállalatnál." }
+    }
 
     // Szigorú iratkezelési szabály: Lezárt vagy irattározott ügyiratba tilos új iratot iktatni
     const CLOSED_STATUSES = ["irattarban", "lezart", "selejtezheto", "selejtezett"]
@@ -243,6 +268,7 @@ export async function fileIncomingDocument(formData: FormData) {
     await supabase.from("esemeny_naplo").insert({
       entitas_tipus: "irat",
       entitas_id: irat_id,
+      company_id: activeCompanyId || null,
       esemeny_tipus: "iktatva",
       user_id: user?.id || null,
       ip_cim: ip,
@@ -373,9 +399,22 @@ export async function executeAiMetadataExtraction(iratId: string, customSupabase
 
     if (firstFile.kulso_fajl_url) {
       try {
-        const res = await fetch(firstFile.kulso_fajl_url)
-        if (res.ok) {
-          fileBuf = Buffer.from(await res.arrayBuffer())
+        const parsed = new URL(firstFile.kulso_fajl_url)
+        const host = parsed.hostname.toLowerCase()
+        const isSafeExternalUrl =
+          parsed.protocol === "https:" &&
+          host !== "localhost" &&
+          host !== "127.0.0.1" &&
+          host !== "169.254.169.254" &&
+          !host.startsWith("10.") &&
+          !host.startsWith("192.168.") &&
+          !/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+
+        if (isSafeExternalUrl) {
+          const res = await fetch(firstFile.kulso_fajl_url)
+          if (res.ok) {
+            fileBuf = Buffer.from(await res.arrayBuffer())
+          }
         }
       } catch (err) {
         console.warn("[AISuggest] Nem sikerült letölteni a külső fájlt:", err)
@@ -418,21 +457,33 @@ export async function executeAiMetadataExtraction(iratId: string, customSupabase
     }
   }
 
-  // 3. Lekérjük a dinamikus törzsadatokat (Szervezeti Egységek, Irattári Terv, Partnerek)
-  const { data: departments } = await supabase
+  // 3. Lekérjük a dinamikus törzsadatokat (Szervezeti Egységek, Irattári Terv, Partnerek) a céghez szűrve
+  const targetCompanyId = irat.company_id || (await getActiveCompanyIdServer())
+
+  let deptQuery = supabase
     .from("szervezeti_egyseg")
     .select("id, nev, iktato_prefix")
     .order("nev")
-
-  const { data: tervek } = await supabase
+  let tervQuery = supabase
     .from("irattari_terv")
     .select("id, tetelszam, megnevezes")
     .order("tetelszam")
-
-  const { data: partners } = await supabase
+  let partnerQuery = supabase
     .from("partner")
     .select("id, nev, adoszam, kulfoldi_adoszam")
     .order("nev")
+
+  if (targetCompanyId) {
+    deptQuery = deptQuery.eq("company_id", targetCompanyId)
+    tervQuery = tervQuery.eq("company_id", targetCompanyId)
+    partnerQuery = partnerQuery.eq("company_id", targetCompanyId)
+  }
+
+  const [{ data: departments }, { data: tervek }, { data: partners }] = await Promise.all([
+    deptQuery,
+    tervQuery,
+    partnerQuery,
+  ])
 
   const deptsList = departments || []
   const plansList = tervek || []
@@ -450,7 +501,6 @@ export async function executeAiMetadataExtraction(iratId: string, customSupabase
       const emailSenderNev = (irat.partner as any)?.nev || null
 
       // Lekérjük a cég egyedi könyvelési és iktatási szabályait (company_prompt_rules)
-      const targetCompanyId = irat.company_id || (await getActiveCompanyIdServer())
       let promptRulesBlock = ""
       if (targetCompanyId) {
         const { data: companyRules } = await supabase
@@ -727,10 +777,14 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
     const cleanRef = aiResult.hivatkozott_szam.trim()
 
     // 7.a.1 Először ellenőrizzük, hogy közvetlenül egy meglévő ügyirat iktatószáma-e
-    const { data: matchedDossier } = await supabase
+    let dossierQuery = supabase
       .from("ugyirat")
       .select("id, iktatoszam, ugy(targy)")
       .ilike("iktatoszam", `%${cleanRef}%`)
+    if (targetCompanyId) {
+      dossierQuery = dossierQuery.eq("company_id", targetCompanyId)
+    }
+    const { data: matchedDossier } = await dossierQuery
       .limit(1)
       .maybeSingle()
 
@@ -746,7 +800,7 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
     // 7.a.2 KRITIKUS: Ha nem iktatószám, megnézzük, hogy egy már beiktatott IRAT számlaszáma vagy tárgya-e!
     // Példa: "THINK-2026-51 HELYESBÍTŐ SZÁMLÁJA" esetén a "THINK-2026-51" a korábbi számla sorszáma!
     if (!elozmenyUgyiratId && cleanRef.length >= 3) {
-      const { data: matchedIrats } = await supabase
+      let iratsQuery = supabase
         .from("irat")
         .select(`
           id,
@@ -763,7 +817,10 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
         `)
         .not("ugyirat_id", "is", null)
         .or(`targy.ilike.%${cleanRef}%,erkeztetoszam.ilike.%${cleanRef}%,kulso_hivatkozas_id.eq.${cleanRef}`)
-        .limit(1)
+      if (targetCompanyId) {
+        iratsQuery = iratsQuery.eq("company_id", targetCompanyId)
+      }
+      const { data: matchedIrats } = await iratsQuery.limit(1)
 
       if (matchedIrats && matchedIrats.length > 0) {
         const matchedIrat = matchedIrats[0]
@@ -800,7 +857,7 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
     )
     const detectedOriginalInvoiceNo = (correctiveMatch?.[1] || correctiveMatch?.[2])?.trim()
     if (detectedOriginalInvoiceNo && detectedOriginalInvoiceNo.length >= 4) {
-      const { data: matchedIrats } = await supabase
+      let iratsQuery2 = supabase
         .from("irat")
         .select(`
           id,
@@ -815,7 +872,10 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
         `)
         .not("ugyirat_id", "is", null)
         .or(`targy.ilike.%${detectedOriginalInvoiceNo}%,erkeztetoszam.ilike.%${detectedOriginalInvoiceNo}%,kulso_hivatkozas_id.eq.${detectedOriginalInvoiceNo}`)
-        .limit(1)
+      if (targetCompanyId) {
+        iratsQuery2 = iratsQuery2.eq("company_id", targetCompanyId)
+      }
+      const { data: matchedIrats } = await iratsQuery2.limit(1)
 
       if (matchedIrats && matchedIrats.length > 0) {
         const matchedIrat = matchedIrats[0]
@@ -975,7 +1035,22 @@ export async function applyFilingRulesToSuggestions(
 }
 
 export async function generateAISuggestions(iratId: string): Promise<AISuggestionsResult> {
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer()
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs jogosultságod az AI javaslatok lekéréséhez." }
+  }
+
   const supabase = await createClient()
+  const { data: targetIrat } = await supabase
+    .from("irat")
+    .select("id, company_id")
+    .eq("id", iratId)
+    .maybeSingle()
+
+  if (!targetIrat || (auth.activeCompanyId && targetIrat.company_id && targetIrat.company_id !== auth.activeCompanyId)) {
+    return { success: false, error: "Az irat nem található az aktív vállalatnál." }
+  }
 
   // 1. Gyors ellenőrzés: Van-e már előre kiszámolt eredmény az ai_feladat_sor-ban?
   try {
@@ -1039,7 +1114,22 @@ export async function generateAISuggestions(iratId: string): Promise<AISuggestio
  * cache-be — a következő újrafuttatás is mindig frissen próbálja a PDF-et.
  */
 export async function clearAICacheAndRerun(iratId: string): Promise<AISuggestionsResult> {
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs jogosultságod az AI újraelemzéshez." }
+  }
+
   const supabase = await createClient()
+  const { data: targetIrat } = await supabase
+    .from("irat")
+    .select("id, company_id")
+    .eq("id", iratId)
+    .maybeSingle()
+
+  if (!targetIrat || (auth.activeCompanyId && targetIrat.company_id && targetIrat.company_id !== auth.activeCompanyId)) {
+    return { success: false, error: "Az irat nem található az aktív vállalatnál." }
+  }
 
   try {
     // 1. AI eredmény cache törlése
@@ -1079,6 +1169,11 @@ export async function clearAICacheAndRerun(iratId: string): Promise<AISuggestion
  * Lekéri az automatikus előzmény-ügyirat javaslatot az adott beérkező irathoz.
  */
 export async function getAntecedentSuggestionAction(iratId: string) {
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer()
+  if (!auth.authorized) {
+    return null
+  }
   const supabase = await createClient()
   const { findAntecedentSuggestion } = await import("@/utils/antecedent-matcher")
   return await findAntecedentSuggestion(iratId, supabase)
@@ -1097,21 +1192,12 @@ export async function quickAttachToDossier(iratId: string, ugyiratId: string, in
   }
 
   // 1. Felhasználó és jogosultság ellenőrzése
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: "Nincs bejelentkezett felhasználó." }
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Olvasási jogosultsággal nem végezhető összerendelés." }
   }
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor")
-    .eq("id", user.id)
-    .single()
-
-  const role = profile?.docs_szerepkor || "ugyintezo"
-  if (role === "betekinto") {
-    return { error: "Betekintő jogosultsággal nem végezhető összerendelés." }
-  }
+  const user = auth.user
 
   // 2. Atomi Postgres RPC hívása: sorzárolás, alszám kalkuláció, audit napló, feladatsorba ütemezés
   const { data: rpcResult, error: rpcError } = await supabase.rpc("attach_irat_to_dossier_atomic", {
@@ -1154,21 +1240,12 @@ export async function splitAttachmentToNewIncoming(iratId: string, fajlId: strin
   const supabase = await createClient()
 
   // 1. Felhasználó és jogosultság ellenőrzése
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: "Nincs bejelentkezett felhasználó." }
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Betekintő jogosultsággal nem végezhető irat-szétválasztás." }
   }
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor")
-    .eq("id", user.id)
-    .single()
-
-  const role = profile?.docs_szerepkor || "ugyintezo"
-  if (role === "betekinto") {
-    return { error: "Betekintő jogosultsággal nem végezhető irat-szétválasztás." }
-  }
+  const user = auth.user
 
   // 2. Eredeti irat és a kiválasztott fájl lekérése
   const { data: sourceIrat, error: iratErr } = await supabase
@@ -1187,8 +1264,8 @@ export async function splitAttachmentToNewIncoming(iratId: string, fajlId: strin
     .eq("id", iratId)
     .single()
 
-  if (iratErr || !sourceIrat) {
-    return { error: "A forrásirat nem található." }
+  if (iratErr || !sourceIrat || (auth.activeCompanyId && sourceIrat.company_id && sourceIrat.company_id !== auth.activeCompanyId)) {
+    return { error: "A forrásirat nem található az aktív vállalatnál." }
   }
 
   const { data: targetFile, error: fileErr } = await supabase
@@ -1214,7 +1291,10 @@ export async function splitAttachmentToNewIncoming(iratId: string, fajlId: strin
 
   // 3. Új szekvenciális érkeztetőszám allokálása
   const currentYear = new Date().getFullYear()
-  const { data: erkezId } = await supabase.rpc("generate_erkeztetoszam", { p_ev: currentYear })
+  const { data: erkezId } = await supabase.rpc("generate_erkeztetoszam", {
+    p_ev: currentYear,
+    p_company_id: sourceIrat.company_id || null,
+  })
   const newErkeztetoszam = erkezId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
 
   // 4. Új bejövő irat létrehozása
@@ -1260,6 +1340,7 @@ export async function splitAttachmentToNewIncoming(iratId: string, fajlId: strin
     {
       entitas_tipus: "irat",
       entitas_id: iratId,
+      company_id: sourceIrat.company_id,
       esemeny_tipus: "modositva",
       user_id: user.id,
       ip_cim: ip,
@@ -1269,6 +1350,7 @@ export async function splitAttachmentToNewIncoming(iratId: string, fajlId: strin
     {
       entitas_tipus: "irat",
       entitas_id: newIrat.id,
+      company_id: sourceIrat.company_id,
       esemeny_tipus: "erkeztetve",
       user_id: user.id,
       ip_cim: ip,
