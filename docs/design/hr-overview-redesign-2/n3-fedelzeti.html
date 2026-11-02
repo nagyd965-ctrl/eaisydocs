@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N3 — Fedélzeti sáv · HR Áttekintés redesign 2. kör</title>
+<style>
+  :root{
+    --primary:hsl(174,83%,32%); --primary-fg:#fff; --primary-subtle:hsl(174,83%,94%);
+    --bg:hsl(220,7%,97%); --card:#fff; --fg:hsl(210,14%,12%); --muted-fg:hsl(220,7%,42%);
+    --muted:hsl(220,7%,94%); --border:hsl(222,10%,89%); --radius:6px;
+    --success:hsl(142,71%,45%); --success-subtle:hsl(142,71%,94%);
+    --warning:hsl(41,100%,30%); --warning-subtle:hsl(41,100%,92%);
+    --destructive:hsl(0,65%,56%); --destructive-subtle:hsl(0,65%,95%);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--fg);font-size:14px;line-height:1.5;padding:26px 32px 70px;max-width:1180px;margin:0 auto}
+  .pagetop{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px}
+  .pagetop h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+  .pagetop .date{color:var(--muted-fg);font-size:13px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius)}
+
+  /* ===== FEDÉLZETI SÁV: 5 szegmens egy kártyában ===== */
+  .ribbon{display:grid;grid-template-columns:1.5fr 1fr 1fr 1.2fr .8fr;margin-bottom:16px}
+  .rb{padding:16px 20px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:3px;min-width:0}
+  .rb:last-child{border-right:none}
+  .rb .lbl{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted-fg)}
+  .rb .val{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15}
+  .rb .val small{font-size:12px;color:var(--muted-fg);font-weight:500}
+  .rb .sub{font-size:11.5px;color:var(--muted-fg);font-variant-numeric:tabular-nums}
+  .rb.time{background:var(--primary-subtle)}
+  .rb.time .clock{display:flex;align-items:baseline;gap:10px}
+  .rb.time .clock b{font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+  .rb.time .st{font-size:11.5px;color:var(--fg)}
+  .rb.time .st i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success);margin-right:5px}
+  .bar{display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:6px;background:hsl(174,20%,88%)}
+  .bar i{background:var(--primary)} .bar i.w{background:hsl(41,90%,60%)}
+  .btn{border:none;border-radius:4px;cursor:pointer;font:inherit;font-weight:600}
+  .btn-main{background:var(--primary);color:var(--primary-fg);padding:8px 18px;font-size:13px;margin-top:8px;align-self:flex-start}
+  .btn-ghost{background:transparent;color:var(--muted-fg);font-size:11.5px;font-weight:500;padding:2px;align-self:flex-start;margin-top:4px}
+  .btn-ghost:hover{color:var(--fg)}
+  .warn .val{color:var(--warning)}
+  .pend-link{color:var(--primary);text-decoration:none;font-weight:600;font-size:13px}
+
+  /* ===== TARTALOM: kérelmek + célok ===== */
+  .grid{display:grid;grid-template-columns:3fr 2fr;gap:16px}
+  .card-h{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px}
+  .card-t{font-size:13px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--muted-fg)}
+  .filters{display:flex;gap:6px}
+  .f{border:1px solid var(--border);background:var(--card);border-radius:999px;padding:3px 12px;font-size:12px;color:var(--muted-fg);cursor:pointer}
+  .f.on{border-color:var(--primary);color:var(--primary);font-weight:600}
+  .card-b{padding:2px 18px 14px}
+  .req{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:11px 0;border-bottom:1px solid var(--border)}
+  .req:last-child{border-bottom:none}
+  .req-main{display:flex;flex-direction:column;gap:1px;min-width:0}
+  .req-title{font-weight:500;font-size:13.5px}
+  .req-title .tp{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--primary);margin-right:8px}
+  .req-title .tp.warn{color:var(--warning)}
+  .req-sub{font-size:12px;color:var(--muted-fg);font-variant-numeric:tabular-nums}
+  .badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:4px;border:1px solid;white-space:nowrap}
+  .b-pend{color:var(--warning);border-color:hsl(41,80%,70%);background:var(--warning-subtle)}
+  .b-ok{color:var(--success);border-color:hsl(142,60%,72%);background:var(--success-subtle)}
+  .b-no{color:var(--destructive);border-color:hsl(0,60%,80%);background:var(--destructive-subtle)}
+  .kpi{padding:10px 0;border-bottom:1px solid var(--border)}
+  .kpi:last-child{border-bottom:none}
+  .kpi-r1{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+  .kpi-r1 b{font-weight:500}
+  .kpi-r1 .val{font-variant-numeric:tabular-nums;color:var(--muted-fg)}
+  .kpi-r1 .val.good{color:var(--success);font-weight:600}
+  .kpi-r1 .val.bad{color:var(--destructive);font-weight:600}
+  .kpi-prog{height:5px;border-radius:3px;background:var(--muted);position:relative}
+  .kpi-prog i{position:absolute;top:0;left:0;height:100%;background:var(--primary)}
+  .kpi-prog u{position:absolute;top:-2px;width:2px;height:9px;background:var(--fg);opacity:.45}
+  .note{margin-top:30px;padding:14px 18px;border:1px dashed var(--border);border-radius:var(--radius);font-size:13px;color:var(--muted-fg)}
+</style>
+</head>
+<body>
+
+<div class="pagetop">
+  <h1>Áttekintés</h1>
+  <span class="date">2026. november 2., hétfő</span>
+</div>
+
+<!-- ================= FEDÉLZETI SÁV ================= -->
+<div class="card ribbon">
+  <div class="rb time">
+    <span class="lbl">Mai munkanap</span>
+    <div class="clock"><b>08:32</b><span class="st"><i></i>becsekkolva</span></div>
+    <span class="sub">munkaidő 7:45 · szünet 0:45</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="btn btn-main">Kicsekkolás</button>
+      <button class="btn btn-ghost">Szünet</button>
+    </div>
+  </div>
+  <div class="rb">
+    <span class="lbl">Szabadság</span>
+    <span class="val">10 <small>nap</small></span>
+    <div class="bar"><i style="width:44%"></i><i class="w" style="width:16%"></i></div>
+    <span class="sub">11 használt · 4 tervezett</span>
+  </div>
+  <div class="rb">
+    <span class="lbl">Túlóra</span>
+    <span class="val">+7:30 <small>ó</small></span>
+    <span class="sub">2 elszámolásra vár</span>
+  </div>
+  <div class="rb">
+    <span class="lbl">Cafeteria</span>
+    <span class="val">180 000 <small>Ft</small></span>
+    <div class="bar"><i style="width:64%"></i></div>
+    <button class="btn btn-ghost" style="color:var(--primary);font-weight:600">Nyilatkozat megnyitása</button>
+  </div>
+  <div class="rb warn">
+    <span class="lbl">Függő</span>
+    <span class="val">2 <small>kérelem</small></span>
+    <a class="pend-link" href="#">Áttekintés</a>
+  </div>
+</div>
+
+<!-- ================= TARTALOM ================= -->
+<div class="grid">
+  <div class="card">
+    <div class="card-h">
+      <span class="card-t">Kérelmek</span>
+      <div class="filters">
+        <button class="f on">Mind</button>
+        <button class="f">Függő</button>
+        <button class="f">Jóváhagyva</button>
+        <button class="f">Elutasítva</button>
+      </div>
+    </div>
+    <div class="card-b">
+      <div class="req">
+        <div class="req-main">
+          <div class="req-title"><span class="tp">Szabadság</span>Év végi szabadnap</div>
+          <div class="req-sub">Dec 28. – Dec 30. · 3 munkanap · nov 1.</div>
+        </div>
+        <span class="badge b-pend">Függőben</span>
+      </div>
+      <div class="req">
+        <div class="req-main">
+          <div class="req-title"><span class="tp warn">Korrekció</span>Nov 3. becsekkolás javítása</div>
+          <div class="req-sub">08:00 – 16:30 · nov 1.</div>
+        </div>
+        <span class="badge b-pend">Függőben</span>
+      </div>
+      <div class="req">
+        <div class="req-main">
+          <div class="req-title"><span class="tp warn">Túlóra</span>Lecsúsztatás</div>
+          <div class="req-sub">Nov 5. · 8 óra · Kovács Anna</div>
+        </div>
+        <span class="badge b-ok">Jóváhagyva</span>
+      </div>
+      <div class="req">
+        <div class="req-main">
+          <div class="req-title"><span class="tp">Szabadság</span>Őszi pihenő</div>
+          <div class="req-sub">Okt 12. – Okt 14. · 3 nap</div>
+        </div>
+        <span class="badge b-ok">Jóváhagyva</span>
+      </div>
+      <div class="req">
+        <div class="req-main">
+          <div class="req-title"><span class="tp warn">Túlóra</span>Kifizetés</div>
+          <div class="req-sub">Szept 30. · 6 óra</div>
+        </div>
+        <span class="badge b-no">Elutasítva</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><span class="card-t">Céljaim — Q4</span><a class="f on" style="text-decoration:none" href="#">Összes</a></div>
+    <div class="card-b">
+      <div class="kpi">
+        <div class="kpi-r1"><b>Havi ciklusidő teljesítés</b><span class="val good">92%</span></div>
+        <div class="kpi-prog"><i style="width:92%"></i><u style="left:90%"></u></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-r1"><b>Zavartalan futás</b><span class="val good">99,6%</span></div>
+        <div class="kpi-prog"><i style="width:96%"></i><u style="left:95%"></u></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-r1"><b>Határidős ügyek aránya</b><span class="val bad">85%</span></div>
+        <div class="kpi-prog"><i style="width:85%"></i><u style="left:90%"></u></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <b>N3 „Fedélzeti sáv”.</b> Egyetlen pillantás-elv: a lap tetején egy ötszegmensű, keretes sáv hordoz
+  MINDENT, ami napi szinten számít — munkanap (kiemelt háttérrel + gombokkal együtt), szabadság,
+  túlóra, cafeteria (popup-gombbal) és függő kérelmek. Alatta már csak két tartalmi blokk: a szűrhető
+  kérelmek listája és a célok. Görgetés nélkül az összes kulcsadat és a napi akció is látszik; a listák
+  olvasása opcionális. A legkompaktabb és leggyorsabban feldolgozható változat.
+</div>
+
+</body>
+</html>

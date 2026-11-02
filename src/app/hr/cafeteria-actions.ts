@@ -177,6 +177,7 @@ export async function submitCafeteriaDeclaration(
   revalidatePath("/hr")
   revalidatePath("/hr/self-service")
   revalidatePath("/hr/self-service/benefits")
+  revalidatePath("/hr/self-service/documents")
   revalidatePath(`/hr/employee/${employeeId}`)
   
   return { success: true }

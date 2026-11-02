@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HR Áttekintés redesign — 2. kör · N-variánsok (2026.11.02)</title>
+<style>
+  :root{--primary:hsl(174,83%,32%);--bg:hsl(220,7%,97%);--card:#fff;--fg:hsl(210,14%,12%);--muted-fg:hsl(220,7%,42%);--border:hsl(222,10%,89%);--radius:6px}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--fg);padding:36px 40px 70px;max-width:1000px;margin:0 auto;line-height:1.6}
+  h1{font-size:26px;letter-spacing:-.02em;margin-bottom:6px}
+  .lead{color:var(--muted-fg);margin-bottom:10px;font-size:15px}
+  .update{background:hsl(174,83%,94%);border:1px solid hsl(174,40%,80%);border-radius:var(--radius);padding:12px 16px;font-size:13.5px;margin-bottom:28px}
+  h2{font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted-fg);margin:34px 0 14px;border-bottom:1px solid var(--border);padding-bottom:8px}
+  .variants{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .v{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:10px;color:inherit;text-decoration:none}
+  .v:hover{border-color:var(--primary)}
+  .v b{font-size:16px}
+  .v .d{font-size:13px;color:var(--muted-fg)}
+  .v .tag{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--primary)}
+  .arch{display:flex;gap:10px;flex-wrap:wrap}
+  .arch a{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;font-size:13px;color:var(--muted-fg);text-decoration:none}
+  .arch a:hover{color:var(--fg);border-color:var(--muted-fg)}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;font-size:13.5px;margin-top:4px}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{background:hsl(220,7%,94%);font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted-fg)}
+  tr:last-child td{border-bottom:none}
+  .ok{color:hsl(142,71%,38%);font-weight:600}
+  .hint{margin-top:26px;padding:14px 18px;border:1px dashed var(--border);border-radius:var(--radius);font-size:13.5px;color:var(--muted-fg)}
+</style>
+</head>
+<body>
+
+<h1>Dolgozói Portál — Áttekintés oldal redesign</h1>
+<p class="lead">2. tervezési kör · 2026. november 2.</p>
+<div class="update">
+  <b>Frissítés a visszajelzés alapján:</b> a cafeteria nyilatkozat már popupban van (CafeteriaDeclarationModal),
+  így az áttekintésen csak összefoglaló + indító gomb jelenik meg. Az új, N-variánsok ezt a valós állapotot
+  tükrözik, és három <b>alapvetően eltérő lapfilozófiát</b> mutatnak be — nem csak kártya-átpakolást.
+</div>
+
+<h2>2. kör — N variánsok (aktuális)</h2>
+<div class="variants">
+  <a class="v" href="n1-ma-es-allomany.html">
+    <span class="tag">N1</span>
+    <b>Ma és Állomány</b>
+    <span class="d">Két szemantikus zóna: balra „Ma” (becsekkolás, mai beosztás, rajtam álló ügyek — vezetőknél jóváhagyásokkal), jobbra „Állományom” (szabadság, túlóra, cafeteria-popup, célok). Cselekvés és információ szétválasztva.</span>
+  </a>
+  <a class="v" href="n2-savos.html">
+    <span class="tag">N2</span>
+    <b>Sávos</b>
+    <span class="d">Kártyamentes, „prémium dokumentum” hatás: teljes szélességű, vonalakkal elválasztott sávok. Felül infótábla (dátum + nagy óra + gomb), aztán egyenleg-sáv, táblázatos kérelmek, célok. A legnyugodtabb, legeltérőbb karakter.</span>
+  </a>
+  <a class="v" href="n3-fedelzeti.html">
+    <span class="tag">N3</span>
+    <b>Fedélzeti sáv</b>
+    <span class="d">Egy pillantás-elv: felül egy ötszegmensű keretes sáv (munkanap+gombok · szabadság · túlóra · cafeteria · függő), alatta csak kérelmek (szűrőkkel) + célok. Görgetés nélkül minden kulcsadat látszik.</span>
+  </a>
+</div>
+
+<h2>Mit javítanak mindhárman a panaszpontokon</h2>
+<table>
+  <tr><th>Panasz</th><th>Megoldás</th></tr>
+  <tr><td><b>Becsekkolás gomb</b></td><td class="ok">Egy nagy elsődleges gomb (mindig csak az aktuális művelet), szünet másodlagos szöveg-gomb, állapot színnel + szöveggel jelölve. N1-ben interaktívan kipróbálható mind a 4 állapot.</td></tr>
+  <tr><td><b>Cafeteria</b></td><td class="ok">Csak összefoglaló (maradék + sáv + nyilatkozat-állapot) + „Nyilatkozat megnyitása” gomb → a meglévő popup.</td></tr>
+  <tr><td><b>Szabadság</b></td><td class="ok">Nagy egyenlegszám + szegmentált sáv (felhasznált/tervezett/szabad) + lebontás; a duplikált „Felhasznált nap” KPI-kártya megszűnik.</td></tr>
+  <tr><td><b>Kérelmek kilitázva</b></td><td class="ok">Egységes, légmentes sorok típusfelirattal + adat-alcímmel + diszkrét állapotjelvényvel; N2 oszlopos táblázatot, N3 szűrőket is ad.</td></tr>
+  <tr><td><b>Gradiens banner</b></td><td class="ok">Minden variánban eltűnik — a „látvány” a funkcionalitást kapja.</td></tr>
+</table>
+
+<h2>1. kör — V variánsok (archív, cafeteria-űrlappal készült)</h2>
+<div class="arch">
+  <a href="v1-napindito.html">V1 Napindító</a>
+  <a href="v2-tisztaracs.html">V2 Tiszta rács</a>
+  <a href="v3-oldalsav.html">V3 Oldalsáv</a>
+</div>
+
+<div class="hint">
+  <b>Teendő:</b> nézd végig az N1–N3 tervet (N1-nel az alsó kapcsolókkal a becsekkolás 4 állapota kipróbálható),
+  és dönts: (1) melyik filozófia legyen az alap, (2) mit keverjünk át a másik kettőből. Az implementáció a
+  meglévő shadcn-komponensekre (Card, Button, Progress, Dialog) épül majd.
+</div>
+
+</body>
+</html>

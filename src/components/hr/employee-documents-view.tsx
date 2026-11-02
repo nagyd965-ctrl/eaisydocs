@@ -188,11 +188,11 @@ export function EmployeeDocumentsView({
   ], [categories, documents, onlyFiled, onlySigned, onlyUnsigned, selectedCategories])
 
   const getDownloadUrl = (doc: HrDocument) => {
-    if (doc.displayUrl) return doc.displayUrl
     if (doc.signedUrl) return doc.signedUrl
+    if (doc.displayUrl) return doc.displayUrl
     const rawPath = doc.alairt_fajl_url || doc.url
     if (!rawPath) return null
-    if (rawPath.startsWith("http://") || rawPath.startsWith("https://")) {
+    if (rawPath.startsWith("http://") || rawPath.startsWith("https://") || rawPath.startsWith("/api/")) {
       return rawPath
     }
     return `/api/hr/download-document?path=${encodeURIComponent(rawPath)}&bucket=irat_files`

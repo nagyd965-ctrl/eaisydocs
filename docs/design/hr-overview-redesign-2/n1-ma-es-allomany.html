@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N1 — Ma és Állomány · HR Áttekintés redesign 2. kör</title>
+<style>
+  :root{
+    --primary:hsl(174,83%,32%); --primary-fg:#fff; --primary-subtle:hsl(174,83%,94%);
+    --bg:hsl(220,7%,97%); --card:#fff; --fg:hsl(210,14%,12%); --muted-fg:hsl(220,7%,42%);
+    --muted:hsl(220,7%,94%); --border:hsl(222,10%,89%); --radius:6px;
+    --success:hsl(142,71%,45%); --success-subtle:hsl(142,71%,94%);
+    --warning:hsl(41,100%,30%); --warning-subtle:hsl(41,100%,92%);
+    --destructive:hsl(0,65%,56%); --destructive-subtle:hsl(0,65%,95%);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--fg);font-size:14px;line-height:1.5;padding:28px 32px 70px;max-width:1200px;margin:0 auto}
+  .pagetop{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:24px}
+  .pagetop h1{font-size:24px;font-weight:600;letter-spacing:-.02em}
+  .pagetop .date{color:var(--muted-fg);font-size:13px}
+  .layout{display:grid;grid-template-columns:7fr 5fr;gap:32px;align-items:start}
+
+  /* ===== ZÓNAFEJEK ===== */
+  .zone{margin-bottom:14px;display:flex;align-items:baseline;gap:12px}
+  .zone b{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--fg)}
+  .zone span{font-size:12px;color:var(--muted-fg)}
+  .zone .line{flex:1;height:1px;background:var(--border)}
+
+  /* ===== MA zóna: időpanel ===== */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius)}
+  .timepanel{border-left:3px solid var(--success);padding:20px 24px;display:flex;justify-content:space-between;align-items:center;gap:22px;flex-wrap:wrap}
+  .timepanel.brk{border-left-color:var(--warning)}
+  .timepanel.none{border-left-color:var(--border)}
+  .timepanel.out{border-left-color:var(--muted)}
+  .t-left .clock{font-size:42px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.05;letter-spacing:-.01em}
+  .t-left .st{font-size:13px;color:var(--muted-fg);margin-top:4px}
+  .t-left .st b{color:var(--success);font-weight:600}
+  .t-left .st b.brk{color:var(--warning)}
+  .t-mid{display:flex;gap:22px;border-left:1px solid var(--border);padding-left:22px}
+  .tm .v{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+  .tm .l{font-size:11px;color:var(--muted-fg);text-transform:uppercase;letter-spacing:.05em}
+  .btn{border:none;border-radius:var(--radius);cursor:pointer;font:inherit;font-weight:600}
+  .btn-lg{background:var(--primary);color:var(--primary-fg);padding:13px 30px;font-size:15px}
+  .btn-lg:disabled{background:var(--muted);color:var(--muted-fg);cursor:default}
+  .btn-ghost{background:transparent;color:var(--muted-fg);font-size:13px;font-weight:500;padding:6px;margin-top:6px;display:block;width:100%}
+  .btn-ghost:hover{color:var(--fg)}
+  .states{display:flex;gap:6px;margin-top:14px}
+  .dotbtn{border:1px solid var(--border);background:var(--card);border-radius:4px;padding:3px 10px;font-size:11px;color:var(--muted-fg);cursor:pointer}
+  .dotbtn.on{border-color:var(--primary);color:var(--primary);font-weight:600}
+
+  /* ===== MA zóna: ma_DATUM sáv (mai műszak / esemény) ===== */
+  .todayline{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;font-size:13px;color:var(--muted-fg)}
+  .todayline b{color:var(--fg);font-weight:500}
+
+  /* ===== MA zóna: ma rajtam álló ===== */
+  .act{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:13px 18px;border-bottom:1px solid var(--border)}
+  .act:last-child{border-bottom:none}
+  .act-t{font-weight:500}
+  .act-t small{display:block;font-size:12px;color:var(--muted-fg);font-weight:400;margin-top:1px;font-variant-numeric:tabular-nums}
+  .badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:4px;border:1px solid;white-space:nowrap}
+  .b-pend{color:var(--warning);border-color:hsl(41,80%,70%);background:var(--warning-subtle)}
+  .b-ok{color:var(--success);border-color:hsl(142,60%,72%);background:var(--success-subtle)}
+  .b-no{color:var(--destructive);border-color:hsl(0,60%,80%);background:var(--destructive-subtle)}
+
+  /* ===== ÁLLOMÁNYOM zóna ===== */
+  .inv{padding:16px 18px}
+  .inv-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .inv-head .t{font-size:13px;font-weight:600;color:var(--muted-fg)}
+  .inv .big{font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+  .inv .big small{font-size:13px;color:var(--muted-fg);font-weight:500;margin-left:2px}
+  .segbar{display:flex;height:7px;border-radius:4px;overflow:hidden;margin:10px 0 6px;background:var(--muted)}
+  .segbar .u{background:var(--primary)} .segbar .p{background:hsl(41,90%,60%)}
+  .legend{display:flex;gap:14px;font-size:11.5px;color:var(--muted-fg)}
+  .legend i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:4px}
+  .inv-rows{border-top:1px solid var(--border);margin-top:10px;padding-top:8px}
+  .inv-row{display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;color:var(--muted-fg)}
+  .inv-row b{color:var(--fg);font-weight:500;font-variant-numeric:tabular-nums}
+  .link{color:var(--primary);text-decoration:none;font-weight:500;font-size:12.5px}
+  .caf-cta{margin-top:12px;width:100%;background:var(--primary);color:var(--primary-fg);border:none;border-radius:var(--radius);padding:9px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .kpi{padding:9px 0;border-bottom:1px solid var(--border)}
+  .kpi:last-child{border-bottom:none}
+  .kpi-r1{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}
+  .kpi-r1 b{font-weight:500}
+  .kpi-r1 .val{font-variant-numeric:tabular-nums;color:var(--muted-fg)}
+  .kpi-r1 .val.good{color:var(--success);font-weight:600}
+  .kpi-r1 .val.bad{color:var(--destructive);font-weight:600}
+  .kpi-prog{height:5px;border-radius:3px;background:var(--muted);position:relative}
+  .kpi-prog i{position:absolute;top:0;left:0;height:100%;background:var(--primary)}
+  .kpi-prog u{position:absolute;top:-2px;width:2px;height:9px;background:var(--fg);opacity:.45}
+  .note{margin-top:32px;padding:14px 18px;border:1px dashed var(--border);border-radius:var(--radius);font-size:13px;color:var(--muted-fg)}
+</style>
+</head>
+<body>
+
+<div class="pagetop">
+  <h1>Áttekintés</h1>
+  <span class="date">2026. november 2., hétfő</span>
+</div>
+
+<div class="layout">
+  <!-- ==================== MA ==================== -->
+  <div>
+    <div class="zone"><b>Ma</b><span>november 2., hétfő</span><div class="line"></div></div>
+
+    <div class="card timepanel" id="tp">
+      <div class="t-left">
+        <div class="clock" id="clock">08:32</div>
+        <div class="st" id="st">Becsekkolva <b>08:32</b> · eltelt munkaidő 7:45</div>
+        <div class="states">
+          <button class="dotbtn on" onclick="setSt('in')">aktív</button>
+          <button class="dotbtn" onclick="setSt('none')">előtte</button>
+          <button class="dotbtn" onclick="setSt('break')">szünet</button>
+          <button class="dotbtn" onclick="setSt('out')">lezárva</button>
+        </div>
+      </div>
+      <div class="t-mid">
+        <div class="tm"><div class="v">7:45</div><div class="l">Munkaidő</div></div>
+        <div class="tm"><div class="v">0:45</div><div class="l">Szünet</div></div>
+        <div class="tm"><div class="v">8:00</div><div class="l">Normaidő</div></div>
+      </div>
+      <div>
+        <button class="btn btn-lg" id="mainBtn">Kicsekkolás</button>
+        <button class="btn btn-ghost" id="subBtn">Szünet indítása</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="todayline">
+        <span>Mai beosztás</span><b>Első műszak · 08:00 – 16:00 · Iroda</b>
+      </div>
+      <div class="todayline" style="border-top:1px solid var(--border)">
+        <span>Távollévő kolléga</span><b>Kovács Anna (szabadság, visszatér: nov 5.)</b>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="zone" style="padding:14px 18px 2px;margin:0"><b style="font-size:11px">Rajtam álló</b><div class="line"></div><a class="link" href="#">Mind</a></div>
+      <div style="padding-bottom:6px">
+        <div class="act">
+          <div class="act-t">Év végi szabadnap<small>Szabadság · Dec 28. – Dec 30. · 3 munkanap · jóváhagyóra vár</small></div>
+          <span class="badge b-pend">Visszavonásig</span>
+        </div>
+        <div class="act">
+          <div class="act-t">Jóváhagyás: Tóth Bence szabadsága<small>Vezetői jóváhagyás · Nov 10. – Nov 12. · te kellesz még</small></div>
+          <span class="badge b-pend">Te döntesz</span>
+        </div>
+        <div class="act">
+          <div class="act-t">Lecsúsztatási kérelem<small>Túlóra · Nov 5. · 8 óra · Kovács Anna jóváhagyta</small></div>
+          <span class="badge b-ok">Kész</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ÁLLOMÁNYOM ==================== -->
+  <div>
+    <div class="zone"><b>Állományom</b><span>2026</span><div class="line"></div></div>
+
+    <div class="card inv">
+      <div class="inv-head"><span class="t">Szabadság</span><a class="link" href="#">Részletek</a></div>
+      <div class="big">10 <small>nap elérhető</small></div>
+      <div class="segbar"><i class="u" style="width:44%"></i><i class="p" style="width:16%"></i></div>
+      <div class="legend">
+        <span><i style="background:var(--primary)"></i>11 felhasznált</span>
+        <span><i style="background:hsl(41,90%,60%)"></i>4 tervezett</span>
+      </div>
+      <div class="inv-rows">
+        <div class="inv-row"><span>Alapszabadság</span><b>20 nap</b></div>
+        <div class="inv-row"><span>Pótszabadság</span><b>+5 nap</b></div>
+        <div class="inv-row"><span>Kivett / jóváhagyásra vár</span><b>−11 / −4 nap</b></div>
+      </div>
+    </div>
+
+    <div class="card inv" style="margin-top:16px">
+      <div class="inv-head"><span class="t">Túlóra</span><a class="link" href="#">Részletek</a></div>
+      <div class="big">+7:30 <small>óra</small></div>
+      <div class="inv-rows" style="margin-top:8px">
+        <div class="inv-row"><span>Elszámolásra vár</span><b>2 tétel</b></div>
+        <div class="inv-row"><span>Idén elhasznált</span><b>16:00 óra</b></div>
+      </div>
+    </div>
+
+    <div class="card inv" style="margin-top:16px">
+      <div class="inv-head"><span class="t">Cafeteria</span><span style="font-size:12px;color:var(--muted-fg)">nyilatkozat: <b style="color:var(--success);font-weight:600">nyitott</b></span></div>
+      <div class="big">180 000 <small>Ft marad</small></div>
+      <div class="segbar"><i class="u" style="width:64%"></i></div>
+      <div class="legend"><span><i style="background:var(--primary)"></i>320 000 Ft felhasznált</span><span><i style="background:var(--muted)"></i>keret 500 000 Ft</span></div>
+      <button class="caf-cta">Nyilatkozat megnyitása</button>
+    </div>
+
+    <div class="card inv" style="margin-top:16px">
+      <div class="inv-head"><span class="t">Céljaim — Q4</span><a class="link" href="#">Összes</a></div>
+      <div class="kpi">
+        <div class="kpi-r1"><b>Havi ciklusidő</b><span class="val good">92%</span></div>
+        <div class="kpi-prog"><i style="width:92%"></i><u style="left:90%"></u></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-r1"><b>Zavartalan futás</b><span class="val good">99,6%</span></div>
+        <div class="kpi-prog"><i style="width:96%"></i><u style="left:95%"></u></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-r1"><b>Határidős ügyek</b><span class="val bad">85%</span></div>
+        <div class="kpi-prog"><i style="width:85%"></i><u style="left:90%"></u></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <b>N1 „Ma és Állomány”.</b> A lap két szemantikus zónára bomlik: <b>Ma</b> = amiben most cseleksszem
+  (becsekkolás, mai beosztás, rajtam álló ügyek — ide érkezik a vezetői jóváhagyás is), és
+  <b>Állományom</b> = ahol csak olvasok (szabadság, túlóra, cafeteria-popup gomb, célok). A cafeteria
+  kizárólag összefogó blokk + popup-indító gomb. A becsekkolás lap-bal-él színnel jelzi az állapotot;
+  az alsó kapcsolókkal mind a 4 állapot kipróbálható. Ez a felépítés vezetői szerepnél is működik,
+  mert a „Rajtam álló” blokkba természetesen belefér a jóváhagyandó kérelmek sora.
+</div>
+
+<script>
+function setSt(st){
+  document.querySelectorAll('.dotbtn').forEach(b=>b.classList.remove('on'));
+  event.target.classList.add('on');
+  const tp=document.getElementById('tp'),clock=document.getElementById('clock'),
+        st=document.getElementById('st'),main=document.getElementById('mainBtn'),
+        sub=document.getElementById('subBtn');
+  if(st==='in'){tp.className='card timepanel';clock.textContent='08:32';
+    st.innerHTML='Becsekkolva <b>08:32</b> · eltelt munkaidő 7:45';
+    main.textContent='Kicsekkolás';main.disabled=false;sub.style.display='';sub.textContent='Szünet indítása';}
+  if(st==='none'){tp.className='card timepanel none';clock.textContent='—';
+    st.innerHTML='Még nincs mai becsekkolás · tervezett műszak 08:00 – 16:00';
+    main.textContent='Becsekkolás';main.disabled=false;sub.style.display='none';}
+  if(st==='break'){tp.className='card timepanel brk';clock.textContent='12:14';
+    st.innerHTML='Szünet <b class="brk">12:14</b> óta · 22 perc · eddigi munkaidő 3:42';
+    main.textContent='Kicsekkolás';main.disabled=false;sub.style.display='';sub.textContent='Szünet befejezése';}
+  if(st==='out'){tp.className='card timepanel out';clock.textContent='16:47';
+    st.innerHTML='Mai nap lezárva <b>16:47</b> · munkaidő 8:02 · szünet 0:45';
+    main.textContent='Nap lezárva';main.disabled=true;sub.style.display='none';}
+}
+</script>
+</body>
+</html>
