@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { PdfViewerDialog } from "@/components/hr/pdf-viewer-dialog"
 import { calculateWorkingDays } from "@/utils/hr/leave-calculator"
+import { TableToolbar, FilterGroup } from "@/components/table-toolbar/table-toolbar"
 
 const tipusLabel: Record<string, string> = {
   szabadsag: "Szabadság",
@@ -105,6 +106,8 @@ interface UnifiedSelfServiceItem {
   title: string
   categoryBadge: string
   dateText: string
+  isoDateStart: string
+  isoDateEnd: string
   detailText?: string
   indoklas?: string | null
   rejectionReason?: string | null
@@ -142,6 +145,8 @@ export function LeaveHistoryList({
         title: tipusLabel[leave.tipus] ?? String(leave.tipus).toUpperCase(),
         categoryBadge: "Távollét",
         dateText: `${startFormatted} – ${endFormatted}`,
+        isoDateStart: (startDateStr || "").slice(0, 10),
+        isoDateEnd: (endDateStr || startDateStr || "").slice(0, 10),
         detailText: workingDays !== null ? `${workingDays} munkanap` : undefined,
         indoklas: leave.indoklas,
         rejectionReason: leave.elutasitas_oka || leave.elutasitas_indoklas,
@@ -163,12 +168,15 @@ export function LeaveHistoryList({
         ? `Eredeti: ${origIn} – ${origOut} -> Kért idő: ${newIn} – ${newOut}`
         : `Kért idő: ${newIn} – ${newOut}`
 
+      const iso = (c.datum || "").slice(0, 10)
       return {
         id: c.id,
         category: "korrekcio",
         title: "Munkaidő korrekció",
         categoryBadge: "Időkorrekció",
         dateText: formatLocalDate(c.datum),
+        isoDateStart: iso,
+        isoDateEnd: iso,
         detailText,
         indoklas: c.indoklas,
         rejectionReason: c.elutasitas_oka || c.elutasitas_indoklas,
@@ -183,6 +191,7 @@ export function LeaveHistoryList({
       const hours = Math.floor((o.perc || 0) / 60)
       const mins = (o.perc || 0) % 60
       const duration = mins > 0 ? `${hours} óra ${mins} perc` : `${hours} óra`
+      const iso = (o.datum || o.created_at || "").slice(0, 10)
 
       return {
         id: o.id,
@@ -190,6 +199,8 @@ export function LeaveHistoryList({
         title: "Túlóra kérelem",
         categoryBadge: "Túlóra",
         dateText: formatLocalDate(o.datum || o.created_at),
+        isoDateStart: iso,
+        isoDateEnd: iso,
         detailText: `${actionLabel} (${duration})`,
         indoklas: o.megjegyzes,
         rejectionReason: o.elutasitas_oka,
@@ -200,9 +211,81 @@ export function LeaveHistoryList({
   ].sort((a, b) => b.sortDate - a.sortDate)
 
   const router = useRouter()
-  const [statusFilter, setStatusFilter] = useState<"osszes" | "jovahagyasra_var" | "jovahagyva" | "elutasitva">("osszes")
+  const [searchValue, setSearchValue] = useState("")
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null)
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
+
+  const toggleCategory = (catId: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(catId) ? prev.filter((id) => id !== catId) : [...prev, catId]
+    )
+  }
+
+  const toggleStatus = (statId: string) => {
+    setSelectedStatuses((prev) =>
+      prev.includes(statId) ? prev.filter((id) => id !== statId) : [...prev, statId]
+    )
+  }
+
+  const clearAllFilters = () => {
+    setSelectedCategories([])
+    setSelectedStatuses([])
+    setDateFrom("")
+    setDateTo("")
+  }
+
+  const filterGroups: FilterGroup[] = [
+    {
+      id: "category",
+      title: "Kérelem típusa",
+      options: [
+        {
+          id: "tavollet",
+          label: "Távollét / Szabadság",
+          checked: selectedCategories.includes("tavollet"),
+        },
+        {
+          id: "korrekcio",
+          label: "Időkorrekció",
+          checked: selectedCategories.includes("korrekcio"),
+        },
+        {
+          id: "tulora",
+          label: "Túlóra / Csúsztatás",
+          checked: selectedCategories.includes("tulora"),
+        },
+      ],
+      onToggle: toggleCategory,
+    },
+    {
+      id: "status",
+      title: "Státusz",
+      options: [
+        {
+          id: "jovahagyasra_var",
+          label: "Folyamatban (Jóváhagyásra vár)",
+          checked: selectedStatuses.includes("jovahagyasra_var"),
+        },
+        {
+          id: "jovahagyva",
+          label: "Jóváhagyott",
+          checked: selectedStatuses.includes("jovahagyva"),
+        },
+        {
+          id: "elutasitva",
+          label: "Elutasított",
+          checked: selectedStatuses.includes("elutasitva"),
+        },
+      ],
+      onToggle: toggleStatus,
+    },
+  ]
+
+  const activeFiltersCount = selectedCategories.length + selectedStatuses.length
 
   const handleWithdraw = async (item: UnifiedSelfServiceItem) => {
     const key = `${item.category}-${item.id}`
@@ -223,25 +306,58 @@ export function LeaveHistoryList({
     }
   }
 
-  const countAll = unifiedItems.length
-  const countPending = useMemo(
-    () => unifiedItems.filter((i) => i.statusz === "jovahagyasra_var").length,
-    [unifiedItems]
-  )
-  const countApproved = useMemo(
-    () => unifiedItems.filter((i) => i.statusz === "jovahagyva").length,
-    [unifiedItems]
-  )
-  const countRejected = useMemo(
-    () => unifiedItems.filter((i) => i.statusz === "elutasitva").length,
-    [unifiedItems]
-  )
-
   const filteredItems = useMemo(() => {
-    const active = unifiedItems.filter((i) => !removedIds.has(`${i.category}-${i.id}`))
-    if (statusFilter === "osszes") return active
-    return active.filter((i) => i.statusz === statusFilter)
-  }, [unifiedItems, statusFilter, removedIds])
+    const q = searchValue.trim().toLowerCase()
+    return unifiedItems.filter((item) => {
+      if (removedIds.has(`${item.category}-${item.id}`)) return false
+
+      if (
+        selectedCategories.length > 0 &&
+        !selectedCategories.includes(item.category)
+      ) {
+        return false
+      }
+
+      if (
+        selectedStatuses.length > 0 &&
+        !selectedStatuses.includes(item.statusz)
+      ) {
+        return false
+      }
+
+      if (dateFrom && item.isoDateEnd && item.isoDateEnd < dateFrom) {
+        return false
+      }
+      if (dateTo && item.isoDateStart && item.isoDateStart > dateTo) {
+        return false
+      }
+
+      if (q) {
+        const haystack = [
+          item.title,
+          item.categoryBadge,
+          item.dateText,
+          item.detailText,
+          item.indoklas,
+          item.rejectionReason,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+
+      return true
+    })
+  }, [
+    unifiedItems,
+    removedIds,
+    selectedCategories,
+    selectedStatuses,
+    dateFrom,
+    dateTo,
+    searchValue,
+  ])
 
   if (unifiedItems.length === 0) {
     return (
@@ -291,100 +407,37 @@ export function LeaveHistoryList({
 
   return (
     <Card>
-      <CardHeader className="pb-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <CardHeader className="pb-3 border-b space-y-3">
         <div>
           <CardTitle className="text-base font-semibold">Saját kérelmeim</CardTitle>
           <CardDescription className="text-xs mt-0.5">
-            Távolléti és munkaidő korrekciós kérelmek előzményei
+            Távolléti, munkaidő korrekciós és túlóra kérelmek előzményei ({filteredItems.length} / {unifiedItems.length} tétel)
           </CardDescription>
         </div>
 
-        {/* Státusz fülválasztó */}
-        <div className="flex items-center gap-1 p-1 bg-muted/40 rounded-lg border border-border/60 w-fit flex-wrap">
-          <button
-            type="button"
-            onClick={() => setStatusFilter("osszes")}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
-              statusFilter === "osszes"
-                ? "bg-card text-foreground shadow-2xs font-semibold border border-border/50"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span>Összes</span>
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground">
-              {countAll}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter("jovahagyasra_var")}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
-              statusFilter === "jovahagyasra_var"
-                ? "bg-card text-foreground shadow-2xs font-semibold border border-border/50"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span>Folyamatban</span>
-            {countPending > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-warning/20 text-warning">
-                {countPending}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter("jovahagyva")}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
-              statusFilter === "jovahagyva"
-                ? "bg-card text-foreground shadow-2xs font-semibold border border-border/50"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span>Jóváhagyott</span>
-            {countApproved > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-success/20 text-success">
-                {countApproved}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter("elutasitva")}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
-              statusFilter === "elutasitva"
-                ? "bg-card text-foreground shadow-2xs font-semibold border border-border/50"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span>Elutasított</span>
-            {countRejected > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-destructive/15 text-destructive">
-                {countRejected}
-              </span>
-            )}
-          </button>
-        </div>
+        <TableToolbar
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="Keresés típus, dátum vagy indoklás alapján..."
+          dateRange={{
+            from: dateFrom,
+            to: dateTo,
+            onFromChange: setDateFrom,
+            onToChange: setDateTo,
+          }}
+          filterGroups={filterGroups}
+          activeFiltersCount={activeFiltersCount}
+          onClearFilters={clearAllFilters}
+        />
       </CardHeader>
       <CardContent className="p-0">
         {filteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center px-4">
             <p className="text-sm font-semibold text-foreground">
-              {statusFilter === "jovahagyasra_var"
-                ? "Nincs folyamatban lévő kérelmed"
-                : statusFilter === "jovahagyva"
-                ? "Nincsenek jóváhagyott kérelmeid"
-                : statusFilter === "elutasitva"
-                ? "Nincsenek elutasított kérelmeid"
-                : "Nincs megjeleníthető kérelem"}
+              Nincs a szűrésnek megfelelő kérelem
             </p>
             <p className="text-xs text-muted-foreground max-w-sm mt-1">
-              {statusFilter === "jovahagyasra_var"
-                ? "Minden korábban benyújtott kérelmed elbírálásra került."
-                : statusFilter === "jovahagyva"
-                ? "Egyetlen kérelmed sincs jelenleg a jóváhagyott státuszban."
-                : statusFilter === "elutasitva"
-                ? "Egyetlen kérelmed sem került elutasításra."
-                : "Itt jelennek meg a szabadság és munkaidő korrekciós kérelmeid."}
+              Módosítsd a keresési kifejezést vagy töröld az aktív szűrőfeltételeket.
             </p>
           </div>
         ) : (

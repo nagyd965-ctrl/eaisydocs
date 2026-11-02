@@ -31,12 +31,32 @@ function formatMins(perc: number): string {
   return `${sign}${h} óra ${m} perc`
 }
 
-export function LeaveRequestDialog() {
-  const [open, setOpen] = useState(false)
+export function LeaveRequestDialog({
+  controlledOpen,
+  onControlledOpenChange,
+  initialStartDate,
+  initialEndDate,
+  hideTrigger = false,
+  onSuccess,
+}: {
+  controlledOpen?: boolean
+  onControlledOpenChange?: (open: boolean) => void
+  initialStartDate?: string
+  initialEndDate?: string
+  hideTrigger?: boolean
+  onSuccess?: () => void
+} = {}) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen
+  const setOpen = (next: boolean) => {
+    setInternalOpen(next)
+    onControlledOpenChange?.(next)
+  }
+
   const [loading, setLoading] = useState(false)
   const [leaveType, setLeaveType] = useState<string>("szabadsag")
-  const [startDate, setStartDate] = useState("")
-  const [endDate, setEndDate] = useState("")
+  const [startDate, setStartDate] = useState(initialStartDate || "")
+  const [endDate, setEndDate] = useState(initialEndDate || initialStartDate || "")
   const [balance, setBalance] = useState<number | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [holidays, setHolidays] = useState<string[]>([])
@@ -47,6 +67,10 @@ export function LeaveRequestDialog() {
 
   useEffect(() => {
     if (open) {
+      if (initialStartDate) {
+        setStartDate(initialStartDate)
+        setEndDate(initialEndDate || initialStartDate)
+      }
       setBalanceLoading(true)
       const supabase = createClient()
       const currentYear = new Date().getFullYear()
@@ -166,15 +190,18 @@ export function LeaveRequestDialog() {
       setLeaveType("szabadsag")
       setStartDate("")
       setEndDate("")
+      onSuccess?.()
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className={buttonVariants({ variant: "default", className: "gap-2" })}>
-        <CalendarDays className="w-4 h-4" />
-        Új Távollét Kérelem
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger className={buttonVariants({ variant: "default", className: "gap-2" })}>
+          <CalendarDays className="w-4 h-4" />
+          Új Távollét Kérelem
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle>Távollét Rögzítése</DialogTitle>

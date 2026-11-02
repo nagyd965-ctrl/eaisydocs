@@ -435,7 +435,9 @@ export async function importEaisyBooksPayrollEmployeesAction(input: {
         const currentModules = Array.isArray(existingProf?.elerheto_modulok)
           ? existingProf.elerheto_modulok
           : []
-        const updatedModules = Array.from(new Set([...currentModules, "hr"]))
+        const updatedModules = isExistingUser
+          ? Array.from(new Set([...currentModules, "hr"]))
+          : ["hr"]
 
         await supabaseAdmin
           .from("felhasznalo_profil")

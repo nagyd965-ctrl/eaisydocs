@@ -85,7 +85,15 @@ export type TimesheetEntry = {
   shiftPlannedHours?: number | null
   shiftCode?: string | null
   shiftName?: string | null
+  shiftStartTime?: string | null
+  shiftEndTime?: string | null
+  shiftColor?: string | null
   isWeekendShift?: boolean
+  isTransferredWorkday?: boolean
+  pendingLeave?: {
+    id: string
+    tipus: string
+  } | null
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -124,12 +132,12 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
 
     if (jelenletError) throw new Error(jelenletError.message)
 
-    // Fetch Távollét
+    // Fetch Távollét (jóváhagyott és jóváhagyásra váró is a naptár nézethez)
     let tavolletQuery = supabase
       .from("hr_tavollet")
       .select("*")
       .eq("dolgozo_id", employeeId)
-      .eq("statusz", "jovahagyva")
+      .in("statusz", ["jovahagyva", "jovahagyasra_var"])
       .lte("kezdet_datuma", endDate)
       .gte("veg_datuma", startDate)
     if (activeCompanyId) {
@@ -228,15 +236,29 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
       const shiftHours = assignedShift ? Number(assignedShift.tervezett_ora || 8.0) : null
       const shiftCode = assignedShift?.sablon?.kod || (assignedShift ? "Egyedi" : null)
       const shiftName = assignedShift?.sablon?.megnevezes || (assignedShift ? "Egyedi műszak" : null)
+      const rawStart = assignedShift?.egyedi_kezdes || assignedShift?.sablon?.kezdes_ido || null
+      const rawEnd = assignedShift?.egyedi_befejezes || assignedShift?.sablon?.befejezes_ido || null
+      const shiftStartTime = rawStart ? String(rawStart).slice(0, 5) : null
+      const shiftEndTime = rawEnd ? String(rawEnd).slice(0, 5) : null
+      const shiftColor = assignedShift?.sablon?.szin_kod || null
       const isWeekendShift = isWeekend && !!assignedShift
+      const isTransferredWorkday = athelyezettMunkanapok.has(dateStr)
 
       // Jelenlét (Munka)
       const munka = jelenletData?.find(j => j.datum === dateStr)
 
-      // Távollét
+      // Jóváhagyott távollét
       const tavollet = tavolletData?.find(t => {
-        return dateStr >= t.kezdet_datuma && dateStr <= t.veg_datuma
+        return t.statusz === "jovahagyva" && dateStr >= t.kezdet_datuma && dateStr <= t.veg_datuma
       })
+
+      // Jóváhagyásra váró távollét
+      const pendingLeaveRow = tavolletData?.find(t => {
+        return t.statusz === "jovahagyasra_var" && dateStr >= t.kezdet_datuma && dateStr <= t.veg_datuma
+      })
+      const pendingLeave = pendingLeaveRow
+        ? { id: String(pendingLeaveRow.id), tipus: String(pendingLeaveRow.tipus) }
+        : null
 
       if (tavollet) {
         timesheet.push({
@@ -255,7 +277,12 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           shiftPlannedHours: shiftHours,
           shiftCode,
           shiftName,
-          isWeekendShift: false
+          shiftStartTime,
+          shiftEndTime,
+          shiftColor,
+          isWeekendShift: false,
+          isTransferredWorkday,
+          pendingLeave
         })
       } else if (unnepnapok.has(dateStr)) {
         // Magyar munkaszüneti nap
@@ -270,7 +297,12 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           shiftPlannedHours: shiftHours,
           shiftCode,
           shiftName,
-          isWeekendShift: false
+          shiftStartTime,
+          shiftEndTime,
+          shiftColor,
+          isWeekendShift: false,
+          isTransferredWorkday,
+          pendingLeave
         })
       } else if (munka) {
         timesheet.push({
@@ -287,10 +319,14 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           shiftPlannedHours: shiftHours,
           shiftCode,
           shiftName,
-          isWeekendShift
+          shiftStartTime,
+          shiftEndTime,
+          shiftColor,
+          isWeekendShift,
+          isTransferredWorkday,
+          pendingLeave
         })
       } else if (isWeekend) {
-        const isTransferredWorkday = athelyezettMunkanapok.has(dateStr)
         timesheet.push({
           id: dateStr, // Unique key for the day
           datum: dateStr,
@@ -306,7 +342,12 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           shiftPlannedHours: shiftHours,
           shiftCode,
           shiftName,
-          isWeekendShift
+          shiftStartTime,
+          shiftEndTime,
+          shiftColor,
+          isWeekendShift,
+          isTransferredWorkday,
+          pendingLeave
         })
       } else {
         // Nincs adat, de munkanap
@@ -321,7 +362,12 @@ export async function getMonthlyTimesheet(employeeId: string, year: number, mont
           shiftPlannedHours: shiftHours,
           shiftCode,
           shiftName,
-          isWeekendShift: false
+          shiftStartTime,
+          shiftEndTime,
+          shiftColor,
+          isWeekendShift: false,
+          isTransferredWorkday,
+          pendingLeave
         })
       }
     }

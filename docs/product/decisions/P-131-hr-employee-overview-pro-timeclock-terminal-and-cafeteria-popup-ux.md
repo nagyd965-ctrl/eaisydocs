@@ -10,6 +10,10 @@
   - `src/app/hr/self-service/documents/page.tsx`
   - `src/components/hr/employee-documents-view.tsx`
   - `src/app/hr/cafeteria-actions.ts`
+  - `src/components/hr/employee-timesheet.tsx`
+  - `src/app/hr/attendance-actions.ts`
+  - `src/components/hr/leave-request-dialog.tsx`
+  - `src/components/hr/leave-history-list.tsx`
 
 ## Kontextus és Probléma
 A Dolgozói Portál nyitóoldala (`/hr` — `Áttekintés`) korábban aránytalanul üres „Időadat Rögzítés" dobozt, duplikált KPI kártyákat és egy állandóan kint lévő „Cafeteria Nyilatkozat" kártyát tartalmazott, miközben a véglegesített Cafeteria nyilatkozat nem volt közvetlenül elérhető a dolgozó saját `Dokumentumaim` (`/hr/self-service/documents`) tárhelyén.
@@ -37,3 +41,9 @@ A Dolgozói Portál nyitóoldala (`/hr` — `Áttekintés`) korábban aránytala
    - A Cafeteria kártya kikerült az `Áttekintés` oldalról.
    - Ha a dolgozónak van idei Cafeteria kerete, de még nem véglegesítette (`!nyilatkozat_lezarva`), az `Áttekintés` oldal megnyitásakor automatikusan megjelenik a `CafeteriaDeclarationModal` pop-up.
    - A véglegesített (`nyilatkozat_lezarva === true`) Cafeteria nyilatkozat automatikusan bekerül a `Dokumentumaim` (`/hr/self-service/documents`) oldalra (`Cafeteria / Béren kívüli juttatások` kategóriában), ahol helyben előnézetben megtekinthető (`DocumentViewer`) és PDF-ként letölthető.
+6. **Interaktív Havi Beosztás- és Jelenléti Naptár (`Naptár nézet` | `Táblázatos ív`) + Saját Kérelmeim `TableToolbar` (`/hr/self-service/time`):**
+   - A `Jelenlét` oldalon a `Saját Jelenléti Ív` kártya fejlécébe `Naptár nézet` | `Táblázatos ív` váltó került (`EmployeeTimesheet`).
+   - A 7 oszlopos (`H–V`) havi naptárrács minden napján megjelenik a kiírt műszakbeosztás (`hr_beosztas` + `hr_muszak_sablon`), a tényleges belépés–kilépés és nettó munkaidő, a szabadság/betegszabadság és a munkaszüneti/áthelyezett munkanap.
+   - Bármely napra kattintva megnyílik a napi részletező sáv közvetlen **Munkaidő korrekció kérése** és **Szabadság igénylése erre a napra** (`LeaveRequestDialog` előtöltött dátummal) gombokkal.
+   - A `Saját kérelmeim` (`LeaveHistoryList`) lista felett a kanonikus `TableToolbar` biztosítja a szabadszavas keresést, a dátumtartomány-szűrést, valamint a típus- és státuszszűrőket.
+

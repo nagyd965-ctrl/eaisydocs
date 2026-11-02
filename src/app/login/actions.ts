@@ -11,6 +11,8 @@ export async function login(formData: FormData) {
   // Explicit cél (pl. e-mail link): belépés után ide visszavezetni — csak
   // validált, belső útvonalat fogadunk el (open-redirect védelem).
   const nextPath = getSafeRedirectPath(formData.get("next") as string | null)
+  const rawTargetModule = formData.get("targetModule") as string | null
+  const targetModule: "docs" | "hr" = rawTargetModule === "hr" ? "hr" : "docs"
 
   const data = {
     email: formData.get("email") as string,
@@ -20,44 +22,97 @@ export async function login(formData: FormData) {
   const { error, data: authData } = await supabase.auth.signInWithPassword(data)
 
   if (error) {
-    redirect("/login?message=Hibás e-mail vagy jelszó")
-  }
-
-  // MFA ellenőrzés — ha a user kétlépcsős azonosítást állított be,
-  // az AAL szint aal1 → aal2 átmenetet igényel, átirányítjuk a kód bekérő oldalra
-  // (az eredeti célt átvisszük, hogy a kód beadása után is oda jusson)
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-  if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
-    redirect(
-      nextPath
-        ? `/login/mfa-verify?redirectTo=${encodeURIComponent(nextPath)}`
-        : "/login/mfa-verify"
-    )
+    const params = new URLSearchParams()
+    params.set("message", "Hibás e-mail vagy jelszó")
+    params.set("module", targetModule)
+    if (data.email) params.set("email", data.email.trim())
+    if (nextPath) params.set("next", nextPath)
+    redirect(`/login?${params.toString()}`)
   }
 
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("elerheto_modulok, hr_szerepkor")
+    .select("elerheto_modulok, hr_szerepkor, hr_modulok")
     .eq("id", authData.user.id)
     .single()
 
-  revalidatePath("/", "layout")
+  const modulok = profile?.elerheto_modulok ?? ["docs"]
+  const hasDocs = modulok.includes("docs")
+  const hasHr = modulok.includes("hr")
 
-  // Ha a felhasználó konkrét oldalra indult (pl. értesítési link), belépés után oda visszavezetni.
-  // Jogosultsági esetén az oldal saját védelme továbbirányít — itt nem kell duplikálni.
-  if (nextPath) {
-    redirect(nextPath)
+  // Szigorú munkaterület-ellenőrzés bejelentkezéskor:
+  // Ha a felhasználó az eaisyDocs fülön próbál belépni, de csak eaisyHR hozzáférése van (vagy fordítva),
+  // nem engedjük be a másik modulba, hanem kijelentkeztetjük és egyértelmű hibaüzenetet adunk.
+  if (targetModule === "docs" && !hasDocs) {
+    await supabase.auth.signOut()
+    const params = new URLSearchParams()
+    params.set(
+      "message",
+      hasHr
+        ? "Ehhez a fiókhoz kizárólag az eaisyHR munkaterület érhető el."
+        : "Ehhez a fiókhoz nincs engedélyezve az eaisyDocs munkaterület."
+    )
+    params.set("module", "docs")
+    if (hasHr) params.set("suggestedModule", "hr")
+    if (data.email) params.set("email", data.email.trim())
+    if (nextPath) params.set("next", nextPath)
+    redirect(`/login?${params.toString()}`)
   }
 
-  if (profile?.elerheto_modulok) {
-    if (profile.elerheto_modulok.includes("hr") && !profile.elerheto_modulok.includes("docs")) {
-      const isHrStaff = ["hr_munkatars", "hr_vezeto", "admin", "rendszergazda", "auditor"].includes(profile.hr_szerepkor || "")
-      return redirect(isHrStaff ? "/hr/admin" : "/hr")
+  if (targetModule === "hr" && !hasHr) {
+    await supabase.auth.signOut()
+    const params = new URLSearchParams()
+    params.set(
+      "message",
+      hasDocs
+        ? "Ehhez a fiókhoz kizárólag az eaisyDocs munkaterület érhető el."
+        : "Ehhez a fiókhoz nincs engedélyezve az eaisyHR munkaterület."
+    )
+    params.set("module", "hr")
+    if (hasDocs) params.set("suggestedModule", "docs")
+    if (data.email) params.set("email", data.email.trim())
+    if (nextPath) params.set("next", nextPath)
+    redirect(`/login?${params.toString()}`)
+  }
+
+  const hrModules = Array.isArray((profile as any)?.hr_modulok)
+    ? ((profile as any).hr_modulok as string[])
+    : []
+  const isHrStaff =
+    [
+      "hr_munkatars",
+      "hr_vezeto",
+      "admin",
+      "rendszergazda",
+      "auditor",
+    ].includes(profile?.hr_szerepkor || "") || hrModules.includes("admin")
+  const hrDefaultPath = isHrStaff ? "/hr/admin" : "/hr"
+
+  let destinationPath = targetModule === "hr" ? hrDefaultPath : "/"
+
+  // Ha konkrét belső aloldalra tartott (nem pusztán a gyökér "/" átirányításból jött),
+  // és az adott modulhoz van jogosultsága, megőrizzük a mélylinket:
+  if (nextPath && nextPath !== "/") {
+    const isNextHr = nextPath.startsWith("/hr")
+    if (isNextHr && hasHr && targetModule === "hr") {
+      destinationPath = nextPath
+    } else if (!isNextHr && hasDocs && targetModule === "docs") {
+      destinationPath = nextPath
     }
   }
 
-  // Alapértelmezett bejelentkezés (eaisyDocs)
-  redirect("/")
+  // MFA ellenőrzés — ha a user kétlépcsős azonosítást állított be,
+  // az AAL szint aal1 → aal2 átmenetet igényel, átirányítjuk a kód bekérő oldalra
+  // (a feloldott célútvonalat átvisszük, hogy a kód beadása után is oda jusson)
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
+    redirect(
+      `/login/mfa-verify?redirectTo=${encodeURIComponent(destinationPath)}`
+    )
+  }
+
+  revalidatePath("/", "layout")
+  redirect(destinationPath)
 }
 
 export async function loginWithProvider(provider: "google" | "azure") {

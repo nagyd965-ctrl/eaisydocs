@@ -35,6 +35,14 @@ export function LayoutWrapper({
   const [timeoutMinutes, setTimeoutMinutes] = useState<number | null>(null)
 
   useEffect(() => {
+    if (pathname.startsWith("/hr") || pathname.startsWith("/karrier")) {
+      document.title = "eaisyHR - Humánügyviteli rendszer"
+    } else if (!pathname.startsWith("/login")) {
+      document.title = "eaisyDocs - Iratkezelő"
+    }
+  }, [pathname])
+
+  useEffect(() => {
     const isPublic = pathname.startsWith("/login") || pathname.startsWith("/auth") || pathname.startsWith("/embed") || pathname.startsWith("/archive/print") || pathname.startsWith("/karrier")
     if (!isPublic && !pathname.startsWith("/hr")) {
       // Ha a felhasználónak NINCS docs modulja, de van hr modulja, azonnal átirányítjuk a HR felületre

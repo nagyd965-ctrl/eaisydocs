@@ -1,5 +1,11 @@
+import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { createClient } from "@/utils/supabase/server"
+
+export const metadata: Metadata = {
+  title: "eaisyHR - Humánügyviteli rendszer",
+  description: "Egységes vállalati humánügyviteli és munkaidő-nyilvántartó rendszer",
+}
 
 export default async function HRLayout({
   children,
@@ -13,7 +19,7 @@ export default async function HRLayout({
     redirect("/login")
   }
 
-  // Jogsultság (Modul) ellenőrzése az adatbázisból
+  // Jogosultság (Modul) ellenőrzése az adatbázisból
   const { data } = await supabase
     .from("felhasznalo_profil")
     .select("elerheto_modulok")
@@ -22,7 +28,7 @@ export default async function HRLayout({
 
   if (!data?.elerheto_modulok?.includes("hr")) {
     // Ha nincs HR modulja, azonnal visszadobjuk a kezdőlapra (eaisyDocs)
-    redirect("/") 
+    redirect("/")
   }
 
   // Ha minden rendben, jöhetnek az aloldalak
