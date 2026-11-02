@@ -138,11 +138,12 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** alkalmazásban megho
 | [P-128](./P-128-job-detail-and-hr-admin-duplicate-edit-button-cleanup-ux.md) | 2026-10-29 | Munkakör-adatlap és HR Munkaasztal Duplikált Szerkesztőgomb-takarítás és Passzív KPI Kártyák UX | `[HR]` | `HR / Job Catalog, Employee 360 & Global Shell UX` | [A-029](../../architecture/decisions/A-029-global-ui-consistency-and-unified-components.md), [A-053](../../architecture/decisions/A-053-hr-job-profile-and-catalog-action-deduplication.md), `src/app/hr/job/[id]/page.tsx`, `job-profile-tasks-section.tsx`, `src/app/hr/admin/page.tsx` |
 | [P-129](./P-129-login-redesign-and-password-recovery-ux.md) | 2026-10-29 | Bejelentkezési Oldal Újratervezése, Elfelejtett-jelszó Folyamat és Platform Branding UX | `[Közös]` | `Auth / Login & Password Recovery UX` | [A-095](../../architecture/decisions/A-095-password-recovery-hungarian-email-and-login-shell-architecture.md), `src/app/login/*`, `src/app/auth/set-password/page.tsx`, `src/app/auth/callback/route.ts`, `src/components/layout-wrapper.tsx`, `docs/design/login-redesign/` |
 | [P-130](./P-130-login-ux-polish-and-gradient-background.md) | 2026-10-30 | Bejelentkezési Űrlap UX-CSomag — Gomb-Betöltésállapot, Jelszó-Megjelenítés, Caps Lock Figyelmeztetés és V16 Gradiens-Mosás Háttér | `[Közös]` | `Auth / Login UX` | [A-096](../../architecture/decisions/A-096-login-next-redirect-architecture.md), `src/app/login/login-form.tsx`, `src/app/login/login-shell.tsx`, `src/app/globals.css`, `docs/design/login-redesign-v2/` |
+| [P-131](./P-131-hr-employee-overview-pro-timeclock-terminal-and-cafeteria-popup-ux.md) | 2026-11-02 | Dolgozói Portál Áttekintés (`/hr`) Újratervezés, Profi Munkaidő Terminál és Cafeteria Nyilatkozat Pop-up + Dokumentumaim Integráció | `[HR]` | `HR / Self-Service Overview, Time Clock Terminal & Cafeteria UX` | `src/app/hr/page.tsx`, `src/components/hr/time-tracking-card.tsx`, `src/components/hr/cafeteria-declaration-modal.tsx`, `src/app/hr/self-service/documents/page.tsx`, `src/components/hr/employee-documents-view.tsx` |
 
 ---
 
 > **Új PRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-131`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `P-132`), készítsd el a fájlt `P-XXX-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 
 
 
