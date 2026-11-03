@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,11 +21,13 @@ interface TeamTabProps {
 }
 
 const roleMap: Record<string, string> = {
-  admin: "Szuper Admin (Teszt)",
+  admin: "Admin",
   rendszergazda: "Rendszergazda",
-  vezeto: "Vezető",
-  iktato: "Iktató",
-  ugyintezo: "Ügyintéző"
+  vezeto: "Vezető / Szignáló",
+  iktato: "Iratkezelő / Iktató",
+  ugyintezo: "Ügyintéző",
+  betekinto: "Betekintő",
+  auditor: "Auditor"
 }
 
 const clearanceMap: Record<string, string> = {
@@ -35,6 +38,7 @@ const clearanceMap: Record<string, string> = {
 }
 
 export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProps) {
+  const router = useRouter()
   const [createLoading, setCreateLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [editRoleDialogOpen, setEditRoleDialogOpen] = useState(false)
@@ -58,6 +62,7 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
       toast.success("Sikeres törlés", { description: `${deletingMember.nev} felhasználó törölve.` })
       setDeleteOpen(false)
       setDeletingMember(null)
+      router.refresh()
     }
   }
 
@@ -167,6 +172,7 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
               } else {
                 toast.success("Sikeres", { description: "Sikeresen létrehozva!" })
                 setOpen(false)
+                router.refresh()
               }
             }}>
               <DialogHeader>
@@ -190,11 +196,11 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Szerepkör</Label>
-                  <select id="role" name="role" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                    <option value="admin">Szuper Admin (Teszt)</option>
+                  <select id="role" name="role" defaultValue="ugyintezo" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                    <option value="admin">Admin</option>
                     <option value="rendszergazda">Rendszergazda</option>
-                    <option value="iktato">Iratkezelő / iktató</option>
-                    <option value="vezeto">Vezető / szignáló</option>
+                    <option value="vezeto">Vezető / Szignáló</option>
+                    <option value="iktato">Iratkezelő / Iktató</option>
                     <option value="ugyintezo">Ügyintéző</option>
                     <option value="betekinto">Betekintő</option>
                     <option value="auditor">Auditor</option>
@@ -241,6 +247,7 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
               } else {
                 toast.success("Sikeres", { description: "Jogosultságok és biztonsági minősítés módosítva." })
                 setEditRoleDialogOpen(false)
+                router.refresh()
               }
             }}>
               <DialogHeader>
@@ -264,14 +271,16 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
                         required
                       >
                         <SelectTrigger id="edit-role" className={isSelfAdmin ? "opacity-80 cursor-not-allowed bg-muted/40" : ""}>
-                          <SelectValue placeholder="Válassz...">{roleMap[selectedMemberRole]}</SelectValue>
+                          <SelectValue placeholder="Válassz...">{roleMap[selectedMemberRole] || selectedMemberRole}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="rendszergazda">Rendszergazda</SelectItem>
-                          <SelectItem value="vezeto">Vezető</SelectItem>
-                          <SelectItem value="iktato">Iktató</SelectItem>
+                          <SelectItem value="vezeto">Vezető / Szignáló</SelectItem>
+                          <SelectItem value="iktato">Iratkezelő / Iktató</SelectItem>
                           <SelectItem value="ugyintezo">Ügyintéző</SelectItem>
+                          <SelectItem value="betekinto">Betekintő</SelectItem>
+                          <SelectItem value="auditor">Auditor</SelectItem>
                         </SelectContent>
                       </Select>
                       {isSelfAdmin && (

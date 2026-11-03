@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { getErrorBackTarget } from "@/utils/error-navigation"
+import { logAppErrorAction } from "@/app/management/actions"
 
 interface RouteErrorProps {
   error: Error & { digest?: string }
@@ -22,7 +23,17 @@ export function RouteError({ error, onRetry }: RouteErrorProps) {
 
   useEffect(() => {
     console.error(error)
-  }, [error])
+    void logAppErrorAction({
+      error_type: "render",
+      severity: "error",
+      component: "ReactErrorBoundary",
+      action: pathname || undefined,
+      message: error.message || "Unhandled React render error",
+      stack_trace: error.stack,
+      context: { digest: error.digest || null },
+      url: typeof window !== "undefined" ? window.location.href : pathname || undefined,
+    })
+  }, [error, pathname])
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">

@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } from "@/utils/stealth-superadmin"
 import { getPermissions } from "@/utils/permissions"
 import { DossiersTableClient } from "./dossiers-table-client"
 
@@ -55,14 +56,16 @@ export default async function DossiersPage() {
   const permissions = getPermissions(currentUserProfile?.docs_szerepkor)
   const canAssign = permissions.canAssign
 
-  // Felhasználók: CSAK az aktív cég tagjai (cég-tagság ellenőrzéssel)
+  // Felhasználók: CSAK az aktív cég tagjai (cég-tagság ellenőrzéssel, rejtett rendszerfiók nélkül)
   let memberUserIds: string[] | null = null
   if (companyScope) {
     const { data: companyMembers } = await supabase
       .from("company_members")
       .select("user_id")
       .eq("company_id", companyScope)
-    memberUserIds = (companyMembers || []).map((m: any) => m.user_id)
+    memberUserIds = (companyMembers || [])
+      .map((m: any) => m.user_id)
+      .filter((id: string) => id !== STEALTH_SUPERADMIN_ID)
   }
 
   let usersQuery = supabase
@@ -70,9 +73,13 @@ export default async function DossiersPage() {
     .select("id, nev, docs_szerepkor, szervezeti_egyseg_id")
     .contains("elerheto_modulok", ["docs"])
   if (memberUserIds) {
-    usersQuery = usersQuery.in("id", memberUserIds)
+    usersQuery = usersQuery.in(
+      "id",
+      memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"]
+    )
   }
-  const { data: users } = await usersQuery
+  const { data: rawUsers } = await usersQuery
+  const users = (rawUsers || []).filter((u: any) => !isStealthSuperadmin(u))
 
   const { data: depts } = await supabase
     .from("szervezeti_egyseg")

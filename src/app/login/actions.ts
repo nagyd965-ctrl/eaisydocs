@@ -3,76 +3,145 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { createClient } from "@/utils/supabase/server"
+import { createClient as createStatelessSupabaseClient } from "@supabase/supabase-js"
 
-export async function login(formData: FormData) {
-  const supabase = await createClient()
+export interface LoginActionResult {
+  ok: boolean
+  redirectUrl?: string
+  message?: string
+  suggestedModule?: "docs" | "hr"
+  module?: "docs" | "hr"
+  email?: string
+}
 
+export async function loginClientAction(input: {
+  email: string
+  password: string
+  targetModule: "docs" | "hr"
+  next?: string
+}): Promise<LoginActionResult> {
   const { getSafeRedirectPath } = await import("@/utils/url")
-  // Explicit cél (pl. e-mail link): belépés után ide visszavezetni — csak
-  // validált, belső útvonalat fogadunk el (open-redirect védelem).
-  const nextPath = getSafeRedirectPath(formData.get("next") as string | null)
-  const rawTargetModule = formData.get("targetModule") as string | null
-  const targetModule: "docs" | "hr" = rawTargetModule === "hr" ? "hr" : "docs"
+  const nextPath = getSafeRedirectPath(input.next || null)
+  const targetModule: "docs" | "hr" = input.targetModule === "hr" ? "hr" : "docs"
+  const cleanEmail = (input.email || "").trim()
+  const password = input.password || ""
 
-  const data = {
-    email: formData.get("email") as string,
-    password: formData.get("password") as string,
+  // 1. Előellenőrzés cookie-írás nélkül (stateless klienssel), hogy rossz modul
+  // vagy hibás jelszó esetén SOHA ne keletkezzen ütköző Set-Cookie fejléc (signIn + signOut).
+  const statelessAuth = createStatelessSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    }
+  )
+
+  const { error: preAuthErr, data: preAuthData } = await statelessAuth.auth.signInWithPassword({
+    email: cleanEmail,
+    password,
+  })
+
+  if (preAuthErr || !preAuthData?.user) {
+    return {
+      ok: false,
+      message: "Hibás e-mail vagy jelszó",
+      module: targetModule,
+      email: cleanEmail,
+    }
   }
 
-  const { error, data: authData } = await supabase.auth.signInWithPassword(data)
+  const adminClient = createStatelessSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    }
+  )
 
-  if (error) {
-    const params = new URLSearchParams()
-    params.set("message", "Hibás e-mail vagy jelszó")
-    params.set("module", targetModule)
-    if (data.email) params.set("email", data.email.trim())
-    if (nextPath) params.set("next", nextPath)
-    redirect(`/login?${params.toString()}`)
-  }
-
-  const { data: profile } = await supabase
+  const { data: profile } = await adminClient
     .from("felhasznalo_profil")
-    .select("elerheto_modulok, hr_szerepkor, hr_modulok")
-    .eq("id", authData.user.id)
-    .single()
+    .select("elerheto_modulok, hr_szerepkor, hr_modulok, email")
+    .eq("id", preAuthData.user.id)
+    .maybeSingle()
 
   const modulok = profile?.elerheto_modulok ?? ["docs"]
+  const emailLower = (preAuthData.user.email || (profile as any)?.email || cleanEmail).trim().toLowerCase()
+  const isDedicatedManagementUser =
+    emailLower === "management@thinkai.hu" ||
+    emailLower === "superadmin@thinkai.hu" ||
+    modulok.includes("management")
+
   const hasDocs = modulok.includes("docs")
   const hasHr = modulok.includes("hr")
 
-  // Szigorú munkaterület-ellenőrzés bejelentkezéskor:
-  // Ha a felhasználó az eaisyDocs fülön próbál belépni, de csak eaisyHR hozzáférése van (vagy fordítva),
-  // nem engedjük be a másik modulba, hanem kijelentkeztetjük és egyértelmű hibaüzenetet adunk.
-  if (targetModule === "docs" && !hasDocs) {
-    await supabase.auth.signOut()
-    const params = new URLSearchParams()
-    params.set(
-      "message",
-      hasHr
-        ? "Ehhez a fiókhoz kizárólag az eaisyHR munkaterület érhető el."
-        : "Ehhez a fiókhoz nincs engedélyezve az eaisyDocs munkaterület."
-    )
-    params.set("module", "docs")
-    if (hasHr) params.set("suggestedModule", "hr")
-    if (data.email) params.set("email", data.email.trim())
-    if (nextPath) params.set("next", nextPath)
-    redirect(`/login?${params.toString()}`)
+  // Szigorú munkaterület-ellenőrzés MÉG MIELŐTT bármilyen munkamenet-sütit írnánk:
+  if (!isDedicatedManagementUser) {
+    if (targetModule === "docs" && !hasDocs) {
+      return {
+        ok: false,
+        message: hasHr
+          ? "Ehhez a fiókhoz kizárólag az eaisyHR munkaterület érhető el."
+          : "Ehhez a fiókhoz nincs engedélyezve az eaisyDocs munkaterület.",
+        module: "docs",
+        suggestedModule: hasHr ? "hr" : undefined,
+        email: cleanEmail,
+      }
+    }
+
+    if (targetModule === "hr" && !hasHr) {
+      return {
+        ok: false,
+        message: hasDocs
+          ? "Ehhez a fiókhoz kizárólag az eaisyDocs munkaterület érhető el."
+          : "Ehhez a fiókhoz nincs engedélyezve az eaisyHR munkaterület.",
+        module: "hr",
+        suggestedModule: hasDocs ? "docs" : undefined,
+        email: cleanEmail,
+      }
+    }
   }
 
-  if (targetModule === "hr" && !hasHr) {
-    await supabase.auth.signOut()
-    const params = new URLSearchParams()
-    params.set(
-      "message",
-      hasDocs
-        ? "Ehhez a fiókhoz kizárólag az eaisyDocs munkaterület érhető el."
-        : "Ehhez a fiókhoz nincs engedélyezve az eaisyHR munkaterület."
-    )
-    params.set("module", "hr")
-    if (hasDocs) params.set("suggestedModule", "docs")
-    if (data.email) params.set("email", data.email.trim())
-    if (nextPath) params.set("next", nextPath)
-    redirect(`/login?${params.toString()}`)
+  // 2. Jogosult munkaterület -> most állítjuk be a valódi SSR munkamenet sütiket
+  const supabase = await createClient()
+  const { error } = await supabase.auth.signInWithPassword({
+    email: cleanEmail,
+    password,
+  })
+
+  if (error) {
+    return {
+      ok: false,
+      message: "Hibás e-mail vagy jelszó",
+      module: targetModule,
+      email: cleanEmail,
+    }
+  }
+
+  const { cookies } = await import("next/headers")
+  const cookieStore = await cookies()
+
+  if (isDedicatedManagementUser) {
+    cookieStore.set("eaisydocs_mgmt_session", preAuthData.user.id, {
+      path: "/",
+      maxAge: 60 * 60 * 12,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    })
+    revalidatePath("/", "layout")
+    return {
+      ok: true,
+      redirectUrl: "/management",
+    }
+  } else {
+    // Normál felhasználónál töröljük az esetleges korábbi management sütit
+    cookieStore.delete("eaisydocs_mgmt_session")
   }
 
   const hrModules = Array.isArray((profile as any)?.hr_modulok)
@@ -90,9 +159,7 @@ export async function login(formData: FormData) {
 
   let destinationPath = targetModule === "hr" ? hrDefaultPath : "/"
 
-  // Ha konkrét belső aloldalra tartott (nem pusztán a gyökér "/" átirányításból jött),
-  // és az adott modulhoz van jogosultsága, megőrizzük a mélylinket:
-  if (nextPath && nextPath !== "/") {
+  if (nextPath && nextPath !== "/" && nextPath !== "/management") {
     const isNextHr = nextPath.startsWith("/hr")
     if (isNextHr && hasHr && targetModule === "hr") {
       destinationPath = nextPath
@@ -101,18 +168,46 @@ export async function login(formData: FormData) {
     }
   }
 
-  // MFA ellenőrzés — ha a user kétlépcsős azonosítást állított be,
-  // az AAL szint aal1 → aal2 átmenetet igényel, átirányítjuk a kód bekérő oldalra
-  // (a feloldott célútvonalat átvisszük, hogy a kód beadása után is oda jusson)
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
   if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
-    redirect(
-      `/login/mfa-verify?redirectTo=${encodeURIComponent(destinationPath)}`
-    )
+    return {
+      ok: true,
+      redirectUrl: `/login/mfa-verify?redirectTo=${encodeURIComponent(destinationPath)}`,
+    }
   }
 
   revalidatePath("/", "layout")
-  redirect(destinationPath)
+  return {
+    ok: true,
+    redirectUrl: destinationPath,
+  }
+}
+
+export async function login(formData: FormData) {
+  const rawTargetModule = formData.get("targetModule") as string | null
+  const targetModule: "docs" | "hr" = rawTargetModule === "hr" ? "hr" : "docs"
+  const email = (formData.get("email") as string) || ""
+  const password = (formData.get("password") as string) || ""
+  const next = (formData.get("next") as string | null) || undefined
+
+  const res = await loginClientAction({
+    email,
+    password,
+    targetModule,
+    next,
+  })
+
+  if (!res.ok) {
+    const params = new URLSearchParams()
+    if (res.message) params.set("message", res.message)
+    params.set("module", res.module || targetModule)
+    if (res.suggestedModule) params.set("suggestedModule", res.suggestedModule)
+    if (res.email) params.set("email", res.email)
+    if (next) params.set("next", next)
+    redirect(`/login?${params.toString()}`)
+  }
+
+  redirect(res.redirectUrl || "/")
 }
 
 export async function loginWithProvider(provider: "google" | "azure") {

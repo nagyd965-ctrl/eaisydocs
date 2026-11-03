@@ -383,58 +383,56 @@ export function CompanySelector() {
               </div>
 
               {/* Céglista */}
-              <ScrollArea className="max-h-[220px]">
-                <div className="p-1 space-y-0.5">
-                  {filteredCompanies.length === 0 ? (
-                    <div className="py-4 text-center text-xs text-muted-foreground">
-                      Nincs találat
-                    </div>
-                  ) : (
-                    filteredCompanies.map((company) => {
-                      const isSelected = selectedCompany?.id === company.id
-                      return (
-                        <button
-                          key={company.id}
-                          type="button"
-                          onClick={() => handleSelect(company)}
-                          className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-left transition-colors ${
-                            isSelected
-                              ? "bg-primary/10 text-primary font-medium"
-                              : "hover:bg-muted text-foreground text-xs"
-                          }`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs truncate font-medium flex items-center gap-1.5">
-                              {company.logo_url ? (
-                                <img
-                                  src={company.logo_url}
-                                  alt={company.name}
-                                  className="h-3.5 w-3.5 rounded object-cover border border-border/60 shrink-0"
-                                />
-                              ) : null}
-                              <span className="text-[10px] text-muted-foreground font-mono">
-                                {company.country_code || "HU"}
-                              </span>
-                              <span className="truncate">{company.name}</span>
-                            </div>
-                            {company.tax_number && (
-                              <div className="text-[10px] text-muted-foreground truncate tabular-nums">
-                                {company.tax_number}
-                              </div>
-                            )}
+              <div className="max-h-[240px] overflow-y-auto p-1 space-y-0.5">
+                {filteredCompanies.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-muted-foreground">
+                    Nincs találat
+                  </div>
+                ) : (
+                  filteredCompanies.map((company) => {
+                    const isSelected = selectedCompany?.id === company.id
+                    return (
+                      <button
+                        key={company.id}
+                        type="button"
+                        onClick={() => handleSelect(company)}
+                        className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-left transition-colors ${
+                          isSelected
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "hover:bg-muted text-foreground text-xs"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs truncate font-medium flex items-center gap-1.5">
+                            {company.logo_url ? (
+                              <img
+                                src={company.logo_url}
+                                alt={company.name}
+                                className="h-3.5 w-3.5 rounded object-cover border border-border/60 shrink-0"
+                              />
+                            ) : null}
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {company.country_code || "HU"}
+                            </span>
+                            <span className="truncate">{company.name}</span>
                           </div>
-                          {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                        </button>
-                      )
-                    })
-                  )}
-                </div>
-              </ScrollArea>
+                          {company.tax_number && (
+                            <div className="text-[10px] text-muted-foreground truncate tabular-nums">
+                              {company.tax_number}
+                            </div>
+                          )}
+                        </div>
+                        {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                      </button>
+                    )
+                  })
+                )}
+              </div>
 
               <Separator className="bg-border/60" />
 
               {/* Műveletek */}
-              <div className="p-1 space-y-0.5">
+              <div className="p-1 space-y-0.5 bg-popover relative z-10">
                 <button
                   type="button"
                   onClick={() => {

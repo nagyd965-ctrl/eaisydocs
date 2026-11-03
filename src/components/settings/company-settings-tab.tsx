@@ -429,6 +429,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
         toast.success("Tag sikeresen eltávolítva a cégből")
         setMembers((prev) => prev.filter((m) => m.id !== memberId))
         setMemberToDelete(null)
+        router.refresh()
       } else {
         toast.error(res.error || "Nem sikerült a tag eltávolítása")
       }
@@ -1106,7 +1107,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
         </CardContent>
       </Card>
 
-      {/* Felhasználó meghívása modál */}
+      {/* Tag hozzáadása modál */}
       <InviteUserDialog
         open={inviteDialogOpen}
         onOpenChange={setInviteDialogOpen}
@@ -1117,6 +1118,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
             loadMembers(selectedCompany.id)
           }
           loadAllMemberships()
+          router.refresh()
         }}
       />
 
@@ -1130,6 +1132,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
           onSuccess={() => {
             loadMembers(selectedCompany.id)
             loadAllMemberships()
+            router.refresh()
           }}
         />
       )}
@@ -1148,6 +1151,7 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
             loadMembers(selectedCompany.id)
           }
           loadAllMemberships()
+          router.refresh()
         }}
       />
 

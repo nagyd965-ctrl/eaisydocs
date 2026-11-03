@@ -35,7 +35,9 @@ export function LayoutWrapper({
   const [timeoutMinutes, setTimeoutMinutes] = useState<number | null>(null)
 
   useEffect(() => {
-    if (pathname.startsWith("/hr") || pathname.startsWith("/karrier")) {
+    if (pathname.startsWith("/management")) {
+      document.title = "Management Dashboard - eaisyDocs & eaisyHR"
+    } else if (pathname.startsWith("/hr") || pathname.startsWith("/karrier")) {
       document.title = "eaisyHR - Humánügyviteli rendszer"
     } else if (!pathname.startsWith("/login")) {
       document.title = "eaisyDocs - Iratkezelő"
@@ -43,12 +45,17 @@ export function LayoutWrapper({
   }, [pathname])
 
   useEffect(() => {
-    const isPublic = pathname.startsWith("/login") || pathname.startsWith("/auth") || pathname.startsWith("/embed") || pathname.startsWith("/archive/print") || pathname.startsWith("/karrier")
+    const isPublic = pathname.startsWith("/login") || pathname.startsWith("/auth") || pathname.startsWith("/embed") || pathname.startsWith("/archive/print") || pathname.startsWith("/karrier") || pathname.startsWith("/management")
     if (!isPublic && !pathname.startsWith("/hr")) {
       // Ha a felhasználónak NINCS docs modulja, de van hr modulja, azonnal átirányítjuk a HR felületre
       if (elerhetoModulok.length > 0 && !elerhetoModulok.includes("docs") && elerhetoModulok.includes("hr")) {
         const hasAdminModule = hrRole === "admin" || hrModules.includes("admin")
         router.replace(hasAdminModule ? "/hr/admin" : "/hr")
+      }
+    } else if (!isPublic && pathname.startsWith("/hr")) {
+      // Ha a felhasználónak NINCS hr modulja (csak eaisyDocs), azonnal átirányítjuk az eaisyDocs felületre
+      if (elerhetoModulok.length > 0 && !elerhetoModulok.includes("hr") && elerhetoModulok.includes("docs")) {
+        router.replace("/")
       }
     }
   }, [pathname, elerhetoModulok, hrRole, hrModules, router])
@@ -79,9 +86,9 @@ export function LayoutWrapper({
     }
   }, [pathname])
 
-  if (pathname.startsWith("/login") || pathname.startsWith("/auth") || pathname.startsWith("/embed") || pathname.startsWith("/archive/print") || pathname.startsWith("/karrier")) {
+  if (pathname.startsWith("/login") || pathname.startsWith("/auth") || pathname.startsWith("/embed") || pathname.startsWith("/archive/print") || pathname.startsWith("/karrier") || pathname.startsWith("/management")) {
     return (
-      <main className="flex-1 w-full flex flex-col bg-slate-50 print:bg-white h-screen">
+      <main className="flex-1 w-full flex flex-col bg-slate-50 dark:bg-slate-950 print:bg-white min-h-screen">
         {children}
       </main>
     )
@@ -93,6 +100,16 @@ export function LayoutWrapper({
     return (
       <div className="flex-1 w-full flex items-center justify-center p-8 text-muted-foreground text-sm">
         Átirányítás az eaisyHR modulba...
+      </div>
+    )
+  }
+
+  // Ha a felhasználó egy HR oldalon áll, de nincs hozzá joga (csak eaisyDocs modulja van), ne villanjon fel a HR felület
+  const isRestrictedFromHr = pathname.startsWith("/hr") && elerhetoModulok.length > 0 && !elerhetoModulok.includes("hr") && elerhetoModulok.includes("docs")
+  if (isRestrictedFromHr) {
+    return (
+      <div className="flex-1 w-full flex items-center justify-center p-8 text-muted-foreground text-sm">
+        Átirányítás az eaisyDocs modulba...
       </div>
     )
   }

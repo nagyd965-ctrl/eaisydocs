@@ -80,7 +80,7 @@ export default async function SettingsPage() {
   const { data: mfaData } = await supabase.auth.mfa.listFactors()
   const totpFactor = mfaData?.totp?.find((f: any) => f.status === "verified") ?? null
 
-  // Admin adatok (csak adminoknak)
+  // Adminisztrátori adatok betöltése (csak adminoknak)
   const irattariTervek = isAdmin ? await getIrattariTervek() : []
   const initialFourEyesRequired = isAdmin ? await getFourEyesSetting() : true
   const credentialStatus = isAdmin ? await getCredentialStatus() : null

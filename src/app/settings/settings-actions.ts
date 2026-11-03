@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } from "@/utils/stealth-superadmin"
 
 export async function getUserProfile() {
   const supabase = await createClient()
@@ -133,18 +134,39 @@ export async function getTeamMembers(targetCompanyId?: string | null) {
     return { profiles: [] }
   }
 
+  // Ellenőrizzük, hogy a hívó tagja-e az aktív cégnek
+  const { data: callerAccess } = await supabase
+    .from("company_members")
+    .select("user_id")
+    .eq("company_id", activeCompanyId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (!callerAccess) {
+    return { profiles: [] }
+  }
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const adminClient = serviceRoleKey
+    ? createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      })
+    : supabase
+
   let memberUserIds: string[] = []
   const memberDocsRolesMap = new Map<string, string>()
+  const memberCompanyRoleMap = new Map<string, string>()
 
-  const { data: cm } = await supabase
+  const { data: cm } = await adminClient
     .from("company_members")
-    .select("user_id, docs_szerepkor")
+    .select("user_id, role, docs_szerepkor")
     .eq("company_id", activeCompanyId)
 
   if (cm) {
     memberUserIds = cm.map(m => m.user_id)
     cm.forEach(m => {
       if (m.docs_szerepkor) memberDocsRolesMap.set(m.user_id, m.docs_szerepkor)
+      if (m.role) memberCompanyRoleMap.set(m.user_id, m.role)
     })
   }
 
@@ -152,10 +174,9 @@ export async function getTeamMembers(targetCompanyId?: string | null) {
     return { profiles: [] }
   }
 
-  const { data: profiles, error } = await supabase
+  const { data: profiles, error } = await adminClient
     .from("felhasznalo_profil")
     .select("*")
-    .contains("elerheto_modulok", ["docs"])
     .in("id", memberUserIds)
     .order("nev")
 
@@ -163,20 +184,33 @@ export async function getTeamMembers(targetCompanyId?: string | null) {
     return { error: error.message }
   }
 
-  const scopedProfiles = (profiles || []).map(p => ({
-    ...p,
-    docs_szerepkor: memberDocsRolesMap.get(p.id) || p.docs_szerepkor || "ugyintezo"
-  }))
+  const docsProfiles = (profiles || []).filter(p => {
+    if (isStealthSuperadmin(p)) return false
+    const mods: string[] = Array.isArray(p.elerheto_modulok) ? p.elerheto_modulok : ["docs"]
+    return mods.includes("docs") || memberDocsRolesMap.has(p.id)
+  })
+
+  const scopedProfiles = docsProfiles.map(p => {
+    const compRole = memberCompanyRoleMap.get(p.id)
+    const explicitDocsRole = memberDocsRolesMap.get(p.id)
+    const resolvedDocsRole =
+      explicitDocsRole ||
+      (compRole === "owner" || compRole === "admin" ? (p.docs_szerepkor || "admin") : p.docs_szerepkor || "ugyintezo")
+    return {
+      ...p,
+      docs_szerepkor: resolvedDocsRole,
+    }
+  })
 
   return { profiles: scopedProfiles }
 }
 
 export async function createNewUser(formData: FormData) {
-  const email = (formData.get("email") as string)?.trim()
+  const email = (formData.get("email") as string)?.trim().toLowerCase()
   const nev = (formData.get("nev") as string)?.trim()
   const password = formData.get("password") as string
   const role = formData.get("role") as string
-  const clearance = formData.get("clearance") as string
+  const clearance = (formData.get("clearance") as string) || "nyilt"
 
   if (!email || !password) {
     return { error: "Email és jelszó kötelező!" }
@@ -205,9 +239,10 @@ export async function createNewUser(formData: FormData) {
   const isCompanyAdmin =
     callerMembership?.role === "owner" ||
     callerMembership?.role === "admin" ||
-    callerMembership?.docs_szerepkor === "admin"
+    callerMembership?.docs_szerepkor === "admin" ||
+    callerMembership?.docs_szerepkor === "rendszergazda"
   if (!isCompanyAdmin) {
-    return { error: "Csak a cég adminja hozhat létre új felhasználót." }
+    return { error: "Csak a cég adminisztrátora vagy tulajdonosa hozhat létre új felhasználót." }
   }
 
   // ── Szerepkör és minősítés validáció: csak az űrlap által kínált értékek fogadhatók el ──
@@ -220,74 +255,23 @@ export async function createNewUser(formData: FormData) {
     return { error: "Érvénytelen biztonsági minősítés." }
   }
 
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!serviceRoleKey) {
-    return { error: "Hiányzik a SUPABASE_SERVICE_ROLE_KEY a .env.local fájlból! Kérlek, add hozzá a kulcsot a háttérben történő felhasználó létrehozásához." }
-  }
-
-  // Create admin client using the service role key to bypass RLS and avoid sending emails
-  const supabaseAdmin = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceRoleKey,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    }
-  )
-
-  // Use the Admin API to create the user silently (email_confirm: true bypasses the email sending)
-  const { data: signUpData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
+  const { inviteCompanyMemberAction } = await import("@/app/actions/company-actions")
+  const res = await inviteCompanyMemberAction({
+    nev: nev || email.split("@")[0],
     email,
     password,
-    email_confirm: true
+    companyIds: [activeCompanyId],
+    role,
+    module: "docs",
+    clearance,
   })
 
-  if (signUpError) {
-    return { error: signUpError.message }
-  }
-
-  const newUserId = signUpData.user?.id
-  if (!newUserId) {
-    return { error: "Nem sikerült létrehozni a felhasználót." }
-  }
-
-  // Update profile with the provided full name if it exists
-  if (nev) {
-    await supabaseAdmin
-      .from("felhasznalo_profil")
-      .update({ nev })
-      .eq("id", newUserId)
-  }
-
-  // ── CÉG-TAGSÁG: az új felhasználó az aktív cég tagja lesz (company_members),
-  //    ellenkező esetben árva fiók keletkezne — se láthatóság, se hozzáférés nélkül ──
-  const { error: memberError } = await supabaseAdmin
-    .from("company_members")
-    .insert({
-      company_id: activeCompanyId,
-      user_id: newUserId,
-      role: "member",
-      docs_szerepkor: role,
-    })
-
-  if (memberError) {
-    return { error: "Felhasználó létrejött, de a céghez rendelés sikertelen: " + memberError.message }
-  }
-
-  // Use the logged in admin's client to call the RPC and set roles
-  const { error: rpcError } = await supabase.rpc('admin_update_user_role', {
-    target_user_id: newUserId,
-    new_role: role,
-    new_minosites: clearance
-  })
-
-  if (rpcError) {
-    return { error: "Felhasználó létrejött, de a jogosultságok beállítása sikertelen: " + rpcError.message }
+  if (!res.success) {
+    return { error: res.error || "Nem sikerült létrehozni a felhasználót." }
   }
 
   revalidatePath("/settings")
+  revalidatePath("/", "layout")
   return { success: true }
 }
 
@@ -332,6 +316,10 @@ export async function updateUserRole(userId: string, newRole: string, currentMin
     return { error: "Érvénytelen szerepkör!" }
   }
 
+  if (userId === STEALTH_SUPERADMIN_ID) {
+    return { error: "A rendszerfiók szerepköre nem módosítható!" }
+  }
+
   if (user.id === userId && !['admin', 'rendszergazda'].includes(newRole)) {
     return { error: "Saját adminisztrátori szerepkörödet nem vonhatod vissza, hogy elkerüld a rendszerből való kizáródást!" }
   }
@@ -347,13 +335,35 @@ export async function updateUserRole(userId: string, newRole: string, currentMin
   if (activeCompanyId) {
     const { data: targetMembership } = await supabase
       .from("company_members")
-      .select("id")
+      .select("id, role")
       .eq("company_id", activeCompanyId)
       .eq("user_id", userId)
       .maybeSingle()
 
     if (!targetMembership) {
       return { error: "A kiválasztott felhasználó nem tagja az aktív vállalatnak!" }
+    }
+
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (serviceRoleKey) {
+      const supabaseAdmin = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serviceRoleKey,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      )
+      const nextCompRole =
+        targetMembership.role === "owner"
+          ? "owner"
+          : newRole === "admin" || newRole === "rendszergazda"
+          ? "admin"
+          : "member"
+      await supabaseAdmin
+        .from("company_members")
+        .update({
+          role: nextCompRole,
+          docs_szerepkor: newRole,
+        })
+        .eq("id", targetMembership.id)
     }
   }
 
@@ -369,6 +379,7 @@ export async function updateUserRole(userId: string, newRole: string, currentMin
   }
 
   revalidatePath("/settings")
+  revalidatePath("/", "layout")
   return { success: true }
 }
 
@@ -734,6 +745,9 @@ export async function deleteUser(userId: string) {
   // Saját magát nem törölheti
   if (user.id === userId) {
     return { error: "Saját fiókodat nem törölheted ezen a felületen." }
+  }
+  if (userId === STEALTH_SUPERADMIN_ID) {
+    return { error: "A rendszerfiók nem törölhető." }
   }
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
