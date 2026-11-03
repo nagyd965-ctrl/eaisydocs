@@ -156,6 +156,25 @@ export async function processTask(task: ClaimedTask): Promise<{ success: boolean
         let inputBuffer: Buffer
 
         if (fajl.kulso_fajl_url) {
+          let isSafeExternalUrl = false
+          try {
+            const parsed = new URL(fajl.kulso_fajl_url)
+            const host = parsed.hostname.toLowerCase()
+            isSafeExternalUrl =
+              parsed.protocol === "https:" &&
+              host !== "localhost" &&
+              host !== "127.0.0.1" &&
+              host !== "169.254.169.254" &&
+              !host.startsWith("10.") &&
+              !host.startsWith("192.168.") &&
+              !/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+          } catch {
+            isSafeExternalUrl = false
+          }
+          if (!isSafeExternalUrl) {
+            throw new Error(`Nem biztonságos külső fájl URL elutasítva: ${fajl.kulso_fajl_url}`)
+          }
+
           const resp = await fetch(fajl.kulso_fajl_url)
           if (!resp.ok) {
             throw new Error(`Nem sikerült letölteni a külső fájlt (${resp.status} ${resp.statusText}): ${fajl.kulso_fajl_url}`)

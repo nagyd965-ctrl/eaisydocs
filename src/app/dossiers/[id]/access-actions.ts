@@ -113,6 +113,33 @@ export async function grantDossierExplicitAccess(
     )
   }
 
+  // 2b. Célszemély cég-tagságának és Docs modul-hozzáférésének ellenőrzése
+  if (ugyirat.company_id) {
+    const { data: targetMembership } = await dbAdmin
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", ugyirat.company_id)
+      .eq("user_id", targetUserId)
+      .maybeSingle()
+
+    if (!targetMembership) {
+      return { error: "A kiválasztott munkatárs nem tagja az ügyirat vállalatának." }
+    }
+  }
+
+  const { data: targetProfile } = await dbAdmin
+    .from("felhasznalo_profil")
+    .select("nev, elerheto_modulok")
+    .eq("id", targetUserId)
+    .single()
+
+  const targetModules = Array.isArray((targetProfile as any)?.elerheto_modulok)
+    ? (targetProfile as any).elerheto_modulok
+    : ["docs", "hr"]
+  if (!targetModules.includes("docs")) {
+    return { error: "A kiválasztott munkatárs nem rendelkezik eaisyDocs modul-hozzáféréssel." }
+  }
+
   // 3. Beszúrás ugyirat_hozzaferes táblába
   const { error: insertError } = await dbAdmin
     .from("ugyirat_hozzaferes")
@@ -126,13 +153,6 @@ export async function grantDossierExplicitAccess(
     console.error("Hiba az explicit hozzáférés beszúrásakor:", insertError)
     return { error: "Nem sikerült menteni a hozzáférést: " + insertError.message }
   }
-
-  // 4. Célszemély adatai az audit naplóhoz
-  const { data: targetProfile } = await dbAdmin
-    .from("felhasznalo_profil")
-    .select("nev")
-    .eq("id", targetUserId)
-    .single()
 
   const targetName = targetProfile?.nev || "Munkatárs"
 

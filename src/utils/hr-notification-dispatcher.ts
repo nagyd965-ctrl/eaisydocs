@@ -100,6 +100,8 @@ export async function dispatchHrNotification({
   if (channels.includes("in_app")) {
     const notifications = uniqueUserIds.map((uid) => ({
       user_id: uid,
+      company_id: resolvedCompanyId || null,
+      modul: "hr",
       cim: title,
       szoveg: message,
       link_url: linkPath,

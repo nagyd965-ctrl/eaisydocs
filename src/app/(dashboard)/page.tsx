@@ -55,7 +55,8 @@ export default async function DashboardPage() {
         ugyirat:ugyirat_id(id, iktatoszam, irattari_terv:irattari_tetel_id(megnevezes))
       `)
       .eq("company_id", companyScope)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .limit(2000),
     supabase
       .from("ugyirat")
       .select(`
@@ -70,7 +71,8 @@ export default async function DashboardPage() {
         irattari_terv:irattari_tetel_id(megnevezes)
       `)
       .eq("company_id", companyScope)
-      .order("iktatas_datuma", { ascending: false }),
+      .order("iktatas_datuma", { ascending: false })
+      .limit(2000),
     supabase
       .from("szervezeti_egyseg")
       .select("id, nev")
@@ -79,7 +81,8 @@ export default async function DashboardPage() {
       .from("feladat")
       .select("id, leiras, hatarido, allapot, felelos_user_id, ugyirat_id, ugyirat:ugyirat_id(iktatoszam)")
       .eq("company_id", companyScope)
-      .order("hatarido", { ascending: true }),
+      .order("hatarido", { ascending: true })
+      .limit(2000),
     supabase
       .from("selejtezes_csomag")
       .select("id", { count: "exact", head: true })

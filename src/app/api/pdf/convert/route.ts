@@ -72,11 +72,11 @@ export async function POST(request: Request) {
     const { buffer: pdfaBuffer, isFallback } = await convertToPdfA(inputBuffer)
 
     // 4. Konvertált fájl feltöltése
-    const ext = fajl.eredeti_fajlnev.split('.').pop()
-    const isImage = ['jpg', 'jpeg', 'png'].includes(ext?.toLowerCase() || '')
-    
-    // Ha kép volt, akkor is .pdf lesz a vége az archívnak
-    const newStoragePath = fajl.storage_path.replace(`.${ext}`, `_pdfa.pdf`)
+    const dotIndex = fajl.storage_path.lastIndexOf('.')
+    const newStoragePath =
+      dotIndex !== -1
+        ? fajl.storage_path.slice(0, dotIndex) + '_pdfa.pdf'
+        : fajl.storage_path + '_pdfa.pdf'
 
     const { error: uploadError } = await supabase.storage
       .from('irat_files')

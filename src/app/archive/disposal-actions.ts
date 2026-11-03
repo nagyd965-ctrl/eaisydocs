@@ -112,12 +112,32 @@ export async function proposeDisposal(ugyiratIds: string[], note?: string) {
     }
   }
 
-  // Értesítés a vezetőknek a selejtezési felterjesztésről
+  // Értesítés a vezetőknek a selejtezési felterjesztésről (kizárólag az aktív cég Docs-hozzáférésű vezetőinek)
   try {
-    const { data: vezetok } = await supabase
+    let companyMemberIds: string[] = []
+    if (activeCompanyId) {
+      const { data: companyMembers } = await supabase
+        .from("company_members")
+        .select("user_id")
+        .eq("company_id", activeCompanyId)
+      companyMemberIds = (companyMembers || []).map((m: any) => m.user_id)
+    }
+
+    let vezetokQuery = supabase
       .from("felhasznalo_profil")
       .select("id")
+      .contains("elerheto_modulok", ["docs"])
       .or("docs_szerepkor.in.(admin,vezeto,rendszergazda),szerepkor.in.(admin,vezeto,rendszergazda)")
+
+    if (activeCompanyId) {
+      if (companyMemberIds.length === 0) {
+        vezetokQuery = vezetokQuery.in("id", ["00000000-0000-0000-0000-000000000000"])
+      } else {
+        vezetokQuery = vezetokQuery.in("id", companyMemberIds)
+      }
+    }
+
+    const { data: vezetok } = await vezetokQuery
 
     if (vezetok && vezetok.length > 0) {
       const { dispatchDocsNotification } = await import("@/utils/docs-notification-dispatcher")
@@ -307,6 +327,21 @@ export async function approveDisposal(
 
     const isSelejtezheto = irattariTerv?.selejtezheto !== false // Ha nincs megadva, default true
 
+    // Atomi státuszváltás a fájltörlés és naplózás előtt (párhuzamos dupla jóváhagyás ellen)
+    const targetStatus = isSelejtezheto ? "selejtezett" : "irattarban"
+    let atomicUpdate = dbAdmin
+      .from("ugyirat")
+      .update({ statusz: targetStatus })
+      .eq("id", item.id)
+      .eq("statusz", "selejtezheto")
+    if (activeCompanyId) {
+      atomicUpdate = atomicUpdate.eq("company_id", activeCompanyId)
+    }
+    const { data: claimedRows, error: claimError } = await atomicUpdate.select("id")
+    if (claimError || !claimedRows || claimedRows.length === 0) {
+      continue
+    }
+
     protocolItems.push({
       iktatoszam: item.iktatoszam,
       targy: ugy?.targy || "Ismeretlen tárgy",
@@ -342,9 +377,6 @@ export async function approveDisposal(
         await dbAdmin.from("ugy").update({ statusz: "selejtezett" }).eq("id", item.ugy_id)
       }
 
-      // Ügyirat státuszának átállítása "selejtezett"-re
-      await dbAdmin.from("ugyirat").update({ statusz: "selejtezett" }).eq("id", item.id)
-
       const disposalLogIndoklas = isSelfApproval && !fourEyesRequired
         ? `A megőrzési idő lejárt. Az ügyiratot leselejteztük, a fizikai és digitális fájlokat véglegesen megsemmisítettük a rendszerből (Egyfelhasználós jóváhagyás - a négyszem-elv feloldva a rendszerbeállítások alapján). Jóváhagyta: ${approverName}`
         : `A megőrzési idő lejárt. Az ügyiratot leselejteztük, a fizikai és digitális fájlokat véglegesen megsemmisítettük a rendszerből. Jóváhagyta: ${approverName}`
@@ -369,9 +401,6 @@ export async function approveDisposal(
         await dbAdmin.from("ugy").update({ statusz: "irattarozott" }).eq("id", item.ugy_id)
       }
 
-      // Ügyirat státuszának visszaállítása "irattarban"-ra (hogy lekerüljön a jóváhagyandó listáról)
-      await dbAdmin.from("ugyirat").update({ statusz: "irattarban" }).eq("id", item.id)
-
       const archiveLogIndoklas = isSelfApproval && !fourEyesRequired
         ? `A megőrzési idő lejárt. Maradandó értékű irattári tétel miatt levéltári átadásra átadva és rögzítve (Egyfelhasználós jóváhagyás - a négyszem-elv feloldva a rendszerbeállítások alapján). Jóváhagyta: ${approverName}`
         : `A megőrzési idő lejárt. Maradandó értékű irattári tétel miatt levéltári átadásra átadva és rögzítve. Jóváhagyta: ${approverName}`
@@ -390,6 +419,10 @@ export async function approveDisposal(
       }
       await supabase.from("esemeny_naplo").insert(archiveLogPayload)
     }
+  }
+
+  if (disposedIktatoszamok.length === 0) {
+    return { error: "A kiválasztott ügyiratokat közben már jóváhagyták és selejtezték." }
   }
 
   // 3. Hivatalos PDF Jegyzőkönyv előállítása

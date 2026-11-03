@@ -12,15 +12,20 @@ export async function assignDossier(formData: FormData) {
   const hatarido = formData.get("hatarido") as string
   const ugyirat_id = formData.get("ugyirat_id") as string
 
-  if (!ugy_id) return { error: "Hiányzó ügy azonosító" }
+  if (!ugyirat_id) return { error: "Hiányzó ügyirat azonosító" }
 
   const supabase = await createClient()
 
   const { data: ugyiratTarget } = await supabase
     .from("ugyirat")
-    .select("id, company_id, szervezeti_egyseg_id, statusz")
+    .select("id, ugy_id, company_id, szervezeti_egyseg_id, statusz")
     .eq("id", ugyirat_id)
     .maybeSingle()
+
+  if (!ugyiratTarget || !ugyiratTarget.ugy_id) {
+    return { error: "Az érintett ügyirat nem található vagy nincs hozzáférésed hozzá." }
+  }
+  const verifiedUgyId = ugyiratTarget.ugy_id
 
   const auth = await requireDocsAuthServer(
     ["admin", "rendszergazda", "iktato", "vezeto"],
@@ -49,9 +54,37 @@ export async function assignDossier(formData: FormData) {
     }
   }
 
-  // 1. Update the ugy table
+  // 1. Update the ugy table (cél-felhasználó cégtagságának és Docs moduljának ellenőrzésével)
   const updateData: any = {}
   if (felelos_user_id) {
+    if (felelos_user_id !== "none") {
+      const targetCompanyId = ugyiratTarget?.company_id || auth.activeCompanyId
+      if (targetCompanyId) {
+        const { data: assigneeMember } = await supabase
+          .from("company_members")
+          .select("user_id")
+          .eq("company_id", targetCompanyId)
+          .eq("user_id", felelos_user_id)
+          .maybeSingle()
+
+        if (!assigneeMember) {
+          return { error: "A kijelölt felelős nem tagja az ügyirat vállalatának." }
+        }
+      }
+
+      const { data: assigneeProfile } = await supabase
+        .from("felhasznalo_profil")
+        .select("elerheto_modulok")
+        .eq("id", felelos_user_id)
+        .maybeSingle()
+
+      const assigneeModules = Array.isArray((assigneeProfile as any)?.elerheto_modulok)
+        ? (assigneeProfile as any).elerheto_modulok
+        : ["docs", "hr"]
+      if (!assigneeModules.includes("docs")) {
+        return { error: "A kijelölt felelős nem rendelkezik eaisyDocs modul-hozzáféréssel." }
+      }
+    }
     updateData.felelos_user_id = felelos_user_id === "none" ? null : felelos_user_id
   }
   if (hatarido) {
@@ -63,7 +96,7 @@ export async function assignDossier(formData: FormData) {
   const { error: ugyError } = await supabase
     .from("ugy")
     .update(updateData)
-    .eq("id", ugy_id)
+    .eq("id", verifiedUgyId)
 
   if (ugyError) {
     return { error: "Hiba a felelős beállításakor: " + ugyError.message }
@@ -145,6 +178,8 @@ export async function assignDossier(formData: FormData) {
           if (csatornak.includes('in_app')) {
             await supabaseAdmin.from("alkalmazas_ertesites").insert({
               user_id: felelos_user_id,
+              company_id: activeCompanyId || ugyiratTarget?.company_id || null,
+              modul: "docs",
               cim: `Új ügyirat szignálva: ${iktatoszam}`,
               szoveg: `Egy új ügyiratot szignáltak rád (${iktatoszam}). Határidő: ${hatarido || "Nincs megadva"}`,
               link_url: `/dossiers/${ugyirat_id}`

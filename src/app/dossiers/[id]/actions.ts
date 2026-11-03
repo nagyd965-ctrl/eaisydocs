@@ -5,12 +5,13 @@ import { createClient } from "@/utils/supabase/server"
 import { getClientInfo } from "@/utils/client-info"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
+import { insertIratWithNextAlszam } from "@/utils/alszam-helper"
 import crypto from "crypto"
 
 async function checkDossierWritePermission(supabase: any, user: any, ugyiratId: string) {
   const { data: ugyirat } = await supabase
     .from("ugyirat")
-    .select("id, company_id, szervezeti_egyseg_id, ugy ( felelos_user_id )")
+    .select("id, ugy_id, company_id, szervezeti_egyseg_id, ugy ( felelos_user_id )")
     .eq("id", ugyiratId)
     .maybeSingle()
 
@@ -32,7 +33,7 @@ async function checkDossierWritePermission(supabase: any, user: any, ugyiratId: 
 
   const isSzuper = ["admin", "rendszergazda", "iktato"].includes(userRole)
   if (isSzuper) {
-    return { success: true, profile }
+    return { success: true, profile, ugyirat }
   }
 
   const { data: explicitAccess } = await supabase
@@ -58,7 +59,7 @@ async function checkDossierWritePermission(supabase: any, user: any, ugyiratId: 
     return { error: "Nincs jogosultságod ehhez a művelethez." }
   }
 
-  return { success: true, profile }
+  return { success: true, profile, ugyirat }
 }
 
 export async function closeDossier(ugyiratId: string) {
@@ -664,6 +665,17 @@ export async function markNotesRead(ugyiratId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve." }
 
+  // Ellenőrizzük, hogy a felhasználó láthatja-e az ügyiratot (RLS + cég/minősítés)
+  const { data: visibleDossier } = await supabase
+    .from("ugyirat")
+    .select("id")
+    .eq("id", ugyiratId)
+    .maybeSingle()
+
+  if (!visibleDossier) {
+    return { error: "Nincs jogosultságod az ügyirat megjegyzéseinek megtekintéséhez." }
+  }
+
   const { error } = await supabase
     .from("ugyirat_megjegyzes_olvasas")
     .upsert(
@@ -721,13 +733,14 @@ export async function updateDossierStatus(ugyiratId: string, ugyId: string, newS
 
   if (ugyiratError) return { error: "Hiba az ügyirat frissítésekor." }
 
-  // Szülő ügy státuszának szinkronizálása
-  if (ugyId) {
+  // Szülő ügy státuszának szinkronizálása az ellenőrzött ügyiratból kiolvasott ugy_id alapján
+  const verifiedUgyId = (permCheck.ugyirat as any)?.ugy_id || null
+  if (verifiedUgyId) {
     if (newStatus === "elintezett") {
       const { data: siblings } = await supabase
         .from("ugyirat")
         .select("id, statusz")
-        .eq("ugy_id", ugyId)
+        .eq("ugy_id", verifiedUgyId)
 
       const hasUnfinishedSiblings = siblings?.some(
         (s) => s.id !== ugyiratId && !["elintezett", "lezart", "irattarban", "selejtezheto"].includes(s.statusz)
@@ -737,13 +750,13 @@ export async function updateDossierStatus(ugyiratId: string, ugyId: string, newS
         await supabase
           .from("ugy")
           .update({ statusz: "lezart", lezarva: new Date().toISOString() })
-          .eq("id", ugyId)
+          .eq("id", verifiedUgyId)
       }
     } else if (newStatus === "ugyintezes_alatt") {
       await supabase
         .from("ugy")
         .update({ statusz: "folyamatban" })
-        .eq("id", ugyId)
+        .eq("id", verifiedUgyId)
     }
   }
 
@@ -851,21 +864,13 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
     }
   }
 
-  // 2. Számoljuk ki az alszámot az irathoz
-  const { data: iratok } = await supabase
-    .from("irat")
-    .select("alszam")
-    .eq("ugyirat_id", ugyiratId)
-  
-  const maxAlszam = iratok?.reduce((max, i) => Math.max(max, i.alszam || 0), 0) || 0
-  const alszam = maxAlszam + 1
-
-  // 3. Irat rekord létrehozása (Kimenő)
+  // 2–3. Alszám számítása és Irat rekord létrehozása (Kimenő) ütközésvédelemmel
   const initialKezbesitesStatusz = expediteMode === "none" ? "expedialasra_var" : "expedialasra_var"
   const dossierCompanyId = (ugyirat as any)?.company_id || (await getActiveCompanyIdServer())
-  const { data: iratData, error: iratError } = await supabase
-    .from("irat")
-    .insert({
+  const { data: iratData, error: iratError } = await insertIratWithNextAlszam(
+    supabase,
+    ugyiratId,
+    (alszam) => ({
       ugyirat_id: ugyiratId,
       company_id: dossierCompanyId,
       targy,
@@ -878,10 +883,12 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
       kezbesites_statusz: initialKezbesitesStatusz,
       kezbesites_modja: expediteMode === "posta" ? "posta" : (expediteMode === "email" ? "email" : null)
     })
-    .select("id")
-    .single()
+  )
 
-  if (iratError || !iratData) return { error: "Hiba az irat rekord létrehozásakor." }
+  if (iratError || !iratData) {
+    await supabase.storage.from("irat_files").remove([fileName])
+    return { error: "Hiba az irat rekord létrehozásakor." }
+  }
 
   // 4. Irat fájl összekapcsolása
   const { data: fajlResult, error: fajlError } = await supabase
@@ -898,6 +905,12 @@ export async function uploadReply(ugyiratId: string, formData: FormData) {
     })
     .select("id")
     .single()
+
+  if (fajlError || !fajlResult) {
+    await supabase.storage.from("irat_files").remove([fileName])
+    await supabase.from("irat").delete().eq("id", iratData.id)
+    return { error: "Hiba a fájl rekord létrehozásakor: " + (fajlError?.message || "") }
+  }
 
   // 5. Eseménynapló rögzítése a feltöltésről
   const { ip, userAgent } = await getClientInfo()
@@ -1138,21 +1151,13 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
     })
   }
 
-  // 3. Alszám számítás
-  const { data: iratok } = await supabase
-    .from("irat")
-    .select("alszam")
-    .eq("ugyirat_id", ugyiratId)
-
-  const maxAlszam = iratok?.reduce((max, i) => Math.max(max, i.alszam || 0), 0) || 0
-  const alszam = maxAlszam + 1
-
-  // 4. Irat rekord létrehozása
+  // 3–4. Alszám számítása és Irat rekord létrehozása ütközésvédelemmel
   const initialKezbesitesStatusz = "expedialasra_var"
   const dossierCompanyId = (ugyirat as any)?.company_id || (await getActiveCompanyIdServer())
-  const { data: iratData, error: iratError } = await supabase
-    .from("irat")
-    .insert({
+  const { data: iratData, error: iratError } = await insertIratWithNextAlszam(
+    supabase,
+    ugyiratId,
+    (alszam) => ({
       ugyirat_id: ugyiratId,
       company_id: dossierCompanyId,
       targy,
@@ -1165,17 +1170,22 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
       kezbesites_statusz: initialKezbesitesStatusz,
       kezbesites_modja: expediteMode === "posta" ? "posta" : (expediteMode === "email" ? "email" : null)
     })
-    .select("id")
-    .single()
+  )
 
-  if (iratError || !iratData) return { error: "Hiba az irat rekord létrehozásakor." }
+  if (iratError || !iratData) {
+    const pathsToCleanup = [generatedStoragePath, attachedStoragePath].filter(Boolean) as string[]
+    if (pathsToCleanup.length > 0) {
+      await supabase.storage.from("irat_files").remove(pathsToCleanup)
+    }
+    return { error: "Hiba az irat rekord létrehozásakor." }
+  }
 
   // 5. Irat fájl rekordok mentése
   const createdFajlIds: string[] = []
 
   // 5a. Generált levél fájl mentése
   if (generatedPdfBuffer && generatedStoragePath && generatedFileName && generatedHash) {
-    const { data: genFajl } = await supabase
+    const { data: genFajl, error: genFajlError } = await supabase
       .from("irat_fajl")
       .insert({
         irat_id: iratData.id,
@@ -1190,12 +1200,20 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
       .select("id")
       .single()
 
-    if (genFajl?.id) createdFajlIds.push(genFajl.id)
+    if (genFajlError || !genFajl?.id) {
+      const pathsToCleanup = [generatedStoragePath, attachedStoragePath].filter(Boolean) as string[]
+      if (pathsToCleanup.length > 0) {
+        await supabase.storage.from("irat_files").remove(pathsToCleanup)
+      }
+      await supabase.from("irat").delete().eq("id", iratData.id)
+      return { error: "Hiba a generált fájl rekord létrehozásakor: " + (genFajlError?.message || "") }
+    }
+    createdFajlIds.push(genFajl.id)
   }
 
   // 5b. Csatolt külső PDF fájl mentése (ha volt feltöltve)
   if (hasAttachedFile && attachedFile && attachedStoragePath && attachedBuffer && attachedHash) {
-    const { data: attFajl } = await supabase
+    const { data: attFajl, error: attFajlError } = await supabase
       .from("irat_fajl")
       .insert({
         irat_id: iratData.id,
@@ -1210,7 +1228,15 @@ export async function generateAndExpediteReply(ugyiratId: string, formData: Form
       .select("id")
       .single()
 
-    if (attFajl?.id) createdFajlIds.push(attFajl.id)
+    if (attFajlError || !attFajl?.id) {
+      const pathsToCleanup = [generatedStoragePath, attachedStoragePath].filter(Boolean) as string[]
+      if (pathsToCleanup.length > 0) {
+        await supabase.storage.from("irat_files").remove(pathsToCleanup)
+      }
+      await supabase.from("irat").delete().eq("id", iratData.id)
+      return { error: "Hiba a csatolt fájl rekord létrehozásakor: " + (attFajlError?.message || "") }
+    }
+    createdFajlIds.push(attFajl.id)
   }
 
   // 6. Eseménynapló rögzítése
@@ -1380,14 +1406,15 @@ export async function savePartnerCentralEmail(partnerId: string, email: string) 
     return { error: "Érvénytelen e-mail formátum!" }
   }
 
-  let updateQuery = supabase
+  if (!auth.activeCompanyId) {
+    return { error: "Nincs kiválasztott aktív vállalat." }
+  }
+
+  const { error } = await supabase
     .from("partner")
     .update({ email: trimmed })
     .eq("id", partnerId)
-  if (auth.activeCompanyId) {
-    updateQuery = updateQuery.eq("company_id", auth.activeCompanyId)
-  }
-  const { error } = await updateQuery
+    .eq("company_id", auth.activeCompanyId)
 
   if (error) return { error: error.message }
 
@@ -1396,9 +1423,9 @@ export async function savePartnerCentralEmail(partnerId: string, email: string) 
     entitas_tipus: "partner",
     entitas_id: partnerId,
     user_id: auth.user.id,
+    company_id: auth.activeCompanyId,
     esemeny_tipus: "modositva",
     indoklas: `Központi partner e-mail cím frissítve az expedíciós felületről: ${trimmed}`,
-    ...(auth.activeCompanyId ? { company_id: auth.activeCompanyId } : {}),
   })
 
   return { success: true }
@@ -1505,6 +1532,7 @@ export async function deletePolymorphicLink(id: string, ugyirat_id: string) {
     .from("irat_kapcsolat")
     .delete()
     .eq("id", id)
+    .eq("ugyirat_id", ugyirat_id)
 
   if (deleteError) {
     return { error: "Hiba történt a kapcsolat törlésekor." }

@@ -39,13 +39,9 @@ function getBudapestTodayBoundsUtc(now = new Date()): { startIso: string; endIso
 
 export async function GET(request: Request) {
   try {
-    // 1. Biztonsági ellenőrzés (CRON_SECRET)
-    const authHeader = request.headers.get('authorization');
-    const { searchParams } = new URL(request.url);
-    const secretQuery = searchParams.get('secret');
-    const expectedSecret = process.env.CRON_SECRET;
-
-    if (!expectedSecret || (authHeader !== `Bearer ${expectedSecret}` && authHeader !== expectedSecret && secretQuery !== expectedSecret)) {
+    // 1. Biztonsági ellenőrzés (CRON_SECRET — kizárólag fejléc-alapú timingSafeEqual)
+    const { verifyCronAuth } = await import('@/utils/cron-auth');
+    if (!verifyCronAuth(request)) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 

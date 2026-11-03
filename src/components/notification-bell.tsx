@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Bell } from "lucide-react"
 import { useRouter, usePathname } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
+import { useCompany } from "@/contexts/company-context"
 import {
   Popover,
   PopoverContent,
@@ -15,6 +16,8 @@ import { hu } from "date-fns/locale"
 
 interface AppNotification {
   id: string
+  company_id?: string | null
+  modul?: "docs" | "hr" | string | null
   cim: string
   szoveg: string | null
   olvasott: boolean
@@ -29,46 +32,35 @@ export function NotificationBell() {
   const router = useRouter()
   const pathname = usePathname()
   const isHr = pathname?.startsWith("/hr")
+  const { selectedCompany } = useCompany()
+  const activeCompanyId = selectedCompany?.id || null
 
   const fetchNotifications = useCallback(async () => {
     const supabase = createClient()
     const { data: userData } = await supabase.auth.getUser()
     if (!userData.user) return
 
-    const { data } = await supabase
+    const targetModul = isHr ? "hr" : "docs"
+    let query = supabase
       .from("alkalmazas_ertesites")
       .select("*")
       .eq("user_id", userData.user.id)
       .eq("olvasott", false)
+      .eq("modul", targetModul)
+
+    if (activeCompanyId) {
+      query = query.or(`company_id.eq.${activeCompanyId},company_id.is.null`)
+    }
+
+    const { data } = await query
       .order("created_at", { ascending: false })
       .limit(30)
 
     if (data) {
-      const filtered = data.filter((n) => {
-        const url = (n.link_url || '').toLowerCase()
-        const title = (n.cim || '').toLowerCase()
-        const text = (n.szoveg || '').toLowerCase()
-        const isHrNotif = 
-          url.startsWith('/hr') ||
-          title.includes('orvosi') ||
-          title.includes('próbaidő') ||
-          title.includes('probaido') ||
-          title.includes('születésnap') ||
-          title.includes('szuletesnap') ||
-          title.includes('szabadság') ||
-          title.includes('szabadsag') ||
-          title.includes('t1041') ||
-          title.includes('munkaszerződés') ||
-          title.includes('munkaszerzodes') ||
-          title.includes('tanulmányi szerződés') ||
-          text.includes('orvosi alkalmasság') ||
-          text.includes('eaisyhr')
-        return isHr ? isHrNotif : !isHrNotif
-      })
-      setNotifications(filtered)
-      setUnreadCount(filtered.filter((n) => !n.olvasott).length)
+      setNotifications(data as AppNotification[])
+      setUnreadCount(data.filter((n) => !n.olvasott).length)
     }
-  }, [isHr])
+  }, [isHr, activeCompanyId])
 
   useEffect(() => {
     let isMounted = true
@@ -79,7 +71,6 @@ export function NotificationBell() {
     }
     load()
 
-    // Opcionális: Polling beállítása percenként
     const interval = setInterval(fetchNotifications, 60000)
     return () => {
       isMounted = false

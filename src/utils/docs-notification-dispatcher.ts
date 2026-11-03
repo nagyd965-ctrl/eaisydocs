@@ -90,6 +90,8 @@ export async function dispatchDocsNotification(params: DispatchDocsNotificationP
     try {
       const notifications = uniqueUserIds.map((uid) => ({
         user_id: uid,
+        company_id: params.companyId || null,
+        modul: "docs",
         cim: params.inAppTitle,
         szoveg: params.inAppBody,
         link_url: params.linkPath,

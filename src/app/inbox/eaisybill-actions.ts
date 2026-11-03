@@ -36,12 +36,16 @@ export async function getImportableEaisyBillInvoices(): Promise<{
     const billClient = createEaisyBillClient()
     const docsClient = await createClient()
 
-    // 0. Bejelentkezett user és aktív cég azonosítása
-    const { data: { user } } = await docsClient.auth.getUser()
-    if (!user?.email) return { invoices: [], error: "Nincs bejelentkezve." }
-
+    // 0. Bejelentkezett user és aktív cég azonosítása (cég-scoped szerepkör-ellenőrzéssel)
     const activeCompany = await getActiveCompanyServer()
     const activeCompanyId = activeCompany?.id || (await getActiveCompanyIdServer())
+
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato"], activeCompanyId)
+    if (!auth.authorized || !auth.user?.email) {
+      return { invoices: [], error: auth.error || "Nincs jogosultságod az érkeztetéshez." }
+    }
+    const user = auth.user
 
     // 1. eaisyBill Company ID meghatározása
     let companyId: string | null = null
@@ -51,33 +55,32 @@ export async function getImportableEaisyBillInvoices(): Promise<{
       companyId = activeCompany.eaisybill_company_id
     }
 
-    // Másodlagos: ha a mező még üres, megpróbáljuk adószám vagy név alapján megtalálni és automatikusan elmenteni
+    // Másodlagos: ha a mező még üres, kizárólag pontos adószám-egyezés alapján keresünk
+    // (teljes >=10 jegyű adószám esetén teljes egyezés kötelező; név alapján SOHA nem mentünk automatikus cég-összekötést)
     if (!companyId && activeCompany) {
       try {
         const cleanTax = activeCompany.tax_number?.replace(/[-\s]/g, "")
         if (cleanTax && cleanTax.length >= 8) {
-          const { data: matchedComp } = await billClient
+          const { data: candidates } = await billClient
             .from("companies")
-            .select("id")
+            .select("id, tax_number")
             .ilike("tax_number", `%${cleanTax.slice(0, 8)}%`)
-            .maybeSingle()
-          if (matchedComp?.id) {
-            companyId = matchedComp.id
+
+          if (candidates && candidates.length > 0) {
+            const matched = candidates.filter((c: any) => {
+              const billCleanTax = (c.tax_number || "").replace(/[-\s]/g, "")
+              if (cleanTax.length >= 10 && billCleanTax.length >= 10) {
+                return billCleanTax === cleanTax
+              }
+              return billCleanTax.slice(0, 8) === cleanTax.slice(0, 8)
+            })
+            if (matched.length === 1 && matched[0]?.id) {
+              companyId = matched[0].id
+            }
           }
         }
 
-        if (!companyId && activeCompany.name) {
-          const { data: matchedComp } = await billClient
-            .from("companies")
-            .select("id")
-            .ilike("name", `%${activeCompany.name.trim()}%`)
-            .maybeSingle()
-          if (matchedComp?.id) {
-            companyId = matchedComp.id
-          }
-        }
-
-        // Ha találtunk megbízható egyezést, automatikusan rögzítjük az eaisybill_company_id-t
+        // Ha találtunk egyértelmű adószám-egyezést, automatikusan rögzítjük az eaisybill_company_id-t
         if (companyId) {
           await docsClient
             .from("companies")
@@ -160,9 +163,16 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
   }
 
   // Szerveroldali számla-ellenőrzés az eaisyBill adatbázisból (SSRF és idegen számla elleni védelem)
-  const billClient = createEaisyBillClient()
   const eaisybillCompanyId = activeCompany?.eaisybill_company_id
-  let billQuery = billClient
+  if (!eaisybillCompanyId) {
+    return {
+      success: false,
+      error: "Az aktív vállalat nincs összekapcsolva eaisyBill vállalattal, így a számla nem érkeztethető."
+    }
+  }
+
+  const billClient = createEaisyBillClient()
+  const { data: verifiedInvoice } = await billClient
     .from("invoices")
     .select(`
       id, company_id, bizonylatsorszam, kibocsatas_datuma, fizetesi_hatarido,
@@ -171,17 +181,13 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
       melleklet_url, invoice_direction, fizetve
     `)
     .eq("id", invoice.id)
+    .eq("company_id", eaisybillCompanyId)
+    .maybeSingle()
 
-  if (eaisybillCompanyId) {
-    billQuery = billQuery.eq("company_id", eaisybillCompanyId)
-  }
-
-  const { data: verifiedInvoice } = await billQuery.maybeSingle()
-  const safeInvoice = verifiedInvoice || invoice
-
-  if (verifiedInvoice === null && eaisybillCompanyId) {
+  if (!verifiedInvoice) {
     return { success: false, error: "A kiválasztott számla nem található az aktív vállalat eaisyBill fiókjában." }
   }
+  const safeInvoice = verifiedInvoice
 
   const verifiedUrl = verifiedInvoice?.melleklet_url ?? null
   if (verifiedUrl) {
@@ -240,11 +246,17 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
 
   // Érkeztetőszám generálás
   const currentYear = new Date().getFullYear()
-  const { data: erkezId } = await docsClient.rpc("generate_erkeztetoszam", {
+  const { data: erkezId, error: erkezErr } = await docsClient.rpc("generate_erkeztetoszam", {
     p_ev: currentYear,
     p_company_id: activeCompanyId || null,
   })
-  const erkeztetoszam = erkezId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
+  if (erkezErr || !erkezId) {
+    return {
+      success: false,
+      error: "Hiba az érkeztetőszám generálásakor: " + (erkezErr?.message || "Nem sikerült sorszámot allokálni."),
+    }
+  }
+  const erkeztetoszam = erkezId
 
   // Tárgy összeállítás
   const targy = `${safeInvoice.elado_nev} – ${safeInvoice.bizonylatsorszam} sz. számla (${safeInvoice.brutto_vegosszeg} ${safeInvoice.penznem})`

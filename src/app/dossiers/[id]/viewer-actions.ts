@@ -23,6 +23,17 @@ export async function getDocumentSignedUrl(filePath: string, iratId: string, fil
     .eq("id", iratId)
     .single()
 
+  if (!irat) {
+    return { error: "A megtekinteni kívánt irat nem található vagy nincs hozzáférése." }
+  }
+
+  const { getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
+  const iratCompanyRoles = await getActiveCompanyMemberRolesServer(irat.company_id || null)
+  const isDocsCompanyAdmin =
+    iratCompanyRoles.isCompanyAdmin ||
+    iratCompanyRoles.docsRole === "admin" ||
+    iratCompanyRoles.docsRole === "rendszergazda"
+
   const minositesHierarchy: Record<string, number> = {
     nyilt: 1,
     belso: 2,
@@ -32,7 +43,7 @@ export async function getDocumentSignedUrl(filePath: string, iratId: string, fil
   const userLevel = minositesHierarchy[profile?.max_minosites || 'nyilt'] || 1
   const docLevel = minositesHierarchy[irat?.minosites || 'nyilt'] || 1
 
-  if (profile?.docs_szerepkor !== 'admin' && userLevel < docLevel) {
+  if (!isDocsCompanyAdmin && userLevel < docLevel) {
     // Ellenőrizzük, hogy HR dokumentumról van-e szó (saját irat vagy jogosult HR/cég-admin)
     const { data: hrDoc } = await supabase
       .from("hr_dokumentum")
@@ -46,10 +57,12 @@ export async function getDocumentSignedUrl(filePath: string, iratId: string, fil
       if (hrDoc.dolgozo_id === user.id) {
         hasHrAccess = true
       } else {
-        const { getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
         const { isUserAuthorizedForHrView, normalizeHrRoleAndModules } = await import("@/utils/hr/company-role-resolver")
         const targetCompanyId = hrDoc.company_id || irat?.company_id || null
-        const companyRoles = await getActiveCompanyMemberRolesServer(targetCompanyId)
+        const companyRoles =
+          targetCompanyId === (irat.company_id || null)
+            ? iratCompanyRoles
+            : await getActiveCompanyMemberRolesServer(targetCompanyId)
         const fallbackNormalized = normalizeHrRoleAndModules(
           profile?.hr_szerepkor,
           Array.isArray(profile?.hr_modulok) ? profile.hr_modulok : []

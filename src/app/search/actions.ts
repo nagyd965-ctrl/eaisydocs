@@ -3,6 +3,13 @@
 import { createClient } from "@/utils/supabase/server"
 import { generateEmbedding } from "@/utils/embedding-service"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
+
+function sanitizeOrTerm(raw: string | null | undefined): string {
+  return String(raw || "")
+    .replace(/[,().%_\\"']/g, " ")
+    .trim()
+}
 
 function sanitizeSearchSnippet(raw: string | null | undefined): string | null {
   if (!raw) return null
@@ -19,6 +26,10 @@ function sanitizeSearchSnippet(raw: string | null | undefined): string | null {
 export async function searchDocuments(query: string, filters: any = {}) {
   const supabase = await createClient()
   const activeCompanyId = await getActiveCompanyIdServer()
+  const auth = await requireDocsAuthServer(undefined, activeCompanyId)
+  if (!auth.authorized || !auth.user) {
+    return { data: [], error: auth.error || "Nincs jogosultság." }
+  }
   const cleanQuery = query?.trim() || ""
 
   try {
@@ -130,7 +141,10 @@ async function fallbackSearch(
   }
 
   if (query) {
-    dbQuery = dbQuery.or(`targy.ilike.%${query}%,leiras.ilike.%${query}%,erkeztetoszam.ilike.%${query}%`)
+    const safeQuery = sanitizeOrTerm(query)
+    if (safeQuery) {
+      dbQuery = dbQuery.or(`targy.ilike.%${safeQuery}%,leiras.ilike.%${safeQuery}%,erkeztetoszam.ilike.%${safeQuery}%`)
+    }
   }
 
   if (filters.minosites && filters.minosites !== "all") {
@@ -166,15 +180,12 @@ export async function saveSearch(
   ertesites_bekapcsolva = false
 ) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Nincs bejelentkezve" }
-
   const activeCompanyId = await getActiveCompanyIdServer()
+  const auth = await requireDocsAuthServer(undefined, activeCompanyId)
+  if (!auth.authorized || !auth.user) return { success: false, error: auth.error || "Nincs jogosultság." }
 
   const { error } = await supabase.from("mentett_kereses").insert({
-    user_id: user.id,
+    user_id: auth.user.id,
     nev: name,
     kereso_parameterek: { query, filters },
     ertesites_bekapcsolva: Boolean(ertesites_bekapcsolva),
@@ -188,18 +199,15 @@ export async function saveSearch(
 
 export async function toggleSavedSearchAlert(id: string, enabled: boolean) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Nincs bejelentkezve" }
-
   const activeCompanyId = await getActiveCompanyIdServer()
+  const auth = await requireDocsAuthServer(undefined, activeCompanyId)
+  if (!auth.authorized || !auth.user) return { success: false, error: auth.error || "Nincs jogosultság." }
 
   let updateQuery = supabase
     .from("mentett_kereses")
     .update({ ertesites_bekapcsolva: enabled })
     .eq("id", id)
-    .eq("user_id", user.id)
+    .eq("user_id", auth.user.id)
 
   if (activeCompanyId) {
     updateQuery = updateQuery.eq("company_id", activeCompanyId)
@@ -213,17 +221,14 @@ export async function toggleSavedSearchAlert(id: string, enabled: boolean) {
 
 export async function getSavedSearches() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return []
-
   const activeCompanyId = await getActiveCompanyIdServer()
+  const auth = await requireDocsAuthServer(undefined, activeCompanyId)
+  if (!auth.authorized || !auth.user) return []
 
   let query = supabase
     .from("mentett_kereses")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("user_id", auth.user.id)
     .order("created_at", { ascending: false })
 
   if (activeCompanyId) {
@@ -237,18 +242,15 @@ export async function getSavedSearches() {
 
 export async function deleteSavedSearch(id: string) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Nincs bejelentkezve" }
-
   const activeCompanyId = await getActiveCompanyIdServer()
+  const auth = await requireDocsAuthServer(undefined, activeCompanyId)
+  if (!auth.authorized || !auth.user) return { success: false, error: auth.error || "Nincs jogosultság." }
 
   let deleteQuery = supabase
     .from("mentett_kereses")
     .delete()
     .eq("id", id)
-    .eq("user_id", user.id)
+    .eq("user_id", auth.user.id)
 
   if (activeCompanyId) {
     deleteQuery = deleteQuery.eq("company_id", activeCompanyId)
@@ -265,10 +267,12 @@ export async function deleteSavedSearch(id: string) {
  */
 export async function quickSearch(query: string) {
   const supabase = await createClient()
-  const clean = query?.trim()
+  const clean = sanitizeOrTerm(query)
   if (!clean || clean.length < 2) return { dossiers: [], documents: [], partners: [] }
 
   const activeCompanyId = await getActiveCompanyIdServer()
+  const auth = await requireDocsAuthServer(undefined, activeCompanyId)
+  if (!auth.authorized || !auth.user) return { dossiers: [], documents: [], partners: [] }
 
   try {
     let dossiersQuery = supabase

@@ -64,10 +64,19 @@ export default async function ArchivePage(props: {
 
   const { data: batches } = await batchQuery
 
-  // Felhasználónevek a csomagokhoz
-  const { data: profiles } = await supabase
-    .from("felhasznalo_profil")
-    .select("id, nev")
+  // Felhasználónevek a csomagokhoz (kizárólag a csomagokban szereplő felhasználókra szűkítve)
+  const batchUserIds = Array.from(
+    new Set(
+      (batches || [])
+        .flatMap((b) => [b.javaslattevo_user_id, b.jovahagyo_user_id])
+        .filter((uid): uid is string => Boolean(uid))
+    )
+  )
+
+  const { data: profiles } =
+    batchUserIds.length > 0
+      ? await supabase.from("felhasznalo_profil").select("id, nev").in("id", batchUserIds)
+      : { data: [] as { id: string; nev: string }[] }
 
   const userMap: Record<string, string> = {}
   profiles?.forEach((p) => {

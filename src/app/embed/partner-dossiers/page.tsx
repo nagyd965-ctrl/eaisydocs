@@ -28,12 +28,18 @@ export default async function PartnerDossiersEmbed(props: { searchParams: Promis
   }
 
   const supabase = await createClient()
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer()
+  if (!auth.authorized || !auth.user || !auth.activeCompanyId) {
+    return notFound()
+  }
 
-  // Lekérdezzük a partnert
+  // Lekérdezzük a partnert (kizárólag az aktív cégből)
   const { data: partner } = await supabase
     .from("partner")
-    .select("nev, adoszam")
+    .select("nev, adoszam, company_id")
     .eq("id", partner_id)
+    .eq("company_id", auth.activeCompanyId)
     .single()
 
   if (!partner) {

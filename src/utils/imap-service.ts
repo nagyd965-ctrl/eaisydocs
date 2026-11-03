@@ -96,6 +96,24 @@ async function processMailboxForCompany(config: CompanyImapConfig): Promise<{
 
       // Parse the email source
       const parsed = await simpleParser(message.source);
+      const messageIdKey = (parsed.messageId || `uid:${(message as any).uid || message.seq}`).trim();
+
+      // Duplikáció-ellenőrzés Message-ID alapján (hogy megszakadt futás vagy visszaállított Seen esetén se duplázódjon)
+      const { data: existingImapIrat } = await supabase
+        .from('irat')
+        .select('id')
+        .eq('company_id', config.companyId)
+        .eq('kulso_forras', 'imap')
+        .eq('kulso_hivatkozas_id', messageIdKey)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingImapIrat) {
+        await client.messageFlagsAdd(String(message.seq), ['\\Seen']);
+        processedSeqs.push(message.seq);
+        continue;
+      }
+
       const subject = parsed.subject || 'Nincs Tárgy';
       const sender = parsed.from?.value[0]?.name || parsed.from?.value[0]?.address || 'Ismeretlen feladó';
       const partnerNev = parsed.from?.value[0]?.name || parsed.from?.value[0]?.address || 'Ismeretlen Partner';
@@ -119,6 +137,7 @@ async function processMailboxForCompany(config: CompanyImapConfig): Promise<{
 
       if (!classification.isRelevant) {
         console.log(`[IMAP] Kiszűrt e-mail (${classification.category}): "${subject}" Feladó: ${sender}. Indok: ${classification.reason}`);
+        await client.messageFlagsAdd(String(message.seq), ['\\Seen']);
         processedSeqs.push(message.seq);
         skippedSpamCount++;
         continue;
@@ -131,9 +150,12 @@ async function processMailboxForCompany(config: CompanyImapConfig): Promise<{
         p_company_id: config.companyId || null,
       });
 
-      const erkeztetoszam = !erkezErr && erkezId
-        ? erkezId
-        : `E/ERR-${Date.now()}`;
+      if (erkezErr || !erkezId) {
+        throw new Error(
+          `[IMAP] Hiba az érkeztetőszám generálásakor: ${erkezErr?.message || "Nem sikerült sorszámot allokálni."}`
+        );
+      }
+      const erkeztetoszam = erkezId;
 
       const { findOrCreatePartner } = await import("@/utils/partner-matcher");
       let partnerId = null;
@@ -150,7 +172,7 @@ async function processMailboxForCompany(config: CompanyImapConfig): Promise<{
         console.warn("IMAP partner match error:", err);
       }
 
-      // Insert into the 'irat' table — a postafiók tulajdonos cégéhez rendelve
+      // Insert into the 'irat' table — a postafiók tulajdonos cégéhez rendelve (Message-ID duplikáció-védelemmel)
       const { data: iratData, error: iratError } = await supabase
         .from('irat')
         .insert({
@@ -163,7 +185,9 @@ async function processMailboxForCompany(config: CompanyImapConfig): Promise<{
           leiras: body.substring(0, 5000), // Limit description length
           minosites: 'nyilt', // Default clearance
           adathordozo_tipus: 'elektronikus_eredeti',
-          company_id: config.companyId
+          company_id: config.companyId,
+          kulso_forras: 'imap',
+          kulso_hivatkozas_id: messageIdKey
         })
         .select('id')
         .single();
@@ -180,6 +204,17 @@ async function processMailboxForCompany(config: CompanyImapConfig): Promise<{
       try {
         browser = await launchPdfBrowser();
         const page = await browser.newPage();
+
+        // Külső képek és követőpixelek (http/https) blokkolása SSRF és adatvédelmi okokból
+        await page.setRequestInterception(true);
+        page.on('request', (req: any) => {
+          const reqUrl = req.url();
+          if (reqUrl.startsWith('http://') || reqUrl.startsWith('https://')) {
+            req.abort();
+          } else {
+            req.continue();
+          }
+        });
 
         const emailHtml = parsed.html || `<pre style="white-space: pre-wrap; font-family: inherit;">${parsed.text || 'Üres üzenet'}</pre>`;
         const finalHtml = `
@@ -267,7 +302,9 @@ async function processMailboxForCompany(config: CompanyImapConfig): Promise<{
 
       // Process attachments
       if (parsed.attachments && parsed.attachments.length > 0) {
+        let attIndex = 0;
         for (const attachment of parsed.attachments) {
+          attIndex++;
           const rawFileName = (attachment.filename || 'ismeretlen_fajl.dat').trim();
           const safeBaseName = rawFileName
             .replace(/\0/g, '')
@@ -278,8 +315,8 @@ async function processMailboxForCompany(config: CompanyImapConfig): Promise<{
           const sanitizedFileName = safeBaseName.replace(/[^a-zA-Z0-9._-]/g, '_');
           const fileBuffer = attachment.content;
 
-          // Upload to Supabase Storage with sanitized path
-          const filePath = `${iratId}/${sanitizedFileName}`;
+          // Upload to Supabase Storage with index-prefixed sanitized path so duplicate attachment names do not collide
+          const filePath = `${iratId}/${attIndex}_${sanitizedFileName}`;
           const { error: uploadError } = await supabase.storage
             .from('irat_files')
             .upload(filePath, fileBuffer, {
@@ -351,6 +388,7 @@ async function processMailboxForCompany(config: CompanyImapConfig): Promise<{
       }
       // -------------------------------------------------------------
 
+      await client.messageFlagsAdd(String(message.seq), ['\\Seen']);
       processedSeqs.push(message.seq);
       processedCount++;
     }

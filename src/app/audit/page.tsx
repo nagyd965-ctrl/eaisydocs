@@ -76,6 +76,114 @@ export const DOCS_EVENT_CONFIG: Record<string, { label: string; category: Action
   "visszahozva": { label: "Visszavétel", category: "approval", badgeClass: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" }
 }
 
+const DOCS_AUDIT_FIELD_LABELS: Record<string, string> = {
+  iktatoszam: "Iktatószám",
+  erkeztetoszam: "Érkeztetőszám",
+  ugyszam: "Ügyszám",
+  targy: "Tárgy / Megnevezés",
+  statusz: "Állapot / Státusz",
+  irany: "Irat iránya",
+  minosites: "Biztonsági minősítés",
+  felelos_user_id: "Felelős ügyintéző",
+  rogzito_user_id: "Rögzítő munkatárs",
+  kuldo_partner_id: "Küldő / Partner",
+  partner_id: "Partner",
+  ugyirat_id: "Kapcsolódó ügyirat",
+  alszam: "Alszám",
+  szervezeti_egyseg_id: "Szervezeti egység",
+  hatarido: "Ügyintézési határidő",
+  megorzesi_ido_vege: "Irattári megőrzés vége",
+  erkezes_modja: "Érkezés csatornája",
+  erkezes_datuma: "Érkezés időpontja",
+  iktatas_datuma: "Iktatás időpontja",
+  kulso_forras: "Külső forrás",
+  adathordozo_tipus: "Adathordozó típusa",
+  kezbesites_statusz: "Kézbesítés státusza",
+  kezbesites_modja: "Kézbesítés módja",
+  kezbesites_cimzett: "Kézbesítési címzett",
+  kezbesites_datuma: "Kézbesítés dátuma",
+  kezbesites_azonosito: "Kézbesítési / Postai azonosító",
+  kezbesites_megjegyzes: "Kézbesítési megjegyzés",
+  leiras: "Tartalmi kivonat / Leírás",
+  megjegyzes: "Megjegyzés",
+  fajl: "Érintett fájl",
+  lezarva: "Lezárt állapot",
+  irattari_hely: "Irattári hely",
+}
+
+const DOCS_AUDIT_HIDDEN_KEYS = new Set([
+  "id",
+  "company_id",
+  "embedding",
+  "kereso_vektor",
+  "created_at",
+  "updated_at",
+  "user_email",
+  "kulso_hivatkozas_id",
+  "irattari_terv_id",
+  "ugy_id",
+])
+
+const DOCS_AUDIT_VALUE_TRANSLATIONS: Record<string, string> = {
+  erkeztetve: "Érkeztetve",
+  iktatva: "Iktatva",
+  szignalt: "Szignált",
+  folyamatban: "Ügyintézés alatt",
+  elintezett: "Elintézett",
+  lezart: "Lezárt",
+  irattarban: "Irattárban",
+  irattarozott: "Irattározott",
+  selejtezheto: "Selejtezhető",
+  selejtezett: "Selejtezett",
+  nyitott: "Nyitott",
+  aktiv: "Aktív",
+  nyilt: "Nyílt",
+  belso: "Belső",
+  bizalmas: "Bizalmas",
+  szigoruan_bizalmas: "Szigorúan bizalmas",
+  bejovo: "Bejövő küldemény",
+  kimeno: "Kimenő irat",
+  email: "E-mail",
+  eaisybill: "eaisyBill számlaszinkron",
+  posta: "Postai küldemény",
+  szemelyes: "Személyes átvétel",
+  hivatali_kapu: "Hivatali kapu / Cégkapu",
+  szkenner: "Szkenner (Batch)",
+  rendszer: "Rendszer generálás",
+  elektronikus_eredeti: "Elektronikus eredeti",
+  papir_alap: "Papír alapú",
+  digitalizalt: "Digitalizált (szkennelt)",
+  nincs_expedialva: "Nincs expediálva",
+  expedialva: "Expediálva",
+  kikuldve: "Kiküldve",
+  piszkozat: "Piszkozat",
+}
+
+function formatDocsAuditFieldValue(key: string, val: unknown): string {
+  if (val === null || val === undefined || val === "") return "–"
+  if (typeof val === "boolean") return val ? "Igen" : "Nem"
+  if (key === "alszam") return `/${val}`
+  if (typeof val === "string") {
+    if (DOCS_AUDIT_VALUE_TRANSLATIONS[val]) {
+      return DOCS_AUDIT_VALUE_TRANSLATIONS[val]
+    }
+    if (
+      (key.includes("datum") || key === "hatarido" || key === "megorzesi_ido_vege") &&
+      /^\d{4}-\d{2}-\d{2}/.test(val)
+    ) {
+      const d = new Date(val)
+      if (!isNaN(d.getTime())) {
+        return val.length > 10
+          ? format(d, "yyyy. MM. dd. HH:mm", { locale: hu })
+          : format(d, "yyyy. MM. dd.", { locale: hu })
+      }
+    }
+    return val
+  }
+  if (typeof val === "number") return String(val)
+  return JSON.stringify(val)
+}
+
 function CentralAuditPageInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -964,28 +1072,140 @@ function CentralAuditPageInner() {
                 )}
               </div>
 
-              {/* Értékváltozás diff (ha van előző vagy új érték) */}
-              {(selectedLog.elozo_ertek || selectedLog.uj_ertek) && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Értékváltozás & Mezők
-                  </p>
-                  <div className="rounded-lg border border-border overflow-hidden text-xs">
-                    <div className="grid grid-cols-2 bg-muted/40 font-semibold p-2 border-b border-border">
-                      <div>Korábbi Érték</div>
-                      <div>Új Érték</div>
-                    </div>
-                    <div className="grid grid-cols-2 p-3 font-mono text-[11px] gap-3 bg-card overflow-x-auto">
-                      <div className="text-muted-foreground break-all whitespace-pre-wrap">
-                        {selectedLog.elozo_ertek ? JSON.stringify(selectedLog.elozo_ertek, null, 2) : "– (Nincs előző érték)"}
+              {/* Értékváltozás & Érintett Rekord Mezők (Emberi nyelven, strukturáltan) */}
+              {(selectedLog.elozo_ertek || selectedLog.uj_ertek) && (() => {
+                const elozo = (selectedLog.elozo_ertek && typeof selectedLog.elozo_ertek === "object") ? selectedLog.elozo_ertek : null
+                const uj = (selectedLog.uj_ertek && typeof selectedLog.uj_ertek === "object") ? selectedLog.uj_ertek : null
+
+                const changedRows: Array<{ key: string; label: string; oldText: string; newText: string }> = []
+                if (elozo && uj) {
+                  const allKeys = Array.from(new Set([...Object.keys(elozo), ...Object.keys(uj)]))
+                  for (const key of allKeys) {
+                    if (DOCS_AUDIT_HIDDEN_KEYS.has(key)) continue
+                    const oldVal = elozo[key]
+                    const newVal = uj[key]
+                    if (JSON.stringify(oldVal ?? null) !== JSON.stringify(newVal ?? null)) {
+                      changedRows.push({
+                        key,
+                        label: DOCS_AUDIT_FIELD_LABELS[key] || key,
+                        oldText: formatDocsAuditFieldValue(key, oldVal),
+                        newText: formatDocsAuditFieldValue(key, newVal),
+                      })
+                    }
+                  }
+                }
+
+                const snapshotSource = uj || elozo || {}
+                const summaryOrder = [
+                  "iktatoszam",
+                  "erkeztetoszam",
+                  "ugyszam",
+                  "targy",
+                  "irany",
+                  "statusz",
+                  "minosites",
+                  "kuldo_partner_id",
+                  "partner_id",
+                  "ugyirat_id",
+                  "alszam",
+                  "felelos_user_id",
+                  "szervezeti_egyseg_id",
+                  "hatarido",
+                  "megorzesi_ido_vege",
+                  "erkezes_modja",
+                  "erkezes_datuma",
+                  "iktatas_datuma",
+                  "fajl",
+                  "kezbesites_statusz",
+                  "kezbesites_cimzett",
+                  "kezbesites_azonosito",
+                  "megjegyzes",
+                  "leiras",
+                ]
+                const summaryItems: Array<{ key: string; label: string; value: string }> = []
+                const seenKeys = new Set<string>()
+                for (const key of summaryOrder) {
+                  if (DOCS_AUDIT_HIDDEN_KEYS.has(key)) continue
+                  const val = snapshotSource[key]
+                  if (val !== null && val !== undefined && val !== "") {
+                    summaryItems.push({
+                      key,
+                      label: DOCS_AUDIT_FIELD_LABELS[key] || key,
+                      value: formatDocsAuditFieldValue(key, val),
+                    })
+                    seenKeys.add(key)
+                  }
+                }
+                for (const [key, val] of Object.entries(snapshotSource)) {
+                  if (seenKeys.has(key) || DOCS_AUDIT_HIDDEN_KEYS.has(key)) continue
+                  if (val !== null && val !== undefined && val !== "") {
+                    summaryItems.push({
+                      key,
+                      label: DOCS_AUDIT_FIELD_LABELS[key] || key,
+                      value: formatDocsAuditFieldValue(key, val),
+                    })
+                  }
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {changedRows.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Módosult Adatmezők
+                        </p>
+                        <div className="rounded-lg border border-border overflow-hidden text-xs bg-card">
+                          <table className="w-full text-xs">
+                            <thead className="bg-muted/40 border-b border-border text-muted-foreground">
+                              <tr>
+                                <th className="text-left p-2.5 font-semibold w-1/3">Mező</th>
+                                <th className="text-left p-2.5 font-semibold w-1/3">Korábbi érték</th>
+                                <th className="text-left p-2.5 font-semibold w-1/3">Új érték</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/60">
+                              {changedRows.map(row => (
+                                <tr key={row.key} className="hover:bg-muted/10">
+                                  <td className="p-2.5 font-medium text-foreground">{row.label}</td>
+                                  <td className="p-2.5 text-destructive line-through decoration-destructive/50 break-words">
+                                    {row.oldText}
+                                  </td>
+                                  <td className="p-2.5 text-success font-semibold break-words">
+                                    {row.newText}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                      <div className="text-foreground break-all whitespace-pre-wrap">
-                        {selectedLog.uj_ertek ? JSON.stringify(selectedLog.uj_ertek, null, 2) : "–"}
+                    )}
+
+                    {summaryItems.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Érintett Dokumentum / Ügyirat Főbb Adatai
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3.5 rounded-lg border border-border/80 bg-card text-xs">
+                          {summaryItems.map(item => (
+                            <div
+                              key={item.key}
+                              className={item.key === "targy" || item.key === "leiras" || item.key === "megjegyzes" ? "sm:col-span-2 space-y-0.5" : "space-y-0.5"}
+                            >
+                              <span className="text-[11px] text-muted-foreground block">
+                                {item.label}
+                              </span>
+                              <span className="font-medium text-foreground break-words block">
+                                {item.value}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* Biztonsági & Hálózati Metaadatok */}
               <div className="p-3 rounded-lg border border-border/50 bg-muted/20 text-xs space-y-1 font-mono text-muted-foreground">

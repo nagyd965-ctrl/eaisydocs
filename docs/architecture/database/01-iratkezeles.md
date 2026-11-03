@@ -1,4 +1,4 @@
-# 🗃️ 01. Iratkezelési Mag (Core Records Management)
+# 01. Iratkezelési Mag (Core Records Management)
 
 Ez a modul kezeli a bejövő és kimenő iratokat, az iktatott ügyiratokat, a csatolt fizikai fájlokat és a hozzájuk rendelt feladatokat.
 
@@ -45,8 +45,10 @@ Egyedi küldemény (bejövő levél, számla, kimenő válasz).
 | Oszlop | Típus | Null | Leírás |
 |---|---|---|---|
 | `id` | uuid | — | Elsődleges kulcs |
-| `ugyirat_id` | uuid | ✓ | FK → `ugyirat.id` (ha már iktatva van) |
-| `erkeztetoszam` | text | ✓ | Érkeztetési azonosító (érkeztetett, még nem iktatott állapotban) |
+| `company_id` | uuid | — | FK -> `companies.id` (többcéges tulajdonos vállalat) |
+| `ugyirat_id` | uuid | Igen | FK -> `ugyirat.id` (ha már iktatva van) |
+| `alszam` | integer | Igen | Ügyiraton belüli alszám (`UNIQUE (ugyirat_id, alszam)` — `irat_ugyirat_alszam_key`) |
+| `erkeztetoszam` | text | Igen | Érkeztetési azonosító (`UNIQUE (company_id, erkeztetoszam) WHERE erkeztetoszam IS NOT NULL` — `irat_company_erkeztetoszam_key`) |
 | `targy` | text | — | Irat megnevezése/tárgya |
 | `leiras` | text | ✓ | Részletes leírás vagy kivonat |
 | `irany` | irat_irany | — | `bejovo` vagy `kimeno` |
@@ -112,5 +114,24 @@ Szigorúan **append-only** audit eseménynapló (UPDATE és DELETE megvonva).
 | `ip_cim` | text | ✓ | Kliens IP címe |
 | `user_agent` | text | ✓ | Kliens böngésző / eszköz azonosítója |
 | `elozo_ertek` | jsonb | ✓ | Módosítás előtti állapot |
-| `uj_ertek` | jsonb | ✓ | Módosítás utáni állapot |
-| `indoklas` | text | ✓ | Módosítás szöveges indoklása |
+| `uj_ertek` | jsonb | Igen | Módosítás utáni állapot |
+| `indoklas` | text | Igen | Módosítás szöveges indoklása |
+| `company_id` | uuid | Igen | FK -> `companies.id` (`ON DELETE SET NULL`, automatikus `resolve_esemeny_naplo_company_id` triggerrel) |
+
+---
+
+### `alkalmazas_ertesites` (Rendszeren Belüli Harang Értesítések)
+A felső fejlécben lévő értesítési harang (`NotificationBell`) rekordjai, céges és moduláris (`docs` vs. `hr`) elkülönítéssel.
+
+| Oszlop | Típus | Null | Leírás |
+|---|---|---|---|
+| `id` | uuid | — | Elsődleges kulcs |
+| `user_id` | uuid | — | FK -> `auth.users.id` (címzett felhasználó) |
+| `company_id` | uuid | Igen | FK -> `companies.id` (`ON DELETE CASCADE`, többcéges szűréshez) |
+| `modul` | text | — | `'docs'` vagy `'hr'` (`CHECK (modul IN ('docs', 'hr'))`, alapértelmezett: `'docs'`) |
+| `cim` | text | — | Értesítés címe |
+| `szoveg` | text | — | Értesítés szöveges leírása |
+| `tipus` | text | — | Szemantikus típus (`info`, `warning`, `error`, `success`) |
+| `link_url` | text | Igen | Kattintási célútvonal (pl. `/dossiers/...` vagy `/hr/...`) |
+| `olvasott` | boolean | — | Olvasottsági státusz (alapértelmezett: `false`) |
+| `created_at` | timestamptz | — | Létrehozás ideje (`NOW()`) |

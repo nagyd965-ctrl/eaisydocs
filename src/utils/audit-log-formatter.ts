@@ -17,12 +17,77 @@ export interface AuditLogRaw {
 
 export interface FormatAuditOptions {
   userMap?: Record<string, string>
+  partnerMap?: Record<string, string>
+  dossierMap?: Record<string, string>
+  deptMap?: Record<string, string>
   comments?: Array<{
     id?: string
     szoveg: string
     created_at: string
     user_id?: string
   }>
+}
+
+export const AUDIT_STATUS_LABELS: Record<string, string> = {
+  erkeztetve: "Érkeztetve",
+  iktatva: "Iktatva",
+  szignalt: "Szignált",
+  folyamatban: "Ügyintézés alatt",
+  ugyintezes_alatt: "Ügyintézés alatt",
+  elintezett: "Elintézett",
+  lezart: "Lezárt",
+  irattarban: "Irattárban",
+  irattarozott: "Irattározott",
+  selejtezheto: "Selejtezhető",
+  selejtezett: "Selejtezett",
+  nem_iktatando: "Nem iktatandó",
+  nyitott: "Nyitott",
+  aktiv: "Aktív",
+  piszkozat: "Piszkozat",
+  vazlat: "Vázlat",
+  expedialasra_var: "Expediálásra vár",
+  kikuldve: "Kiküldve",
+  nincs_expedialva: "Nincs expediálva",
+  expedialva: "Expediálva",
+  sikeres: "Sikeres",
+  hibas: "Hibás",
+}
+
+export const AUDIT_CLEARANCE_LABELS: Record<string, string> = {
+  nyilt: "Nyílt",
+  belso: "Belső",
+  bizalmas: "Bizalmas",
+  szigoruan_bizalmas: "Szigorúan bizalmas",
+}
+
+export const AUDIT_DIRECTION_LABELS: Record<string, string> = {
+  bejovo: "Bejövő küldemény",
+  kimeno: "Kimenő irat",
+  belso: "Belső irat",
+}
+
+export const AUDIT_CHANNEL_LABELS: Record<string, string> = {
+  email: "E-mail",
+  eaisybill: "eaisyBill számlaszinkron",
+  posta: "Postai küldemény",
+  szemelyes: "Személyes átvétel",
+  hivatali_kapu: "Hivatali kapu / Cégkapu",
+  szkenner: "Szkenner (Batch)",
+  rendszer: "Rendszer generálás",
+}
+
+export function formatAuditStatusValue(val: unknown): string {
+  if (val === null || val === undefined || val === "") return "–"
+  const s = String(val)
+  return AUDIT_STATUS_LABELS[s] || AUDIT_CLEARANCE_LABELS[s] || AUDIT_DIRECTION_LABELS[s] || AUDIT_CHANNEL_LABELS[s] || s
+}
+
+function formatShortDate(val: unknown): string {
+  if (!val) return "–"
+  const s = String(val)
+  const d = new Date(s)
+  if (isNaN(d.getTime())) return s
+  return d.toLocaleDateString("hu-HU", { year: "numeric", month: "2-digit", day: "2-digit" })
 }
 
 /**
@@ -32,6 +97,9 @@ export interface FormatAuditOptions {
  */
 export function formatAuditLogEvent(log: AuditLogRaw, options?: FormatAuditOptions): TimelineEvent {
   const userMap = options?.userMap || {}
+  const partnerMap = options?.partnerMap || {}
+  const dossierMap = options?.dossierMap || {}
+  const deptMap = options?.deptMap || {}
   const comments = options?.comments || []
 
   const indoklas = (log.indoklas || "").trim()
@@ -51,17 +119,33 @@ export function formatAuditLogEvent(log: AuditLogRaw, options?: FormatAuditOptio
   if (log.esemeny_tipus === "iktatva") {
     if (log.entitas_tipus === "irat") {
       title = "Irat beiktatva"
-      description = indoklas || "Irat hivatalosan beiktatva az ügyiratra."
+      const targy = ujErtek.targy ? ` (${ujErtek.targy})` : ""
+      description = indoklas || `Irat hivatalosan beiktatva az ügyiratra${targy}.`
     } else {
       title = "Ügyirat iktatva"
       const iktatoszam = ujErtek.iktatoszam || ujErtek.ugyszam || (indoklas.match(/([A-Z0-9_\-\/]{8,})/)?.[1]) || ""
-      description = iktatoszam ? `Iktatószám kiosztva: ${iktatoszam}` : (indoklas || "Ügyirat sikeresen beiktatva.")
+      const targy = ujErtek.targy ? ` — ${ujErtek.targy}` : ""
+      description = iktatoszam
+        ? `Iktatószám kiosztva: ${iktatoszam}${targy}`
+        : (indoklas || `Ügyirat sikeresen beiktatva${targy}.`)
     }
     icon = "folder-plus"
     color = "text-primary"
   } else if (log.esemeny_tipus === "erkeztetve") {
     title = "Irat érkeztetve"
-    description = indoklas || (ujErtek.erkeztetoszam ? `Érkeztetőszám kiosztva: ${ujErtek.erkeztetoszam}` : "Új beérkező küldemény regisztrálva.")
+    const erkeztetoszam = ujErtek.erkeztetoszam ? `${ujErtek.erkeztetoszam}` : ""
+    const targy = ujErtek.targy ? `${ujErtek.targy}` : ""
+    if (indoklas) {
+      description = indoklas
+    } else if (erkeztetoszam && targy) {
+      description = `${erkeztetoszam} — ${targy}`
+    } else if (erkeztetoszam) {
+      description = `Érkeztetőszám kiosztva: ${erkeztetoszam}`
+    } else if (targy) {
+      description = `Beérkezett küldemény: ${targy}`
+    } else {
+      description = "Új beérkező küldemény regisztrálva."
+    }
     icon = "check-circle"
     color = "text-success"
   }
@@ -104,17 +188,31 @@ export function formatAuditLogEvent(log: AuditLogRaw, options?: FormatAuditOptio
     color = "text-success"
   } else if (log.esemeny_tipus === "elintezve" || indoklas.includes("szakmailag elintézve")) {
     title = "Ügyirat elintézve"
-    description = indoklas || "Az ügyintézés befejeződött, az ügyirat elintézett státuszba került."
+    const ikt = ujErtek.iktatoszam ? `${ujErtek.iktatoszam} — ` : ""
+    const trg = ujErtek.targy || ""
+    description = indoklas || (ikt || trg ? `${ikt}${trg} (elintézett státuszba került)` : "Az ügyintézés befejeződött, az ügyirat elintézett státuszba került.")
     icon = "check-circle"
     color = "text-success"
   } else if (log.esemeny_tipus === "irattarozva") {
     title = "Ügyirat irattározva"
-    description = indoklas || (ujErtek.megorzesi_ido_vege ? `Irattári megőrzés vége: ${ujErtek.megorzesi_ido_vege}` : "Ügyirat átadva az irattárba.")
+    const ikt = ujErtek.iktatoszam ? `${ujErtek.iktatoszam} — ` : ""
+    description =
+      indoklas ||
+      (ujErtek.megorzesi_ido_vege
+        ? `${ikt}Irattári megőrzés vége: ${formatShortDate(ujErtek.megorzesi_ido_vege)}`
+        : `${ikt}${ujErtek.targy || "Ügyirat átadva az irattárba."}`)
     icon = "archive"
     color = "text-info"
   } else if (log.esemeny_tipus === "selejtezve") {
     title = "Irat selejtezve"
-    description = indoklas || reszletek || "Az irat fizikai / elektronikus megsemmisítése jóváhagyva."
+    const ugyszam = ujErtek.ugyszam || ujErtek.iktatoszam || ""
+    const trg = ujErtek.targy || ""
+    description =
+      indoklas ||
+      reszletek ||
+      (ugyszam || trg
+        ? `${ugyszam ? ugyszam + " — " : ""}${trg} (selejtezve)`
+        : "Az irat fizikai / elektronikus megsemmisítése jóváhagyva.")
     icon = "trash-2"
     color = "text-destructive"
   }
@@ -218,7 +316,10 @@ export function formatAuditLogEvent(log: AuditLogRaw, options?: FormatAuditOptio
   // ──────────────────────────────────────────────────────────────────────────
   // 8. BELSŐ MEGJEGYZÉSEK (COMMENTS)
   // ──────────────────────────────────────────────────────────────────────────
-  else if (indoklas.toLowerCase().includes("megjegyzés") || ujErtek.megjegyzes) {
+  else if (
+    indoklas.toLowerCase().includes("megjegyzés") ||
+    (ujErtek.megjegyzes && ujErtek.megjegyzes !== elozoErtek.megjegyzes)
+  ) {
     const isEditedNote = indoklas.startsWith("Belső megjegyzés szerkesztve")
     const isDeletedNote = indoklas.startsWith("Belső megjegyzés törölve")
     title = isEditedNote
@@ -229,13 +330,11 @@ export function formatAuditLogEvent(log: AuditLogRaw, options?: FormatAuditOptio
     icon = isDeletedNote ? "trash-2" : "message-square"
     color = isDeletedNote ? "text-muted-foreground" : "text-info"
 
-    // Ha az indoklásban már benne van a szöveg
     if (indoklas.includes(":") && !indoklas.endsWith("Megjegyzés hozzáadva")) {
       description = indoklas.split(":").slice(1).join(":").trim()
     } else if (ujErtek.megjegyzes && ujErtek.megjegyzes !== "Megjegyzés hozzáadva") {
       description = `„${ujErtek.megjegyzes}”`
     } else if (comments.length > 0) {
-      // Megpróbáljuk megkeresni az adatbázisban tárolt megjegyzések között az időbélyeg és user alapján
       const logTime = new Date(log.tortent).getTime()
       const matched = comments.find((c) => {
         const commentTime = new Date(c.created_at).getTime()
@@ -322,7 +421,7 @@ export function formatAuditLogEvent(log: AuditLogRaw, options?: FormatAuditOptio
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 14. EGYÉB VAGY AUTOMATIKUS RENDSZERTRIGGER FRISSÍTÉSEK
+  // 14. EGYÉB VAGY MEZŐSZINTŰ FRISSÍTÉSEK (elozo_ertek vs uj_ertek elemzése)
   // ──────────────────────────────────────────────────────────────────────────
   else if (indoklas.length > 0) {
     title = "Ügyirat módosítás"
@@ -330,31 +429,108 @@ export function formatAuditLogEvent(log: AuditLogRaw, options?: FormatAuditOptio
     icon = "edit"
     color = "text-info"
   } else {
-    // Üres indoklás (DB trigger vagy háttérfolyamat) esetén megvizsgáljuk az elozo és uj ertekeket
-    if (elozoErtek.statusz && ujErtek.statusz && elozoErtek.statusz !== ujErtek.statusz) {
+    const contextRef =
+      ujErtek.iktatoszam ||
+      ujErtek.erkeztetoszam ||
+      ujErtek.ugyszam ||
+      (ujErtek.ugyirat_id && dossierMap[ujErtek.ugyirat_id]) ||
+      ""
+    const targyRef = ujErtek.targy ? `${contextRef ? " — " : ""}${ujErtek.targy}` : ""
+    const prefix = contextRef || targyRef ? `${contextRef}${targyRef}: ` : ""
+
+    if (elozoErtek.statusz !== ujErtek.statusz && ujErtek.statusz) {
       title = "Státusz frissítve"
-      description = `Állapot változás: ${elozoErtek.statusz} ➔ ${ujErtek.statusz}`
+      const fromLabel = formatAuditStatusValue(elozoErtek.statusz)
+      const toLabel = formatAuditStatusValue(ujErtek.statusz)
+      description = `${prefix}${fromLabel} -> ${toLabel}`
       icon = "edit"
       color = "text-warning"
+    } else if (elozoErtek.ugyirat_id !== ujErtek.ugyirat_id && ujErtek.ugyirat_id) {
+      title = "Irat ügyirathoz csatolva (beiktatva)"
+      const dosszieLabel = dossierMap[ujErtek.ugyirat_id] || ujErtek.iktatoszam || "Ügyirathoz"
+      const alszamLabel = ujErtek.alszam ? ` (Alszám: /${ujErtek.alszam})` : ""
+      description = `${ujErtek.targy || "Irat"} beiktatva ide: ${dosszieLabel}${alszamLabel}`
+      icon = "folder-plus"
+      color = "text-primary"
+    } else if (elozoErtek.alszam !== ujErtek.alszam && ujErtek.alszam) {
+      title = "Irat alszám kiosztva"
+      description = `${ujErtek.targy || "Irat"} — Alszám: /${ujErtek.alszam}`
+      icon = "folder-plus"
+      color = "text-primary"
     } else if (elozoErtek.felelos_user_id !== ujErtek.felelos_user_id) {
-      title = "Felelős kijelölve / módosítva"
-      description = "Az ügyirat felelős munkatársa módosításra került."
+      title = "Felelős ügyintéző módosítva"
+      const newOwnerName = (ujErtek.felelos_user_id && userMap[ujErtek.felelos_user_id]) || ujErtek.felelos_nev || null
+      description = newOwnerName
+        ? `${prefix}Új felelős: ${newOwnerName}`
+        : `${prefix}Az ügyirat felelős munkatársa módosításra került.`
       icon = "users"
       color = "text-warning"
     } else if (elozoErtek.hatarido !== ujErtek.hatarido) {
-      title = "Határidő módosítva"
-      description = ujErtek.hatarido ? `Új határidő: ${ujErtek.hatarido}` : "Ügyintézési határidő törölve."
+      title = "Ügyintézési határidő módosítva"
+      description = ujErtek.hatarido
+        ? `${prefix}Új határidő: ${formatShortDate(ujErtek.hatarido)}`
+        : `${prefix}Ügyintézési határidő törölve.`
       icon = "clock"
       color = "text-warning"
+    } else if (elozoErtek.megorzesi_ido_vege !== ujErtek.megorzesi_ido_vege) {
+      title = "Irattári megőrzési idő beállítva"
+      description = ujErtek.megorzesi_ido_vege
+        ? `${prefix}Megőrzés vége: ${formatShortDate(ujErtek.megorzesi_ido_vege)}`
+        : `${prefix}Irattári megőrzési határidő frissítve.`
+      icon = "archive"
+      color = "text-info"
     } else if (elozoErtek.targy !== ujErtek.targy && ujErtek.targy) {
-      title = "Ügyirat tárgya módosítva"
+      title = "Tárgy módosítva"
       description = `Új tárgy: ${ujErtek.targy}`
       icon = "edit"
       color = "text-info"
+    } else if (
+      elozoErtek.kezbesites_statusz !== ujErtek.kezbesites_statusz ||
+      elozoErtek.kezbesites_azonosito !== ujErtek.kezbesites_azonosito ||
+      elozoErtek.kezbesites_datuma !== ujErtek.kezbesites_datuma
+    ) {
+      title = "Kézbesítési adatok rögzítve"
+      const cimzett = ujErtek.kezbesites_cimzett ? `Címzett: ${ujErtek.kezbesites_cimzett}` : ""
+      const azonosito = ujErtek.kezbesites_azonosito ? ` (${ujErtek.kezbesites_azonosito})` : ""
+      description = `${prefix}${cimzett || "Kimenő irat kézbesítési állapota frissítve"}${azonosito}`
+      icon = "send"
+      color = "text-primary"
+    } else if (elozoErtek.minosites !== ujErtek.minosites && ujErtek.minosites) {
+      title = "Biztonsági minősítés módosítva"
+      description = `${prefix}${formatAuditStatusValue(elozoErtek.minosites)} -> ${formatAuditStatusValue(ujErtek.minosites)}`
+      icon = "shield"
+      color = "text-warning"
+    } else if (elozoErtek.szervezeti_egyseg_id !== ujErtek.szervezeti_egyseg_id && ujErtek.szervezeti_egyseg_id) {
+      title = "Szervezeti egység módosítva"
+      const deptName = deptMap[ujErtek.szervezeti_egyseg_id] || "Új szervezeti egység"
+      description = `${prefix}Átsorolva ide: ${deptName}`
+      icon = "users"
+      color = "text-info"
+    } else if (elozoErtek.kuldo_partner_id !== ujErtek.kuldo_partner_id && ujErtek.kuldo_partner_id) {
+      title = "Partner hozzárendelve"
+      const partnerName = partnerMap[ujErtek.kuldo_partner_id] || "Partner"
+      description = `${prefix}Hozzárendelt partner: ${partnerName}`
+      icon = "link"
+      color = "text-info"
+    } else if (elozoErtek.lezarva !== ujErtek.lezarva && ujErtek.lezarva !== undefined) {
+      title = ujErtek.lezarva ? "Ügy lezárva" : "Ügy újranyitva"
+      description = `${prefix}${ujErtek.lezarva ? "Az ügy lezárt állapotba került." : "Az ügy újra megnyitva."}`
+      icon = "lock"
+      color = "text-success"
+    } else if (elozoErtek.leiras !== ujErtek.leiras && ujErtek.leiras) {
+      title = "Irat tartalmi kivonata frissítve"
+      description = `${prefix}${String(ujErtek.leiras).slice(0, 120)}`
+      icon = "file-text"
+      color = "text-info"
+    } else if (elozoErtek.erkezes_modja !== ujErtek.erkezes_modja && ujErtek.erkezes_modja) {
+      title = "Érkezési csatorna rögzítve"
+      description = `${prefix}Csatorna: ${formatAuditStatusValue(ujErtek.erkezes_modja)}`
+      icon = "edit"
+      color = "text-info"
     } else {
-      title = "Nyilvántartási adatok frissítve"
-      description = "Rendszeradatok vagy kapcsolódó metaadatok szinkronizálása."
-      icon = "refresh-cw"
+      title = "Irat 메타adatok módosítva".replace("메타adatok", "metaadatok")
+      description = prefix ? `${contextRef}${targyRef}` : "Irat vagy ügyirat nyilvántartási mezői frissültek."
+      icon = "edit"
       color = "text-muted-foreground"
     }
   }

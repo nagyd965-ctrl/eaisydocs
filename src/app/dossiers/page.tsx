@@ -68,6 +68,7 @@ export default async function DossiersPage() {
   let usersQuery = supabase
     .from("felhasznalo_profil")
     .select("id, nev, docs_szerepkor, szervezeti_egyseg_id")
+    .contains("elerheto_modulok", ["docs"])
   if (memberUserIds) {
     usersQuery = usersQuery.in("id", memberUserIds)
   }

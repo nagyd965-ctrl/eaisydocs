@@ -195,25 +195,6 @@ export async function getFourEyesSetting(): Promise<boolean> {
 
 export async function setFourEyesSetting(kotelezo: boolean) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) return { error: "Nincs bejelentkezve." }
-
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor, szerepkor")
-    .eq("id", user.id)
-    .single()
-
-  const isAdmin =
-    profile?.docs_szerepkor === "admin" ||
-    profile?.docs_szerepkor === "rendszergazda" ||
-    profile?.szerepkor === "admin" ||
-    profile?.szerepkor === "rendszergazda"
-
-  if (!isAdmin) {
-    return { error: "Csak adminisztrátor vagy rendszergazda módosíthatja a selejtezési szabályzatot." }
-  }
 
   // Cég-specifikus kulcs (A-098 minta): minden cég saját selejtezési szabályzatot kap
   const { getActiveCompanyIdServer } = await import("@/utils/company-server")
@@ -221,6 +202,13 @@ export async function setFourEyesSetting(kotelezo: boolean) {
   if (!activeCompanyId) {
     return { error: "Nincs kiválasztott aktív cég." }
   }
+
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda"], activeCompanyId)
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Csak az aktív vállalat adminisztrátora vagy rendszergazdája módosíthatja a selejtezési szabályzatot." }
+  }
+  const user = auth.user
 
   const { error } = await supabase
     .from("rendszer_beallitas")

@@ -15,10 +15,9 @@ import { createClient } from "@supabase/supabase-js"
  */
 
 export async function GET(request: NextRequest) {
-  // Hitelesítés
-  const authHeader = request.headers.get("authorization")
-  const secret = authHeader?.replace("Bearer ", "") || request.nextUrl.searchParams.get("secret")
-  if (secret !== process.env.CRON_SECRET) {
+  // Hitelesítés (kizárólag fejléc-alapú timingSafeEqual)
+  const { verifyCronAuth } = await import("@/utils/cron-auth")
+  if (!process.env.CRON_SECRET || !verifyCronAuth(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

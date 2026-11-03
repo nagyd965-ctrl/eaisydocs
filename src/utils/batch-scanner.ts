@@ -123,6 +123,9 @@ export function isSeparatorPageStream(doc: PDFDocument, pageIndex: number): bool
   return false
 }
 
+const MAX_BATCH_PAGES = 300
+const ALLOWED_MINOSITES = ["nyilt", "belso", "bizalmas", "szigoruan_bizalmas"] as const
+
 /**
  * Splits a multi-page batch scanned PDF into individual documents by identifying and removing separator sheets.
  */
@@ -136,6 +139,12 @@ export async function splitBatchPdf(buffer: Buffer): Promise<BatchSplitResult> {
       separatorPagesFound: [],
       documents: [],
     }
+  }
+
+  if (totalPages > MAX_BATCH_PAGES) {
+    throw new Error(
+      `A kötegelt PDF oldalszáma (${totalPages}) meghaladja a megengedett maximumot (${MAX_BATCH_PAGES} oldal).`
+    )
   }
 
   // 1. Extract text for each page to detect separator keywords / barcodes
@@ -417,11 +426,16 @@ export async function ingestSplitDocuments(
 
   for (const doc of splitDocs) {
     const currentYear = new Date().getFullYear()
-    const { data: erkezId } = await supabase.rpc("generate_erkeztetoszam", {
+    const { data: erkezId, error: erkezErr } = await supabase.rpc("generate_erkeztetoszam", {
       p_ev: currentYear,
       p_company_id: resolvedBatchCompanyId || null,
     })
-    const erkeztetoszam = erkezId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
+    if (erkezErr || !erkezId) {
+      throw new Error(
+        `Hiba a szekvenciális érkeztetőszám generálásakor (${doc.index}. tétel): ${erkezErr?.message || "Nincs visszaadott sorszám"}`
+      )
+    }
+    const erkeztetoszam = erkezId
 
     const fileExt = "pdf"
     const fileName = `${crypto.randomUUID()}.${fileExt}`
@@ -470,11 +484,16 @@ export async function ingestSplitDocuments(
       }
     }
 
+    const safeMinosites =
+      metadata.minosites && ALLOWED_MINOSITES.includes(metadata.minosites as any)
+        ? metadata.minosites
+        : "nyilt"
+
     const iratPayload: Record<string, any> = {
       targy,
       erkezes_modja: metadata.erkezesModja || "rendszer",
       adathordozo_tipus: "papir_digitalizalt",
-      minosites: metadata.minosites || "nyilt",
+      minosites: safeMinosites,
       irany: "bejovo",
       kuldo_partner_id: metadata.partnerId || null,
       erkeztetoszam,
@@ -491,6 +510,7 @@ export async function ingestSplitDocuments(
       .single()
 
     if (iratErr || !iratData) {
+      await supabase.storage.from("irat_files").remove([fileName])
       console.error(`[BatchScanner] DB insert error for irat ${doc.index}:`, iratErr)
       continue
     }
@@ -511,7 +531,10 @@ export async function ingestSplitDocuments(
       .single()
 
     if (fajlErr) {
+      await supabase.storage.from("irat_files").remove([fileName])
+      await supabase.from("irat").delete().eq("id", iratData.id)
       console.error(`[BatchScanner] DB insert error for irat_fajl ${doc.index}:`, fajlErr)
+      continue
     }
 
     // 6. Background PDF/A conversion trigger

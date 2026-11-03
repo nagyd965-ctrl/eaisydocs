@@ -8,15 +8,16 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    // 1. Biztonsági ellenőrzés (CRON_SECRET)
-    const authHeader = request.headers.get('authorization');
-    const { searchParams } = new URL(request.url);
-    const secretQuery = searchParams.get('secret');
-    const expectedSecret = process.env.CRON_SECRET;
-    
-    if (!expectedSecret || (authHeader !== `Bearer ${expectedSecret}` && authHeader !== expectedSecret && secretQuery !== expectedSecret)) {
+    // 1. Biztonsági ellenőrzés (CRON_SECRET — kizárólag fejléc-alapú timingSafeEqual)
+    const { verifyCronAuth } = await import('@/utils/cron-auth');
+    if (!verifyCronAuth(request)) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
+
+    const defaultHrSenderEmail =
+      process.env.HR_EMAIL_FROM ||
+      process.env.EMAIL_FROM ||
+      'ertesites@thinkai.hu';
 
     // 2. Admin szintű Supabase kliens létrehozása
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -33,6 +34,36 @@ export async function GET(request: Request) {
     // Mai dátum előkészítése keresésekhez (00:00:00)
     const todayRaw = new Date();
     const today = new Date(Date.UTC(todayRaw.getFullYear(), todayRaw.getMonth(), todayRaw.getDate()));
+    const sevenDaysAgoIso = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // 7 napos deduplikációs segédfüggvény a már lejárt tételekhez, hogy ne menjen ki minden éjjel újra ugyanaz az értesítés
+    const wasRecentlyNotified = async (userId: string, titleMatch: string, subjectMatch?: string): Promise<boolean> => {
+      try {
+        const { data: recentInApp } = await supabase
+          .from('alkalmazas_ertesites')
+          .select('id')
+          .eq('user_id', userId)
+          .ilike('cim', `%${titleMatch}%`)
+          .gte('letrehozva', sevenDaysAgoIso)
+          .limit(1)
+          .maybeSingle();
+        if (recentInApp) return true;
+
+        if (subjectMatch) {
+          const { data: recentEmail } = await supabase
+            .from('ertesites_naplo')
+            .select('id')
+            .ilike('targy', `%${subjectMatch}%`)
+            .gte('letrehozva', sevenDaysAgoIso)
+            .limit(1)
+            .maybeSingle();
+          if (recentEmail) return true;
+        }
+      } catch {
+        // Ha a deduplikációs lekérdezés hibázik, nem blokkoljuk a folyamatot
+      }
+      return false;
+    };
     const todayIsoStr = today.toISOString().split('T')[0];
     
     // Két nap múlvai dátum (Határidő közeledik)
@@ -267,6 +298,8 @@ export async function GET(request: Request) {
               if (csatornak.includes('in_app')) {
                 await supabase.from('alkalmazas_ertesites').insert({
                   user_id: ugy.felelos_user_id,
+                  company_id: recordCompanyId,
+                  modul: 'docs',
                   cim: `Határidő közeledik: ${primaryDossier.iktatoszam}`,
                   szoveg: `A(z) ${primaryDossier.iktatoszam} azonosítójú ügyirat határideje 2 nap múlva lejár!`,
                   link_url: `/dossiers/${primaryDossier.id}`
@@ -377,6 +410,8 @@ export async function GET(request: Request) {
                 if (csatornak.includes('in_app')) {
                   await supabase.from('alkalmazas_ertesites').insert({
                     user_id: ugy.felelos_user_id, 
+                    company_id: recordCompanyId,
+                    modul: 'docs',
                     cim: `Lejárt Határidő! (${diffDays} napja) - ${dossier.iktatoszam}`,
                     szoveg: `A(z) ${dossier.iktatoszam} azonosítójú ügyirattal ${diffDays} napja késésben vagy!`,
                     link_url: `/dossiers/${dossier.id}`
@@ -468,6 +503,8 @@ export async function GET(request: Request) {
                   if (csatornakVezeto.includes('in_app')) {
                     await supabase.from('alkalmazas_ertesites').insert({
                       user_id: leaderId,
+                      company_id: recordCompanyId,
+                      modul: 'docs',
                       cim: `[ESZKALÁCIÓ] ${diffDays} napos késés: ${dossier.iktatoszam}`,
                       szoveg: `A(z) ${dossier.iktatoszam} azonosítójú ügyirat határideje ${diffDays} napja lejárt (${orgUnit?.nev || 'Általános'}).`,
                       link_url: `/dossiers/${dossier.id}`
@@ -526,9 +563,18 @@ export async function GET(request: Request) {
               const csatornak = lejaratSzabaly.csatorna || ['email'];
               const targy = Array.isArray(ugyirat.ugy) ? (ugyirat.ugy[0] as any)?.targy : (ugyirat.ugy as any)?.targy || 'Ismeretlen ügy';
               for (const iratkezeloId of iratkezeloIds) {
+                const alreadySent = await wasRecentlyNotified(
+                  iratkezeloId,
+                  `Megőrzési idő lejárt: ${ugyirat.iktatoszam}`,
+                  `Iratselejtezés esedékes: ${ugyirat.iktatoszam}`
+                );
+                if (alreadySent) continue;
+
                 if (csatornak.includes('in_app')) {
                   await supabase.from('alkalmazas_ertesites').insert({
                     user_id: iratkezeloId,
+                    company_id: recordCompanyId,
+                    modul: 'docs',
                     cim: `Megőrzési idő lejárt: ${ugyirat.iktatoszam}`,
                     szoveg: `A(z) ${ugyirat.iktatoszam} ügyirat (${targy}) megőrzési ideje lejárt, selejtezhetővé vált.`,
                     link_url: '/archive',
@@ -621,9 +667,19 @@ export async function GET(request: Request) {
             : `${dolgozoNev} orvosi alkalmassága ${diffDays} nap múlva lejár (${v.ervenyesseg_datuma}).`;
 
           for (const targetId of Array.from(new Set(targetUserIds))) {
+            if (isExpired) {
+              const alreadySent = await wasRecentlyNotified(
+                targetId,
+                notificationTitle,
+                `${notificationTitle}: ${dolgozoNev}`
+              );
+              if (alreadySent) continue;
+            }
             if (csatornak.includes('in_app')) {
               await supabase.from('alkalmazas_ertesites').insert({
                 user_id: targetId,
+                company_id: recordCompanyId,
+                modul: 'hr',
                 cim: notificationTitle,
                 szoveg: notificationText,
                 link_url: '/hr/self-service'
@@ -636,7 +692,7 @@ export async function GET(request: Request) {
                   to: email,
                   subject: `${notificationTitle}: ${dolgozoNev}`,
                   senderName: "eaisyHR Rendszer",
-                  senderEmail: "eaisyhr@thinkai.hu",
+                  senderEmail: defaultHrSenderEmail,
                   modul: "hr",
                   companyId: recordCompanyId || undefined,
                   html: buildHtmlEmail(notificationTitle, notificationText, [{ label: "Lejárat", value: v.ervenyesseg_datuma }], "Profil megtekintése", `${getBaseUrl()}/hr`, "eaisyHR")
@@ -719,6 +775,8 @@ export async function GET(request: Request) {
             if (csatornak.includes('in_app')) {
               await supabase.from('alkalmazas_ertesites').insert({
                 user_id: targetId,
+                company_id: recordCompanyId,
+                modul: 'hr',
                 cim: 'Próbaidő lejárata',
                 szoveg: `${dolgozoNev} próbaideje 7 nap múlva lejár.`,
                 link_url: '/hr'
@@ -731,7 +789,7 @@ export async function GET(request: Request) {
                   to: email,
                   subject: `Próbaidő lejárata: ${dolgozoNev}`,
                   senderName: "eaisyHR Rendszer",
-                  senderEmail: "eaisyhr@thinkai.hu",
+                  senderEmail: defaultHrSenderEmail,
                   modul: "hr",
                   companyId: recordCompanyId || undefined,
                   html: buildHtmlEmail("Próbaidő lejárata közeledik", `${dolgozoNev} próbaideje 7 nap múlva lejár!`, [{ label: "Próbaidő vége", value: jv.probaido_vege }], "Profil megtekintése", `${getBaseUrl()}/hr`, "eaisyHR")
@@ -800,6 +858,8 @@ export async function GET(request: Request) {
             if (csatornak.includes('in_app')) {
               await supabase.from('alkalmazas_ertesites').insert({
                 user_id: targetId,
+                company_id: recordCompanyId,
+                modul: 'hr',
                 cim: 'T1041 Bejelentés Szükséges',
                 szoveg: `${dolgozoNev} 2 nap múlva munkába áll! Ne felejtsd el a T1041 bejelentést!`,
                 link_url: '/hr'
@@ -812,7 +872,7 @@ export async function GET(request: Request) {
                   to: email,
                   subject: `T1041 Bejelentés szükséges: ${dolgozoNev}`,
                   senderName: "eaisyHR Rendszer",
-                  senderEmail: "eaisyhr@thinkai.hu",
+                  senderEmail: defaultHrSenderEmail,
                   modul: "hr",
                   companyId: recordCompanyId || undefined,
                   html: buildHtmlEmail("T1041 Bejelentés", `Kérjük, győződj meg róla, hogy megtörtént a T1041 bejelentés!`, [{ label: "Munkavállaló", value: dolgozoNev }, { label: "Belépés dátuma", value: jv.belepes_datuma }], "Tovább", `${getBaseUrl()}/hr`, "eaisyHR")
@@ -883,9 +943,19 @@ export async function GET(request: Request) {
             : `${dolgozoNev} "${sz.kepzes_neve}" tanulmányi szerződése ${diffDays} nap múlva lejár!`;
 
           for (const targetId of Array.from(new Set(targetUserIds))) {
+            if (diffDays <= 0) {
+              const alreadySent = await wasRecentlyNotified(
+                targetId,
+                title,
+                `${title}: ${dolgozoNev}`
+              );
+              if (alreadySent) continue;
+            }
             if (csatornak.includes('in_app')) {
               await supabase.from('alkalmazas_ertesites').insert({
                 user_id: targetId,
+                company_id: recordCompanyId,
+                modul: 'hr',
                 cim: title,
                 szoveg: text,
                 link_url: '/hr'
@@ -898,7 +968,7 @@ export async function GET(request: Request) {
                   to: email,
                   subject: `${title}: ${dolgozoNev}`,
                   senderName: "eaisyHR Rendszer",
-                  senderEmail: "eaisyhr@thinkai.hu",
+                  senderEmail: defaultHrSenderEmail,
                   modul: "hr",
                   companyId: recordCompanyId || undefined,
                   html: buildHtmlEmail(title, text, [{ label: "Lejárat dátuma", value: sz.lejarat_datuma }, { label: "Képzés neve", value: sz.kepzes_neve }], "Profil megtekintése", `${getBaseUrl()}/hr`, "eaisyHR")
@@ -986,6 +1056,8 @@ export async function GET(request: Request) {
             if (csatornak.includes('in_app')) {
               await supabase.from('alkalmazas_ertesites').insert({
                 user_id: targetId,
+                company_id: recordCompanyId,
+                modul: 'hr',
                 cim: title,
                 szoveg: text,
                 link_url: '/hr'
@@ -998,7 +1070,7 @@ export async function GET(request: Request) {
                   to: email,
                   subject: `${title}: ${dolgozoNev}`,
                   senderName: "eaisyHR Rendszer",
-                  senderEmail: "eaisyhr@thinkai.hu",
+                  senderEmail: defaultHrSenderEmail,
                   modul: "hr",
                   companyId: recordCompanyId || undefined,
                   html: buildHtmlEmail(title, text, [{ label: "Szerződés vége", value: jv.kilepes_datuma }], "Profil megtekintése", `${getBaseUrl()}/hr`, "eaisyHR")
@@ -1087,6 +1159,8 @@ export async function GET(request: Request) {
             if (csatornak.includes('in_app')) {
               await supabase.from('alkalmazas_ertesites').insert({
                 user_id: targetId,
+                company_id: recordCompanyId,
+                modul: 'hr',
                 cim: title,
                 szoveg: text,
                 link_url: '/hr/performance'
@@ -1099,7 +1173,7 @@ export async function GET(request: Request) {
                   to: email,
                   subject: title,
                   senderName: "eaisyHR Rendszer",
-                  senderEmail: "eaisyhr@thinkai.hu",
+                  senderEmail: defaultHrSenderEmail,
                   modul: "hr",
                   companyId: recordCompanyId || undefined,
                   html: buildHtmlEmail(

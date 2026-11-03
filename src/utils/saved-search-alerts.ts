@@ -36,6 +36,7 @@ export async function checkSavedSearchesForNewIrat(
       .from("irat")
       .select(`
         id,
+        company_id,
         targy,
         leiras,
         erkeztetoszam,
@@ -45,6 +46,7 @@ export async function checkSavedSearchesForNewIrat(
         ugyirat_id,
         ugyirat:ugyirat_id(
           id,
+          company_id,
           iktatoszam,
           szervezeti_egyseg_id
         ),
@@ -58,11 +60,18 @@ export async function checkSavedSearchesForNewIrat(
       return { checked: 0, notifiedUsers: [] }
     }
 
+    const docCompanyId: string | null =
+      (irat as any).company_id || (irat.ugyirat as any)?.company_id || null
+
     // 2. Fetch all saved searches with notifications enabled
-    const { data: savedSearches, error: savedErr } = await supabase
+    let savedQuery = supabase
       .from("mentett_kereses")
-      .select("id, user_id, nev, kereso_parameterek, ertesites_bekapcsolva")
+      .select("id, user_id, company_id, nev, kereso_parameterek, ertesites_bekapcsolva")
       .eq("ertesites_bekapcsolva", true)
+    if (docCompanyId) {
+      savedQuery = savedQuery.or(`company_id.eq.${docCompanyId},company_id.is.null`)
+    }
+    const { data: savedSearches, error: savedErr } = await savedQuery
 
     if (savedErr || !savedSearches || savedSearches.length === 0) {
       return { checked: 0, notifiedUsers: [] }
@@ -151,15 +160,37 @@ export async function checkSavedSearchesForNewIrat(
         }
       }
 
-      // 4. Verify Authorization (ABAC / RLS compliance)
-      // Check user profile for role, max_minosites and department
+      // 4. Verify Authorization (ABAC / RLS + multi-tenant company membership compliance)
+      let membership: any = null
+      if (docCompanyId) {
+        const { data: memberRow } = await supabase
+          .from("company_members")
+          .select("role, docs_szerepkor, hr_szerepkor")
+          .eq("company_id", docCompanyId)
+          .eq("user_id", item.user_id)
+          .maybeSingle()
+
+        if (!memberRow) {
+          continue // User is not a member of the document's company
+        }
+        membership = memberRow
+      }
+
+      // Check user profile for role, max_minosites, department and elerheto_modulok
       const { data: userProfile } = await supabase
         .from("felhasznalo_profil")
-        .select("id, docs_szerepkor, szervezeti_egyseg_id, max_minosites")
+        .select("id, szerepkor, docs_szerepkor, hr_szerepkor, szervezeti_egyseg_id, max_minosites, elerheto_modulok")
         .eq("id", item.user_id)
         .single()
 
       if (!userProfile) continue
+
+      const elerhetoModulok = Array.isArray((userProfile as any).elerheto_modulok)
+        ? (userProfile as any).elerheto_modulok
+        : ["docs", "hr"]
+      if (!elerhetoModulok.includes("docs") && (userProfile as any).szerepkor !== "rendszergazda") {
+        continue
+      }
 
       // Check classification level
       const minositesHierarchy: Record<string, number> = {
@@ -174,9 +205,11 @@ export async function checkSavedSearchesForNewIrat(
         continue // User does not have high enough security clearance
       }
 
-      // Check role and department permissions
-      const role = userProfile.docs_szerepkor
-      const isPrivileged = ["admin", "iktato", "auditor"].includes(role)
+      // Check company-scoped role and department permissions
+      const { resolveUserCompanyRoles } = await import("@/utils/hr/company-role-resolver")
+      const resolvedRoles = resolveUserCompanyRoles(userProfile as any, membership)
+      const role = resolvedRoles.docsRole
+      const isPrivileged = ["admin", "rendszergazda", "iktato", "auditor"].includes(role)
       let hasAccess = isPrivileged
 
       // If document is in inbox (no ugyirat_id yet), managers and clerks are also authorized
@@ -259,7 +292,7 @@ export async function checkSavedSearchesForNewIrat(
       await dispatchDocsNotification({
         esemenyTipus: "mentett_kereses_talalat",
         kinek: "erintett",
-        companyId: (irat as any).company_id || null,
+        companyId: docCompanyId,
         recipientUserIds: [item.user_id],
         inAppTitle: notifTitle,
         inAppBody: `Új dokumentum érkezett a mentett keresésedhez: "${irat.targy}" (${displayIdentifier})`,

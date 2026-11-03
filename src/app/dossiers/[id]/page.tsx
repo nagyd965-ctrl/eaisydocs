@@ -135,12 +135,20 @@ export default async function DossierPage({
 
   // Ha az ügyirat nem található vagy az RLS letiltotta a bizalmas minősítés miatt
   if (!dossier) {
-    // Ellenőrizzük admin klienssel, hogy létezik-e az ügyirat, csak a minősítés miatt tiltott
+    // Ellenőrizzük admin klienssel, hogy létezik-e az ügyirat az aktív cégben, és csak a minősítés miatt tiltott-e
     const { createClient: createAdminClient } = await import("@supabase/supabase-js")
     const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: existingDossier } = await admin.from("ugyirat").select("id, iktatoszam").eq("id", id).maybeSingle()
+    const { data: existingDossier } = await admin
+      .from("ugyirat")
+      .select("id, iktatoszam, company_id")
+      .eq("id", id)
+      .maybeSingle()
 
-    if (existingDossier) {
+    const isSameCompany =
+      existingDossier &&
+      (!dossierCompanyId || !existingDossier.company_id || existingDossier.company_id === dossierCompanyId)
+
+    if (existingDossier && isSameCompany) {
       return (
         <div className="p-12 max-w-xl mx-auto text-center space-y-5">
           <div className="w-16 h-16 bg-destructive/10 border border-destructive/30 rounded-lg flex items-center justify-center mx-auto text-destructive">

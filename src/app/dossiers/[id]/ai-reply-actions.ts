@@ -57,16 +57,43 @@ export async function generateAiReplyAction(
     }
 
     try {
-      const supabase = await createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+      const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+      const activeCompanyId = await getActiveCompanyIdServer()
+      const auth = await requireDocsAuthServer(
+        ["ugyintezo", "vezeto", "iktato", "admin", "rendszergazda"],
+        activeCompanyId
+      )
 
-      if (!user && process.env.NODE_ENV !== "test") {
-        return { success: false, error: "Nincs bejelentkezve." }
+      if (!auth.authorized || !auth.user) {
+        return {
+          success: false,
+          error: auth.error || "Nincs jogosultsága AI válaszlevél generálásához.",
+        }
       }
-    } catch {
-      // Next.js request store hiányában (pl. unit tesztekben) csendesen folytatjuk
+
+      if (ugyiratId && activeCompanyId) {
+        const supabase = await createClient()
+        const { data: dossier } = await supabase
+          .from("ugyirat")
+          .select("id, company_id")
+          .eq("id", ugyiratId)
+          .eq("company_id", activeCompanyId)
+          .maybeSingle()
+
+        if (!dossier) {
+          return {
+            success: false,
+            error: "Az ügyirat nem található vagy nem tartozik az aktív vállalathoz.",
+          }
+        }
+      }
+    } catch (ctxErr: any) {
+      // Kizárólag akkor engedjük tovább, ha unit teszt környezetben (Next.js request store nélkül) fut
+      const msg = String(ctxErr?.message || "")
+      if (!msg.includes("cookies") && !msg.includes("request scope") && process.env.NODE_ENV === "production") {
+        return { success: false, error: "Hitelesítési hiba történt." }
+      }
     }
 
     const styleMeta = STYLE_DESCRIPTIONS[style] || STYLE_DESCRIPTIONS.hivatalos

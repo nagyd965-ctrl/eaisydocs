@@ -5,35 +5,26 @@ import { createClient } from "@/utils/supabase/server"
 import { splitBatchPdf, ingestSplitDocuments } from "@/utils/batch-scanner"
 import { processHotfolderFiles } from "@/utils/scanner-hotfolder"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
+
+const ALLOWED_MINOSITES = ["nyilt", "belso", "bizalmas", "szigoruan_bizalmas"] as const
 
 export async function uploadAndSplitBatch(formData: FormData) {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Nincs bejelentkezve." }
-
   const activeCompanyId = await getActiveCompanyIdServer()
-
-  // Jogosultság ellenőrzése
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor, szerepkor")
-    .eq("id", user.id)
-    .single()
-
-  const userRole = (profile as any)?.docs_szerepkor || (profile as any)?.szerepkor || "ugyintezo"
-  const isAllowed = ["admin", "rendszergazda", "iktato"].includes(userRole)
-  if (!isAllowed) {
-    return { success: false, error: "Nincs jogosultságod kötegelt iratok érkeztetéséhez." }
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato"], activeCompanyId)
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs jogosultságod kötegelt iratok érkeztetéséhez." }
   }
+  const user = auth.user
 
   const file = formData.get("file") as File | null
   const targyPrefix = (formData.get("targy_prefix") as string)?.trim() || ""
   const kuldoNev = (formData.get("kuldo_nev") as string)?.trim() || ""
   const kuldoTipus = (formData.get("kuldo_tipus") as string)?.trim() || "ceg"
-  const minosites = (formData.get("minosites") as string) || "nyilt"
+  const rawMinosites = (formData.get("minosites") as string) || "nyilt"
+  const minosites = ALLOWED_MINOSITES.includes(rawMinosites as any) ? rawMinosites : "nyilt"
 
   if (!file || file.size === 0) {
     return { success: false, error: "Kérjük, válasszon ki egy PDF fájlt!" }
@@ -46,6 +37,12 @@ export async function uploadAndSplitBatch(formData: FormData) {
   try {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
+
+    const { validateUploadedDocument } = await import("@/utils/file-validator")
+    const fileCheck = await validateUploadedDocument(file, buffer)
+    if (!fileCheck.valid) {
+      return { success: false, error: fileCheck.error || "A kiválasztott PDF köteg érvénytelen vagy túl nagy!" }
+    }
 
     // 1. Partner feloldása vagy létrehozása, ha meg van adva
     let partnerId: string | null = null
@@ -108,10 +105,11 @@ export async function uploadAndSplitBatch(formData: FormData) {
 
 export async function triggerHotfolderSync() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Nincs bejelentkezve." }
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato"], activeCompanyId)
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs jogosultságod a hotfolder szinkronizáláshoz." }
+  }
 
   try {
     const report = await processHotfolderFiles(supabase)

@@ -79,8 +79,11 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     .order("erkezes_datuma", { ascending: false })
 
   if (q) {
-    activeQuery = activeQuery.or(`targy.ilike.%${q}%,erkeztetoszam.ilike.%${q}%`)
-    dismissedQuery = dismissedQuery.or(`targy.ilike.%${q}%,erkeztetoszam.ilike.%${q}%`)
+    const safeQ = q.replace(/[,().%\\]/g, " ").replace(/\s+/g, " ").trim()
+    if (safeQ) {
+      activeQuery = activeQuery.or(`targy.ilike.%${safeQ}%,erkeztetoszam.ilike.%${safeQ}%`)
+      dismissedQuery = dismissedQuery.or(`targy.ilike.%${safeQ}%,erkeztetoszam.ilike.%${safeQ}%`)
+    }
   }
 
   const [{ data: activeItems }, { data: dismissedItems }] = await Promise.all([

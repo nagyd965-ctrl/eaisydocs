@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { insertIratWithNextAlszam } from "@/utils/alszam-helper"
 import { ReplyTemplate, ReplyTemplateCategory } from "@/types/reply-templates"
 import { DEFAULT_REPLY_TEMPLATES } from "@/utils/reply-templates"
 
@@ -587,20 +588,12 @@ export async function generateFromTemplate(
 
   if (uploadError) return { error: "Hiba a fájl feltöltésekor: " + uploadError.message }
 
-  // Alszám számítás
-  const { data: iratok } = await supabase
-    .from("irat")
-    .select("alszam")
-    .eq("ugyirat_id", ugyiratId)
-
-  const maxAlszam = iratok?.reduce((max, i) => Math.max(max, i.alszam || 0), 0) || 0
-  const alszam = maxAlszam + 1
-
-  // Irat rekord (kimenő)
+  // Alszám számítás és Irat rekord (kimenő) ütközésvédelemmel
   const dossierCompanyId = (ugyirat as any)?.company_id || (await getActiveCompanyIdServer())
-  const { data: iratData, error: iratError } = await supabase
-    .from("irat")
-    .insert({
+  const { data: iratData, error: iratError } = await insertIratWithNextAlszam(
+    supabase,
+    ugyiratId,
+    (alszam) => ({
       ugyirat_id: ugyiratId,
       company_id: dossierCompanyId,
       targy,
@@ -611,14 +604,16 @@ export async function generateFromTemplate(
       alszam,
       kezbesites_statusz: "vazlat",
     })
-    .select("id")
-    .single()
+  )
 
-  if (iratError || !iratData) return { error: "Hiba az irat rekord létrehozásakor." }
+  if (iratError || !iratData) {
+    await supabase.storage.from("irat_files").remove([fileName])
+    return { error: "Hiba az irat rekord létrehozásakor." }
+  }
 
   // Irat fájl rekord
   const generatedFilename = `${sablon_tipus || "sablon"}_${dateStr.replace(/\./g, "").replace(/ /g, "_")}.pdf`
-  const { data: fajlResult } = await supabase
+  const { data: fajlResult, error: fajlError } = await supabase
     .from("irat_fajl")
     .insert({
       irat_id: iratData.id,
@@ -631,6 +626,12 @@ export async function generateFromTemplate(
     })
     .select("id")
     .single()
+
+  if (fajlError || !fajlResult) {
+    await supabase.storage.from("irat_files").remove([fileName])
+    await supabase.from("irat").delete().eq("id", iratData.id)
+    return { error: "Hiba a fájl rekord létrehozásakor: " + (fajlError?.message || "") }
+  }
 
   // Eseménynapló
   await supabase.from("esemeny_naplo").insert({

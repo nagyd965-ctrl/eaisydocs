@@ -8,11 +8,38 @@ import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
 
 export async function borrowDocument(iratId: string, kinekUserId: string, varhatoVisszahozatal: string) {
   const supabase = await createClient()
-  const auth = await requireDocsAuthServer(["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"])
+  const { data: irat } = await supabase
+    .from("irat")
+    .select("ugyirat_id, targy, company_id")
+    .eq("id", iratId)
+    .single()
+
+  if (!irat) {
+    return { success: false, error: "Az érintett irat nem található." }
+  }
+
+  const targetCompanyId = irat.company_id || (await getActiveCompanyIdServer())
+  const auth = await requireDocsAuthServer(
+    ["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"],
+    targetCompanyId
+  )
   if (!auth.authorized || !auth.user) {
     return { success: false, error: auth.error || "Nincs jogosultságod a kölcsönzés rögzítéséhez." }
   }
   const user = auth.user
+
+  if (targetCompanyId) {
+    const { data: borrowerMembership } = await supabase
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", targetCompanyId)
+      .eq("user_id", kinekUserId)
+      .maybeSingle()
+
+    if (!borrowerMembership) {
+      return { success: false, error: "A kiválasztott munkatárs nem tagja az aktív vállalatnak." }
+    }
+  }
 
   // Meglévő aktív kölcsönzés ellenőrzése
   const { data: akt } = await supabase
@@ -26,7 +53,18 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
     return { success: false, error: "Ez az irat jelenleg is ki van kölcsönözve." }
   }
 
-  const { data: kinek } = await supabase.from("felhasznalo_profil").select("nev").eq("id", kinekUserId).single()
+  const { data: kinek } = await supabase
+    .from("felhasznalo_profil")
+    .select("nev, elerheto_modulok")
+    .eq("id", kinekUserId)
+    .single()
+
+  const borrowerModules = Array.isArray((kinek as any)?.elerheto_modulok)
+    ? (kinek as any).elerheto_modulok
+    : ["docs", "hr"]
+  if (!borrowerModules.includes("docs")) {
+    return { success: false, error: "A kiválasztott munkatárs nem rendelkezik eaisyDocs modul-hozzáféréssel." }
+  }
 
   const { error } = await supabase.from("irat_kolcsonzes_naplo").insert({
     irat_id: iratId,
@@ -45,8 +83,6 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
   }
 
   // Eseménynapló rögzítése
-  const { data: irat } = await supabase.from("irat").select("ugyirat_id, targy").eq("id", iratId).single()
-  
   const { ip, userAgent } = await getClientInfo()
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",

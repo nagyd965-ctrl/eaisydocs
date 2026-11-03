@@ -130,9 +130,15 @@ export async function getActiveCompanyMemberRolesServer(targetCompanyId?: string
   // 2. Lekérjük a globális profilt a fallbackhez
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("id, docs_szerepkor, hr_szerepkor, hr_modulok")
+    .select("id, docs_szerepkor, hr_szerepkor, hr_modulok, elerheto_modulok")
     .eq("id", user.id)
     .single()
+
+  const allowedModules: string[] = Array.isArray((profile as any)?.elerheto_modulok)
+    ? (profile as any).elerheto_modulok
+    : ["docs", "hr"]
+  const hasDocsModule = allowedModules.includes("docs")
+  const hasHrModule = allowedModules.includes("hr")
 
   return resolveUserCompanyRoles(
     membership
@@ -147,9 +153,9 @@ export async function getActiveCompanyMemberRolesServer(targetCompanyId?: string
     profile
       ? {
           id: profile.id,
-          docs_szerepkor: profile.docs_szerepkor,
-          hr_szerepkor: profile.hr_szerepkor,
-          hr_modulok: (profile as any).hr_modulok || [],
+          docs_szerepkor: hasDocsModule ? profile.docs_szerepkor : null,
+          hr_szerepkor: hasHrModule ? profile.hr_szerepkor : null,
+          hr_modulok: hasHrModule ? (profile as any).hr_modulok || [] : [],
         }
       : null
   )

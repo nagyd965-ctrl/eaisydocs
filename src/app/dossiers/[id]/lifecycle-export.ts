@@ -2,6 +2,9 @@
 
 import { createClient } from "@/utils/supabase/server"
 import { formatAuditLogEvent } from "@/utils/audit-log-formatter"
+import fontkit from "@pdf-lib/fontkit"
+import fs from "fs"
+import path from "path"
 
 /**
  * Életciklus riport PDF generálása egy ügyirathoz
@@ -9,15 +12,12 @@ import { formatAuditLogEvent } from "@/utils/audit-log-formatter"
  */
 export async function generateLifecycleReport(ugyiratId: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) return { error: "Nincs bejelentkezve." }
 
   // 1. Ügyirat adatai
   const { data: dossier } = await supabase
     .from("ugyirat")
     .select(`
-      id, iktatoszam, statusz, iktatas_datuma, megorzesi_ido_vege,
+      id, company_id, iktatoszam, statusz, iktatas_datuma, megorzesi_ido_vege,
       szervezeti_egyseg:szervezeti_egyseg_id ( nev ),
       ugy:ugy_id ( targy, ugyszam, felelos_user_id ),
       irattari_terv:irattari_tetel_id ( megnevezes, megorzesi_ido_ev )
@@ -26,6 +26,13 @@ export async function generateLifecycleReport(ugyiratId: string) {
     .single()
 
   if (!dossier) return { error: "Ügyirat nem található." }
+
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const auth = await requireDocsAuthServer(undefined, (dossier as any).company_id || null)
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Nincs jogosultságod az életciklus riport letöltéséhez." }
+  }
+  const user = auth.user
 
   // 2. Eseménynapló
   const { data: rawEvents } = await supabase
@@ -65,17 +72,31 @@ export async function generateLifecycleReport(ugyiratId: string) {
   const userMap: Record<string, string> = {}
   profiles?.forEach(p => { userMap[p.id] = p.nev })
 
-  // 4. PDF generálás
+  // 4. PDF generálás (LiberationSans UTF-8 magyar betűtípussal)
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib")
 
   const pdfDoc = await PDFDocument.create()
+  pdfDoc.registerFontkit(fontkit)
   pdfDoc.setTitle(`Életciklus riport — ${dossier.iktatoszam}`)
   pdfDoc.setAuthor("eaisyDocs")
   pdfDoc.setCreator("eaisyDocs - Elektronikus Iratkezelő Rendszer")
   pdfDoc.setCreationDate(new Date())
 
-  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  let helvetica
+  let helveticaBold
+  let hasUtf8Font = false
+
+  try {
+    const fontsDir = path.join(process.cwd(), "src", "assets", "fonts")
+    const regularBytes = fs.readFileSync(path.join(fontsDir, "LiberationSans-Regular.ttf"))
+    const boldBytes = fs.readFileSync(path.join(fontsDir, "LiberationSans-Bold.ttf"))
+    helvetica = await pdfDoc.embedFont(regularBytes)
+    helveticaBold = await pdfDoc.embedFont(boldBytes)
+    hasUtf8Font = true
+  } catch {
+    helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
+    helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  }
 
   const pageWidth = 595.28
   const pageHeight = 841.89
@@ -90,9 +111,12 @@ export async function generateLifecycleReport(ugyiratId: string) {
   const szervEgyseg = dossier.szervezeti_egyseg as any
   const irattariTerv = dossier.irattari_terv as any
 
-  // Helper function to sanitize Hungarian non-WinAnsi characters (ő/ű) for pdf-lib standard fonts
+  // Ha a LiberationSans UTF-8 betűtípus sikeresen betöltődött, megtartjuk az ő/ű karaktereket
   const clean = (text: string | null | undefined): string => {
     if (!text) return ""
+    if (hasUtf8Font) {
+      return String(text).replace(/\r\n/g, " ").replace(/\r/g, " ")
+    }
     return String(text)
       .replace(/ő/g, "ö")
       .replace(/Ő/g, "Ö")
@@ -258,6 +282,7 @@ export async function generateLifecycleReport(ugyiratId: string) {
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
+    company_id: (dossier as any).company_id,
     esemeny_tipus: "letoltve",
     user_id: user.id,
     indoklas: "Életciklus riport PDF exportálva",

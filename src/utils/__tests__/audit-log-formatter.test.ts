@@ -124,7 +124,7 @@ describe("eaisyDocs Audit Log Formatter Unit Tests", () => {
     }
     const res = formatAuditLogEvent(log)
     assert.equal(res.title, "Státusz frissítve")
-    assert.equal(res.description, "Állapot változás: iktatva ➔ ugyintezes_alatt")
+    assert.equal(res.description, "Iktatva -> Ügyintézés alatt")
   })
 
   test("TEST 9: Explicit jogosultság megadása és visszavonása", () => {

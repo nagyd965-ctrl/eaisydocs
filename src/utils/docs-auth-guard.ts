@@ -48,11 +48,30 @@ export async function requireDocsAuthServer(
   const [{ data: profile }, companyRoles] = await Promise.all([
     supabase
       .from("felhasznalo_profil")
-      .select("nev, docs_szerepkor, szerepkor, szervezeti_egyseg_id, max_minosites")
+      .select("nev, docs_szerepkor, szerepkor, szervezeti_egyseg_id, max_minosites, elerheto_modulok")
       .eq("id", user.id)
       .maybeSingle(),
     getActiveCompanyMemberRolesServer(targetCompanyId),
   ])
+
+  const hasDocsModule = Array.isArray((profile as any)?.elerheto_modulok)
+    ? (profile as any).elerheto_modulok.includes("docs")
+    : true
+
+  if (!hasDocsModule && !companyRoles.isCompanyAdmin && (!companyRoles.docsRole || companyRoles.docsRole === "none")) {
+    return {
+      authorized: false,
+      user,
+      activeCompanyId: companyRoles.companyId,
+      docsRole: "none",
+      isCompanyAdmin: false,
+      isMember: companyRoles.isMember,
+      nev: profile?.nev || null,
+      szervezetiEgysegId: profile?.szervezeti_egyseg_id || null,
+      maxMinosites: profile?.max_minosites || "nyilt",
+      error: "Nincs hozzáférésed az eaisyDocs modulhoz.",
+    }
+  }
 
   const effectiveDocsRole =
     companyRoles.isMember && companyRoles.docsRole && companyRoles.docsRole !== "none"

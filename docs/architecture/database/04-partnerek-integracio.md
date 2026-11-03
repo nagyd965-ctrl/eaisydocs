@@ -1,4 +1,4 @@
-# 🤝 04. Partnertörzs, Felhasználók és Integrációs Kapcsolatok
+# 04. Partnertörzs, Felhasználók és Integrációs Kapcsolatok
 
 Ez a modul rögzíti a partnereket, a felhasználói profilokat, szervezeti egységeket és a polimorf kapcsolatokat az eaisyDocs iratai és a külső entitások között.
 
@@ -51,7 +51,8 @@ A hitelesített felhasználókhoz (`auth.users`) tartozó metaadatok és jogosul
 | `hr_szerepkor` | text | ✓ | HR dedikált szerepkör (`hr_munkatars`, `hr_vezeto`, `admin`, `dolgozo`) |
 | `szervezeti_egyseg_id` | uuid | ✓ | FK → `szervezeti_egyseg.id` |
 | `max_minosites` | irat_minosites | — | Legmagasabb megtekinthető minősítés (alap: `nyilt`) |
-| `kozvetlen_vezeto_id` | uuid | ✓ | FK → `felhasznalo_profil.id` (szervezeti felettes) |
+| `kozvetlen_vezeto_id` | uuid | Igen | FK -> `felhasznalo_profil.id` (szervezeti felettes) |
+| `elerheto_modulok` | text[] | — | Engedélyezett modulok (`ARRAY['docs']`, `ARRAY['hr']` vagy `ARRAY['docs', 'hr']`; a `get_effective_docs_role` és `requireDocsAuthServer` ellenőrzi a `'docs'` meglétét) |
 | `created_at` | timestamptz | — | Profil létrehozásának ideje |
 
 ---
@@ -74,8 +75,10 @@ Hierarchikus vállalati osztályok az iratkezelési modulban.
 | Oszlop | Típus | Null | Leírás |
 |---|---|---|---|
 | `id` | uuid | — | Elsődleges kulcs |
-| `user_id` | uuid | ✓ | FK → `auth.users.id` |
+| `user_id` | uuid | Igen | FK -> `auth.users.id` |
+| `company_id` | uuid | Igen | FK -> `companies.id` (többcéges mentett keresés és riasztás hatókör) |
 | `nev` | text | — | A mentett szűrő megnevezése |
 | `kereso_parameterek` | jsonb | — | A keresési űrlap mezőinek és feltételeinek JSON reprezentációja |
+| `ertesites_bekapcsolva` | boolean | — | Automatikus riasztás engedélyezve (`saved-search-alerts.ts`) |
 | `created_at` | timestamptz | — | Mentés ideje |
 | `updated_at` | timestamptz | — | Módosítás ideje |

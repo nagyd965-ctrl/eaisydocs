@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { getActiveCompanyIdServer, getActiveCompanyServer } from "@/utils/company-server"
+import { updateIratWithNextAlszam } from "@/utils/alszam-helper"
 
 export async function fileIncomingDocument(formData: FormData) {
   const supabase = await createClient()
@@ -24,6 +25,8 @@ export async function fileIncomingDocument(formData: FormData) {
   let ugyiratIdToUse = "";
   let iktatoszam = "";
   let alszam = 1;
+  let createdUgyId: string | null = null;
+  let createdUgyiratId: string | null = null;
 
   // Közös metaadatok kiolvasása
   const targy = (formData.get("targy") as string)?.trim() || ""
@@ -132,7 +135,10 @@ export async function fileIncomingDocument(formData: FormData) {
       p_prefix: prefix,
       p_company_id: activeCompanyId || null,
     })
-    if (iktatoszamError) return { error: "Hiba az iktatószám generálásakor." }
+    if (iktatoszamError) {
+      await supabase.from("ugy").delete().eq("id", ugyData.id)
+      return { error: "Hiba az iktatószám generálásakor." }
+    }
     iktatoszam = iktatoszamData
 
     const ugyiratInsertData: Record<string, any> = {
@@ -152,6 +158,7 @@ export async function fileIncomingDocument(formData: FormData) {
       .select("id")
       .single()
     if (ugyiratError || !ugyiratData) {
+      await supabase.from("ugy").delete().eq("id", ugyData.id)
       const msg = ugyiratError?.message || ""
       if (msg.includes("row-level security") || msg.includes("violates") || (ugyiratError as any)?.code === '42501') {
         return { error: "Nincs jogosultságod a kiválasztott szervezeti egységbe való iktatáshoz. Ellenőrizd, hogy a megfelelő osztályt választottad-e ki, vagy kérj segítséget az adminisztrátortól." }
@@ -159,7 +166,9 @@ export async function fileIncomingDocument(formData: FormData) {
       return { error: "Hiba az ügyirat létrehozásakor: " + msg }
     }
     
+    createdUgyId = ugyData.id;
     ugyiratIdToUse = ugyiratData.id;
+    createdUgyiratId = ugyiratData.id;
     alszam = 1;
 
   } else {
@@ -194,33 +203,21 @@ export async function fileIncomingDocument(formData: FormData) {
 
     iktatoszam = existingDossier.iktatoszam
 
-    // Calculate max alszam
-    const { data: iratok, error: iratokError } = await supabase
-      .from("irat")
-      .select("alszam")
-      .eq("ugyirat_id", ugyiratIdToUse)
-    
-    if (iratokError) return { error: "Hiba az alszám kiszámításakor." }
-    
-    const maxAlszam = iratok?.reduce((max, i) => Math.max(max, i.alszam || 0), 0) || 0
-    alszam = maxAlszam + 1
-
     // Ha van határidő megadva és a meglévő ügyhöz nincs vagy frissíteni szeretnénk
     if (hatarido && existingDossier.ugy_id) {
       await supabase.from("ugy").update({ hatarido }).eq("id", existingDossier.ugy_id)
     }
   }
 
-  // Update Irat with ugyirat_id, alszam, partner, targy and leiras
-  const iratUpdateData: Record<string, any> = { 
-    ugyirat_id: ugyiratIdToUse, 
-    alszam 
+  // Update Irat with ugyirat_id, alszam, partner, targy and leiras (.is("ugyirat_id", null) atomi védelemmel)
+  const baseIratUpdateData: Record<string, any> = {
+    ugyirat_id: ugyiratIdToUse,
   }
   if (targy) {
-    iratUpdateData.targy = targy
+    baseIratUpdateData.targy = targy
   }
   if (kuldo_partner_id) {
-    iratUpdateData.kuldo_partner_id = kuldo_partner_id
+    baseIratUpdateData.kuldo_partner_id = kuldo_partner_id
   }
 
   if (dokumentum_tipus || hivatkozott_szam) {
@@ -233,15 +230,36 @@ export async function fileIncomingDocument(formData: FormData) {
       egyeb: "Egyéb irat"
     }
     const tipusStr = tipusLabels[dokumentum_tipus] || dokumentum_tipus || "Irat"
-    iratUpdateData.leiras = `[Típus: ${tipusStr}]${hivatkozott_szam ? ` [Hiv: ${hivatkozott_szam}]` : ""}`
+    baseIratUpdateData.leiras = `[Típus: ${tipusStr}]${hivatkozott_szam ? ` [Hiv: ${hivatkozott_szam}]` : ""}`
   }
 
-  const { error: iratUpdateError } = await supabase
-    .from("irat")
-    .update(iratUpdateData)
-    .eq("id", irat_id);
-  
-  if (iratUpdateError) return { error: "Hiba az irat frissítésekor: " + iratUpdateError.message };
+  const {
+    updatedRows,
+    alszam: allocatedAlszam,
+    error: iratUpdateError
+  } = await updateIratWithNextAlszam(
+    supabase,
+    irat_id,
+    ugyiratIdToUse,
+    mode === "new" ? 1 : null,
+    (candidateAlszam) => ({
+      ...baseIratUpdateData,
+      alszam: candidateAlszam
+    })
+  )
+  alszam = allocatedAlszam
+
+  if (iratUpdateError) {
+    if (createdUgyiratId) await supabase.from("ugyirat").delete().eq("id", createdUgyiratId)
+    if (createdUgyId) await supabase.from("ugy").delete().eq("id", createdUgyId)
+    return { error: "Hiba az irat frissítésekor: " + iratUpdateError.message }
+  }
+
+  if (!updatedRows || updatedRows.length === 0) {
+    if (createdUgyiratId) await supabase.from("ugyirat").delete().eq("id", createdUgyiratId)
+    if (createdUgyId) await supabase.from("ugy").delete().eq("id", createdUgyId)
+    return { error: "Ezt az iratot közben már beiktatták!" }
+  }
 
   // Ha van hivatkozott szám, rögzítünk egy kapcsolatot is
   if (hivatkozott_szam) {
@@ -354,7 +372,8 @@ export interface AISuggestionsResult {
 }
 
 export async function executeAiMetadataExtraction(iratId: string, customSupabase?: any): Promise<AISuggestionsResult> {
-  const supabase = customSupabase || (await createClient())
+  const isInternalClient = Boolean(customSupabase && typeof customSupabase.from === "function")
+  const supabase = isInternalClient ? customSupabase : await createClient()
 
   // 1. Lekérjük az iratot és a kapcsolódó fájlokat
   const { data: irat } = await supabase
@@ -373,6 +392,20 @@ export async function executeAiMetadataExtraction(iratId: string, customSupabase
 
   if (!irat) {
     return { success: false, error: "Az irat nem található." }
+  }
+
+  if (!isInternalClient) {
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    const auth = await requireDocsAuthServer(
+      ["admin", "rendszergazda", "iktato", "ugyintezo"],
+      irat.company_id || undefined
+    )
+    if (!auth.authorized || !auth.user) {
+      return { success: false, error: auth.error || "Nincs jogosultságod az AI elemzés indításához." }
+    }
+    if (auth.activeCompanyId && irat.company_id && irat.company_id !== auth.activeCompanyId) {
+      return { success: false, error: "Az irat nem található az aktív vállalatnál." }
+    }
   }
 
   const { data: files } = await supabase
@@ -799,7 +832,8 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
 
     // 7.a.2 KRITIKUS: Ha nem iktatószám, megnézzük, hogy egy már beiktatott IRAT számlaszáma vagy tárgya-e!
     // Példa: "THINK-2026-51 HELYESBÍTŐ SZÁMLÁJA" esetén a "THINK-2026-51" a korábbi számla sorszáma!
-    if (!elozmenyUgyiratId && cleanRef.length >= 3) {
+    const safeCleanRef = cleanRef.replace(/[,().%\\]/g, " ").replace(/\s+/g, " ").trim()
+    if (!elozmenyUgyiratId && safeCleanRef.length >= 3) {
       let iratsQuery = supabase
         .from("irat")
         .select(`
@@ -816,7 +850,7 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
           )
         `)
         .not("ugyirat_id", "is", null)
-        .or(`targy.ilike.%${cleanRef}%,erkeztetoszam.ilike.%${cleanRef}%,kulso_hivatkozas_id.eq.${cleanRef}`)
+        .or(`targy.ilike.%${safeCleanRef}%,erkeztetoszam.ilike.%${safeCleanRef}%,kulso_hivatkozas_id.eq.${safeCleanRef}`)
       if (targetCompanyId) {
         iratsQuery = iratsQuery.eq("company_id", targetCompanyId)
       }
@@ -855,7 +889,10 @@ Kizárólag érvényes JSON formátumban válaszolj az alábbi kulcsokkal:
     const correctiveMatch = docText.match(
       /([A-Z0-9\-_/]{3,})\s+(?:helyesbítő\s+számlája|módosító\s+számlája|stornó\s+számlája|helyesbítője)|(?:helyesbített\s+számla|módosított\s+számla|stornózott\s+számla|eredeti\s+számla|hivatkozott\s+számla|credit\s+note\s+for)[:\s]+([A-Z0-9\-_/]{3,})/i
     )
-    const detectedOriginalInvoiceNo = (correctiveMatch?.[1] || correctiveMatch?.[2])?.trim()
+    const detectedOriginalInvoiceNo = (correctiveMatch?.[1] || correctiveMatch?.[2])
+      ?.replace(/[,().%\\]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
     if (detectedOriginalInvoiceNo && detectedOriginalInvoiceNo.length >= 4) {
       let iratsQuery2 = supabase
         .from("irat")
@@ -961,7 +998,10 @@ export async function applyFilingRulesToSuggestions(
   preloadedPartnerNev?: string
 ): Promise<void> {
   try {
-    const { data: iratRecord } = await supabaseClient
+    const isInternalClient = Boolean(supabaseClient && typeof supabaseClient.from === "function")
+    const client = isInternalClient ? supabaseClient : await createClient()
+
+    const { data: iratRecord } = await client
       .from("irat")
       .select("id, company_id, targy, irat_fajl(id, eredeti_fajlnev, ocr_szoveg)")
       .eq("id", iratId)
@@ -972,7 +1012,16 @@ export async function applyFilingRulesToSuggestions(
     const targetCompId = iratRecord.company_id || (await getActiveCompanyIdServer())
     if (!targetCompId) return
 
-    const { data: dbFilingRules } = await supabaseClient
+    if (!isInternalClient) {
+      const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+      const auth = await requireDocsAuthServer(
+        ["admin", "rendszergazda", "iktato", "ugyintezo"],
+        targetCompId
+      )
+      if (!auth.authorized || !auth.user) return
+    }
+
+    const { data: dbFilingRules } = await client
       .from("company_filing_rules")
       .select(`
         id,
@@ -1036,7 +1085,7 @@ export async function applyFilingRulesToSuggestions(
 
 export async function generateAISuggestions(iratId: string): Promise<AISuggestionsResult> {
   const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-  const auth = await requireDocsAuthServer()
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "ugyintezo"])
   if (!auth.authorized || !auth.user) {
     return { success: false, error: auth.error || "Nincs jogosultságod az AI javaslatok lekéréséhez." }
   }
@@ -1291,11 +1340,14 @@ export async function splitAttachmentToNewIncoming(iratId: string, fajlId: strin
 
   // 3. Új szekvenciális érkeztetőszám allokálása
   const currentYear = new Date().getFullYear()
-  const { data: erkezId } = await supabase.rpc("generate_erkeztetoszam", {
+  const { data: erkezId, error: erkezErr } = await supabase.rpc("generate_erkeztetoszam", {
     p_ev: currentYear,
     p_company_id: sourceIrat.company_id || null,
   })
-  const newErkeztetoszam = erkezId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
+  if (erkezErr || !erkezId) {
+    return { error: "Hiba az érkeztetőszám generálásakor: " + (erkezErr?.message || "Nem sikerült sorszámot allokálni.") }
+  }
+  const newErkeztetoszam = erkezId
 
   // 4. Új bejövő irat létrehozása
   const cleanFileName = targetFile.eredeti_fajlnev.replace(/\.[^/.]+$/, "")

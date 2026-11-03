@@ -2,7 +2,7 @@
 
 Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott végleges üzleti szabályokat, megfelelőségi előírásokat és jogszabályi követelményeket.
 
-## 📋 Nyilvántartás
+## Nyilvántartás
 
 | Azonosító | Dátum | Cím | Hatókör | Kategória | Kapcsolódó ADR / PRD |
 |---|---|---|---|---|---|
@@ -17,9 +17,10 @@ Ez az index nyilvántartja az **eaisyDocs** és **eaisyHR** rendszerben hozott v
 | [BRD-009](./009-multi-tenancy-isolation-and-membership-governance.md) | 2026-10-08 | Többcég-kezelés és Tagsági Jogosultsági Szabályok | `[Közös]` | `Multi-Tenancy & Governance` | [A-034](../../architecture/decisions/A-034-multi-tenancy-architecture.md), [P-053](../../product/decisions/P-053-multi-tenancy-company-selector-ux.md) |
 | [BRD-010](./010-company-branding-filing-prefix-and-member-roles.md) | 2026-10-08 | Céglogó, Testreszabható Iktató Prefix és Tag Szerepkör Menedzsment | `[Közös]` | `Branding & Governance` | [A-035](../../architecture/decisions/A-035-company-branding-filing-prefix-and-member-roles.md), [P-054](../../product/decisions/P-054-company-branding-filing-prefix-and-member-roles.md) |
 | [BRD-011](./011-employee-referral-system-and-bonus-governance.md) | 2026-10-19 | Dolgozói Ajánlási Program és Bónusz Kifizetési Szabályzat | `[HR]` | `Recruitment & Compensation` | [A-075](../../architecture/decisions/A-075-employee-referral-system-and-configurable-bonus-architecture.md), [P-099](../../product/decisions/P-099-employee-referral-system-and-configurable-bonus-ux.md) |
+| [BRD-012](./012-audit-round4-business-and-operational-governance-rules.md) | 2026-11-03 | 4–5. Körös Audit Üzleti, Jogi Hitelességi és Üzemeltetési Szabályok (Iktatási Egyediség, eaisyBill Adószám-Párosítás, Többcéges Felhasználó-Eltávolítás és Megtartott Üzleti Szabályok) | `[Közös]` `[Docs]` | `Compliance, Multi-Tenancy & Operational Governance` | [A-108](../../architecture/decisions/A-108-docs-hr-audit-separation-vector-noise-suppression-and-round4-pkg1-guards.md), [A-109](../../architecture/decisions/A-109-docs-round4-packages-2-to-7-filing-atomicity-unique-constraints-and-notification-isolation.md), [P-137](../../product/decisions/P-137-docs-central-audit-structured-diff-modal-and-module-isolation-ux.md), [P-138](../../product/decisions/P-138-docs-module-scoped-notification-bell-atomic-filing-and-share-token-ttl-ux.md) |
 
 ---
 
 > **Új BRD létrehozási szabály:**
-> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `BRD-012`), készítsd el a fájlt `00X-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
+> Mindig olvasd be ezt az `index.md`-t, vedd a következő sorszámot (jelenleg `BRD-013`), készítsd el a fájlt `00X-<kebab-case-cim>.md` néven a sablon szerint, majd jegyezd be ide a fenti táblázatba!
 

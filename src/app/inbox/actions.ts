@@ -9,6 +9,8 @@ if (typeof global !== "undefined" && typeof (global as any).DOMMatrix === "undef
   (global as any).DOMMatrix = class {};
 }
 
+const ALLOWED_MINOSITES = ["nyilt", "belso", "bizalmas", "szigoruan_bizalmas"] as const
+
 export async function uploadIncomingDocument(formData: FormData) {
   const supabase = await createClient()
   const activeCompanyId = await getActiveCompanyIdServer()
@@ -24,7 +26,8 @@ export async function uploadIncomingDocument(formData: FormData) {
   const kuldo_tipus = (formData.get("kuldo_tipus") as string)?.trim() || "ceg"
   const erkezes_modja = formData.get("erkezes_modja") as string
   const adathordozo_tipus = formData.get("adathordozo_tipus") as string
-  const minosites = (formData.get("minosites") as string) || "nyilt"
+  const rawMinosites = (formData.get("minosites") as string) || "nyilt"
+  const minosites = ALLOWED_MINOSITES.includes(rawMinosites as any) ? rawMinosites : "nyilt"
   const file = formData.get("file") as File | null
 
   if (!targy || !erkezes_modja || !adathordozo_tipus || !file) {
@@ -86,11 +89,15 @@ export async function uploadIncomingDocument(formData: FormData) {
 
   // 4. Érkeztetőszám generálás (szekvenciális, pl. E/2026/00001)
   const currentYear = new Date().getFullYear()
-  const { data: erkezId } = await supabase.rpc("generate_erkeztetoszam", {
+  const { data: erkezId, error: erkezErr } = await supabase.rpc("generate_erkeztetoszam", {
     p_ev: currentYear,
     p_company_id: activeCompanyId || null,
   })
-  const erkeztetoszam = erkezId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
+  if (erkezErr || !erkezId) {
+    await supabase.storage.from("irat_files").remove([fileName])
+    return { error: "Hiba az érkeztetőszám generálásakor: " + (erkezErr?.message || "Nem sikerült sorszámot allokálni.") }
+  }
+  const erkeztetoszam = erkezId
 
   // 5. Irat rekord létrehozása
   const { data: iratData, error: iratError } = await supabase
@@ -109,6 +116,7 @@ export async function uploadIncomingDocument(formData: FormData) {
     .single()
 
   if (iratError || !iratData) {
+    await supabase.storage.from("irat_files").remove([fileName])
     const msg = iratError?.message || ""
     // RLS jogsértés = a felhasználónak nincs jogosultsága ehhez a biztonsági minősítéshez
     if (msg.includes("row-level security") || msg.includes("violates") || iratError?.code === "42501") {
@@ -133,6 +141,8 @@ export async function uploadIncomingDocument(formData: FormData) {
     .single()
 
   if (fajlError) {
+    await supabase.storage.from("irat_files").remove([fileName])
+    await supabase.from("irat").delete().eq("id", iratData.id)
     return { error: "Hiba a fájl mentésekor: " + fajlError.message }
   }
 

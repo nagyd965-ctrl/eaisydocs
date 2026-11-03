@@ -401,17 +401,18 @@ export async function generateCompanyShareTokenAction(companyId: string) {
     return { success: false, error: "Kizárólag a cég tulajdonosa generálhat meghívókódot." }
   }
 
-  // Kriptográfiailag biztonságos, 6 karakteres kód (Crockford-stílus, nem félreérthető betűkkel)
+  // Kriptográfiailag biztonságos, 10 karakteres kód (Crockford-stílus, nem félreérthető betűkkel)
+  const TOKEN_LENGTH = 10
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-  const bytes = new Uint8Array(6)
+  const bytes = new Uint8Array(TOKEN_LENGTH)
   if (typeof crypto !== "undefined" && crypto.getRandomValues) {
     crypto.getRandomValues(bytes)
   } else {
-    for (let i = 0; i < 6; i++) bytes[i] = Math.floor(Math.random() * 256)
+    for (let i = 0; i < TOKEN_LENGTH; i++) bytes[i] = Math.floor(Math.random() * 256)
   }
 
   let token = ""
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < TOKEN_LENGTH; i++) {
     token += chars[bytes[i] % chars.length]
   }
 
@@ -490,7 +491,7 @@ export async function getCompanyMembersAction(companyId: string) {
     // Profilok lekérdezése admin klienssel az RLS kikerüléséhez
     const { data: profiles } = await adminClient
       .from("felhasznalo_profil")
-      .select("id, nev, docs_szerepkor, hr_szerepkor, szerepkor")
+      .select("id, nev, docs_szerepkor, hr_szerepkor, szerepkor, elerheto_modulok")
       .in("id", userIds)
 
     // Auth userek email címeinek és metaadatainak lekérdezése (lapozva)
@@ -512,11 +513,14 @@ export async function getCompanyMembersAction(companyId: string) {
 
     if (profiles) {
       for (const p of profiles) {
+        const mods: string[] = Array.isArray((p as any).elerheto_modulok) ? (p as any).elerheto_modulok : []
+        const hasDocs = mods.includes("docs")
+        const hasHr = mods.includes("hr")
         profileMap[p.id] = {
           nev: p.nev || authNameMap.get(p.id) || "",
           email: emailMap.get(p.id) || "",
-          docs_szerepkor: p.docs_szerepkor || p.szerepkor || null,
-          hr_szerepkor: p.hr_szerepkor || null,
+          docs_szerepkor: hasDocs ? (p.docs_szerepkor || p.szerepkor || null) : null,
+          hr_szerepkor: hasHr ? (p.hr_szerepkor || null) : null,
         }
       }
     }

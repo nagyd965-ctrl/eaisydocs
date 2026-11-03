@@ -139,33 +139,32 @@ export async function getEaisyBillPartnersAction(
     // 2. eaisyBill Company ID meghatározása
     let eaisybillCompanyId = activeCompany.eaisybill_company_id
 
-    // Ha még nincs összekötve, megpróbáljuk adószám vagy név alapján megkeresni
+    // Ha még nincs összekötve, megpróbáljuk kizárólag adószám alapján megkeresni
+    // (teljes >=10 jegyű adószám esetén teljes egyezés kötelező, név alapján SOHA nem mentünk automatikus cég-összekötést)
     if (!eaisybillCompanyId) {
       try {
         const cleanTax = activeCompany.tax_number?.replace(/[-\s]/g, "")
         if (cleanTax && cleanTax.length >= 8) {
-          const { data: matchedComp } = await billClient
+          const { data: candidates } = await billClient
             .from("companies")
-            .select("id")
+            .select("id, tax_number")
             .ilike("tax_number", `%${cleanTax.slice(0, 8)}%`)
-            .maybeSingle()
-          if (matchedComp?.id) {
-            eaisybillCompanyId = matchedComp.id
+
+          if (candidates && candidates.length > 0) {
+            const matched = candidates.filter((c: any) => {
+              const billCleanTax = (c.tax_number || "").replace(/[-\s]/g, "")
+              if (cleanTax.length >= 10 && billCleanTax.length >= 10) {
+                return billCleanTax === cleanTax
+              }
+              return billCleanTax.slice(0, 8) === cleanTax.slice(0, 8)
+            })
+            if (matched.length === 1 && matched[0]?.id) {
+              eaisybillCompanyId = matched[0].id
+            }
           }
         }
 
-        if (!eaisybillCompanyId && activeCompany.name) {
-          const { data: matchedComp } = await billClient
-            .from("companies")
-            .select("id")
-            .ilike("name", `%${activeCompany.name.trim()}%`)
-            .maybeSingle()
-          if (matchedComp?.id) {
-            eaisybillCompanyId = matchedComp.id
-          }
-        }
-
-        // Ha találtunk egyezést, automatikusan rögzítjük
+        // Ha találtunk egyértelmű adószám-egyezést, automatikusan rögzítjük
         if (eaisybillCompanyId) {
           await docsClient
             .from("companies")
@@ -221,7 +220,9 @@ export async function getEaisyBillPartnersAction(
 
     // Indexeljük a helyi partnereket a gyors összevetéshez
     const byBillId = new Map<string, string>()
-    const byTaxNumber = new Map<string, string>()
+    const byFullTaxNumber = new Map<string, string>()
+    const byTaxPrefix = new Map<string, string>()
+    const byEuTaxNumber = new Map<string, string>()
     const byName = new Map<string, string>()
 
     for (const p of docsPartners || []) {
@@ -229,11 +230,15 @@ export async function getEaisyBillPartnersAction(
         byBillId.set(p.eaisybill_partner_id, p.id)
       }
       if (p.adoszam) {
-        const clean = p.adoszam.replace(/[-\s]/g, "").slice(0, 8)
-        if (clean) byTaxNumber.set(clean, p.id)
+        const cleanFull = p.adoszam.replace(/[-\s]/g, "")
+        if (cleanFull.length >= 10) {
+          byFullTaxNumber.set(cleanFull, p.id)
+        } else if (cleanFull.length >= 8) {
+          byTaxPrefix.set(cleanFull.slice(0, 8), p.id)
+        }
       }
       if (p.kulfoldi_adoszam) {
-        byTaxNumber.set(p.kulfoldi_adoszam.trim().toLowerCase(), p.id)
+        byEuTaxNumber.set(p.kulfoldi_adoszam.trim().toLowerCase(), p.id)
       }
       if (p.nev) {
         byName.set(p.nev.trim().toLowerCase(), p.id)
@@ -254,21 +259,32 @@ export async function getEaisyBillPartnersAction(
         existingPartnerId = byBillId.get(bp.id)
       }
 
-      // 2. Adószám egyezés (első 8 jegy)
+      // 2. Adószám egyezés (teljes >=10 jegyű adószámnál teljes egyezés kötelező!)
       if (!isAlreadyImported && bp.tax_number) {
-        const cleanTax = bp.tax_number.replace(/[-\s]/g, "").slice(0, 8)
-        if (cleanTax && byTaxNumber.has(cleanTax)) {
-          isAlreadyImported = true
-          existingPartnerId = byTaxNumber.get(cleanTax)
+        const cleanFull = bp.tax_number.replace(/[-\s]/g, "")
+        if (cleanFull.length >= 10) {
+          if (byFullTaxNumber.has(cleanFull)) {
+            isAlreadyImported = true
+            existingPartnerId = byFullTaxNumber.get(cleanFull)
+          } else if (byTaxPrefix.has(cleanFull.slice(0, 8))) {
+            isAlreadyImported = true
+            existingPartnerId = byTaxPrefix.get(cleanFull.slice(0, 8))
+          }
+        } else if (cleanFull.length >= 8) {
+          const prefix = cleanFull.slice(0, 8)
+          if (byTaxPrefix.has(prefix)) {
+            isAlreadyImported = true
+            existingPartnerId = byTaxPrefix.get(prefix)
+          }
         }
       }
 
       // 3. Külföldi / EU adószám egyezés
       if (!isAlreadyImported && bp.eu_tax_number) {
         const cleanEu = bp.eu_tax_number.trim().toLowerCase()
-        if (byTaxNumber.has(cleanEu)) {
+        if (byEuTaxNumber.has(cleanEu)) {
           isAlreadyImported = true
-          existingPartnerId = byTaxNumber.get(cleanEu)
+          existingPartnerId = byEuTaxNumber.get(cleanEu)
         }
       }
 
@@ -351,12 +367,30 @@ export async function importEaisyBillPartnersAction(
       return { success: false, error: "Nem található a kiválasztott cég." }
     }
 
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    const auth = await requireDocsAuthServer(
+      ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"],
+      activeCompany.id
+    )
+    if (!auth.authorized || !auth.user) {
+      return { success: false, error: auth.error || "Nincs jogosultságod a partnerek importálásához." }
+    }
+
+    const eaisybillCompanyId = activeCompany.eaisybill_company_id
+    if (!eaisybillCompanyId) {
+      return {
+        success: false,
+        error: `A(z) „${activeCompany.name}” nincs eaisyBill vállalathoz kötve. Kérjük, először társítsd a céget!`
+      }
+    }
+
     const billClient = createEaisyBillClient()
 
-    // 2. Lekérjük a kijelölt partnereket az eaisyBill-ből
+    // 2. Lekérjük a kijelölt partnereket az eaisyBill-ből (szigorúan az adott eaisyBill cégre szűrve!)
     const { data: billPartners, error: billErr } = await billClient
       .from("partners")
       .select("*")
+      .eq("company_id", eaisybillCompanyId)
       .in("id", partnerIds)
 
     if (billErr || !billPartners || billPartners.length === 0) {

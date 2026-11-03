@@ -122,40 +122,42 @@ export async function uploadAvatar(formData: FormData) {
 
 export async function getTeamMembers(targetCompanyId?: string | null) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { profiles: [], error: "Nincs bejelentkezve." }
+  }
+
   const { getActiveCompanyIdServer } = await import("@/utils/company-server")
   const activeCompanyId = targetCompanyId !== undefined ? targetCompanyId : (await getActiveCompanyIdServer())
+  if (!activeCompanyId) {
+    return { profiles: [] }
+  }
 
   let memberUserIds: string[] = []
   const memberDocsRolesMap = new Map<string, string>()
 
-  if (activeCompanyId) {
-    const { data: cm } = await supabase
-      .from("company_members")
-      .select("user_id, docs_szerepkor")
-      .eq("company_id", activeCompanyId)
+  const { data: cm } = await supabase
+    .from("company_members")
+    .select("user_id, docs_szerepkor")
+    .eq("company_id", activeCompanyId)
 
-    if (cm) {
-      memberUserIds = cm.map(m => m.user_id)
-      cm.forEach(m => {
-        if (m.docs_szerepkor) memberDocsRolesMap.set(m.user_id, m.docs_szerepkor)
-      })
-    }
+  if (cm) {
+    memberUserIds = cm.map(m => m.user_id)
+    cm.forEach(m => {
+      if (m.docs_szerepkor) memberDocsRolesMap.set(m.user_id, m.docs_szerepkor)
+    })
   }
 
-  let query = supabase
+  if (memberUserIds.length === 0) {
+    return { profiles: [] }
+  }
+
+  const { data: profiles, error } = await supabase
     .from("felhasznalo_profil")
     .select("*")
     .contains("elerheto_modulok", ["docs"])
+    .in("id", memberUserIds)
     .order("nev")
-
-  if (activeCompanyId) {
-    query = query.in(
-      "id",
-      memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"]
-    )
-  }
-
-  const { data: profiles, error } = await query
 
   if (error) {
     return { error: error.message }
@@ -488,6 +490,10 @@ export async function createDepartment(formData: FormData) {
   const nev = (formData.get("nev") as string)?.trim()
   if (!nev) return { error: "Név megadása kötelező!" }
 
+  // ── ŐRBLOKK (A-097): csak az aktív cég adminisztrátora hozhat létre új szervezeti egységet ──
+  const guardError = await requireDepartmentAdminAccess()
+  if (guardError) return { error: guardError }
+
   const szuloIdRaw = formData.get("szulo_id") as string
   const szulo_id = !szuloIdRaw || szuloIdRaw === "__none__" || szuloIdRaw === "none" ? null : szuloIdRaw
   const prefixRaw = (formData.get("iktato_prefix") as string)?.trim().toUpperCase()
@@ -498,6 +504,30 @@ export async function createDepartment(formData: FormData) {
   const supabase = await createClient()
   const { getActiveCompanyIdServer } = await import("@/utils/company-server")
   const activeCompanyId = await getActiveCompanyIdServer()
+  if (!activeCompanyId) return { error: "Nincs kiválasztott aktív cég." }
+
+  if (szulo_id) {
+    const { data: parentDept } = await supabase
+      .from("szervezeti_egyseg")
+      .select("id, company_id")
+      .eq("id", szulo_id)
+      .maybeSingle()
+    if (!parentDept || parentDept.company_id !== activeCompanyId) {
+      return { error: "A kiválasztott szülő szervezeti egység nem található az aktív cégben." }
+    }
+  }
+
+  if (vezeto_id) {
+    const { data: leaderMember } = await supabase
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", activeCompanyId)
+      .eq("user_id", vezeto_id)
+      .maybeSingle()
+    if (!leaderMember) {
+      return { error: "A kiválasztott vezető nem tagja az aktív cégnek." }
+    }
+  }
 
   const { data: newDept, error } = await supabase
     .from("szervezeti_egyseg")
@@ -506,7 +536,7 @@ export async function createDepartment(formData: FormData) {
       szulo_id,
       iktato_prefix,
       vezeto_id,
-      company_id: activeCompanyId || null
+      company_id: activeCompanyId
     })
     .select("id")
     .single()
@@ -687,29 +717,19 @@ export async function removeUserFromDepartment(userId: string, departmentId: str
 }
 
 export async function deleteUser(userId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { error: "Nincs bejelentkezett felhasználó." }
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (!activeCompanyId) {
+    return { error: "Nincs kiválasztott aktív vállalat." }
   }
 
-  // Ellenőrizzük, hogy a hívó valóban adminisztrátor vagy rendszergazda-e
-  const { data: callerProfile } = await supabase
-    .from("felhasznalo_profil")
-    .select("szerepkor, docs_szerepkor")
-    .eq("id", user.id)
-    .single()
-
-  const isAdmin =
-    callerProfile?.szerepkor === "admin" ||
-    callerProfile?.docs_szerepkor === "admin" ||
-    callerProfile?.szerepkor === "rendszergazda" ||
-    callerProfile?.docs_szerepkor === "rendszergazda"
-
-  if (!isAdmin) {
-    return { error: "Kizárólag rendszergazda vagy adminisztrátor törölhet felhasználót." }
+  // Ellenőrizzük, hogy a hívó az aktív cégben valóban adminisztrátor vagy rendszergazda-e
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda"], activeCompanyId)
+  if (!auth.authorized || !auth.user) {
+    return { error: auth.error || "Kizárólag rendszergazda vagy adminisztrátor törölhet felhasználót." }
   }
+  const user = auth.user
 
   // Saját magát nem törölheti
   if (user.id === userId) {
@@ -730,11 +750,61 @@ export async function deleteUser(userId: string) {
     }
   )
 
-  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
+  // Ellenőrizzük, hogy a cél-felhasználó valóban tagja-e az aktív cégnek
+  const { data: targetMemberships } = await supabaseAdmin
+    .from("company_members")
+    .select("company_id")
+    .eq("user_id", userId)
 
-  if (error) {
-    return { error: error.message }
+  const belongsToActiveCompany = (targetMemberships || []).some(
+    (m: any) => m.company_id === activeCompanyId
+  )
+  if (!belongsToActiveCompany) {
+    return { error: "A kiválasztott felhasználó nem tagja az aktív vállalatnak." }
   }
+
+  const { data: targetProfile } = await supabaseAdmin
+    .from("felhasznalo_profil")
+    .select("nev, email, szervezeti_egyseg_id")
+    .eq("id", userId)
+    .maybeSingle()
+
+  const otherMemberships = (targetMemberships || []).filter(
+    (m: any) => m.company_id !== activeCompanyId
+  )
+
+  // Ha más cégnek is tagja, NEM töröljük a teljes Auth fiókot, csak az aktív cégből távolítjuk el!
+  if (otherMemberships.length > 0) {
+    const { error: removeMemberErr } = await supabaseAdmin
+      .from("company_members")
+      .delete()
+      .eq("company_id", activeCompanyId)
+      .eq("user_id", userId)
+
+    if (removeMemberErr) {
+      return { error: removeMemberErr.message }
+    }
+  } else {
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
+    if (error) {
+      return { error: error.message }
+    }
+  }
+
+  // Audit napló rögzítése az esemeny_naplo-ba
+  await supabaseAdmin.from("esemeny_naplo").insert({
+    entitas_tipus: "felhasznalo_profil",
+    entitas_id: userId,
+    company_id: activeCompanyId,
+    user_id: user.id,
+    esemeny_tipus: "modositva",
+    indoklas:
+      otherMemberships.length > 0
+        ? `Felhasználó eltávolítva a vállalatból (más vállalatban lévő tagsága megmaradt): ${targetProfile?.nev || userId}`
+        : `Felhasználói fiók véglegesen törölve: ${targetProfile?.nev || userId}`,
+    elozo_ertek: targetProfile || { id: userId },
+    uj_ertek: { torolve: otherMemberships.length === 0, eltavolitva_cegbol: activeCompanyId },
+  })
 
   revalidatePath("/settings")
   return { success: true }
@@ -795,6 +865,26 @@ export async function addUsersToDepartment(departmentId: string, userIds: string
   const guardError = await requireDepartmentAdminAccess(departmentId)
   if (guardError) return { error: guardError }
 
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return { success: true }
+  }
+
+  const supabase = await createClient()
+  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  if (!activeCompanyId) return { error: "Nincs kiválasztott aktív cég." }
+
+  const { data: validMembers } = await supabase
+    .from("company_members")
+    .select("user_id")
+    .eq("company_id", activeCompanyId)
+    .in("user_id", userIds)
+
+  const validUserIds = (validMembers || []).map(m => m.user_id)
+  if (validUserIds.length === 0) {
+    return { error: "A kiválasztott felhasználók egyike sem tagja az aktív cégnek." }
+  }
+
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceRoleKey) return { error: "Hiányzik a SUPABASE_SERVICE_ROLE_KEY." }
 
@@ -808,7 +898,7 @@ export async function addUsersToDepartment(departmentId: string, userIds: string
   const { error } = await supabaseAdmin
     .from("felhasznalo_profil")
     .update({ szervezeti_egyseg_id: departmentId })
-    .in("id", userIds)
+    .in("id", validUserIds)
 
   if (error) return { error: "Hiba történt a felhasználók hozzáadásakor: " + error.message }
 

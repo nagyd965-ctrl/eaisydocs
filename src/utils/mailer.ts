@@ -345,9 +345,33 @@ export async function sendEmailWithAttachment(params: SendExpeditionEmailParams)
       resolvedDocCompanyId = auth.activeCompanyId
     }
 
-    const smtpHost = process.env.SMTP_HOST || (process.env.EMAIL_HOST ? process.env.EMAIL_HOST.replace("imap.", "smtp.") : "")
-    if (!smtpHost || !process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-      return { success: false, error: "SMTP konfiguráció hiányzik a szerveren (.env.local)!" }
+    let companySmtpHost: string | null = null
+    let companySmtpUser: string | null = null
+    let companySmtpPass: string | null = null
+
+    if (resolvedDocCompanyId) {
+      try {
+        const { loadCompanyCredentialRow } = await import("./imap-config")
+        const cred = await loadCompanyCredentialRow(resolvedDocCompanyId)
+        if (cred?.imapHost && cred?.imapUser && cred?.imapPass) {
+          companySmtpHost = cred.imapHost.replace(/^imap\./i, "smtp.")
+          companySmtpUser = cred.imapUser
+          companySmtpPass = cred.imapPass
+        }
+      } catch (credErr) {
+        console.warn("[Mailer] Cég-specifikus SMTP adatok betöltése sikertelen, env fallback:", credErr)
+      }
+    }
+
+    const smtpHost =
+      companySmtpHost ||
+      process.env.SMTP_HOST ||
+      (process.env.EMAIL_HOST ? process.env.EMAIL_HOST.replace("imap.", "smtp.") : "")
+    const smtpUser = companySmtpUser || process.env.EMAIL_USER
+    const smtpPass = companySmtpPass || process.env.EMAIL_PASSWORD
+
+    if (!smtpHost || !smtpUser || !smtpPass) {
+      return { success: false, error: "SMTP konfiguráció hiányzik a vállalatnál és a szerveren (.env.local)!" }
     }
 
     const transporter = nodemailer.createTransport({
@@ -355,8 +379,8 @@ export async function sendEmailWithAttachment(params: SendExpeditionEmailParams)
       port: Number(process.env.EMAIL_SMTP_PORT) || 465,
       secure: Number(process.env.EMAIL_SMTP_PORT) === 465,
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        user: smtpUser,
+        pass: smtpPass,
       },
     })
 
@@ -393,7 +417,7 @@ export async function sendEmailWithAttachment(params: SendExpeditionEmailParams)
     }
 
     const info = await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+      from: smtpUser,
       to,
       subject,
       text,
@@ -424,6 +448,7 @@ export async function sendEmailWithAttachment(params: SendExpeditionEmailParams)
       await supabase.from("esemeny_naplo").insert({
         entitas_tipus: "irat",
         entitas_id: params.iratId,
+        company_id: resolvedDocCompanyId,
         user_id: effectiveUserId || null,
         esemeny_tipus: "tovabbitva",
         indoklas: `Kimenő irat expedíció e-mailben: Címzett: ${to}\nMessage-ID: ${info.messageId}\nCsatolt dokumentum: ${attachedFileNames || "nincs"}\n\nKísérőszöveg:\n${text}`,
@@ -434,6 +459,7 @@ export async function sendEmailWithAttachment(params: SendExpeditionEmailParams)
       await supabase.from("esemeny_naplo").insert({
         entitas_tipus: "ugyirat",
         entitas_id: params.ugyiratId,
+        company_id: resolvedDocCompanyId,
         user_id: effectiveUserId || null,
         esemeny_tipus: "modositva",
         indoklas: `Válaszlevél elküldve e-mailben a partnernek (${to}). ${attachedFileNames ? "Csatolt irat: " + attachedFileNames : ""}`,

@@ -135,6 +135,7 @@ export async function uploadDocumentNewVersion(iratId: string, ugyiratId: string
     .single()
 
   if (insertError) {
+    await supabase.storage.from("irat_files").remove([fileName])
     return { error: "Hiba a fájl verzió rögzítésekor: " + insertError.message }
   }
 
@@ -151,6 +152,7 @@ export async function uploadDocumentNewVersion(iratId: string, ugyiratId: string
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: ugyiratId,
+    company_id: ugyirat.company_id,
     user_id: user.id,
     esemeny_tipus: "modositva",
     indoklas: `Új fájlverzió feltöltve (v${nextVersion}): ${file.name}.${indoklas ? ` Indoklás: ${indoklas}` : ""}`,
