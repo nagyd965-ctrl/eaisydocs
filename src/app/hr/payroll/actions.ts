@@ -191,6 +191,7 @@ export async function getPayrollDashboardData(
   const { data: beosztasok } = await adminClient
     .from("hr_beosztas")
     .select("id, jogviszony_id, munkakor_id, munkaido_fte")
+    .eq("company_id", activeCompanyId)
   const beosztasMap = new Map<string, { fte: number; munkakor: string; feor: string; orgId: string | null }>()
   beosztasok?.forEach((b: any) => {
     const mk = b.munkakor_id ? mkMap.get(b.munkakor_id) : null
@@ -295,6 +296,7 @@ export async function getPayrollDashboardData(
   const { data: cafeteriaChoices } = await adminClient
     .from("hr_cafeteria_valasztas")
     .select("dolgozo_id, kert_osszeg, ev")
+    .eq("company_id", activeCompanyId)
     .in("dolgozo_id", memberUserIds)
     .eq("ev", year)
 
@@ -906,7 +908,7 @@ export async function downloadPayslipPdfAction(
     let resolvedFeor: string | undefined = undefined
     let resolvedOrgId: string | null = prof?.hr_szervezeti_egyseg_id || prof?.szervezeti_egyseg_id || null
 
-    const { data: activeJogv } = await adminClient
+    let jogvQuery = adminClient
       .from("hr_jogviszony")
       .select(`
         id,
@@ -916,6 +918,10 @@ export async function downloadPayslipPdfAction(
         )
       `)
       .eq("dolgozo_id", p.dolgozo_id)
+    if (companyToLookup) {
+      jogvQuery = jogvQuery.eq("company_id", companyToLookup)
+    }
+    const { data: activeJogv } = await jogvQuery
       .order("kilepes_datuma", { ascending: false, nullsFirst: true })
       .order("belepes_datuma", { ascending: false })
       .limit(1)

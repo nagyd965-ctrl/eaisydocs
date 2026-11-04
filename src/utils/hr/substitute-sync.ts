@@ -32,12 +32,23 @@ export async function syncExpiredSubstitutions() {
         .update({ aktiv: false })
         .eq("id", sub.id)
 
+      // Csak az eredeti vezető (sub.vezeto_id) saját közvetlen beosztottjainak kérelmeit
+      // szignáljuk vissza (hogy a helyettes saját csapatának kérelmei érintetlenek maradjanak)
+      const { data: subordinates } = await supabaseAdmin
+        .from("felhasznalo_profil")
+        .select("id")
+        .eq("kozvetlen_vezeto_id", sub.vezeto_id)
+
+      const subordinateIds = (subordinates || []).map((s: any) => s.id).filter(Boolean)
+      if (subordinateIds.length === 0) continue
+
       // 2. Függő távolléti kérelmek visszaszignálása az eredeti vezetőre
       let tavolletQuery = supabaseAdmin
         .from("hr_tavollet")
         .update({ aktualis_jovahagyo_id: sub.vezeto_id })
         .eq("aktualis_jovahagyo_id", sub.helyettes_id)
         .eq("statusz", "jovahagyasra_var")
+        .in("dolgozo_id", subordinateIds)
 
       if (sub.company_id) {
         tavolletQuery = tavolletQuery.eq("company_id", sub.company_id)
@@ -50,6 +61,7 @@ export async function syncExpiredSubstitutions() {
         .update({ jovahagyo_id: sub.vezeto_id })
         .eq("jovahagyo_id", sub.helyettes_id)
         .eq("statusz", "jovahagyasra_var")
+        .in("dolgozo_id", subordinateIds)
 
       if (sub.company_id) {
         korrekcioQuery = korrekcioQuery.eq("company_id", sub.company_id)

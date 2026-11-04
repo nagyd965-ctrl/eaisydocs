@@ -1179,27 +1179,40 @@ export async function deleteSubstitute(id: string) {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       )
-      let revertQuery = supabaseAdmin
-        .from("hr_tavollet")
-        .update({ aktualis_jovahagyo_id: user.id })
-        .eq("aktualis_jovahagyo_id", sub.helyettes_id)
-        .eq("statusz", "jovahagyasra_var")
+      // Csak a saját közvetlen beosztottak függő kérelmeit szignáljuk vissza,
+      // hogy a helyettes saját csapatának kérelmei ne íródjanak felül
+      const { data: subordinates } = await supabaseAdmin
+        .from("felhasznalo_profil")
+        .select("id")
+        .eq("kozvetlen_vezeto_id", user.id)
 
-      if (sub.company_id) {
-        revertQuery = revertQuery.eq("company_id", sub.company_id)
+      const subordinateIds = (subordinates || []).map((s: any) => s.id).filter(Boolean)
+
+      if (subordinateIds.length > 0) {
+        let revertQuery = supabaseAdmin
+          .from("hr_tavollet")
+          .update({ aktualis_jovahagyo_id: user.id })
+          .eq("aktualis_jovahagyo_id", sub.helyettes_id)
+          .eq("statusz", "jovahagyasra_var")
+          .in("dolgozo_id", subordinateIds)
+
+        if (sub.company_id) {
+          revertQuery = revertQuery.eq("company_id", sub.company_id)
+        }
+        await revertQuery
+
+        let revertKorrekcioQuery = supabaseAdmin
+          .from("hr_jelenlet_korrekcio")
+          .update({ jovahagyo_id: user.id })
+          .eq("jovahagyo_id", sub.helyettes_id)
+          .eq("statusz", "jovahagyasra_var")
+          .in("dolgozo_id", subordinateIds)
+
+        if (sub.company_id) {
+          revertKorrekcioQuery = revertKorrekcioQuery.eq("company_id", sub.company_id)
+        }
+        await revertKorrekcioQuery
       }
-      await revertQuery
-
-      let revertKorrekcioQuery = supabaseAdmin
-        .from("hr_jelenlet_korrekcio")
-        .update({ jovahagyo_id: user.id })
-        .eq("jovahagyo_id", sub.helyettes_id)
-        .eq("statusz", "jovahagyasra_var")
-
-      if (sub.company_id) {
-        revertKorrekcioQuery = revertKorrekcioQuery.eq("company_id", sub.company_id)
-      }
-      await revertKorrekcioQuery
     } catch (err) {
       console.error("Hiba a kérelmek visszaszignálásakor:", err)
     }

@@ -46,3 +46,5 @@ export function sanitizeHtml(rawHtml: string): string {
 
   return clean
 }
+
+export const sanitizeRichTextHtml = sanitizeHtml

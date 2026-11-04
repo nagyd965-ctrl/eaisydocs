@@ -68,7 +68,7 @@ export async function requireDocsAuthServer(
     ? (profile as any).elerheto_modulok.includes("docs")
     : true
 
-  if (!hasDocsModule && !companyRoles.isCompanyAdmin && (!companyRoles.docsRole || companyRoles.docsRole === "none")) {
+  if (!hasDocsModule) {
     return {
       authorized: false,
       user,
@@ -112,6 +112,10 @@ export async function requireDocsAuthServer(
       ? normalizeDocsRoleAndModules("admin").writeModules
       : fallbackNormalized.writeModules
 
+  const isDocsAdmin =
+    effectiveDocsRole === "admin" ||
+    effectiveDocsRole === "rendszergazda"
+
   // Ha explicit targetCompanyId-t adtak meg, és a felhasználó nem tagja annak a cégnek:
   if (targetCompanyId && !companyRoles.isMember) {
     return {
@@ -136,10 +140,7 @@ export async function requireDocsAuthServer(
       allowedRoles.includes("auditor") ||
       allowedRoles.includes("audit")
 
-    const isAdminUser =
-      effectiveDocsRole === "admin" ||
-      effectiveDocsRole === "rendszergazda" ||
-      companyRoles.isCompanyAdmin
+    const isAdminUser = isDocsAdmin
 
     if (!isReadOrAuditCheck && !isAdminUser) {
       if (effectiveDocsWriteModules.length === 0) {
@@ -150,7 +151,7 @@ export async function requireDocsAuthServer(
           docsRole: effectiveDocsRole,
           docsModules: effectiveDocsModules,
           docsWriteModules: effectiveDocsWriteModules,
-          isCompanyAdmin: companyRoles.isCompanyAdmin,
+          isCompanyAdmin: isDocsAdmin,
           isMember: companyRoles.isMember,
           nev: profile?.nev || null,
           szervezetiEgysegId: profile?.szervezeti_egyseg_id || null,
@@ -173,7 +174,7 @@ export async function requireDocsAuthServer(
           docsRole: effectiveDocsRole,
           docsModules: effectiveDocsModules,
           docsWriteModules: effectiveDocsWriteModules,
-          isCompanyAdmin: companyRoles.isCompanyAdmin,
+          isCompanyAdmin: isDocsAdmin,
           isMember: companyRoles.isMember,
           nev: profile?.nev || null,
           szervezetiEgysegId: profile?.szervezeti_egyseg_id || null,
@@ -186,7 +187,7 @@ export async function requireDocsAuthServer(
     const modulesToCheck = isReadOrAuditCheck ? effectiveDocsModules : effectiveDocsWriteModules
     const isAllowed =
       isUserAuthorizedForDocsView(effectiveDocsRole, allowedRoles, modulesToCheck) ||
-      (companyRoles.isCompanyAdmin && allowedRoles.includes("admin"))
+      (isDocsAdmin && allowedRoles.includes("admin"))
 
     if (!isAllowed) {
       return {
@@ -196,7 +197,7 @@ export async function requireDocsAuthServer(
         docsRole: effectiveDocsRole,
         docsModules: effectiveDocsModules,
         docsWriteModules: effectiveDocsWriteModules,
-        isCompanyAdmin: companyRoles.isCompanyAdmin,
+        isCompanyAdmin: isDocsAdmin,
         isMember: companyRoles.isMember,
         nev: profile?.nev || null,
         szervezetiEgysegId: profile?.szervezeti_egyseg_id || null,
@@ -213,7 +214,7 @@ export async function requireDocsAuthServer(
     docsRole: effectiveDocsRole,
     docsModules: effectiveDocsModules,
     docsWriteModules: effectiveDocsWriteModules,
-    isCompanyAdmin: companyRoles.isCompanyAdmin,
+    isCompanyAdmin: isDocsAdmin,
     isMember: companyRoles.isMember,
     nev: profile?.nev || null,
     szervezetiEgysegId: profile?.szervezeti_egyseg_id || null,

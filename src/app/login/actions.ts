@@ -74,8 +74,7 @@ export async function loginClientAction(input: {
   const emailLower = (preAuthData.user.email || (profile as any)?.email || cleanEmail).trim().toLowerCase()
   const isDedicatedManagementUser =
     emailLower === "management@thinkai.hu" ||
-    emailLower === "superadmin@thinkai.hu" ||
-    modulok.includes("management")
+    preAuthData.user.id === "f1eb20c2-2897-4183-a96a-d9226dfd19e3"
 
   const hasDocs = modulok.includes("docs")
   const hasHr = modulok.includes("hr")

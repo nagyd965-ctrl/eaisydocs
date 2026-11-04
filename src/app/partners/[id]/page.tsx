@@ -59,18 +59,21 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
   )
 
   // 1. Partner törzsadat
-  const { data: partner } = await supabase
+  let partnerQuery = supabase
     .from("partner")
     .select("*")
     .eq("id", params.id)
-    .single()
+  if (activeCompanyId) {
+    partnerQuery = partnerQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: partner } = await partnerQuery.single()
 
   if (!partner) {
     notFound()
   }
 
   // 2. Partnerhez kapcsolódó iratok (bejövő és kimenő)
-  const { data: iratokMintPartner } = await supabase
+  let iratokQuery = supabase
     .from("irat")
     .select(`
       id,
@@ -110,7 +113,10 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
       )
     `)
     .eq("kuldo_partner_id", partner.id)
-    .order("erkezes_datuma", { ascending: false })
+  if (activeCompanyId) {
+    iratokQuery = iratokQuery.eq("company_id", activeCompanyId)
+  }
+  const { data: iratokMintPartner } = await iratokQuery.order("erkezes_datuma", { ascending: false })
 
   const incomingDocs = (iratokMintPartner || []).filter(i => i.irany === "bejovo" || !i.irany)
   const outgoingDocs = (iratokMintPartner || []).filter(i => i.irany === "kimeno")

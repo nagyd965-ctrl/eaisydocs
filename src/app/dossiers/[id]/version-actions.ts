@@ -21,7 +21,7 @@ export async function uploadDocumentNewVersion(iratId: string, ugyiratId: string
   }
 
   const auth = await requireDocsAuthServer(
-    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "dossiers", "inbox"],
+    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "dossiers"],
     ugyirat.company_id || null
   )
   if (!auth.authorized || !auth.user) {

@@ -206,4 +206,65 @@ test("eaisyHR Multi-Tenancy & Scoped Role Resolver Engine", async (t) => {
     assert.strictEqual(hasHrWriteAccess(hrReadOnly.role, hrReadOnly.modules, hrReadOnly.writeModules, "admin"), false)
     assert.strictEqual(hasHrWriteAccess(hrReadOnly.role, hrReadOnly.modules, hrReadOnly.writeModules, "reports"), true)
   })
+
+  // --- TEST 9: Moduláris függetlenség (HR-only vs Docs-only) és globális HR admin szivárgás elleni védelem ---
+  await t.test("TEST 9: Moduláris függetlenség (HR-only vs Docs-only) és globális HR admin szivárgás védelem", () => {
+    const hrOnlyOwner = resolveUserCompanyRoles(
+      {
+        companyId: "comp-1",
+        role: "owner",
+        hr_szerepkor: "admin",
+        docs_szerepkor: "admin",
+      },
+      {
+        id: "user-hr-only",
+        hr_szerepkor: "admin",
+        docs_szerepkor: "admin",
+        elerheto_modulok: ["hr"],
+      }
+    )
+    assert.strictEqual(hrOnlyOwner.docsRole, "none", "HR-only felhasználó nem kaphat Docs szerepkört még ownerként sem")
+    assert.deepStrictEqual(hrOnlyOwner.docsModules, [])
+    assert.deepStrictEqual(hrOnlyOwner.docsWriteModules, [])
+    assert.strictEqual(hrOnlyOwner.hrRole, "admin")
+
+    const docsOnlyOwner = resolveUserCompanyRoles(
+      {
+        companyId: "comp-1",
+        role: "owner",
+        hr_szerepkor: "admin",
+        docs_szerepkor: "admin",
+      },
+      {
+        id: "user-docs-only",
+        hr_szerepkor: "admin",
+        docs_szerepkor: "admin",
+        elerheto_modulok: ["docs"],
+      }
+    )
+    assert.strictEqual(docsOnlyOwner.hrRole, "none", "Docs-only felhasználó nem kaphat HR szerepkört még ownerként sem")
+    assert.deepStrictEqual(docsOnlyOwner.hrModules, [])
+    assert.deepStrictEqual(docsOnlyOwner.hrWriteModules, [])
+    assert.strictEqual(docsOnlyOwner.docsRole, "admin")
+
+    const globalHrAdminInSecondCompany = resolveUserCompanyRoles(
+      {
+        companyId: "comp-2",
+        role: "member",
+        hr_szerepkor: null,
+        docs_szerepkor: "munkavallalo",
+      },
+      {
+        id: "user-global-hr-admin",
+        hr_szerepkor: "admin",
+        docs_szerepkor: "munkavallalo",
+        elerheto_modulok: ["docs", "hr"],
+      }
+    )
+    assert.strictEqual(
+      globalHrAdminInSecondCompany.hrRole,
+      "munkavallalo",
+      "Globális hr_szerepkor='admin' nem szivároghat át olyan cégbe, ahol csak sima member (hr_szerepkor=null)"
+    )
+  })
 })

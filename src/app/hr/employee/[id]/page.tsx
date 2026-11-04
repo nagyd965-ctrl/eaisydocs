@@ -75,7 +75,6 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
   // Olvasási jogosultságok (oldal és fülek megtekintéséhez)
   const canReadHrOrAdmin =
-    scopedRoles.isCompanyAdmin ||
     currentHrRole === "admin" ||
     isUserAuthorizedForHrView(currentHrRole, ["admin", "employees"], currentHrModules)
   const canReadPayroll = isUserAuthorizedForHrView(currentHrRole, ["admin", "payroll"], currentHrModules)
@@ -83,12 +82,11 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const isAudit = currentHrRole === "admin" || currentHrModules.includes("audit") || currentHrRole === "auditor"
 
   // Írási jogosultságok (gombok, űrlapok, módosító műveletek)
-  const isStrictAdmin = scopedRoles.isCompanyAdmin || currentHrRole === "admin" || currentHrRole === "rendszergazda"
-  const isHrOrAdmin = isStrictAdmin || hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "admin")
-  const isPayroll = isStrictAdmin || hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "payroll")
-  const isCompliance = isStrictAdmin || hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "compliance")
-  const canWriteTime = isStrictAdmin || hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "time")
-  const canWriteOffboarding = isStrictAdmin || hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "offboarding")
+  const isHrOrAdmin = hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, ["employees", "admin"])
+  const isPayroll = hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "payroll")
+  const isCompliance = hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "compliance")
+  const canWriteTime = hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "time")
+  const canWriteOffboarding = hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "offboarding")
 
   // 2. Lekérjük a profil adatokat
   const { data: profile, error } = await supabaseAdmin
@@ -560,7 +558,11 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               adatlap={adatlap} 
             />
 
-            <PersonalDataTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin || isPayroll} />
+            <PersonalDataTab
+              employeeId={profile.id}
+              isHrOrAdmin={canReadHrOrAdmin || canReadPayroll}
+              canEdit={isHrOrAdmin || isPayroll}
+            />
           </TabsContent>
 
           {/* 2. Szakmai Háttér (Összevont) */}

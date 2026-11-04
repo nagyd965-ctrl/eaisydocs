@@ -195,10 +195,10 @@ export default async function HrAdminPage() {
   // Jogosultság ellenőrzése admin műveletekhez (szerkesztés, törlés a törzsadatbázisban)
   // Megrendelői döntés (2026-11-01): az Állomány modul a NÉZETET és a dolgozói adatok
   // szerkesztését adja — SZEREPKÖR-VÁLTÁS és TÖRLÉS kizárólag valódi HR admin szerepkör.
-  const canEdit =
-    scopedRoles.isCompanyAdmin ||
-    hasHrWriteAccess(hrRole, hrModules, scopedRoles.hrWriteModules, "admin")
-  const canManage = hrRole === "admin"
+  const canEdit = hasHrWriteAccess(hrRole, hrModules, scopedRoles.hrWriteModules, ["employees", "admin"])
+  const canManage =
+    hasHrWriteAccess(hrRole, hrModules, scopedRoles.hrWriteModules, "admin") &&
+    (hrRole === "admin" || hrRole === "rendszergazda")
 
   // Felvételi adatokhoz meglévő fiókok - csak az aktuális céghez tartozó Docs profilok
   const assignedIds = employees.filter(e => {

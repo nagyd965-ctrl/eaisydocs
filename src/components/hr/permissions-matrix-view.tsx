@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -54,6 +54,10 @@ export function PermissionsMatrixView({
   const [employees, setEmployees] = useState<PermissionMatrixEmployee[]>(initialEmployees)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [, startTransition] = useTransition()
+
+  useEffect(() => {
+    setEmployees(initialEmployees)
+  }, [initialEmployees])
 
   // TableToolbar state
   const [search, setSearch] = useState("")

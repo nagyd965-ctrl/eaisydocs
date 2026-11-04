@@ -669,7 +669,7 @@ export async function fileExistingJobDescriptionDocument(params: {
 
   const adminClient = getAdminClient()
   const { documentId, dolgozoId } = params
-  const access = await verifyOnboardingJobAccess(adminClient, { dolgozoId })
+  const access = await verifyOnboardingJobAccess(adminClient, { dolgozoId }, { requireWrite: true })
   if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
   const activeCompanyId = access.auth.activeCompanyId
 

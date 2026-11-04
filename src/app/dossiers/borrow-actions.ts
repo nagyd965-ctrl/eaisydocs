@@ -20,7 +20,7 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
 
   const targetCompanyId = irat.company_id || (await getActiveCompanyIdServer())
   const auth = await requireDocsAuthServer(
-    ["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"],
+    ["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo", "dossiers", "archive"],
     targetCompanyId
   )
   if (!auth.authorized || !auth.user) {
@@ -100,13 +100,37 @@ export async function borrowDocument(iratId: string, kinekUserId: string, varhat
 
 export async function returnDocument(kolcsonzesId: string) {
   const supabase = await createClient()
-  const auth = await requireDocsAuthServer(["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"])
+  const { data: log } = await supabase
+    .from("irat_kolcsonzes_naplo")
+    .select("irat_id, kinek_user_id")
+    .eq("id", kolcsonzesId)
+    .single()
+
+  if (!log) {
+    return { success: false, error: "A kölcsönzési bejegyzés nem található." }
+  }
+
+  const { data: irat } = await supabase
+    .from("irat")
+    .select("ugyirat_id, company_id")
+    .eq("id", log.irat_id)
+    .single()
+
+  if (!irat) {
+    return { success: false, error: "Az érintett irat nem található." }
+  }
+
+  const auth = await requireDocsAuthServer(
+    ["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo", "dossiers", "archive"],
+    irat.company_id || null
+  )
   if (!auth.authorized || !auth.user) {
     return { success: false, error: auth.error || "Nincs jogosultság." }
   }
+  if (auth.activeCompanyId && irat.company_id && irat.company_id !== auth.activeCompanyId) {
+    return { success: false, error: "Az érintett irat nem tartozik az aktív vállalathoz." }
+  }
   const user = auth.user
-
-  const { data: log } = await supabase.from("irat_kolcsonzes_naplo").select("irat_id, kinek_user_id").eq("id", kolcsonzesId).single()
 
   const { error } = await supabase
     .from("irat_kolcsonzes_naplo")
@@ -118,25 +142,22 @@ export async function returnDocument(kolcsonzesId: string) {
 
   if (error) return { success: false, error: "Hiba történt." }
 
-  let ugyiratId: string | undefined
+  const ugyiratId = irat?.ugyirat_id
 
   // Eseménynapló rögzítése
-  if (log) {
-    const { data: irat } = await supabase.from("irat").select("ugyirat_id").eq("id", log.irat_id).single()
-    ugyiratId = irat?.ugyirat_id
-    const { data: kinek } = await supabase.from("felhasznalo_profil").select("nev").eq("id", log.kinek_user_id).single()
+  const { data: kinek } = await supabase.from("felhasznalo_profil").select("nev").eq("id", log.kinek_user_id).single()
 
-    const { ip, userAgent } = await getClientInfo()
-    await supabase.from("esemeny_naplo").insert({
-      entitas_tipus: "ugyirat",
-      entitas_id: irat?.ugyirat_id,
-      user_id: user.id,
-      esemeny_tipus: "modositva",
-      uj_ertek: { megjegyzes: `Irat visszavéve tőle: ${kinek?.nev || "Ismeretlen"}.` },
-      ip_cim: ip,
-      user_agent: userAgent
-    })
-  }
+  const { ip, userAgent } = await getClientInfo()
+  await supabase.from("esemeny_naplo").insert({
+    entitas_tipus: "ugyirat",
+    entitas_id: irat?.ugyirat_id,
+    user_id: user.id,
+    company_id: irat.company_id || auth.activeCompanyId || null,
+    esemeny_tipus: "modositva",
+    uj_ertek: { megjegyzes: `Irat visszavéve tőle: ${kinek?.nev || "Ismeretlen"}.` },
+    ip_cim: ip,
+    user_agent: userAgent
+  })
 
   if (ugyiratId) {
     revalidatePath(`/dossiers/${ugyiratId}`)
@@ -173,13 +194,29 @@ export async function getPhysicalLocationSuggestions() {
 
 export async function setPhysicalLocation(iratId: string, doboz: string, polc: string, megjegyzes?: string) {
   const supabase = await createClient()
-  const auth = await requireDocsAuthServer(["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo"])
+  const { data: irat } = await supabase
+    .from("irat")
+    .select("id, ugyirat_id, company_id")
+    .eq("id", iratId)
+    .single()
+
+  if (!irat) {
+    return { success: false, error: "Az érintett irat nem található." }
+  }
+
+  const auth = await requireDocsAuthServer(
+    ["iktato", "admin", "rendszergazda", "vezeto", "ugyintezo", "dossiers", "archive"],
+    irat.company_id || null
+  )
   if (!auth.authorized || !auth.user) {
     return { success: false, error: auth.error || "Nincs jogosultság." }
   }
+  if (auth.activeCompanyId && irat.company_id && irat.company_id !== auth.activeCompanyId) {
+    return { success: false, error: "Az érintett irat nem tartozik az aktív vállalathoz." }
+  }
   const user = auth.user
 
-  const companyScope = auth.activeCompanyId || "00000000-0000-0000-0000-000000000000"
+  const companyScope = irat.company_id || auth.activeCompanyId || "00000000-0000-0000-0000-000000000000"
 
   const trimmedDoboz = doboz?.trim() || ""
   const trimmedPolc = polc?.trim() || ""
@@ -192,6 +229,7 @@ export async function setPhysicalLocation(iratId: string, doboz: string, polc: s
       .from("irat_fizikai_hely")
       .delete()
       .eq("irat_id", iratId)
+      .eq("company_id", companyScope)
 
     if (delErr) {
       console.error("Fizikai hely törlési hiba:", delErr)
@@ -216,12 +254,12 @@ export async function setPhysicalLocation(iratId: string, doboz: string, polc: s
   }
 
   // Eseménynapló
-  const { data: irat } = await supabase.from("irat").select("ugyirat_id").eq("id", iratId).single()
   const { ip, userAgent } = await getClientInfo()
   await supabase.from("esemeny_naplo").insert({
     entitas_tipus: "ugyirat",
     entitas_id: irat?.ugyirat_id,
     user_id: user.id,
+    company_id: irat.company_id || auth.activeCompanyId || null,
     esemeny_tipus: "modositva",
     uj_ertek: { 
       megjegyzes: isClearing 

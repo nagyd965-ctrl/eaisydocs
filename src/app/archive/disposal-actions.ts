@@ -12,7 +12,7 @@ import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
 
 // 1. Felterjesztés Selejtezésre (Iratkezelő csinálja)
 export async function proposeDisposal(ugyiratIds: string[], note?: string) {
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "archive"])
   if (!auth.authorized || !auth.user) {
     return { error: auth.error || "Nincs jogosultságod selejtezési javaslat felterjesztéséhez." }
   }
@@ -76,6 +76,7 @@ export async function proposeDisposal(ugyiratIds: string[], note?: string) {
 
   if (csomagError || !csomag) {
     console.error("Hiba a selejtezési csomag létrehozásakor:", csomagError)
+    return { error: "Hiba a selejtezési csomag létrehozásakor." }
   }
 
   const { ip, userAgent } = await getClientInfo()
@@ -177,7 +178,7 @@ export async function approveDisposal(
   }
 
   const activeCompanyId = await getActiveCompanyIdServer()
-  const auth = await requireDocsAuthServer(["admin", "vezeto", "rendszergazda"], activeCompanyId)
+  const auth = await requireDocsAuthServer(["admin", "vezeto", "rendszergazda", "archive"], activeCompanyId)
   if (!auth.authorized || !auth.user) {
     return {
       error:
@@ -361,14 +362,21 @@ export async function approveDisposal(
         const iratIds = iratok.map((i: any) => i.id)
         const { data: fajlok } = await supabase
           .from("irat_fajl")
-          .select("storage_path")
+          .select("storage_path, pdfa_path")
           .in("irat_id", iratIds)
-          .not("storage_path", "is", null)
 
         if (fajlok && fajlok.length > 0) {
-          const pathsToDelete = fajlok.map((f) => f.storage_path)
-          await dbAdmin.storage.from("irat_files").remove(pathsToDelete)
-          await dbAdmin.storage.from("iratok").remove(pathsToDelete)
+          const pathsToDelete = Array.from(
+            new Set(
+              fajlok
+                .flatMap((f: any) => [f.storage_path, f.pdfa_path])
+                .filter((p): p is string => Boolean(p))
+            )
+          )
+          if (pathsToDelete.length > 0) {
+            await dbAdmin.storage.from("irat_files").remove(pathsToDelete)
+            await dbAdmin.storage.from("iratok").remove(pathsToDelete)
+          }
         }
       }
 

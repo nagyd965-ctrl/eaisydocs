@@ -171,12 +171,12 @@ export function NotificationSettings({ rules, isAdmin }: { rules: Rule[]; logs?:
                         onClick={() =>
                           handleChannelToggle(rule.id, "in_app", !ruleChannels.includes("in_app"), rule.aktiv, ruleChannels)
                         }
-                        disabled={isPending}
+                        disabled={isPending || !isAdmin}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
                           ruleChannels.includes("in_app")
                             ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
                             : "bg-transparent text-muted-foreground border-input hover:bg-accent hover:text-accent-foreground"
-                        } ${isPending ? "opacity-50 cursor-not-allowed" : ""}`}
+                        } ${isPending || !isAdmin ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <Monitor className="w-3.5 h-3.5" />
                         Rendszeren belül
@@ -186,12 +186,12 @@ export function NotificationSettings({ rules, isAdmin }: { rules: Rule[]; logs?:
                         onClick={() =>
                           handleChannelToggle(rule.id, "email", !ruleChannels.includes("email"), rule.aktiv, ruleChannels)
                         }
-                        disabled={isPending}
+                        disabled={isPending || !isAdmin}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
                           ruleChannels.includes("email")
                             ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
                             : "bg-transparent text-muted-foreground border-input hover:bg-accent hover:text-accent-foreground"
-                        } ${isPending ? "opacity-50 cursor-not-allowed" : ""}`}
+                        } ${isPending || !isAdmin ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <Mail className="w-3.5 h-3.5" />
                         E-mail
@@ -201,12 +201,12 @@ export function NotificationSettings({ rules, isAdmin }: { rules: Rule[]; logs?:
                         onClick={() =>
                           handleChannelToggle(rule.id, "sms", !ruleChannels.includes("sms"), rule.aktiv, ruleChannels)
                         }
-                        disabled={isPending}
+                        disabled={isPending || !isAdmin}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
                           ruleChannels.includes("sms")
                             ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
                             : "bg-transparent text-muted-foreground border-input hover:bg-accent hover:text-accent-foreground"
-                        } ${isPending ? "opacity-50 cursor-not-allowed" : ""}`}
+                        } ${isPending || !isAdmin ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
                         SMS
@@ -218,7 +218,7 @@ export function NotificationSettings({ rules, isAdmin }: { rules: Rule[]; logs?:
                       <Switch
                         checked={rule.aktiv}
                         onCheckedChange={() => handleToggle(rule.id, rule.aktiv, ruleChannels)}
-                        disabled={isPending}
+                        disabled={isPending || !isAdmin}
                       />
                     </div>
                   </div>

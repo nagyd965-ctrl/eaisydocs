@@ -37,10 +37,10 @@ export async function GET(request: NextRequest) {
 
     const effectiveHrRole = scopedRoles.hrRole || "none"
     const effectiveHrModules = scopedRoles.hrModules || []
+    const isHrAdmin = effectiveHrRole === "admin" || effectiveHrRole === "rendszergazda"
 
     const isHrOrAdmin =
-      scopedRoles.isCompanyAdmin ||
-      scopedRoles.docsRole === "admin" ||
+      isHrAdmin ||
       isUserAuthorizedForHrView(
         effectiveHrRole,
         ["admin", "employees", "compliance", "payroll", "onboarding", "offboarding", "auditor"],
@@ -62,6 +62,16 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .maybeSingle()
 
+    // Vagy közös céges szabályzat / vállalati dokumentum-e az adott cégnél
+    const { data: policyDoc } = await dbClient
+      .from("hr_ceges_dokumentum")
+      .select("id, cim, company_id")
+      .eq("fajl_path", filePath)
+      .eq("company_id", activeCompanyId)
+      .eq("aktiv", true)
+      .limit(1)
+      .maybeSingle()
+
     // Vagy személyes HR dokumentum-e az adott cégnél
     const { data: empDoc } = await dbClient
       .from("hr_dokumentum")
@@ -72,9 +82,9 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
 
     const isOwnDocument = Boolean(empDoc && empDoc.dolgozo_id === user.id)
-    const belongsToActiveCompanyHr = Boolean(jobDoc) || Boolean(empDoc)
+    const belongsToActiveCompanyHr = Boolean(jobDoc) || Boolean(policyDoc) || Boolean(empDoc)
     const isAuthorized =
-      (Boolean(jobDoc) && effectiveHrRole !== "none") ||
+      ((Boolean(jobDoc) || Boolean(policyDoc)) && (effectiveHrRole !== "none" || isHrAdmin)) ||
       isOwnDocument ||
       (isHrOrAdmin && belongsToActiveCompanyHr)
 
@@ -112,6 +122,27 @@ export async function GET(request: NextRequest) {
 
     const arrayBuffer = await fileData.arrayBuffer()
     const fileName = filePath.split("/").pop() || "dokumentum.pdf"
+
+    // 4. Audit naplózás a hr_esemeny_naplo táblába
+    const entitasTipus = empDoc
+      ? "hr_dokumentum"
+      : policyDoc
+        ? "hr_ceges_dokumentum"
+        : "hr_munkakor_leiras_verzio"
+    const entitasId = empDoc?.id || policyDoc?.id || jobDoc?.id || null
+
+    try {
+      await dbClient.from("hr_esemeny_naplo").insert({
+        felhasznalo_id: user.id,
+        esemeny_tipus: "dokumentum_letoltve",
+        entitas_tipus: entitasTipus,
+        entitas_id: entitasId,
+        megjegyzes: `HR dokumentum megtekintve/letöltve: ${fileName}`,
+        company_id: activeCompanyId,
+      })
+    } catch (logErr) {
+      console.error("Nem sikerült naplózni a HR dokumentum letöltését:", logErr)
+    }
 
     return new NextResponse(arrayBuffer, {
       status: 200,

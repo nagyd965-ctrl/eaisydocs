@@ -336,6 +336,7 @@ export async function updateUserRole(userId: string, newRole: string, currentMin
   const normDocs = normalizeDocsRoleAndModules(newRole)
   const canonicalRole = normDocs.role
   const canonicalModules = normDocs.modules
+  const canonicalWriteModules = normDocs.writeModules
 
   if (activeCompanyId) {
     const { data: targetMembership } = await supabase
@@ -368,16 +369,25 @@ export async function updateUserRole(userId: string, newRole: string, currentMin
           role: nextCompRole,
           docs_szerepkor: canonicalRole,
           docs_modulok: canonicalModules,
+          docs_iras_modulok: canonicalWriteModules,
         })
         .eq("id", targetMembership.id)
 
-      await supabaseAdmin
-        .from("felhasznalo_profil")
-        .update({
-          docs_szerepkor: canonicalRole,
-          docs_modulok: canonicalModules,
-        })
-        .eq("id", userId)
+      const { count: membershipCount } = await supabaseAdmin
+        .from("company_members")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+
+      if ((membershipCount || 0) <= 1) {
+        await supabaseAdmin
+          .from("felhasznalo_profil")
+          .update({
+            docs_szerepkor: canonicalRole,
+            docs_modulok: canonicalModules,
+            docs_iras_modulok: canonicalWriteModules,
+          })
+          .eq("id", userId)
+      }
     }
   }
 
@@ -847,21 +857,13 @@ export async function toggleNotificationRule(id: string, active: boolean) {
   const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
   const activeCompanyId = await getActiveCompanyIdServer()
   const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("szerepkor, docs_szerepkor")
-    .eq("id", user.id)
-    .maybeSingle()
-
   const isAuthorized =
     scopedRoles.isCompanyAdmin ||
     scopedRoles.docsRole === "admin" ||
+    scopedRoles.docsRole === "rendszergazda" ||
     scopedRoles.hrRole === "admin" ||
     scopedRoles.hrRole === "rendszergazda" ||
-    profile?.szerepkor === "admin" ||
-    profile?.docs_szerepkor === "admin" ||
-    profile?.szerepkor === "rendszergazda" ||
-    profile?.docs_szerepkor === "rendszergazda"
+    (scopedRoles.docsModules.includes("settings") && scopedRoles.docsWriteModules.includes("settings"))
 
   if (!isAuthorized) {
     return { error: "Nincs adminisztrátor jogosultságod a művelethez." }
@@ -946,17 +948,14 @@ export async function updateRuleChannels(id: string, channels: string[]) {
   const activeCompanyId = await getActiveCompanyIdServer()
   const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
-  // Jogosultság ellenőrzése (cég-admin vagy globális admin)
-  const { data: profile } = await supabase.from("felhasznalo_profil").select("szerepkor, docs_szerepkor").eq("id", user.id).single()
+  // Jogosultság ellenőrzése az aktív vállalatban
   const isAuthorized =
     scopedRoles.isCompanyAdmin ||
     scopedRoles.docsRole === "admin" ||
+    scopedRoles.docsRole === "rendszergazda" ||
     scopedRoles.hrRole === "admin" ||
     scopedRoles.hrRole === "rendszergazda" ||
-    profile?.szerepkor === "admin" ||
-    profile?.docs_szerepkor === "admin" ||
-    profile?.szerepkor === "rendszergazda" ||
-    profile?.docs_szerepkor === "rendszergazda"
+    (scopedRoles.docsModules.includes("settings") && scopedRoles.docsWriteModules.includes("settings"))
 
   if (!isAuthorized) {
     return { error: "Nincs adminisztrátor jogosultságod a művelethez." }

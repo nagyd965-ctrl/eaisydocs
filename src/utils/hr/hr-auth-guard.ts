@@ -27,7 +27,7 @@ export function checkHrWriteAccess(
   auth: Pick<HrAuthContext, "isCompanyAdmin" | "hrRole" | "hrModules" | "hrWriteModules">,
   moduleKey: HrModuleKey | string | (HrModuleKey | string)[]
 ): boolean {
-  if (auth.isCompanyAdmin || auth.hrRole === "admin" || auth.hrRole === "rendszergazda") {
+  if (auth.hrRole === "admin" || auth.hrRole === "rendszergazda") {
     return true
   }
   return hasHrWriteAccess(auth.hrRole, auth.hrModules, auth.hrWriteModules, moduleKey)
@@ -40,7 +40,7 @@ export function checkHrWriteAccess(
 export function isStrictHrReadOnlyUser(
   auth: Pick<HrAuthContext, "isCompanyAdmin" | "hrRole" | "hrModules" | "hrWriteModules">
 ): boolean {
-  if (auth.isCompanyAdmin || auth.hrRole === "admin" || auth.hrRole === "rendszergazda") {
+  if (auth.hrRole === "admin" || auth.hrRole === "rendszergazda") {
     return false
   }
   if (auth.hrRole === "auditor") return true
@@ -94,6 +94,8 @@ export async function requireHrAuthServer(
     redirect(fallbackRedirect)
   }
 
+  const isHrAdmin = scopedRoles.hrRole === "admin" || scopedRoles.hrRole === "rendszergazda"
+
   return {
     authorized: isAuthorized,
     user,
@@ -103,7 +105,7 @@ export async function requireHrAuthServer(
     hrModules: scopedRoles.hrModules,
     hrWriteModules: scopedRoles.hrWriteModules,
     docsRole: scopedRoles.docsRole,
-    isCompanyAdmin: scopedRoles.isCompanyAdmin,
+    isCompanyAdmin: isHrAdmin,
   }
 }
 

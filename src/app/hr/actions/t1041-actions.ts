@@ -151,7 +151,11 @@ export async function getT1041Data(params: {
     }
   }
 
+  const activeCompanyId = access.auth.activeCompanyId
   let query = adminClient.from("hr_t1041_bejelentes").select("*")
+  if (activeCompanyId) {
+    query = query.eq("company_id", activeCompanyId)
+  }
   if (offboardingId) {
     query = query.eq("offboarding_id", offboardingId)
   } else if (onboardingId) {
@@ -247,11 +251,14 @@ export async function getT1041Data(params: {
   let lakcim = ""
 
   if (offboardingId) {
-    const { data: offb } = await adminClient
+    let offbQuery = adminClient
       .from("hr_offboarding")
       .select("*, felhasznalo_profil(id, nev, pozicio, hr_szervezeti_egyseg:hr_szervezeti_egyseg_id(nev))")
       .eq("id", offboardingId)
-      .single()
+    if (activeCompanyId) {
+      offbQuery = offbQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: offb } = await offbQuery.single()
     if (offb) {
       const prof = Array.isArray(offb.felhasznalo_profil) ? offb.felhasznalo_profil[0] : offb.felhasznalo_profil
       const profOrg = Array.isArray(prof?.hr_szervezeti_egyseg) ? prof?.hr_szervezeti_egyseg[0] : prof?.hr_szervezeti_egyseg
@@ -261,10 +268,14 @@ export async function getT1041Data(params: {
       vege = offb.utolso_munkaban_toltott_nap || offb.utolso_munkanap || offb.kilepes_datuma || ""
       const offbDolgozoId = offb.dolgozo_id || prof?.id
       if (offbDolgozoId) {
-        const { data: jogv } = await adminClient
+        let jogvQuery = adminClient
           .from("hr_jogviszony")
           .select("belepes_datuma, heti_munkaido_ora, hr_beosztas(hr_munkakor(megnevezes, feor_kod, hr_szervezeti_egyseg:szervezeti_egyseg_id(nev)))")
           .eq("dolgozo_id", offbDolgozoId)
+        if (activeCompanyId) {
+          jogvQuery = jogvQuery.eq("company_id", activeCompanyId)
+        }
+        const { data: jogv } = await jogvQuery
           .order("kilepes_datuma", { ascending: false, nullsFirst: true })
           .order("created_at", { ascending: false })
           .limit(1)
@@ -280,21 +291,28 @@ export async function getT1041Data(params: {
           if (mkOrg?.nev && !reszleg) reszleg = mkOrg.nev
         }
 
-        const { data: dAdatlap } = await adminClient
+        let dAdatlapQuery = adminClient
           .from("hr_dolgozo_adatlap")
           .select("szuletesi_datum, szuletesi_ido, szuletesi_hely, anyja_neve, lakcim")
           .eq("id", offbDolgozoId)
-          .maybeSingle()
+        if (activeCompanyId) {
+          dAdatlapQuery = dAdatlapQuery.eq("company_id", activeCompanyId)
+        }
+        const { data: dAdatlap } = await dAdatlapQuery.maybeSingle()
         if (dAdatlap) {
           szulDatum = dAdatlap.szuletesi_datum || dAdatlap.szuletesi_ido || szulDatum
           szulHely = dAdatlap.szuletesi_hely || szulHely
           anyja = dAdatlap.anyja_neve || anyja
           lakcim = dAdatlap.lakcim || lakcim
         }
-        const { data: cData } = await adminClient
+        let cDataQuery = adminClient
           .from("hr_munkaszerzodes")
           .select("kezdes_datuma, taj_szam, adoazonosito_jel, szuletesi_hely, szuletesi_datum, anyja_neve, lakcim")
           .eq("dolgozo_id", offbDolgozoId)
+        if (activeCompanyId) {
+          cDataQuery = cDataQuery.eq("company_id", activeCompanyId)
+        }
+        const { data: cData } = await cDataQuery
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -308,22 +326,27 @@ export async function getT1041Data(params: {
           lakcim = cData.lakcim || lakcim
         }
         if (munkakor && !feorKod) {
-          const { data: job } = await adminClient
+          let jobQuery = adminClient
             .from("hr_munkakor")
             .select("feor_kod")
             .eq("megnevezes", munkakor)
-            .limit(1)
-            .maybeSingle()
+          if (activeCompanyId) {
+            jobQuery = jobQuery.eq("company_id", activeCompanyId)
+          }
+          const { data: job } = await jobQuery.limit(1).maybeSingle()
           if (job?.feor_kod) feorKod = job.feor_kod
         }
       }
     }
   } else if (onboardingId) {
-    const { data: onb } = await adminClient
+    let onbQuery = adminClient
       .from("hr_onboarding")
       .select("nev, munkakor, reszleg, belepes_datuma")
       .eq("id", onboardingId)
-      .single()
+    if (activeCompanyId) {
+      onbQuery = onbQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: onb } = await onbQuery.single()
     if (onb) {
       empName = onb.nev || empName
       munkakor = onb.munkakor || munkakor
@@ -332,10 +355,14 @@ export async function getT1041Data(params: {
     }
 
     // Szerződésből
-    const { data: contract } = await adminClient
+    let contractQuery = adminClient
       .from("hr_munkaszerzodes")
       .select("*")
       .eq("onboarding_id", onboardingId)
+    if (activeCompanyId) {
+      contractQuery = contractQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: contract } = await contractQuery
       .order("created_at", { ascending: false })
       .limit(1)
       .single()
@@ -357,12 +384,14 @@ export async function getT1041Data(params: {
 
     // FEOR kód keresése a munkakörből
     if (munkakor) {
-      const { data: job } = await adminClient
+      let jobQuery = adminClient
         .from("hr_munkakor")
         .select("feor_kod")
         .eq("megnevezes", munkakor)
-        .limit(1)
-        .single()
+      if (activeCompanyId) {
+        jobQuery = jobQuery.eq("company_id", activeCompanyId)
+      }
+      const { data: job } = await jobQuery.limit(1).single()
       if (job?.feor_kod) {
         feorKod = job.feor_kod
       }
@@ -379,10 +408,14 @@ export async function getT1041Data(params: {
       munkakor = prof.pozicio || munkakor
       reszleg = profOrg?.nev || reszleg
     }
-    const { data: jogv } = await adminClient
+    let jogvQuery = adminClient
       .from("hr_jogviszony")
       .select("belepes_datuma, heti_munkaido_ora, hr_beosztas(hr_munkakor(megnevezes, feor_kod, hr_szervezeti_egyseg:szervezeti_egyseg_id(nev)))")
       .eq("dolgozo_id", dolgozoId)
+    if (activeCompanyId) {
+      jogvQuery = jogvQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: jogv } = await jogvQuery
       .order("kilepes_datuma", { ascending: false, nullsFirst: true })
       .order("created_at", { ascending: false })
       .limit(1)
@@ -397,21 +430,28 @@ export async function getT1041Data(params: {
       if (mk?.feor_kod) feorKod = mk.feor_kod
       if (mkOrg?.nev && !reszleg) reszleg = mkOrg.nev
     }
-    const { data: dAdatlap } = await adminClient
+    let dAdatlapQuery = adminClient
       .from("hr_dolgozo_adatlap")
       .select("szuletesi_datum, szuletesi_ido, szuletesi_hely, anyja_neve, lakcim")
       .eq("id", dolgozoId)
-      .maybeSingle()
+    if (activeCompanyId) {
+      dAdatlapQuery = dAdatlapQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: dAdatlap } = await dAdatlapQuery.maybeSingle()
     if (dAdatlap) {
       szulDatum = dAdatlap.szuletesi_datum || dAdatlap.szuletesi_ido || szulDatum
       szulHely = dAdatlap.szuletesi_hely || szulHely
       anyja = dAdatlap.anyja_neve || anyja
       lakcim = dAdatlap.lakcim || lakcim
     }
-    const { data: cData } = await adminClient
+    let cDataQuery = adminClient
       .from("hr_munkaszerzodes")
       .select("kezdes_datuma, taj_szam, adoazonosito_jel, szuletesi_hely, szuletesi_datum, anyja_neve, lakcim")
       .eq("dolgozo_id", dolgozoId)
+    if (activeCompanyId) {
+      cDataQuery = cDataQuery.eq("company_id", activeCompanyId)
+    }
+    const { data: cData } = await cDataQuery
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -425,17 +465,19 @@ export async function getT1041Data(params: {
       lakcim = cData.lakcim || lakcim
     }
     if (munkakor && !feorKod) {
-      const { data: job } = await adminClient
+      let jobQuery = adminClient
         .from("hr_munkakor")
         .select("feor_kod")
         .eq("megnevezes", munkakor)
-        .limit(1)
-        .maybeSingle()
+      if (activeCompanyId) {
+        jobQuery = jobQuery.eq("company_id", activeCompanyId)
+      }
+      const { data: job } = await jobQuery.limit(1).maybeSingle()
       if (job?.feor_kod) feorKod = job.feor_kod
     }
   }
 
-  const companyDetails = await resolveCompanyDetailsServer(null, adminClient)
+  const companyDetails = await resolveCompanyDetailsServer(activeCompanyId || null, adminClient)
 
   return {
     record: null,

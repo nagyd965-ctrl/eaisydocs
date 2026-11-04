@@ -13,7 +13,7 @@ export async function uploadAndSplitBatch(formData: FormData) {
   const supabase = await createClient()
 
   const activeCompanyId = await getActiveCompanyIdServer()
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato"], activeCompanyId)
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "inbox"], activeCompanyId)
   if (!auth.authorized || !auth.user) {
     return { success: false, error: auth.error || "Nincs jogosultságod kötegelt iratok érkeztetéséhez." }
   }
@@ -106,7 +106,7 @@ export async function uploadAndSplitBatch(formData: FormData) {
 export async function triggerHotfolderSync() {
   const supabase = await createClient()
   const activeCompanyId = await getActiveCompanyIdServer()
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato"], activeCompanyId)
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "inbox"], activeCompanyId)
   if (!auth.authorized || !auth.user) {
     return { success: false, error: auth.error || "Nincs jogosultságod a hotfolder szinkronizáláshoz." }
   }

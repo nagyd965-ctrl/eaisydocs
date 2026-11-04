@@ -38,7 +38,7 @@ async function getTemplateKey(): Promise<string | null> {
 async function requireTemplateAccess(writeMode = false): Promise<string | null> {
   const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
   const auth = await requireDocsAuthServer(
-    writeMode ? ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"] : undefined
+    writeMode ? ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "dossiers"] : undefined
   )
   if (!auth.authorized || !auth.user) {
     return auth.error || "Nincs jogosultságod a válaszlevél-sablonok kezeléséhez."
@@ -369,7 +369,7 @@ export async function generateFromTemplate(
 
   const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
   const auth = await requireDocsAuthServer(
-    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"],
+    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "dossiers"],
     ugyirat.company_id || null
   )
   if (!auth.authorized || !auth.user) {
@@ -413,168 +413,17 @@ export async function generateFromTemplate(
   const iktatoszam = ugyirat?.iktatoszam || ""
   const ugyTargy = (ugyirat?.ugy as any)?.targy || ""
 
-  // HTML → PDF generálás pdf-lib-bel
-  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib")
-
-  const pdfDoc = await PDFDocument.create()
-  // PDF/A-2b metaadat
-  pdfDoc.setTitle(targy)
-  pdfDoc.setAuthor(profile?.nev || "eaisyDocs")
-  pdfDoc.setSubject(ugyTargy)
-  pdfDoc.setCreator("eaisyDocs - Elektronikus Iratkezelő Rendszer")
-  pdfDoc.setCreationDate(new Date())
-
-  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-
-  const pageWidth = 595.28 // A4
-  const pageHeight = 841.89
-  const margin = 60
-  const contentWidth = pageWidth - margin * 2
-  const lineHeight = 16
-  const fontSize = 11
-  const headerFontSize = 13
-
-  let page = pdfDoc.addPage([pageWidth, pageHeight])
-  let y = pageHeight - margin
-
-  // --- Fejléc ---
-  const now = new Date()
-  const dateStr = now.toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })
-
-  // Iktatószám jobb felső sarok
-  if (iktatoszam) {
-    const iktatoText = `Iktatószám: ${iktatoszam}`
-    const iktatoWidth = helvetica.widthOfTextAtSize(iktatoText, 9)
-    page.drawText(iktatoText, {
-      x: pageWidth - margin - iktatoWidth,
-      y,
-      size: 9,
-      font: helvetica,
-      color: rgb(0.4, 0.4, 0.4),
-    })
-  }
-
-  // Dátum
-  page.drawText(dateStr, {
-    x: margin,
-    y,
-    size: 9,
-    font: helvetica,
-    color: rgb(0.4, 0.4, 0.4),
+  // UTF-8 kompatibilis PDF generálás (LiberationSans fonttal: ő, ű, Ő, Ű támogatással)
+  const { generateLetterPdfBuffer } = await import("@/utils/pdf-letter-generator")
+  const buffer = await generateLetterPdfBuffer({
+    targy,
+    cimzett: cimzett || undefined,
+    iktatoszam: iktatoszam || undefined,
+    ugyTargy: ugyTargy || undefined,
+    hivatkozas: hivatkozas || undefined,
+    tartalom,
+    authorNev: profile?.nev || "eaisyDocs",
   })
-  y -= lineHeight * 2
-
-  // Címzett
-  if (cimzett) {
-    page.drawText("Címzett:", {
-      x: margin, y, size: 9, font: helvetica, color: rgb(0.4, 0.4, 0.4),
-    })
-    y -= lineHeight
-    page.drawText(cimzett, {
-      x: margin, y, size: fontSize, font: helveticaBold, color: rgb(0, 0, 0),
-    })
-    y -= lineHeight * 2
-  }
-
-  // Tárgy
-  page.drawText("Tárgy:", {
-    x: margin, y, size: 9, font: helvetica, color: rgb(0.4, 0.4, 0.4),
-  })
-  y -= lineHeight
-  page.drawText(targy, {
-    x: margin, y, size: headerFontSize, font: helveticaBold, color: rgb(0, 0, 0),
-  })
-  y -= lineHeight
-
-  // Hivatkozás
-  if (hivatkozas) {
-    page.drawText(`Hivatkozás: ${hivatkozas}`, {
-      x: margin, y, size: 9, font: helvetica, color: rgb(0.4, 0.4, 0.4),
-    })
-    y -= lineHeight
-  }
-
-  // Elválasztó vonal
-  y -= 8
-  page.drawLine({
-    start: { x: margin, y },
-    end: { x: pageWidth - margin, y },
-    thickness: 0.5,
-    color: rgb(0.7, 0.7, 0.7),
-  })
-  y -= lineHeight * 1.5
-
-  // --- Törzs szöveg (sortörés kezelésével) ---
-  const cleanTartalom = tartalom.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/[^\x20-\x7E\xA0-\xFF\n]/g, "")
-  const lines = cleanTartalom.split("\n")
-  for (const line of lines) {
-    if (line.trim() === "") {
-      y -= lineHeight * 0.7
-      continue
-    }
-
-    const words = line.split(" ")
-    let currentLine = ""
-    for (const word of words) {
-      const testLine = currentLine ? `${currentLine} ${word}` : word
-      const textWidth = helvetica.widthOfTextAtSize(testLine, fontSize)
-      if (textWidth > contentWidth) {
-        if (y < margin + lineHeight * 3) {
-          page = pdfDoc.addPage([pageWidth, pageHeight])
-          y = pageHeight - margin
-        }
-        page.drawText(currentLine, {
-          x: margin, y, size: fontSize, font: helvetica, color: rgb(0, 0, 0),
-        })
-        y -= lineHeight
-        currentLine = word
-      } else {
-        currentLine = testLine
-      }
-    }
-    if (currentLine) {
-      if (y < margin + lineHeight * 3) {
-        page = pdfDoc.addPage([pageWidth, pageHeight])
-        y = pageHeight - margin
-      }
-      page.drawText(currentLine, {
-        x: margin, y, size: fontSize, font: helvetica, color: rgb(0, 0, 0),
-      })
-      y -= lineHeight
-    }
-  }
-
-  // --- Aláírás blokk ---
-  y -= lineHeight * 3
-  if (y < margin + lineHeight * 5) {
-    page = pdfDoc.addPage([pageWidth, pageHeight])
-    y = pageHeight - margin
-  }
-  page.drawText("Üdvözlettel,", {
-    x: margin, y, size: fontSize, font: helvetica, color: rgb(0, 0, 0),
-  })
-  y -= lineHeight * 3
-  page.drawText(profile?.nev || "Aláíró", {
-    x: margin, y, size: fontSize, font: helveticaBold, color: rgb(0, 0, 0),
-  })
-
-  // --- Lábléc ---
-  const footerText = `Generálva: eaisyDocs | ${dateStr} | ${iktatoszam || "Iktatószám nélkül"}`
-  const footerWidth = helvetica.widthOfTextAtSize(footerText, 7)
-  for (const p of pdfDoc.getPages()) {
-    p.drawText(footerText, {
-      x: (pageWidth - footerWidth) / 2,
-      y: 30,
-      size: 7,
-      font: helvetica,
-      color: rgb(0.5, 0.5, 0.5),
-    })
-  }
-
-  // PDF binary generálás
-  const pdfBytes = await pdfDoc.save()
-  const buffer = Buffer.from(pdfBytes)
 
   // SHA-256 hash
   const hash = crypto.createHash("sha256").update(buffer).digest("hex")
@@ -614,6 +463,7 @@ export async function generateFromTemplate(
   }
 
   // Irat fájl rekord
+  const dateStr = new Date().toLocaleDateString("hu-HU")
   const generatedFilename = `${sablon_tipus || "sablon"}_${dateStr.replace(/\./g, "").replace(/ /g, "_")}.pdf`
   const { data: fajlResult, error: fajlError } = await supabase
     .from("irat_fajl")

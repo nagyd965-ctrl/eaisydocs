@@ -3,13 +3,19 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/utils/supabase/server"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
 
 export async function createSubstitution(helyettesitoUserId: string, mettol: string, meddig: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Nincs bejelentkezve" }
-
   const activeCompanyId = await getActiveCompanyIdServer()
+  const auth = await requireDocsAuthServer(
+    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "settings"],
+    activeCompanyId
+  )
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs jogosultságod helyettesítés rögzítéséhez." }
+  }
+  const user = auth.user
 
   if (!helyettesitoUserId || helyettesitoUserId === user.id) {
     return { success: false, error: "Önmagadat nem jelölheted ki helyettesítőnek." }
@@ -68,10 +74,21 @@ export async function createSubstitution(helyettesitoUserId: string, mettol: str
 
 export async function deleteSubstitution(id: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: "Nincs bejelentkezve" }
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const auth = await requireDocsAuthServer(
+    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "settings"],
+    activeCompanyId
+  )
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs jogosultságod helyettesítés törléséhez." }
+  }
+  const user = auth.user
 
-  const { error } = await supabase.from("helyettesites").delete().eq("id", id).eq("kilepo_user_id", user.id)
+  let deleteQuery = supabase.from("helyettesites").delete().eq("id", id).eq("kilepo_user_id", user.id)
+  if (activeCompanyId) {
+    deleteQuery = deleteQuery.eq("company_id", activeCompanyId)
+  }
+  const { error } = await deleteQuery
 
   if (error) {
     console.error("Helyettesítés törlése hiba:", error)

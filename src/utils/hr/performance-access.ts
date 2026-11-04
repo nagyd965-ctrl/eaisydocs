@@ -53,7 +53,7 @@ export async function getScopedPerformanceEmployeeIds(
   // 1. Aktív helyettesítések lekérése (csak az aktív vállalatban)
   let subsQuery = supabaseAdmin
     .from("hr_helyettesites")
-    .select("helyettesitett_id")
+    .select("vezeto_id")
     .eq("helyettes_id", userId)
     .eq("aktiv", true)
     .lte("kezdet_datuma", todayStr)
@@ -66,7 +66,7 @@ export async function getScopedPerformanceEmployeeIds(
   const managerIds = Array.from(
     new Set([
       userId,
-      ...((activeSubs || []).map((s: any) => s.helyettesitett_id).filter(Boolean)),
+      ...((activeSubs || []).map((s: any) => s.vezeto_id).filter(Boolean)),
     ])
   )
 

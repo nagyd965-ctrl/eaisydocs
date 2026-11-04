@@ -157,7 +157,7 @@ export async function importInvoiceFromEaisyBill(invoice: EaisyBillInvoice): Pro
   const activeCompanyId = activeCompany?.id || (await getActiveCompanyIdServer())
 
   const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato"], activeCompanyId)
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "inbox"], activeCompanyId)
   if (!auth.authorized || !auth.user) {
     return { success: false, error: auth.error || "Nincs jogosultságod az érkeztetéshez." }
   }

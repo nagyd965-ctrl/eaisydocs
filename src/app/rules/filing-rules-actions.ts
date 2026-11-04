@@ -199,8 +199,9 @@ export async function updateCompanyFilingRule(input: {
     }
 
     const supabase = await createClient()
+    const activeCompanyId = await getActiveCompanyIdServer()
 
-    const { error } = await supabase
+    let updateQuery = supabase
       .from("company_filing_rules")
       .update({
         rule_name: input.rule_name.trim(),
@@ -216,6 +217,10 @@ export async function updateCompanyFilingRule(input: {
         updated_at: new Date().toISOString(),
       })
       .eq("id", input.ruleId)
+    if (activeCompanyId) {
+      updateQuery = updateQuery.eq("company_id", activeCompanyId)
+    }
+    const { error } = await updateQuery
 
     if (error) {
       console.error("[updateCompanyFilingRule] Hiba:", error)
@@ -245,14 +250,19 @@ export async function toggleCompanyFilingRuleActive(
     if (guardError) return { success: false, error: guardError }
 
     const supabase = await createClient()
+    const activeCompanyId = await getActiveCompanyIdServer()
 
-    const { error } = await supabase
+    let toggleQuery = supabase
       .from("company_filing_rules")
       .update({
         is_active: isActive,
         updated_at: new Date().toISOString(),
       })
       .eq("id", ruleId)
+    if (activeCompanyId) {
+      toggleQuery = toggleQuery.eq("company_id", activeCompanyId)
+    }
+    const { error } = await toggleQuery
 
     if (error) {
       console.error("[toggleCompanyFilingRuleActive] Hiba:", error)
@@ -279,11 +289,16 @@ export async function deleteCompanyFilingRule(ruleId: string): Promise<FilingRul
     if (guardError) return { success: false, error: guardError }
 
     const supabase = await createClient()
+    const activeCompanyId = await getActiveCompanyIdServer()
 
-    const { error } = await supabase
+    let deleteQuery = supabase
       .from("company_filing_rules")
       .delete()
       .eq("id", ruleId)
+    if (activeCompanyId) {
+      deleteQuery = deleteQuery.eq("company_id", activeCompanyId)
+    }
+    const { error } = await deleteQuery
 
     if (error) {
       console.error("[deleteCompanyFilingRule] Hiba:", error)

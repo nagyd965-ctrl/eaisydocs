@@ -1,4 +1,5 @@
-import { getActiveCompanyIdServer, getActiveCompanyServer } from "@/utils/company-server"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer, getActiveCompanyServer } from "@/utils/company-server"
+import { hasDocsModuleAccess, hasDocsWriteAccess } from "@/utils/hr/company-role-resolver"
 import { getCompanyPromptRules } from "./rules-actions"
 import { getCompanyFilingRules } from "./filing-rules-actions"
 import { RulesClient } from "./rules-client"
@@ -18,19 +19,27 @@ export default async function RulesPage() {
     redirect("/login")
   }
 
-  // A megrendelő döntése (2026-10-31): a Szabályok rész CSAK admin/rendszergazda szerepkörrel érhető el
-  const { requireRulesAdminAccess } = await import("./rules-guard")
-  const accessError = await requireRulesAdminAccess()
-  if (accessError) {
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
+  const canReadRules =
+    scopedRoles.isCompanyAdmin ||
+    hasDocsModuleAccess(scopedRoles.docsRole, scopedRoles.docsModules, "rules")
+  const canEditRules =
+    scopedRoles.isCompanyAdmin ||
+    hasDocsWriteAccess(scopedRoles.docsRole, scopedRoles.docsModules, scopedRoles.docsWriteModules, "rules")
+
+  if (!canReadRules) {
     return (
       <div className="flex-1 p-8 pt-6">
         <h2 className="text-2xl font-semibold tracking-tight">Szabályok</h2>
-        <p className="text-muted-foreground mt-2">{accessError}</p>
+        <p className="text-muted-foreground mt-2">
+          A Szabályok megtekintése csak engedélyezett Szabályok modullal vagy adminisztrátori szerepkörrel érhető el.
+        </p>
       </div>
     )
   }
 
-  const activeCompanyId = await getActiveCompanyIdServer()
   const activeCompany = await getActiveCompanyServer()
 
   let deptQuery = supabase.from("szervezeti_egyseg").select("id, nev").order("nev")
@@ -59,6 +68,7 @@ export default async function RulesPage() {
         departments={deptsRes.data || []}
         irattariTervek={plansRes.data || []}
         activeCompany={activeCompany}
+        canEdit={canEditRules}
       />
     </div>
   )

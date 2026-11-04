@@ -88,6 +88,7 @@ interface RulesClientProps {
     name: string
     tax_number?: string | null
   } | null
+  canEdit?: boolean
 }
 
 const CATEGORY_MAP: Record<string, { label: string; badgeClass: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -119,6 +120,7 @@ export function RulesClient({
   departments,
   irattariTervek,
   activeCompany,
+  canEdit = true,
 }: RulesClientProps) {
   const [activeTab, setActiveTab] = useState<"filing" | "prompt">("filing")
 
@@ -453,7 +455,7 @@ export function RulesClient({
           </p>
         </div>
 
-        {activeTab === "filing" ? (
+        {canEdit && (activeTab === "filing" ? (
           <Button
             onClick={handleOpenCreateFiling}
             className="gap-2 shrink-0 font-medium bg-primary hover:bg-primary/90 text-primary-foreground shadow-none"
@@ -469,7 +471,7 @@ export function RulesClient({
             <Plus className="h-4 w-4" />
             Új prompt szabály
           </Button>
-        )}
+        ))}
       </div>
 
       {/* Felső Fülválasztó */}
@@ -546,14 +548,16 @@ export function RulesClient({
                   <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 max-w-sm">
                     Hozz létre determinisztikus szabályt, hogy az AI vagy az iktatás azonnal kitöltse a célszervezetet, irattári tételt és előtagot!
                   </p>
-                  <Button
-                    onClick={handleOpenCreateFiling}
-                    size="sm"
-                    className="mt-4 gap-1.5 text-xs font-medium bg-primary text-primary-foreground shadow-none"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Új szabály létrehozása
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      onClick={handleOpenCreateFiling}
+                      size="sm"
+                      className="mt-4 gap-1.5 text-xs font-medium bg-primary text-primary-foreground shadow-none"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Új szabály létrehozása
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="divide-y divide-border/40">
@@ -656,31 +660,33 @@ export function RulesClient({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0 pt-1">
-                          <Switch
-                            checked={rule.is_active !== false}
-                            onCheckedChange={() => handleToggleFiling(rule)}
-                            aria-label="Szabály bekapcsolása"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                            onClick={() => handleOpenEditFiling(rule)}
-                            title="Szerkesztés"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setDeleteTargetFiling(rule)}
-                            title="Törlés"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                        {canEdit && (
+                          <div className="flex items-center gap-2 shrink-0 pt-1">
+                            <Switch
+                              checked={rule.is_active !== false}
+                              onCheckedChange={() => handleToggleFiling(rule)}
+                              aria-label="Szabály bekapcsolása"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              onClick={() => handleOpenEditFiling(rule)}
+                              title="Szerkesztés"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setDeleteTargetFiling(rule)}
+                              title="Törlés"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -763,15 +769,17 @@ export function RulesClient({
                     <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 max-w-sm">
                       Még nem adtál hozzá AI prompt szabályt. Használj egy sablont a jobb oldalról!
                     </p>
-                    <Button
-                      onClick={handleOpenCreatePrompt}
-                      variant="outline"
-                      size="sm"
-                      className="mt-4 gap-1.5 text-xs font-medium"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Új szabály létrehozása
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        onClick={handleOpenCreatePrompt}
+                        variant="outline"
+                        size="sm"
+                        className="mt-4 gap-1.5 text-xs font-medium"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Új szabály létrehozása
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <div className="divide-y divide-border/40 border-t border-border/40">
@@ -832,31 +840,33 @@ export function RulesClient({
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2.5 shrink-0 pt-0.5">
-                            <Switch
-                              checked={rule.is_active !== false}
-                              onCheckedChange={() => handleTogglePrompt(rule)}
-                              aria-label="Szabály bekapcsolása"
-                            />
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                              onClick={() => handleOpenEditPrompt(rule)}
-                              title="Szerkesztés"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => setDeleteTargetPrompt(rule)}
-                              title="Törlés"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
+                          {canEdit && (
+                            <div className="flex items-center gap-2.5 shrink-0 pt-0.5">
+                              <Switch
+                                checked={rule.is_active !== false}
+                                onCheckedChange={() => handleTogglePrompt(rule)}
+                                aria-label="Szabály bekapcsolása"
+                              />
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                onClick={() => handleOpenEditPrompt(rule)}
+                                title="Szerkesztés"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setDeleteTargetPrompt(rule)}
+                                title="Törlés"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -883,8 +893,11 @@ export function RulesClient({
                   return (
                     <div
                       key={template.name}
-                      onClick={() => handleApplyTemplatePrompt(template)}
-                      className="p-3 rounded-lg border border-border/60 bg-card hover:border-primary/40 hover:bg-muted/20 transition-all cursor-pointer group"
+                      onClick={() => canEdit && handleApplyTemplatePrompt(template)}
+                      className={cn(
+                        "p-3 rounded-lg border border-border/60 bg-card transition-all",
+                        canEdit ? "hover:border-primary/40 hover:bg-muted/20 cursor-pointer group" : "opacity-75"
+                      )}
                     >
                       <div className="min-w-0">
                         <div className="flex items-center justify-between gap-1.5 mb-1">

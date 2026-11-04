@@ -65,6 +65,7 @@ export default async function DashboardPage() {
         felhasznalo_profil (
           nev,
           avatar_url,
+          hr_szervezeti_egyseg_id,
           szervezeti_egyseg_id
         ),
         hr_jogviszony (
@@ -82,7 +83,7 @@ export default async function DashboardPage() {
       .in("id", safeMemberIds),
 
     supabaseAdmin
-      .from("szervezeti_egyseg")
+      .from("hr_szervezeti_egyseg")
       .select("id, nev")
       .eq("company_id", companyScope),
   ])
@@ -151,7 +152,11 @@ export default async function DashboardPage() {
       : activeBeosztas?.hr_munkakor
 
     const munkakor = munkakorObj?.megnevezes || "Munkatárs"
-    const deptId = profil?.szervezeti_egyseg_id || munkakorObj?.szervezeti_egyseg_id || null
+    const deptId =
+      profil?.hr_szervezeti_egyseg_id ||
+      munkakorObj?.szervezeti_egyseg_id ||
+      profil?.szervezeti_egyseg_id ||
+      null
     const reszleg = (deptId && deptMap.get(deptId)) || inferDepartmentFromRole(munkakor)
 
     return {

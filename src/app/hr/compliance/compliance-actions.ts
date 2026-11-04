@@ -81,10 +81,11 @@ export async function getCompanyLeaveComplianceData(
     .eq("company_id", companyScope)
     .order("created_at", { ascending: false })
 
-  // 2. Munkaszüneti napok lekérése
+  // 2. Munkaszüneti napok lekérése (csak a valódi ünnepnapok, az áthelyezett szombati munkanapok nélkül)
   const { data: rawHolidays } = await supabase
     .from("hr_munkaszuneti_nap")
     .select("datum")
+    .eq("athelye_munkanap", false)
     .gte("datum", `${year}-01-01`)
     .lte("datum", `${year}-12-31`)
 

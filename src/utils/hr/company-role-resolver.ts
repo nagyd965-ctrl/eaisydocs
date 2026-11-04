@@ -347,6 +347,7 @@ export interface UserProfileRoleInput {
   hr_szerepkor?: string | null
   hr_modulok?: string[] | null
   hr_iras_modulok?: string[] | null
+  elerheto_modulok?: string[] | null
 }
 
 export interface ResolvedCompanyRoles {
@@ -447,58 +448,69 @@ export function resolveUserCompanyRoles(
 
   const isCompanyAdmin = membership.role === "admin" || membership.role === "owner"
 
+  const hasExplicitAllowedModules = Array.isArray(profile?.elerheto_modulok)
+  const hasDocsModule = hasExplicitAllowedModules
+    ? profile!.elerheto_modulok!.includes("docs")
+    : true
+  const hasHrModule = hasExplicitAllowedModules
+    ? profile!.elerheto_modulok!.includes("hr")
+    : true
+
   // Docs szerepkör és modulok feloldása
   const hasExplicitMemberDocsRole = Boolean(
     membership.docs_szerepkor && membership.docs_szerepkor.trim() !== ""
   )
+  const isProfileDocsGlobalAdmin =
+    profile?.docs_szerepkor === "admin" || profile?.docs_szerepkor === "rendszergazda"
   let rawDocsRole: string
   if (hasExplicitMemberDocsRole) {
     rawDocsRole = membership.docs_szerepkor!
   } else if (isCompanyAdmin) {
     rawDocsRole = "admin"
   } else if (profile?.docs_szerepkor && profile.docs_szerepkor.trim() !== "") {
-    rawDocsRole =
-      profile.docs_szerepkor === "admin" || profile.docs_szerepkor === "rendszergazda"
-        ? "munkavallalo"
-        : profile.docs_szerepkor
+    rawDocsRole = isProfileDocsGlobalAdmin ? "munkavallalo" : profile.docs_szerepkor
   } else {
     rawDocsRole = "munkavallalo"
   }
 
   const rawDocsModules = Array.isArray(membership.docs_modulok)
     ? membership.docs_modulok
-    : Array.isArray(profile?.docs_modulok)
+    : !isProfileDocsGlobalAdmin && Array.isArray(profile?.docs_modulok)
     ? profile!.docs_modulok
     : undefined
 
   const rawDocsWriteModules = Array.isArray(membership.docs_iras_modulok)
     ? membership.docs_iras_modulok
-    : Array.isArray(profile?.docs_iras_modulok)
+    : !isProfileDocsGlobalAdmin && Array.isArray(profile?.docs_iras_modulok)
     ? profile!.docs_iras_modulok
     : undefined
 
-  const normalizedDocs = normalizeDocsRoleAndModules(
-    rawDocsRole,
-    rawDocsModules,
-    rawDocsWriteModules
-  )
+  const normalizedDocs = hasDocsModule
+    ? normalizeDocsRoleAndModules(rawDocsRole, rawDocsModules, rawDocsWriteModules)
+    : { role: "none", modules: [] as DocsModuleKey[], writeModules: [] as DocsModuleKey[] }
 
   // HR szerepkör és modulok feloldása
   const hasExplicitMemberHrRole = Boolean(
     membership.hr_szerepkor && membership.hr_szerepkor.trim() !== ""
   )
+  const isProfileHrGlobalAdmin =
+    profile?.hr_szerepkor === "admin" || profile?.hr_szerepkor === "rendszergazda"
   const rawHrRole = hasExplicitMemberHrRole
     ? membership.hr_szerepkor!
     : isCompanyAdmin
     ? "admin"
     : profile?.hr_szerepkor && profile.hr_szerepkor.trim() !== ""
-    ? profile.hr_szerepkor
+    ? isProfileHrGlobalAdmin
+      ? "munkavallalo"
+      : profile.hr_szerepkor
     : "munkavallalo"
 
   const useMemberHrModules = Boolean(membership.hr_modulok && membership.hr_modulok.length > 0)
   const rawHrModules = useMemberHrModules
     ? membership.hr_modulok!
     : hasExplicitMemberHrRole && membership.hr_szerepkor !== profile?.hr_szerepkor
+    ? []
+    : isProfileHrGlobalAdmin && !isCompanyAdmin
     ? []
     : profile?.hr_modulok || []
 
@@ -508,11 +520,15 @@ export function resolveUserCompanyRoles(
       : undefined
     : hasExplicitMemberHrRole && Array.isArray(membership.hr_iras_modulok)
     ? membership.hr_iras_modulok
+    : isProfileHrGlobalAdmin && !isCompanyAdmin
+    ? []
     : Array.isArray(profile?.hr_iras_modulok)
     ? profile!.hr_iras_modulok
     : undefined
 
-  const normalized = normalizeHrRoleAndModules(rawHrRole, rawHrModules, rawHrWriteModules)
+  const normalized = hasHrModule
+    ? normalizeHrRoleAndModules(rawHrRole, rawHrModules, rawHrWriteModules)
+    : { role: "none", modules: [] as HrModuleKey[], writeModules: [] as HrModuleKey[] }
 
   return {
     companyId: membership.companyId,

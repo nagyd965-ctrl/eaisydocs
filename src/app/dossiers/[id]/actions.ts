@@ -20,7 +20,7 @@ async function checkDossierWritePermission(supabase: any, user: any, ugyiratId: 
   }
 
   const auth = await requireDocsAuthServer(
-    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "dossiers", "inbox", "archive"],
+    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "dossiers"],
     ugyirat.company_id || null
   )
   if (!auth.authorized) {
@@ -1400,7 +1400,7 @@ export async function expediteExistingDocument(ugyiratId: string, iratId: string
  */
 export async function savePartnerCentralEmail(partnerId: string, email: string) {
   const supabase = await createClient()
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "partners"])
   if (!auth.authorized || !auth.user) {
     return { error: auth.error || "Nincs jogosultságod a partner adatainak módosításához." }
   }

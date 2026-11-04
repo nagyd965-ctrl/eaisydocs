@@ -32,10 +32,7 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
   const hrModules = scopedRoles.hrModules || []
   const isStrictAdmin = hrRole === "admin"
   const isAuthorizedForOrg = isStrictAdmin || hrModules.includes("organization")
-  const canWriteOrg =
-    scopedRoles.isCompanyAdmin ||
-    isStrictAdmin ||
-    hasHrWriteAccess(hrRole, hrModules, scopedRoles.hrWriteModules, ["organization", "admin"])
+  const canWriteOrg = hasHrWriteAccess(hrRole, hrModules, scopedRoles.hrWriteModules, ["organization", "admin"])
 
   if (!isAuthorizedForOrg) {
     redirect("/hr/self-service/profile")
@@ -214,6 +211,7 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
 
   return (
     <OrganizationTabsView
+      key={companyScope}
       rootOrgUnits={rootOrgUnits}
       orgUnits={orgUnits}
       dbJobs={dbJobs}

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard";
+import { requireHrAuthServer, checkHrWriteAccess } from "@/utils/hr/hr-auth-guard";
 
 if (typeof global !== "undefined" && typeof (global as any).DOMMatrix === "undefined") {
   (global as any).DOMMatrix = class {};
@@ -9,9 +9,9 @@ if (typeof global !== "undefined" && typeof (global as any).DOMMatrix === "undef
 
 export async function POST(req: Request) {
   const auth = await requireHrAuthServer(["admin", "recruitment"], null);
-  if (!auth.authorized) {
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["admin", "recruitment"])) {
     const status = auth.user ? 403 : 401;
-    return NextResponse.json({ error: "Nincs jogosultsága AI önéletrajz elemzés indításához" }, { status });
+    return NextResponse.json({ error: "Nincs írási jogosultsága AI önéletrajz elemzés indításához" }, { status });
   }
 
   if (!auth.activeCompanyId) {

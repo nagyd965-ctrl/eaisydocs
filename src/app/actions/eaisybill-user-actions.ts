@@ -325,6 +325,7 @@ export async function importEaisyBillCompanyMembersAction(
       const normalized = normalizeDocsRoleAndModules(item.docsRole || "munkavallalo")
       const docsRole = normalized.role
       const docsModules = normalized.modules
+      const docsWriteModules = normalized.writeModules
       const memberRole = docsRole === "admin" ? "admin" : "member"
 
       // Megnézzük, létezik-e már a felhasználó az eaisyDocs profilok között
@@ -367,6 +368,7 @@ export async function importEaisyBillCompanyMembersAction(
               role: memberRole,
               docs_szerepkor: docsRole,
               docs_modulok: docsModules,
+              docs_iras_modulok: docsWriteModules,
             },
             { onConflict: "company_id,user_id" }
           )
@@ -429,6 +431,7 @@ export async function importEaisyBillCompanyMembersAction(
             szerepkor: docsRole === "admin" ? "admin" : "munkavallalo",
             docs_szerepkor: docsRole,
             docs_modulok: docsModules,
+            docs_iras_modulok: docsWriteModules,
             elerheto_modulok: ["docs"],
             eaisybill_user_id: item.eaisybillUserId || null,
             sync_source: "eaisybill",
@@ -444,6 +447,7 @@ export async function importEaisyBillCompanyMembersAction(
             role: memberRole,
             docs_szerepkor: docsRole,
             docs_modulok: docsModules,
+            docs_iras_modulok: docsWriteModules,
           })
 
         importedCount++

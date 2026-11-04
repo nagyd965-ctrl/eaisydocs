@@ -113,11 +113,15 @@ export async function updateKpiProgress(kpiId: string, newValue: number) {
 
   const { data: kpiData } = await adminClient
     .from("hr_teljesitmeny")
-    .select("dolgozo_id, cel_ertek, meroszam_tipusa, company_id")
+    .select("dolgozo_id, cel_ertek, meroszam_tipusa, company_id, workflow_fazis, statusz")
     .eq("id", kpiId)
     .single()
 
   if (!kpiData) return { error: "Célkitűzés nem található." }
+
+  if (kpiData.workflow_fazis === "lezart" || (kpiData as any).statusz === "lezart") {
+    return { error: "A lezárt célkitűzés már nem módosítható." }
+  }
 
   const activeCompanyId = await getActiveCompanyIdServer()
   if (activeCompanyId && kpiData.company_id && kpiData.company_id !== activeCompanyId) {
@@ -379,11 +383,15 @@ export async function addKpiSelfEvaluation(
 
   const { data: kpiData } = await adminClient
     .from("hr_teljesitmeny")
-    .select("dolgozo_id, meroszam_tipusa, cel_ertek, company_id")
+    .select("dolgozo_id, meroszam_tipusa, cel_ertek, company_id, workflow_fazis, statusz")
     .eq("id", kpiId)
     .single()
 
   if (!kpiData) return { error: "Célkitűzés nem található." }
+
+  if (kpiData.workflow_fazis === "lezart" || (kpiData as any).statusz === "lezart") {
+    return { error: "A lezárt célkitűzés már nem módosítható." }
+  }
 
   // ── HR deep-analysis 20261029 (2.1) P0-javítás (2026-11-01): tulajdonos-ellenőrzés ──
   // Korábban bárki bármely KPI-ra írhatott önértékelést/pontszámot — mostantól
@@ -454,11 +462,15 @@ export async function addKpiManagerEvaluation(
 
   const { data: kpiData } = await adminClient
     .from("hr_teljesitmeny")
-    .select("dolgozo_id, meroszam_tipusa, cel_ertek, company_id")
+    .select("dolgozo_id, meroszam_tipusa, cel_ertek, company_id, workflow_fazis, statusz")
     .eq("id", kpiId)
     .single()
 
   if (!kpiData) return { error: "Célkitűzés nem található." }
+
+  if (kpiData.workflow_fazis === "lezart" || (kpiData as any).statusz === "lezart") {
+    return { error: "A lezárt célkitűzés már nem módosítható." }
+  }
 
   if (auth.activeCompanyId && kpiData.company_id && kpiData.company_id !== auth.activeCompanyId) {
     return { error: "A célkitűzés másik vállalathoz tartozik." }

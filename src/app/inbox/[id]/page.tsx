@@ -29,11 +29,16 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
   )
 
   if (
-    docs_szerepkor === 'betekinto' ||
-    !inboxPerms.canEdit ||
-    (scopedRoles.docsModules.length > 0 && !scopedRoles.docsModules.includes('inbox') && docs_szerepkor !== 'admin' && docs_szerepkor !== 'rendszergazda')
+    scopedRoles.docsModules.length > 0 &&
+    !scopedRoles.docsModules.includes('inbox') &&
+    docs_szerepkor !== 'admin' &&
+    docs_szerepkor !== 'rendszergazda'
   ) {
     redirect("/inbox")
+  }
+
+  if (docs_szerepkor === 'betekinto' || !inboxPerms.canEdit) {
+    redirect(`/inbox/view/${resolvedParams.id}`)
   }
 
   // 1. Fetch the irat details

@@ -41,7 +41,10 @@ export async function updateTaskStatus(
     const isAssignee = ugy?.felelos_user_id === user.id
 
     // 2. Jogosultság ellenőrzése cég-hatókörben
-    const auth = await requireDocsAuthServer(undefined, currentUgyirat.company_id || null)
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "dossiers"], currentUgyirat.company_id || null)
+    if (!auth.authorized) {
+      return { success: false, error: auth.error || "Nincs írási jogosultságod a feladatok kezeléséhez." }
+    }
     const role = auth.docsRole || "ugyintezo"
     const isPrivileged = auth.authorized && ["admin", "iktato", "vezeto", "rendszergazda"].includes(role)
 
@@ -177,7 +180,10 @@ export async function updateTaskStatus(
   }
 
   // 2. Jogosultság ellenőrzése cég-hatókörben: Csak a feladat felelőse VAGY iktató / admin / vezető módosíthatja
-  const auth = await requireDocsAuthServer(undefined, currentTask.company_id || null)
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "dossiers"], currentTask.company_id || null)
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || "Nincs írási jogosultságod a feladatok kezeléséhez." }
+  }
   const role = auth.docsRole || "ugyintezo"
   const isPrivileged = auth.authorized && ["admin", "iktato", "vezeto", "rendszergazda"].includes(role)
   const isAssignee = currentTask.felelos_user_id === user.id
@@ -316,7 +322,10 @@ export async function deleteTask(taskId: string) {
 
   if (!currentTask) return { success: false, error: "A feladat nem található." }
 
-  const auth = await requireDocsAuthServer(undefined, currentTask.company_id || null)
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "dossiers"], currentTask.company_id || null)
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || "Nincs írási jogosultságod a feladat törléséhez." }
+  }
   const role = auth.docsRole || "munkavallalo"
   const isPrivileged = auth.authorized && ["admin", "iktato", "vezeto", "rendszergazda", "ugyintezo", "munkavallalo"].includes(role)
   const isAssignee = currentTask.felelos_user_id === user.id
@@ -396,7 +405,7 @@ export async function createTask(
   }
 
   const supabase = await createClient()
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "dossiers"])
   if (!auth.authorized || !auth.user) {
     return { success: false, error: auth.error || "Nincs jogosultságod új feladat létrehozásához." }
   }
@@ -572,11 +581,11 @@ export async function createCustomTaskTemplate(templateData: {
   isCustom?: boolean
 }): Promise<{ success: boolean; template?: TaskTemplate; error?: string }> {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return { success: false, error: "Nincs bejelentkezve." }
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "dossiers"])
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs írási jogosultságod feladatsablon létrehozásához." }
+  }
+  const user = auth.user
 
   const newTemplate: TaskTemplate = {
     id: `custom-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -628,11 +637,11 @@ export async function deleteCustomTaskTemplate(templateId: string): Promise<{
   error?: string
 }> {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return { success: false, error: "Nincs bejelentkezve." }
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "dossiers"])
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs írási jogosultságod feladatsablon törléséhez." }
+  }
+  const user = auth.user
 
   const templateKey = await getTaskTemplateKey()
 
@@ -671,11 +680,11 @@ export async function updateCustomTaskTemplate(
   updates: Partial<TaskTemplate>
 ): Promise<{ success: boolean; error?: string; template?: TaskTemplate }> {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return { success: false, error: "Nincs bejelentkezve." }
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "dossiers"])
+  if (!auth.authorized || !auth.user) {
+    return { success: false, error: auth.error || "Nincs írási jogosultságod feladatsablon szerkesztéséhez." }
+  }
+  const user = auth.user
 
   const templateKey = await getTaskTemplateKey()
 

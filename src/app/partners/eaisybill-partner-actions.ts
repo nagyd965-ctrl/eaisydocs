@@ -134,6 +134,15 @@ export async function getEaisyBillPartnersAction(
       return { success: false, error: "Nem található a kiválasztott cég." }
     }
 
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    const auth = await requireDocsAuthServer(
+      ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "betekinto", "auditor", "partners"],
+      activeCompany.id
+    )
+    if (!auth.authorized) {
+      return { success: false, error: auth.error || "Nincs jogosultságod a partnerek lekéréséhez." }
+    }
+
     const billClient = createEaisyBillClient()
 
     // 2. eaisyBill Company ID meghatározása
@@ -369,7 +378,7 @@ export async function importEaisyBillPartnersAction(
 
     const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
     const auth = await requireDocsAuthServer(
-      ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"],
+      ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "partners"],
       activeCompany.id
     )
     if (!auth.authorized || !auth.user) {
@@ -527,6 +536,15 @@ export async function syncEaisyBillPartnerInvoicesAction(
       return { success: false, syncedCount: 0, error: "Nem található a kiválasztott cég." }
     }
 
+    const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
+    const auth = await requireDocsAuthServer(
+      ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "partners"],
+      activeCompany.id
+    )
+    if (!auth.authorized) {
+      return { success: false, syncedCount: 0, error: auth.error || "Nincs írási jogosultságod a számlák szinkronizálásához." }
+    }
+
     const billClient = createEaisyBillClient()
 
     // 2. eaisyBill Company ID meghatározása
@@ -536,24 +554,22 @@ export async function syncEaisyBillPartnerInvoicesAction(
       try {
         const cleanTax = activeCompany.tax_number?.replace(/[-\s]/g, "")
         if (cleanTax && cleanTax.length >= 8) {
-          const { data: matchedComp } = await billClient
+          const { data: candidates } = await billClient
             .from("companies")
-            .select("id")
+            .select("id, tax_number")
             .ilike("tax_number", `%${cleanTax.slice(0, 8)}%`)
-            .maybeSingle()
-          if (matchedComp?.id) {
-            eaisybillCompanyId = matchedComp.id
-          }
-        }
 
-        if (!eaisybillCompanyId && activeCompany.name) {
-          const { data: matchedComp } = await billClient
-            .from("companies")
-            .select("id")
-            .ilike("name", `%${activeCompany.name.trim()}%`)
-            .maybeSingle()
-          if (matchedComp?.id) {
-            eaisybillCompanyId = matchedComp.id
+          if (candidates && candidates.length > 0) {
+            const matched = candidates.filter((c: any) => {
+              const billCleanTax = (c.tax_number || "").replace(/[-\s]/g, "")
+              if (cleanTax.length >= 10 && billCleanTax.length >= 10) {
+                return billCleanTax === cleanTax
+              }
+              return billCleanTax.slice(0, 8) === cleanTax.slice(0, 8)
+            })
+            if (matched.length === 1 && matched[0]?.id) {
+              eaisybillCompanyId = matched[0].id
+            }
           }
         }
 
@@ -693,7 +709,10 @@ export async function syncEaisyBillPartnerInvoicesAction(
       let erkeztetoszam: string | null = null
       if (isIncoming) {
         try {
-          const { data: genId } = await docsClient.rpc("generate_erkeztetoszam", { p_ev: currentYear })
+          const { data: genId } = await docsClient.rpc("generate_erkeztetoszam", {
+            p_ev: currentYear,
+            p_company_id: activeCompany.id,
+          })
           erkeztetoszam = genId || `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`
         } catch {
           erkeztetoszam = `E/${currentYear}/${Math.floor(10000 + Math.random() * 90000)}`

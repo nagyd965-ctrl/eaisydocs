@@ -743,7 +743,7 @@ export async function updateCompanyMemberRoleAction(data: {
       })
     : supabase
 
-  const { normalizeDocsRoleAndModules } = await import("@/utils/hr/company-role-resolver")
+  const { normalizeDocsRoleAndModules, normalizeHrRoleAndModules } = await import("@/utils/hr/company-role-resolver")
 
   // 1. Frissítjük a company_members rekordot
   const updatePayload: Record<string, any> = {
@@ -754,12 +754,20 @@ export async function updateCompanyMemberRoleAction(data: {
       const normDocs = normalizeDocsRoleAndModules(data.docs_szerepkor)
       updatePayload.docs_szerepkor = normDocs.role
       updatePayload.docs_modulok = normDocs.modules
+      updatePayload.docs_iras_modulok = normDocs.writeModules
     } else {
       updatePayload.docs_szerepkor = null
     }
   }
   if (data.hr_szerepkor !== undefined) {
-    updatePayload.hr_szerepkor = data.hr_szerepkor
+    if (data.hr_szerepkor) {
+      const normHr = normalizeHrRoleAndModules(data.hr_szerepkor)
+      updatePayload.hr_szerepkor = normHr.role
+      updatePayload.hr_modulok = normHr.modules
+      updatePayload.hr_iras_modulok = normHr.writeModules
+    } else {
+      updatePayload.hr_szerepkor = null
+    }
   }
 
   const { error: memberError } = await adminClient
@@ -783,6 +791,7 @@ export async function updateCompanyMemberRoleAction(data: {
       const normDocs = normalizeDocsRoleAndModules(data.docs_szerepkor)
       profileUpdates.docs_szerepkor = normDocs.role
       profileUpdates.docs_modulok = normDocs.modules
+      profileUpdates.docs_iras_modulok = normDocs.writeModules
       if (normDocs.role === "admin") {
         profileUpdates.szerepkor = "admin"
       } else if (normDocs.role === "vezeto") {
@@ -792,7 +801,10 @@ export async function updateCompanyMemberRoleAction(data: {
       }
     }
     if (data.hr_szerepkor) {
-      profileUpdates.hr_szerepkor = data.hr_szerepkor
+      const normHr = normalizeHrRoleAndModules(data.hr_szerepkor)
+      profileUpdates.hr_szerepkor = normHr.role
+      profileUpdates.hr_modulok = normHr.modules
+      profileUpdates.hr_iras_modulok = normHr.writeModules
     }
 
     if (Object.keys(profileUpdates).length > 0) {
@@ -1201,10 +1213,12 @@ export async function inviteCompanyMemberAction(data: {
     }
   }
 
-  const { normalizeDocsRoleAndModules } = await import("@/utils/hr/company-role-resolver")
+  const { normalizeDocsRoleAndModules, normalizeHrRoleAndModules } = await import("@/utils/hr/company-role-resolver")
   const normDocs = normalizeDocsRoleAndModules(data.role)
+  const normHr = normalizeHrRoleAndModules(data.role)
   const safeProfileDocsRole = normDocs.role
   const safeProfileDocsModules = normDocs.modules
+  const safeProfileDocsWriteModules = normDocs.writeModules
   const safeBaseSzerepkor =
     safeProfileDocsRole === "admin"
       ? "admin"
@@ -1261,16 +1275,23 @@ export async function inviteCompanyMemberAction(data: {
 
   if (targetUserId && existingProfile) {
     // Meglévő felhasználó profiljának frissítése:
-    // Ha az eaisyDocs-ban adjuk hozzá (és nem saját magát szerkeszti az admin),
-    // akkor az elérhető moduloknál biztosítjuk, hogy csak a megadott modul (vagy saját magánál a meglévő + modul) szerepeljen
+    // Az elérhető modulokat egyesítjük a meglévőkkel, hogy ne írjuk felül a másik modult
     const isSelf = targetUserId === user.id
     const currentModules: string[] = Array.isArray(existingProfile.elerheto_modulok)
       ? existingProfile.elerheto_modulok
       : []
 
-    const nextModules = isSelf
-      ? Array.from(new Set([...currentModules, data.module]))
-      : [data.module]
+    const nextModules = Array.from(new Set([...currentModules, data.module]))
+
+    const { data: existingMemberships } = await supabaseAdmin
+      .from("company_members")
+      .select("company_id")
+      .eq("user_id", targetUserId)
+
+    const targetCompanyIdSet = new Set(data.companyIds)
+    const belongsToOtherCompanies = (existingMemberships || []).some(
+      (m: any) => !targetCompanyIdSet.has(m.company_id)
+    )
 
     const profileUpdate: Record<string, any> = {
       elerheto_modulok: nextModules,
@@ -1278,20 +1299,25 @@ export async function inviteCompanyMemberAction(data: {
     if (data.nev && data.nev.trim() && !existingProfile.nev) {
       profileUpdate.nev = data.nev.trim()
     }
-    if (data.module === "docs") {
-      profileUpdate.docs_szerepkor = safeProfileDocsRole
-      profileUpdate.docs_modulok = safeProfileDocsModules
-      if (!isSelf) {
-        profileUpdate.szerepkor = safeBaseSzerepkor
+    if (!belongsToOtherCompanies) {
+      if (data.module === "docs") {
+        profileUpdate.docs_szerepkor = safeProfileDocsRole
+        profileUpdate.docs_modulok = safeProfileDocsModules
+        profileUpdate.docs_iras_modulok = safeProfileDocsWriteModules
+        if (!isSelf) {
+          profileUpdate.szerepkor = safeBaseSzerepkor
+        }
+      } else if (data.module === "hr") {
+        profileUpdate.hr_szerepkor = normHr.role
+        profileUpdate.hr_modulok = normHr.modules
+        profileUpdate.hr_iras_modulok = normHr.writeModules
       }
-    } else if (data.module === "hr") {
-      profileUpdate.hr_szerepkor = data.role === "rendszergazda" ? "admin" : data.role
-    }
-    if (data.clearance) {
-      profileUpdate.max_minosites = data.clearance
-    }
-    if (data.departmentId !== undefined) {
-      profileUpdate.szervezeti_egyseg_id = data.departmentId || null
+      if (data.clearance) {
+        profileUpdate.max_minosites = data.clearance
+      }
+      if (data.departmentId !== undefined) {
+        profileUpdate.szervezeti_egyseg_id = data.departmentId || null
+      }
     }
 
     await supabaseAdmin
@@ -1340,9 +1366,12 @@ export async function inviteCompanyMemberAction(data: {
     if (data.module === "docs") {
       profilePayload.docs_szerepkor = safeProfileDocsRole
       profilePayload.docs_modulok = safeProfileDocsModules
+      profilePayload.docs_iras_modulok = safeProfileDocsWriteModules
       profilePayload.szerepkor = safeBaseSzerepkor
     } else {
-      profilePayload.hr_szerepkor = data.role === "rendszergazda" ? "admin" : data.role
+      profilePayload.hr_szerepkor = normHr.role
+      profilePayload.hr_modulok = normHr.modules
+      profilePayload.hr_iras_modulok = normHr.writeModules
       profilePayload.szerepkor = "munkavallalo"
     }
 
@@ -1379,12 +1408,16 @@ export async function inviteCompanyMemberAction(data: {
     if (data.module === "docs") {
       memberPayload.docs_szerepkor = safeProfileDocsRole
       memberPayload.docs_modulok = safeProfileDocsModules
+      memberPayload.docs_iras_modulok = safeProfileDocsWriteModules
       if (!existingMembership) {
         memberPayload.hr_szerepkor = null
         memberPayload.hr_modulok = []
+        memberPayload.hr_iras_modulok = []
       }
     } else {
-      memberPayload.hr_szerepkor = data.role
+      memberPayload.hr_szerepkor = normHr.role
+      memberPayload.hr_modulok = normHr.modules
+      memberPayload.hr_iras_modulok = normHr.writeModules
     }
 
     const { error: memberUpsertErr } = await supabaseAdmin

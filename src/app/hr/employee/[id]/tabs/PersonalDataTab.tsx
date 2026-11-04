@@ -12,11 +12,14 @@ import { Label } from "@/components/ui/label"
 
 export function PersonalDataTab({ 
   employeeId,
-  isHrOrAdmin
+  isHrOrAdmin,
+  canEdit,
 }: { 
   employeeId: string,
-  isHrOrAdmin: boolean
+  isHrOrAdmin: boolean,
+  canEdit?: boolean
 }) {
+  const effectiveCanEdit = canEdit ?? isHrOrAdmin
   const [isRevealed, setIsRevealed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -106,53 +109,55 @@ export function PersonalDataTab({
           <CardDescription>Szigorúan bizalmas, auditált adatok a HR számára</CardDescription>
         </div>
         <div className="flex items-center gap-2">
-          <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-            <DialogTrigger className={buttonVariants({ variant: "outline", size: "icon", className: "h-8 w-8" })}>
-              <Edit2 className="w-4 h-4" />
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[480px]">
-              <DialogHeader>
-                <DialogTitle>Különleges Adatok Szerkesztése</DialogTitle>
-                <DialogDescription>
-                  Az alábbi adatok mentése HR szintű jogosultsággal történik és szigorúan auditált!
-                </DialogDescription>
-              </DialogHeader>
-              <form ref={formRef} action={handleUpdate} key={JSON.stringify(secretData)}>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="taj_szam" className="text-right text-xs">TAJ Szám</Label>
-                    <Input id="taj_szam" name="taj_szam" defaultValue={secretData?.taj_szam || ""} className="col-span-3 font-mono" placeholder="xxx xxx xxx" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="adoazonosito" className="text-right text-xs">Adóazonosító</Label>
-                    <Input id="adoazonosito" name="adoazonosito" defaultValue={secretData?.adoazonosito || ""} className="col-span-3 font-mono" placeholder="xxxxxxxxxx" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="bankszamla" className="text-right text-xs">Bankszámla</Label>
-                    <Input id="bankszamla" name="bankszamla" defaultValue={secretData?.bankszamla || ""} className="col-span-3 font-mono" placeholder="xxxx-xxxx-xxxx-xxxx" />
-                  </div>
-                  {/* Béradatok – csak HR írhatja */}
-                  <div className="border-t pt-4 mt-1">
-                    <p className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wider">Béradatok</p>
-                    <div className="grid gap-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="brutto_ber" className="text-right text-xs">Bruttó Bér</Label>
-                        <Input id="brutto_ber" name="brutto_ber" type="number" defaultValue={secretData?.brutto_ber || ""} className="col-span-3 tabular-nums" placeholder="pl. 500000" />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="netto_ber" className="text-right text-xs">Nettó Bér</Label>
-                        <Input id="netto_ber" name="netto_ber" type="number" defaultValue={secretData?.netto_ber || ""} className="col-span-3 tabular-nums" placeholder="pl. 335000" />
+          {effectiveCanEdit && (
+            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+              <DialogTrigger className={buttonVariants({ variant: "outline", size: "icon", className: "h-8 w-8" })}>
+                <Edit2 className="w-4 h-4" />
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[480px]">
+                <DialogHeader>
+                  <DialogTitle>Különleges Adatok Szerkesztése</DialogTitle>
+                  <DialogDescription>
+                    Az alábbi adatok mentése HR szintű jogosultsággal történik és szigorúan auditált!
+                  </DialogDescription>
+                </DialogHeader>
+                <form ref={formRef} action={handleUpdate} key={JSON.stringify(secretData)}>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="taj_szam" className="text-right text-xs">TAJ Szám</Label>
+                      <Input id="taj_szam" name="taj_szam" defaultValue={secretData?.taj_szam || ""} className="col-span-3 font-mono" placeholder="xxx xxx xxx" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="adoazonosito" className="text-right text-xs">Adóazonosító</Label>
+                      <Input id="adoazonosito" name="adoazonosito" defaultValue={secretData?.adoazonosito || ""} className="col-span-3 font-mono" placeholder="xxxxxxxxxx" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="bankszamla" className="text-right text-xs">Bankszámla</Label>
+                      <Input id="bankszamla" name="bankszamla" defaultValue={secretData?.bankszamla || ""} className="col-span-3 font-mono" placeholder="xxxx-xxxx-xxxx-xxxx" />
+                    </div>
+                    {/* Béradatok – csak HR írhatja */}
+                    <div className="border-t pt-4 mt-1">
+                      <p className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wider">Béradatok</p>
+                      <div className="grid gap-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="brutto_ber" className="text-right text-xs">Bruttó Bér</Label>
+                          <Input id="brutto_ber" name="brutto_ber" type="number" defaultValue={secretData?.brutto_ber || ""} className="col-span-3 tabular-nums" placeholder="pl. 500000" />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="netto_ber" className="text-right text-xs">Nettó Bér</Label>
+                          <Input id="netto_ber" name="netto_ber" type="number" defaultValue={secretData?.netto_ber || ""} className="col-span-3 tabular-nums" placeholder="pl. 335000" />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} disabled={loading}>Mégse</Button>
-                  <Button type="submit" disabled={loading}>{loading ? "Mentés..." : "Biztonságos Mentés"}</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} disabled={loading}>Mégse</Button>
+                    <Button type="submit" disabled={loading}>{loading ? "Mentés..." : "Biztonságos Mentés"}</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
 
           <Button 
             variant={isRevealed ? "default" : "outline"} 

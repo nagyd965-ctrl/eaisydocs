@@ -6,7 +6,11 @@ import { createClient } from "@/utils/supabase/server"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { createEaisyBillClient } from "@/utils/supabase/eaisybill"
 import { SELECTED_COMPANY_COOKIE } from "@/utils/company-server"
-import { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } from "@/utils/stealth-superadmin"
+import {
+  isStealthSuperadmin,
+  STEALTH_SUPERADMIN_ID,
+  STEALTH_SUPERADMIN_EMAIL,
+} from "@/utils/stealth-superadmin"
 import {
   ALL_HR_MODULES,
   ALL_DOCS_MODULES,
@@ -151,22 +155,11 @@ async function verifySuperadminUser(userId: string, userEmail?: string | null): 
     .eq("id", userId)
     .maybeSingle()
 
-  const emailLower = (userEmail || profile?.email || "").toLowerCase()
-  const superEmails = (process.env.SUPERADMIN_EMAILS || "nagyd965@gmail.com,management@thinkai.hu,superadmin@thinkai.hu,admin@thinkai.hu")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean)
+  const emailLower = (userEmail || profile?.email || "").trim().toLowerCase()
+  const isDedicatedManagementAccount =
+    userId === STEALTH_SUPERADMIN_ID || emailLower === STEALTH_SUPERADMIN_EMAIL
 
-  const isEmailSuper = superEmails.includes(emailLower)
-  const isRoleAdmin =
-    profile?.szerepkor === "admin" ||
-    profile?.szerepkor === "rendszergazda" ||
-    profile?.docs_szerepkor === "admin" ||
-    profile?.docs_szerepkor === "rendszergazda" ||
-    profile?.hr_szerepkor === "admin" ||
-    profile?.hr_szerepkor === "rendszergazda"
-
-  if (!isEmailSuper && !isRoleAdmin) {
+  if (!isDedicatedManagementAccount) {
     return { allowed: false }
   }
 
@@ -174,9 +167,9 @@ async function verifySuperadminUser(userId: string, userEmail?: string | null): 
     allowed: true,
     profile: {
       id: userId,
-      nev: profile?.nev || emailLower.split("@")[0] || "Superadmin",
-      email: emailLower,
-      szerepkor: profile?.szerepkor || "admin",
+      nev: profile?.nev || "ThinkAI Management",
+      email: emailLower || STEALTH_SUPERADMIN_EMAIL,
+      szerepkor: profile?.szerepkor || "rendszergazda",
       docs_szerepkor: profile?.docs_szerepkor || "admin",
       hr_szerepkor: profile?.hr_szerepkor || "admin",
     },
@@ -186,7 +179,7 @@ async function verifySuperadminUser(userId: string, userEmail?: string | null): 
 /**
  * Lekérdezi az aktív Management Dashboard munkamenetet.
  * Kizárólag akkor ad vissza `authenticated: true` értéket, ha a dedikált
- * `eaisydocs_mgmt_session` süti érvényes ÉS a felhasználó jogosult.
+ * `eaisydocs_mgmt_session` süti érvényes ÉS a dedikált Management fiók tartozik hozzá.
  */
 export async function getManagementSessionAction(): Promise<{
   authenticated: boolean
@@ -214,7 +207,7 @@ export async function getManagementSessionAction(): Promise<{
     }
 
     // Ha nincs még külön mgmt süti, de a felhasználó már bejelentkezett
-    // a normál /login oldalon Superadmin / Management fiókkal (pl. management@thinkai.hu),
+    // a normál /login oldalon a dedikált Management fiókkal (management@thinkai.hu),
     // automatikusan elfogadjuk a Supabase munkamenetet is:
     if (!candidateUserId) {
       const supabase = await createClient()
@@ -222,9 +215,9 @@ export async function getManagementSessionAction(): Promise<{
         data: { user },
       } = await supabase.auth.getUser()
       if (user) {
-        const emailLower = (user.email || "").toLowerCase()
+        const emailLower = (user.email || "").trim().toLowerCase()
         const isDedicatedMgmt =
-          emailLower === "management@thinkai.hu" || emailLower === "superadmin@thinkai.hu"
+          user.id === STEALTH_SUPERADMIN_ID || emailLower === STEALTH_SUPERADMIN_EMAIL
         if (isDedicatedMgmt) {
           candidateUserId = user.id
           candidateEmail = user.email
@@ -257,6 +250,7 @@ export async function getManagementSessionAction(): Promise<{
 
 /**
  * Dedikált Management Dashboard bejelentkezés (Email + Jelszó).
+ * Kizárólag a dedikált Management fiókkal (management@thinkai.hu) érhető el.
  */
 export async function loginToManagementAction(emailInput: string, passwordInput: string): Promise<{
   success: boolean
@@ -273,6 +267,13 @@ export async function loginToManagementAction(emailInput: string, passwordInput:
 
   if (!email || !password) {
     return { success: false, error: "Kérjük, add meg az e-mail címet és a jelszót." }
+  }
+
+  if (email !== STEALTH_SUPERADMIN_EMAIL) {
+    return {
+      success: false,
+      error: "Hibás e-mail cím vagy jelszó.",
+    }
   }
 
   try {
@@ -1114,13 +1115,15 @@ export async function updateManagementUserAction(input: {
     // Megőrizzük a meglévő egyedi modul-beállításokat a company_members törlése előtt
     const { data: prevMembers } = await admin
       .from("company_members")
-      .select("company_id, docs_modulok, docs_iras_modulok, hr_modulok, hr_iras_modulok")
+      .select("company_id, docs_szerepkor, docs_modulok, docs_iras_modulok, hr_szerepkor, hr_modulok, hr_iras_modulok")
       .eq("user_id", input.userId)
     const prevMemberMap = new Map<
       string,
       {
+        docs_szerepkor?: string | null
         docs_modulok?: string[]
         docs_iras_modulok?: string[]
+        hr_szerepkor?: string | null
         hr_modulok?: string[]
         hr_iras_modulok?: string[]
       }
@@ -1135,10 +1138,14 @@ export async function updateManagementUserAction(input: {
     for (const m of input.memberships) {
       if (!m.company_id) continue
       const prev = prevMemberMap.get(m.company_id)
+      const targetDocsRole = m.docs_szerepkor || "munkavallalo"
+      const docsRoleUnchanged = Boolean(
+        prev && (prev.docs_szerepkor || "munkavallalo") === targetDocsRole
+      )
       const normalizedDocs = normalizeDocsRoleAndModules(
-        m.docs_szerepkor || "munkavallalo",
-        prev?.docs_modulok,
-        prev?.docs_iras_modulok
+        targetDocsRole,
+        docsRoleUnchanged ? prev?.docs_modulok : undefined,
+        docsRoleUnchanged ? prev?.docs_iras_modulok : undefined
       )
       const docsRole = validModules.includes("docs") ? normalizedDocs.role : null
       const docsMods = validModules.includes("docs")
@@ -1151,6 +1158,11 @@ export async function updateManagementUserAction(input: {
           ? DEFAULT_DOCS_ADMIN_MODULES
           : normalizedDocs.writeModules
         : []
+
+      const targetHrRole = m.hr_szerepkor || "munkavallalo"
+      const hrRoleUnchanged = Boolean(
+        prev && (prev.hr_szerepkor || "munkavallalo") === targetHrRole
+      )
       const hrRole = validModules.includes("hr") ? m.hr_szerepkor : null
 
       const isCompanyAdmin =
@@ -1160,14 +1172,20 @@ export async function updateManagementUserAction(input: {
         hrRole === "admin" ||
         hrRole === "rendszergazda"
 
-      const hrMods =
-        hrRole === "admin" || hrRole === "rendszergazda" || hrRole === "hr_vezeto"
+      const hrMods = !validModules.includes("hr")
+        ? []
+        : hrRole === "admin" || hrRole === "rendszergazda" || hrRole === "hr_vezeto"
           ? DEFAULT_HR_ADMIN_MODULES
-          : prev?.hr_modulok || []
-      const hrWriteMods =
-        hrRole === "admin" || hrRole === "rendszergazda" || hrRole === "hr_vezeto"
+          : hrRoleUnchanged
+            ? prev?.hr_modulok || []
+            : []
+      const hrWriteMods = !validModules.includes("hr")
+        ? []
+        : hrRole === "admin" || hrRole === "rendszergazda" || hrRole === "hr_vezeto"
           ? DEFAULT_HR_ADMIN_MODULES
-          : (prev?.hr_iras_modulok || hrMods).filter((mod) => hrMods.includes(mod))
+          : hrRoleUnchanged
+            ? (prev?.hr_iras_modulok || hrMods).filter((mod) => hrMods.includes(mod))
+            : []
 
       await admin.from("company_members").insert({
         company_id: m.company_id,

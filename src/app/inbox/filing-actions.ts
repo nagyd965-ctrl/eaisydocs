@@ -47,7 +47,7 @@ export async function fileIncomingDocument(formData: FormData) {
   const activeCompanyId = activeCompany?.id || await getActiveCompanyIdServer()
 
   const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"], activeCompanyId)
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "inbox"], activeCompanyId)
   if (!auth.authorized || !auth.user) {
     return { error: auth.error || "Nincs jogosultságod az irat iktatásához." }
   }
@@ -1200,7 +1200,7 @@ export async function generateAISuggestions(iratId: string): Promise<AISuggestio
  */
 export async function clearAICacheAndRerun(iratId: string): Promise<AISuggestionsResult> {
   const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "inbox"])
   if (!auth.authorized || !auth.user) {
     return { success: false, error: auth.error || "Nincs jogosultságod az AI újraelemzéshez." }
   }
@@ -1278,7 +1278,7 @@ export async function quickAttachToDossier(iratId: string, ugyiratId: string, in
 
   // 1. Felhasználó és jogosultság ellenőrzése
   const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "inbox", "dossiers"])
   if (!auth.authorized || !auth.user) {
     return { error: auth.error || "Olvasási jogosultsággal nem végezhető összerendelés." }
   }
@@ -1326,7 +1326,7 @@ export async function splitAttachmentToNewIncoming(iratId: string, fajlId: strin
 
   // 1. Felhasználó és jogosultság ellenőrzése
   const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "inbox", "dossiers"])
   if (!auth.authorized || !auth.user) {
     return { error: auth.error || "Betekintő jogosultsággal nem végezhető irat-szétválasztás." }
   }
@@ -1452,7 +1452,7 @@ export async function splitAttachmentToNewIncoming(iratId: string, fajlId: strin
     await supabase.from("ai_feladat_sor").insert({
       irat_id: newIrat.id,
       feladat_tipus: "ai_metadata_extraction",
-      statusz: "varakozik",
+      statusz: "fuggoben",
       kovetkezo_futtatas: new Date().toISOString()
     })
   } catch (aiErr) {

@@ -6,7 +6,7 @@ import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 
 export async function savePartner(formData: FormData) {
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "partners"])
   if (!auth.authorized || !auth.user) {
     return { error: auth.error || "Nincs jogosultságod partner mentéséhez." }
   }
@@ -109,7 +109,7 @@ export async function savePartner(formData: FormData) {
  * Partner státuszának gyors átváltása (aktív <-> inaktív)
  */
 export async function togglePartnerStatus(partnerId: string, currentStatus: string) {
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "partners"])
   if (!auth.authorized || !auth.user) {
     return { error: auth.error || "Nincs jogosultságod partner státuszának módosításához." }
   }
@@ -139,7 +139,7 @@ export async function togglePartnerStatus(partnerId: string, currentStatus: stri
  * Partner kapcsolattartó mentése (hozzáadás vagy szerkesztés)
  */
 export async function savePartnerContact(formData: FormData) {
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "partners"])
   if (!auth.authorized || !auth.user) {
     return { error: auth.error || "Nincs jogosultságod kapcsolattartó mentéséhez." }
   }
@@ -216,7 +216,7 @@ export async function savePartnerContact(formData: FormData) {
  * Partner kapcsolattartó törlése
  */
 export async function deletePartnerContact(contactId: string, partnerId: string) {
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "partners"])
   if (!auth.authorized || !auth.user) {
     return { error: auth.error || "Nincs jogosultságod kapcsolattartó törléséhez." }
   }

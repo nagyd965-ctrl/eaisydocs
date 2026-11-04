@@ -19,6 +19,7 @@ import {
   DateRangeFilter 
 } from "@/components/table-toolbar/table-toolbar"
 import { KpiCard } from "@/components/kpi-card"
+import { sanitizeRichTextHtml } from "@/lib/sanitize-html"
 import { 
   Mail, 
   MessageSquare, 
@@ -704,7 +705,7 @@ export function NotificationAuditTab({ companyId, companyName }: NotificationAud
                   selectedLog.uzenet.includes("<") ? (
                     <div 
                       className="w-full max-w-[640px] shadow-sm rounded-xl overflow-hidden bg-white text-slate-800 [&_*]:box-border"
-                      dangerouslySetInnerHTML={{ __html: selectedLog.uzenet }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(selectedLog.uzenet) }}
                     />
                   ) : (
                     <div className="max-w-xl w-full bg-background p-5 rounded-lg border border-border/80 shadow-xs font-mono text-sm whitespace-pre-wrap text-foreground">

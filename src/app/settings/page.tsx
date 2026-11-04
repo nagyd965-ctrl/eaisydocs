@@ -30,8 +30,13 @@ export default async function SettingsPage() {
     "mentett_kereses_talalat",
   ]
 
-  // Biztosítjuk, hogy az aktív vállalatnál minden eaisyDocs értesítési szabály létezzen az adatbázisban
-  if (activeCompanyId && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  const isAdmin =
+    scopedRoles.docsRole === "admin" ||
+    scopedRoles.isCompanyAdmin ||
+    scopedRoles.docsWriteModules.includes("settings")
+
+  // Biztosítjuk, hogy az aktív vállalatnál minden eaisyDocs értesítési szabály létezzen az adatbázisban (csak adminoknál)
+  if (isAdmin && activeCompanyId && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
       const { createClient: createSupabaseAdminClient } = await import("@supabase/supabase-js")
       const supabaseAdmin = createSupabaseAdminClient(
@@ -72,14 +77,6 @@ export default async function SettingsPage() {
   }
   const { data: szabalyok } = await szabalyokQuery
 
-  const isAdmin =
-    scopedRoles.docsRole === "admin" ||
-    scopedRoles.isCompanyAdmin ||
-    scopedRoles.docsWriteModules.includes("settings") ||
-    profile?.szerepkor === "admin" ||
-    profile?.docs_szerepkor === "admin" ||
-    profile?.szerepkor === "rendszergazda" ||
-    profile?.docs_szerepkor === "rendszergazda"
   const naplo: any[] = []
 
   const { data: userData } = await supabase.auth.getUser()
@@ -177,6 +174,7 @@ export default async function SettingsPage() {
         </TabsList>
 
         <SettingsClient 
+          key={activeCompanyId || "default"}
           initialProfile={profile} 
           email={email} 
           teamMembers={teamMembers || []} 

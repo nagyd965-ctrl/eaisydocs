@@ -27,7 +27,7 @@ export async function dismissInboxItem(iratId: string, indoklas: string) {
   }
 
   const auth = await requireDocsAuthServer(
-    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"],
+    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "inbox"],
     irat.company_id || null
   )
   if (!auth.authorized || !auth.user) {
@@ -99,7 +99,7 @@ export async function restoreInboxItem(iratId: string) {
   }
 
   const auth = await requireDocsAuthServer(
-    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"],
+    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "inbox"],
     irat.company_id || null
   )
   if (!auth.authorized || !auth.user) {

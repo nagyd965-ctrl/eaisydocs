@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
-import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
+import { hasHrWriteAccess, isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 
 export async function reassignPendingLeaves() {
   const supabase = await createClient()
@@ -19,13 +19,13 @@ export async function reassignPendingLeaves() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Csak HR/Admin (time vagy admin moduljoggal rendelkező) futtathatja az aktív cégben
+  // Csak HR/Admin (time vagy admin modul írási joggal rendelkező) futtathatja az aktív cégben
   const canReassign =
-    scoped.isCompanyAdmin ||
-    isUserAuthorizedForHrView(scoped.hrRole, ["admin", "time"], scoped.hrModules)
+    isUserAuthorizedForHrView(scoped.hrRole, ["admin", "time"], scoped.hrModules) &&
+    hasHrWriteAccess(scoped.hrRole, scoped.hrModules, scoped.hrWriteModules, ["admin", "time"])
 
   if (!canReassign) {
-    return { error: "Nincs jogosultságod ehhez a művelethez!" }
+    return { error: "Nincs írási jogosultságod ehhez a művelethez!" }
   }
 
   // 1. Lekérjük az összes függő kérelmet (adott céghez szűrve)

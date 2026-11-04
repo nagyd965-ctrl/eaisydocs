@@ -44,7 +44,8 @@ export interface T1041ReportResponse {
 async function loadHrMasterData(adminClient: any, targetCompanyId?: string | null) {
   const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["reports", "payroll", "admin", "auditor"], null)
-  if (!auth.authorized) {
+  const activeCompanyId = targetCompanyId !== undefined ? targetCompanyId : (auth.activeCompanyId || (await getActiveCompanyIdServer()))
+  if (!auth.authorized || !activeCompanyId) {
     return {
       activeCompanyId: null,
       memberUserIds: [] as string[],
@@ -56,7 +57,6 @@ async function loadHrMasterData(adminClient: any, targetCompanyId?: string | nul
       jogviszonyok: [] as any[],
     }
   }
-  const activeCompanyId = targetCompanyId !== undefined ? targetCompanyId : (auth.activeCompanyId || (await getActiveCompanyIdServer()))
 
   let memberUserIds: string[] = []
   if (activeCompanyId) {
@@ -759,7 +759,15 @@ export async function getPayrollReportData(yearMonth: string) {
     const cur = leaveMap.get(t.dolgozo_id)!
     const kDate = new Date(Math.max(new Date(t.kezdet_datuma).getTime(), new Date(firstDay).getTime()))
     const vDate = new Date(Math.min(new Date(t.veg_datuma).getTime(), new Date(lastDay).getTime()))
-    const days = Math.max(1, Math.round((vDate.getTime() - kDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+    let days = 0
+    const cursor = new Date(kDate)
+    while (cursor <= vDate) {
+      const dow = cursor.getDay()
+      if (dow !== 0 && dow !== 6) {
+        days++
+      }
+      cursor.setDate(cursor.getDate() + 1)
+    }
 
     const tType = (t.tipus || "").toLowerCase()
     if (tType.includes("szabad") || tType.includes("fizetett")) {
@@ -1107,7 +1115,7 @@ export async function uploadArchiveFileAdmin(formData: FormData) {
  */
 export async function getArchiveRecords() {
   const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-  const auth = await requireHrAuthServer(["payroll", "admin", "auditor"], null)
+  const auth = await requireHrAuthServer(["payroll", "reports", "admin", "auditor"], null)
   if (!auth.authorized) {
     return []
   }
@@ -1191,8 +1199,13 @@ export interface ReportEmployeeOption {
  * Összes munkavállaló lekérése az egyéni riportkészítéshez és T1041 generáláshoz (cégre szűrve)
  */
 export async function getAllEmployeesForReports(): Promise<ReportEmployeeOption[]> {
+  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["reports", "payroll", "admin", "auditor"], null)
+  if (!auth.authorized || !auth.activeCompanyId) {
+    return []
+  }
   const adminClient = getAdminClient()
-  const activeCompanyId = await getActiveCompanyIdServer()
+  const activeCompanyId = auth.activeCompanyId
   const { profMap, orgMap, beosztasMap, secretMap, jogviszonyok } = await loadHrMasterData(adminClient, activeCompanyId)
 
   const employees: ReportEmployeeOption[] = []

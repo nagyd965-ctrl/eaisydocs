@@ -513,11 +513,17 @@ export async function closeOffboarding(
     kilepoPdfUrl
   ].filter(Boolean)
 
+  const targetCompanyId = offboarding.company_id || auth.activeCompanyId || null
+
   if (urlsToCheck.length > 0) {
-    const { data: matchedDocs } = await adminClient
+    let matchedQuery = adminClient
       .from("hr_dokumentum")
       .select("id, nev, kategoria, url, iktatoszam")
       .in("url", urlsToCheck)
+    if (targetCompanyId) {
+      matchedQuery = matchedQuery.eq("company_id", targetCompanyId)
+    }
+    const { data: matchedDocs } = await matchedQuery
 
     for (const d of matchedDocs || []) {
       if (!d.iktatoszam) {
@@ -527,12 +533,16 @@ export async function closeOffboarding(
   }
 
   // b) Dolgozóhoz tartozó, még nem iktatott offboarding kategóriájú dokumentumok
-  const { data: unfiledOffboardingDocs } = await adminClient
+  let unfiledOffboardingQuery = adminClient
     .from("hr_dokumentum")
     .select("id, nev, kategoria, url, iktatoszam")
     .eq("dolgozo_id", offboarding.dolgozo_id)
     .in("kategoria", ["Munkaviszony megszüntetés", "Eszköz átadás-átvétel", "Hatósági bejelentések", "Kilépő igazolások"])
     .is("iktatoszam", null)
+  if (targetCompanyId) {
+    unfiledOffboardingQuery = unfiledOffboardingQuery.eq("company_id", targetCompanyId)
+  }
+  const { data: unfiledOffboardingDocs } = await unfiledOffboardingQuery
 
   for (const d of unfiledOffboardingDocs || []) {
     if (!d.iktatoszam) {
@@ -541,10 +551,14 @@ export async function closeOffboarding(
   }
 
   // c) T1041 rekordok dokumentumai (ha léteznek)
-  const { data: t1041Records } = await adminClient
+  let t1041Query = adminClient
     .from("hr_t1041_bejelentes")
     .select("adatlap_dokumentum_id, nyugta_dokumentum_id")
     .or(`offboarding_id.eq.${offboardingId},dolgozo_id.eq.${offboarding.dolgozo_id}`)
+  if (targetCompanyId) {
+    t1041Query = t1041Query.eq("company_id", targetCompanyId)
+  }
+  const { data: t1041Records } = await t1041Query
 
   const tDocIds = Array.from(new Set(
     (t1041Records || []).flatMap(r => [r.adatlap_dokumentum_id, r.nyugta_dokumentum_id]).filter(Boolean)
@@ -985,32 +999,43 @@ export async function getOffboardingDetailData(offboardingId: string) {
       return { error: "A kiléptetési folyamat másik céghez tartozik." }
     }
 
+    const targetCompanyId = offboarding.company_id || auth.activeCompanyId || null
+
     // Dolgozó adatlap lekérése (személyi és azonosító adatok)
-    const { data: adatlap } = await adminClient
+    let adatlapQuery = adminClient
       .from("hr_dolgozo_adatlap")
       .select("*")
       .eq("id", offboarding.dolgozo_id)
-      .maybeSingle()
+    if (targetCompanyId) {
+      adatlapQuery = adatlapQuery.eq("company_id", targetCompanyId)
+    }
+    const { data: adatlap } = await adatlapQuery.maybeSingle()
 
     // Céges eszközök lekérése
-    const { data: assets } = await adminClient
+    let assetsQuery = adminClient
       .from("hr_munkahelyi_eszkoz")
       .select("*")
       .eq("dolgozo_id", offboarding.dolgozo_id)
-      .order("created_at", { ascending: true })
+    if (targetCompanyId) {
+      assetsQuery = assetsQuery.eq("company_id", targetCompanyId)
+    }
+    const { data: assets } = await assetsQuery.order("created_at", { ascending: true })
 
     // T1041 rekord lekérése
-    const { data: t1041Records } = await adminClient
+    let t1041Query = adminClient
       .from("hr_t1041_bejelentes")
       .select("*")
       .or(`offboarding_id.eq.${offboardingId},dolgozo_id.eq.${offboarding.dolgozo_id}`)
-      .order("created_at", { ascending: false })
+    if (targetCompanyId) {
+      t1041Query = t1041Query.eq("company_id", targetCompanyId)
+    }
+    const { data: t1041Records } = await t1041Query.order("created_at", { ascending: false })
 
     // Tárgyévi jóváhagyott betegszabadság napok lekérése (Mt. 126. §)
     // P1-javítás (2026-11-01): csak "betegszabadsag" típus — a "beteg" (TB-táppénz)
     // NEM számít az Mt. 126. § szerint a munkáltató általi felmondási okba
     const currentYear = new Date().getFullYear()
-    const { data: sickLeaves } = await adminClient
+    let sickLeavesQuery = adminClient
       .from("hr_tavollet")
       .select("kezdet_datuma, veg_datuma, tipus")
       .eq("dolgozo_id", offboarding.dolgozo_id)
@@ -1018,6 +1043,10 @@ export async function getOffboardingDetailData(offboardingId: string) {
       .eq("statusz", "jovahagyva")
       .lte("kezdet_datuma", `${currentYear}-12-31`)
       .gte("veg_datuma", `${currentYear}-01-01`)
+    if (targetCompanyId) {
+      sickLeavesQuery = sickLeavesQuery.eq("company_id", targetCompanyId)
+    }
+    const { data: sickLeaves } = await sickLeavesQuery
 
     const targyeviBetegszabadsagNapok = await (sickLeaves || []).reduce(
       async (accPromise: Promise<number>, curr: any) => {
@@ -1028,11 +1057,14 @@ export async function getOffboardingDetailData(offboardingId: string) {
     )
 
     // Kapcsolódó dokumentumok lekérése a hr_dokumentum táblából (iktatási metaadatokkal)
-    const { data: hrDocs } = await adminClient
+    let hrDocsQuery = adminClient
       .from("hr_dokumentum")
       .select("id, nev, kategoria, url, iktatoszam, iktatva_ekor, ugyirat_id, irat_id")
       .eq("dolgozo_id", offboarding.dolgozo_id)
-      .order("created_at", { ascending: false })
+    if (targetCompanyId) {
+      hrDocsQuery = hrDocsQuery.eq("company_id", targetCompanyId)
+    }
+    const { data: hrDocs } = await hrDocsQuery.order("created_at", { ascending: false })
 
     const termHrDoc = hrDocs?.find(d => d.kategoria === "Munkaviszony megszüntetés" || (offboarding.szerzodes_pdf_url && d.url === offboarding.szerzodes_pdf_url))
     const assetHrDoc = hrDocs?.find(d => d.kategoria === "Eszköz átadás-átvétel" || (offboarding.eszkoz_elszamolas_pdf_url && d.url === offboarding.eszkoz_elszamolas_pdf_url))
@@ -1725,10 +1757,14 @@ export async function generateExitCertificateAction(
     .eq("id", offboarding.dolgozo_id)
     .maybeSingle()
 
-  const { data: contractData } = await adminClient
+  let contractQuery = adminClient
     .from("hr_munkaszerzodes")
     .select("*")
     .eq("dolgozo_id", offboarding.dolgozo_id)
+  if (offboarding.company_id || auth.activeCompanyId) {
+    contractQuery = contractQuery.eq("company_id", offboarding.company_id || auth.activeCompanyId)
+  }
+  const { data: contractData } = await contractQuery
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -1738,7 +1774,7 @@ export async function generateExitCertificateAction(
   let resolvedBetegszabi = payload.betegszabadsagNapok
   if (resolvedBetegszabi === undefined || resolvedBetegszabi === null) {
     const currentYear = new Date().getFullYear()
-    const { data: sickLeaves } = await adminClient
+    let sickQuery = adminClient
       .from("hr_tavollet")
       .select("kezdet_datuma, veg_datuma, tipus")
       .eq("dolgozo_id", offboarding.dolgozo_id)
@@ -1746,6 +1782,10 @@ export async function generateExitCertificateAction(
       .eq("statusz", "jovahagyva")
       .lte("kezdet_datuma", `${currentYear}-12-31`)
       .gte("veg_datuma", `${currentYear}-01-01`)
+    if (offboarding.company_id || auth.activeCompanyId) {
+      sickQuery = sickQuery.eq("company_id", offboarding.company_id || auth.activeCompanyId)
+    }
+    const { data: sickLeaves } = await sickQuery
 
     const sickDayCounts = await Promise.all(
       (sickLeaves || []).map((s: any) =>

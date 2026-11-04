@@ -28,7 +28,7 @@ export async function assignDossier(formData: FormData) {
   const verifiedUgyId = ugyiratTarget.ugy_id
 
   const auth = await requireDocsAuthServer(
-    ["admin", "rendszergazda", "iktato", "vezeto"],
+    ["admin", "rendszergazda", "iktato", "vezeto", "dossiers"],
     ugyiratTarget?.company_id || null
   )
   if (!auth.authorized || !auth.user) {

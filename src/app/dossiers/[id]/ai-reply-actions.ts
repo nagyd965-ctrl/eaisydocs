@@ -61,7 +61,7 @@ export async function generateAiReplyAction(
       const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
       const activeCompanyId = await getActiveCompanyIdServer()
       const auth = await requireDocsAuthServer(
-        ["ugyintezo", "vezeto", "iktato", "admin", "rendszergazda"],
+        ["ugyintezo", "vezeto", "iktato", "admin", "rendszergazda", "dossiers"],
         activeCompanyId
       )
 

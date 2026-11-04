@@ -408,7 +408,7 @@ export function InboxTableClient({
                 <TableRow key={item.id} className="transition-colors hover:bg-muted/40">
                   {isColVisible("erkeztetoszam") && (
                     <TableCell className="font-medium text-primary whitespace-nowrap">
-                      <Link href={`/inbox/${item.id}`} className="hover:underline">
+                      <Link href={canEdit ? `/inbox/${item.id}` : `/inbox/view/${item.id}`} className="hover:underline">
                         {item.erkeztetoszam}
                       </Link>
                     </TableCell>
@@ -432,7 +432,7 @@ export function InboxTableClient({
                   {isColVisible("targy") && (
                     <TableCell className="max-w-[260px] md:max-w-[360px] lg:max-w-[460px] overflow-hidden">
                       <Link 
-                        href={`/inbox/${item.id}`} 
+                        href={canEdit ? `/inbox/${item.id}` : `/inbox/view/${item.id}`} 
                         className="truncate block font-medium text-foreground hover:text-primary hover:underline transition-colors" 
                         title={item.targy}
                       >
@@ -468,51 +468,62 @@ export function InboxTableClient({
                   {/* Műveletek */}
                   {isColVisible("muvelet") && (
                     <TableCell className="text-right whitespace-nowrap">
-                      {canEdit && (
-                        <div className="flex items-center justify-end gap-1.5">
-                          {activeTab === "active" ? (
-                            <>
-                              {/* In-place Quick View (ha van fájl csatolva) */}
-                              {item.irat_fajl && item.irat_fajl.length > 0 && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-primary hover:bg-primary/10 hover:text-primary transition-colors relative"
-                                  onClick={() => handleQuickView(item)}
-                                  title={
-                                    item.irat_fajl.length > 1
-                                      ? `${item.irat_fajl.length} csatolt dokumentum gyors megtekintése`
-                                      : "Csatolt dokumentum gyors megtekintése"
-                                  }
+                      <div className="flex items-center justify-end gap-1.5">
+                        {activeTab === "active" ? (
+                          <>
+                            {/* In-place Quick View (ha van fájl csatolva — olvasási joggal is elérhető) */}
+                            {item.irat_fajl && item.irat_fajl.length > 0 && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-primary hover:bg-primary/10 hover:text-primary transition-colors relative"
+                                onClick={() => handleQuickView(item)}
+                                title={
+                                  item.irat_fajl.length > 1
+                                    ? `${item.irat_fajl.length} csatolt dokumentum gyors megtekintése`
+                                    : "Csatolt dokumentum gyors megtekintése"
+                                }
+                              >
+                                <Eye className="h-4 w-4" />
+                                {item.irat_fajl.length > 1 && (
+                                  <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold rounded-full h-4 min-w-4 px-1 flex items-center justify-center pointer-events-none shadow-xs">
+                                    {item.irat_fajl.length}
+                                  </span>
+                                )}
+                              </Button>
+                            )}
+                            {canEdit ? (
+                              <>
+                                <DismissInboxDialog
+                                  iratId={item.id}
+                                  erkeztetoszam={item.erkeztetoszam}
+                                  targy={item.targy}
+                                  onDismissed={(reason) => {
+                                    setActiveItems((prev) => prev.filter((i) => i.id !== item.id))
+                                    setDismissedItems((prev) => [
+                                      { ...item, statusz: "nem_iktatando", leiras: reason },
+                                      ...prev,
+                                    ])
+                                  }}
+                                />
+                                <Link
+                                  href={`/inbox/${item.id}`}
+                                  className={buttonVariants({ variant: "outline", size: "sm" })}
                                 >
-                                  <Eye className="h-4 w-4" />
-                                  {item.irat_fajl.length > 1 && (
-                                    <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold rounded-full h-4 min-w-4 px-1 flex items-center justify-center pointer-events-none shadow-xs">
-                                      {item.irat_fajl.length}
-                                    </span>
-                                  )}
-                                </Button>
-                              )}
-                              <DismissInboxDialog
-                                iratId={item.id}
-                                erkeztetoszam={item.erkeztetoszam}
-                                targy={item.targy}
-                                onDismissed={(reason) => {
-                                  setActiveItems((prev) => prev.filter((i) => i.id !== item.id))
-                                  setDismissedItems((prev) => [
-                                    { ...item, statusz: "nem_iktatando", leiras: reason },
-                                    ...prev,
-                                  ])
-                                }}
-                              />
+                                  Iktatás
+                                </Link>
+                              </>
+                            ) : (
                               <Link
-                                href={`/inbox/${item.id}`}
+                                href={`/inbox/view/${item.id}`}
                                 className={buttonVariants({ variant: "outline", size: "sm" })}
                               >
-                                Iktatás
+                                Megtekintés
                               </Link>
-                            </>
-                          ) : (
+                            )}
+                          </>
+                        ) : (
+                          canEdit && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -526,9 +537,9 @@ export function InboxTableClient({
                               )}
                               <span>Visszaállítás</span>
                             </Button>
-                          )}
-                        </div>
-                      )}
+                          )
+                        )}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>

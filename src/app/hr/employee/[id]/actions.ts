@@ -21,7 +21,6 @@ async function hasHrOrDocsAdminProfile(userProfile: any): Promise<boolean> {
     const companyRoles = await getActiveCompanyMemberRolesServer()
     if (
       companyRoles.isCompanyAdmin ||
-      companyRoles.docsRole === "admin" ||
       companyRoles.hrRole === "admin" ||
       companyRoles.hrRole === "rendszergazda"
     ) {
@@ -53,7 +52,6 @@ async function hasHrOrDocsAdminProfile(userProfile: any): Promise<boolean> {
   }
 
   if (userProfile) {
-    if (userProfile.docs_szerepkor === "admin") return true
     const normalized = normalizeHrRoleAndModules(
       userProfile.hr_szerepkor,
       Array.isArray(userProfile.hr_modulok) ? userProfile.hr_modulok : [],
@@ -575,7 +573,8 @@ export async function fileStudyContractAction(contractId: string, employeeId: st
     documentId: docId,
     employeeId,
     customTargy: docSubject,
-    currentUserId: user.id
+    currentUserId: user.id,
+    companyId: contract.company_id || access.activeCompanyId
   })
 
   if (!filingResult.success) {
@@ -788,7 +787,11 @@ export async function deleteOrvosiVizsgalat(id: string, employeeId: string) {
     return { error: `Iktatott orvosi alkalmassági irat (${orvosi.iktatoszam}) a levéltári szabályozás értelmében nem törölhető!` }
   }
 
-  const { error } = await supabase.from("hr_orvosi_vizsgalat").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  let deleteQuery = supabase.from("hr_orvosi_vizsgalat").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  if (access.activeCompanyId) {
+    deleteQuery = deleteQuery.eq("company_id", access.activeCompanyId)
+  }
+  const { error } = await deleteQuery
   if (error) return { error: error.message }
 
   // Frissítjük a dolgozó adatlap orvosi érvényességét a legújabb érvényes vizsgálatra (ha az elsődleges cégben vagyunk)
@@ -953,7 +956,8 @@ export async function fileMedicalExaminationAction(orvosiId: string, employeeId:
     documentId: docId,
     employeeId,
     customTargy: docSubject,
-    currentUserId: user.id
+    currentUserId: user.id,
+    companyId: orvosi.company_id || access.activeCompanyId
   })
 
   if (!filingResult.success) {
@@ -1133,7 +1137,11 @@ export async function deleteFegyelmi(id: string, employeeId: string) {
     return { error: `A hivatalosan beiktatott fegyelmi határozat (${existing.iktatoszam}) a levéltári szabályok szerint nem törölhető!` }
   }
 
-  const { error } = await supabase.from("hr_fegyelmi").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  let deleteQuery = supabase.from("hr_fegyelmi").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  if (access.activeCompanyId) {
+    deleteQuery = deleteQuery.eq("company_id", access.activeCompanyId)
+  }
+  const { error } = await deleteQuery
   if (error) return { error: error.message }
   revalidatePath(`/hr/employee/${employeeId}`)
   return { success: true }
@@ -1266,7 +1274,8 @@ export async function fileDisciplinaryAction(disciplinaryId: string, employeeId:
     documentId: docId,
     employeeId,
     customTargy: docSubject,
-    currentUserId: user.id
+    currentUserId: user.id,
+    companyId: item.company_id || access.activeCompanyId
   })
 
   if (!filingResult.success) {
@@ -1429,7 +1438,11 @@ export async function deleteKituntetes(id: string, employeeId: string) {
     return { error: `A hivatalosan beiktatott elismerés (${existing.iktatoszam}) a levéltári szabályzat szerint nem törölhető!` }
   }
 
-  const { error } = await supabase.from("hr_kituntetes").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  let deleteQuery = supabase.from("hr_kituntetes").delete().eq("id", id).eq("dolgozo_id", employeeId)
+  if (access.activeCompanyId) {
+    deleteQuery = deleteQuery.eq("company_id", access.activeCompanyId)
+  }
+  const { error } = await deleteQuery
   if (error) return { error: error.message }
   revalidatePath(`/hr/employee/${employeeId}`)
   return { success: true }
@@ -1553,7 +1566,8 @@ export async function fileKituntetesAction(awardId: string, employeeId: string) 
     documentId: docId,
     employeeId,
     customTargy: docSubject,
-    currentUserId: user.id
+    currentUserId: user.id,
+    companyId: item.company_id || access.activeCompanyId
   })
 
   if (!filingResult.success) {
@@ -1596,6 +1610,13 @@ export async function fileKituntetesAction(awardId: string, employeeId: string) 
 }
 
 export async function revealEmployeeSecretData(employeeId: string) {
+  const access = await requireEmployeeActionAccess(
+    employeeId,
+    ["employees", "admin", "payroll", "onboarding", "auditor"],
+    { allowSelf: true, readOnly: true }
+  )
+  if (!access.ok) return { error: access.error || "Hozzáférés megtagadva." }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
@@ -1623,7 +1644,7 @@ export async function revealEmployeeSecretData(employeeId: string) {
     .maybeSingle()
 
   if (!recentLog) {
-    const activeCompanyId = await getActiveCompanyIdServer()
+    const activeCompanyId = access.activeCompanyId || (await getActiveCompanyIdServer())
     await supabase.from("hr_esemeny_naplo").insert({
       felhasznalo_id: user.id,
       esemeny_tipus: "adat_megtekintes",
@@ -1690,6 +1711,16 @@ export async function updateGeneralPersonalInfo(employeeId: string, formData: Fo
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
+  // Ellenőrizzük, hogy a hívónak van-e HR-es írási joga a törvényi/bérszámfejtési mezők módosításához
+  let hasHrEmployeeWriteAccess = false
+  if (user.id !== employeeId) {
+    hasHrEmployeeWriteAccess = true
+  } else {
+    const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
+    const auth = await requireHrAuthServer(["employees", "admin"], null)
+    hasHrEmployeeWriteAccess = auth.authorized && checkHrWriteAccess(auth, ["admin", "employees", "onboarding"])
+  }
+
   const szuletesi_datum = formData.get("szuletesi_datum") as string
   const szuletesi_hely = formData.get("szuletesi_hely") as string
   const anyja_neve = formData.get("anyja_neve") as string
@@ -1705,15 +1736,23 @@ export async function updateGeneralPersonalInfo(employeeId: string, formData: Fo
     .eq("id", employeeId)
     .single()
 
-  const uj_adatok = {
-    szuletesi_datum: szuletesi_datum || null,
-    szuletesi_ido: szuletesi_datum || null,
+  const uj_adatok: Record<string, any> = {
     szuletesi_hely: szuletesi_hely || null,
     anyja_neve: anyja_neve || null,
     lakcim: lakcim || null,
     telefonszam: telefonszam || null,
-    gyermekek_szama: parseInt(gyermekek_szama) || 0,
-    megvaltozott_munkakepessegu: megvaltozott_munkakepessegu
+  }
+
+  if (hasHrEmployeeWriteAccess) {
+    uj_adatok.szuletesi_datum = szuletesi_datum || null
+    uj_adatok.szuletesi_ido = szuletesi_datum || null
+    uj_adatok.gyermekek_szama = parseInt(gyermekek_szama) || 0
+    uj_adatok.megvaltozott_munkakepessegu = megvaltozott_munkakepessegu
+  } else if (oldData) {
+    uj_adatok.szuletesi_datum = oldData.szuletesi_datum
+    uj_adatok.szuletesi_ido = oldData.szuletesi_datum
+    uj_adatok.gyermekek_szama = oldData.gyermekek_szama ?? 0
+    uj_adatok.megvaltozott_munkakepessegu = oldData.megvaltozott_munkakepessegu ?? false
   }
 
   // 2. Frissítés
@@ -2148,6 +2187,7 @@ export async function fileHrDocumentAction(
     employeeId,
     customTargy,
     currentUserId: user.id,
+    companyId: access.activeCompanyId,
     clientInfo,
   })
 
@@ -2203,6 +2243,7 @@ export async function fileAllHrDocumentsAction(employeeId: string) {
   const result = await executeBatchHrDocumentsFiling(supabase, {
     employeeId,
     currentUserId: user.id,
+    companyId: access.activeCompanyId,
     clientInfo,
   })
 
@@ -2361,7 +2402,8 @@ export async function fileAnnualLeaveSheet(employeeId: string, year: number) {
       documentId: docId,
       employeeId,
       customTargy: docName,
-      currentUserId: user.id
+      currentUserId: user.id,
+      companyId: activeCompanyId || access.activeCompanyId
     })
 
     if (!filingResult.success) {

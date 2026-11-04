@@ -145,16 +145,20 @@ export async function getActiveCompanyMemberRolesServer(targetCompanyId?: string
       ? {
           companyId: membership.company_id,
           role: membership.role,
-          docs_szerepkor: membership.docs_szerepkor,
-          docs_modulok: (membership as any).docs_modulok || null,
-          docs_iras_modulok: Array.isArray((membership as any).docs_iras_modulok)
-            ? (membership as any).docs_iras_modulok
-            : null,
-          hr_szerepkor: membership.hr_szerepkor,
-          hr_modulok: (membership as any).hr_modulok || [],
-          hr_iras_modulok: Array.isArray((membership as any).hr_iras_modulok)
-            ? (membership as any).hr_iras_modulok
-            : null,
+          docs_szerepkor: hasDocsModule ? membership.docs_szerepkor : null,
+          docs_modulok: hasDocsModule ? (membership as any).docs_modulok || null : [],
+          docs_iras_modulok: hasDocsModule
+            ? Array.isArray((membership as any).docs_iras_modulok)
+              ? (membership as any).docs_iras_modulok
+              : null
+            : [],
+          hr_szerepkor: hasHrModule ? membership.hr_szerepkor : null,
+          hr_modulok: hasHrModule ? (membership as any).hr_modulok || [] : [],
+          hr_iras_modulok: hasHrModule
+            ? Array.isArray((membership as any).hr_iras_modulok)
+              ? (membership as any).hr_iras_modulok
+              : null
+            : [],
         }
       : null,
     profile
@@ -174,6 +178,7 @@ export async function getActiveCompanyMemberRolesServer(targetCompanyId?: string
               ? (profile as any).hr_iras_modulok
               : null
             : [],
+          elerheto_modulok: allowedModules,
         }
       : null
   )

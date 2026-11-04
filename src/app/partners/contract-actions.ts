@@ -125,7 +125,7 @@ export async function createCustomContractTemplateAction(templateData: {
 }> {
   try {
     const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "partners"])
     if (!auth.authorized || !auth.user) {
       return { success: false, error: auth.error || "Nincs jogosultságod szerződéssablon létrehozásához." }
     }
@@ -219,7 +219,7 @@ export async function deleteContractTemplateAction(templateId: string): Promise<
 }> {
   try {
     const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "partners"])
     if (!auth.authorized || !auth.user) {
       return { success: false, error: auth.error || "Nincs jogosultságod szerződéssablon törléséhez." }
     }
@@ -288,7 +288,7 @@ export async function getContractGeneratorContextAction(partnerId: string): Prom
 }> {
   try {
     const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "partners"])
     if (!auth.authorized || !auth.user) {
       return { success: false, error: auth.error || "Nincs jogosultságod a szerződésgenerátor eléréséhez." }
     }
@@ -450,7 +450,7 @@ export async function generateContractDraftAction(
 }> {
   try {
     const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "partners"])
     if (!auth.authorized || !auth.user) {
       return { success: false, error: auth.error || "Nincs jogosultságod szerződéstervezet generálásához." }
     }
@@ -680,7 +680,7 @@ export async function finalizeAndFileContractAction(
 }> {
   try {
     const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "partners"])
     if (!auth.authorized || !auth.user) {
       return { success: false, error: auth.error || "Nincs jogosultságod szerződés véglegesítéséhez és iktatásához." }
     }

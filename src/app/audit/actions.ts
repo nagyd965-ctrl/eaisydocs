@@ -112,7 +112,7 @@ export async function getDocsCentralAuditLogs(companyId?: string): Promise<{
 
     const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
     const auth = await requireDocsAuthServer(
-      ["admin", "rendszergazda", "auditor", "vezeto"],
+      ["admin", "rendszergazda", "auditor", "vezeto", "audit"],
       effectiveCompanyId
     )
     if (!auth.authorized || !auth.user) {

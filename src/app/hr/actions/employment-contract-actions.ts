@@ -536,6 +536,7 @@ export async function generateAndFileEmploymentContractAction(params: GenerateEm
           if (taj || ado || bank || brutto) {
             await adminClient.from("hr_dolgozo_titkos_adat").upsert({
               dolgozo_id: params.dolgozoId,
+              ...(activeCompanyId ? { company_id: activeCompanyId } : {}),
               taj_szam_titkositott: taj ? toByteaHex(taj) : null,
               adoazonosito_titkositott: ado ? toByteaHex(ado) : null,
               bankszamla_titkositott: bank ? toByteaHex(bank) : null,

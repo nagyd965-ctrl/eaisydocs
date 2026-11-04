@@ -16,7 +16,7 @@ export async function uploadIncomingDocument(formData: FormData) {
   const activeCompanyId = await getActiveCompanyIdServer()
 
   const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato"], activeCompanyId)
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "inbox"], activeCompanyId)
   if (!auth.authorized || !auth.user) {
     return { error: auth.error || "Nincs jogosultságod új irat érkeztetéséhez." }
   }
@@ -177,7 +177,7 @@ export async function uploadIncomingDocument(formData: FormData) {
 export async function syncIncomingEmailsAction() {
   try {
     const { requireDocsAuthServer } = await import("@/utils/docs-auth-guard")
-    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo"])
+    const auth = await requireDocsAuthServer(["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "inbox"])
     if (!auth.authorized) {
       return { success: false, error: auth.error || "Nincs jogosultságod az e-mail szinkronizáláshoz." }
     }
