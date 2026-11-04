@@ -3,7 +3,11 @@ import { createClient } from "@/utils/supabase/server"
 import { SubstituteAlertBanner } from "@/components/hr/substitute-alert-banner"
 import { ManagerTeamTabs, type ManagerTeamMember, type DailyAttendanceStatus } from "@/components/hr/manager-team-tabs"
 import { type UnifiedApprovalItem } from "@/components/hr/unified-approvals-panel"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import {
+  checkHrWriteAccess,
+  isStrictHrReadOnlyUser,
+  requireHrAuthServer,
+} from "@/utils/hr/hr-auth-guard"
 import { syncExpiredSubstitutions } from "@/utils/hr/substitute-sync"
 import { Shield } from "lucide-react"
 
@@ -295,6 +299,10 @@ export default async function ManagerPage() {
   }
   const teamMembers = Array.from(teamMemberMap.values())
   const todayAbsentCount = teamMembers.filter((m) => m.isAbsent).length
+  const canWriteApprovals =
+    auth.isCompanyAdmin ||
+    (!isStrictHrReadOnlyUser(auth) &&
+      (auth.hrRole === "vezeto" || checkHrWriteAccess(auth, ["time", "admin"])))
 
   return (
     <div key={activeCompanyId || "default"} className="space-y-6 pb-10">
@@ -324,6 +332,7 @@ export default async function ManagerPage() {
         teamMembers={teamMembers}
         allLeaves={allLeaves || []}
         todayAbsentCount={todayAbsentCount}
+        canWrite={canWriteApprovals}
       />
 
     </div>

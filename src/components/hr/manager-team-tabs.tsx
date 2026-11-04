@@ -45,6 +45,7 @@ interface ManagerTeamTabsProps {
   teamMembers: ManagerTeamMember[]
   allLeaves: any[]
   todayAbsentCount: number
+  canWrite?: boolean
 }
 
 export function ManagerTeamTabs({
@@ -52,6 +53,7 @@ export function ManagerTeamTabs({
   teamMembers,
   allLeaves,
   todayAbsentCount,
+  canWrite = true,
 }: ManagerTeamTabsProps) {
   // Ha van függő kérelem, automatikusan a jóváhagyásokra fókuszálunk, egyébként a naptárra
   const [activeTab, setActiveTab] = useState<"jovahagyasok" | "naptar" | "csapat">(() => {
@@ -182,7 +184,7 @@ export function ManagerTeamTabs({
       {/* 1. FÜL: JÓVÁHAGYÁSOK (Teljes szélességben) */}
       {activeTab === "jovahagyasok" && (
         <div className="space-y-4">
-          <UnifiedApprovalsPanel initialItems={unifiedItems} />
+          <UnifiedApprovalsPanel initialItems={unifiedItems} canWrite={canWrite} />
         </div>
       )}
 

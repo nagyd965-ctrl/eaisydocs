@@ -46,13 +46,15 @@ export function CandidateProfileSheet({
   isOpen, 
   onClose,
   onUpdate,
-  onDelete
+  onDelete,
+  isReadOnly = false,
 }: { 
   candidate: Candidate | null,
   isOpen: boolean,
   onClose: () => void,
   onUpdate?: (candidate: Partial<Candidate> & { id: string; [key: string]: unknown }) => void,
-  onDelete?: (id: string) => void
+  onDelete?: (id: string) => void,
+  isReadOnly?: boolean
 }) {
   const [isLoadingCv, setIsLoadingCv] = useState(false)
   const [noteText, setNoteText] = useState("")
@@ -67,7 +69,7 @@ export function CandidateProfileSheet({
   }, [candidate])
 
   const handleSaveNote = async () => {
-    if (!candidate || !noteText.trim()) return
+    if (isReadOnly || !candidate || !noteText.trim()) return
     setIsSavingNote(true)
     try {
       const res = await updateCandidateNote(candidate.id, noteText)
@@ -88,7 +90,7 @@ export function CandidateProfileSheet({
   }
 
   const handleStatusChange = async (newStatus: string) => {
-    if (!candidate || candidate.statusz === newStatus) return
+    if (isReadOnly || !candidate || candidate.statusz === newStatus) return
     setIsChangingStatus(true)
     try {
       const res = await updateCandidateStatus(candidate.id, newStatus)
@@ -142,7 +144,7 @@ export function CandidateProfileSheet({
   }
 
   const handleRunAI = async () => {
-    if (!candidate || !candidate.cv_storage_path) return
+    if (isReadOnly || !candidate || !candidate.cv_storage_path) return
     setIsParsingAI(true)
     try {
       const res = await fetch("/api/hr/parse-cv", {
@@ -251,10 +253,14 @@ export function CandidateProfileSheet({
                 </div>
               ) : !candidate.ai_status || candidate.ai_status === 'pending' || candidate.ai_status === 'error' ? (
                 <div className="flex flex-col items-center justify-center py-2">
-                  <Button onClick={handleRunAI} disabled={isParsingAI} size="sm" className="w-fit">
-                    {isParsingAI && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Elemzés futtatása
-                  </Button>
+                  {!isReadOnly ? (
+                    <Button onClick={handleRunAI} disabled={isParsingAI} size="sm" className="w-fit">
+                      {isParsingAI && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Elemzés futtatása
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">AI elemzés még nem készült.</span>
+                  )}
                 </div>
               ) : candidate.ai_status === 'processing' ? (
                 <div className="flex flex-col items-center justify-center py-8 space-y-3">
@@ -297,12 +303,14 @@ export function CandidateProfileSheet({
                     </div>
                   )}
                   
-                  <div className="flex justify-end">
-                    <Button variant="ghost" size="sm" onClick={handleRunAI} disabled={isParsingAI} className="text-xs text-muted-foreground">
-                      {isParsingAI ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
-                      Újrafuttatás
-                    </Button>
-                  </div>
+                  {!isReadOnly && (
+                    <div className="flex justify-end">
+                      <Button variant="ghost" size="sm" onClick={handleRunAI} disabled={isParsingAI} className="text-xs text-muted-foreground">
+                        {isParsingAI ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
+                        Újrafuttatás
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -442,74 +450,78 @@ export function CandidateProfileSheet({
               </div>
             )}
 
-            <div className="space-y-3 mt-4">
-              <Textarea 
-                placeholder="Írd ide az új interjú tapasztalatokat, bérigényt..." 
-                className="min-h-[80px] resize-none focus-visible:ring-primary/20 bg-muted/30"
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-              />
-              <Button 
-                className="w-full" 
-                variant="outline" 
-                onClick={handleSaveNote}
-                disabled={isSavingNote || !noteText.trim()}
-              >
-                {isSavingNote ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                {isSavingNote ? "Mentés..." : "Új jegyzet hozzáadása"}
-              </Button>
-            </div>
+            {!isReadOnly && (
+              <div className="space-y-3 mt-4">
+                <Textarea 
+                  placeholder="Írd ide az új interjú tapasztalatokat, bérigényt..." 
+                  className="min-h-[80px] resize-none focus-visible:ring-primary/20 bg-muted/30"
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                />
+                <Button 
+                  className="w-full" 
+                  variant="outline" 
+                  onClick={handleSaveNote}
+                  disabled={isSavingNote || !noteText.trim()}
+                >
+                  {isSavingNote ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                  {isSavingNote ? "Mentés..." : "Új jegyzet hozzáadása"}
+                </Button>
+              </div>
+            )}
           </div>
           
         </div>
 
         {/* Action Buttons Footer */}
-        <div className="p-4 border-t bg-muted/20 flex gap-2">
-          <Button 
-            variant="default" 
-            className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
-            onClick={() => handleStatusChange("elfogadva")}
-            disabled={candidate.statusz === "elfogadva" || isChangingStatus}
-          >
-            <CheckCircle className="w-4 h-4 mr-1.5" />
-            Elfogad
-          </Button>
-          <Button 
-            variant="destructive" 
-            className="flex-1"
-            onClick={() => handleStatusChange("elutasitva")}
-            disabled={candidate.statusz === "elutasitva" || isChangingStatus}
-          >
-            <XCircle className="w-4 h-4 mr-1.5" />
-            Elutasít
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger 
-              className={`${buttonVariants({ variant: "outline" })} flex-none text-destructive hover:text-destructive hover:bg-destructive/10 px-3`}
+        {!isReadOnly && (
+          <div className="p-4 border-t bg-muted/20 flex gap-2">
+            <Button 
+              variant="default" 
+              className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
+              onClick={() => handleStatusChange("elfogadva")}
+              disabled={candidate.statusz === "elfogadva" || isChangingStatus}
             >
-              <Trash2 className="w-4 h-4" />
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Biztosan törölni szeretnéd a jelöltet?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Ez a művelet nem vonható vissza. A jelölt összes adata, önéletrajza és a hozzá tartozó jegyzetek véglegesen törlésre kerülnek.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Mégse</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={() => {
-                    if (onDelete) onDelete(candidate.id)
-                  }}
-                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                >
-                  Törlés
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+              <CheckCircle className="w-4 h-4 mr-1.5" />
+              Elfogad
+            </Button>
+            <Button 
+              variant="destructive" 
+              className="flex-1"
+              onClick={() => handleStatusChange("elutasitva")}
+              disabled={candidate.statusz === "elutasitva" || isChangingStatus}
+            >
+              <XCircle className="w-4 h-4 mr-1.5" />
+              Elutasít
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger 
+                className={`${buttonVariants({ variant: "outline" })} flex-none text-destructive hover:text-destructive hover:bg-destructive/10 px-3`}
+              >
+                <Trash2 className="w-4 h-4" />
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Biztosan törölni szeretnéd a jelöltet?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Ez a művelet nem vonható vissza. A jelölt összes adata, önéletrajza és a hozzá tartozó jegyzetek véglegesen törlésre kerülnek.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Mégse</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={() => {
+                      if (onDelete) onDelete(candidate.id)
+                    }}
+                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                  >
+                    Törlés
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   )

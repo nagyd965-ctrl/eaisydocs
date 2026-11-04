@@ -280,10 +280,10 @@ export async function toggle14DayWaiverAction(
 
   // P0-javítás (2026-11-01): őrblokk — korábban EGYSZERŰ ellenőrzés nélkül futott,
   // bármely bejelentkezett dolgozó átírhatta más munkavállaló megállapodását
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["compliance"], null)
-  if (!auth.authorized) {
-    return { success: false, error: "Nincs jogosultságod a megállapodás módosításához (Munkaügyi Megfelelőség modul szükséges)." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["compliance", "admin"])) {
+    return { success: false, error: "Nincs jogosultságod a megállapodás módosításához (Munkaügyi Megfelelőség írási jogosultság szükséges)." }
   }
   if (auth.activeCompanyId) {
     const { data: adatlap } = await supabase
@@ -715,10 +715,10 @@ export async function toggleVoluntaryOvertimeAgreementAction(
   const supabase = await createClient()
 
   // P0-javítás (2026-11-01): őrblokk + cég-ellenőrzés (a toggle14DayWaiverAction mintájára)
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["compliance"], null)
-  if (!auth.authorized) {
-    return { success: false, error: "Nincs jogosultságod a megállapodás módosításához (Munkaügyi Megfelelőség modul szükséges)." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["compliance", "admin"])) {
+    return { success: false, error: "Nincs jogosultságod a megállapodás módosításához (Munkaügyi Megfelelőség írási jogosultság szükséges)." }
   }
   if (auth.activeCompanyId) {
     const { data: adatlap } = await supabase

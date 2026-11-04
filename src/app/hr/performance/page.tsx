@@ -5,10 +5,11 @@ import { AddKpiDialog } from "@/components/hr/add-kpi-dialog"
 import { ManageCyclesDialog } from "@/components/hr/manage-cycles-dialog"
 import { PerformanceList } from "@/components/hr/performance-list"
 import { KpiCard } from "@/components/kpi-card"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { isStrictHrReadOnlyUser, requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 import {
   getScopedPerformanceEmployeeIds,
   hasFullCompanyPerformanceAccess,
+  hasFullCompanyPerformanceWriteAccess,
 } from "@/utils/hr/performance-access"
 import { type KpiCatalogueItem } from "@/types/hr"
 
@@ -27,7 +28,9 @@ export default async function PerformancePage() {
 
   const { activeCompanyId } = auth
   const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
-  const isFullCompanyManager = hasFullCompanyPerformanceAccess(auth)
+  const canViewFullCompany = hasFullCompanyPerformanceAccess(auth)
+  const isFullCompanyManager = hasFullCompanyPerformanceWriteAccess(auth)
+  const isReadOnlyUser = isStrictHrReadOnlyUser(auth)
 
   // Admin kliens használata az adatok biztonságos, céges szűréséhez
   const supabaseAdmin = createAdminClient(
@@ -46,6 +49,18 @@ export default async function PerformancePage() {
     auth,
     memberUserIds
   )
+  const managedTeamUserIds = isFullCompanyManager
+    ? scopedEmployeeIds
+    : canViewFullCompany
+    ? isReadOnlyUser
+      ? []
+      : await getScopedPerformanceEmployeeIds(
+          supabaseAdmin,
+          { ...auth, isCompanyAdmin: false, hrRole: "vezeto", hrModules: [] },
+          memberUserIds
+        )
+    : scopedEmployeeIds
+  const canCreateKpi = isFullCompanyManager || (!isReadOnlyUser && managedTeamUserIds.length > 0)
   const safeMemberIds = scopedEmployeeIds.length > 0 ? scopedEmployeeIds : ["00000000-0000-0000-0000-000000000000"]
 
   const [kpisRes, employeesRes, cyclesRes, logsRes, catalogueRes] = await Promise.all([
@@ -139,7 +154,7 @@ export default async function PerformancePage() {
             Teljesítményértékelés
           </h1>
           <p className="text-muted-foreground mt-1">
-            {isFullCompanyManager
+            {canViewFullCompany
               ? "Vállalati és egyéni KPI-ok, célok nyomon követése és kiértékelése."
               : "Saját közvetlen csapatod KPI-jainak, céljainak nyomon követése és kiértékelése."}
           </p>
@@ -151,12 +166,18 @@ export default async function PerformancePage() {
             </Button>
           </Link>
           {isFullCompanyManager && <ManageCyclesDialog cycles={cycles || []} />}
-          <AddKpiDialog 
-            employees={employees || []} 
-            cycles={cycles || []} 
-            allKpis={kpis || []} 
-            catalogue={catalogue}
-          />
+          {canCreateKpi && (
+            <AddKpiDialog 
+              employees={
+                isFullCompanyManager
+                  ? employees || []
+                  : (employees || []).filter((e: any) => managedTeamUserIds.includes(e.id))
+              } 
+              cycles={cycles || []} 
+              allKpis={kpis || []} 
+              catalogue={catalogue}
+            />
+          )}
         </div>
       </div>
 
@@ -192,6 +213,10 @@ export default async function PerformancePage() {
         cycles={cycles || []} 
         allKpis={kpis || []} 
         catalogue={catalogue}
+        canCreateKpi={canCreateKpi}
+        isReadOnlyUser={isReadOnlyUser}
+        currentUserId={auth.user?.id}
+        manageableEmployeeIds={isFullCompanyManager ? scopedEmployeeIds : managedTeamUserIds}
       />
 
     </div>

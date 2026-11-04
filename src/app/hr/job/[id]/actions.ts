@@ -5,12 +5,12 @@ import { revalidatePath } from "next/cache"
 import { generateJobDescriptionPdfBuffer } from "@/utils/hr/job-description-pdf-generator"
 import type { JobDescriptionPdfData } from "@/utils/hr/job-description-constants"
 import { getActiveCompanyServer } from "@/utils/company-server"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { requireHrWriteServer } from "@/utils/hr/hr-auth-guard"
 
 async function verifyJobAdminAccess(jobId: string) {
-  const auth = await requireHrAuthServer(["admin", "organization"], null)
+  const auth = await requireHrWriteServer(["organization", "admin"], null)
   if (!auth.authorized || !auth.user) {
-    return { ok: false as const, error: "Nincs jogosultság a munkakör módosításához." }
+    return { ok: false as const, error: "Nincs írási jogosultság a munkakör módosításához." }
   }
 
   const supabase = await createClient()

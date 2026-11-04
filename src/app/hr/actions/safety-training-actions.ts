@@ -114,10 +114,10 @@ export async function generateAndFileSafetyTrainingAction(params: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["compliance", "onboarding", "employees", "admin"], null)
-  if (!auth.authorized) {
-    return { error: "Nincs jogosultságod munkavédelmi oktatási jegyzőkönyv generálásához." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["admin", "compliance", "onboarding"])) {
+    return { error: "Nincs írási jogosultságod munkavédelmi oktatási jegyzőkönyv generálásához." }
   }
   const activeCompanyId = auth.activeCompanyId
 
@@ -375,10 +375,10 @@ export async function fileExistingSafetyTrainingDocument(params: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["compliance", "onboarding", "employees", "admin"], null)
-  if (!auth.authorized) {
-    return { error: "Nincs jogosultságod a munkavédelmi jegyzőkönyv iktatásához." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["admin", "compliance", "onboarding"])) {
+    return { error: "Nincs írási jogosultságod a munkavédelmi jegyzőkönyv iktatásához." }
   }
 
   const adminClient = getAdminClient()

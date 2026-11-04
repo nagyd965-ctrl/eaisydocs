@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache"
 import { sendNotificationEmail, buildHtmlEmail } from "@/utils/mailer"
 import { getBaseUrl } from "@/utils/url"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
-import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
+import { hasHrWriteAccess, isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 
 function getAdminClient() {
   return createAdminClient(
@@ -15,7 +15,7 @@ function getAdminClient() {
   )
 }
 
-async function verifyRecruitmentAccess() {
+async function verifyRecruitmentAccess(requireWrite: boolean = true) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { allowed: false, error: "Nincs bejelentkezve", activeCompanyId: null, user: null }
@@ -23,12 +23,12 @@ async function verifyRecruitmentAccess() {
   const activeCompanyId = await getActiveCompanyIdServer()
   if (!activeCompanyId) return { allowed: false, error: "Nincs kiválasztott cég", activeCompanyId: null, user }
 
-  // BUG-0 javítás (2026-10-31): a legacy szerepkörnevek ("hr_munkatars", "toborzo", ...)
-  // helyett a kanonikus modulkulcs-ellenőrzés — a Toborzás modullal rendelkező,
-  // nem-admin HR-esek is menthetnek (az általuk megnyitott oldal action-jei eddig elutasultak).
-  const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
-  if (!isCompanyAdmin && !isUserAuthorizedForHrView(hrRole, ["recruitment"], hrModules)) {
+  const { hrRole, hrModules, hrWriteModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  if (!isCompanyAdmin && !isUserAuthorizedForHrView(hrRole, ["recruitment", "admin"], hrModules)) {
     return { allowed: false, error: "Nincs jogosultságod a toborzás kezeléséhez ebben a cégben.", activeCompanyId, user }
+  }
+  if (requireWrite && !isCompanyAdmin && !hasHrWriteAccess(hrRole, hrModules, hrWriteModules, ["recruitment", "admin"])) {
+    return { allowed: false, error: "Nincs írási jogosultságod a toborzási modulhoz (Csak olvasás mód).", activeCompanyId, user }
   }
 
   return { allowed: true, activeCompanyId, hrRole, isCompanyAdmin, user }
@@ -364,7 +364,7 @@ export async function deleteCandidate(candidateId: string) {
 }
 
 export async function generateCvSignedUrl(candidateId: string, storagePath: string) {
-  const auth = await verifyRecruitmentAccess()
+  const auth = await verifyRecruitmentAccess(false)
   if (!auth.allowed || !auth.user) {
     return { error: auth.error || "Hozzáférés megtagadva" }
   }

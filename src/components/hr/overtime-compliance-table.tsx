@@ -35,9 +35,10 @@ import {
 
 interface OvertimeComplianceTableProps {
   initialData: CompanyOvertimeComplianceOverview
+  canWrite?: boolean
 }
 
-export function OvertimeComplianceTable({ initialData }: OvertimeComplianceTableProps) {
+export function OvertimeComplianceTable({ initialData, canWrite = true }: OvertimeComplianceTableProps) {
   const [data, setData] = useState<CompanyOvertimeComplianceOverview>(initialData)
   const [search, setSearch] = useState("")
   const [selectedWeeklyStatus, setSelectedWeeklyStatus] = useState<string>("all")
@@ -187,6 +188,7 @@ export function OvertimeComplianceTable({ initialData }: OvertimeComplianceTable
 
   // 400h megállapodás kapcsoló kezelő
   const handleToggleAgreement = (employeeId: string, currentStatus: boolean) => {
+    if (!canWrite) return
     setLoadingEmpId(employeeId)
     const newStatus = !currentStatus
 
@@ -504,7 +506,7 @@ export function OvertimeComplianceTable({ initialData }: OvertimeComplianceTable
                                 onCheckedChange={() =>
                                   handleToggleAgreement(rec.dolgozoId, rec.hasVoluntaryAgreement)
                                 }
-                                disabled={isPending}
+                                disabled={!canWrite || isPending}
                                 className="h-4 w-4 data-[state=checked]:bg-primary"
                               />
                             )}

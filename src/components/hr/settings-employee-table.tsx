@@ -22,12 +22,14 @@ export interface SettingsEmployeeTableProps {
   employees: any[]
   jobs: any[]
   orgUnits: any[]
+  canWrite?: boolean
 }
 
 export function SettingsEmployeeTable({
   employees,
   jobs,
-  orgUnits
+  orgUnits,
+  canWrite = true,
 }: SettingsEmployeeTableProps) {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"aktiv" | "kilepett" | "all">("aktiv")
@@ -293,16 +295,20 @@ export function SettingsEmployeeTable({
 
                   {/* Műveletek */}
                   <td className="px-6 py-3.5 text-right flex items-center justify-end gap-1">
-                    <EmployeeEditDialog 
-                      employee={emp} 
-                      jobs={jobs || []} 
-                      orgUnits={orgUnits || []} 
-                      managers={employees || []} 
-                    />
-                    <EmployeeDeleteDialog 
-                      employeeId={emp.id} 
-                      employeeName={emp.nev} 
-                    />
+                    {canWrite && (
+                      <>
+                        <EmployeeEditDialog 
+                          employee={emp} 
+                          jobs={jobs || []} 
+                          orgUnits={orgUnits || []} 
+                          managers={employees || []} 
+                        />
+                        <EmployeeDeleteDialog 
+                          employeeId={emp.id} 
+                          employeeName={emp.nev} 
+                        />
+                      </>
+                    )}
                   </td>
                 </tr>
               )

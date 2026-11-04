@@ -13,7 +13,7 @@ import { updateProfile } from "@/app/settings/settings-actions"
 import { AvatarUploadSection } from "./avatar-upload"
 import { CompanySettingsTab } from "@/components/settings/company-settings-tab"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
-import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
 
 export default async function HrSettingsPage() {
   const supabase = await createClient()
@@ -28,14 +28,14 @@ export default async function HrSettingsPage() {
     .single()
 
   const activeCompanyId = await getActiveCompanyIdServer()
-  const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  const { hrRole, hrModules, hrWriteModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
   const { data: mfaData } = await supabase.auth.mfa.listFactors()
   const totpFactor = mfaData?.totp?.find((f: any) => f.status === "verified") ?? null
 
   const isHrOrAdmin =
     isCompanyAdmin ||
-    isUserAuthorizedForHrView(hrRole, ["admin", "settings"], hrModules)
+    hasHrWriteAccess(hrRole, hrModules, hrWriteModules, ["admin", "organization"])
 
   const HR_RULE_TYPES = [
     "orvosi_vizsgalat_lejarat",

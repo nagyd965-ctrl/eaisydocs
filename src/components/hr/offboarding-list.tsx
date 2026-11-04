@@ -72,9 +72,10 @@ interface OffboardingListProps {
   offboardings: OffboardingListItem[]
   employees: Employee[]
   exitInterviews?: ExitInterview[]
+  canWrite?: boolean
 }
 
-export function OffboardingList({ offboardings, employees, exitInterviews = [] }: OffboardingListProps) {
+export function OffboardingList({ offboardings, employees, exitInterviews = [], canWrite = true }: OffboardingListProps) {
   const [activeTab, setActiveTab] = useState<string>("folyamatban")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [search, setSearch] = useState("")
@@ -129,7 +130,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
     : 0
 
   const handleDateChange = async (id: string, newDate: string) => {
-    if (!newDate) return
+    if (!canWrite || !newDate) return
     const result = await updateOffboardingDate(id, newDate)
     if (result.error) toast.error(result.error)
     else toast.success("Utolsó munkanap sikeresen frissítve!")
@@ -236,7 +237,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredList.map((offboarding) => (
-                <OffboardingCard key={offboarding.id} offboarding={offboarding} />
+                <OffboardingCard key={offboarding.id} offboarding={offboarding} canWrite={canWrite} />
               ))}
             </div>
           ) : (
@@ -328,7 +329,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredList.map((offboarding) => (
-                <OffboardingCard key={offboarding.id} offboarding={offboarding} />
+                <OffboardingCard key={offboarding.id} offboarding={offboarding} canWrite={canWrite} />
               ))}
             </div>
           ) : (
@@ -422,6 +423,7 @@ export function OffboardingList({ offboardings, employees, exitInterviews = [] }
             offboarding={selectedOffboarding}
             onDateChange={(newDate) => handleDateChange(selectedOffboarding.id, newDate)}
             onCloseDialog={() => setModalOpen(false)}
+            canWrite={canWrite}
           />
         </Dialog>
       )}

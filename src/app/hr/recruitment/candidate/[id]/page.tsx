@@ -2,6 +2,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { notFound } from "next/navigation"
 import { Shield } from "lucide-react"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
 import {
   CandidateTalentProfileClient,
   type CandidateHistoryItem,
@@ -33,6 +34,9 @@ export default async function CandidateTalentProfilePage({
   }
 
   const { activeCompanyId, hrRole, isCompanyAdmin } = auth
+  const isReadOnly =
+    !isCompanyAdmin &&
+    !hasHrWriteAccess(hrRole, auth.hrModules, auth.hrWriteModules, ["recruitment", "admin"])
   const { id } = await params
 
   const supabaseAdmin = createAdminClient(
@@ -81,7 +85,7 @@ export default async function CandidateTalentProfilePage({
         (historyRows as CandidateHistoryItem[]) || [candidate as CandidateHistoryItem]
       }
       openPostings={(openPostings as OpenPostingOption[]) || []}
-      isReadOnly={hrRole === "auditor" && !isCompanyAdmin}
+      isReadOnly={isReadOnly}
     />
   )
 }

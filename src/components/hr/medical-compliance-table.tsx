@@ -65,11 +65,13 @@ import {
 interface MedicalComplianceTableProps {
   initialData: CompanyMedicalOverview
   userRole?: string
+  canWrite?: boolean
 }
 
 export function MedicalComplianceTable({
   initialData,
   userRole = "admin",
+  canWrite = true,
 }: MedicalComplianceTableProps) {
   const router = useRouter()
   const [data, setData] = useState<CompanyMedicalOverview>(initialData)
@@ -88,7 +90,7 @@ export function MedicalComplianceTable({
 
   const today = new Date().toISOString().split("T")[0]
   const showDetails = userRole !== "munkavedelmi"
-  const canManage = ["hr_munkatars", "hr_vezeto", "admin"].includes(userRole)
+  const canManage = canWrite && ["hr_munkatars", "hr_vezeto", "admin", "munkavallalo", "vezeto"].includes(userRole)
 
   useEffect(() => {
     setData(initialData)

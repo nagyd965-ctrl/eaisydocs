@@ -10,6 +10,7 @@ import { KpiCard } from "@/components/kpi-card"
 import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
 import { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } from "@/utils/stealth-superadmin"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
@@ -194,7 +195,9 @@ export default async function HrAdminPage() {
   // Jogosultság ellenőrzése admin műveletekhez (szerkesztés, törlés a törzsadatbázisban)
   // Megrendelői döntés (2026-11-01): az Állomány modul a NÉZETET és a dolgozói adatok
   // szerkesztését adja — SZEREPKÖR-VÁLTÁS és TÖRLÉS kizárólag valódi HR admin szerepkör.
-  const canEdit = hrRole === "admin" || hrModules.includes("admin")
+  const canEdit =
+    scopedRoles.isCompanyAdmin ||
+    hasHrWriteAccess(hrRole, hrModules, scopedRoles.hrWriteModules, "admin")
   const canManage = hrRole === "admin"
 
   // Felvételi adatokhoz meglévő fiókok - csak az aktuális céghez tartozó Docs profilok

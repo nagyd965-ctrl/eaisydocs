@@ -13,6 +13,7 @@ interface TimeTabsViewProps {
   teamMembers: any[]
   leaves: any[]
   orgUnits: any[]
+  canWrite?: boolean
 }
 
 export function TimeTabsView({
@@ -21,6 +22,7 @@ export function TimeTabsView({
   teamMembers,
   leaves,
   orgUnits,
+  canWrite = true,
 }: TimeTabsViewProps) {
   const [activeTab, setActiveTab] = useState("shifts")
 
@@ -72,7 +74,7 @@ export function TimeTabsView({
 
         {/* Tab 1: Műszakbeosztás Tervező */}
         <TabsContent value="shifts" className="m-0 focus-visible:outline-none">
-          <ShiftPlannerWeeklyGrid initialData={initialRosterData} />
+          <ShiftPlannerWeeklyGrid initialData={initialRosterData} canWrite={canWrite} />
         </TabsContent>
 
         {/* Tab 2: Távollétek & Csapatnaptár (A meglévő TeamCalendar) */}
@@ -86,7 +88,7 @@ export function TimeTabsView({
 
         {/* Tab 3: Műszaksablonok beállítása */}
         <TabsContent value="templates" className="m-0 focus-visible:outline-none">
-          <ShiftTemplatesManager initialTemplates={initialTemplates} />
+          <ShiftTemplatesManager initialTemplates={initialTemplates} canWrite={canWrite} />
         </TabsContent>
       </Tabs>
     </div>

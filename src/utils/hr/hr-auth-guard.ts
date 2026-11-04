@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/utils/supabase/server"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
-import { isUserAuthorizedForHrView, type HrModuleKey } from "@/utils/hr/company-role-resolver"
+import {
+  hasHrWriteAccess,
+  isUserAuthorizedForHrView,
+  type HrModuleKey,
+} from "@/utils/hr/company-role-resolver"
 
 export interface HrAuthContext {
   authorized: boolean
@@ -13,6 +17,34 @@ export interface HrAuthContext {
   hrWriteModules: HrModuleKey[]
   docsRole: string
   isCompanyAdmin: boolean
+}
+
+/**
+ * Segédfüggvény annak ellenőrzésére, hogy a már feloldott `HrAuthContext`
+ * rendelkezik-e írási (`hr_iras_modulok`) jogosultsággal a megadott HR modul(ok)hoz.
+ */
+export function checkHrWriteAccess(
+  auth: Pick<HrAuthContext, "isCompanyAdmin" | "hrRole" | "hrModules" | "hrWriteModules">,
+  moduleKey: HrModuleKey | string | (HrModuleKey | string)[]
+): boolean {
+  if (auth.isCompanyAdmin || auth.hrRole === "admin" || auth.hrRole === "rendszergazda") {
+    return true
+  }
+  return hasHrWriteAccess(auth.hrRole, auth.hrModules, auth.hrWriteModules, moduleKey)
+}
+
+/**
+ * Ellenőrzi, hogy a felhasználó tisztán „Csak olvasás” (Auditor / Betekintő) módban van-e
+ * az aktív cégben (azaz van legalább 1 olvasási modulja, de 0 írási modulja).
+ */
+export function isStrictHrReadOnlyUser(
+  auth: Pick<HrAuthContext, "isCompanyAdmin" | "hrRole" | "hrModules" | "hrWriteModules">
+): boolean {
+  if (auth.isCompanyAdmin || auth.hrRole === "admin" || auth.hrRole === "rendszergazda") {
+    return false
+  }
+  if (auth.hrRole === "auditor") return true
+  return (auth.hrModules?.length || 0) > 0 && (auth.hrWriteModules?.length || 0) === 0
 }
 
 /**
@@ -74,3 +106,36 @@ export async function requireHrAuthServer(
     isCompanyAdmin: scopedRoles.isCompanyAdmin,
   }
 }
+
+/**
+ * eaisyHR Szerveroldali Írási Jogosultság Kapu (HR Write Auth Guard)
+ *
+ * Ellenőrzi, hogy a bejelentkezett felhasználónak van-e ÍRÁSI (`hr_iras_modulok`)
+ * jogosultsága a megadott HR modul(ok) legalább egyikéhez.
+ * Ha nincs (pl. „Csak olvasás” / Auditor mód), az `authorized` mezőt `false`-ra állítja
+ * (vagy átirányít, ha `fallbackRedirect` meg van adva).
+ */
+export async function requireHrWriteServer(
+  allowedWriteModules: HrModuleKey | HrModuleKey[],
+  fallbackRedirect: string | null = null
+): Promise<HrAuthContext> {
+  const modulesList = Array.isArray(allowedWriteModules)
+    ? allowedWriteModules
+    : [allowedWriteModules]
+
+  const auth = await requireHrAuthServer(modulesList, fallbackRedirect)
+  const canWrite =
+    auth.authorized &&
+    Boolean(auth.user) &&
+    checkHrWriteAccess(auth, modulesList)
+
+  if (!canWrite && fallbackRedirect) {
+    redirect(fallbackRedirect)
+  }
+
+  return {
+    ...auth,
+    authorized: canWrite,
+  }
+}
+

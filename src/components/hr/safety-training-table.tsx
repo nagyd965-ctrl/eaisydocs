@@ -41,9 +41,10 @@ import {
 
 interface SafetyTrainingTableProps {
   initialData: CompanySafetyOverview
+  canWrite?: boolean
 }
 
-export function SafetyTrainingTable({ initialData }: SafetyTrainingTableProps) {
+export function SafetyTrainingTable({ initialData, canWrite = true }: SafetyTrainingTableProps) {
   const [data, setData] = useState<CompanySafetyOverview>(initialData)
   const [search, setSearch] = useState("")
   const [selectedStatus, setSelectedStatus] = useState<string>("all")
@@ -546,23 +547,25 @@ export function SafetyTrainingTable({ initialData }: SafetyTrainingTableProps) {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Új oktatás rögzítése erre a dolgozóra */}
-                          <SafetyTrainingDialog
-                            employeeName={emp.nev}
-                            dolgozoId={emp.dolgozoId}
-                            munkakor={emp.munkakorMegnevezes}
-                            reszleg={emp.szervezetiEgysegNev}
-                            triggerButton={
-                              <Button
-                                variant={emp.status === "hianyzik" || emp.status === "lejart" ? "default" : "outline"}
-                                size="sm"
-                                className="h-7 text-xs gap-1"
-                                title="Munkavédelmi és tűzvédelmi oktatás rögzítése"
-                              >
-                                <HardHat className="w-3.5 h-3.5" />
-                                <span>{emp.status === "hianyzik" ? "Oktatás pótlása" : emp.status === "lejart" ? "Ismétlő oktatás" : "Új oktatás"}</span>
-                              </Button>
-                            }
-                          />
+                          {canWrite && (
+                            <SafetyTrainingDialog
+                              employeeName={emp.nev}
+                              dolgozoId={emp.dolgozoId}
+                              munkakor={emp.munkakorMegnevezes}
+                              reszleg={emp.szervezetiEgysegNev}
+                              triggerButton={
+                                <Button
+                                  variant={emp.status === "hianyzik" || emp.status === "lejart" ? "default" : "outline"}
+                                  size="sm"
+                                  className="h-7 text-xs gap-1"
+                                  title="Munkavédelmi és tűzvédelmi oktatás rögzítése"
+                                >
+                                  <HardHat className="w-3.5 h-3.5" />
+                                  <span>{emp.status === "hianyzik" ? "Oktatás pótlása" : emp.status === "lejart" ? "Ismétlő oktatás" : "Új oktatás"}</span>
+                                </Button>
+                              }
+                            />
+                          )}
 
                           <Link
                             href={`/hr/employee/${emp.dolgozoId}`}

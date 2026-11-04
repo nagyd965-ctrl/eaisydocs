@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
-import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
+import { checkHrWriteAccess, isStrictHrReadOnlyUser } from "@/utils/hr/hr-auth-guard"
 
 export async function approveLeaveRequest(id: string) {
   const supabase = await createClient()
@@ -15,6 +15,10 @@ export async function approveLeaveRequest(id: string) {
 
   const activeCompanyId = await getActiveCompanyIdServer()
   const scoped = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
+  if (isStrictHrReadOnlyUser(scoped)) {
+    return { error: "Csak olvasási jogosultsággal nem hagyhatsz jóvá kérelmet." }
+  }
 
   // 1. Kérelem lekérése
   const { data: req } = await supabase
@@ -31,10 +35,10 @@ export async function approveLeaveRequest(id: string) {
     return { error: "A kérelem egy másik vállalathoz tartozik." }
   }
 
-  // 2. Szerepkör és jóváhagyói jogosultság ellenőrzése (cég-scoped modulkulcsokkal)
+  // 2. Szerepkör és jóváhagyói jogosultság ellenőrzése (cég-scoped írási modulkulcsokkal)
   const isHrOrAdmin =
     scoped.isCompanyAdmin ||
-    isUserAuthorizedForHrView(scoped.hrRole, ["admin", "time", "payroll"], scoped.hrModules)
+    checkHrWriteAccess(scoped, ["admin", "time"])
 
   if (req.dolgozo_id === user.id && !isHrOrAdmin) {
     return { error: "Saját távolléti kérelmet nem hagyhatsz jóvá." }
@@ -108,11 +112,14 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string) {
     return { error: "A kérelem egy másik vállalathoz tartozik." }
   }
 
-  // 2. Szerepkör és jogosultság ellenőrzése (cég-scoped modulkulcsokkal)
+  // 2. Szerepkör és jogosultság ellenőrzése (cég-scoped írási modulkulcsokkal)
   const scoped = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  if (isStrictHrReadOnlyUser(scoped)) {
+    return { error: "Csak olvasási jogosultsággal nem utasíthatsz el kérelmet." }
+  }
   const isHrOrAdmin =
     scoped.isCompanyAdmin ||
-    isUserAuthorizedForHrView(scoped.hrRole, ["admin", "time", "payroll"], scoped.hrModules)
+    checkHrWriteAccess(scoped, ["admin", "time"])
 
   const isAssignedApprover = req.aktualis_jovahagyo_id === user.id
   let isSubordinate = false

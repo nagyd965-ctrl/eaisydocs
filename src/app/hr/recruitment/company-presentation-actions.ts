@@ -7,7 +7,7 @@ import {
   getActiveCompanyIdServer,
   getActiveCompanyMemberRolesServer,
 } from "@/utils/company-server"
-import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
 import {
   CompanyCareerPresentation,
   PresentationBriefingInput,
@@ -36,12 +36,11 @@ async function verifyPresentationAccess() {
     return { allowed: false, error: "Nincs kiválasztott vállalat", activeCompanyId: null, user }
   }
 
-  // BUG-0 javítás (2026-10-31): legacy szerepkörnevek helyett kanonikus modulkulcs-ellenőrzés
-  const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
-  if (!isCompanyAdmin && !isUserAuthorizedForHrView(hrRole, ["recruitment"], hrModules)) {
+  const { hrRole, hrModules, hrWriteModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  if (!isCompanyAdmin && !hasHrWriteAccess(hrRole, hrModules, hrWriteModules, ["recruitment", "admin"])) {
     return {
       allowed: false,
-      error: "Nincs jogosultságod a vállalati karrier-prezentáció szerkesztéséhez.",
+      error: "Nincs írási jogosultságod a vállalati karrier-prezentáció szerkesztéséhez.",
       activeCompanyId,
       user,
     }

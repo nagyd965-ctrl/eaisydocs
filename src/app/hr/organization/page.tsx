@@ -5,7 +5,7 @@ import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/u
 import { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } from "@/utils/stealth-superadmin"
 import { buildOrgTree, type OrgDolgozo, type OrgUnitNode } from "@/lib/org-chart-utils"
 import { OrganizationTabsView } from "@/components/hr/organization-tabs-view"
-import { normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
+import { hasHrWriteAccess, normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
 import { type PermissionMatrixEmployee } from "@/components/hr/permissions-matrix-view"
 
 interface PageProps {
@@ -32,6 +32,10 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
   const hrModules = scopedRoles.hrModules || []
   const isStrictAdmin = hrRole === "admin"
   const isAuthorizedForOrg = isStrictAdmin || hrModules.includes("organization")
+  const canWriteOrg =
+    scopedRoles.isCompanyAdmin ||
+    isStrictAdmin ||
+    hasHrWriteAccess(hrRole, hrModules, scopedRoles.hrWriteModules, ["organization", "admin"])
 
   if (!isAuthorizedForOrg) {
     redirect("/hr/self-service/profile")
@@ -216,6 +220,7 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
       allUsers={hrEmployees}
       defaultTab={defaultTab}
       isAdmin={isStrictAdmin}
+      canWrite={canWriteOrg}
       permissionEmployees={permissionEmployees}
       companyName={companyName}
     />

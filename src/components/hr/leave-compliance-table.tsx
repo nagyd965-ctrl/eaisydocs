@@ -37,9 +37,10 @@ import {
 
 interface LeaveComplianceTableProps {
   initialData: CompanyComplianceOverview
+  canWrite?: boolean
 }
 
-export function LeaveComplianceTable({ initialData }: LeaveComplianceTableProps) {
+export function LeaveComplianceTable({ initialData, canWrite = true }: LeaveComplianceTableProps) {
   const [data, setData] = useState<CompanyComplianceOverview>(initialData)
   const [search, setSearch] = useState("")
   const [selectedStatus14, setSelectedStatus14] = useState<string>("all")
@@ -165,6 +166,7 @@ export function LeaveComplianceTable({ initialData }: LeaveComplianceTableProps)
 
   // Eltérő megállapodás kapcsoló kezelése
   const handleToggleWaiver = (employeeId: string, currentWaiver: boolean) => {
+    if (!canWrite) return
     const nextVal = !currentWaiver
     setLoadingEmpId(employeeId)
 
@@ -540,6 +542,7 @@ export function LeaveComplianceTable({ initialData }: LeaveComplianceTableProps)
                           ) : (
                             <Checkbox
                               checked={emp.hasWaiver}
+                              disabled={!canWrite || isPending}
                               onCheckedChange={() => handleToggleWaiver(emp.dolgozoId, emp.hasWaiver)}
                               className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                               title="Eltérő megállapodás: Munkavállaló kéri, hogy a munkáltató tekintsen el a 14 napos egybefüggő kiadástól"

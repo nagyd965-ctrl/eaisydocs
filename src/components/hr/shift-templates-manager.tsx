@@ -23,6 +23,7 @@ import { toast } from "sonner"
 
 interface ShiftTemplatesManagerProps {
   initialTemplates: ShiftTemplate[]
+  canWrite?: boolean
 }
 
 const PRESET_COLORS = [
@@ -38,6 +39,7 @@ const PRESET_COLORS = [
 
 export function ShiftTemplatesManager({
   initialTemplates,
+  canWrite = true,
 }: ShiftTemplatesManagerProps) {
   const [templates, setTemplates] = useState<ShiftTemplate[]>(initialTemplates)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -138,14 +140,16 @@ export function ShiftTemplatesManager({
             Állítsd be a cégben alkalmazott standard műszakokat (Délelőtt, Délután, Éjszaka, Irodai normál).
           </p>
         </div>
-        <Button
-          size="sm"
-          className="h-8 gap-1.5 text-xs font-medium"
-          onClick={handleOpenCreate}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Új sablon létrehozása
-        </Button>
+        {canWrite && (
+          <Button
+            size="sm"
+            className="h-8 gap-1.5 text-xs font-medium"
+            onClick={handleOpenCreate}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Új sablon létrehozása
+          </Button>
+        )}
       </div>
 
       {/* Sablon Kártyák Rácsa */}
@@ -205,25 +209,27 @@ export function ShiftTemplatesManager({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-1.5 pt-3 mt-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => handleOpenEdit(tmpl)}
-              >
-                <Edit2 className="h-3 w-3 mr-1" />
-                Szerkesztés
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
-                onClick={() => handleDelete(tmpl)}
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
+            {canWrite && (
+              <div className="flex items-center justify-end gap-1.5 pt-3 mt-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => handleOpenEdit(tmpl)}
+                >
+                  <Edit2 className="h-3 w-3 mr-1" />
+                  Szerkesztés
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                  onClick={() => handleDelete(tmpl)}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
           </div>
         ))}
       </div>

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { sendNotificationEmail } from "@/utils/mailer"
 import { getBaseUrl } from "@/utils/url"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { requireHrWriteServer } from "@/utils/hr/hr-auth-guard"
 
 export async function onboardEmployee(data: {
   mode: string
@@ -19,9 +19,9 @@ export async function onboardEmployee(data: {
   munkakorId: string
   belepes_datuma: string
 }) {
-  const auth = await requireHrAuthServer(["admin"], null)
+  const auth = await requireHrWriteServer(["admin", "onboarding"], null)
   if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod új munkavállaló beléptetéséhez." }
+    return { error: "Nincs írási jogosultságod új munkavállaló beléptetéséhez." }
   }
 
   const supabaseAdmin = createClient(

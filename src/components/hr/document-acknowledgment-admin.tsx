@@ -39,13 +39,15 @@ interface Dolgozo {
 interface Props {
   dokumentumok: Dokumentum[]
   osszesDolgozo: Dolgozo[]
+  canWrite?: boolean
 }
 
-export function DocumentAcknowledgmentAdmin({ dokumentumok, osszesDolgozo }: Props) {
+export function DocumentAcknowledgmentAdmin({ dokumentumok, osszesDolgozo, canWrite = true }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const handleReminder = (dok: Dokumentum, nemNyugtazottak: { nev: string; email: string }[]) => {
+    if (!canWrite) return
     if (nemNyugtazottak.length === 0) {
       toast.info("Mindenki nyugtázta ezt a dokumentumot!")
       return
@@ -63,6 +65,7 @@ export function DocumentAcknowledgmentAdmin({ dokumentumok, osszesDolgozo }: Pro
   }
 
   const handleDelete = (id: string) => {
+    if (!canWrite) return
     startTransition(async () => {
       const result = await deleteCegesDokumentum(id)
       if (result.success) {
@@ -121,27 +124,29 @@ export function DocumentAcknowledgmentAdmin({ dokumentumok, osszesDolgozo }: Pro
                     Feltöltve: {new Date(dok.created_at).toLocaleDateString("hu-HU")}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleReminder(dok, nemNyugtazottak)}
-                    disabled={isPending || nemNyugtazottak.length === 0}
-                    className="h-8 text-xs gap-1.5"
-                  >
-                    <Bell className="w-3 h-3" />
-                    Emlékeztető ({nemNyugtazottak.length})
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => handleDelete(dok.id)}
-                    disabled={isPending}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
+                {canWrite && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleReminder(dok, nemNyugtazottak)}
+                      disabled={isPending || nemNyugtazottak.length === 0}
+                      className="h-8 text-xs gap-1.5"
+                    >
+                      <Bell className="w-3 h-3" />
+                      Emlékeztető ({nemNyugtazottak.length})
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => handleDelete(dok.id)}
+                      disabled={isPending}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardHeader>
 

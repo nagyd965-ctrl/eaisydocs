@@ -13,7 +13,11 @@ import {
 import { addDays, format, parseISO, startOfWeek, endOfWeek, subDays } from "date-fns"
 import { checkMedicalValidityForDate } from "@/utils/hr/medical-compliance-checker"
 import { checkWeeklyHoursCompliance } from "@/utils/hr/overtime-engine"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import {
+  checkHrWriteAccess,
+  isStrictHrReadOnlyUser,
+  requireHrAuthServer,
+} from "@/utils/hr/hr-auth-guard"
 
 export async function getCompanyShiftTemplates(): Promise<ShiftTemplate[]> {
   const auth = await requireHrAuthServer(["time", "admin", "vezeto", "payroll", "employees", "auditor"], null)
@@ -277,8 +281,11 @@ export async function saveShiftAssignmentAction(params: {
 }): Promise<{ success: boolean; error?: string; warning?: string }> {
   try {
     const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
-    if (!auth.authorized) {
-      return { success: false, error: "Nincs jogosultságod a műszakbeosztás módosításához." }
+    const canWrite =
+      checkHrWriteAccess(auth, ["time", "admin"]) ||
+      (auth.hrRole === "vezeto" && !isStrictHrReadOnlyUser(auth))
+    if (!auth.authorized || !canWrite) {
+      return { success: false, error: "Nincs írási jogosultságod a műszakbeosztás módosításához." }
     }
 
     const supabase = await createClient()
@@ -412,8 +419,11 @@ export async function copyPreviousWeekRosterAction(
 ): Promise<{ success: boolean; copiedCount?: number; skippedMedicalCount?: number; error?: string; message?: string }> {
   try {
     const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
-    if (!auth.authorized) {
-      return { success: false, error: "Nincs jogosultságod a műszakbeosztás módosításához." }
+    const canWrite =
+      checkHrWriteAccess(auth, ["time", "admin"]) ||
+      (auth.hrRole === "vezeto" && !isStrictHrReadOnlyUser(auth))
+    if (!auth.authorized || !canWrite) {
+      return { success: false, error: "Nincs írási jogosultságod a műszakbeosztás módosításához." }
     }
 
     const supabase = await createClient()
@@ -558,8 +568,11 @@ export async function saveShiftTemplateAction(template: {
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
-    if (!auth.authorized) {
-      return { success: false, error: "Nincs jogosultságod a műszakbeosztás módosításához." }
+    const canWrite =
+      checkHrWriteAccess(auth, ["time", "admin"]) ||
+      (auth.hrRole === "vezeto" && !isStrictHrReadOnlyUser(auth))
+    if (!auth.authorized || !canWrite) {
+      return { success: false, error: "Nincs írási jogosultságod a műszakbeosztás módosításához." }
     }
 
     const supabase = await createClient()
@@ -612,8 +625,11 @@ export async function deleteShiftTemplateAction(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
-    if (!auth.authorized) {
-      return { success: false, error: "Nincs jogosultságod a műszakbeosztás módosításához." }
+    const canWrite =
+      checkHrWriteAccess(auth, ["time", "admin"]) ||
+      (auth.hrRole === "vezeto" && !isStrictHrReadOnlyUser(auth))
+    if (!auth.authorized || !canWrite) {
+      return { success: false, error: "Nincs írási jogosultságod a műszakbeosztás módosításához." }
     }
 
     const supabase = await createClient()

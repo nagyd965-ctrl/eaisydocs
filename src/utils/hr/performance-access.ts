@@ -1,13 +1,13 @@
-import type { HrAuthContext } from "@/utils/hr/hr-auth-guard"
+import {
+  checkHrWriteAccess,
+  isStrictHrReadOnlyUser,
+  type HrAuthContext,
+} from "@/utils/hr/hr-auth-guard"
 
 /**
  * Eldönti, hogy a felhasználó a teljes vállalat összes dolgozójának
- * teljesítményértékelésére jogosult-e (Admin, HR vezető, HR munkatárs, Auditor,
- * vagy Állomány/Admin modul-jogosultsággal rendelkező felhasználó).
- *
- * Ha `false`, de `auth.hrRole === "vezeto"`, akkor a felhasználó kizárólag a saját
- * közvetlen beosztottjai (és az aktív helyettesítéssel átvett csapattagok) KPI-jait
- * láthatja és kezelheti.
+ * teljesítményértékelését LÁTHATJA-e (olvasási szinten: Admin, HR vezető, HR munkatárs,
+ * Auditor, vagy Állomány/Admin modul-jogosultsággal rendelkező felhasználó).
  */
 export function hasFullCompanyPerformanceAccess(auth: HrAuthContext): boolean {
   return (
@@ -15,6 +15,16 @@ export function hasFullCompanyPerformanceAccess(auth: HrAuthContext): boolean {
     ["admin", "hr_vezeto", "hr_munkatars", "auditor"].includes(auth.hrRole) ||
     auth.hrModules.includes("admin")
   )
+}
+
+/**
+ * Eldönti, hogy a felhasználó a teljes vállalat szintjén MÓDOSÍTHATJA / KEZELHETI-e
+ * a teljesítményértékelési ciklusokat és bármely dolgozó KPI-jait
+ * (ehhez az 'admin' HR modul ÍRÁSI jogosultsága vagy Cég Admin szerepkör szükséges).
+ */
+export function hasFullCompanyPerformanceWriteAccess(auth: HrAuthContext): boolean {
+  if (!auth.authorized || !auth.user) return false
+  return checkHrWriteAccess(auth, "admin")
 }
 
 /**
@@ -135,8 +145,13 @@ export async function canManageEmployeePerformance(
     return false
   }
 
-  if (hasFullCompanyPerformanceAccess(auth)) {
+  if (hasFullCompanyPerformanceWriteAccess(auth)) {
     return true
+  }
+
+  // Ha a felhasználó kifejezetten „Csak olvasás” (0 írási modul) módban van, nem módosíthat KPI-t
+  if (isStrictHrReadOnlyUser(auth)) {
+    return false
   }
 
   const allowedIds = await getScopedPerformanceEmployeeIds(

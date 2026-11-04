@@ -100,6 +100,7 @@ function formatMinutes(perc?: number): string {
 
 interface UnifiedApprovalsPanelProps {
   initialItems: UnifiedApprovalItem[]
+  canWrite?: boolean
 }
 
 interface EmployeeApprovalGroup {
@@ -109,7 +110,10 @@ interface EmployeeApprovalGroup {
   items: UnifiedApprovalItem[]
 }
 
-export function UnifiedApprovalsPanel({ initialItems }: UnifiedApprovalsPanelProps) {
+export function UnifiedApprovalsPanel({
+  initialItems,
+  canWrite = true,
+}: UnifiedApprovalsPanelProps) {
   const router = useRouter()
   const [items, setItems] = useState<UnifiedApprovalItem[]>(initialItems)
   const [statusTab, setStatusTab] = useState<"jovahagyasra_var" | "jovahagyva" | "elutasitva">("jovahagyasra_var")
@@ -482,7 +486,7 @@ export function UnifiedApprovalsPanel({ initialItems }: UnifiedApprovalsPanelPro
                       </div>
 
                       {/* "Összes jóváhagyása" gomb csak az elbírálásra váró fülön, ha több mint 1 kérelem van */}
-                      {statusTab === "jovahagyasra_var" && group.items.length > 1 && (
+                      {canWrite && statusTab === "jovahagyasra_var" && group.items.length > 1 && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -612,29 +616,35 @@ export function UnifiedApprovalsPanel({ initialItems }: UnifiedApprovalsPanelPro
                             {/* Műveleti gombok vagy státusz jelvény */}
                             <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
                               {statusTab === "jovahagyasra_var" ? (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10 cursor-pointer"
-                                    onClick={() => openRejectDialog(item)}
-                                    disabled={isCurrentLoading}
-                                  >
-                                    Elutasít
-                                  </Button>
+                                canWrite ? (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10 cursor-pointer"
+                                      onClick={() => openRejectDialog(item)}
+                                      disabled={isCurrentLoading}
+                                    >
+                                      Elutasít
+                                    </Button>
 
-                                  <Button
-                                    size="sm"
-                                    className="h-8 text-xs bg-success text-success-foreground hover:bg-success/90 cursor-pointer"
-                                    onClick={() => handleApprove(item)}
-                                    disabled={isCurrentLoading}
-                                  >
-                                    {loadingItemId === item.id && (
-                                      <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                                    )}
-                                    Jóváhagy
-                                  </Button>
-                                </>
+                                    <Button
+                                      size="sm"
+                                      className="h-8 text-xs bg-success text-success-foreground hover:bg-success/90 cursor-pointer"
+                                      onClick={() => handleApprove(item)}
+                                      disabled={isCurrentLoading}
+                                    >
+                                      {loadingItemId === item.id && (
+                                        <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                                      )}
+                                      Jóváhagy
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-warning/10 text-warning border border-warning/20">
+                                    Elbírálásra vár
+                                  </span>
+                                )
                               ) : statusTab === "jovahagyva" ? (
                                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
                                   {item.category === "tavollet" && (

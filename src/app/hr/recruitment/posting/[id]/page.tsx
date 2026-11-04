@@ -2,6 +2,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { notFound } from "next/navigation"
 import { Shield } from "lucide-react"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
 import { PostingDetailClient } from "./posting-detail-client"
 
 export default async function JobPostingDetailPage({
@@ -29,6 +30,9 @@ export default async function JobPostingDetailPage({
   }
 
   const { activeCompanyId, hrRole, isCompanyAdmin } = auth
+  const isReadOnly =
+    !isCompanyAdmin &&
+    !hasHrWriteAccess(hrRole, auth.hrModules, auth.hrWriteModules, ["recruitment", "admin"])
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -91,7 +95,7 @@ export default async function JobPostingDetailPage({
       initialPosting={posting}
       jobs={jobs || []}
       candidates={candidatesWithSignedCv}
-      isReadOnly={hrRole === "auditor" && !isCompanyAdmin}
+      isReadOnly={isReadOnly}
     />
   )
 }

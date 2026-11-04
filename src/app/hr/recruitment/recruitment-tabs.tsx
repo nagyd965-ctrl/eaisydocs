@@ -69,6 +69,7 @@ export function RecruitmentTabs({
           initialPostings={postings}
           jobs={jobs}
           candidates={candidates}
+          isReadOnly={isReadOnly}
         />
       </TabsContent>
 
@@ -83,7 +84,7 @@ export function RecruitmentTabs({
       </TabsContent>
 
       <TabsContent value="kanban" className="w-full h-[calc(100vh-14rem)] overflow-hidden m-0 p-0">
-        <KanbanBoard initialCandidates={candidates} />
+        <KanbanBoard initialCandidates={candidates} isReadOnly={isReadOnly} />
       </TabsContent>
 
       <TabsContent value="talent-pool" className="w-full m-0 p-0">

@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server"
 import { createClient as createSupabaseAdmin } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { requireHrAuthServer, checkHrWriteAccess } from "@/utils/hr/hr-auth-guard"
 
 const supabaseAdmin = createSupabaseAdmin(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,8 +42,8 @@ export async function getNotificationRules() {
 
 export async function updateNotificationRule(id: string, aktiv: boolean, csatorna: string[]) {
   const auth = await requireHrAuthServer(["admin", "settings", "organization"], null)
-  if (!auth.authorized) {
-    return { error: "Nincs jogosultságod az értesítési szabályok módosításához." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["admin", "organization"])) {
+    return { error: "Nincs jogosultságod az értesítési szabályok módosításához (Csak olvasási jogosultság)." }
   }
 
   const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())

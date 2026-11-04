@@ -80,10 +80,10 @@ async function verifyOffboardingCompany(
 // ---------------------------------------------------------------------------
 
 export async function toggleOffboardingTaskStatus(taskId: string, currentStatus: string) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod a kiléptetési feladatok módosításához." }
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod a kiléptetési feladatok módosításához." }
   }
   const user = auth.user
   const supabase = await createClient()
@@ -135,10 +135,10 @@ export async function toggleOffboardingTaskStatus(taskId: string, currentStatus:
 }
 
 export async function updateOffboardingDate(offboardingId: string, newDate: string) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod a kilépési dátum módosításához." }
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod a kilépési dátum módosításához." }
   }
   const user = auth.user
   const adminClient = getAdminClient()
@@ -172,10 +172,10 @@ export async function updateOffboardingDate(offboardingId: string, newDate: stri
 }
 
 export async function addOffboardingTask(offboardingId: string, cim: string, felelos_reszleg: string) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod kiléptetési feladat hozzáadásához." }
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod kiléptetési feladat hozzáadásához." }
   }
   const user = auth.user
   const adminClient = getAdminClient()
@@ -214,10 +214,10 @@ export async function addOffboardingTask(offboardingId: string, cim: string, fel
 }
 
 export async function deleteOffboardingTask(taskId: string) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod kiléptetési feladat törléséhez." }
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod kiléptetési feladat törléséhez." }
   }
   const supabase = await createClient()
 
@@ -259,10 +259,10 @@ export async function createOffboarding(
   kilepesDatuma: string,
   extraParams?: Partial<CreateOffboardingParams>
 ) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod kiléptetési folyamat indításához." }
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod kiléptetési folyamat indításához." }
   }
   const user = auth.user
   const adminClient = getAdminClient()
@@ -451,10 +451,10 @@ export async function closeOffboarding(
   offboardingId: string,
   options?: { force?: boolean; forceReason?: string }
 ) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod kiléptetési folyamat lezárásához." }
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod kiléptetési folyamat lezárásához." }
   }
   const user = auth.user
   const adminClient = getAdminClient()
@@ -701,10 +701,10 @@ export async function reopenOffboarding(
   offboardingId: string,
   options?: { resetTasks?: boolean }
 ) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod a kiléptetési folyamat újranyitásához." }
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod a kiléptetési folyamat újranyitásához." }
   }
   const user = auth.user
   const adminClient = getAdminClient()
@@ -813,10 +813,10 @@ export async function reopenOffboarding(
 }
 
 export async function resetOffboardingTasks(offboardingId: string) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod a kiléptetési feladatok visszaállításához." }
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod a kiléptetési feladatok visszaállításához." }
   }
   const user = auth.user
   const adminClient = getAdminClient()
@@ -855,10 +855,10 @@ export async function fileSingleOffboardingDocument({
   dolgozoId: string
   customTargy?: string
 }) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod a kilépő dokumentum iktatásához." }
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod a kilépő dokumentum iktatásához." }
   }
   const user = auth.user
   const adminClient = getAdminClient()
@@ -912,10 +912,10 @@ export const reopenOffboardingProcess = reopenOffboarding
 export const resetOffboardingTasksProcess = resetOffboardingTasks
 
 export async function deleteOffboardingProcess(offboardingId: string) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod a kiléptetési folyamat törléséhez." }
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod a kiléptetési folyamat törléséhez." }
   }
   const user = auth.user
   const adminClient = getAdminClient()
@@ -956,7 +956,7 @@ export async function deleteOffboardingProcess(offboardingId: string) {
 // ---------------------------------------------------------------------------
 
 export async function getOffboardingDetailData(offboardingId: string) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding", "audit"], null)
   if (!auth.authorized) {
     return { error: "Nincs jogosultságod a kiléptetési adatok megtekintéséhez." }
@@ -1141,8 +1141,11 @@ export async function getOffboardingDetailData(offboardingId: string) {
         }
       }
 
-      // Adatbázis szinkronizáció ha hiányzott
-      if ((resolvedMunkakor && !offboarding.munkakor) || (resolvedReszleg && !offboarding.reszleg)) {
+      // Adatbázis szinkronizáció ha hiányzott (csak írási jogosultság esetén)
+      if (
+        checkHrWriteAccess(auth, ["offboarding", "admin"]) &&
+        ((resolvedMunkakor && !offboarding.munkakor) || (resolvedReszleg && !offboarding.reszleg))
+      ) {
         await adminClient
           .from("hr_offboarding")
           .update({
@@ -1185,9 +1188,9 @@ export async function generateTerminationAgreementAction(
   offboardingId: string,
   payload: Partial<TerminationPdfData>
 ) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
     return { error: "Nincs jogosultságod munkaviszony megszüntetési dokumentum generálásához." }
   }
   const user = auth.user
@@ -1358,9 +1361,9 @@ export async function generateAssetReturnSheetAction(
     vagyoniElszamolasNyilatkozat?: string | null
   }
 ) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
     return { error: "Nincs jogosultságod eszköz visszavételi lap generálásához." }
   }
   const user = auth.user
@@ -1631,9 +1634,9 @@ export async function saveExitInterview(offboardingId: string, formData: {
   ajanlana: boolean | null
   kovetkezo_allomashely: string
 }) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
     return { error: "Nincs jogosultságod kilépési interjú mentéséhez." }
   }
   const user = auth.user
@@ -1691,9 +1694,9 @@ export async function generateExitCertificateAction(
   offboardingId: string,
   payload: Partial<ExitCertificatePdfData>
 ) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["offboarding"], null)
-  if (!auth.authorized || !auth.user) {
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["offboarding", "admin"])) {
     return { error: "Nincs jogosultságod kilépő igazolások generálásához." }
   }
   const user = auth.user

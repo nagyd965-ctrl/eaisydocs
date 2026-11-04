@@ -50,10 +50,11 @@ export default async function JobProfilePage({ params }: { params: Promise<{ id:
   }
 
   const effectiveModules = scopedRoles.hrModules.length > 0 ? scopedRoles.hrModules : ((profile as any).hr_modulok || [])
-  const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
+  const currentHrRole = scopedRoles.hrRole || profile.hr_szerepkor
+  const { hasHrWriteAccess } = await import("@/utils/hr/company-role-resolver")
   const isHrOrAdmin =
     scopedRoles.isCompanyAdmin ||
-    isUserAuthorizedForHrView(scopedRoles.hrRole || profile.hr_szerepkor, ["admin", "organization"], effectiveModules)
+    hasHrWriteAccess(currentHrRole, effectiveModules, scopedRoles.hrWriteModules, ["organization", "admin"])
 
   // Munkakör és szervezeti egységek lekérése (cég-ellenőrzéssel)
   let jobQuery = admin

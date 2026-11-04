@@ -12,9 +12,10 @@ interface OffboardingTabsProps {
   offboardings: OffboardingProfile[]
   employees: Employee[]
   exitInterviews: ExitInterview[]
+  canWrite?: boolean
 }
 
-export function OffboardingTabs({ offboardings, employees, exitInterviews }: OffboardingTabsProps) {
+export function OffboardingTabs({ offboardings, employees, exitInterviews, canWrite = true }: OffboardingTabsProps) {
   return (
     <Tabs defaultValue="folyamatok" className="space-y-6">
       <TabsList className="h-9">
@@ -32,7 +33,7 @@ export function OffboardingTabs({ offboardings, employees, exitInterviews }: Off
       </TabsList>
 
       <TabsContent value="folyamatok" className="m-0">
-        <OffboardingList offboardings={offboardings} employees={employees} />
+        <OffboardingList offboardings={offboardings} employees={employees} canWrite={canWrite} />
       </TabsContent>
 
       <TabsContent value="interju-osszesito" className="m-0">

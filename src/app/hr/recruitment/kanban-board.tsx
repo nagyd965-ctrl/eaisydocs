@@ -128,7 +128,13 @@ function DroppableColumn({ id, title, candidates, onCandidateClick }: { id: stri
   )
 }
 
-export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] }) {
+export function KanbanBoard({
+  initialCandidates,
+  isReadOnly = false,
+}: {
+  initialCandidates: any[]
+  isReadOnly?: boolean
+}) {
   const [candidates, setCandidates] = useState(initialCandidates)
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -170,11 +176,13 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
   )
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (isReadOnly) return
     setActiveId(event.active.id as string)
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveId(null)
+    if (isReadOnly) return
     const { active, over } = event
 
     if (!over) return
@@ -239,6 +247,7 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
   const [interjuMessage, setInterjuMessage] = useState("Örömmel értesítjük, hogy jelentkezését sikeresnek értékeltük. Szeretnénk behívni egy személyes interjúra!")
 
   const handleInterviewSave = async () => {
+    if (isReadOnly) return
     if (!interjuDate || !interjuTime || !interjuLocation) {
       toast.error("Kérlek adj meg minden adatot (Dátum, Időpont, Helyszín)!")
       return
@@ -273,6 +282,7 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
   const [view, setView] = useState<"kanban" | "list">("kanban")
 
   const handleDelete = async (id: string) => {
+    if (isReadOnly) return
     // Optimistic UI update
     const previousCandidates = [...candidates]
     setCandidates(prev => prev.filter(c => c.id !== id))
@@ -367,32 +377,34 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
                       <Badge variant="secondary">{statusName}</Badge>
                     </td>
                     <td className="px-4 py-2.5 text-right">
-                      <AlertDialog>
-                        <AlertDialogTrigger 
-                          className={`${buttonVariants({ variant: "ghost", size: "icon" })} text-muted-foreground hover:text-destructive transition-colors`}
-                          title="Törlés"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Biztosan törölni szeretnéd?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Ezzel véglegesen törlöd <strong>{candidate.nev}</strong> jelentkezését a rendszerből. Ez a művelet nem vonható vissza.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Mégse</AlertDialogCancel>
-                            <AlertDialogAction 
-                              onClick={() => handleDelete(candidate.id)}
-                              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                            >
-                              Törlés
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      {!isReadOnly && (
+                        <AlertDialog>
+                          <AlertDialogTrigger 
+                            className={`${buttonVariants({ variant: "ghost", size: "icon" })} text-muted-foreground hover:text-destructive transition-colors`}
+                            title="Törlés"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Biztosan törölni szeretnéd?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Ezzel véglegesen törlöd <strong>{candidate.nev}</strong> jelentkezését a rendszerből. Ez a művelet nem vonható vissza.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Mégse</AlertDialogCancel>
+                              <AlertDialogAction 
+                                onClick={() => handleDelete(candidate.id)}
+                                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                              >
+                                Törlés
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                     </td>
                   </tr>
                 )
@@ -415,6 +427,7 @@ export function KanbanBoard({ initialCandidates }: { initialCandidates: any[] })
         onClose={() => setIsSheetOpen(false)} 
         onUpdate={handleUpdateCandidate}
         onDelete={handleDeleteCandidateFromSheet}
+        isReadOnly={isReadOnly}
       />
 
       {/* Interjú Ütemező Modal */}

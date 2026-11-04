@@ -1,12 +1,17 @@
 import { getPayrollDashboardData } from "@/app/hr/payroll/actions"
 import { PayrollTable } from "@/components/hr/payroll-table"
 import { ShieldCheck, Receipt } from "lucide-react"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export const dynamic = "force-dynamic"
 
 export default async function HrPayrollPage() {
-  const { companyScope } = await requireHrAuthServer(["payroll"])
+  const auth = await requireHrAuthServer(["payroll"])
+  const { companyScope } = auth
+  const canWritePayroll =
+    auth.isCompanyAdmin ||
+    hasHrWriteAccess(auth.hrRole, auth.hrModules, auth.hrWriteModules, ["payroll", "admin"])
 
   const now = new Date()
   const year = now.getFullYear()
@@ -40,7 +45,7 @@ export default async function HrPayrollPage() {
         </div>
       </div>
 
-      <PayrollTable initialData={res.data} />
+      <PayrollTable initialData={res.data} canWrite={canWritePayroll} />
     </div>
   )
 }

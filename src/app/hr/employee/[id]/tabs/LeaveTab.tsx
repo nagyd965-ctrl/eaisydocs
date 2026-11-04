@@ -169,7 +169,7 @@ export function LeaveTab({
   return (
     <div className="space-y-6">
       {/* Szabadság Egyenleg */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className={`grid gap-6 ${isHrOrAdmin ? "md:grid-cols-2" : "md:grid-cols-1"}`}>
         <Card className="border border-border/50">
           <CardHeader className="pb-2">
             <div className="space-y-1">
@@ -193,18 +193,20 @@ export function LeaveTab({
           </CardContent>
         </Card>
 
-        <Card className="border border-border/50 bg-muted/30">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">HR Műveletek</CardTitle>
-            <CardDescription>Távollétek adminisztrációja</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Itt a HR kézzel is rögzíthet távollétet (pl. tartós táppénz, fizetés nélküli szabadság) a dolgozó nevében, amit a dolgozó nem tud magának rögzíteni.
-            </p>
-            <HrLeaveRequestDialog employeeId={employeeId} />
-          </CardContent>
-        </Card>
+        {isHrOrAdmin && (
+          <Card className="border border-border/50 bg-muted/30">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">HR Műveletek</CardTitle>
+              <CardDescription>Távollétek adminisztrációja</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Itt a HR kézzel is rögzíthet távollétet (pl. tartós táppénz, fizetés nélküli szabadság) a dolgozó nevében, amit a dolgozó nem tud magának rögzíteni.
+              </p>
+              <HrLeaveRequestDialog employeeId={employeeId} />
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Mt. Szabadságkiadási Megfelelőség és Riasztások */}
@@ -352,73 +354,71 @@ export function LeaveTab({
             <CardTitle className="text-lg font-semibold">Távollétek és Kérelmek Története</CardTitle>
             <CardDescription>A dolgozó összes eddigi és tervezett távolléte a(z) {currentYear}. évben</CardDescription>
           </div>
-          {isHrOrAdmin && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {annualDoc?.iktatoszam && (
-                <Link
-                  href={annualDoc.dossierId ? `/dossiers/${annualDoc.dossierId}` : "#"}
-                  className="inline-flex"
-                >
-                  <Badge
-                    variant="outline"
-                    className="h-8 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors gap-1.5 px-2.5 text-xs font-medium cursor-pointer"
-                  >
-                    <FileCheck className="w-3.5 h-3.5" />
-                    Iktatva: {annualDoc.iktatoszam}
-                  </Badge>
-                </Link>
-              )}
-
-              <PdfViewerDialog
-                url={`/api/hr/annual-leave-pdf?employeeId=${employeeId}&year=${currentYear}&preview=true`}
-                title={`Éves Szabadság- és Távollét Nyilvántartó Lap (${currentYear}) - Mt. 134. §`}
-                trigger={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5 text-xs"
-                    title="Hivatalos éves szabadság-nyilvántartó lap megtekintése böngészőben"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-primary" />
-                    <span>Éves Nyilvántartó Lap (Mt. 134. §)</span>
-                  </Button>
-                }
-              />
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1 text-xs"
-                onClick={() =>
-                  window.open(
-                    `/api/hr/annual-leave-pdf?employeeId=${employeeId}&year=${currentYear}&download=true`,
-                    "_blank"
-                  )
-                }
-                title="Éves nyilvántartó lap letöltése (PDF)"
+          <div className="flex items-center gap-2 flex-wrap">
+            {annualDoc?.iktatoszam && (
+              <Link
+                href={annualDoc.dossierId ? `/dossiers/${annualDoc.dossierId}` : "#"}
+                className="inline-flex"
               >
-                <Download className="w-3.5 h-3.5" />
-              </Button>
+                <Badge
+                  variant="outline"
+                  className="h-8 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors gap-1.5 px-2.5 text-xs font-medium cursor-pointer"
+                >
+                  <FileCheck className="w-3.5 h-3.5" />
+                  Iktatva: {annualDoc.iktatoszam}
+                </Badge>
+              </Link>
+            )}
 
-              {!annualDoc?.iktatoszam && (
+            <PdfViewerDialog
+              url={`/api/hr/annual-leave-pdf?employeeId=${employeeId}&year=${currentYear}&preview=true`}
+              title={`Éves Szabadság- és Távollét Nyilvántartó Lap (${currentYear}) - Mt. 134. §`}
+              trigger={
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/5 hover:border-primary transition-colors"
-                  onClick={handleFileAnnualSheet}
-                  disabled={filingLoading}
-                  title="Éves szabadság nyilvántartás beiktatása az eaisyDocs személyi dossziéba"
+                  className="h-8 gap-1.5 text-xs"
+                  title="Hivatalos éves szabadság-nyilvántartó lap megtekintése böngészőben"
                 >
-                  {filingLoading ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Archive className="w-3.5 h-3.5" />
-                  )}
-                  <span>Iktatás eaisyDocs-ba</span>
+                  <FileText className="w-3.5 h-3.5 text-primary" />
+                  <span>Éves Nyilvántartó Lap (Mt. 134. §)</span>
                 </Button>
-              )}
-            </div>
-          )}
+              }
+            />
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1 text-xs"
+              onClick={() =>
+                window.open(
+                  `/api/hr/annual-leave-pdf?employeeId=${employeeId}&year=${currentYear}&download=true`,
+                  "_blank"
+                )
+              }
+              title="Éves nyilvántartó lap letöltése (PDF)"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </Button>
+
+            {isHrOrAdmin && !annualDoc?.iktatoszam && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/5 hover:border-primary transition-colors"
+                onClick={handleFileAnnualSheet}
+                disabled={filingLoading}
+                title="Éves szabadság nyilvántartás beiktatása az eaisyDocs személyi dossziéba"
+              >
+                {filingLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Archive className="w-3.5 h-3.5" />
+                )}
+                <span>Iktatás eaisyDocs-ba</span>
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {leaves && leaves.length > 0 ? (

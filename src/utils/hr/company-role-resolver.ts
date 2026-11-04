@@ -495,14 +495,18 @@ export function resolveUserCompanyRoles(
     ? profile.hr_szerepkor
     : "munkavallalo"
 
-  const rawHrModules =
-    membership.hr_modulok && membership.hr_modulok.length > 0
-      ? membership.hr_modulok
-      : hasExplicitMemberHrRole && membership.hr_szerepkor !== profile?.hr_szerepkor
-      ? []
-      : profile?.hr_modulok || []
+  const useMemberHrModules = Boolean(membership.hr_modulok && membership.hr_modulok.length > 0)
+  const rawHrModules = useMemberHrModules
+    ? membership.hr_modulok!
+    : hasExplicitMemberHrRole && membership.hr_szerepkor !== profile?.hr_szerepkor
+    ? []
+    : profile?.hr_modulok || []
 
-  const rawHrWriteModules = Array.isArray(membership.hr_iras_modulok)
+  const rawHrWriteModules = useMemberHrModules
+    ? Array.isArray(membership.hr_iras_modulok)
+      ? membership.hr_iras_modulok
+      : undefined
+    : hasExplicitMemberHrRole && Array.isArray(membership.hr_iras_modulok)
     ? membership.hr_iras_modulok
     : Array.isArray(profile?.hr_iras_modulok)
     ? profile!.hr_iras_modulok
@@ -657,7 +661,7 @@ export function hasHrWriteAccess(
   currentHrRole: string,
   hrModules: string[] | undefined,
   hrWriteModules: string[] | undefined,
-  moduleKey: HrModuleKey | HrModuleKey[]
+  moduleKey: HrModuleKey | string | (HrModuleKey | string)[]
 ): boolean {
   if (!currentHrRole || currentHrRole === "none") return false
   if (currentHrRole === "admin" || currentHrRole === "rendszergazda") return true

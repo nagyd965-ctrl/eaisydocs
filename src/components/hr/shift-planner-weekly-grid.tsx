@@ -63,9 +63,13 @@ import { toast } from "sonner"
 
 interface ShiftPlannerWeeklyGridProps {
   initialData: WeeklyRosterData
+  canWrite?: boolean
 }
 
-export function ShiftPlannerWeeklyGrid({ initialData }: ShiftPlannerWeeklyGridProps) {
+export function ShiftPlannerWeeklyGrid({
+  initialData,
+  canWrite = true,
+}: ShiftPlannerWeeklyGridProps) {
   const [data, setData] = useState<WeeklyRosterData>(initialData)
   const [currentWeekStart, setCurrentWeekStart] = useState<string>(initialData.weekStart)
   const [searchQuery, setSearchQuery] = useState("")
@@ -293,18 +297,20 @@ export function ShiftPlannerWeeklyGrid({ initialData }: ShiftPlannerWeeklyGridPr
         </div>
 
         {/* Jobb oldal: Akciók (Előző hét másolása) */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs font-medium border-primary/30 text-primary hover:bg-primary/10"
-            onClick={handleCopyPreviousWeek}
-            disabled={isPending}
-          >
-            <Copy className="h-3.5 w-3.5" />
-            Előző hét másolása
-          </Button>
-        </div>
+        {canWrite && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-xs font-medium border-primary/30 text-primary hover:bg-primary/10"
+              onClick={handleCopyPreviousWeek}
+              disabled={isPending}
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Előző hét másolása
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* 2. Szűrősáv (Kereső & Részlegválasztó) */}
@@ -480,6 +486,7 @@ export function ShiftPlannerWeeklyGrid({ initialData }: ShiftPlannerWeeklyGridPr
                               </div>
                             ) : assignment ? (
                               /* Ha van beosztott műszak */
+                              canWrite ? (
                               <Popover>
                                 <PopoverTrigger
                                   style={{
@@ -589,7 +596,50 @@ export function ShiftPlannerWeeklyGrid({ initialData }: ShiftPlannerWeeklyGridPr
                                   </div>
                                 </PopoverContent>
                               </Popover>
-                            ) : (
+                              ) : (
+                                <div
+                                  style={{
+                                    borderColor: assignment.sablon?.szin_kod
+                                      ? `${assignment.sablon.szin_kod}40`
+                                      : undefined,
+                                    backgroundColor: assignment.sablon?.szin_kod
+                                      ? `${assignment.sablon.szin_kod}15`
+                                      : undefined,
+                                  }}
+                                  className="w-full px-2 py-1.5 rounded-md border text-[11px] text-left relative"
+                                >
+                                  {isMedBlocked && (
+                                    <span
+                                      className="absolute -top-1 -right-1 flex h-2.5 w-2.5"
+                                      title="Lejárt orvosi alkalmasság!"
+                                    >
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-destructive"></span>
+                                    </span>
+                                  )}
+                                  <div className="flex items-center justify-between">
+                                    <span
+                                      className="font-bold text-xs"
+                                      style={{
+                                        color: assignment.sablon?.szin_kod || "#0d9488",
+                                      }}
+                                    >
+                                      {assignment.sablon?.kod || "Egyedi"}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground font-mono tabular-nums">
+                                      {assignment.tervezett_ora}h
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground truncate">
+                                    {assignment.sablon?.kezdes_ido?.substring(0, 5) ||
+                                      assignment.egyedi_kezdes?.substring(0, 5)}{" "}
+                                    -{" "}
+                                    {assignment.sablon?.befejezes_ido?.substring(0, 5) ||
+                                      assignment.egyedi_befejezes?.substring(0, 5)}
+                                  </div>
+                                </div>
+                              )
+                            ) : canWrite ? (
                               /* Ha üres a nap: Kattintással választható sablon */
                               <Popover>
                                 <PopoverTrigger
@@ -671,6 +721,10 @@ export function ShiftPlannerWeeklyGrid({ initialData }: ShiftPlannerWeeklyGridPr
                                   )}
                                 </PopoverContent>
                               </Popover>
+                            ) : (
+                              <div className="w-full h-10 rounded-md flex items-center justify-center text-muted-foreground/30 text-[11px]">
+                                —
+                              </div>
                             )}
                           </td>
                         )

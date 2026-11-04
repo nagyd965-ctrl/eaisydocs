@@ -95,6 +95,7 @@ interface JobPostingsListProps {
   initialPostings?: JobPostingItem[]
   jobs: JobItem[]
   candidates: CandidateItem[]
+  isReadOnly?: boolean
 }
 
 export function JobPostingsList({
@@ -102,6 +103,7 @@ export function JobPostingsList({
   initialPostings,
   jobs,
   candidates = [],
+  isReadOnly = false,
 }: JobPostingsListProps) {
   const [postings, setPostings] = useState<JobPostingItem[]>(
     initialPostings || propPostings || []
@@ -312,6 +314,7 @@ export function JobPostingsList({
     field: "aktiv" | "publikus" | "is_internal",
     current: boolean
   ) {
+    if (isReadOnly) return
     const next = !current
     const prevPosting = postings.find((p) => p.id === id)
     if (!prevPosting) return
@@ -364,12 +367,13 @@ export function JobPostingsList({
   }
 
   function handleDelete(posting: JobPostingItem) {
+    if (isReadOnly) return
     setDeletingPosting(posting)
     setDeleteOpen(true)
   }
 
   async function handleDeleteConfirm() {
-    if (!deletingPosting) return
+    if (isReadOnly || !deletingPosting) return
     setDeleteLoading(true)
     setPostings((prev) => prev.filter((p) => p.id !== deletingPosting.id))
     const { error } = await supabase.from("hr_allashirdetes").delete().eq("id", deletingPosting.id)
@@ -485,12 +489,14 @@ export function JobPostingsList({
               </button>
             </div>
 
-            <ManagePostingDialog jobs={jobs} onSaved={addOrUpdate}>
-              <Button size="sm" className="h-9 text-xs gap-1.5">
-                <Plus className="h-4 w-4" />
-                <span>Új hirdetés feladása</span>
-              </Button>
-            </ManagePostingDialog>
+            {!isReadOnly && (
+              <ManagePostingDialog jobs={jobs} onSaved={addOrUpdate}>
+                <Button size="sm" className="h-9 text-xs gap-1.5">
+                  <Plus className="h-4 w-4" />
+                  <span>Új hirdetés feladása</span>
+                </Button>
+              </ManagePostingDialog>
+            )}
           </div>
         }
       />
@@ -519,14 +525,14 @@ export function JobPostingsList({
             >
               Szűrők visszaállítása
             </Button>
-          ) : (
+          ) : !isReadOnly ? (
             <ManagePostingDialog jobs={jobs} onSaved={addOrUpdate}>
               <Button size="sm" className="mt-2 text-xs gap-1.5">
                 <Plus className="h-4 w-4" />
                 <span>Új hirdetés feladása</span>
               </Button>
             </ManagePostingDialog>
-          )}
+          ) : null}
         </div>
       ) : viewMode === "cards" ? (
         /* KÁRTYÁS NÉZET */
@@ -639,6 +645,7 @@ export function JobPostingsList({
                     <div className="flex items-center gap-1.5">
                       <Switch
                         checked={!!posting.aktiv}
+                        disabled={isReadOnly}
                         onCheckedChange={() =>
                           toggleStatus(posting.id, "aktiv", !!posting.aktiv)
                         }
@@ -648,6 +655,7 @@ export function JobPostingsList({
                     <div className="flex items-center gap-1.5">
                       <Switch
                         checked={!!posting.publikus && !posting.is_internal}
+                        disabled={isReadOnly}
                         onCheckedChange={() =>
                           toggleStatus(
                             posting.id,
@@ -661,6 +669,7 @@ export function JobPostingsList({
                     <div className="flex items-center gap-1.5">
                       <Switch
                         checked={!!posting.is_internal}
+                        disabled={isReadOnly}
                         onCheckedChange={() =>
                           toggleStatus(
                             posting.id,
@@ -675,11 +684,13 @@ export function JobPostingsList({
 
                   {/* Műveletek */}
                   <div className="flex items-center gap-0.5 shrink-0">
-                    <Link href={`/hr/recruitment/posting/${posting.id}?edit=true`}>
-                      <Button variant="ghost" size="icon-xs" title="Szerkesztés">
-                        <Edit className="h-3.5 w-3.5 text-muted-foreground" />
-                      </Button>
-                    </Link>
+                    {!isReadOnly && (
+                      <Link href={`/hr/recruitment/posting/${posting.id}?edit=true`}>
+                        <Button variant="ghost" size="icon-xs" title="Szerkesztés">
+                          <Edit className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                      </Link>
+                    )}
 
                     {(posting.publikus || posting.is_internal) && (
                       <Link
@@ -700,15 +711,17 @@ export function JobPostingsList({
                       </Link>
                     )}
 
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      title="Törlés"
-                      onClick={() => handleDelete(posting)}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {!isReadOnly && (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        title="Törlés"
+                        onClick={() => handleDelete(posting)}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -857,6 +870,7 @@ export function JobPostingsList({
                           <div className="flex items-center gap-1.5">
                             <Switch
                               checked={!!posting.aktiv}
+                              disabled={isReadOnly}
                               onCheckedChange={() =>
                                 toggleStatus(posting.id, "aktiv", !!posting.aktiv)
                               }
@@ -868,6 +882,7 @@ export function JobPostingsList({
                           <div className="flex items-center gap-1.5">
                             <Switch
                               checked={!!posting.publikus && !posting.is_internal}
+                              disabled={isReadOnly}
                               onCheckedChange={() =>
                                 toggleStatus(
                                   posting.id,
@@ -883,6 +898,7 @@ export function JobPostingsList({
                           <div className="flex items-center gap-1.5">
                             <Switch
                               checked={!!posting.is_internal}
+                              disabled={isReadOnly}
                               onCheckedChange={() =>
                                 toggleStatus(
                                   posting.id,
@@ -901,11 +917,13 @@ export function JobPostingsList({
 
                     <TableCell className="py-3 text-right">
                       <div className="inline-flex items-center justify-end gap-1">
-                        <Link href={`/hr/recruitment/posting/${posting.id}?edit=true`}>
-                          <Button variant="ghost" size="icon-xs" title="Szerkesztés">
-                            <Edit className="h-3.5 w-3.5 text-muted-foreground" />
-                          </Button>
-                        </Link>
+                        {!isReadOnly && (
+                          <Link href={`/hr/recruitment/posting/${posting.id}?edit=true`}>
+                            <Button variant="ghost" size="icon-xs" title="Szerkesztés">
+                              <Edit className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          </Link>
+                        )}
 
                         {(posting.publikus || posting.is_internal) && (
                           <Link
@@ -926,15 +944,17 @@ export function JobPostingsList({
                           </Link>
                         )}
 
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          title="Törlés"
-                          onClick={() => handleDelete(posting)}
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        {!isReadOnly && (
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            title="Törlés"
+                            onClick={() => handleDelete(posting)}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

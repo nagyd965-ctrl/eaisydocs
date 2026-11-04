@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { requireHrAuthServer, checkHrWriteAccess } from "@/utils/hr/hr-auth-guard"
 
 /**
  * HR deep-analysis 20261029 (2.3) P0-javítás (2026-11-01):
@@ -12,14 +12,14 @@ import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
  * (Korábban az updateEmployeeInfo / removeEmployeeFromHR / szervezeti CRUD
  * EGYETLEN ellenőrzés nélkül futott — öneszkaláció és CASCADE-törlés volt lehetséges.)
  */
-async function requireHrSettingsAccess(): Promise<{
+async function requireHrSettingsAccess(requireWrite = true): Promise<{
   error?: string
   auth?: Awaited<ReturnType<typeof requireHrAuthServer>>
   activeCompanyId?: string | null
 }> {
-  const auth = await requireHrAuthServer(["admin", "organization"], null)
-  if (!auth.authorized) {
-    return { error: "Nincs jogosultságod ehhez a művelethez (HR admin vagy Szervezet/Állomány modul szükséges)." }
+  const auth = await requireHrAuthServer(["admin", "organization", "compliance"], null)
+  if (!auth.authorized || (requireWrite && !checkHrWriteAccess(auth, ["admin", "organization", "compliance"]))) {
+    return { error: "Nincs jogosultságod ehhez a művelethez (HR admin vagy Szervezet/Állomány írási jogosultság szükséges)." }
   }
   const activeCompanyId = await getActiveCompanyIdServer()
   return { auth, activeCompanyId }
@@ -762,7 +762,7 @@ export async function getCegesDokumentumokAdmin() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve", data: null }
 
-  const guard = await requireHrSettingsAccess()
+  const guard = await requireHrSettingsAccess(false)
   if (guard.error) return { error: guard.error, data: null }
 
   // Az összes aktív céges dokumentum lekérése a nyugtázásokkal (aktív cégre szűrve)

@@ -10,10 +10,11 @@ import {
 } from "@/utils/hr-filing-bridge"
 import { getClientInfo } from "@/utils/client-info"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
-import { isUserAuthorizedForHrView, normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
+import { hasHrWriteAccess, isUserAuthorizedForHrView, normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
 import { generateAnnualLeavePdfBuffer } from "@/utils/hr/annual-leave-pdf-generator"
 
 const HR_DOC_FILING_MODULES = ["admin", "employees", "compliance", "payroll", "onboarding", "offboarding"]
+const HR_DOC_WRITE_MODULES = ["admin", "compliance", "payroll", "onboarding", "offboarding", "time"]
 
 async function hasHrOrDocsAdminProfile(userProfile: any): Promise<boolean> {
   try {
@@ -22,8 +23,25 @@ async function hasHrOrDocsAdminProfile(userProfile: any): Promise<boolean> {
       companyRoles.isCompanyAdmin ||
       companyRoles.docsRole === "admin" ||
       companyRoles.hrRole === "admin" ||
-      companyRoles.hrRole === "rendszergazda" ||
-      isUserAuthorizedForHrView(companyRoles.hrRole, HR_DOC_FILING_MODULES, companyRoles.hrModules)
+      companyRoles.hrRole === "rendszergazda"
+    ) {
+      return true
+    }
+    const isStrictReadOnly =
+      Array.isArray(companyRoles.hrModules) &&
+      companyRoles.hrModules.length > 0 &&
+      Array.isArray(companyRoles.hrWriteModules) &&
+      companyRoles.hrWriteModules.length === 0
+    if (isStrictReadOnly) {
+      return false
+    }
+    if (
+      hasHrWriteAccess(
+        companyRoles.hrRole,
+        companyRoles.hrModules,
+        companyRoles.hrWriteModules,
+        HR_DOC_WRITE_MODULES
+      )
     ) {
       return true
     }
@@ -38,11 +56,22 @@ async function hasHrOrDocsAdminProfile(userProfile: any): Promise<boolean> {
     if (userProfile.docs_szerepkor === "admin") return true
     const normalized = normalizeHrRoleAndModules(
       userProfile.hr_szerepkor,
-      Array.isArray(userProfile.hr_modulok) ? userProfile.hr_modulok : []
+      Array.isArray(userProfile.hr_modulok) ? userProfile.hr_modulok : [],
+      Array.isArray(userProfile.hr_iras_modulok) ? userProfile.hr_iras_modulok : undefined
     )
+    const isProfileStrictReadOnly =
+      normalized.modules.length > 0 && normalized.writeModules.length === 0
+    if (isProfileStrictReadOnly && normalized.role !== "admin") {
+      return false
+    }
     if (
       normalized.role === "admin" ||
-      isUserAuthorizedForHrView(normalized.role, HR_DOC_FILING_MODULES, normalized.modules)
+      hasHrWriteAccess(
+        normalized.role,
+        normalized.modules,
+        normalized.writeModules,
+        HR_DOC_WRITE_MODULES
+      )
     ) {
       return true
     }
@@ -54,7 +83,7 @@ async function hasHrOrDocsAdminProfile(userProfile: any): Promise<boolean> {
 async function requireEmployeeActionAccess(
   employeeId: string,
   allowedModules: string[] = ["employees", "admin"],
-  options: { allowSelf?: boolean } = {}
+  options: { allowSelf?: boolean; readOnly?: boolean; writeModules?: string[] } = {}
 ): Promise<{
   ok: boolean
   error?: string
@@ -70,7 +99,7 @@ async function requireEmployeeActionAccess(
   if (options.allowSelf && user.id === employeeId) {
     return { ok: true, userId: user.id, activeCompanyId }
   }
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(allowedModules, null)
   if (!auth.authorized) {
     return {
@@ -78,6 +107,31 @@ async function requireEmployeeActionAccess(
       error: "Nincs jogosultságod a művelet végrehajtásához.",
       userId: user.id,
       activeCompanyId: auth.activeCompanyId || activeCompanyId,
+    }
+  }
+
+  const isReadOnlyCheck =
+    options.readOnly === true ||
+    allowedModules.includes("auditor") ||
+    allowedModules.includes("audit")
+
+  if (!isReadOnlyCheck) {
+    const specificModules = allowedModules.filter((m) => m !== "employees")
+    const derivedWriteModules =
+      options.writeModules ||
+      (specificModules.length === 1 && specificModules[0] === "admin"
+        ? ["admin", "onboarding", "offboarding"]
+        : specificModules.length > 0
+          ? specificModules
+          : ["admin", "onboarding", "offboarding"])
+
+    if (!checkHrWriteAccess(auth, derivedWriteModules)) {
+      return {
+        ok: false,
+        error: "Csak olvasási jogosultságod van, a módosítás nem engedélyezett.",
+        userId: user.id,
+        activeCompanyId: auth.activeCompanyId || activeCompanyId,
+      }
     }
   }
   const effectiveCompanyId = auth.activeCompanyId || activeCompanyId
@@ -1584,6 +1638,13 @@ export async function revealEmployeeSecretData(employeeId: string) {
 }
 
 export async function updateEmployeeSecretData(employeeId: string, formData: FormData) {
+  const access = await requireEmployeeActionAccess(
+    employeeId,
+    ["employees", "admin", "payroll", "onboarding"],
+    { writeModules: ["admin", "payroll", "onboarding"] }
+  )
+  if (!access.ok) return { error: access.error }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
@@ -1848,10 +1909,14 @@ export async function hrSubmitLeaveRequest(employeeId: string, formData: FormDat
   // RLS elutasította (dolgozo_id ≠ auth.uid()). Mostantól:
   // 1) Csak HR admin/vezető hívhatja
   // 2) Az insert admin-kliensen fut (RLS-bypass a HR-rögzítéshez)
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-  const auth = await requireHrAuthServer(["vezeto"], null)
-  if (!auth.authorized) {
-    return { error: "Csak HR vezető vagy adminisztrátor rögzíthet távollétet a dolgozó helyett." }
+  const { requireHrAuthServer, checkHrWriteAccess, isStrictHrReadOnlyUser } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["vezeto", "time", "admin"], null)
+  const canWriteLeave =
+    auth.authorized &&
+    !isStrictHrReadOnlyUser(auth) &&
+    (checkHrWriteAccess(auth, ["admin", "time"]) || auth.hrRole === "vezeto")
+  if (!canWriteLeave) {
+    return { error: "Csak írási jogosultsággal rendelkező HR vezető, időgazdálkodási felelős vagy adminisztrátor rögzíthet távollétet a dolgozó helyett." }
   }
 
   // Cég-ellenőrzés: a dolgozó az aktív céghez tartozzon

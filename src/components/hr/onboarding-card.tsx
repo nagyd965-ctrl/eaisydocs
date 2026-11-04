@@ -26,9 +26,10 @@ interface OnboardingCardProps {
   onboarding: OnboardingProfile
   orgUnits?: OrgUnitOption[]
   jobs?: JobOption[]
+  canWrite?: boolean
 }
 
-export function OnboardingCard({ onboarding, orgUnits, jobs }: OnboardingCardProps) {
+export function OnboardingCard({ onboarding, orgUnits, jobs, canWrite = true }: OnboardingCardProps) {
   const [open, setOpen] = useState(false)
 
   const tasks: OnboardingTask[] = onboarding.hr_onboarding_feladat || onboarding.tasks || []
@@ -40,7 +41,7 @@ export function OnboardingCard({ onboarding, orgUnits, jobs }: OnboardingCardPro
   const isAccountActive = onboarding.fiok_allapot === "aktivalva" || Boolean(onboarding.dolgozo_id)
 
   const handleDateChange = async (newDate: string) => {
-    if (!newDate) return
+    if (!canWrite || !newDate) return
     const result = await updateOnboardingDate(onboarding.id, newDate)
     if (result.error) toast.error(result.error)
     else toast.success("Belépési dátum sikeresen frissítve!")
@@ -199,6 +200,7 @@ export function OnboardingCard({ onboarding, orgUnits, jobs }: OnboardingCardPro
         jobs={jobs}
         onDateChange={handleDateChange} 
         onCloseDialog={() => setOpen(false)}
+        canWrite={canWrite}
       />
     </Dialog>
   )

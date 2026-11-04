@@ -12,7 +12,7 @@ import {
 } from "@/utils/hr/asset-handover-pdf-generator"
 import { executeHrDocumentFiling, HR_FILING_CONSTANTS } from "@/utils/hr-filing-bridge"
 import { getActiveCompanyIdServer, resolveCompanyDetailsServer } from "@/utils/company-server"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { checkHrWriteAccess, requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 function getAdminClient() {
   return createAdminClient(
@@ -29,7 +29,7 @@ async function verifyAssetAccess(
     assetId?: string | null
     documentId?: string | null
   },
-  options: { allowSelfRead?: boolean } = {}
+  options: { allowSelfRead?: boolean; requireWrite?: boolean } = {}
 ): Promise<{
   ok: boolean
   error?: string
@@ -58,6 +58,16 @@ async function verifyAssetAccess(
       ok: false,
       error: "Nincs jogosultságod a munkahelyi eszközök kezeléséhez.",
       activeCompanyId,
+    }
+  }
+
+  if (!options.allowSelfRead && options.requireWrite !== false) {
+    if (!checkHrWriteAccess(auth, ["admin", "onboarding", "offboarding"])) {
+      return {
+        ok: false,
+        error: "Csak olvasási jogosultságod van, a munkahelyi eszközök módosítása nem engedélyezett.",
+        activeCompanyId,
+      }
     }
   }
 

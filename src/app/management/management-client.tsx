@@ -20,10 +20,13 @@ import {
   toggleManagementCompanyStatusAction,
   deleteManagementCompanyAction,
   enterCompanyFromManagementAction,
+  resolveErrorLogsAction,
   deleteErrorLogsAction,
   restoreErrorLogsAction,
   clearAllErrorLogsAction,
   analyzeErrorLogsWithAiAction,
+  getAiLiveWatcherStatusAction,
+  toggleAiLiveWatcherAction,
   type ManagementCompanyInfo,
   type ManagementEaisyBillCompanyItem,
   type ManagementUserInfo,
@@ -129,7 +132,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
   const [dashboardData, setDashboardData] = useState<Awaited<ReturnType<typeof getManagementDashboardDataAction>> | null>(null)
 
   // Error center filters
-  const [errorStatusFilter, setErrorStatusFilter] = useState<"active" | "resolved" | "all">("active")
+  const [errorStatusFilter, setErrorStatusFilter] = useState<"active" | "resolved" | "deleted" | "all">("active")
   const [errorSearch, setErrorSearch] = useState("")
   const [selectedTenant, setSelectedTenant] = useState("")
   const [selectedType, setSelectedType] = useState("")
@@ -142,6 +145,8 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
   const [bulkAiAnalyzing, setBulkAiAnalyzing] = useState(false)
   const [bulkAiSummaryIds, setBulkAiSummaryIds] = useState<string[] | null>(null)
   const [localAiAnalyses, setLocalAiAnalyses] = useState<Record<string, ManagementErrorAiAnalysis>>({})
+  const [liveAiWatcherEnabled, setLiveAiWatcherEnabled] = useState(false)
+  const [togglingAiWatcher, setTogglingAiWatcher] = useState(false)
 
   // Companies filters
   const [tenantSearch, setTenantSearch] = useState("")
@@ -211,14 +216,31 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
     if (!isAuthenticated) return
     setLoading(true)
     try {
-      const data = await getManagementDashboardDataAction()
+      const [data, watcherStatus] = await Promise.all([
+        getManagementDashboardDataAction(),
+        getAiLiveWatcherStatusAction(),
+      ])
       setDashboardData(data)
+      setLiveAiWatcherEnabled(Boolean(watcherStatus?.enabled))
     } catch (err) {
       console.error("Failed to load management data:", err)
     } finally {
       setLoading(false)
     }
   }, [isAuthenticated])
+
+  const handleToggleAiWatcher = async () => {
+    setTogglingAiWatcher(true)
+    try {
+      const nextState = !liveAiWatcherEnabled
+      const res = await toggleAiLiveWatcherAction(nextState)
+      if (res.success) {
+        setLiveAiWatcherEnabled(res.enabled)
+      }
+    } finally {
+      setTogglingAiWatcher(false)
+    }
+  }
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -367,8 +389,9 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
   const companies = dashboardData?.companies || []
   const usersList = dashboardData?.users || []
   const allErrors = dashboardData?.errors || []
-  const activeErrorsCount = allErrors.filter((e) => e.status !== "resolved").length
+  const activeErrorsCount = allErrors.filter((e) => e.status === "active").length
   const resolvedErrorsCount = allErrors.filter((e) => e.status === "resolved").length
+  const deletedErrorsCount = allErrors.filter((e) => e.status === "deleted").length
   const errorKpis = dashboardData?.errorKpis || {
     total_errors: 0,
     resolved_errors: 0,
@@ -385,11 +408,17 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
 
   // Filtered errors
   const filteredErrors = allErrors.filter((err) => {
-    const errStatus = err.status === "resolved" ? "resolved" : "active"
+    const errStatus =
+      err.status === "deleted"
+        ? "deleted"
+        : err.status === "resolved"
+        ? "resolved"
+        : "active"
     const matchesStatus =
       errorStatusFilter === "all" ||
       (errorStatusFilter === "active" && errStatus === "active") ||
-      (errorStatusFilter === "resolved" && errStatus === "resolved")
+      (errorStatusFilter === "resolved" && errStatus === "resolved") ||
+      (errorStatusFilter === "deleted" && errStatus === "deleted")
     if (!matchesStatus) return false
 
     const q = errorSearch.trim().toLowerCase()
@@ -1392,6 +1421,20 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
     }
   }
 
+  const handleResolveSingleError = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    const res = await resolveErrorLogsAction([id])
+    if (res.success) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+      showToastMsg("Hiba áthelyezve a megoldott hibák közé.")
+      await loadAll()
+    }
+  }
+
   const handleDeleteSingleError = async (id: string, permanent = false, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
     const res = await deleteErrorLogsAction([id], permanent)
@@ -1401,7 +1444,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
         next.delete(id)
         return next
       })
-      showToastMsg(permanent ? "Hiba véglegesen törölve." : "Hiba áthelyezve a megoldott / törölt hibák közé.")
+      showToastMsg(permanent ? "Hiba véglegesen törölve." : "Hiba áthelyezve a törölt hibák közé.")
       await loadAll()
     }
   }
@@ -1420,6 +1463,16 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
     }
   }
 
+  const handleResolveSelectedErrors = async () => {
+    if (selectedIds.size === 0) return
+    const res = await resolveErrorLogsAction(Array.from(selectedIds))
+    if (res.success) {
+      setSelectedIds(new Set())
+      showToastMsg("Kijelölt hibák áthelyezve a megoldott hibák közé.")
+      await loadAll()
+    }
+  }
+
   const handleDeleteSelectedErrors = async (permanent = false) => {
     if (selectedIds.size === 0) return
     const res = await deleteErrorLogsAction(Array.from(selectedIds), permanent)
@@ -1428,7 +1481,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
       showToastMsg(
         permanent
           ? "Kijelölt hibák véglegesen törölve."
-          : "Kijelölt hibák áthelyezve a megoldott / törölt hibák közé."
+          : "Kijelölt hibák áthelyezve a törölt hibák közé."
       )
       await loadAll()
     }
@@ -1451,7 +1504,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
       showToastMsg(
         permanent
           ? "Minden hibanapló véglegesen törölve."
-          : "Minden aktív hiba áthelyezve a megoldott / törölt hibák közé."
+          : "Minden aktív hiba áthelyezve a megoldott hibák közé."
       )
       await loadAll()
     }
@@ -1558,26 +1611,25 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
 
           {/* Right: Actions, Theme toggle & Logout */}
           <div className="mgmt-topbar-right">
-            {actionMessage && <span className="mgmt-action-msg">{actionMessage}</span>}
             <button className="mgmt-btn" onClick={loadAll} title="Adatok frissítése">
               Frissítés
             </button>
             {activeTab === "control-center" && controlCenterTab === "errors" && (
               <>
-                {errorStatusFilter !== "resolved" && activeErrorsCount > 0 && (
+                {errorStatusFilter === "active" && activeErrorsCount > 0 && (
                   <button
                     className="mgmt-btn mgmt-btn-danger"
                     onClick={() => handleClearAllErrors(false)}
-                    title="Minden aktív hiba áthelyezése a megoldott / törölt hibák közé"
+                    title="Minden aktív hiba áthelyezése a megoldott hibák közé"
                   >
                     Napló ürítése
                   </button>
                 )}
-                {errorStatusFilter === "resolved" && resolvedErrorsCount > 0 && (
+                {errorStatusFilter === "deleted" && deletedErrorsCount > 0 && (
                   <button
                     className="mgmt-btn mgmt-btn-danger"
                     onClick={() => handleClearAllErrors(true)}
-                    title="Megoldott / törölt hibák végleges eltávolítása az adatbázisból"
+                    title="Törölt hibák végleges eltávolítása az adatbázisból"
                   >
                     Töröltek végleges ürítése
                   </button>
@@ -2143,7 +2195,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                     </div>
                     <div className="mgmt-kpi-val">{errorKpis.total_errors}</div>
                     <div className="mgmt-kpi-hint">
-                      {resolvedErrorsCount} megoldott / törölt hiba az előzményekben
+                      {resolvedErrorsCount} megoldott, {deletedErrorsCount} törölt hiba az előzményekben
                     </div>
                   </div>
 
@@ -2270,9 +2322,17 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                       {errorStatusFilter !== "resolved" && (
                         <button
                           className="mgmt-btn mgmt-btn-Docs"
+                          onClick={handleResolveSelectedErrors}
+                        >
+                          Megoldva ({selectedIds.size})
+                        </button>
+                      )}
+                      {errorStatusFilter !== "deleted" && (
+                        <button
+                          className="mgmt-btn"
                           onClick={() => handleDeleteSelectedErrors(false)}
                         >
-                          Megoldva / Törlés ({selectedIds.size})
+                          Törlés ({selectedIds.size})
                         </button>
                       )}
                       {errorStatusFilter !== "active" && (
@@ -2342,7 +2402,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                         {bulkAiSummaryIds.some((id) => {
                           const errObj = allErrors.find((x) => x.id === id)
                           const ai = localAiAnalyses[id] || errObj?.ai_analysis
-                          return ai?.fix_status === "already_fixed" && errObj?.status !== "resolved"
+                          return ai?.fix_status === "already_fixed" && errObj?.status === "active"
                         }) && (
                           <button
                             type="button"
@@ -2351,11 +2411,11 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                               const fixedIds = bulkAiSummaryIds.filter((id) => {
                                 const errObj = allErrors.find((x) => x.id === id)
                                 const ai = localAiAnalyses[id] || errObj?.ai_analysis
-                                return ai?.fix_status === "already_fixed" && errObj?.status !== "resolved"
+                                return ai?.fix_status === "already_fixed" && errObj?.status === "active"
                               })
                               if (fixedIds.length > 0) {
-                                await deleteErrorLogsAction(fixedIds, false)
-                                showToastMsg(`${fixedIds.length} már javított hiba áthelyezve a megoldottak közé!`)
+                                await resolveErrorLogsAction(fixedIds)
+                                showToastMsg(`${fixedIds.length} már javított hiba áthelyezve a megoldott hibák közé!`)
                                 await loadAll()
                               }
                             }}
@@ -2436,15 +2496,25 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                   {errObj.message}
                                 </div>
                               </div>
-                              {errObj.status !== "resolved" && (
-                                <button
-                                  type="button"
-                                  className="mgmt-btn mgmt-btn-Docs"
-                                  style={{ padding: "4px 10px", fontSize: "11.5px" }}
-                                  onClick={(e) => handleDeleteSingleError(errObj.id, false, e)}
-                                >
-                                  Megoldva / Törlés
-                                </button>
+                              {errObj.status === "active" && (
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                  <button
+                                    type="button"
+                                    className="mgmt-btn mgmt-btn-Docs"
+                                    style={{ padding: "4px 10px", fontSize: "11.5px" }}
+                                    onClick={(e) => handleResolveSingleError(errObj.id, e)}
+                                  >
+                                    Megoldva
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="mgmt-btn"
+                                    style={{ padding: "4px 10px", fontSize: "11.5px" }}
+                                    onClick={(e) => handleDeleteSingleError(errObj.id, false, e)}
+                                  >
+                                    Törlés
+                                  </button>
+                                </div>
                               )}
                             </div>
 
@@ -2483,6 +2553,52 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                         )
                       })}
                     </div>
+                  </div>
+                )}
+
+                {liveAiWatcherEnabled && (
+                  <div
+                    style={{
+                      background: "var(--mgmt-surface)",
+                      border: "1px solid rgba(20, 184, 173, 0.45)",
+                      borderRadius: "8px",
+                      padding: "12px 16px",
+                      marginBottom: "14px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: "12px",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                      <span
+                        style={{
+                          width: "9px",
+                          height: "9px",
+                          borderRadius: "999px",
+                          backgroundColor: "#14b8ad",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: "#0d9488" }}>
+                          Élő AI Figyelő mód aktív
+                        </div>
+                        <div style={{ fontSize: "12px", color: "var(--mgmt-muted)", marginTop: "2px" }}>
+                          Az „AI Analízis” / „AI Diagnózis” gomb megnyomásakor a rendszer értesíti a fejlesztői chatet, amely megvizsgálja a kódbázist és javítási javaslatot ad (módosítás csak jóváhagyás után történik).
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="mgmt-btn"
+                      style={{ padding: "5px 12px", fontSize: "12px" }}
+                      disabled={togglingAiWatcher}
+                      onClick={handleToggleAiWatcher}
+                    >
+                      Figyelő kikapcsolása
+                    </button>
                   </div>
                 )}
 
@@ -2550,7 +2666,30 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                               errorStatusFilter === "resolved" ? "#0d9488" : "var(--mgmt-muted)",
                           }}
                         >
-                          Megoldott / Törölt hibák ({resolvedErrorsCount})
+                          Megoldott hibák ({resolvedErrorsCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setErrorStatusFilter("deleted")
+                            setSelectedIds(new Set())
+                          }}
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            borderRadius: "5px",
+                            border: "none",
+                            cursor: "pointer",
+                            background:
+                              errorStatusFilter === "deleted"
+                                ? "rgba(13, 148, 136, 0.14)"
+                                : "transparent",
+                            color:
+                              errorStatusFilter === "deleted" ? "#0d9488" : "var(--mgmt-muted)",
+                          }}
+                        >
+                          Törölt hibák ({deletedErrorsCount})
                         </button>
                         <button
                           type="button"
@@ -2578,6 +2717,40 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className={liveAiWatcherEnabled ? "mgmt-btn mgmt-btn-Docs" : "mgmt-btn"}
+                        disabled={togglingAiWatcher}
+                        onClick={handleToggleAiWatcher}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "7px",
+                          padding: "5px 12px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: togglingAiWatcher ? "wait" : "pointer",
+                        }}
+                        title={
+                          liveAiWatcherEnabled
+                            ? "Az AI Analízis gomb megnyomásakor azonnal értesítést kap az AI chat. Kattints a kikapcsoláshoz."
+                            : "Alapértelmezetten kikapcsolva (0 háttérterhelés). Kapcsold be, ha szeretnéd, hogy az AI Analízis gomb azonnal felébressze a chatet."
+                        }
+                      >
+                        <span
+                          style={{
+                            width: "8px",
+                            height: "8px",
+                            borderRadius: "999px",
+                            backgroundColor: liveAiWatcherEnabled ? "#14b8ad" : "#94a3b8",
+                            display: "inline-block",
+                            flexShrink: 0,
+                          }}
+                        />
+                        {liveAiWatcherEnabled
+                          ? "Élő AI Figyelő: Aktív"
+                          : "Élő AI Figyelő: Kikapcsolva"}
+                      </button>
                       {filteredErrors.length > 0 && (
                         <button
                           type="button"
@@ -2600,7 +2773,9 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                   {filteredErrors.length === 0 ? (
                     <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
                       {errorStatusFilter === "resolved"
-                        ? "Még nincs megoldott vagy törölt hiba az előzményekben."
+                        ? "Még nincs megoldott hiba az előzményekben."
+                        : errorStatusFilter === "deleted"
+                        ? "Még nincs törölt hiba az előzményekben."
                         : "Nem található a szűrésnek megfelelő aktív hiba. A rendszer stabilan fut."}
                     </div>
                   ) : (
@@ -2628,6 +2803,8 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                           const isExpanded = expandedRowId === err.id
                           const isSelected = selectedIds.has(err.id)
                           const isResolved = err.status === "resolved"
+                          const isDeleted = err.status === "deleted"
+                          const isInactive = isResolved || isDeleted
                           const isAnalyzingThis = analyzingErrorIds.has(err.id)
                           const aiAnalysis = localAiAnalyses[err.id] || err.ai_analysis
                           return (
@@ -2635,7 +2812,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                               <tr
                                 className={`mgmt-row ${isExpanded ? "expanded" : ""}`}
                                 onClick={() => setExpandedRowId(isExpanded ? null : err.id)}
-                                style={isResolved ? { opacity: 0.78 } : undefined}
+                                style={isInactive ? { opacity: 0.78 } : undefined}
                               >
                                 <td onClick={(e) => e.stopPropagation()}>
                                   <input
@@ -2660,9 +2837,30 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                           border: "1px solid rgba(22, 163, 74, 0.25)",
                                         }}
                                       >
-                                        Megoldva / Törölve
+                                        Megoldva
                                         {err.resolved_at
                                           ? ` (${new Date(err.resolved_at).toLocaleString("hu-HU")})`
+                                          : ""}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {isDeleted && (
+                                    <div style={{ marginTop: "3px" }}>
+                                      <span
+                                        style={{
+                                          display: "inline-block",
+                                          fontSize: "10.5px",
+                                          fontWeight: 600,
+                                          padding: "1px 6px",
+                                          borderRadius: "4px",
+                                          background: "rgba(239, 68, 68, 0.12)",
+                                          color: "#ef4444",
+                                          border: "1px solid rgba(239, 68, 68, 0.25)",
+                                        }}
+                                      >
+                                        Törölve
+                                        {err.deleted_at || err.resolved_at
+                                          ? ` (${new Date((err.deleted_at || err.resolved_at)!).toLocaleString("hu-HU")})`
                                           : ""}
                                       </span>
                                     </div>
@@ -2689,7 +2887,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                       textOverflow: "ellipsis",
                                       whiteSpace: isExpanded ? "normal" : "nowrap",
                                       fontWeight: 500,
-                                      textDecoration: isResolved ? "line-through" : "none",
+                                      textDecoration: isInactive ? "line-through" : "none",
                                     }}
                                   >
                                     {err.message}
@@ -2744,28 +2942,51 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                         ? "AI Diagnózis"
                                         : "AI Analízis"}
                                     </button>
-                                    {!isResolved ? (
+                                    {err.status === "active" && (
                                       <>
                                         <button
                                           type="button"
                                           className="mgmt-btn mgmt-btn-Docs"
                                           style={{ padding: "5px 10px", fontSize: "11.5px" }}
-                                          onClick={(e) => handleDeleteSingleError(err.id, false, e)}
-                                          title="Megoldottnak jelölés / áthelyezés a törölt hibák közé"
+                                          onClick={(e) => handleResolveSingleError(err.id, e)}
+                                          title="Megoldottnak jelölés (áthelyezés a Megoldott hibák fülre)"
                                         >
-                                          Megoldva / Törlés
+                                          Megoldva
                                         </button>
                                         <button
                                           type="button"
-                                          className="mgmt-btn mgmt-btn-danger"
+                                          className="mgmt-btn"
                                           style={{ padding: "5px 10px", fontSize: "11.5px" }}
-                                          onClick={(e) => handleDeleteSingleError(err.id, true, e)}
-                                          title="Végleges törlés az adatbázisból"
+                                          onClick={(e) => handleDeleteSingleError(err.id, false, e)}
+                                          title="Törlés (áthelyezés a Törölt hibák fülre)"
                                         >
-                                          Végleges törlés
+                                          Törlés
                                         </button>
                                       </>
-                                    ) : (
+                                    )}
+                                    {err.status === "resolved" && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="mgmt-btn mgmt-btn-Docs"
+                                          style={{ padding: "5px 10px", fontSize: "11.5px" }}
+                                          onClick={(e) => handleRestoreSingleError(err.id, e)}
+                                          title="Visszaállítás az aktív hibák közé"
+                                        >
+                                          Visszaállítás
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="mgmt-btn"
+                                          style={{ padding: "5px 10px", fontSize: "11.5px" }}
+                                          onClick={(e) => handleDeleteSingleError(err.id, false, e)}
+                                          title="Áthelyezés a Törölt hibák fülre"
+                                        >
+                                          Törlés
+                                        </button>
+                                      </>
+                                    )}
+                                    {err.status === "deleted" && (
                                       <>
                                         <button
                                           type="button"
@@ -2868,7 +3089,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                                   type="button"
                                                   className="mgmt-btn mgmt-btn-primary"
                                                   style={{ padding: "4px 10px", fontSize: "11.5px" }}
-                                                  onClick={(e) => handleDeleteSingleError(err.id, false, e)}
+                                                  onClick={(e) => handleResolveSingleError(err.id, e)}
                                                 >
                                                   Megoldottnak jelölés
                                                 </button>
@@ -6090,6 +6311,38 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {actionMessage && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            zIndex: 1300,
+            background: "var(--mgmt-surface)",
+            border: "1px solid rgba(20, 184, 173, 0.55)",
+            borderRadius: "8px",
+            padding: "10px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            fontSize: "12.5px",
+            fontWeight: 600,
+            color: "#0d9488",
+          }}
+        >
+          <span
+            style={{
+              width: "7px",
+              height: "7px",
+              borderRadius: "999px",
+              backgroundColor: "#14b8ad",
+              flexShrink: 0,
+            }}
+          />
+          <span>{actionMessage}</span>
         </div>
       )}
     </div>

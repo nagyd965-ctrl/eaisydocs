@@ -74,7 +74,7 @@ import {
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 
-export function ReportsTabs() {
+export function ReportsTabs({ canWrite = true }: { canWrite?: boolean } = {}) {
   const [activeTab, setActiveTab] = useState("t1041")
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7)) // YYYY-MM
   const [loading, setLoading] = useState(false)
@@ -290,7 +290,7 @@ export function ReportsTabs() {
 
   // Egyéni T1041 A4 PDF előállítása és előnézete
   const handleGenerateIndivT1041Pdf = async () => {
-    if (!selectedIndivEmp) return
+    if (!canWrite || !selectedIndivEmp) return
     setIndivGeneratingPdf(true)
     toast.loading("A4 T1041 adatlap előállítása...", { id: "indiv-pdf" })
     try {
@@ -363,6 +363,7 @@ export function ReportsTabs() {
 
   // Nyugta feltöltés beküldése
   const handleReceiptUploadSubmit = async () => {
+    if (!canWrite) return
     if (!receiptModalItem || !receiptFile) {
       toast.error("Kérjük, válassz ki egy feltöltendő fájlt!")
       return
@@ -416,6 +417,7 @@ export function ReportsTabs() {
 
   // Archívum fájl feltöltése
   const handleArchiveUpload = async () => {
+    if (!canWrite) return
     if (!archiveFile) {
       toast.error("Válassz ki egy fájlt a feltöltéshez!")
       return
@@ -472,7 +474,7 @@ export function ReportsTabs() {
 
   // Archívum törlés megerősítése
   const executeDeleteArchive = async () => {
-    if (!itemToDelete) return
+    if (!canWrite || !itemToDelete) return
     toast.loading("Törlés folyamatban...", { id: "delete" })
     const res = await deleteArchiveRecordAdmin(itemToDelete.id, itemToDelete.filePath)
     if (res.success) {
@@ -695,20 +697,22 @@ export function ReportsTabs() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 h-8 font-medium text-xs border-primary/40 text-primary hover:bg-primary/5"
-                    onClick={() => {
-                      setIndividualT1041Open(true)
-                      if (allEmployees.length > 0 && !indivEmpId) {
-                        setIndivEmpId(allEmployees[0].dolgozoId)
-                      }
-                    }}
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    + Egyéni T1041 Készítése
-                  </Button>
+                  {canWrite && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-8 font-medium text-xs border-primary/40 text-primary hover:bg-primary/5"
+                      onClick={() => {
+                        setIndividualT1041Open(true)
+                        if (allEmployees.length > 0 && !indivEmpId) {
+                          setIndivEmpId(allEmployees[0].dolgozoId)
+                        }
+                      }}
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      + Egyéni T1041 Készítése
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -920,19 +924,21 @@ export function ReportsTabs() {
                                 )}
 
                                 {/* Nyugta feltöltése gomb ha nincs igazolva */}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  title="Hivatalos NAV Nyugta feltöltése"
-                                  className="h-7 px-2 text-xs gap-1"
-                                  onClick={() => {
-                                    setReceiptModalItem(item)
-                                    setReceiptFile(null)
-                                  }}
-                                >
-                                  <Upload className="w-3 h-3 text-muted-foreground" />
-                                  <span className="hidden sm:inline">Nyugta</span>
-                                </Button>
+                                {canWrite && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    title="Hivatalos NAV Nyugta feltöltése"
+                                    className="h-7 px-2 text-xs gap-1"
+                                    onClick={() => {
+                                      setReceiptModalItem(item)
+                                      setReceiptFile(null)
+                                    }}
+                                  >
+                                    <Upload className="w-3 h-3 text-muted-foreground" />
+                                    <span className="hidden sm:inline">Nyugta</span>
+                                  </Button>
+                                )}
 
                                 {/* Egyedi sor másolása ÁNYK formátumban */}
                                 <Button
@@ -1389,65 +1395,67 @@ export function ReportsTabs() {
         <TabsContent value="archivum" className="space-y-6 mt-0">
           <div className="grid md:grid-cols-3 gap-6">
             {/* Új feltöltés kártya */}
-            <Card className="md:col-span-1 border border-border/70 shadow-xs">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-base font-semibold">Új Bevallás Feltöltése</CardTitle>
-                <CardDescription className="text-xs">
-                  Töltsd fel a beküldött igazolást, PDF nyugtát vagy hatósági XML/CSV fájlt.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Bevallás Típusa</label>
-                  <select
-                    value={archiveType}
-                    onChange={(e) => setArchiveType(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            {canWrite && (
+              <Card className="md:col-span-1 border border-border/70 shadow-xs">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Új Bevallás Feltöltése</CardTitle>
+                  <CardDescription className="text-xs">
+                    Töltsd fel a beküldött igazolást, PDF nyugtát vagy hatósági XML/CSV fájlt.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground">Bevallás Típusa</label>
+                    <select
+                      value={archiveType}
+                      onChange={(e) => setArchiveType(e.target.value)}
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="NAV T1041">NAV T1041 (Biztosítotti bejelentés)</option>
+                      <option value="NAV 08">NAV 08-as havi járulékbevallás</option>
+                      <option value="KSH">KSH Munkaügyi Jelentés</option>
+                      <option value="Bérszámfejtés">Bérszámfejtési Csomag</option>
+                      <option value="Egyéb">Egyéb Hatósági Igazolás</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground">Ügyszám / Iktatószám (opcionális)</label>
+                    <Input
+                      placeholder="Pl. NAV-2026/09-1234 vagy iktatószám"
+                      value={archiveUgyszam}
+                      onChange={(e) => setArchiveUgyszam(e.target.value)}
+                      disabled={uploadingArchive}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground">Fájl kiválasztása</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.xml,.csv,.xlsx"
+                      disabled={uploadingArchive}
+                      onChange={(e) => setArchiveFile(e.target.files?.[0] || null)}
+                      className="h-9 text-xs"
+                    />
+                    <p className="text-[11px] text-muted-foreground">Támogatott: PDF, XML, CSV, XLSX (max. 10 MB)</p>
+                  </div>
+
+                  <Button
+                    className="w-full gap-2 text-xs font-medium bg-primary text-primary-foreground"
+                    disabled={uploadingArchive || !archiveFile}
+                    onClick={handleArchiveUpload}
                   >
-                    <option value="NAV T1041">NAV T1041 (Biztosítotti bejelentés)</option>
-                    <option value="NAV 08">NAV 08-as havi járulékbevallás</option>
-                    <option value="KSH">KSH Munkaügyi Jelentés</option>
-                    <option value="Bérszámfejtés">Bérszámfejtési Csomag</option>
-                    <option value="Egyéb">Egyéb Hatósági Igazolás</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Ügyszám / Iktatószám (opcionális)</label>
-                  <Input
-                    placeholder="Pl. NAV-2026/09-1234 vagy iktatószám"
-                    value={archiveUgyszam}
-                    onChange={(e) => setArchiveUgyszam(e.target.value)}
-                    disabled={uploadingArchive}
-                    className="h-9 text-xs"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Fájl kiválasztása</label>
-                  <Input
-                    type="file"
-                    accept=".pdf,.xml,.csv,.xlsx"
-                    disabled={uploadingArchive}
-                    onChange={(e) => setArchiveFile(e.target.files?.[0] || null)}
-                    className="h-9 text-xs"
-                  />
-                  <p className="text-[11px] text-muted-foreground">Támogatott: PDF, XML, CSV, XLSX (max. 10 MB)</p>
-                </div>
-
-                <Button
-                  className="w-full gap-2 text-xs font-medium bg-primary text-primary-foreground"
-                  disabled={uploadingArchive || !archiveFile}
-                  onClick={handleArchiveUpload}
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  {uploadingArchive ? "Feltöltés folyamatban..." : "Archiválás és Iktatás"}
-                </Button>
-              </CardContent>
-            </Card>
+                    <Upload className="w-3.5 h-3.5" />
+                    {uploadingArchive ? "Feltöltés folyamatban..." : "Archiválás és Iktatás"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Feltöltött archívum lista */}
-            <Card className="md:col-span-2 border border-border/70 shadow-xs">
+            <Card className={`${canWrite ? "md:col-span-2" : "md:col-span-3"} border border-border/70 shadow-xs`}>
               <CardHeader className="p-4 pb-2">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
@@ -1512,15 +1520,17 @@ export function ReportsTabs() {
                           >
                             <Download className="w-3.5 h-3.5 text-muted-foreground" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                            title="Törlés"
-                            onClick={() => setItemToDelete({ id: r.id, filePath: r.fajl_utvonal })}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
+                          {canWrite && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                              title="Törlés"
+                              onClick={() => setItemToDelete({ id: r.id, filePath: r.fajl_utvonal })}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}

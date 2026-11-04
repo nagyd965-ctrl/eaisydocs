@@ -69,12 +69,14 @@ export interface OffboardingProfileModalProps {
   offboarding: OffboardingListItem
   onDateChange?: (newDate: string) => void
   onCloseDialog?: () => void
+  canWrite?: boolean
 }
 
 export function OffboardingProfileModal({ 
   offboarding, 
   onDateChange,
-  onCloseDialog 
+  onCloseDialog,
+  canWrite = true
 }: OffboardingProfileModalProps) {
   const [activeModalTab, setActiveModalTab] = useState<"teendok" | "megszuntetes" | "eszkozok" | "t1041" | "interju" | "kilepo_igazolas">("teendok")
   const [newTaskName, setNewTaskName] = useState("")
@@ -99,6 +101,7 @@ export function OffboardingProfileModal({
   }, [detailData, offboarding])
 
   const handleInputDateChange = async (newVal: string) => {
+    if (!canWrite) return
     setCurrentDate(newVal)
     if (onDateChange) {
       onDateChange(newVal)
@@ -150,6 +153,7 @@ export function OffboardingProfileModal({
 
   // Feladat állapot váltása
   const handleToggleTask = async (taskId: string, currentStatus: string) => {
+    if (!canWrite) return
     setLoadingTaskId(taskId)
     const res = await toggleOffboardingTaskStatus(taskId, currentStatus)
     setLoadingTaskId(null)
@@ -161,7 +165,7 @@ export function OffboardingProfileModal({
 
   // Új feladat hozzáadása
   const handleAddTask = async () => {
-    if (!newTaskName.trim()) return
+    if (!canWrite || !newTaskName.trim()) return
     setIsAdding(true)
     const res = await addOffboardingTask(offboarding.id, newTaskName.trim(), newTaskResp)
     setIsAdding(false)
@@ -175,6 +179,7 @@ export function OffboardingProfileModal({
 
   // Feladat törlése
   const handleDeleteTask = async (taskId: string) => {
+    if (!canWrite) return
     const res = await deleteOffboardingTask(taskId)
     if (res.error) toast.error(res.error)
     else {
@@ -185,6 +190,7 @@ export function OffboardingProfileModal({
 
   // Lezárás
   const handleCloseOffboarding = async (force: boolean = false) => {
+    if (!canWrite) return
     setIsClosing(true)
     const res = await closeOffboardingProcess(offboarding.id, { force })
     setIsClosing(false)
@@ -204,6 +210,7 @@ export function OffboardingProfileModal({
 
   // Újranyitás
   const handleReopenOffboarding = async (resetTasks: boolean = true) => {
+    if (!canWrite) return
     const res = await reopenOffboardingProcess(offboarding.id, { resetTasks })
     if (res.error) {
       toast.error(res.error)
@@ -215,6 +222,7 @@ export function OffboardingProfileModal({
 
   // Összes feladat státuszának visszaállítása folyamatban lévőre (pending)
   const handleResetTasks = async () => {
+    if (!canWrite) return
     setIsResettingTasks(true)
     const res = await resetOffboardingTasksProcess(offboarding.id)
     setIsResettingTasks(false)
@@ -228,6 +236,7 @@ export function OffboardingProfileModal({
 
   // Törlés
   const handleDeleteOffboarding = async () => {
+    if (!canWrite) return
     const res = await deleteOffboardingProcess(offboarding.id)
     if (res.error) {
       toast.error(res.error)
@@ -324,166 +333,168 @@ export function OffboardingProfileModal({
           </div>
 
           {/* Fejléc Műveleti gombok */}
-          <div className="flex items-center gap-2 shrink-0">
-            {isClosed ? (
+          {canWrite && (
+            <div className="flex items-center gap-2 shrink-0">
+              {isClosed ? (
+                <AlertDialog>
+                  <AlertDialogTrigger className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "gap-1.5 text-xs cursor-pointer"
+                  )}>
+                    <RotateCcw className="w-3.5 h-3.5" /> Újranyitás
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Kiléptetési folyamat újranyitása</AlertDialogTitle>
+                      <AlertDialogDescription className="space-y-3 pt-2 text-left">
+                        <p className="text-foreground">
+                          Biztosan újranyitod {employeeName} kiléptetési folyamatát?
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          A folyamat állapota újra „Folyamatban” lesz, a dolgozói profil és a jogosultságok visszaállnak.
+                        </p>
+                        <div className="flex items-center space-x-2.5 pt-3 border-t">
+                          <Checkbox
+                            id="resetTasksCheckbox"
+                            checked={resetTasksOnReopen}
+                            onCheckedChange={(c) => setResetTasksOnReopen(Boolean(c))}
+                          />
+                          <label htmlFor="resetTasksCheckbox" className="text-xs font-medium cursor-pointer text-foreground select-none">
+                            Feladatok visszaállítása nyitott (folyamatban) állapotra
+                          </label>
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Mégse</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={() => handleReopenOffboarding(resetTasksOnReopen)}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                      >
+                        Igen, újranyitás
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : pendingCount > 0 ? (
+                <AlertDialog>
+                  <AlertDialogTrigger className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "gap-1.5 text-xs border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
+                  )}>
+                    <Archive className="w-3.5 h-3.5" /> Kiléptetés lezárása
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="sm:max-w-[520px]">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="flex items-center gap-2.5 text-base font-semibold text-amber-600 dark:text-amber-400">
+                        <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        </div>
+                        Nem fejeződött be minden feladat!
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="space-y-3.5 pt-2 text-left">
+                        <div className="p-3.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs space-y-2 text-foreground">
+                          <div className="font-semibold text-amber-700 dark:text-amber-300 flex items-center justify-between">
+                            <span>Függőben lévő feladatok:</span>
+                            <Badge variant="outline" className="border-amber-500/40 bg-amber-500/20 text-amber-800 dark:text-amber-200 font-bold tabular-nums">
+                              {pendingCount} / {totalCount} feladat elvégzetlen
+                            </Badge>
+                          </div>
+                          <p className="text-muted-foreground leading-relaxed">
+                            A kiléptetési folyamat szabályosan csak az összes kötelező teendő teljesítése után zárható le (pl. eszközleadás, NAV kijelentés, kilépő igazolások).
+                          </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Kivételes lezárás esetén a rendszer a feladatokat <strong>NEM állítja át automatikusan készre</strong>, azok valós, befejezetlen állapotukban kerülnek archiválásra.
+                        </p>
+                        <div className="flex items-start space-x-2.5 pt-2.5 border-t">
+                          <Checkbox
+                            id="forceCloseAck"
+                            checked={forceCloseAck}
+                            onCheckedChange={(c) => setForceCloseAck(Boolean(c))}
+                            className="mt-0.5"
+                          />
+                          <label htmlFor="forceCloseAck" className="text-xs font-medium cursor-pointer text-foreground leading-snug select-none">
+                            Tudomásul veszem, hogy {pendingCount} feladat elvégzetlen marad, és kivételes lezárást kérek
+                          </label>
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2 sm:gap-2">
+                      <AlertDialogCancel onClick={() => setForceCloseAck(false)}>Vissza a feladatokhoz</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={() => handleCloseOffboarding(true)} 
+                        disabled={isClosing || !forceCloseAck}
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-medium"
+                      >
+                        {isClosing ? "Lezárás folyamatban..." : "Kivételes lezárás jóváhagyása"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : (
+                <AlertDialog>
+                  <AlertDialogTrigger className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "gap-1.5 text-xs border-success/30 hover:bg-success/10 text-success cursor-pointer"
+                  )}>
+                    <Archive className="w-3.5 h-3.5" /> Kiléptetés lezárása
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="sm:max-w-[480px]">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="flex items-center gap-2.5 text-base font-semibold text-success">
+                        <div className="w-8 h-8 rounded-full bg-success/15 flex items-center justify-center shrink-0">
+                          <CheckCircle2 className="w-4 h-4 text-success" />
+                        </div>
+                        Kiléptetési folyamat lezárása
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="space-y-2.5 pt-2 text-left">
+                        <p className="text-sm text-foreground">
+                          Biztosan lezárod {employeeName} kiléptetési folyamatát? Minden feladat sikeresen elvégezve (100%).
+                        </p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          A folyamat során keletkezett hivatalos kilépő iratok (törvényes kilépő igazolások Mt. 80. §, megszüntetési megállapodás, eszközleszámolás, NAV igazolások) automatikusan beiktatásra kerülnek az eaisyDocs személyi dossziéba (50 év törvényes megőrzési idővel), és a folyamat archivált státuszba lép.
+                        </p>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2 sm:gap-2">
+                      <AlertDialogCancel>Mégse</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={() => handleCloseOffboarding(false)} 
+                        disabled={isClosing}
+                        className="bg-success hover:bg-success/90 text-success-foreground font-medium"
+                      >
+                        {isClosing ? "Lezárás folyamatban..." : "Igen, lezárás és archiválás"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+
               <AlertDialog>
                 <AlertDialogTrigger className={cn(
-                  buttonVariants({ variant: "outline", size: "sm" }),
-                  "gap-1.5 text-xs cursor-pointer"
+                  buttonVariants({ variant: "ghost", size: "icon" }),
+                  "h-8 w-8 text-destructive hover:bg-destructive/10 cursor-pointer"
                 )}>
-                  <RotateCcw className="w-3.5 h-3.5" /> Újranyitás
+                  <Trash2 className="w-4 h-4" />
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Kiléptetési folyamat újranyitása</AlertDialogTitle>
-                    <AlertDialogDescription className="space-y-3 pt-2 text-left">
-                      <p className="text-foreground">
-                        Biztosan újranyitod {employeeName} kiléptetési folyamatát?
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        A folyamat állapota újra „Folyamatban” lesz, a dolgozói profil és a jogosultságok visszaállnak.
-                      </p>
-                      <div className="flex items-center space-x-2.5 pt-3 border-t">
-                        <Checkbox
-                          id="resetTasksCheckbox"
-                          checked={resetTasksOnReopen}
-                          onCheckedChange={(c) => setResetTasksOnReopen(Boolean(c))}
-                        />
-                        <label htmlFor="resetTasksCheckbox" className="text-xs font-medium cursor-pointer text-foreground select-none">
-                          Feladatok visszaállítása nyitott (folyamatban) állapotra
-                        </label>
-                      </div>
+                    <AlertDialogTitle>Kiléptetési folyamat törlése</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Biztosan véglegesen törlöd ezt a kiléptetési folyamatot? Ez a művelet nem vonható vissza.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Mégse</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={() => handleReopenOffboarding(resetTasksOnReopen)}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                    >
-                      Igen, újranyitás
+                    <AlertDialogAction onClick={handleDeleteOffboarding} className="bg-destructive hover:bg-destructive/90 text-white">
+                      Végleges törlés
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            ) : pendingCount > 0 ? (
-              <AlertDialog>
-                <AlertDialogTrigger className={cn(
-                  buttonVariants({ variant: "outline", size: "sm" }),
-                  "gap-1.5 text-xs border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
-                )}>
-                  <Archive className="w-3.5 h-3.5" /> Kiléptetés lezárása
-                </AlertDialogTrigger>
-                <AlertDialogContent className="sm:max-w-[520px]">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2.5 text-base font-semibold text-amber-600 dark:text-amber-400">
-                      <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                      </div>
-                      Nem fejeződött be minden feladat!
-                    </AlertDialogTitle>
-                    <AlertDialogDescription className="space-y-3.5 pt-2 text-left">
-                      <div className="p-3.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs space-y-2 text-foreground">
-                        <div className="font-semibold text-amber-700 dark:text-amber-300 flex items-center justify-between">
-                          <span>Függőben lévő feladatok:</span>
-                          <Badge variant="outline" className="border-amber-500/40 bg-amber-500/20 text-amber-800 dark:text-amber-200 font-bold tabular-nums">
-                            {pendingCount} / {totalCount} feladat elvégzetlen
-                          </Badge>
-                        </div>
-                        <p className="text-muted-foreground leading-relaxed">
-                          A kiléptetési folyamat szabályosan csak az összes kötelező teendő teljesítése után zárható le (pl. eszközleadás, NAV kijelentés, kilépő igazolások).
-                        </p>
-                      </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        Kivételes lezárás esetén a rendszer a feladatokat <strong>NEM állítja át automatikusan készre</strong>, azok valós, befejezetlen állapotukban kerülnek archiválásra.
-                      </p>
-                      <div className="flex items-start space-x-2.5 pt-2.5 border-t">
-                        <Checkbox
-                          id="forceCloseAck"
-                          checked={forceCloseAck}
-                          onCheckedChange={(c) => setForceCloseAck(Boolean(c))}
-                          className="mt-0.5"
-                        />
-                        <label htmlFor="forceCloseAck" className="text-xs font-medium cursor-pointer text-foreground leading-snug select-none">
-                          Tudomásul veszem, hogy {pendingCount} feladat elvégzetlen marad, és kivételes lezárást kérek
-                        </label>
-                      </div>
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter className="gap-2 sm:gap-2">
-                    <AlertDialogCancel onClick={() => setForceCloseAck(false)}>Vissza a feladatokhoz</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={() => handleCloseOffboarding(true)} 
-                      disabled={isClosing || !forceCloseAck}
-                      className="bg-amber-600 hover:bg-amber-700 text-white font-medium"
-                    >
-                      {isClosing ? "Lezárás folyamatban..." : "Kivételes lezárás jóváhagyása"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            ) : (
-              <AlertDialog>
-                <AlertDialogTrigger className={cn(
-                  buttonVariants({ variant: "outline", size: "sm" }),
-                  "gap-1.5 text-xs border-success/30 hover:bg-success/10 text-success cursor-pointer"
-                )}>
-                  <Archive className="w-3.5 h-3.5" /> Kiléptetés lezárása
-                </AlertDialogTrigger>
-                <AlertDialogContent className="sm:max-w-[480px]">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2.5 text-base font-semibold text-success">
-                      <div className="w-8 h-8 rounded-full bg-success/15 flex items-center justify-center shrink-0">
-                        <CheckCircle2 className="w-4 h-4 text-success" />
-                      </div>
-                      Kiléptetési folyamat lezárása
-                    </AlertDialogTitle>
-                    <AlertDialogDescription className="space-y-2.5 pt-2 text-left">
-                      <p className="text-sm text-foreground">
-                        Biztosan lezárod {employeeName} kiléptetési folyamatát? Minden feladat sikeresen elvégezve (100%).
-                      </p>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        A folyamat során keletkezett hivatalos kilépő iratok (törvényes kilépő igazolások Mt. 80. §, megszüntetési megállapodás, eszközleszámolás, NAV igazolások) automatikusan beiktatásra kerülnek az eaisyDocs személyi dossziéba (50 év törvényes megőrzési idővel), és a folyamat archivált státuszba lép.
-                      </p>
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter className="gap-2 sm:gap-2">
-                    <AlertDialogCancel>Mégse</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={() => handleCloseOffboarding(false)} 
-                      disabled={isClosing}
-                      className="bg-success hover:bg-success/90 text-success-foreground font-medium"
-                    >
-                      {isClosing ? "Lezárás folyamatban..." : "Igen, lezárás és archiválás"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-
-            <AlertDialog>
-              <AlertDialogTrigger className={cn(
-                buttonVariants({ variant: "ghost", size: "icon" }),
-                "h-8 w-8 text-destructive hover:bg-destructive/10 cursor-pointer"
-              )}>
-                <Trash2 className="w-4 h-4" />
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Kiléptetési folyamat törlése</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Biztosan véglegesen törlöd ezt a kiléptetési folyamatot? Ez a művelet nem vonható vissza.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Mégse</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteOffboarding} className="bg-destructive hover:bg-destructive/90 text-white">
-                    Végleges törlés
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -564,6 +575,7 @@ export function OffboardingProfileModal({
                   <CalendarDays className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input 
                     type="date" 
+                    disabled={!canWrite}
                     className="pl-9 h-9 text-sm font-medium bg-muted/20 border-border/50 focus:bg-background"
                     value={currentDate} 
                     onChange={(e) => handleInputDateChange(e.target.value)}
@@ -596,7 +608,7 @@ export function OffboardingProfileModal({
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  {doneCount > 0 && !isClosed && (
+                  {canWrite && doneCount > 0 && !isClosed && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -668,7 +680,7 @@ export function OffboardingProfileModal({
                                 ? "text-primary hover:text-primary/80" 
                                 : "text-muted-foreground hover:text-foreground border"
                             }`}
-                            disabled={isLoading}
+                            disabled={!canWrite || isLoading}
                             onClick={() => handleToggleTask(task.id, task.statusz)}
                           >
                             {isTaskDone ? (
@@ -690,94 +702,96 @@ export function OffboardingProfileModal({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {(cimLower.includes("megszüntet") || cimLower.includes("kilépő papír") || cimLower.includes("szerződés") || cimLower.includes("felmond")) && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className={cn(
-                                "h-7 text-xs px-2 gap-1",
-                                hasTerminationAgreement 
-                                  ? "text-success border-success/30 hover:bg-success/10" 
-                                  : "text-primary border-primary/30 hover:bg-primary/10"
-                              )}
-                              onClick={() => setActiveModalTab("megszuntetes")}
-                            >
-                              {hasTerminationAgreement ? <CheckCircle2 className="w-3 h-3 text-success" /> : <FileText className="w-3 h-3" />}
-                              {hasTerminationAgreement ? "Megállapodás megtekintése" : "Megszüntetés előkészítése"}
-                            </Button>
-                          )}
+                        {canWrite && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {(cimLower.includes("megszüntet") || cimLower.includes("kilépő papír") || cimLower.includes("szerződés") || cimLower.includes("felmond")) && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className={cn(
+                                  "h-7 text-xs px-2 gap-1",
+                                  hasTerminationAgreement 
+                                    ? "text-success border-success/30 hover:bg-success/10" 
+                                    : "text-primary border-primary/30 hover:bg-primary/10"
+                                )}
+                                onClick={() => setActiveModalTab("megszuntetes")}
+                              >
+                                {hasTerminationAgreement ? <CheckCircle2 className="w-3 h-3 text-success" /> : <FileText className="w-3 h-3" />}
+                                {hasTerminationAgreement ? "Megállapodás megtekintése" : "Megszüntetés előkészítése"}
+                              </Button>
+                            )}
 
-                          {(cimLower.includes("eszköz") || cimLower.includes("laptop") || cimLower.includes("telefon") || cimLower.includes("visszavétel") || cimLower.includes("kulcs") || cimLower.includes("belépő")) && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className={cn(
-                                "h-7 text-xs px-2 gap-1",
-                                hasAssetReturn 
-                                  ? "text-success border-success/30 hover:bg-success/10" 
-                                  : "text-primary border-primary/30 hover:bg-primary/10"
-                              )}
-                              onClick={() => setActiveModalTab("eszkozok")}
-                            >
-                              {hasAssetReturn ? <CheckCircle2 className="w-3 h-3 text-success" /> : <Laptop className="w-3 h-3" />}
-                              {hasAssetReturn ? "Leszámoló lap megtekintése" : "Eszközök visszavétele"}
-                            </Button>
-                          )}
+                            {(cimLower.includes("eszköz") || cimLower.includes("laptop") || cimLower.includes("telefon") || cimLower.includes("visszavétel") || cimLower.includes("kulcs") || cimLower.includes("belépő")) && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className={cn(
+                                  "h-7 text-xs px-2 gap-1",
+                                  hasAssetReturn 
+                                    ? "text-success border-success/30 hover:bg-success/10" 
+                                    : "text-primary border-primary/30 hover:bg-primary/10"
+                                )}
+                                onClick={() => setActiveModalTab("eszkozok")}
+                              >
+                                {hasAssetReturn ? <CheckCircle2 className="w-3 h-3 text-success" /> : <Laptop className="w-3 h-3" />}
+                                {hasAssetReturn ? "Leszámoló lap megtekintése" : "Eszközök visszavétele"}
+                              </Button>
+                            )}
 
-                          {(cimLower.includes("t1041") || cimLower.includes("nav") || cimLower.includes("kijelentés") || cimLower.includes("hatósági")) && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs px-2 gap-1 text-success border-success/30 hover:bg-success/10"
-                              onClick={() => setActiveModalTab("t1041")}
-                            >
-                              <Building2 className="w-3 h-3 text-success" /> T1041 bejelentés
-                            </Button>
-                          )}
+                            {(cimLower.includes("t1041") || cimLower.includes("nav") || cimLower.includes("kijelentés") || cimLower.includes("hatósági")) && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs px-2 gap-1 text-success border-success/30 hover:bg-success/10"
+                                onClick={() => setActiveModalTab("t1041")}
+                              >
+                                <Building2 className="w-3 h-3 text-success" /> T1041 bejelentés
+                              </Button>
+                            )}
 
-                          {(cimLower.includes("interjú") || cimLower.includes("kérdőív") || cimLower.includes("visszajelzés")) && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10"
-                              onClick={() => setActiveModalTab("interju")}
-                            >
-                              <MessageSquare className="w-3 h-3" /> Kilépési interjú
-                            </Button>
-                          )}
+                            {(cimLower.includes("interjú") || cimLower.includes("kérdőív") || cimLower.includes("visszajelzés")) && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs px-2 gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                                onClick={() => setActiveModalTab("interju")}
+                              >
+                                <MessageSquare className="w-3 h-3" /> Kilépési interjú
+                              </Button>
+                            )}
 
-                          {(cimLower.includes("igazolás") || cimLower.includes("mt. 80")) && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className={cn(
-                                "h-7 text-xs px-2 gap-1",
-                                hasExitCertificate 
-                                  ? "text-success border-success/30 hover:bg-success/10" 
-                                  : "text-primary border-primary/30 hover:bg-primary/10"
-                              )}
-                              onClick={() => setActiveModalTab("kilepo_igazolas")}
-                            >
-                              {hasExitCertificate ? <CheckCircle2 className="w-3 h-3 text-success" /> : <FileCheck className="w-3 h-3" />}
-                              {hasExitCertificate ? "Igazolások megtekintése" : "Igazolások kiadása"}
-                            </Button>
-                          )}
+                            {(cimLower.includes("igazolás") || cimLower.includes("mt. 80")) && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className={cn(
+                                  "h-7 text-xs px-2 gap-1",
+                                  hasExitCertificate 
+                                    ? "text-success border-success/30 hover:bg-success/10" 
+                                    : "text-primary border-primary/30 hover:bg-primary/10"
+                                )}
+                                onClick={() => setActiveModalTab("kilepo_igazolas")}
+                              >
+                                {hasExitCertificate ? <CheckCircle2 className="w-3 h-3 text-success" /> : <FileCheck className="w-3 h-3" />}
+                                {hasExitCertificate ? "Igazolások megtekintése" : "Igazolások kiadása"}
+                              </Button>
+                            )}
 
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0" 
-                            onClick={() => handleDeleteTask(task.id)}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0" 
+                              onClick={() => handleDeleteTask(task.id)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )
                   })
@@ -785,37 +799,39 @@ export function OffboardingProfileModal({
               </div>
 
               {/* Új feladat felvétele */}
-              <div className="flex gap-2 pt-2">
-                <Input 
-                  placeholder="Új feladat elnevezése..." 
-                  value={newTaskName} 
-                  onChange={(e) => setNewTaskName(e.target.value)} 
-                  className="h-9 text-sm" 
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAddTask()
-                  }}
-                />
-                <select
-                  value={newTaskResp}
-                  onChange={(e) => setNewTaskResp(e.target.value)}
-                  className="h-9 text-xs px-2 rounded-md border border-input bg-background font-medium"
-                >
-                  <option value="HR">HR</option>
-                  <option value="IT">IT</option>
-                  <option value="Bérszámfejtés">Bérszámfejtés</option>
-                  <option value="Üzemeltetés">Üzemeltetés</option>
-                  <option value="Vezető">Vezető</option>
-                </select>
-                <Button 
-                  onClick={handleAddTask} 
-                  disabled={isAdding || !newTaskName.trim()} 
-                  className="h-9 px-3 gap-1 shrink-0" 
-                  size="sm"
-                >
-                  {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  Hozzáadás
-                </Button>
-              </div>
+              {canWrite && (
+                <div className="flex gap-2 pt-2">
+                  <Input 
+                    placeholder="Új feladat elnevezése..." 
+                    value={newTaskName} 
+                    onChange={(e) => setNewTaskName(e.target.value)} 
+                    className="h-9 text-sm" 
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAddTask()
+                    }}
+                  />
+                  <select
+                    value={newTaskResp}
+                    onChange={(e) => setNewTaskResp(e.target.value)}
+                    className="h-9 text-xs px-2 rounded-md border border-input bg-background font-medium"
+                  >
+                    <option value="HR">HR</option>
+                    <option value="IT">IT</option>
+                    <option value="Bérszámfejtés">Bérszámfejtés</option>
+                    <option value="Üzemeltetés">Üzemeltetés</option>
+                    <option value="Vezető">Vezető</option>
+                  </select>
+                  <Button 
+                    onClick={handleAddTask} 
+                    disabled={isAdding || !newTaskName.trim()} 
+                    className="h-9 px-3 gap-1 shrink-0" 
+                    size="sm"
+                  >
+                    {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    Hozzáadás
+                  </Button>
+                </div>
+              )}
             </div>
           </>
         )}

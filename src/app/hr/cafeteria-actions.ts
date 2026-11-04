@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
-import { isUserAuthorizedForHrView, normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
+import { hasHrWriteAccess, normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
 
 async function hasCafeteriaAdminAccess(profile: any, activeCompanyId?: string | null): Promise<boolean> {
   try {
@@ -11,8 +11,20 @@ async function hasCafeteriaAdminAccess(profile: any, activeCompanyId?: string | 
     if (
       scoped.isCompanyAdmin ||
       scoped.hrRole === "admin" ||
-      scoped.hrRole === "rendszergazda" ||
-      isUserAuthorizedForHrView(scoped.hrRole, ["admin", "payroll", "employees"], scoped.hrModules)
+      scoped.hrRole === "rendszergazda"
+    ) {
+      return true
+    }
+    const isStrictReadOnly =
+      Array.isArray(scoped.hrModules) &&
+      scoped.hrModules.length > 0 &&
+      Array.isArray(scoped.hrWriteModules) &&
+      scoped.hrWriteModules.length === 0
+    if (isStrictReadOnly) {
+      return false
+    }
+    if (
+      hasHrWriteAccess(scoped.hrRole, scoped.hrModules, scoped.hrWriteModules, ["admin", "payroll"])
     ) {
       return true
     }
@@ -26,11 +38,17 @@ async function hasCafeteriaAdminAccess(profile: any, activeCompanyId?: string | 
   if (!profile) return false
   const normalized = normalizeHrRoleAndModules(
     profile.hr_szerepkor,
-    Array.isArray(profile.hr_modulok) ? profile.hr_modulok : []
+    Array.isArray(profile.hr_modulok) ? profile.hr_modulok : [],
+    Array.isArray(profile.hr_iras_modulok) ? profile.hr_iras_modulok : undefined
   )
+  const isProfileStrictReadOnly =
+    normalized.modules.length > 0 && normalized.writeModules.length === 0
+  if (isProfileStrictReadOnly && normalized.role !== "admin") {
+    return false
+  }
   return (
     normalized.role === "admin" ||
-    isUserAuthorizedForHrView(normalized.role, ["admin", "payroll", "employees"], normalized.modules)
+    hasHrWriteAccess(normalized.role, normalized.modules, normalized.writeModules, ["admin", "payroll"])
   )
 }
 

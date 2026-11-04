@@ -136,7 +136,7 @@ export function QualificationTab({
                   <TableHead>Megnevezés</TableHead>
                   <TableHead>Intézmény</TableHead>
                   <TableHead>Megszerzés Éve</TableHead>
-                  {isHrOrAdmin && <TableHead className="text-right">Művelet</TableHead>}
+                  <TableHead className="text-right">Művelet</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -149,7 +149,6 @@ export function QualificationTab({
                     </TableCell>
                     <TableCell>{item.intezmeny || "-"}</TableCell>
                     <TableCell className="tabular-nums">{item.megszerzes_datuma ? new Date(item.megszerzes_datuma).getFullYear() : "-"}</TableCell>
-                  {isHrOrAdmin && (
                     <TableCell className="text-right flex items-center justify-end gap-2">
                       {item.dokumentum_url && (
                         <Button 
@@ -170,23 +169,24 @@ export function QualificationTab({
                           <FileText className="w-4 h-4 text-primary" />
                         </Button>
                       )}
-                      <AlertDialog>
-                        <AlertDialogTrigger className={`${buttonVariants({ variant: "ghost", size: "icon" })} text-destructive hover:text-destructive transition-colors`} title="Törlés">
-                          <Trash2 className="w-4 h-4" />
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Biztosan törlöd?</AlertDialogTitle>
-                            <AlertDialogDescription>Ezzel véglegesen törlöd a "{item.megnevezes}" képzettséget.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Mégse</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(item.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Törlés</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      {isHrOrAdmin && (
+                        <AlertDialog>
+                          <AlertDialogTrigger className={`${buttonVariants({ variant: "ghost", size: "icon" })} text-destructive hover:text-destructive transition-colors`} title="Törlés">
+                            <Trash2 className="w-4 h-4" />
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Biztosan törlöd?</AlertDialogTitle>
+                              <AlertDialogDescription>Ezzel véglegesen törlöd a "{item.megnevezes}" képzettséget.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Mégse</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDelete(item.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Törlés</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                     </TableCell>
-                  )}
                 </TableRow>
               ))}
             </TableBody>

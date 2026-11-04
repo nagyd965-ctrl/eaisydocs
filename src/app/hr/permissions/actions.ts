@@ -2,7 +2,7 @@
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { requireHrAuthServer, checkHrWriteAccess } from "@/utils/hr/hr-auth-guard"
 import {
   ALL_HR_MODULES,
   HR_ROLE_LABELS,
@@ -17,8 +17,8 @@ export async function updateEmployeePermissionsAction(params: {
   hrWriteModules?: string[]
 }) {
   const auth = await requireHrAuthServer(["admin"], null)
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod a jogosultságok módosításához (kizárólag Admin)." }
+  if (!auth.authorized || !auth.user || !(auth.isCompanyAdmin || auth.hrRole === "admin" || checkHrWriteAccess(auth, "admin"))) {
+    return { error: "Nincs jogosultságod a jogosultságok módosításához (kizárólag Admin írási joggal)." }
   }
 
   const { employeeId, hrRole, hrModules, hrWriteModules } = params

@@ -124,8 +124,9 @@ export interface ManagementErrorLog {
   context: Record<string, unknown>
   url: string | null
   user_agent: string | null
-  status: "active" | "resolved"
+  status: "active" | "resolved" | "deleted"
   resolved_at: string | null
+  deleted_at: string | null
   ai_analysis: ManagementErrorAiAnalysis | null
 }
 
@@ -590,8 +591,15 @@ export async function getManagementDashboardDataAction() {
   const errors: ManagementErrorLog[] = rawErrors.map((e) => {
     const comp = e.company_id ? companyById.get(e.company_id) : undefined
     const ctx = ((e.context as Record<string, unknown>) || {}) as Record<string, unknown>
-    const isResolved = ctx._mgmt_status === "resolved" || ctx._mgmt_status === "deleted"
+    const rawStatus = ctx._mgmt_status
+    const status: "active" | "resolved" | "deleted" =
+      rawStatus === "deleted"
+        ? "deleted"
+        : rawStatus === "resolved"
+        ? "resolved"
+        : "active"
     const resolvedAt = typeof ctx._mgmt_resolved_at === "string" ? ctx._mgmt_resolved_at : null
+    const deletedAt = typeof ctx._mgmt_deleted_at === "string" ? ctx._mgmt_deleted_at : null
     const rawAi = ctx._mgmt_ai_analysis as ManagementErrorAiAnalysis | undefined
     const aiAnalysis: ManagementErrorAiAnalysis | null =
       rawAi && typeof rawAi === "object" && typeof rawAi.summary === "string"
@@ -623,8 +631,9 @@ export async function getManagementDashboardDataAction() {
       context: ctx,
       url: e.url || null,
       user_agent: e.user_agent || null,
-      status: isResolved ? "resolved" : "active",
+      status,
       resolved_at: resolvedAt,
+      deleted_at: deletedAt,
       ai_analysis: aiAnalysis,
     }
   })
@@ -2097,7 +2106,50 @@ export async function enterCompanyFromManagementAction(
 }
 
 /**
- * Kijelölt hibanapló bejegyzések törlése / megoldottnak jelölése (archiválás a "Megoldott / Törölt hibák" listába),
+ * Kijelölt hibanapló bejegyzések megoldottnak jelölése (áthelyezés a "Megoldott hibák" listába).
+ */
+export async function resolveErrorLogsAction(ids: string[]): Promise<{
+  success: boolean
+  error?: string
+}> {
+  try {
+    await requireManagementAuth()
+    if (!ids || ids.length === 0) return { success: true }
+    const admin = getAdminClient()
+
+    const { data: rows } = await admin
+      .from("app_error_logs")
+      .select("id, context")
+      .in("id", ids)
+
+    const nowIso = new Date().toISOString()
+    for (const row of rows || []) {
+      const prevCtx = { ...(((row.context as Record<string, unknown>) || {}) as Record<string, unknown>) }
+      delete prevCtx._mgmt_deleted_at
+      await admin
+        .from("app_error_logs")
+        .update({
+          context: {
+            ...prevCtx,
+            _mgmt_status: "resolved",
+            _mgmt_resolved_at: nowIso,
+          },
+        })
+        .eq("id", row.id)
+    }
+
+    revalidatePath("/management")
+    return { success: true }
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Hiba a megoldottnak jelölés során.",
+    }
+  }
+}
+
+/**
+ * Kijelölt hibanapló bejegyzések áthelyezése a "Törölt hibák" listába (`permanent = false`),
  * vagy `permanent = true` esetén végleges törlése az adatbázisból.
  */
 export async function deleteErrorLogsAction(
@@ -2129,8 +2181,8 @@ export async function deleteErrorLogsAction(
           .update({
             context: {
               ...prevCtx,
-              _mgmt_status: "resolved",
-              _mgmt_resolved_at: nowIso,
+              _mgmt_status: "deleted",
+              _mgmt_deleted_at: nowIso,
             },
           })
           .eq("id", row.id)
@@ -2148,7 +2200,7 @@ export async function deleteErrorLogsAction(
 }
 
 /**
- * Megoldott / törölt hiba visszaállítása az aktív hibák közé.
+ * Megoldott vagy törölt hiba visszaállítása az aktív hibák közé.
  */
 export async function restoreErrorLogsAction(ids: string[]): Promise<{
   success: boolean
@@ -2168,6 +2220,7 @@ export async function restoreErrorLogsAction(ids: string[]): Promise<{
       const prevCtx = { ...(((row.context as Record<string, unknown>) || {}) as Record<string, unknown>) }
       delete prevCtx._mgmt_status
       delete prevCtx._mgmt_resolved_at
+      delete prevCtx._mgmt_deleted_at
       await admin
         .from("app_error_logs")
         .update({ context: prevCtx })
@@ -2185,8 +2238,8 @@ export async function restoreErrorLogsAction(ids: string[]): Promise<{
 }
 
 /**
- * Teljes hibanapló ürítése (alapértelmezetten áthelyezi a Megoldott / Törölt hibák közé,
- * `permanent = true` esetén véglegesen törli a megoldott/törölt előzményeket).
+ * Teljes hibanapló ürítése (alapértelmezetten áthelyezi az aktív hibákat a Törölt hibák közé,
+ * `permanent = true` esetén véglegesen törli a törölt előzményeket).
  */
 export async function clearAllErrorLogsAction(permanent = false): Promise<{
   success: boolean
@@ -2197,11 +2250,17 @@ export async function clearAllErrorLogsAction(permanent = false): Promise<{
     const admin = getAdminClient()
 
     if (permanent) {
-      const { error } = await admin
+      const { data: rows } = await admin
         .from("app_error_logs")
-        .delete()
-        .neq("id", "00000000-0000-0000-0000-000000000000")
-      if (error) return { success: false, error: error.message }
+        .select("id, context")
+        .limit(500)
+      const deletedIds = (rows || [])
+        .filter((r) => ((r.context as Record<string, unknown>) || {})._mgmt_status === "deleted")
+        .map((r) => r.id)
+      if (deletedIds.length > 0) {
+        const { error } = await admin.from("app_error_logs").delete().in("id", deletedIds)
+        if (error) return { success: false, error: error.message }
+      }
     } else {
       const { data: rows } = await admin
         .from("app_error_logs")
@@ -2211,14 +2270,14 @@ export async function clearAllErrorLogsAction(permanent = false): Promise<{
       const nowIso = new Date().toISOString()
       for (const row of rows || []) {
         const prevCtx = ((row.context as Record<string, unknown>) || {}) as Record<string, unknown>
-        if (prevCtx._mgmt_status !== "resolved") {
+        if (!prevCtx._mgmt_status) {
           await admin
             .from("app_error_logs")
             .update({
               context: {
                 ...prevCtx,
-                _mgmt_status: "resolved",
-                _mgmt_resolved_at: nowIso,
+                _mgmt_status: "deleted",
+                _mgmt_deleted_at: nowIso,
               },
             })
             .eq("id", row.id)
@@ -2355,7 +2414,10 @@ async function buildDiagnosticForErrorRow(row: {
     ) {
       const compSelPath = path.join(process.cwd(), "src", "components", "company-selector.tsx")
       const compSelContent = await fs.readFile(compSelPath, "utf-8").catch(() => "")
-      if (compSelContent.includes("overflow-y-auto") && compSelContent.includes("max-h-[260px]")) {
+      if (
+        compSelContent.includes("overflow-y-auto") &&
+        (compSelContent.includes("max-h-[240px]") || compSelContent.includes("max-h-[260px]"))
+      ) {
         return {
           analyzed_at: nowIso,
           fix_status: "already_fixed",
@@ -2377,25 +2439,121 @@ async function buildDiagnosticForErrorRow(row: {
       }
     }
 
+    // Speciális ellenőrzés: Turbopack / Webpack elavult modul-gyorsítótár ("module factory is not available" / "was instantiated because it was required from module")
+    if (
+      msgLower.includes("module factory is not available") ||
+      msgLower.includes("was instantiated because it was required from module")
+    ) {
+      const reqMatch = msg.match(/Module\s+\[project\]\/([a-zA-Z0-9_\-\\/.\[\]]+?)(?::[a-f0-9]+)?\s+\[/)
+      const parentMatch = msg.match(/required from module\s+\[project\]\/([a-zA-Z0-9_\-\\/.\[\]]+?)\s+\[/)
+      const requiredModPath = reqMatch?.[1]?.replace(/\\/g, "/") || "src/app/management/data"
+      const parentModPath = parentMatch?.[1]?.replace(/\\/g, "/") || "src/app/management/management-client.tsx"
+      affectedFileGuess = parentModPath
+
+      const parentFullPath = path.join(process.cwd(), parentModPath)
+      const parentContent = await fs.readFile(parentFullPath, "utf-8").catch(() => "")
+      const reqBaseName = path.basename(requiredModPath).replace(/\.(tsx?|jsx?)$/, "")
+      const stillImportsModule =
+        parentContent.includes(`./${reqBaseName}`) ||
+        parentContent.includes(`/${reqBaseName}"`) ||
+        parentContent.includes(`/${reqBaseName}'`)
+
+      if (parentContent && !stillImportsModule) {
+        detectedFixedInCode = true
+        return {
+          analyzed_at: nowIso,
+          fix_status: "already_fixed",
+          fix_status_label: "Már javítva a kódbázisban",
+          summary: `Turbopack HMR elavult modul-hivatkozás (${requiredModPath} -> ${parentModPath}).`,
+          root_cause: `A hiba keletkezésekor a böngészőben futó Next.js Turbopack HMR (Hot Module Replacement) kliens még a korábbi \`${requiredModPath}\` modul memóriabeli chunk-gyárát kereste, miközben a szerveren a modul már megszűnt és átkerült az élő szerverakciókba (\`actions.ts\`).`,
+          resolution_status_text: `MÁR MEGOLDVA A KÓDBÁZISBAN: Az élő forráskód-ellenőrzés (\`${parentModPath}\`) igazolta, hogy a fájl már egyáltalán nem importálja a \`./${reqBaseName}\` modult (minden adatforgalom az élő Supabase szerverakciókon keresztül zajlik). A hiba kizárólag a refaktorálás pillanatában nyitva lévő böngészőfül HMR cache-e miatt jelentkezett.`,
+          solution_steps: [
+            `Az élő \`${parentModPath}\` fájl ellenőrizve: a \`./${reqBaseName}\` import már nem szerepel a kódbázisban.`,
+            "Az oldal újratöltése után a Turbopack a friss modul-gráfot tölti be, a hiba többé nem reprodukálható.",
+            "Kattints a 'Megoldottnak jelölés' gombra a bejegyzés lezárásához.",
+          ],
+          affected_file: parentModPath,
+          ai_engine: "ThinkAI Live Codebase Inspector",
+        }
+      }
+    }
+
+    // Speciális ellenőrzés: Next.js Server Action "An unexpected response was received from the server." (/login)
+    if (
+      msgLower.includes("unexpected response was received from the server") ||
+      stack.includes("fetchServerAction")
+    ) {
+      if (urlPath.includes("/login")) {
+        affectedFileGuess = "src/app/login/actions.ts"
+        const loginActPath = path.join(process.cwd(), "src", "app", "login", "actions.ts")
+        const loginActContent = await fs.readFile(loginActPath, "utf-8").catch(() => "")
+        if (loginActContent.includes("export async function loginClientAction")) {
+          detectedFixedInCode = true
+          return {
+            analyzed_at: nowIso,
+            fix_status: "already_fixed",
+            fix_status_label: "Már javítva a kódbázisban",
+            summary:
+              "Next.js Server Action válasz-szinkronizációs hiba a /login oldalon (`fetchServerAction`).",
+            root_cause:
+              "A korábbi form-alapú bejelentkezési Server Action (`login`) a munkamenet-sütik módosítása közben közvetlen `redirect()` kivételt dobott, vagy szerver-újraindítás után a nyitva hagyott böngészőfül régi Server Action azonosítót küldött.",
+            resolution_status_text:
+              "MÁR MEGOLDVA A KÓDBÁZISBAN: Az élő `src/app/login/actions.ts` ellenőrzése alapján a bejelentkezés már a stateless előellenőrzést és strukturált JSON választ (`LoginActionResult`) visszaadó `loginClientAction` függvényt használja.",
+            solution_steps: [
+              "A `src/app/login/actions.ts` fájlban a `loginClientAction` már strukturált `{ ok, redirectUrl, message }` objektummal tér vissza `redirect()` kivétel helyett.",
+              "A hiba a korábbi munkamenetből származik, biztonságosan Megoldottnak jelölhető.",
+            ],
+            affected_file: "src/app/login/actions.ts",
+            ai_engine: "ThinkAI Live Codebase Inspector",
+          }
+        }
+      }
+    }
+
     // Speciális ellenőrzés: Iktatószám allokáció (iktatoszam_szamlalo SELECT ... FOR UPDATE lock timeout)
     if (msgLower.includes("iktatoszam_szamlalo") || msgLower.includes("lock timeout")) {
+      const filingPath = path.join(process.cwd(), "src", "app", "inbox", "filing-actions.ts")
+      const filingContent = await fs.readFile(filingPath, "utf-8").catch(() => "")
+      const hasRetryBackoff =
+        filingContent.includes("retryGenerateIktatoszam") ||
+        (filingContent.includes("generate_iktatoszam") && filingContent.includes("55P03"))
+
+      if (hasRetryBackoff) {
+        return {
+          analyzed_at: nowIso,
+          fix_status: "already_fixed",
+          fix_status_label: "Már javítva a kódbázisban",
+          summary:
+            "Párhuzamos iktatási sorzár-várakozás (`iktatoszam_szamlalo` `SELECT ... FOR UPDATE`) — automatikus retry backoff aktív.",
+          root_cause:
+            "Az eaisyDocs szabvány szerint az iktatószám-kiosztás szigorúan hézagmentes (`SELECT ... FOR UPDATE`). Amikor egyszerre több dokumentum-köteg fut ugyanarra a cégre, a konkurens tranzakciók egymásra várnak.",
+          resolution_status_text:
+            "MÁR MEGOLDVA A KÓDBÁZISBAN: Az élő `src/app/inbox/filing-actions.ts` fájlban már aktív az exponenciális retry-backoff mechanizmus a `generate_iktatoszam` RPC hívás körül.",
+          solution_steps: [
+            "A `src/app/inbox/filing-actions.ts` már tartalmazza az automatikus újrapróbálkozást `55P03` / lock timeout esetén.",
+            "A bejegyzés biztonságosan Megoldottnak jelölhető.",
+          ],
+          affected_file: "src/app/inbox/filing-actions.ts",
+          ai_engine: "ThinkAI Live Codebase Inspector",
+        }
+      }
+
       return {
         analyzed_at: nowIso,
         fix_status: "action_needed",
-        fix_status_label: "Konkurens tranzakciós csúcs — Figyelendő",
+        fix_status_label: "Fennálló kockázat — Kódjavítás javasolt",
         summary:
-          "Párhuzamos iktatás során a gap-mentes iktatószám-számláló (`iktatoszam_szamlalo`) sorzárási várakozási ideje meghaladta a küszöbértéket.",
+          "Párhuzamos iktatás során a gap-mentes iktatószám-számláló (`iktatoszam_szamlalo`) sorzárási várakozási ideje meghaladta a küszöbértéket (`SQLSTATE 55P03`).",
         root_cause:
-          "Az eaisyDocs szabvány szerint az iktatószám-kiosztás szigorúan hézagmentes (`SELECT ... FOR UPDATE` tranzakciós sorzárással). Amikor egyszerre több nagy dokumentum-köteg (batch AI iktatás) fut ugyanarra a cégre és évre, a második tranzakció a sorzár feloldására várakozik.",
+          "Az élő `src/app/inbox/filing-actions.ts` (133. sor) jelenleg egyetlen közvetlen `supabase.rpc('generate_iktatoszam', ...)` hívást indít újrapróbálkozás (retry backoff) nélkül. Ha két konkurens iktatás egyszerre zárolja az `iktatoszam_szamlalo` sort, a második hívás `55P03` lock timeout hibával elbukhat.",
         resolution_status_text:
-          "VIZSGÁLANDÓ / KONFIGURÁCIÓS JAVASLAT: A tranzakciós integritás sérülésmentes maradt (nem keletkezett duplikált vagy kihagyott iktatószám), de tömeges iktatásnál érdemes exponenciális újrapróbálkozást (retry backoff) alkalmazni.",
+          "MÉG FENNÁLLÓ KOCKÁZAT A KÓDBÁZISBAN: A `src/app/inbox/filing-actions.ts` fájlban a `generate_iktatoszam` RPC hívás körül még nincs beépítve az automatikus exponenciális újrapróbálkozás (retry backoff).",
         solution_steps: [
-          "Ellenőrizd a `src/app/inbox/filing-actions.ts` fájlban az iktatószám-allokáló RPC / tranzakció hívást.",
-          "Tömeges iktatásnál alkalmazz 3 lépcsős automatikus retry-t (150ms -> 300ms -> 600ms) `SQLSTATE 55P03` esetén.",
-          "Tartsd az iktatószám-kiosztást a tranzakció legvégén, közvetlenül a `COMMIT` előtt, hogy a sorzár csak néhány ezredmásodpercig éljen.",
+          "Csomagold be a `supabase.rpc('generate_iktatoszam', ...)` hívást a `src/app/inbox/filing-actions.ts` fájlban egy 3 lépcsős retry függvénybe (`150ms -> 300ms -> 600ms` késleltetéssel).",
+          "Hagyd jóvá a javítási javaslatot a chatben, és az AI asszisztens azonnal beköti a retry védelmet.",
         ],
         affected_file: "src/app/inbox/filing-actions.ts",
-        ai_engine: "ThinkAI Live Codebase Inspector + Gemini 2.5",
+        ai_engine: "ThinkAI Live Codebase Inspector",
       }
     }
 
@@ -2600,32 +2758,51 @@ export async function analyzeErrorLogsWithAiAction(ids: string[]): Promise<{
         .eq("id", row.id)
     }
 
-    // Elmentjük a legutóbbi elemzést a munkakönyvtárba is, hogy az AI asszisztens chaten keresztül is azonnal lássa
+    // Csak akkor küldünk azonnali chat-ébresztő jelet (és a projektmappán kívüli temp könyvtárba,
+    // hogy a Next.js Turbopack fájlnézőjét soha ne terhelje), ha a Management Dashboardon
+    // az "Élő AI Figyelő" kifejezetten be van kapcsolva!
     try {
       const fs = await import("fs/promises")
       const path = await import("path")
-      const outDir = path.join(process.cwd(), ".gemini")
-      await fs.mkdir(outDir, { recursive: true })
-      await fs.writeFile(
-        path.join(outDir, "last-analyzed-errors.json"),
-        JSON.stringify(
-          {
-            analyzed_at: new Date().toISOString(),
-            count: rows.length,
-            items: rows.map((r) => ({
-              id: r.id,
-              created_at: r.created_at,
-              component: r.component,
-              url: r.url,
-              message: r.message,
-              analysis: analyses[r.id],
-            })),
-          },
-          null,
-          2
-        ),
-        "utf-8"
-      )
+      const os = await import("os")
+      const watcherDir = path.join(os.tmpdir(), "eaisydocs-ai-watcher")
+      const stateFile = path.join(watcherDir, "state.json")
+      let isWatcherEnabled = false
+      try {
+        const rawState = await fs.readFile(stateFile, "utf-8")
+        const parsedState = JSON.parse(rawState)
+        isWatcherEnabled = Boolean(parsedState?.enabled)
+      } catch {
+        isWatcherEnabled = false
+      }
+
+      if (isWatcherEnabled) {
+        await fs.mkdir(watcherDir, { recursive: true })
+        await fs.writeFile(
+          path.join(watcherDir, "last-analyzed-errors.json"),
+          JSON.stringify(
+            {
+              analyzed_at: new Date().toISOString(),
+              count: rows.length,
+              items: rows.map((r) => ({
+                id: r.id,
+                created_at: r.created_at,
+                error_type: r.error_type,
+                severity: r.severity,
+                component: r.component,
+                action: r.action,
+                url: r.url,
+                message: r.message,
+                stack_trace: r.stack_trace,
+                analysis: analyses[r.id],
+              })),
+            },
+            null,
+            2
+          ),
+          "utf-8"
+        )
+      }
     } catch {
       // Nem kritikus, ha a lokális fájlírás nem elérhető
     }
@@ -2640,5 +2817,49 @@ export async function analyzeErrorLogsWithAiAction(ids: string[]): Promise<{
       success: false,
       error: err instanceof Error ? err.message : "Hiba történt az AI analízis futtatása közben.",
     }
+  }
+}
+
+/**
+ * Lekérdezi, hogy a Management Dashboardon be van-e kapcsolva az "Élő AI Figyelő" mód.
+ * Alapértelmezetten kikapcsolva (`false`), így 0 háttérterhelést okoz.
+ */
+export async function getAiLiveWatcherStatusAction(): Promise<{ enabled: boolean }> {
+  try {
+    await requireManagementAuth()
+    const fs = await import("fs/promises")
+    const path = await import("path")
+    const os = await import("os")
+    const stateFile = path.join(os.tmpdir(), "eaisydocs-ai-watcher", "state.json")
+    const raw = await fs.readFile(stateFile, "utf-8")
+    const parsed = JSON.parse(raw)
+    return { enabled: Boolean(parsed?.enabled) }
+  } catch {
+    return { enabled: false }
+  }
+}
+
+/**
+ * Ki-/bekapcsolja a Management Dashboard "Élő AI Figyelő" módját.
+ */
+export async function toggleAiLiveWatcherAction(enabled: boolean): Promise<{
+  success: boolean
+  enabled: boolean
+}> {
+  try {
+    await requireManagementAuth()
+    const fs = await import("fs/promises")
+    const path = await import("path")
+    const os = await import("os")
+    const watcherDir = path.join(os.tmpdir(), "eaisydocs-ai-watcher")
+    await fs.mkdir(watcherDir, { recursive: true })
+    await fs.writeFile(
+      path.join(watcherDir, "state.json"),
+      JSON.stringify({ enabled: Boolean(enabled), updated_at: new Date().toISOString() }, null, 2),
+      "utf-8"
+    )
+    return { success: true, enabled: Boolean(enabled) }
+  } catch {
+    return { success: false, enabled: false }
   }
 }

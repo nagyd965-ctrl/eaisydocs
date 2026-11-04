@@ -27,7 +27,7 @@ import { SafetyTrainingEmployeeCard } from "@/components/hr/safety-training-empl
 import { PayslipsTab } from "./tabs/PayslipsTab"
 import { OfficialDocumentsTab } from "./tabs/OfficialDocumentsTab"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
-import { isUserAuthorizedForHrView, normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
+import { hasHrWriteAccess, isUserAuthorizedForHrView, normalizeHrRoleAndModules } from "@/utils/hr/company-role-resolver"
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params
@@ -47,13 +47,14 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
   const { data: currentUserProfile } = await supabaseAdmin
     .from("felhasznalo_profil")
-    .select("hr_szerepkor, hr_modulok")
+    .select("hr_szerepkor, hr_modulok, hr_iras_modulok")
     .eq("id", user.id)
     .single()
 
   const fallbackNormalized = normalizeHrRoleAndModules(
     currentUserProfile?.hr_szerepkor,
-    Array.isArray((currentUserProfile as any)?.hr_modulok) ? (currentUserProfile as any).hr_modulok : []
+    Array.isArray((currentUserProfile as any)?.hr_modulok) ? (currentUserProfile as any).hr_modulok : [],
+    Array.isArray((currentUserProfile as any)?.hr_iras_modulok) ? (currentUserProfile as any).hr_iras_modulok : undefined
   )
   const useScopedOnly = Boolean(activeCompanyId) && !scopedRoles.isCompanyAdmin
   const currentHrRole = useScopedOnly
@@ -66,13 +67,28 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     : scopedRoles.hrModules && scopedRoles.hrModules.length > 0
       ? scopedRoles.hrModules
       : fallbackNormalized.modules
-  const isHrOrAdmin =
+  const currentHrWriteModules = useScopedOnly
+    ? scopedRoles.hrWriteModules
+    : Array.isArray(scopedRoles.hrWriteModules) && (scopedRoles.hrModules?.length ?? 0) > 0
+      ? scopedRoles.hrWriteModules
+      : fallbackNormalized.writeModules
+
+  // Olvasási jogosultságok (oldal és fülek megtekintéséhez)
+  const canReadHrOrAdmin =
     scopedRoles.isCompanyAdmin ||
     currentHrRole === "admin" ||
     isUserAuthorizedForHrView(currentHrRole, ["admin", "employees"], currentHrModules)
-  const isPayroll = isUserAuthorizedForHrView(currentHrRole, ["admin", "payroll"], currentHrModules)
-  const isCompliance = currentHrRole === "admin" || currentHrModules.includes("compliance") || currentHrRole === "munkavedelmi"
+  const canReadPayroll = isUserAuthorizedForHrView(currentHrRole, ["admin", "payroll"], currentHrModules)
+  const canReadCompliance = currentHrRole === "admin" || currentHrModules.includes("compliance") || currentHrRole === "munkavedelmi"
   const isAudit = currentHrRole === "admin" || currentHrModules.includes("audit") || currentHrRole === "auditor"
+
+  // Írási jogosultságok (gombok, űrlapok, módosító műveletek)
+  const isStrictAdmin = scopedRoles.isCompanyAdmin || currentHrRole === "admin" || currentHrRole === "rendszergazda"
+  const isHrOrAdmin = isStrictAdmin || hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "admin")
+  const isPayroll = isStrictAdmin || hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "payroll")
+  const isCompliance = isStrictAdmin || hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "compliance")
+  const canWriteTime = isStrictAdmin || hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "time")
+  const canWriteOffboarding = isStrictAdmin || hasHrWriteAccess(currentHrRole, currentHrModules, currentHrWriteModules, "offboarding")
 
   // 2. Lekérjük a profil adatokat
   const { data: profile, error } = await supabaseAdmin
@@ -108,7 +124,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const isSelf = user.id === resolvedParams.id
   const isSubordinate = profile?.kozvetlen_vezeto_id === user.id
   const isManager = currentHrRole === 'vezeto' && isSubordinate
-  const isAllowed = isHrOrAdmin || isPayroll || isCompliance || isAudit || isSelf || isManager
+  const isAllowed = canReadHrOrAdmin || canReadPayroll || canReadCompliance || isAudit || isSelf || isManager
 
   // ── HR deep-analysis 20261029 (2.4) P0-javítás (2026-11-01): CÉG-ELLENŐRZÉS ──
   // A kartont service-role klienssel töltjük (RLS-bypass) — a látogató
@@ -352,7 +368,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const { data: cafeteriaValasztasok } = await cafeteriaValasztasokQuery
 
   // Bérpapírok lekérése (biztonság: HR/Admin, Bérügyi, Auditor vagy a dolgozó saját maga férhet hozzá)
-  const canViewSalary = isHrOrAdmin || isPayroll || isSelf || isAudit
+  const canViewSalary = canReadHrOrAdmin || canReadPayroll || isSelf || isAudit
   let employeePayslips: any[] = []
   if (canViewSalary) {
     let payslipsQuery = supabaseAdmin
@@ -366,7 +382,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     }
     const { data: pData } = await payslipsQuery
 
-    employeePayslips = (pData || []).filter((p: any) => isHrOrAdmin || isPayroll || p.statusz === "kikuldve" || p.statusz === "atveve")
+    employeePayslips = (pData || []).filter((p: any) => canReadHrOrAdmin || canReadPayroll || p.statusz === "kikuldve" || p.statusz === "atveve")
   }
 
   const roleMap: Record<string, string> = {
@@ -429,7 +445,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
         </div>
 
         {/* Műveleti sáv (pl. Kiléptetés indítása HR-nek) */}
-        {isHrOrAdmin && (
+        {(isHrOrAdmin || canWriteOffboarding) && (
           <div className="flex items-center gap-2">
             {isOffboardingActive ? (
               <Link href="/hr/offboarding">
@@ -488,7 +504,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               Bérpapírok
             </TabsTrigger>
           )}
-          {(isHrOrAdmin || isPayroll || isCompliance || isAudit) && (
+          {(canReadHrOrAdmin || canReadPayroll || canReadCompliance || isAudit) && (
             <TabsTrigger value="bizalmas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">
               Bizalmas HR adatok
             </TabsTrigger>
@@ -496,7 +512,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           <TabsTrigger value="dokumentumok" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">
             Hivatalos dokumentumok
           </TabsTrigger>
-          {(isHrOrAdmin || isAudit) && (
+          {(canReadHrOrAdmin || isAudit) && (
             <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3.5 py-2.5 text-sm font-medium whitespace-nowrap">Előzmények</TabsTrigger>
           )}
         </TabsList>
@@ -520,7 +536,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           </TabsContent>
 
           {/* Új: Audit */}
-          {(isHrOrAdmin || isAudit) && (
+          {(canReadHrOrAdmin || isAudit) && (
             <TabsContent value="audit" className="mt-0 outline-none">
               <AuditLogTab employeeId={profile.id} />
             </TabsContent>
@@ -528,12 +544,12 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
           {/* Új: Távollét */}
           <TabsContent value="tavollet" className="mt-0 outline-none">
-            <LeaveTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin} leaves={adatlap?.hr_tavollet || []} adatlap={adatlap} />
+            <LeaveTab employeeId={profile.id} isHrOrAdmin={isHrOrAdmin || canWriteTime} leaves={adatlap?.hr_tavollet || []} adatlap={adatlap} />
           </TabsContent>
 
           {/* Új: Jelenlét */}
           <TabsContent value="jelenlet" className="mt-0 outline-none">
-            <AttendanceTab employeeId={profile.id} />
+            <AttendanceTab employeeId={profile.id} canWrite={isHrOrAdmin || canWriteTime} />
           </TabsContent>
 
           {/* 1. Személyes Adatok */}
@@ -573,7 +589,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                 employeeId={profile.id} 
                 isHrOrAdmin={isHrOrAdmin} 
                 loggedInUserId={user.id}
-                currentUserRole={(isHrOrAdmin || isPayroll) ? "admin" : currentHrRole}
+                currentUserRole={(canReadHrOrAdmin || canReadPayroll) ? "admin" : currentHrRole}
                 adatlap={adatlap} 
                 jogviszonyok={adatlap?.hr_jogviszony || []}
                 munkakorok={munkakorok || []}
@@ -603,9 +619,9 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           )}
 
           {/* 4. Bizalmas HR Adatok (Összevont) */}
-          {(isHrOrAdmin || isPayroll || isCompliance || isAudit) && (
+          {(canReadHrOrAdmin || canReadPayroll || canReadCompliance || isAudit) && (
             <TabsContent value="bizalmas" className="mt-0 outline-none space-y-12">
-              {(isHrOrAdmin || isCompliance || isAudit) && (
+              {(canReadHrOrAdmin || canReadCompliance || isAudit) && (
                 <>
                   <div className="space-y-4">
                     <h2 className="text-xl font-semibold tracking-tight border-b pb-2">
@@ -615,7 +631,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                       employeeId={profile.id} 
                       employeeName={profile.nev}
                       isHrOrAdmin={isHrOrAdmin || isCompliance} 
-                      currentUserRole={isHrOrAdmin ? "admin" : (isCompliance ? "munkavedelmi" : currentHrRole)}
+                      currentUserRole={canReadHrOrAdmin ? "admin" : (canReadCompliance ? "munkavedelmi" : currentHrRole)}
                       initialData={adatlap?.hr_orvosi_vizsgalat || []} 
                     />
                   </div>
@@ -634,7 +650,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
                 </>
               )}
 
-              {(isHrOrAdmin || isAudit) && (
+              {(canReadHrOrAdmin || isAudit) && (
                 <div className="space-y-4">
                   <h2 className="text-xl font-semibold tracking-tight border-b pb-2">
                     Fegyelmi és Károkozási Ügyek (Mt. 56. §, 179. §)

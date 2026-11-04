@@ -6,9 +6,10 @@ import { revalidatePath } from "next/cache"
 import { generateJobDescriptionPdfBuffer } from "@/utils/hr/job-description-pdf-generator"
 import { type JobDescriptionPdfData } from "@/utils/hr/job-description-constants"
 import { executeHrDocumentFiling } from "@/utils/hr-filing-bridge"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { checkHrWriteAccess, requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 const ONBOARDING_JOB_ALLOWED_MODULES = ["onboarding", "employees", "organization", "admin"]
+const ONBOARDING_JOB_WRITE_MODULES = ["admin", "onboarding", "organization"]
 
 function getAdminClient() {
   return createAdminClient(
@@ -22,11 +23,16 @@ async function verifyOnboardingJobAccess(
   params: {
     onboardingId?: string | null
     dolgozoId?: string | null
-  }
+  },
+  options: { requireWrite?: boolean } = {}
 ) {
   const auth = await requireHrAuthServer(ONBOARDING_JOB_ALLOWED_MODULES, null)
   if (!auth.authorized || !auth.user) {
     return { authorized: false as const, error: "Nincs jogosultsága a munkaköri leírás kezeléséhez.", auth }
+  }
+
+  if (options.requireWrite && !checkHrWriteAccess(auth, ONBOARDING_JOB_WRITE_MODULES)) {
+    return { authorized: false as const, error: "Csak olvasási jogosultsága van, a munkaköri leírás módosítása nem engedélyezett.", auth }
   }
 
   const activeCompanyId = auth.activeCompanyId
@@ -260,7 +266,7 @@ export async function assignCatalogJobDescriptionAction(params: {
     const adminClient = getAdminClient()
     const { onboardingId, dolgozoId, munkakorId, versionId, employeeName, munkakorNev, feorKod } = params
 
-    const access = await verifyOnboardingJobAccess(adminClient, { onboardingId, dolgozoId })
+    const access = await verifyOnboardingJobAccess(adminClient, { onboardingId, dolgozoId }, { requireWrite: true })
     if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
     const activeCompanyId = access.auth.activeCompanyId
 
@@ -392,7 +398,7 @@ export async function generateJobDescriptionPdfAction(params: {
     const adminClient = getAdminClient()
     const { onboardingId, dolgozoId, data, munkakorId } = params
 
-    const access = await verifyOnboardingJobAccess(adminClient, { onboardingId, dolgozoId })
+    const access = await verifyOnboardingJobAccess(adminClient, { onboardingId, dolgozoId }, { requireWrite: true })
     if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
     const activeCompanyId = access.auth.activeCompanyId
 
@@ -529,7 +535,7 @@ export async function uploadCustomJobDescriptionAction(formData: FormData) {
     const munkakorId = formData.get("munkakorId") as string | null
     const feorKod = formData.get("feorKod") as string | null
 
-    const access = await verifyOnboardingJobAccess(adminClient, { onboardingId, dolgozoId })
+    const access = await verifyOnboardingJobAccess(adminClient, { onboardingId, dolgozoId }, { requireWrite: true })
     if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
     const activeCompanyId = access.auth.activeCompanyId
 

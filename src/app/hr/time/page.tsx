@@ -1,6 +1,7 @@
 import { createClient as createSupabaseAdmin } from "@supabase/supabase-js"
 import { TimeTabsView } from "@/components/hr/time-tabs-view"
 import { getWeeklyShiftRoster, getCompanyShiftTemplates } from "@/app/hr/time/shift-actions"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 export default async function TimeAndAttendancePage() {
@@ -17,6 +18,10 @@ export default async function TimeAndAttendancePage() {
       </div>
     )
   }
+
+  const canWriteTime =
+    auth.isCompanyAdmin ||
+    hasHrWriteAccess(auth.hrRole, auth.hrModules, auth.hrWriteModules, ["time", "admin"])
 
   const adminClient = createSupabaseAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -102,6 +107,7 @@ export default async function TimeAndAttendancePage() {
       teamMembers={allEmployees || []}
       leaves={allLeaves || []}
       orgUnits={orgUnits || []}
+      canWrite={canWriteTime}
     />
   )
 }

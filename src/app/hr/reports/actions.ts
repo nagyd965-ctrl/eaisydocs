@@ -904,10 +904,10 @@ export async function uploadT1041ReceiptFromReport(formData: FormData) {
 
     // P0-javítás (2026-11-01): őrblokk — korábban CSAK bejelentkezést ellenőrzött,
     // bármely dolgozó bármely cég T1041-jét tehette "igazolva" állapotba
-    const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+    const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
     const auth = await requireHrAuthServer(["reports"], null)
-    if (!auth.authorized || !auth.user) {
-      return { error: "Nincs jogosultságod a T1041 nyugta feltöltéséhez (Riportok modul szükséges)." }
+    if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["reports", "admin"])) {
+      return { error: "Nincs jogosultságod a T1041 nyugta feltöltéséhez (Riportok írási jogosultság szükséges)." }
     }
 
     const adminClient = getAdminClient()
@@ -1015,9 +1015,9 @@ export async function saveArchiveRecord(
   fajl_utvonal: string,
   feltolto_id: string
 ) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-  const auth = await requireHrAuthServer(["payroll", "admin"], null)
-  if (!auth.authorized || !auth.user) {
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["reports", "payroll", "admin"], null)
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["reports", "payroll", "admin"])) {
     return { success: false, error: "Nincs jogosultságod bevallás archiválásához." }
   }
 
@@ -1047,9 +1047,9 @@ export async function saveArchiveRecord(
  * Új bevallás feltöltése az archívumba
  */
 export async function uploadArchiveFileAdmin(formData: FormData) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
-  const auth = await requireHrAuthServer(["payroll", "admin"], null)
-  if (!auth.authorized || !auth.user) {
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
+  const auth = await requireHrAuthServer(["reports", "payroll", "admin"], null)
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["reports", "payroll", "admin"])) {
     return { success: false, error: "Nincs jogosultságod bevallás feltöltéséhez." }
   }
 
@@ -1137,10 +1137,10 @@ export async function getArchiveRecords() {
  * Archív rekord törlése
  */
 export async function deleteArchiveRecordAdmin(id: string, filePath: string) {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["reports"], null)
-  if (!auth.authorized || !auth.user) {
-    return { success: false, error: "Nincs jogosultságod bevallás törléséhez (Riportok modul szükséges)." }
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["reports", "admin"])) {
+    return { success: false, error: "Nincs jogosultságod bevallás törléséhez (Riportok írási jogosultság szükséges)." }
   }
 
   const adminClient = getAdminClient()

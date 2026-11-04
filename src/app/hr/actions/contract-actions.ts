@@ -5,7 +5,7 @@ import { createClient } from '@/utils/supabase/server'
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from 'next/cache'
 import { getActiveCompanyIdServer } from '@/utils/company-server'
-import { requireHrAuthServer } from '@/utils/hr/hr-auth-guard'
+import { checkHrWriteAccess, requireHrAuthServer } from '@/utils/hr/hr-auth-guard'
 import { isUserAuthorizedForHrView } from '@/utils/hr/company-role-resolver'
 
 function getAdminClient() {
@@ -17,7 +17,8 @@ function getAdminClient() {
 
 async function verifyContractEmployeeAccess(
   dolgozoId: string,
-  allowedModules: string[] = ["employees", "onboarding", "payroll", "organization", "admin"]
+  allowedModules: string[] = ["employees", "onboarding", "payroll", "organization", "admin"],
+  options: { requireWrite?: boolean; writeModules?: string[] } = {}
 ) {
   const auth = await requireHrAuthServer(allowedModules, null)
   if (!auth.user) {
@@ -29,6 +30,18 @@ async function verifyContractEmployeeAccess(
       error: "Nincs jogosultságod a szerződés művelethez.",
       auth,
       activeCompanyId: null as string | null,
+    }
+  }
+
+  if (options.requireWrite) {
+    const targetWriteModules = options.writeModules || ["admin", "onboarding"]
+    if (!checkHrWriteAccess(auth, targetWriteModules)) {
+      return {
+        ok: false,
+        error: "Csak olvasási jogosultságod van, a szerződés módosítása nem engedélyezett.",
+        auth,
+        activeCompanyId: null as string | null,
+      }
     }
   }
 
@@ -193,12 +206,11 @@ export async function generateAndSaveContract(
   nev: string
 ) {
   try {
-    const access = await verifyContractEmployeeAccess(dolgozo_id, [
-      "employees",
-      "onboarding",
-      "payroll",
-      "admin",
-    ])
+    const access = await verifyContractEmployeeAccess(
+      dolgozo_id,
+      ["employees", "onboarding", "payroll", "admin"],
+      { requireWrite: true, writeModules: ["admin", "onboarding"] }
+    )
     if (!access.ok) {
       return { success: false, error: access.error || "Nincs jogosultságod." }
     }
@@ -409,7 +421,11 @@ export async function assignJobDescriptionToEmployee(
   versionId?: string
 ) {
   try {
-    const access = await verifyContractEmployeeAccess(employeeId, ["admin", "employees", "onboarding", "organization"])
+    const access = await verifyContractEmployeeAccess(
+      employeeId,
+      ["admin", "employees", "onboarding", "organization"],
+      { requireWrite: true, writeModules: ["admin", "onboarding", "organization"] }
+    )
     if (!access.ok) {
       return { success: false, error: access.error }
     }
@@ -493,7 +509,11 @@ export async function assignJobDescriptionToEmployee(
 
 export async function deleteContract(documentId: string, fileUrl: string | null, dolgozo_id: string) {
   try {
-    const access = await verifyContractEmployeeAccess(dolgozo_id, ["admin", "employees", "onboarding", "payroll"])
+    const access = await verifyContractEmployeeAccess(
+      dolgozo_id,
+      ["admin", "employees", "onboarding", "payroll"],
+      { requireWrite: true, writeModules: ["admin", "onboarding"] }
+    )
     if (!access.ok) {
       return { success: false, error: access.error }
     }

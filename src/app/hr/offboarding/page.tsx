@@ -3,6 +3,7 @@ import { OffboardingList } from "@/components/hr/offboarding-list"
 import { AddOffboardingDialog } from "@/components/hr/add-offboarding-dialog"
 import { Shield } from "lucide-react"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
 
 export const dynamic = "force-dynamic"
 
@@ -21,6 +22,7 @@ export default async function OffboardingPage() {
   }
 
   const { activeCompanyId } = auth
+  const canWrite = auth.isCompanyAdmin || hasHrWriteAccess(auth.hrRole, auth.hrModules, auth.hrWriteModules, ["offboarding", "admin"])
 
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -87,7 +89,7 @@ export default async function OffboardingPage() {
         }
 
         // Ha találtunk adatot és a DB-ben hiányzott, perzisztáljuk csendben
-        if ((munkakor && !item.munkakor) || (reszleg && !item.reszleg)) {
+        if (canWrite && ((munkakor && !item.munkakor) || (reszleg && !item.reszleg))) {
           await supabaseAdmin
             .from("hr_offboarding")
             .update({
@@ -185,13 +187,14 @@ export default async function OffboardingPage() {
             Eszközvisszavételek, jogosultságmegvonások, kilépési feladatok és interjúk nyomon követése.
           </p>
         </div>
-        <AddOffboardingDialog employees={employees || []} />
+        {canWrite && <AddOffboardingDialog employees={employees || []} />}
       </div>
 
       <OffboardingList
         offboardings={offboardings || []}
         employees={employees || []}
         exitInterviews={flatInterviews}
+        canWrite={canWrite}
       />
     </div>
   )

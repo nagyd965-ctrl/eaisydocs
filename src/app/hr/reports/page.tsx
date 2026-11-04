@@ -1,6 +1,7 @@
 import { ReportsTabs } from "@/components/hr/reports-tabs"
 import { ShieldAlert, Shield } from "lucide-react"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
 
 export default async function HrReportsPage() {
   const auth = await requireHrAuthServer(["reports"])
@@ -17,6 +18,9 @@ export default async function HrReportsPage() {
   }
 
   const { activeCompanyId } = auth
+  const canWrite =
+    auth.isCompanyAdmin ||
+    hasHrWriteAccess(auth.hrRole, auth.hrModules, auth.hrWriteModules, ["reports", "admin"])
 
   return (
     <div key={activeCompanyId} className="space-y-6 pb-10">
@@ -33,7 +37,7 @@ export default async function HrReportsPage() {
         </div>
       </div>
 
-      <ReportsTabs />
+      <ReportsTabs canWrite={canWrite} />
     </div>
   )
 }

@@ -27,6 +27,7 @@ interface OrganizationTabsViewProps {
   allUsers: any[]
   defaultTab?: string
   isAdmin?: boolean
+  canWrite?: boolean
   permissionEmployees?: PermissionMatrixEmployee[]
   companyName?: string
 }
@@ -38,6 +39,7 @@ export function OrganizationTabsView({
   allUsers,
   defaultTab = "orgchart",
   isAdmin = false,
+  canWrite = true,
   permissionEmployees = [],
   companyName = "Aktív Vállalat",
 }: OrganizationTabsViewProps) {
@@ -340,7 +342,11 @@ export function OrganizationTabsView({
                             )}
                             {isOrgColVisible("muveletek") && (
                               <TableCell className="text-right pr-6">
-                                <OrgUnitActionMenu unit={unit} allUnits={orgUnits || []} />
+                                {canWrite ? (
+                                  <OrgUnitActionMenu unit={unit} allUnits={orgUnits || []} />
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
                               </TableCell>
                             )}
                           </TableRow>
@@ -357,16 +363,18 @@ export function OrganizationTabsView({
                 </Table>
               </div>
             </CardContent>
-            <div className="p-4 border-t bg-muted/5">
-              <HrOrgUnitCreateDialog
-                customTrigger={
-                  <Button variant="outline" className="w-full border-dashed border-2 py-5 text-muted-foreground hover:text-foreground gap-2">
-                    <Plus className="h-4 w-4" />
-                    Új szervezeti egység létrehozása
-                  </Button>
-                }
-              />
-            </div>
+            {canWrite && (
+              <div className="p-4 border-t bg-muted/5">
+                <HrOrgUnitCreateDialog
+                  customTrigger={
+                    <Button variant="outline" className="w-full border-dashed border-2 py-5 text-muted-foreground hover:text-foreground gap-2">
+                      <Plus className="h-4 w-4" />
+                      Új szervezeti egység létrehozása
+                    </Button>
+                  }
+                />
+              </div>
+            )}
           </Card>
         </TabsContent>
 
@@ -459,7 +467,11 @@ export function OrganizationTabsView({
                             )}
                             {isJobColVisible("muveletek") && (
                               <TableCell className="text-right pr-6">
-                                <JobActionMenu job={job} orgUnits={orgUnits} />
+                                {canWrite ? (
+                                  <JobActionMenu job={job} orgUnits={orgUnits} />
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
                               </TableCell>
                             )}
                           </TableRow>
@@ -476,17 +488,19 @@ export function OrganizationTabsView({
                 </Table>
               </div>
             </CardContent>
-            <div className="p-4 border-t bg-muted/5">
-              <JobCreateDialog
-                orgUnits={orgUnits}
-                customTrigger={
-                  <Button variant="outline" className="w-full border-dashed border-2 py-5 text-muted-foreground hover:text-foreground gap-2">
-                    <Plus className="h-4 w-4" />
-                    Új munkakör létrehozása
-                  </Button>
-                }
-              />
-            </div>
+            {canWrite && (
+              <div className="p-4 border-t bg-muted/5">
+                <JobCreateDialog
+                  orgUnits={orgUnits}
+                  customTrigger={
+                    <Button variant="outline" className="w-full border-dashed border-2 py-5 text-muted-foreground hover:text-foreground gap-2">
+                      <Plus className="h-4 w-4" />
+                      Új munkakör létrehozása
+                    </Button>
+                  }
+                />
+              </div>
+            )}
           </Card>
         </TabsContent>
 

@@ -3,7 +3,7 @@ import { getDevelopmentPlansByEmployee } from "@/app/hr/actions/idp-actions"
 import { IdpPlanDialog } from "@/components/hr/idp/idp-plan-dialog"
 import { KpiCard } from "@/components/kpi-card"
 
-export async function IDPTab({ dolgozoId, isManagerView = true }: { dolgozoId: string, isManagerView?: boolean }) {
+export async function IDPTab({ dolgozoId, isManagerView = false }: { dolgozoId: string, isManagerView?: boolean }) {
   const tervek = await getDevelopmentPlansByEmployee(dolgozoId)
 
   const allGoals = tervek.flatMap((t: any) => t.celok || t.hr_fejlesztesi_cel || [])

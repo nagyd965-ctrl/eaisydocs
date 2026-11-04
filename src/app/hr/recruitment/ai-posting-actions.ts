@@ -48,11 +48,11 @@ export async function generateJobPostingWithAiAction(
   // Korábban csak login-check volt — bárki (pl. sima dolgozó) korlátlan Gemini-hívást
   // provokálhatott. Mostantól a Toborzás modulhoz kötjük (a többi toborzási action mintájára).
   const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
-  const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
+  const { hasHrWriteAccess } = await import("@/utils/hr/company-role-resolver")
   const activeCompanyId = await getActiveCompanyIdServer()
-  const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
-  if (!isCompanyAdmin && !isUserAuthorizedForHrView(hrRole, ["recruitment"], hrModules)) {
-    return { success: false, error: "Nincs jogosultságod az AI hirdetés-generáláshoz (Toborzás modul szükséges)." }
+  const { hrRole, hrModules, hrWriteModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  if (!isCompanyAdmin && !hasHrWriteAccess(hrRole, hrModules, hrWriteModules, ["recruitment", "admin"])) {
+    return { success: false, error: "Nincs írási jogosultságod az AI hirdetés-generáláshoz (Toborzás írási jog szükséges)." }
   }
 
   const cim = input.cim?.trim()

@@ -40,9 +40,10 @@ import { toast } from "sonner"
 
 export interface PayrollTableProps {
   initialData: PayrollDashboardData
+  canWrite?: boolean
 }
 
-export function PayrollTable({ initialData }: PayrollTableProps) {
+export function PayrollTable({ initialData, canWrite = true }: PayrollTableProps) {
   const [data, setData] = useState<PayrollDashboardData>(initialData)
   const [year, setYear] = useState<number>(initialData.year)
   const [month, setMonth] = useState<number>(initialData.month)
@@ -266,18 +267,20 @@ export function PayrollTable({ initialData }: PayrollTableProps) {
             </Button>
           </div>
 
-          <Button
-            onClick={() => setBatchDialogOpen(true)}
-            disabled={isPending || data.items.length === 0}
-            className="gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium text-xs h-9 shadow-xs"
-          >
-            {isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Sparkles className="w-4 h-4" />
-            )}
-            Havi Bérpapírok Előállítása & Közzététele (Mt. 155. §)
-          </Button>
+          {canWrite && (
+            <Button
+              onClick={() => setBatchDialogOpen(true)}
+              disabled={isPending || data.items.length === 0}
+              className="gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium text-xs h-9 shadow-xs"
+            >
+              {isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+              Havi Bérpapírok Előállítása & Közzététele (Mt. 155. §)
+            </Button>
+          )}
         </div>
       </div>
 
@@ -506,15 +509,17 @@ export function PayrollTable({ initialData }: PayrollTableProps) {
                             <Download className="w-3.5 h-3.5 text-muted-foreground" />
                           </Button>
 
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7 hover:border-teal-500/40 hover:text-teal-600 transition-colors"
-                            title="Bérelemek és kedvezmények szerkesztése"
-                            onClick={() => openEditDialog(item)}
-                          >
-                            <Settings2 className="w-3.5 h-3.5 text-muted-foreground" />
-                          </Button>
+                          {canWrite && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 hover:border-teal-500/40 hover:text-teal-600 transition-colors"
+                              title="Bérelemek és kedvezmények szerkesztése"
+                              onClick={() => openEditDialog(item)}
+                            >
+                              <Settings2 className="w-3.5 h-3.5 text-muted-foreground" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

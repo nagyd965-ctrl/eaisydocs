@@ -97,7 +97,7 @@ export async function getEaisyBooksPayrollEmployeesAction(
   targetCompanyId?: string
 ): Promise<GetEaisyBooksEmployeesResult> {
   try {
-    const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+    const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
     const auth = await requireHrAuthServer(["admin", "employees", "payroll", "onboarding"], null)
     if (!auth.authorized || !auth.user) {
       return { success: false, error: "Nincs jogosultsága a bérszámfejtési törzsadatok lekéréséhez." }
@@ -141,15 +141,17 @@ export async function getEaisyBooksPayrollEmployeesAction(
 
         if (matchedComp?.id) {
           eaisybillCompanyId = matchedComp.id
-          // Elmentjük a kapcsolatot
-          const adminClient = createAdminClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-          )
-          await adminClient
-            .from("companies")
-            .update({ eaisybill_company_id: matchedComp.id })
-            .eq("id", activeCompany.id)
+          if (checkHrWriteAccess(auth, ["admin", "payroll", "onboarding"])) {
+            // Elmentjük a kapcsolatot
+            const adminClient = createAdminClient(
+              process.env.NEXT_PUBLIC_SUPABASE_URL!,
+              process.env.SUPABASE_SERVICE_ROLE_KEY!
+            )
+            await adminClient
+              .from("companies")
+              .update({ eaisybill_company_id: matchedComp.id })
+              .eq("id", activeCompany.id)
+          }
         }
       }
     }
@@ -343,10 +345,10 @@ export async function importEaisyBooksPayrollEmployeesAction(input: {
       return { success: false, error: "Nincs kijelölt importálandó foglalkoztatott." }
     }
 
-    const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+    const { requireHrAuthServer, checkHrWriteAccess } = await import("@/utils/hr/hr-auth-guard")
     const auth = await requireHrAuthServer(["admin", "employees", "payroll", "onboarding"], null)
-    if (!auth.authorized || !auth.user) {
-      return { success: false, error: "Nincs jogosultsága a foglalkoztatottak importálásához." }
+    if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["admin", "payroll", "onboarding"])) {
+      return { success: false, error: "Nincs írási jogosultsága a foglalkoztatottak importálásához." }
     }
 
     if (auth.activeCompanyId && targetCompanyId !== auth.activeCompanyId) {

@@ -149,7 +149,11 @@ export function PerformanceList({
   logs = [], 
   cycles = [], 
   allKpis = [],
-  catalogue = []
+  catalogue = [],
+  canCreateKpi = true,
+  isReadOnlyUser = false,
+  currentUserId,
+  manageableEmployeeIds,
 }: { 
   employees: PerformanceEmployee[]
   kpis: PerformanceKpi[]
@@ -157,6 +161,10 @@ export function PerformanceList({
   cycles?: PerformanceCycle[]
   allKpis?: PerformanceKpi[]
   catalogue?: KpiCatalogueItem[]
+  canCreateKpi?: boolean
+  isReadOnlyUser?: boolean
+  currentUserId?: string
+  manageableEmployeeIds?: string[]
 }) {
   const [searchValue, setSearchValue] = useState("")
   const [selectedCycleIds, setSelectedCycleIds] = useState<string[]>([])
@@ -319,16 +327,20 @@ export function PerformanceList({
               <>
                 <h3 className="font-semibold text-lg text-foreground">Még nincsenek rögzített célkitűzések</h3>
                 <p className="text-sm text-muted-foreground max-w-md">
-                  Kezdésként rögzíts új célkitűzést a munkatársak számára a fenti vagy az alábbi gombbal.
+                  {canCreateKpi !== false && !isReadOnlyUser
+                    ? "Kezdésként rögzíts új célkitűzést a munkatársak számára a fenti vagy az alábbi gombbal."
+                    : "Jelenleg még nincsenek rögzített célkitűzések a rendszerben."}
                 </p>
-                <div className="pt-2">
-                  <AddKpiDialog 
-                    employees={employees || []} 
-                    cycles={cycles || []} 
-                    allKpis={allKpis.length > 0 ? allKpis : kpis} 
-                    catalogue={catalogue}
-                  />
-                </div>
+                {canCreateKpi !== false && !isReadOnlyUser && (
+                  <div className="pt-2">
+                    <AddKpiDialog 
+                      employees={employees || []} 
+                      cycles={cycles || []} 
+                      allKpis={allKpis.length > 0 ? allKpis : kpis} 
+                      catalogue={catalogue}
+                    />
+                  </div>
+                )}
               </>
             ) : hasActiveSearchOrFilter ? (
               /* 2. ESET: Keresési feltétel vagy szűrő miatt nincs találat */
@@ -366,14 +378,16 @@ export function PerformanceList({
                     Lezárt célkitűzések megtekintése
                   </Button>
                 ) : (
-                  <div className="pt-2">
-                    <AddKpiDialog 
-                      employees={employees || []} 
-                      cycles={cycles || []} 
-                      allKpis={allKpis.length > 0 ? allKpis : kpis} 
-                      catalogue={catalogue}
-                    />
-                  </div>
+                  canCreateKpi !== false && !isReadOnlyUser && (
+                    <div className="pt-2">
+                      <AddKpiDialog 
+                        employees={employees || []} 
+                        cycles={cycles || []} 
+                        allKpis={allKpis.length > 0 ? allKpis : kpis} 
+                        catalogue={catalogue}
+                      />
+                    </div>
+                  )
                 )}
               </>
             )}
@@ -385,6 +399,11 @@ export function PerformanceList({
           const nev = profil?.nev || emp.nev || "Névtelen dolgozó"
           const initials = nev.substring(0, 2).toUpperCase()
           const closedCount = emp.kpis.filter(k => deriveWorkflowPhase(k) === "lezart").length
+          const isSelectedEmployeeSelf = Boolean(currentUserId && emp.id === currentUserId)
+          const canManageSelectedEmployee =
+            !isReadOnlyUser &&
+            canCreateKpi !== false &&
+            (manageableEmployeeIds ? manageableEmployeeIds.includes(emp.id) : true)
 
           const activeJogviszony = Array.isArray(emp.hr_jogviszony) ? emp.hr_jogviszony[0] : emp.hr_jogviszony
           const allBeosztas = activeJogviszony?.hr_beosztas
@@ -497,26 +516,28 @@ export function PerformanceList({
                           </div>
 
                           {/* Közvetlen műveleti gombok a sor végén: Szerkesztés & Törlés */}
-                          <div className="flex items-center gap-1.5 shrink-0 pr-3.5 pl-1" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setEditKpiId(kpi.id)}
-                              className="h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground border-border/70 hover:bg-muted/60 cursor-pointer"
-                            >
-                              <Edit className="w-3.5 h-3.5 mr-1" />
-                              Szerkesztés
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setKpiToDelete({ id: kpi.id, title: kpi.celkituzes || "Célkitűzés" })}
-                              className="h-7 px-2.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 border-border/70 hover:border-destructive/30 cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5 mr-1" />
-                              Törlés
-                            </Button>
-                          </div>
+                          {canManageSelectedEmployee && (
+                            <div className="flex items-center gap-1.5 shrink-0 pr-3.5 pl-1" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEditKpiId(kpi.id)}
+                                className="h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground border-border/70 hover:bg-muted/60 cursor-pointer"
+                              >
+                                <Edit className="w-3.5 h-3.5 mr-1" />
+                                Szerkesztés
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setKpiToDelete({ id: kpi.id, title: kpi.celkituzes || "Célkitűzés" })}
+                                className="h-7 px-2.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 border-border/70 hover:border-destructive/30 cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 mr-1" />
+                                Törlés
+                              </Button>
+                            </div>
+                          )}
                         </div>
 
                         {/* Részletes Munkaterület (Expanded State) - Egységesített, tiszta 5-lépéses folyamat */}
@@ -560,7 +581,7 @@ export function PerformanceList({
                                         A célkitűzés aktív. <strong>{nev}</strong> a saját Dolgozói Portálján tudja beküldeni az önértékelését a kitűzött időszakról. Amint beküldi, az értékelés itt automatikusan megnyílik a vezetői felülvizsgálatra.
                                       </p>
                                     </div>
-                                    {manualEvalOpenId !== kpi.id && (
+                                    {canManageSelectedEmployee && manualEvalOpenId !== kpi.id && (
                                       <Button
                                         type="button"
                                         variant="outline"
@@ -573,7 +594,7 @@ export function PerformanceList({
                                     )}
                                   </div>
 
-                                  {manualEvalOpenId === kpi.id && (
+                                  {canManageSelectedEmployee && manualEvalOpenId === kpi.id && (
                                     <form
                                       action={async (formData) => {
                                         const evalText = formData.get("ertekelesSzovege") as string
@@ -684,6 +705,7 @@ export function PerformanceList({
                                     </p>
                                   </div>
 
+                                  {canManageSelectedEmployee && (
                                   <form
                                     action={async (formData) => {
                                       const evalText = formData.get("ertekelesSzovege") as string
@@ -750,6 +772,7 @@ export function PerformanceList({
                                       Vezetői értékelés elküldése
                                     </Button>
                                   </form>
+                                  )}
                                 </div>
                               )}
 
@@ -787,37 +810,39 @@ export function PerformanceList({
                                     </div>
                                   </div>
 
-                                  <form
-                                    action={async (formData) => {
-                                      const megjegyzes = formData.get("megjegyzes") as string
-                                      const { confirmMeeting } = await import("@/app/hr/performance/actions")
-                                      const res = await confirmMeeting(kpi.id, megjegyzes || undefined)
-                                      if (res?.error) toast.error(res.error)
-                                      else toast.success("Megbeszélés sikeresen rögzítve!")
-                                    }}
-                                    className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20 space-y-3"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
-                                        <CalendarCheck className="w-4 h-4" />
-                                        4. Lépés: Személyes megbeszélés
-                                      </span>
-                                      <Badge className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-0 text-[10px]">
-                                        Aktív teendő
-                                      </Badge>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                      Ülj le a munkatárssal, egyeztessétek az értékeléseket és a jövőbeli fejlesztési irányokat.
-                                    </p>
-                                    <Textarea
-                                      name="megjegyzes"
-                                      placeholder="Megbeszélés jegyzőkönyve, közös megállapodások (opcionális)..."
-                                      className="min-h-[80px] text-xs bg-background leading-relaxed"
-                                    />
-                                    <Button type="submit" size="sm" className="w-full text-xs bg-purple-600 hover:bg-purple-700 text-white cursor-pointer">
-                                      Megbeszélés rögzítése
-                                    </Button>
-                                  </form>
+                                  {canManageSelectedEmployee && (
+                                    <form
+                                      action={async (formData) => {
+                                        const megjegyzes = formData.get("megjegyzes") as string
+                                        const { confirmMeeting } = await import("@/app/hr/performance/actions")
+                                        const res = await confirmMeeting(kpi.id, megjegyzes || undefined)
+                                        if (res?.error) toast.error(res.error)
+                                        else toast.success("Megbeszélés sikeresen rögzítve!")
+                                      }}
+                                      className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20 space-y-3"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                                          <CalendarCheck className="w-4 h-4" />
+                                          4. Lépés: Személyes megbeszélés
+                                        </span>
+                                        <Badge className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-0 text-[10px]">
+                                          Aktív teendő
+                                        </Badge>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Ülj le a munkatárssal, egyeztessétek az értékeléseket és a jövőbeli fejlesztési irányokat.
+                                      </p>
+                                      <Textarea
+                                        name="megjegyzes"
+                                        placeholder="Megbeszélés jegyzőkönyve, közös megállapodások (opcionális)..."
+                                        className="min-h-[80px] text-xs bg-background leading-relaxed"
+                                      />
+                                      <Button type="submit" size="sm" className="w-full text-xs bg-purple-600 hover:bg-purple-700 text-white cursor-pointer">
+                                        Megbeszélés rögzítése
+                                      </Button>
+                                    </form>
+                                  )}
                                 </div>
                               )}
 
@@ -843,25 +868,27 @@ export function PerformanceList({
                                     </Badge>
                                   </div>
 
-                                  <div className="p-5 rounded-xl border bg-muted/15 space-y-3 text-center">
-                                    <p className="text-xs text-muted-foreground">
-                                      Minden értékelési fázis és személyes egyeztetés sikeresen lezajlott. A célkitűzés készen áll a végleges hitelesítésre és lezárásra.
-                                    </p>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      onClick={async () => {
-                                        const { finalCloseKpi } = await import("@/app/hr/performance/actions")
-                                        const res = await finalCloseKpi(kpi.id)
-                                        if (res?.error) toast.error(res.error)
-                                        else toast.success("Célkitűzés sikeresen hitelesítve és lezárva!")
-                                      }}
-                                      className="text-xs px-6 cursor-pointer bg-primary text-primary-foreground font-semibold"
-                                    >
-                                      <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                                      Célkitűzés Végleges Lezárása és Hitelesítése
-                                    </Button>
-                                  </div>
+                                  {canManageSelectedEmployee && (
+                                    <div className="p-5 rounded-xl border bg-muted/15 space-y-3 text-center">
+                                      <p className="text-xs text-muted-foreground">
+                                        Minden értékelési fázis és személyes egyeztetés sikeresen lezajlott. A célkitűzés készen áll a végleges hitelesítésre és lezárásra.
+                                      </p>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={async () => {
+                                          const { finalCloseKpi } = await import("@/app/hr/performance/actions")
+                                          const res = await finalCloseKpi(kpi.id)
+                                          if (res?.error) toast.error(res.error)
+                                          else toast.success("Célkitűzés sikeresen hitelesítve és lezárva!")
+                                        }}
+                                        className="text-xs px-6 cursor-pointer bg-primary text-primary-foreground font-semibold"
+                                      >
+                                        <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                                        Célkitűzés Végleges Lezárása és Hitelesítése
+                                      </Button>
+                                    </div>
+                                  )}
                                 </div>
                               )}
 
@@ -927,7 +954,7 @@ export function PerformanceList({
                               <span>Cél rögzítve: {kpi.created_at ? new Date(kpi.created_at).toLocaleDateString("hu-HU") : "Kezdetkor"}</span>
                             </div>
 
-                            {phase !== "lezart" && (
+                            {phase !== "lezart" && (canManageSelectedEmployee || isSelectedEmployeeSelf) && (
                               <form
                                 className="flex items-center gap-2 w-full sm:w-auto"
                                 action={async (formData) => {

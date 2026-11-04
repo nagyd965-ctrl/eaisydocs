@@ -47,9 +47,10 @@ interface OnboardingListProps {
   onboardings: OnboardingProfile[]
   orgUnits?: OrgUnitOption[]
   jobs?: JobOption[]
+  canWrite?: boolean
 }
 
-export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListProps) {
+export function OnboardingList({ onboardings, orgUnits, jobs, canWrite = true }: OnboardingListProps) {
   const [activeTab, setActiveTab] = useState<string>("folyamatban")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [search, setSearch] = useState("")
@@ -102,7 +103,7 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
     : 0
 
   const handleDateChange = async (id: string, newDate: string) => {
-    if (!newDate) return
+    if (!canWrite || !newDate) return
     const result = await updateOnboardingDate(id, newDate)
     if (result.error) toast.error(result.error)
     else toast.success("Dátum sikeresen frissítve!")
@@ -208,7 +209,7 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
           ) : viewMode === "grid" ? (
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {filteredList.map((person) => (
-                <OnboardingCard key={person.id} onboarding={person} orgUnits={orgUnits} jobs={jobs} />
+                <OnboardingCard key={person.id} onboarding={person} orgUnits={orgUnits} jobs={jobs} canWrite={canWrite} />
               ))}
             </div>
           ) : (
@@ -299,6 +300,7 @@ export function OnboardingList({ onboardings, orgUnits, jobs }: OnboardingListPr
             jobs={jobs}
             onDateChange={(newDate) => handleDateChange(selectedOnboarding.id, newDate)}
             onCloseDialog={() => setModalOpen(false)}
+            canWrite={canWrite}
           />
         </Dialog>
       )}

@@ -2,12 +2,12 @@
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { requireHrWriteServer } from "@/utils/hr/hr-auth-guard"
 
 export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: string) {
-  const auth = await requireHrAuthServer(["admin", "organization"], null)
+  const auth = await requireHrWriteServer(["organization", "admin"], null)
   if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod szervezeti egység módosításához." }
+    return { error: "Nincs írási jogosultságod szervezeti egység módosításához." }
   }
 
   const supabaseAdmin = createSupabaseClient(
@@ -69,9 +69,9 @@ export async function assignEmployeeToOrgUnit(orgUnitId: string, employeeId: str
 }
 
 export async function removeEmployeeFromOrgUnit(orgUnitId: string, employeeId: string) {
-  const auth = await requireHrAuthServer(["admin", "organization"], null)
+  const auth = await requireHrWriteServer(["organization", "admin"], null)
   if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod szervezeti egység módosításához." }
+    return { error: "Nincs írási jogosultságod szervezeti egység módosításához." }
   }
 
   const supabaseAdmin = createSupabaseClient(

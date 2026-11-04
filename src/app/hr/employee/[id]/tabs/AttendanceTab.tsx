@@ -60,7 +60,7 @@ const typeLabels: Record<string, string> = {
   unnep: "Ünnepnap"
 }
 
-export function AttendanceTab({ employeeId }: { employeeId: string }) {
+export function AttendanceTab({ employeeId, canWrite = true }: { employeeId: string; canWrite?: boolean }) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [timesheet, setTimesheet] = useState<TimesheetEntry[]>([])
   const [closingStatus, setClosingStatus] = useState<string>("nyitott")
@@ -287,7 +287,7 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
                     </Link>
                   )}
                 </div>
-              ) : closingStatus === "jovahagyva" ? (
+              ) : closingStatus === "jovahagyva" && canWrite ? (
                 /* Ha le van zárva, de még nincs iktatva */
                 <Button
                   size="sm"
@@ -300,12 +300,12 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
                 </Button>
               ) : null}
 
-              {closingStatus === "nyitott" && (
+              {closingStatus === "nyitott" && canWrite && (
                 <Button variant="outline" size="sm" onClick={handleSubmitMonth} className="h-8 text-xs">
                   Beküldés lezárásra
                 </Button>
               )}
-              {closingStatus === "jovahagyasra_var" && (
+              {closingStatus === "jovahagyasra_var" && canWrite && (
                 <Button size="sm" onClick={handleApproveMonth} className="h-8 text-xs bg-success hover:bg-success/90 text-success-foreground border-transparent">
                   <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
                   Jóváhagyás
@@ -381,7 +381,7 @@ export function AttendanceTab({ employeeId }: { employeeId: string }) {
                   </tr>
                 ) : (
                   timesheet.map((entry) => {
-                    const isEditable = (entry.type === "munka" || entry.isWeekendShift) && closingStatus === "nyitott"
+                    const isEditable = canWrite && (entry.type === "munka" || entry.isWeekendShift) && closingStatus === "nyitott"
                     const calc = calculatedDays.find(c => c.date === entry.datum)
                     
                     return (

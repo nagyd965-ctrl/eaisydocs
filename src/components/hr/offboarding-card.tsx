@@ -22,9 +22,10 @@ import { TERMINATION_SHORT_LABELS, type TerminationType } from "@/utils/hr/termi
 
 interface OffboardingCardProps {
   offboarding: OffboardingListItem
+  canWrite?: boolean
 }
 
-export function OffboardingCard({ offboarding }: OffboardingCardProps) {
+export function OffboardingCard({ offboarding, canWrite = true }: OffboardingCardProps) {
   const [open, setOpen] = useState(false)
 
   const tasks: OffboardingTask[] = offboarding.hr_offboarding_feladat || []
@@ -50,7 +51,7 @@ export function OffboardingCard({ offboarding }: OffboardingCardProps) {
     : "Közös megegyezés"
 
   const handleDateChange = async (newDate: string) => {
-    if (!newDate) return
+    if (!canWrite || !newDate) return
     const result = await updateOffboardingDate(offboarding.id, newDate)
     if (result.error) toast.error(result.error)
     else toast.success("Utolsó munkanap sikeresen frissítve!")
@@ -192,6 +193,7 @@ export function OffboardingCard({ offboarding }: OffboardingCardProps) {
         offboarding={offboarding} 
         onDateChange={handleDateChange} 
         onCloseDialog={() => setOpen(false)} 
+        canWrite={canWrite}
       />
     </Dialog>
   )

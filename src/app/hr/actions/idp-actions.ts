@@ -67,12 +67,16 @@ async function requireIdpManagerAuth(): Promise<{
   error?: string;
   activeCompanyId: string | null;
 }> {
-  const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
+  const { requireHrAuthServer, checkHrWriteAccess, isStrictHrReadOnlyUser } = await import('@/utils/hr/hr-auth-guard');
   const auth = await requireHrAuthServer(['performance', 'employees', 'admin', 'vezeto'], null);
-  if (!auth.authorized) {
+  const canWriteIdp =
+    auth.authorized &&
+    !isStrictHrReadOnlyUser(auth) &&
+    (checkHrWriteAccess(auth, ['admin']) || auth.hrRole === 'vezeto');
+  if (!canWriteIdp) {
     return {
       ok: false,
-      error: 'Nincs jogosultságod a fejlesztési tervek módosításához.',
+      error: 'Nincs írási jogosultságod a fejlesztési tervek módosításához.',
       activeCompanyId: auth.activeCompanyId,
     };
   }
@@ -452,10 +456,9 @@ export async function uploadIDPCertificateAction(formData: FormData) {
     return { success: false, error: 'A fejlesztési cél másik vállalathoz tartozik.' };
   }
   if (cel.dolgozo_id !== user.id) {
-    const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
-    const auth = await requireHrAuthServer(['admin', 'vezeto', 'performance', 'employees'], null);
-    if (!auth.authorized) {
-      return { success: false, error: 'Nincs jogosultságod más dolgozó tanúsítványának feltöltéséhez.' };
+    const auth = await requireIdpManagerAuth();
+    if (!auth.ok) {
+      return { success: false, error: 'Nincs írási jogosultságod más dolgozó tanúsítványának feltöltéséhez.' };
     }
   }
 
@@ -513,9 +516,14 @@ export async function uploadIDPCertificateAction(formData: FormData) {
 }
 
 export async function approveDevelopmentGoal(celId: string, megjegyzes?: string) {
-  const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
+  const { requireHrAuthServer, checkHrWriteAccess, isStrictHrReadOnlyUser } = await import('@/utils/hr/hr-auth-guard');
   const auth = await requireHrAuthServer(['admin', 'vezeto'], null);
-  if (!auth.authorized || !auth.user) {
+  const canApprove =
+    auth.authorized &&
+    Boolean(auth.user) &&
+    !isStrictHrReadOnlyUser(auth) &&
+    (checkHrWriteAccess(auth, ['admin']) || auth.hrRole === 'vezeto');
+  if (!canApprove || !auth.user) {
     return { success: false, error: 'Nincs jogosultságod a fejlesztési cél jóváhagyásához.' };
   }
   const user = auth.user;
@@ -616,9 +624,14 @@ export async function approveDevelopmentGoal(celId: string, megjegyzes?: string)
 }
 
 export async function rejectDevelopmentGoal(celId: string, indoklas: string) {
-  const { requireHrAuthServer } = await import('@/utils/hr/hr-auth-guard');
+  const { requireHrAuthServer, checkHrWriteAccess, isStrictHrReadOnlyUser } = await import('@/utils/hr/hr-auth-guard');
   const auth = await requireHrAuthServer(['admin', 'vezeto'], null);
-  if (!auth.authorized || !auth.user) {
+  const canReject =
+    auth.authorized &&
+    Boolean(auth.user) &&
+    !isStrictHrReadOnlyUser(auth) &&
+    (checkHrWriteAccess(auth, ['admin']) || auth.hrRole === 'vezeto');
+  if (!canReject || !auth.user) {
     return { success: false, error: 'Nincs jogosultságod a fejlesztési cél elutasításához.' };
   }
   const user = auth.user;

@@ -69,3 +69,9 @@ Ezek a szabályok a `design/` mappa és az `eaisyDocs_szoftverterv.md` alapján 
 ## 8. Verziókezelés & Git Szabályok (Szigorú Biztonsági Korlátozás)
 - **GIT PUSH TILALOM:** **Soha, semmilyen körülmények között nem futtatható `git push` a felhasználó kifejezett, adott üzenetben jóváhagyott külön engedélye vagy utasítása nélkül.** Helyi committal lehet rögzíteni a módosításokat, de a távoli tárolóba (GitHub) történő feltöltés kizárólag a felhasználó közvetlen parancsára történhet!
 
+## 9. Management Dashboard Kapcsolható Élő AI Hiba-Analízis (`watch-ai-analysis.ts`)
+- A `/management` -> Control Center -> Alkalmazáshibák fülön található egy **„Élő AI Figyelő: Kikapcsolva / Aktív”** kapcsoló, amely alapértelmezetten **kikapcsolt (`false`)** állapotban van, hogy **0 háttérterhelést** okozzon.
+- **Tilos** a `watch-ai-analysis.ts` háttérfigyelőt automatikusan, állandó jelleggel futtatni! Kizárólag akkor indítható el (`npx tsx scripts/watch-ai-analysis.ts`, natív 0% CPU-s `fs.watch`-csal a projektmappán kívüli `os.tmpdir()/eaisydocs-ai-watcher` könyvtáron), amikor a felhasználó bekapcsolja az **Élő AI Figyelő** módot és a hibákkal foglalkozunk.
+- Amikor a figyelő felébreszti az AI ügynököt:
+  1. **SZIGORÚAN CSAK OLVASÁSI (READ-ONLY) VIZSGÁLATOT** szabad végeznie a kódbázisban az érintett fájlon, hogy a hiba még fennáll-e vagy már javítva van. **Tilos bármilyen fájlt vagy adatbázis-rekordot módosítani a felhasználó előzetes jóváhagyása nélkül!**
+  2. El kell magyaráznia a chatben a hiba gyökérokát, és ha még fennálló hiba, konkrét javítási javaslatot kell adnia, amelyet **kizárólag a felhasználó kifejezett jóváhagyása után** valósíthat meg.

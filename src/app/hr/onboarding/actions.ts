@@ -5,8 +5,8 @@ import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { onboardEmployee } from "@/app/hr/admin/actions"
 import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
-import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
+import { checkHrWriteAccess, requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 function getAdminClient() {
   return createAdminClient(
@@ -23,8 +23,8 @@ export async function toggleTaskStatus(taskId: string, currentStatus: string) {
   if (!user) return { error: "Nincs bejelentkezve" }
 
   const auth = await requireHrAuthServer(["admin", "onboarding"], null)
-  if (!auth.authorized) {
-    return { error: "Nincs jogosultságod a beléptetési feladatok módosításához." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["onboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod a beléptetési feladatok módosításához." }
   }
   const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
 
@@ -83,8 +83,8 @@ export async function updateOnboardingDate(onboardingId: string, newDate: string
   if (!user) return { error: "Nincs bejelentkezve" }
 
   const auth = await requireHrAuthServer(["admin", "onboarding"], null)
-  if (!auth.authorized) {
-    return { error: "Nincs jogosultságod a belépési dátum módosításához." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["onboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod a belépési dátum módosításához." }
   }
   const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
 
@@ -136,8 +136,8 @@ export async function addOnboardingTask(onboardingId: string, cim: string, felel
   if (!user) return { error: "Nincs bejelentkezve" }
 
   const auth = await requireHrAuthServer(["admin", "onboarding"], null)
-  if (!auth.authorized) {
-    return { error: "Nincs jogosultságod új beléptetési feladat hozzáadásához." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["onboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod új beléptetési feladat hozzáadásához." }
   }
   const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
 
@@ -190,8 +190,8 @@ export async function deleteOnboardingTask(taskId: string) {
   if (!user) return { error: "Nincs bejelentkezve" }
 
   const auth = await requireHrAuthServer(["admin", "onboarding"], null)
-  if (!auth.authorized) {
-    return { error: "Nincs jogosultságod beléptetési feladat törléséhez." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["onboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod beléptetési feladat törléséhez." }
   }
   const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
 
@@ -248,8 +248,8 @@ export async function activateOnboardingAccount(onboardingId: string) {
   if (!user) return { error: "Nincs bejelentkezve" }
 
   const auth = await requireHrAuthServer(["admin", "onboarding"], null)
-  if (!auth.authorized) {
-    return { error: "Nincs jogosultságod a munkavállalói fiók aktiválásához." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["onboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod a munkavállalói fiók aktiválásához." }
   }
 
   const adminClient = getAdminClient()
@@ -620,8 +620,8 @@ export async function closeOnboarding(onboardingId: string) {
   if (!user) return { error: "Nincs bejelentkezve" }
 
   const auth = await requireHrAuthServer(["admin", "onboarding"], null)
-  if (!auth.authorized) {
-    return { error: "Nincs jogosultságod a beléptetés lezárásához." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["onboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod a beléptetés lezárásához." }
   }
 
   const adminClient = getAdminClient()
@@ -673,10 +673,9 @@ export async function reopenOnboarding(onboardingId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["admin", "onboarding"], null)
-  if (!auth.authorized) {
-    return { error: "Nincs jogosultságod a beléptetési folyamat újranyitásához." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["onboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod a beléptetési folyamat újranyitásához." }
   }
 
   const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
@@ -734,10 +733,9 @@ export async function deleteOnboarding(onboardingId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Nincs bejelentkezve" }
 
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["admin", "onboarding"], null)
-  if (!auth.authorized) {
-    return { error: "Nincs jogosultságod a beléptetési folyamat törléséhez." }
+  if (!auth.authorized || !checkHrWriteAccess(auth, ["onboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod a beléptetési folyamat törléséhez." }
   }
 
   const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
@@ -804,13 +802,9 @@ export async function createManualOnboarding(formData: {
     getActiveCompanyIdServer(),
   ])
 
-  // BUG-0 javítás (2026-10-31): legacy szerepkörnevek helyett kanonikus modulkulcs-ellenőrzés
-  if (!companyRoles?.isCompanyAdmin && !isUserAuthorizedForHrView(
-        companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : (profile?.hr_szerepkor || "none"),
-        ["onboarding"],
-        companyRoles?.hrModules || []
-      )) {
-    return { error: "Nincs jogosultságod új beléptetési folyamat indításához." }
+  const currentHrRole = companyRoles?.hrRole && companyRoles.hrRole !== "none" ? companyRoles.hrRole : (profile?.hr_szerepkor || "none")
+  if (!companyRoles?.isCompanyAdmin && !hasHrWriteAccess(currentHrRole, companyRoles?.hrModules || [], companyRoles?.hrWriteModules, ["onboarding", "admin"])) {
+    return { error: "Nincs írási jogosultságod új beléptetési folyamat indításához." }
   }
 
   const adminClient = getAdminClient()

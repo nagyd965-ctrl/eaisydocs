@@ -5,6 +5,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { RecruitmentTabs } from "./recruitment-tabs"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
 
 export default async function RecruitmentPage() {
   const auth = await requireHrAuthServer(["recruitment"])
@@ -21,6 +22,9 @@ export default async function RecruitmentPage() {
   }
 
   const { activeCompanyId, hrRole, isCompanyAdmin } = auth
+  const isReadOnly =
+    !isCompanyAdmin &&
+    !hasHrWriteAccess(hrRole, auth.hrModules, auth.hrWriteModules, ["recruitment", "admin"])
 
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -83,7 +87,7 @@ export default async function RecruitmentPage() {
           address: activeCompany?.address || null,
           careerPresentation: activeCompany?.career_presentation || null,
         }}
-        isReadOnly={hrRole === "auditor" && !isCompanyAdmin}
+        isReadOnly={isReadOnly}
       />
     </div>
   )

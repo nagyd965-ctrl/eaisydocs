@@ -5,6 +5,42 @@ import { createClient } from "@/utils/supabase/server"
 import { getActiveCompanyIdServer, getActiveCompanyServer } from "@/utils/company-server"
 import { updateIratWithNextAlszam } from "@/utils/alszam-helper"
 
+/**
+ * Hézagmentes iktatószám allokáció 3 lépcsős exponenciális retry-backoff védelemmel (150ms -> 300ms -> 600ms)
+ * konkurens sorzárási ütközés (`SQLSTATE 55P03` / `lock timeout`) esetére.
+ */
+async function retryGenerateIktatoszam(
+  supabase: any,
+  params: { p_ev: number; p_prefix: string; p_company_id: string | null }
+): Promise<{ data: string | null; error: any }> {
+  const backoffMs = [150, 300, 600]
+  let lastError: any = null
+
+  for (let attempt = 0; attempt <= backoffMs.length; attempt++) {
+    const { data, error } = await supabase.rpc("generate_iktatoszam", params)
+    if (!error && data) {
+      return { data, error: null }
+    }
+    lastError = error
+    const code = String((error as any)?.code || "")
+    const msg = String(error?.message || "").toLowerCase()
+    const isTransientLock =
+      code === "55P03" ||
+      code === "40001" ||
+      code === "40P01" ||
+      msg.includes("lock timeout") ||
+      msg.includes("could not obtain lock") ||
+      msg.includes("deadlock")
+
+    if (!isTransientLock || attempt === backoffMs.length) {
+      break
+    }
+    await new Promise((resolve) => setTimeout(resolve, backoffMs[attempt]))
+  }
+
+  return { data: null, error: lastError }
+}
+
 export async function fileIncomingDocument(formData: FormData) {
   const supabase = await createClient()
   const activeCompany = await getActiveCompanyServer()
@@ -130,12 +166,12 @@ export async function fileIncomingDocument(formData: FormData) {
       return { error: "Hiba az ügy létrehozásakor: " + msg }
     }
 
-    const { data: iktatoszamData, error: iktatoszamError } = await supabase.rpc('generate_iktatoszam', {
+    const { data: iktatoszamData, error: iktatoszamError } = await retryGenerateIktatoszam(supabase, {
       p_ev: ev,
       p_prefix: prefix,
       p_company_id: activeCompanyId || null,
     })
-    if (iktatoszamError) {
+    if (iktatoszamError || !iktatoszamData) {
       await supabase.from("ugy").delete().eq("id", ugyData.id)
       return { error: "Hiba az iktatószám generálásakor." }
     }

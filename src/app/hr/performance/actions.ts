@@ -5,7 +5,10 @@ import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
-import { canManageEmployeePerformance } from "@/utils/hr/performance-access"
+import {
+  canManageEmployeePerformance,
+  hasFullCompanyPerformanceWriteAccess,
+} from "@/utils/hr/performance-access"
 
 function getAdminClient() {
   return createAdminClient(
@@ -239,8 +242,8 @@ export async function addCycle(formData: FormData) {
     ["admin"],
     null
   )
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod ciklusok kezeléséhez." }
+  if (!auth.authorized || !auth.user || !hasFullCompanyPerformanceWriteAccess(auth)) {
+    return { error: "Nincs írási jogosultságod ciklusok kezeléséhez." }
   }
 
   const megnevezes = formData.get("megnevezes") as string
@@ -279,8 +282,8 @@ export async function updateCycleStatus(cycleId: string, newStatus: string) {
     ["admin"],
     null
   )
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod ciklusok kezeléséhez." }
+  if (!auth.authorized || !auth.user || !hasFullCompanyPerformanceWriteAccess(auth)) {
+    return { error: "Nincs írási jogosultságod ciklusok kezeléséhez." }
   }
 
   const adminClient = getAdminClient()
@@ -317,8 +320,8 @@ export async function deleteCycle(cycleId: string) {
     ["admin"],
     null
   )
-  if (!auth.authorized || !auth.user) {
-    return { error: "Nincs jogosultságod ciklusok kezeléséhez." }
+  if (!auth.authorized || !auth.user || !hasFullCompanyPerformanceWriteAccess(auth)) {
+    return { error: "Nincs írási jogosultságod ciklusok kezeléséhez." }
   }
 
   const adminClient = getAdminClient()

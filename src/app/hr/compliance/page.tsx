@@ -1,5 +1,6 @@
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
 import { Shield } from "lucide-react"
 import {
   getCompanyLeaveComplianceData,
@@ -33,6 +34,7 @@ export default async function CompliancePage() {
   }
 
   const companyScope = auth.companyScope
+  const canWrite = auth.isCompanyAdmin || hasHrWriteAccess(auth.hrRole, auth.hrModules, auth.hrWriteModules, ["compliance", "admin"])
   const currentYear = new Date().getFullYear()
 
   const [leaveData, safetyData, overtimeData, medicalData] = await Promise.all([
@@ -115,7 +117,7 @@ export default async function CompliancePage() {
           </div>
 
           {/* Táblázat */}
-          <LeaveComplianceTable initialData={leaveData} />
+          <LeaveComplianceTable initialData={leaveData} canWrite={canWrite} />
         </TabsContent>
 
         {/* ── FÜL 2: MUNKAIDŐ & TÚLÓRAKERET (Mt. 99. §, 135. §) ── */}
@@ -156,7 +158,7 @@ export default async function CompliancePage() {
           </div>
 
           {/* Túlóra és munkaidő megfelelőségi táblázat */}
-          <OvertimeComplianceTable initialData={overtimeData} />
+          <OvertimeComplianceTable initialData={overtimeData} canWrite={canWrite} />
         </TabsContent>
 
         {/* ── FÜL 3: MUNKAVÉDELEM & TŰZVÉDELEM ── */}
@@ -192,7 +194,7 @@ export default async function CompliancePage() {
           </div>
 
           {/* Munkavédelmi Táblázat */}
-          <SafetyTrainingTable initialData={safetyData} />
+          <SafetyTrainingTable initialData={safetyData} canWrite={canWrite} />
         </TabsContent>
 
         {/* ── FÜL 4: ORVOSI ALKALMASSÁG (Mvt. 49. §, 33/1998. NM rendelet) ── */}
@@ -231,6 +233,7 @@ export default async function CompliancePage() {
           <MedicalComplianceTable
             initialData={medicalData}
             userRole={auth.isCompanyAdmin ? "admin" : auth.hrRole}
+            canWrite={canWrite}
           />
         </TabsContent>
       </Tabs>

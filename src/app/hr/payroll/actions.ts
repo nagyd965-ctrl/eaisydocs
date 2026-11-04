@@ -498,10 +498,10 @@ export async function generateMonthlyPayslipsAction(params: {
   employeeIds?: string[]
   publishImmediately?: boolean
 }): Promise<{ success: boolean; count?: number; error?: string }> {
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { checkHrWriteAccess, requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["payroll", "admin"], null)
-  if (!auth.authorized || !auth.user) {
-    return { success: false, error: "Nincs jogosultságod bérjegyzékek előállításához." }
+  if (!auth.authorized || !auth.user || !checkHrWriteAccess(auth, ["payroll", "admin"])) {
+    return { success: false, error: "Nincs írási jogosultságod bérjegyzékek előállításához." }
   }
   const user = auth.user
 
@@ -648,14 +648,16 @@ export async function updateSinglePayslipAction(
     return { success: false, error: "Nincs kiválasztott cég" }
   }
 
-  const { hrRole, hrModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
+  const { hrRole, hrModules, hrWriteModules, isCompanyAdmin } = await getActiveCompanyMemberRolesServer(activeCompanyId)
   // P0-javítás (2026-11-01): legacy szerepkörnevek helyett kanonikus modulkulcs-ellenőrzés
   // (Bérszámfejtés modul vagy admin) — korábban csak admin ment át, más cég bérpapírja pedig
   // ellenőrizetlenül felülírható volt
-  const { isUserAuthorizedForHrView } = await import("@/utils/hr/company-role-resolver")
-  const isAuthorized = isCompanyAdmin || isUserAuthorizedForHrView(hrRole, ["payroll"], hrModules)
+  const { hasHrWriteAccess } = await import("@/utils/hr/company-role-resolver")
+  const isAuthorized =
+    isCompanyAdmin ||
+    hasHrWriteAccess(hrRole, hrModules, hrWriteModules, ["payroll", "admin"])
   if (!isAuthorized) {
-    return { success: false, error: "Nincs jogosultságod a bérpapír módosításához (Bérszámfejtés modul szükséges)." }
+    return { success: false, error: "Nincs írási jogosultságod a bérpapír módosításához (Bérszámfejtés írási jogosultság szükséges)." }
   }
 
   const adminClient = getAdminClient()

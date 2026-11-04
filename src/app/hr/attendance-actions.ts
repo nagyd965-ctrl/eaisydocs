@@ -3,13 +3,13 @@
 import { createClient } from "@/utils/supabase/server"
 import { getActiveCompanyIdServer } from "@/utils/company-server"
 import { revalidatePath } from "next/cache"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { checkHrWriteAccess, isStrictHrReadOnlyUser, requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 import { checkMedicalValidityForDate } from "@/utils/hr/medical-compliance-checker"
 import { resolveEffectiveHolidays } from "@/utils/hr/leave-calculator"
 
 async function verifyTimesheetEmployeeAccess(
   employeeId: string,
-  options: { allowSelf: boolean; requiredModules?: string[] }
+  options: { allowSelf: boolean; requiredModules?: string[]; requireWrite?: boolean; allowManagerWrite?: boolean }
 ) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -29,6 +29,20 @@ async function verifyTimesheetEmployeeAccess(
         ? "Saját jelenléti ív közvetlen módosítása nem engedélyezett. Kérjük, használd a jelenlétkorrekciós kérelmet!"
         : "Nincs jogosultság a jelenléti adatok eléréséhez.",
       isSelf,
+    }
+  }
+
+  if (options.requireWrite && !(options.allowSelf && isSelf)) {
+    const canWrite =
+      !isStrictHrReadOnlyUser(auth) &&
+      (checkHrWriteAccess(auth, ["admin", "time", "payroll"]) ||
+        (options.allowManagerWrite !== false && auth.hrRole === "vezeto"))
+    if (!canWrite) {
+      return {
+        ok: false as const,
+        error: "Csak olvasási jogosultságod van, a jelenléti adatok módosítása nem engedélyezett.",
+        isSelf,
+      }
     }
   }
 
@@ -446,6 +460,7 @@ export async function saveAttendanceRecord(
     const access = await verifyTimesheetEmployeeAccess(employeeId, {
       allowSelf: false,
       requiredModules: ["time", "admin", "vezeto"],
+      requireWrite: true,
     })
     if (!access.ok) {
       throw new Error(access.error)
@@ -518,6 +533,7 @@ export async function deleteAttendanceRecord(id: string, employeeId: string, dat
     const access = await verifyTimesheetEmployeeAccess(employeeId, {
       allowSelf: false,
       requiredModules: ["time", "admin", "vezeto"],
+      requireWrite: true,
     })
     if (!access.ok) {
       throw new Error(access.error)
@@ -587,6 +603,7 @@ export async function submitMonthlyTimesheet(employeeId: string, year: number, m
     const access = await verifyTimesheetEmployeeAccess(employeeId, {
       allowSelf: true,
       requiredModules: ["time", "admin", "vezeto"],
+      requireWrite: true,
     })
     if (!access.ok) {
       return { error: access.error }
@@ -642,9 +659,13 @@ export async function approveMonthlyTimesheet(employeeId: string, year: number, 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error("Nincs bejelentkezve")
 
-    const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+    const { requireHrAuthServer, checkHrWriteAccess, isStrictHrReadOnlyUser } = await import("@/utils/hr/hr-auth-guard")
     const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
-    if (!auth.authorized) {
+    const canApprove =
+      auth.authorized &&
+      !isStrictHrReadOnlyUser(auth) &&
+      (checkHrWriteAccess(auth, ["admin", "time", "payroll"]) || auth.hrRole === "vezeto")
+    if (!canApprove) {
       throw new Error("Nincs jogosultságod a havi jelenléti ív jóváhagyásához!")
     }
 
@@ -726,6 +747,8 @@ export async function fileMonthlyTimesheet(employeeId: string, year: number, mon
     const access = await verifyTimesheetEmployeeAccess(employeeId, {
       allowSelf: false,
       requiredModules: ["time", "admin", "vezeto", "payroll", "employees"],
+      requireWrite: true,
+      allowManagerWrite: false,
     })
     if (!access.ok) {
       return { success: false, error: access.error }
@@ -851,8 +874,12 @@ export async function handleOvertimeApproval(
   }
 
   const auth = await requireHrAuthServer(["time", "admin", "vezeto"], null)
-  if (!auth.authorized) {
-    return { error: "A túlóra kérelem elbírálása csak vezetői vagy HR/admin jogosultsággal lehetséges." }
+  const canApprove =
+    auth.authorized &&
+    !isStrictHrReadOnlyUser(auth) &&
+    (checkHrWriteAccess(auth, ["admin", "time", "payroll"]) || auth.hrRole === "vezeto")
+  if (!canApprove) {
+    return { error: "A túlóra kérelem elbírálása csak vezetői vagy HR/admin írási jogosultsággal lehetséges." }
   }
   const activeCompanyId = auth.activeCompanyId || (await getActiveCompanyIdServer())
 
@@ -961,9 +988,13 @@ export async function handleAttendanceCorrectionApproval(
   // ── HR deep-analysis 20261029 (2.1) P0-javítás (2026-11-01): őrblokk ──
   // A jóváhagyás közvetlenül a BÉRSZÁMFEJTÉS alapját író hr_jelenlet-adatot módosítja —
   // korábban csak bejelentkezést ellenőrzött, a dolgozó saját magának is jóváhagyhatott.
-  const { requireHrAuthServer } = await import("@/utils/hr/hr-auth-guard")
+  const { requireHrAuthServer, checkHrWriteAccess, isStrictHrReadOnlyUser } = await import("@/utils/hr/hr-auth-guard")
   const auth = await requireHrAuthServer(["vezeto"], null)
-  if (!auth.authorized) {
+  const canApprove =
+    auth.authorized &&
+    !isStrictHrReadOnlyUser(auth) &&
+    (checkHrWriteAccess(auth, ["admin", "time", "payroll"]) || auth.hrRole === "vezeto")
+  if (!canApprove) {
     return { error: "A jelenlétkorrekció elbírálása csak vezetői vagy adminisztrátori szerepkörrel lehetséges." }
   }
 

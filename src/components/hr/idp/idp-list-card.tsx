@@ -97,14 +97,14 @@ function PlanStatusBadge({ statusz }: { statusz: string }) {
 // ---------------------------------------------------------------------------
 // Haladási megjegyzések panel
 // ---------------------------------------------------------------------------
-function NotesPanel({ celId, megjegyzesek }: { celId: string; megjegyzesek: IDPMegjegyzes[] }) {
+function NotesPanel({ celId, megjegyzesek, canAddNote = true }: { celId: string; megjegyzesek: IDPMegjegyzes[]; canAddNote?: boolean }) {
   const router = useRouter()
   const [newNote, setNewNote] = useState("")
   const [saving, setSaving] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
   const handleAdd = async () => {
-    if (!newNote.trim()) return
+    if (!newNote.trim() || !canAddNote) return
     setSaving(true)
     const res = await addIDPNote(celId, newNote.trim())
     setSaving(false)
@@ -113,7 +113,7 @@ function NotesPanel({ celId, megjegyzesek }: { celId: string; megjegyzesek: IDPM
       router.refresh()
       toast.success("Megjegyzés sikeresen rögzítve")
     } else {
-      toast.error("Hiba a mentéskor")
+      toast.error(res.error || "Hiba a mentéskor")
     }
   }
 
@@ -149,22 +149,24 @@ function NotesPanel({ celId, megjegyzesek }: { celId: string; megjegyzesek: IDPM
             </div>
           )}
 
-          <div className="flex gap-2 pt-1">
-            <Textarea
-              placeholder="Új bejegyzés vagy mentori visszajelzés rögzítése..."
-              className="text-xs resize-none h-16 flex-1 bg-background"
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-            />
-            <Button
-              size="sm"
-              className="self-end h-8 px-3"
-              onClick={handleAdd}
-              disabled={saving || !newNote.trim()}
-            >
-              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : "Küldés"}
-            </Button>
-          </div>
+          {canAddNote && (
+            <div className="flex gap-2 pt-1">
+              <Textarea
+                placeholder="Új bejegyzés vagy mentori visszajelzés rögzítése..."
+                className="text-xs resize-none h-16 flex-1 bg-background"
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+              />
+              <Button
+                size="sm"
+                className="self-end h-8 px-3"
+                onClick={handleAdd}
+                disabled={saving || !newNote.trim()}
+              >
+                {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : "Küldés"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -610,7 +612,7 @@ export function IdpListCard({ tervek, dolgozoId, isManagerView = true }: IdpList
                       )}
 
                       {/* Mentori megjegyzések és napló */}
-                      <NotesPanel celId={cel.id} megjegyzesek={cel.megjegyzesek ?? []} />
+                      <NotesPanel celId={cel.id} megjegyzesek={cel.megjegyzesek ?? []} canAddNote={isManagerView} />
                     </div>
                   )
                 })

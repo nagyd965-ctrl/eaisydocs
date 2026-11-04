@@ -3,6 +3,7 @@ import { OnboardingList } from "@/components/hr/onboarding-list"
 import { AddOnboardingDialog } from "@/components/hr/add-onboarding-dialog"
 import { Shield } from "lucide-react"
 import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { hasHrWriteAccess } from "@/utils/hr/company-role-resolver"
 
 export const dynamic = "force-dynamic"
 
@@ -21,6 +22,9 @@ export default async function OnboardingPage() {
   }
 
   const { activeCompanyId } = auth
+  const canWrite =
+    auth.isCompanyAdmin ||
+    hasHrWriteAccess(auth.hrRole, auth.hrModules, auth.hrWriteModules, ["onboarding", "admin"])
 
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -66,9 +70,9 @@ export default async function OnboardingPage() {
             Beléptetési folyamatok, digitális feladatkövetés és eszközfelelősség.
           </p>
         </div>
-        <AddOnboardingDialog orgUnits={orgUnits} jobs={jobs} />
+        {canWrite && <AddOnboardingDialog orgUnits={orgUnits} jobs={jobs} />}
       </div>
-      <OnboardingList onboardings={onboardings || []} orgUnits={orgUnits} jobs={jobs} />
+      <OnboardingList onboardings={onboardings || []} orgUnits={orgUnits} jobs={jobs} canWrite={canWrite} />
     </div>
   )
 }

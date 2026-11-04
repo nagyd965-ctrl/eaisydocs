@@ -8,7 +8,7 @@ import { generateT1041PdfBuffer } from "@/utils/hr/t1041-pdf-generator"
 import { type T1041PdfData } from "@/utils/hr/t1041-constants"
 import { DEFAULT_COMPANY_DETAILS, type CompanyDetails } from "@/utils/hr/employment-contract-constants"
 import { executeHrDocumentFiling } from "@/utils/hr-filing-bridge"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { checkHrWriteAccess, requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 
 const T1041_ALLOWED_MODULES = [
   "onboarding",
@@ -19,6 +19,7 @@ const T1041_ALLOWED_MODULES = [
   "auditor",
   "admin",
 ]
+const T1041_WRITE_MODULES = ["admin", "onboarding", "offboarding", "reports", "payroll"]
 
 function getAdminClient() {
   return createAdminClient(
@@ -33,11 +34,16 @@ async function verifyT1041Access(
     onboardingId?: string | null
     offboardingId?: string | null
     dolgozoId?: string | null
-  }
+  },
+  options: { requireWrite?: boolean } = {}
 ) {
   const auth = await requireHrAuthServer(T1041_ALLOWED_MODULES, null)
   if (!auth.authorized || !auth.user) {
     return { authorized: false as const, error: "Nincs jogosultsága a T1041 adatok kezeléséhez.", auth }
+  }
+
+  if (options.requireWrite && !checkHrWriteAccess(auth, T1041_WRITE_MODULES)) {
+    return { authorized: false as const, error: "Csak olvasási jogosultsága van, a T1041 adatok módosítása nem engedélyezett.", auth }
   }
 
   const activeCompanyId = auth.activeCompanyId
@@ -484,11 +490,15 @@ export async function saveT1041Record(data: {
   if (!user) return { error: "Nincs bejelentkezve" }
 
   const adminClient = getAdminClient()
-  const access = await verifyT1041Access(adminClient, {
-    onboardingId: data.onboardingId,
-    offboardingId: data.offboardingId,
-    dolgozoId: data.dolgozoId,
-  })
+  const access = await verifyT1041Access(
+    adminClient,
+    {
+      onboardingId: data.onboardingId,
+      offboardingId: data.offboardingId,
+      dolgozoId: data.dolgozoId,
+    },
+    { requireWrite: true }
+  )
   if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
 
   const activeCompanyId = access.auth.activeCompanyId || (await getActiveCompanyIdServer())
@@ -568,7 +578,11 @@ export async function generateT1041PdfAction(params: {
     const adminClient = getAdminClient()
     const { onboardingId, offboardingId, dolgozoId, data } = params
 
-    const access = await verifyT1041Access(adminClient, { onboardingId, offboardingId, dolgozoId })
+    const access = await verifyT1041Access(
+      adminClient,
+      { onboardingId, offboardingId, dolgozoId },
+      { requireWrite: true }
+    )
     if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
     const activeCompanyId = access.auth.activeCompanyId
 
@@ -703,7 +717,11 @@ export async function uploadT1041ReceiptAction(formData: FormData) {
     const dolgozoId = formData.get("dolgozoId") as string | null
     const employeeName = formData.get("employeeName") as string || "Munkavállaló"
 
-    const access = await verifyT1041Access(adminClient, { onboardingId, offboardingId, dolgozoId })
+    const access = await verifyT1041Access(
+      adminClient,
+      { onboardingId, offboardingId, dolgozoId },
+      { requireWrite: true }
+    )
     if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
     const activeCompanyId = access.auth.activeCompanyId
 
@@ -867,7 +885,7 @@ export async function fileExistingT1041Document(params: {
 
   const adminClient = getAdminClient()
   const { documentId, dolgozoId } = params
-  const access = await verifyT1041Access(adminClient, { dolgozoId })
+  const access = await verifyT1041Access(adminClient, { dolgozoId }, { requireWrite: true })
   if (!access.authorized) return { error: access.error || "Nincs jogosultsága a művelethez." }
   const activeCompanyId = access.auth.activeCompanyId
 

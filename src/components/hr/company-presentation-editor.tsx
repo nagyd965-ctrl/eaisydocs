@@ -129,7 +129,7 @@ export function CompanyPresentationEditor({
     Boolean(initialPresentation && initialPresentation.heroSlide)
   )
   const [isEditing, setIsEditing] = useState<boolean>(
-    !Boolean(initialPresentation && initialPresentation.heroSlide)
+    !Boolean(initialPresentation && initialPresentation.heroSlide) && !isReadOnly
   )
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false)
   const [currentStep, setCurrentStep] = useState<number>(1)

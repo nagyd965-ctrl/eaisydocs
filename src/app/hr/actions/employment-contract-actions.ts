@@ -10,7 +10,7 @@ import {
 } from "@/utils/hr/employment-contract-constants"
 import { generateEmploymentContractPdfBuffer } from "@/utils/hr/employment-contract-pdf-generator"
 import { executeHrDocumentFiling } from "@/utils/hr-filing-bridge"
-import { requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
+import { checkHrWriteAccess, requireHrAuthServer } from "@/utils/hr/hr-auth-guard"
 import { isUserAuthorizedForHrView } from "@/utils/hr/company-role-resolver"
 
 function getAdminClient() {
@@ -26,7 +26,8 @@ async function verifyEmploymentContractAccess(
     dolgozoId?: string | null
     onboardingId?: string | null
     documentId?: string | null
-  }
+  },
+  options: { requireWrite?: boolean } = {}
 ) {
   const auth = await requireHrAuthServer(
     ["onboarding", "employees", "payroll", "organization", "admin"],
@@ -39,6 +40,14 @@ async function verifyEmploymentContractAccess(
     return {
       ok: false,
       error: "Nincs jogosultságod a munkaszerződés műveletekhez!",
+      auth,
+      activeCompanyId: null as string | null,
+    }
+  }
+  if (options.requireWrite && !checkHrWriteAccess(auth, ["admin", "onboarding"])) {
+    return {
+      ok: false,
+      error: "Csak olvasási jogosultságod van, a munkaszerződés módosítása nem engedélyezett!",
       auth,
       activeCompanyId: null as string | null,
     }
@@ -346,10 +355,14 @@ export interface GenerateEmploymentContractActionParams {
 export async function generateAndFileEmploymentContractAction(params: GenerateEmploymentContractActionParams) {
   try {
     const adminClient = getAdminClient()
-    const access = await verifyEmploymentContractAccess(adminClient, {
-      dolgozoId: params.dolgozoId,
-      onboardingId: params.onboardingId,
-    })
+    const access = await verifyEmploymentContractAccess(
+      adminClient,
+      {
+        dolgozoId: params.dolgozoId,
+        onboardingId: params.onboardingId,
+      },
+      { requireWrite: true }
+    )
     if (!access.ok || !access.auth.user) {
       return { error: access.error || "Nincs jogosultságod!" }
     }
@@ -618,7 +631,7 @@ export async function fileExistingEmploymentContractDocument({
 }) {
   try {
     const adminClient = getAdminClient()
-    const access = await verifyEmploymentContractAccess(adminClient, { documentId, dolgozoId })
+    const access = await verifyEmploymentContractAccess(adminClient, { documentId, dolgozoId }, { requireWrite: true })
     if (!access.ok || !access.auth.user) {
       return { error: access.error || "Nincs jogosultságod!" }
     }
@@ -669,10 +682,14 @@ export async function fileExistingEmploymentContractDocument({
 export async function generateMt46NoticeAction(params: GenerateEmploymentContractActionParams) {
   try {
     const adminClient = getAdminClient()
-    const access = await verifyEmploymentContractAccess(adminClient, {
-      dolgozoId: params.dolgozoId,
-      onboardingId: params.onboardingId,
-    })
+    const access = await verifyEmploymentContractAccess(
+      adminClient,
+      {
+        dolgozoId: params.dolgozoId,
+        onboardingId: params.onboardingId,
+      },
+      { requireWrite: true }
+    )
     if (!access.ok || !access.auth.user) {
       return { error: access.error || "Nincs jogosultságod!" }
     }
