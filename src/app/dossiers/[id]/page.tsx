@@ -77,18 +77,27 @@ export default async function DossierPage({
 
   // Felhasználók: CSAK az aktív cég tagjai (cég-tagság ellenőrzéssel) —
   // a cégben nem tagsággal rendelkező (pl. árva/legacy) profilok ne jelenjenek meg
-  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
   const { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } = await import("@/utils/stealth-superadmin")
   const dossierCompanyId = await getActiveCompanyIdServer()
+  const scopedRoles = await getActiveCompanyMemberRolesServer(dossierCompanyId)
   let memberUserIds: string[] | null = null
+  const memberDocsRolesMap = new Map<string, string>()
   if (dossierCompanyId) {
     const { data: companyMembers } = await supabase
       .from("company_members")
-      .select("user_id")
+      .select("user_id, role, docs_szerepkor")
       .eq("company_id", dossierCompanyId)
     memberUserIds = (companyMembers || [])
       .map((m: any) => m.user_id)
       .filter((uid: string) => uid !== STEALTH_SUPERADMIN_ID)
+    for (const m of companyMembers || []) {
+      if (m.docs_szerepkor) {
+        memberDocsRolesMap.set(m.user_id, m.docs_szerepkor)
+      } else if (m.role === "owner" || m.role === "admin") {
+        memberDocsRolesMap.set(m.user_id, "admin")
+      }
+    }
   }
 
   let usersQuery = supabase
@@ -102,7 +111,12 @@ export default async function DossierPage({
     )
   }
   const { data: rawUsers } = await usersQuery
-  const users = (rawUsers || []).filter((u: any) => !isStealthSuperadmin(u))
+  const users = (rawUsers || [])
+    .filter((u: any) => !isStealthSuperadmin(u))
+    .map((u: any) => ({
+      ...u,
+      docs_szerepkor: memberDocsRolesMap.get(u.id) || u.docs_szerepkor || "munkavallalo",
+    }))
 
   // Current user role check
   const { data: authUser } = await supabase.auth.getUser()
@@ -121,14 +135,23 @@ export default async function DossierPage({
     .maybeSingle()
   
   const hasExplicitAccess = !!explicitAccess
-  const permissions = getPermissions(currentUserProfile?.docs_szerepkor)
+  const effectiveDocsRole =
+    scopedRoles.isMember && scopedRoles.docsRole && scopedRoles.docsRole !== "none"
+      ? scopedRoles.docsRole
+      : currentUserProfile?.docs_szerepkor || "munkavallalo"
+  const permissions = getPermissions(
+    effectiveDocsRole,
+    scopedRoles.docsModules,
+    scopedRoles.docsWriteModules,
+    "dossiers"
+  )
   const canAssign = permissions.canAssign
   const canEdit = permissions.canEdit
   
-  const isUgyintezo = currentUserProfile?.docs_szerepkor === 'ugyintezo'
-  const isVezeto = currentUserProfile?.docs_szerepkor === 'vezeto'
-  const isAdmin = currentUserProfile?.docs_szerepkor === 'admin' || currentUserProfile?.docs_szerepkor === 'rendszergazda'
-  const isIktato = currentUserProfile?.docs_szerepkor === 'iktato'
+  const isUgyintezo = canEdit && (effectiveDocsRole === 'ugyintezo' || effectiveDocsRole === 'munkavallalo')
+  const isVezeto = canEdit && effectiveDocsRole === 'vezeto'
+  const isAdmin = canEdit && (effectiveDocsRole === 'admin' || effectiveDocsRole === 'rendszergazda' || scopedRoles.isCompanyAdmin)
+  const isIktato = canEdit && (effectiveDocsRole === 'iktato' || effectiveDocsRole === 'vezeto' || effectiveDocsRole === 'admin')
 
   const userMap = (users || []).reduce((acc: any, user: any) => {
     acc[user.id] = user.nev
@@ -466,7 +489,7 @@ export default async function DossierPage({
           <DossierAccessDialog 
             ugyiratId={dossier.id}
             iktatoszam={dossier.iktatoszam}
-            canManage={canAssign || isVezeto || currentUserProfile?.docs_szerepkor === 'admin'}
+            canManage={canAssign || isVezeto || isAdmin}
             allUsers={users || []}
           />
           <DossierLifecycleActions

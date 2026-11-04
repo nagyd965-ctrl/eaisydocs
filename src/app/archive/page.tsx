@@ -115,13 +115,26 @@ export default async function ArchivePage(props: {
     }
   }
 
+  const { getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
+  const { getPermissions } = await import("@/utils/permissions")
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
   const { data: { user } } = await supabase.auth.getUser()
   const { data: currentProfile } = await supabase
     .from("felhasznalo_profil")
     .select("docs_szerepkor, szerepkor")
     .eq("id", user?.id || "")
     .maybeSingle()
-  const currentUserRole = currentProfile?.docs_szerepkor || currentProfile?.szerepkor || "ugyintezo"
+  const rawUserRole =
+    scopedRoles.isMember && scopedRoles.docsRole && scopedRoles.docsRole !== "none"
+      ? scopedRoles.docsRole
+      : currentProfile?.docs_szerepkor || currentProfile?.szerepkor || "munkavallalo"
+  const archivePerms = getPermissions(
+    rawUserRole,
+    scopedRoles.docsModules,
+    scopedRoles.docsWriteModules,
+    "archive"
+  )
+  const currentUserRole = archivePerms.canEdit ? rawUserRole : "betekinto"
   const currentUserId = user?.id || ""
 
   // Felterjesztők kigyűjtése a jóváhagyandó ügyiratokhoz a négy szem elve támogatására

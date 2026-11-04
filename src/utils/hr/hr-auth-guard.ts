@@ -10,6 +10,7 @@ export interface HrAuthContext {
   companyScope: string
   hrRole: string
   hrModules: HrModuleKey[]
+  hrWriteModules: HrModuleKey[]
   docsRole: string
   isCompanyAdmin: boolean
 }
@@ -41,6 +42,7 @@ export async function requireHrAuthServer(
       companyScope: "00000000-0000-0000-0000-000000000000",
       hrRole: "none",
       hrModules: [],
+      hrWriteModules: [],
       docsRole: "none",
       isCompanyAdmin: false,
     }
@@ -67,6 +69,7 @@ export async function requireHrAuthServer(
     companyScope,
     hrRole: scopedRoles.hrRole,
     hrModules: scopedRoles.hrModules,
+    hrWriteModules: scopedRoles.hrWriteModules,
     docsRole: scopedRoles.docsRole,
     isCompanyAdmin: scopedRoles.isCompanyAdmin,
   }

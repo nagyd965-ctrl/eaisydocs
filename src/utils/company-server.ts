@@ -122,7 +122,7 @@ export async function getActiveCompanyMemberRolesServer(targetCompanyId?: string
   // 1. Lekérjük a cégtagsági rekordot
   const { data: membership } = await supabase
     .from("company_members")
-    .select("company_id, role, docs_szerepkor, hr_szerepkor, hr_modulok")
+    .select("company_id, role, docs_szerepkor, docs_modulok, docs_iras_modulok, hr_szerepkor, hr_modulok, hr_iras_modulok")
     .eq("user_id", user.id)
     .eq("company_id", activeId)
     .maybeSingle()
@@ -130,7 +130,7 @@ export async function getActiveCompanyMemberRolesServer(targetCompanyId?: string
   // 2. Lekérjük a globális profilt a fallbackhez
   const { data: profile } = await supabase
     .from("felhasznalo_profil")
-    .select("id, docs_szerepkor, hr_szerepkor, hr_modulok, elerheto_modulok")
+    .select("id, docs_szerepkor, docs_modulok, docs_iras_modulok, hr_szerepkor, hr_modulok, hr_iras_modulok, elerheto_modulok")
     .eq("id", user.id)
     .single()
 
@@ -146,16 +146,34 @@ export async function getActiveCompanyMemberRolesServer(targetCompanyId?: string
           companyId: membership.company_id,
           role: membership.role,
           docs_szerepkor: membership.docs_szerepkor,
+          docs_modulok: (membership as any).docs_modulok || null,
+          docs_iras_modulok: Array.isArray((membership as any).docs_iras_modulok)
+            ? (membership as any).docs_iras_modulok
+            : null,
           hr_szerepkor: membership.hr_szerepkor,
           hr_modulok: (membership as any).hr_modulok || [],
+          hr_iras_modulok: Array.isArray((membership as any).hr_iras_modulok)
+            ? (membership as any).hr_iras_modulok
+            : null,
         }
       : null,
     profile
       ? {
           id: profile.id,
           docs_szerepkor: hasDocsModule ? profile.docs_szerepkor : null,
+          docs_modulok: hasDocsModule ? (profile as any).docs_modulok || null : [],
+          docs_iras_modulok: hasDocsModule
+            ? Array.isArray((profile as any).docs_iras_modulok)
+              ? (profile as any).docs_iras_modulok
+              : null
+            : [],
           hr_szerepkor: hasHrModule ? profile.hr_szerepkor : null,
           hr_modulok: hasHrModule ? (profile as any).hr_modulok || [] : [],
+          hr_iras_modulok: hasHrModule
+            ? Array.isArray((profile as any).hr_iras_modulok)
+              ? (profile as any).hr_iras_modulok
+              : null
+            : [],
         }
       : null
   )

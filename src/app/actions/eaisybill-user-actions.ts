@@ -13,7 +13,7 @@ export interface EaisyBillMemberItem {
   email: string
   eaisybillRole: string
   status: "already_member" | "existing_user" | "new_user"
-  suggestedDocsRole: "admin" | "vezeto" | "iktato" | "ugyintezo" | "betekinto"
+  suggestedDocsRole: "admin" | "vezeto" | "munkavallalo"
   existingDocsUserId?: string
 }
 
@@ -29,7 +29,7 @@ export interface ImportEaisyBillMemberInput {
   email: string
   name: string
   eaisybillUserId: string
-  docsRole: "admin" | "vezeto" | "iktato" | "ugyintezo" | "betekinto"
+  docsRole: "admin" | "vezeto" | "munkavallalo"
 }
 
 export interface ImportEaisyBillMembersResult {
@@ -42,20 +42,13 @@ export interface ImportEaisyBillMembersResult {
 /**
  * Szerepkör megfeleltetés: eaisyBill szerepkör -> eaisyDocs iratkezelési szerepkör
  */
-function mapEaisyBillRoleToDocsRole(eaisybillRole: string): "admin" | "vezeto" | "iktato" | "ugyintezo" | "betekinto" {
+function mapEaisyBillRoleToDocsRole(eaisybillRole: string): "admin" | "vezeto" | "munkavallalo" {
   switch (eaisybillRole?.toLowerCase()) {
     case "owner":
     case "admin":
       return "admin"
-    case "assistant":
-      return "iktato"
-    case "member":
-    case "employee":
-      return "ugyintezo"
-    case "viewer":
-      return "betekinto"
     default:
-      return "ugyintezo"
+      return "munkavallalo"
   }
 }
 
@@ -325,10 +318,13 @@ export async function importEaisyBillCompanyMembersAction(
     const redirectUrl = `${appUrl}/auth/callback?next=/auth/set-password`
 
     // 3. Feldolgozás tételenként – KIZÁRÓLAG a kiválasztottakra
+    const { normalizeDocsRoleAndModules } = await import("@/utils/hr/company-role-resolver")
     for (const item of selectedMembers) {
       const email = item.email.trim().toLowerCase()
       const name = item.name.trim()
-      const docsRole = item.docsRole || "ugyintezo"
+      const normalized = normalizeDocsRoleAndModules(item.docsRole || "munkavallalo")
+      const docsRole = normalized.role
+      const docsModules = normalized.modules
       const memberRole = docsRole === "admin" ? "admin" : "member"
 
       // Megnézzük, létezik-e már a felhasználó az eaisyDocs profilok között
@@ -370,6 +366,7 @@ export async function importEaisyBillCompanyMembersAction(
               user_id: targetUserId,
               role: memberRole,
               docs_szerepkor: docsRole,
+              docs_modulok: docsModules,
             },
             { onConflict: "company_id,user_id" }
           )
@@ -429,8 +426,9 @@ export async function importEaisyBillCompanyMembersAction(
             id: targetUserId,
             nev: name,
             email,
-            szerepkor: docsRole === "admin" ? "admin" : "ugyintezo",
+            szerepkor: docsRole === "admin" ? "admin" : "munkavallalo",
             docs_szerepkor: docsRole,
+            docs_modulok: docsModules,
             elerheto_modulok: ["docs"],
             eaisybill_user_id: item.eaisybillUserId || null,
             sync_source: "eaisybill",
@@ -445,6 +443,7 @@ export async function importEaisyBillCompanyMembersAction(
             user_id: targetUserId,
             role: memberRole,
             docs_szerepkor: docsRole,
+            docs_modulok: docsModules,
           })
 
         importedCount++

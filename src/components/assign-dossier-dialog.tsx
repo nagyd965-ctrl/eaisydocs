@@ -35,12 +35,13 @@ export function AssignDossierDialog({
 
   // Filter users based on szervezeti_egyseg_id and role
   const eligibleUsers = users.filter(u => {
+    const role = u.docs_szerepkor || 'munkavallalo'
     // Szuperadminok (admin, rendszergazda) mindig hozzáadhatók, osztálytól függetlenül
-    if (u.docs_szerepkor === 'admin' || u.docs_szerepkor === 'rendszergazda') return true
+    if (role === 'admin' || role === 'rendszergazda') return true
 
-    // Egyébként csak ugyintezo es vezeto lehet felelos
-    if (u.docs_szerepkor !== 'ugyintezo' && u.docs_szerepkor !== 'vezeto') return false
-    
+    // Egyébként munkavállaló (ügyintéző/iktató) és vezető lehet felelős
+    if (!['munkavallalo', 'ugyintezo', 'iktato', 'vezeto'].includes(role)) return false
+
     // Ha van szervezeti egysege az ugyiratnak, csak a hozza tartozo embereket listazzuk
     if (szervezeti_egyseg_id) {
       return u.szervezeti_egyseg_id === szervezeti_egyseg_id
@@ -81,7 +82,7 @@ export function AssignDossierDialog({
           <DialogHeader>
             <DialogTitle>Ügyirat Szignálása (Kiosztása)</DialogTitle>
             <DialogDescription>
-              Válaszd ki az ügy felelősét és adj meg egy határidőt. Csak a releváns osztályhoz tartozó ügyintézők választhatók.
+              Válaszd ki az ügy felelősét és adj meg egy határidőt. Csak a releváns osztályhoz tartozó munkatársak választhatók.
             </DialogDescription>
           </DialogHeader>
           

@@ -23,13 +23,16 @@ export interface CompanyMember {
   user_id: string
   role: "owner" | "admin" | "member"
   docs_szerepkor?: string | null
+  docs_modulok?: string[] | null
   hr_szerepkor?: string | null
+  hr_modulok?: string[] | null
   created_at: string
 }
 
 export interface CompanyMemberWithProfile extends CompanyMember {
   user_email?: string
   user_nev?: string
+  elerheto_modulok?: string[]
 }
 
 export interface UserCompanyAccess {

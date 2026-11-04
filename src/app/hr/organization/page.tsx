@@ -47,7 +47,7 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
     supabase.from("companies").select("id, name").eq("id", companyScope).maybeSingle(),
     supabaseAdmin
       .from("company_members")
-      .select("user_id, role, hr_szerepkor, hr_modulok")
+      .select("user_id, role, hr_szerepkor, hr_modulok, hr_iras_modulok")
       .eq("company_id", companyScope),
   ])
 
@@ -85,6 +85,7 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
         avatar_url,
         hr_szerepkor,
         hr_modulok,
+        hr_iras_modulok,
         hr_szervezeti_egyseg_id,
         hr_szervezeti_egyseg ( id, nev ),
         hr_dolgozo_adatlap (
@@ -150,7 +151,7 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
   if (isStrictAdmin) {
     const memberMap = new Map<
       string,
-      { role?: string | null; hr_szerepkor?: string | null; hr_modulok?: string[] | null }
+      { role?: string | null; hr_szerepkor?: string | null; hr_modulok?: string[] | null; hr_iras_modulok?: string[] | null }
     >()
     for (const m of companyMembers || []) {
       memberMap.set(m.user_id, m)
@@ -170,7 +171,12 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
           ? m.hr_modulok
           : p.hr_modulok || []
 
-      const normalized = normalizeHrRoleAndModules(rawRole, rawModules)
+      const rawWriteModules =
+        m?.hr_iras_modulok !== undefined
+          ? m.hr_iras_modulok
+          : p.hr_iras_modulok
+
+      const normalized = normalizeHrRoleAndModules(rawRole, rawModules, rawWriteModules)
 
       const egyseg = Array.isArray(p.hr_szervezeti_egyseg)
         ? p.hr_szervezeti_egyseg[0]?.nev
@@ -192,6 +198,7 @@ export default async function HrOrganizationPage({ searchParams }: PageProps) {
         szervezeti_egyseg: egyseg || "Nincs besorolva",
         hrRole: normalized.role,
         hrModules: normalized.modules,
+        hrWriteModules: normalized.writeModules,
       }
     })
   }

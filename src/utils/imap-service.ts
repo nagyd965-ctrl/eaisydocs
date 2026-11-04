@@ -437,7 +437,7 @@ async function notifyCompanyDocumentHandlers(
       .select('id, szerepkor, docs_szerepkor')
       .in('id', userIds);
 
-    const notified = ['iktato', 'admin', 'ugyintezo'];
+    const notified = ['iktato', 'admin', 'rendszergazda', 'vezeto', 'ugyintezo', 'munkavallalo'];
     const recipients = (profiles || []).filter((p: any) =>
       notified.includes(p.szerepkor) || notified.includes(p.docs_szerepkor)
     );

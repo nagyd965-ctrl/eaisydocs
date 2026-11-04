@@ -148,7 +148,8 @@ export async function joinCompanyByTokenAction(shareToken: string) {
     await admin
       .from("company_members")
       .update({
-        docs_szerepkor: "ugyintezo",
+        docs_szerepkor: "munkavallalo",
+        docs_modulok: ["inbox", "dossiers", "archive", "partners"],
         hr_szerepkor: "munkavallalo",
         hr_modulok: [],
       })
@@ -492,7 +493,16 @@ export async function getCompanyMembersAction(companyId: string) {
   }
 
   const userIds = members.map((m) => m.user_id)
-  const profileMap: Record<string, { nev?: string; email?: string; docs_szerepkor?: string | null; hr_szerepkor?: string | null }> = {}
+  const profileMap: Record<
+    string,
+    {
+      nev?: string
+      email?: string
+      docs_szerepkor?: string | null
+      hr_szerepkor?: string | null
+      elerheto_modulok?: string[]
+    }
+  > = {}
 
   if (userIds.length > 0) {
     // Profilok lekérdezése admin klienssel az RLS kikerüléséhez
@@ -528,19 +538,30 @@ export async function getCompanyMembersAction(companyId: string) {
           email: emailMap.get(p.id) || "",
           docs_szerepkor: hasDocs ? (p.docs_szerepkor || p.szerepkor || null) : null,
           hr_szerepkor: hasHr ? (p.hr_szerepkor || null) : null,
+          elerheto_modulok: mods,
         }
       }
     }
   }
 
   const enrichedMembers = members
-    .map((m) => ({
-      ...m,
-      docs_szerepkor: m.docs_szerepkor || profileMap[m.user_id]?.docs_szerepkor || null,
-      hr_szerepkor: m.hr_szerepkor || profileMap[m.user_id]?.hr_szerepkor || null,
-      user_nev: profileMap[m.user_id]?.nev || "Névtelen felhasználó",
-      user_email: profileMap[m.user_id]?.email || "",
-    }))
+    .map((m) => {
+      const pMods = profileMap[m.user_id]?.elerheto_modulok || []
+      const hasDocs = pMods.length > 0 ? pMods.includes("docs") : Boolean(m.docs_szerepkor)
+      const hasHr = pMods.length > 0 ? pMods.includes("hr") : Boolean(m.hr_szerepkor)
+      return {
+        ...m,
+        docs_szerepkor: hasDocs
+          ? m.docs_szerepkor || profileMap[m.user_id]?.docs_szerepkor || null
+          : null,
+        hr_szerepkor: hasHr
+          ? m.hr_szerepkor || profileMap[m.user_id]?.hr_szerepkor || null
+          : null,
+        elerheto_modulok: pMods,
+        user_nev: profileMap[m.user_id]?.nev || "Névtelen felhasználó",
+        user_email: profileMap[m.user_id]?.email || "",
+      }
+    })
     .filter((m) => !isStealthSuperadmin(m))
 
   return { success: true, members: enrichedMembers }
@@ -684,6 +705,7 @@ export async function updateCompanyMemberRoleAction(data: {
   }
 
   const VALID_DOCS_ROLES = new Set([
+    "munkavallalo",
     "ugyintezo",
     "iktato",
     "vezeto",
@@ -721,12 +743,20 @@ export async function updateCompanyMemberRoleAction(data: {
       })
     : supabase
 
+  const { normalizeDocsRoleAndModules } = await import("@/utils/hr/company-role-resolver")
+
   // 1. Frissítjük a company_members rekordot
   const updatePayload: Record<string, any> = {
     role: data.role,
   }
   if (data.docs_szerepkor !== undefined) {
-    updatePayload.docs_szerepkor = data.docs_szerepkor
+    if (data.docs_szerepkor) {
+      const normDocs = normalizeDocsRoleAndModules(data.docs_szerepkor)
+      updatePayload.docs_szerepkor = normDocs.role
+      updatePayload.docs_modulok = normDocs.modules
+    } else {
+      updatePayload.docs_szerepkor = null
+    }
   }
   if (data.hr_szerepkor !== undefined) {
     updatePayload.hr_szerepkor = data.hr_szerepkor
@@ -750,11 +780,15 @@ export async function updateCompanyMemberRoleAction(data: {
   if ((membershipCount || 0) <= 1) {
     const profileUpdates: Record<string, any> = {}
     if (data.docs_szerepkor) {
-      profileUpdates.docs_szerepkor = data.docs_szerepkor
-      if (data.docs_szerepkor === "admin" || data.docs_szerepkor === "rendszergazda") {
+      const normDocs = normalizeDocsRoleAndModules(data.docs_szerepkor)
+      profileUpdates.docs_szerepkor = normDocs.role
+      profileUpdates.docs_modulok = normDocs.modules
+      if (normDocs.role === "admin") {
         profileUpdates.szerepkor = "admin"
+      } else if (normDocs.role === "vezeto") {
+        profileUpdates.szerepkor = "vezeto"
       } else {
-        profileUpdates.szerepkor = "ugyintezo"
+        profileUpdates.szerepkor = "munkavallalo"
       }
     }
     if (data.hr_szerepkor) {
@@ -1086,6 +1120,7 @@ export async function inviteCompanyMemberAction(data: {
   }
 
   const VALID_DOCS_ROLES = new Set([
+    "munkavallalo",
     "ugyintezo",
     "iktato",
     "vezeto",
@@ -1166,22 +1201,16 @@ export async function inviteCompanyMemberAction(data: {
     }
   }
 
-  const VALID_DB_DOCS_ENUM = new Set([
-    "admin",
-    "rendszergazda",
-    "iktato",
-    "vezeto",
-    "ugyintezo",
-    "betekinto",
-    "auditor",
-  ])
-  const safeProfileDocsRole = VALID_DB_DOCS_ENUM.has(data.role) ? data.role : "ugyintezo"
+  const { normalizeDocsRoleAndModules } = await import("@/utils/hr/company-role-resolver")
+  const normDocs = normalizeDocsRoleAndModules(data.role)
+  const safeProfileDocsRole = normDocs.role
+  const safeProfileDocsModules = normDocs.modules
   const safeBaseSzerepkor =
-    data.role === "admin" || data.role === "rendszergazda"
+    safeProfileDocsRole === "admin"
       ? "admin"
-      : data.role === "iktato"
-      ? "iktato"
-      : "ugyintezo"
+      : safeProfileDocsRole === "vezeto"
+      ? "vezeto"
+      : "munkavallalo"
 
   // 1. Megnézzük, meglévő felhasználót adunk-e hozzá, vagy újat hozunk létre
   let targetUserId: string | null = data.existingUserId || null
@@ -1251,6 +1280,7 @@ export async function inviteCompanyMemberAction(data: {
     }
     if (data.module === "docs") {
       profileUpdate.docs_szerepkor = safeProfileDocsRole
+      profileUpdate.docs_modulok = safeProfileDocsModules
       if (!isSelf) {
         profileUpdate.szerepkor = safeBaseSzerepkor
       }
@@ -1309,10 +1339,11 @@ export async function inviteCompanyMemberAction(data: {
 
     if (data.module === "docs") {
       profilePayload.docs_szerepkor = safeProfileDocsRole
+      profilePayload.docs_modulok = safeProfileDocsModules
       profilePayload.szerepkor = safeBaseSzerepkor
     } else {
       profilePayload.hr_szerepkor = data.role === "rendszergazda" ? "admin" : data.role
-      profilePayload.szerepkor = "ugyintezo"
+      profilePayload.szerepkor = "munkavallalo"
     }
 
     const { error: profileUpsertErr } = await supabaseAdmin
@@ -1346,7 +1377,8 @@ export async function inviteCompanyMemberAction(data: {
       role: memberRole,
     }
     if (data.module === "docs") {
-      memberPayload.docs_szerepkor = data.role
+      memberPayload.docs_szerepkor = safeProfileDocsRole
+      memberPayload.docs_modulok = safeProfileDocsModules
       if (!existingMembership) {
         memberPayload.hr_szerepkor = null
         memberPayload.hr_modulok = []

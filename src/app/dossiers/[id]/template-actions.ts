@@ -385,14 +385,16 @@ export async function generateFromTemplate(
       .eq("user_id", user.id)
       .maybeSingle()
 
-    const inDept = ugyirat.szervezeti_egyseg_id === auth.szervezetiEgysegId
+    const inDept =
+      !ugyirat.szervezeti_egyseg_id ||
+      (Boolean(auth.szervezetiEgysegId) && ugyirat.szervezeti_egyseg_id === auth.szervezetiEgysegId)
     const isAssigned = (ugyirat.ugy as any)?.felelos_user_id === user.id
 
-    if (auth.docsRole === "vezeto" && !inDept && !explicitAccess) {
+    if (auth.docsRole === "vezeto" && !inDept && !isAssigned && !explicitAccess) {
       return { error: "Nincs jogosultságod ehhez a művelethez a szervezeti egységeden kívül." }
     }
-    if (auth.docsRole === "ugyintezo" && !isAssigned && !explicitAccess) {
-      return { error: "Nincs jogosultságod ehhez a művelethez, mivel nem vagy felelőse az ügyiratnak." }
+    if ((auth.docsRole === "ugyintezo" || auth.docsRole === "munkavallalo") && !inDept && !isAssigned && !explicitAccess) {
+      return { error: "Nincs jogosultságod ehhez a művelethez, mivel nem vagy felelőse az ügyiratnak és nem tartozik a szervezeti egységedhez." }
     }
   }
 

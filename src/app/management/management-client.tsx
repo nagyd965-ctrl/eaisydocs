@@ -34,56 +34,54 @@ import {
 } from "./actions"
 import {
   ALL_HR_MODULES,
+  ALL_DOCS_MODULES,
   HR_CORE_ROLES,
+  DOCS_CORE_ROLES,
   HR_MODULE_DEFINITIONS,
+  DOCS_MODULE_DEFINITIONS,
+  DEFAULT_DOCS_MODULES_FOR_ROLE,
   HR_ROLE_LABELS as CANONICAL_HR_ROLE_LABELS,
+  DOCS_ROLE_LABELS as CANONICAL_DOCS_ROLE_LABELS,
   type HrCoreRole,
   type HrModuleKey,
+  type DocsCoreRole,
+  type DocsModuleKey,
 } from "@/utils/hr/company-role-resolver"
 
 const DOCS_ROLES: Array<{ value: string; label: string }> = [
   { value: "admin", label: "Adminisztrátor (Teljes céges Docs jog)" },
-  { value: "rendszergazda", label: "Rendszergazda" },
-  { value: "vezeto", label: "Vezető / Szignáló" },
-  { value: "iktato", label: "Iratkezelő / Iktató" },
-  { value: "ugyintezo", label: "Ügyintéző" },
-  { value: "betekinto", label: "Betekintő" },
-  { value: "auditor", label: "Auditor" },
+  { value: "vezeto", label: "Vezető" },
+  { value: "munkavallalo", label: "Munkavállaló" },
 ]
 
 const HR_ROLES: Array<{ value: string; label: string }> = [
-  { value: "admin", label: "HR Adminisztrátor (Teljes céges HR jog)" },
-  { value: "hr_vezeto", label: "HR Vezető" },
-  { value: "hr_munkatars", label: "HR Munkatárs" },
-  { value: "vezeto", label: "Vezető / Jóváhagyó" },
-  { value: "berugyi", label: "Bérügyi munkatárs" },
-  { value: "toborzo", label: "Toborzó" },
-  { value: "munkavedelmi", label: "Munkavédelmi felelős" },
+  { value: "admin", label: "Adminisztrátor (Teljes céges HR jog)" },
+  { value: "vezeto", label: "Vezető" },
   { value: "munkavallalo", label: "Munkavállaló" },
-  { value: "auditor", label: "HR Auditor" },
 ]
 
 const DOCS_ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
-  rendszergazda: "Rendszergazda",
+  rendszergazda: "Admin",
   vezeto: "Vezető",
-  iktato: "Iktató",
-  ugyintezo: "Ügyintéző",
-  betekinto: "Betekintő",
-  auditor: "Auditor",
+  munkavallalo: "Munkavállaló",
+  iktato: "Munkavállaló",
+  ugyintezo: "Munkavállaló",
+  betekinto: "Munkavállaló",
+  auditor: "Munkavállaló",
 }
 
 const HR_ROLE_LABELS: Record<string, string> = {
-  admin: "HR Admin",
-  rendszergazda: "Rendszergazda",
-  hr_vezeto: "HR Vezető",
-  hr_munkatars: "HR Munkatárs",
+  admin: "Admin",
+  rendszergazda: "Admin",
+  hr_vezeto: "Vezető",
+  hr_munkatars: "Munkavállaló",
   vezeto: "Vezető",
-  berugyi: "Bérügyi",
-  toborzo: "Toborzó",
-  munkavedelmi: "Munkavédelmi",
+  berugyi: "Munkavállaló",
+  toborzo: "Munkavállaló",
+  munkavedelmi: "Munkavállaló",
   munkavallalo: "Munkavállaló",
-  auditor: "Auditor",
+  auditor: "Munkavállaló",
 }
 
 interface ManagementClientProps {
@@ -491,12 +489,49 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
         hrRole === "admin"
           ? [...ALL_HR_MODULES]
           : (m.hr_modulok || []).filter((k): k is HrModuleKey => (ALL_HR_MODULES as readonly string[]).includes(k))
+      const hrReadSet = new Set<HrModuleKey>(hrMods)
+      const hrWriteMods: HrModuleKey[] =
+        hrRole === "admin"
+          ? [...ALL_HR_MODULES]
+          : Array.isArray(m.hr_iras_modulok)
+          ? m.hr_iras_modulok.filter(
+              (k): k is HrModuleKey =>
+                (ALL_HR_MODULES as readonly string[]).includes(k) && hrReadSet.has(k as HrModuleKey)
+            )
+          : [...hrMods]
+
+      const docsRole: DocsCoreRole =
+        m.docs_szerepkor === "admin" || m.docs_szerepkor === "rendszergazda"
+          ? "admin"
+          : m.docs_szerepkor === "vezeto"
+          ? "vezeto"
+          : "munkavallalo"
+      const docsMods: DocsModuleKey[] =
+        docsRole === "admin"
+          ? [...ALL_DOCS_MODULES]
+          : Array.isArray(m.docs_modulok) && m.docs_modulok.length > 0
+          ? m.docs_modulok.filter((k): k is DocsModuleKey => (ALL_DOCS_MODULES as readonly string[]).includes(k))
+          : [...DEFAULT_DOCS_MODULES_FOR_ROLE[docsRole]]
+      const docsReadSet = new Set<DocsModuleKey>(docsMods)
+      const docsWriteMods: DocsModuleKey[] =
+        docsRole === "admin"
+          ? [...ALL_DOCS_MODULES]
+          : Array.isArray(m.docs_iras_modulok)
+          ? m.docs_iras_modulok.filter(
+              (k): k is DocsModuleKey =>
+                (ALL_DOCS_MODULES as readonly string[]).includes(k) &&
+                docsReadSet.has(k as DocsModuleKey)
+            )
+          : [...docsMods]
 
       compMap[m.company_id] = {
         company_id: m.company_id,
-        docs_szerepkor: m.docs_szerepkor || "ugyintezo",
+        docs_szerepkor: docsRole,
+        docs_modulok: docsMods,
+        docs_iras_modulok: docsWriteMods,
         hr_szerepkor: hrRole,
         hr_modulok: hrMods,
+        hr_iras_modulok: hrWriteMods,
       }
     }
     setPermDraftCompanies(compMap)
@@ -505,7 +540,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
         ? prev
         : u.memberships[0]?.company_id || null
     )
-    setPermPlatform(rawMods.includes("hr") ? "hr" : "docs")
+    setPermPlatform(rawMods[0] === "docs" ? "docs" : rawMods.includes("hr") ? "hr" : "docs")
     setPermSaveMsg(null)
   }
 
@@ -554,49 +589,97 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
           : current.hr_szerepkor === "admin"
           ? []
           : current.hr_modulok
+      const nextWriteMods: HrModuleKey[] =
+        nextRole === "admin"
+          ? [...ALL_HR_MODULES]
+          : current.hr_szerepkor === "admin"
+          ? []
+          : (current.hr_iras_modulok || current.hr_modulok).filter((m) => nextMods.includes(m))
       return {
         ...prev,
         [companyId]: {
           ...current,
           hr_szerepkor: nextRole,
           hr_modulok: nextMods,
+          hr_iras_modulok: nextWriteMods,
         },
       }
     })
   }
 
-  const handlePermToggleHrModule = (companyId: string, modKey: HrModuleKey) => {
+  const handlePermToggleHrReadModule = (companyId: string, modKey: HrModuleKey) => {
     setPermDraftCompanies((prev) => {
       const current = prev[companyId]
       if (!current || current.hr_szerepkor === "admin") return prev
-      const hasMod = current.hr_modulok.includes(modKey)
-      const nextMods = hasMod
+      const hasRead = current.hr_modulok.includes(modKey)
+      const nextRead = hasRead
         ? current.hr_modulok.filter((m) => m !== modKey)
         : [...current.hr_modulok, modKey]
+      const curWrite = current.hr_iras_modulok || []
+      // Ha kikapcsoljuk az Olvasást, az Írás is automatikusan kikapcsol
+      const nextWrite = hasRead ? curWrite.filter((m) => m !== modKey) : curWrite
       return {
         ...prev,
         [companyId]: {
           ...current,
-          hr_modulok: nextMods,
+          hr_modulok: nextRead,
+          hr_iras_modulok: nextWrite,
         },
       }
     })
   }
 
-  const handlePermSetGroupHrModules = (companyId: string, groupMods: HrModuleKey[], enable: boolean) => {
+  const handlePermToggleHrWriteModule = (companyId: string, modKey: HrModuleKey) => {
     setPermDraftCompanies((prev) => {
       const current = prev[companyId]
       if (!current || current.hr_szerepkor === "admin") return prev
-      const set = new Set<HrModuleKey>(current.hr_modulok)
+      const curWrite = current.hr_iras_modulok || []
+      const hasWrite = curWrite.includes(modKey)
+      const nextWrite = hasWrite ? curWrite.filter((m) => m !== modKey) : [...curWrite, modKey]
+      // Ha bekapcsoljuk az Írást, az Olvasás is automatikusan bekapcsol
+      const nextRead =
+        !hasWrite && !current.hr_modulok.includes(modKey)
+          ? [...current.hr_modulok, modKey]
+          : current.hr_modulok
+      return {
+        ...prev,
+        [companyId]: {
+          ...current,
+          hr_modulok: nextRead,
+          hr_iras_modulok: nextWrite,
+        },
+      }
+    })
+  }
+
+  const handlePermSetGroupHrMode = (
+    companyId: string,
+    groupMods: HrModuleKey[],
+    mode: "read_only" | "read_write" | "none"
+  ) => {
+    setPermDraftCompanies((prev) => {
+      const current = prev[companyId]
+      if (!current || current.hr_szerepkor === "admin") return prev
+      const readSet = new Set<HrModuleKey>(current.hr_modulok)
+      const writeSet = new Set<HrModuleKey>(current.hr_iras_modulok || [])
       for (const k of groupMods) {
-        if (enable) set.add(k)
-        else set.delete(k)
+        if (mode === "read_only") {
+          readSet.add(k)
+          writeSet.delete(k)
+        } else if (mode === "read_write") {
+          readSet.add(k)
+          writeSet.add(k)
+        } else {
+          readSet.delete(k)
+          writeSet.delete(k)
+        }
       }
       return {
         ...prev,
         [companyId]: {
           ...current,
-          hr_modulok: Array.from(set),
+          hr_modulok: Array.from(readSet),
+          hr_iras_modulok: Array.from(writeSet),
         },
       }
     })
@@ -612,18 +695,15 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
       origRole === "admin"
         ? [...ALL_HR_MODULES]
         : (orig.hr_modulok || []).filter((k): k is HrModuleKey => (ALL_HR_MODULES as readonly string[]).includes(k))
-    setPermDraftCompanies((prev) => ({
-      ...prev,
-      [companyId]: {
-        company_id: companyId,
-        docs_szerepkor: orig.docs_szerepkor || "ugyintezo",
-        hr_szerepkor: origRole,
-        hr_modulok: origMods,
-      },
-    }))
-  }
-
-  const handlePermDocsRoleChange = (companyId: string, nextDocsRole: string) => {
+    const origWriteMods: HrModuleKey[] =
+      origRole === "admin"
+        ? [...ALL_HR_MODULES]
+        : Array.isArray(orig.hr_iras_modulok)
+        ? orig.hr_iras_modulok.filter(
+            (k): k is HrModuleKey =>
+              (ALL_HR_MODULES as readonly string[]).includes(k) && origMods.includes(k as HrModuleKey)
+          )
+        : [...origMods]
     setPermDraftCompanies((prev) => {
       const current = prev[companyId]
       if (!current) return prev
@@ -631,7 +711,153 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
         ...prev,
         [companyId]: {
           ...current,
+          hr_szerepkor: origRole,
+          hr_modulok: origMods,
+          hr_iras_modulok: origWriteMods,
+        },
+      }
+    })
+  }
+
+  const handlePermDocsRoleChange = (companyId: string, nextDocsRole: DocsCoreRole) => {
+    setPermDraftCompanies((prev) => {
+      const current = prev[companyId]
+      if (!current) return prev
+      const nextMods: DocsModuleKey[] =
+        nextDocsRole === "admin"
+          ? [...ALL_DOCS_MODULES]
+          : current.docs_szerepkor === "admin"
+          ? [...DEFAULT_DOCS_MODULES_FOR_ROLE[nextDocsRole]]
+          : current.docs_modulok || [...DEFAULT_DOCS_MODULES_FOR_ROLE[nextDocsRole]]
+      const nextWriteMods: DocsModuleKey[] =
+        nextDocsRole === "admin"
+          ? [...ALL_DOCS_MODULES]
+          : current.docs_szerepkor === "admin"
+          ? [...DEFAULT_DOCS_MODULES_FOR_ROLE[nextDocsRole]]
+          : (current.docs_iras_modulok || nextMods).filter((m) => nextMods.includes(m))
+      return {
+        ...prev,
+        [companyId]: {
+          ...current,
           docs_szerepkor: nextDocsRole,
+          docs_modulok: nextMods,
+          docs_iras_modulok: nextWriteMods,
+        },
+      }
+    })
+  }
+
+  const handlePermToggleDocsReadModule = (companyId: string, modKey: DocsModuleKey) => {
+    setPermDraftCompanies((prev) => {
+      const current = prev[companyId]
+      if (!current || current.docs_szerepkor === "admin") return prev
+      const curMods = current.docs_modulok || []
+      const hasRead = curMods.includes(modKey)
+      const nextRead = hasRead ? curMods.filter((m) => m !== modKey) : [...curMods, modKey]
+      const curWrite = current.docs_iras_modulok || []
+      // Ha kikapcsoljuk az Olvasást, az Írás is automatikusan kikapcsol
+      const nextWrite = hasRead ? curWrite.filter((m) => m !== modKey) : curWrite
+      return {
+        ...prev,
+        [companyId]: {
+          ...current,
+          docs_modulok: nextRead,
+          docs_iras_modulok: nextWrite,
+        },
+      }
+    })
+  }
+
+  const handlePermToggleDocsWriteModule = (companyId: string, modKey: DocsModuleKey) => {
+    setPermDraftCompanies((prev) => {
+      const current = prev[companyId]
+      if (!current || current.docs_szerepkor === "admin") return prev
+      const curMods = current.docs_modulok || []
+      const curWrite = current.docs_iras_modulok || []
+      const hasWrite = curWrite.includes(modKey)
+      const nextWrite = hasWrite ? curWrite.filter((m) => m !== modKey) : [...curWrite, modKey]
+      // Ha bekapcsoljuk az Írást, az Olvasás is automatikusan bekapcsol
+      const nextRead = !hasWrite && !curMods.includes(modKey) ? [...curMods, modKey] : curMods
+      return {
+        ...prev,
+        [companyId]: {
+          ...current,
+          docs_modulok: nextRead,
+          docs_iras_modulok: nextWrite,
+        },
+      }
+    })
+  }
+
+  const handlePermSetGroupDocsMode = (
+    companyId: string,
+    groupMods: DocsModuleKey[],
+    mode: "read_only" | "read_write" | "none"
+  ) => {
+    setPermDraftCompanies((prev) => {
+      const current = prev[companyId]
+      if (!current || current.docs_szerepkor === "admin") return prev
+      const readSet = new Set<DocsModuleKey>(current.docs_modulok || [])
+      const writeSet = new Set<DocsModuleKey>(current.docs_iras_modulok || [])
+      for (const k of groupMods) {
+        if (mode === "read_only") {
+          readSet.add(k)
+          writeSet.delete(k)
+        } else if (mode === "read_write") {
+          readSet.add(k)
+          writeSet.add(k)
+        } else {
+          readSet.delete(k)
+          writeSet.delete(k)
+        }
+      }
+      return {
+        ...prev,
+        [companyId]: {
+          ...current,
+          docs_modulok: Array.from(readSet),
+          docs_iras_modulok: Array.from(writeSet),
+        },
+      }
+    })
+  }
+
+  const handlePermResetCompanyDocs = (companyId: string) => {
+    if (!permSelectedUser) return
+    const orig = permSelectedUser.memberships.find((m) => m.company_id === companyId)
+    if (!orig) return
+    const origDocsRole: DocsCoreRole =
+      orig.docs_szerepkor === "admin" || orig.docs_szerepkor === "rendszergazda"
+        ? "admin"
+        : orig.docs_szerepkor === "vezeto"
+        ? "vezeto"
+        : "munkavallalo"
+    const origDocsMods: DocsModuleKey[] =
+      origDocsRole === "admin"
+        ? [...ALL_DOCS_MODULES]
+        : Array.isArray(orig.docs_modulok) && orig.docs_modulok.length > 0
+        ? orig.docs_modulok.filter((k): k is DocsModuleKey => (ALL_DOCS_MODULES as readonly string[]).includes(k))
+        : [...DEFAULT_DOCS_MODULES_FOR_ROLE[origDocsRole]]
+    const origDocsWriteMods: DocsModuleKey[] =
+      origDocsRole === "admin"
+        ? [...ALL_DOCS_MODULES]
+        : Array.isArray(orig.docs_iras_modulok)
+        ? orig.docs_iras_modulok.filter(
+            (k): k is DocsModuleKey =>
+              (ALL_DOCS_MODULES as readonly string[]).includes(k) &&
+              origDocsMods.includes(k as DocsModuleKey)
+          )
+        : [...origDocsMods]
+    setPermDraftCompanies((prev) => {
+      const current = prev[companyId]
+      if (!current) return prev
+      return {
+        ...prev,
+        [companyId]: {
+          ...current,
+          docs_szerepkor: origDocsRole,
+          docs_modulok: origDocsMods,
+          docs_iras_modulok: origDocsWriteMods,
         },
       }
     })
@@ -651,19 +877,65 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
     for (const m of permSelectedUser.memberships) {
       const draft = permDraftCompanies[m.company_id]
       if (!draft) continue
-      const origDocsRole = m.docs_szerepkor || "ugyintezo"
+      const origDocsRole: DocsCoreRole =
+        m.docs_szerepkor === "admin" || m.docs_szerepkor === "rendszergazda"
+          ? "admin"
+          : m.docs_szerepkor === "vezeto"
+          ? "vezeto"
+          : "munkavallalo"
       if (draft.docs_szerepkor !== origDocsRole) count++
+      const origDocsModsArr =
+        origDocsRole === "admin"
+          ? ALL_DOCS_MODULES
+          : Array.isArray(m.docs_modulok) && m.docs_modulok.length > 0
+          ? m.docs_modulok
+          : DEFAULT_DOCS_MODULES_FOR_ROLE[origDocsRole]
+      const origDocsModsSet = new Set<string>(origDocsModsArr)
+      const draftDocsModsSet = new Set<string>(
+        draft.docs_szerepkor === "admin"
+          ? ALL_DOCS_MODULES
+          : draft.docs_modulok || DEFAULT_DOCS_MODULES_FOR_ROLE[(draft.docs_szerepkor as DocsCoreRole) || "munkavallalo"]
+      )
+      const origDocsWriteSet = new Set<string>(
+        origDocsRole === "admin"
+          ? ALL_DOCS_MODULES
+          : Array.isArray(m.docs_iras_modulok)
+          ? m.docs_iras_modulok.filter((k) => origDocsModsSet.has(k))
+          : origDocsModsArr
+      )
+      const draftDocsWriteSet = new Set<string>(
+        draft.docs_szerepkor === "admin"
+          ? ALL_DOCS_MODULES
+          : (draft.docs_iras_modulok || []).filter((k) => draftDocsModsSet.has(k))
+      )
+      for (const k of ALL_DOCS_MODULES) {
+        if (origDocsModsSet.has(k) !== draftDocsModsSet.has(k)) count++
+        if (origDocsWriteSet.has(k) !== draftDocsWriteSet.has(k)) count++
+      }
+
       const origHrRole: HrCoreRole =
         m.hr_szerepkor === "admin" || m.hr_szerepkor === "vezeto" ? m.hr_szerepkor : "munkavallalo"
       if (draft.hr_szerepkor !== origHrRole) count++
-      const origModsSet = new Set(
-        origHrRole === "admin" ? ALL_HR_MODULES : m.hr_modulok || []
-      )
-      const draftModsSet = new Set(
+      const origModsArr = origHrRole === "admin" ? ALL_HR_MODULES : m.hr_modulok || []
+      const origModsSet = new Set<string>(origModsArr)
+      const draftModsSet = new Set<string>(
         draft.hr_szerepkor === "admin" ? ALL_HR_MODULES : draft.hr_modulok
+      )
+      const origHrWriteSet = new Set<string>(
+        origHrRole === "admin"
+          ? ALL_HR_MODULES
+          : Array.isArray(m.hr_iras_modulok)
+          ? m.hr_iras_modulok.filter((k) => origModsSet.has(k))
+          : origModsArr
+      )
+      const draftHrWriteSet = new Set<string>(
+        draft.hr_szerepkor === "admin"
+          ? ALL_HR_MODULES
+          : (draft.hr_iras_modulok || []).filter((k) => draftModsSet.has(k))
       )
       for (const k of ALL_HR_MODULES) {
         if (origModsSet.has(k) !== draftModsSet.has(k)) count++
+        if (origHrWriteSet.has(k) !== draftHrWriteSet.has(k)) count++
       }
     }
     return count
@@ -725,7 +997,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
       map[m.company_id] = {
         company_id: m.company_id,
         role: (m.role as "owner" | "admin" | "member") || "member",
-        docs_szerepkor: m.docs_szerepkor || "ugyintezo",
+        docs_szerepkor: m.docs_szerepkor || "munkavallalo",
         hr_szerepkor: m.hr_szerepkor || "munkavallalo",
       }
     }
@@ -753,7 +1025,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
         next[companyId] = {
           company_id: companyId,
           role: "member",
-          docs_szerepkor: "ugyintezo",
+          docs_szerepkor: "munkavallalo",
           hr_szerepkor: "munkavallalo",
         }
       }
@@ -1005,7 +1277,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
               next[item.localCompanyId] = {
                 company_id: item.localCompanyId,
                 role: "member",
-                docs_szerepkor: "ugyintezo",
+                docs_szerepkor: "munkavallalo",
                 hr_szerepkor: "munkavallalo",
               }
             }
@@ -1051,7 +1323,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
           [importedId]: prev[importedId] || {
             company_id: importedId,
             role: "member",
-            docs_szerepkor: "ugyintezo",
+            docs_szerepkor: "munkavallalo",
             hr_szerepkor: "munkavallalo",
           },
         }))
@@ -3249,13 +3521,8 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                       onChange={(e) => setUserRoleFilter(e.target.value)}
                     >
                       <option value="">Minden szerepkör</option>
-                      <option value="admin">Adminisztrátor</option>
-                      <option value="rendszergazda">Rendszergazda</option>
+                      <option value="admin">Admin</option>
                       <option value="vezeto">Vezető</option>
-                      <option value="hr_vezeto">HR Vezető</option>
-                      <option value="hr_munkatars">HR Munkatárs</option>
-                      <option value="iktato">Iktató</option>
-                      <option value="ugyintezo">Ügyintéző</option>
                       <option value="munkavallalo">Munkavállaló</option>
                     </select>
                   </div>
@@ -3830,9 +4097,11 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                     ? CANONICAL_HR_ROLE_LABELS[draft?.hr_szerepkor || "munkavallalo"] ||
                                       draft?.hr_szerepkor ||
                                       "Munkavállaló"
-                                    : DOCS_ROLE_LABELS[draft?.docs_szerepkor || "ugyintezo"] ||
-                                      draft?.docs_szerepkor ||
-                                      "Ügyintéző"
+                                    : CANONICAL_DOCS_ROLE_LABELS[
+                                        (draft?.docs_szerepkor as DocsCoreRole) || "munkavallalo"
+                                      ] ||
+                                      DOCS_ROLE_LABELS[draft?.docs_szerepkor || "munkavallalo"] ||
+                                      "Munkavállaló"
                                 return (
                                   <option key={m.company_id} value={m.company_id}>
                                     {m.company_name} ({roleDisplay})
@@ -3853,7 +4122,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
 
                             if (!activeCompId || !activeMembership || !activeDraft) return null
 
-                            // ── A) EAISYHR MODUL-HOZZÁFÉRÉSI MÁTRIX (BE / KI KAPCSOLÓKKAL) ──
+                            // ── A) EAISYHR MODUL-HOZZÁFÉRÉSI MÁTRIX (OLVASÁS / ÍRÁS KAPCSOLÓKKAL) ──
                             if (permPlatform === "hr" && permDraftModules.includes("hr")) {
                               const isHrAdmin = activeDraft.hr_szerepkor === "admin"
                               const origHrRole: HrCoreRole =
@@ -3861,9 +4130,18 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                 activeMembership.hr_szerepkor === "vezeto"
                                   ? activeMembership.hr_szerepkor
                                   : "munkavallalo"
-                              const origHrModsSet = new Set(
+                              const origHrModsArr =
                                 origHrRole === "admin" ? ALL_HR_MODULES : activeMembership.hr_modulok || []
+                              const origHrModsSet = new Set<string>(origHrModsArr)
+                              const origHrWriteSet = new Set<string>(
+                                origHrRole === "admin"
+                                  ? ALL_HR_MODULES
+                                  : Array.isArray(activeMembership.hr_iras_modulok)
+                                  ? activeMembership.hr_iras_modulok.filter((k) => origHrModsSet.has(k))
+                                  : origHrModsArr
                               )
+                              const draftHrWriteMods =
+                                activeDraft.hr_iras_modulok || activeDraft.hr_modulok
 
                               const filteredHrDefs = HR_MODULE_DEFINITIONS.filter((def) => {
                                 const q = permModSearch.trim().toLowerCase()
@@ -3928,28 +4206,44 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                             className="mgmt-btn"
                                             style={{ padding: "5px 10px", fontSize: "11.5px" }}
                                             onClick={() =>
-                                              handlePermSetGroupHrModules(
+                                              handlePermSetGroupHrMode(
                                                 activeCompId,
                                                 [...ALL_HR_MODULES],
-                                                true
+                                                "read_only"
                                               )
                                             }
+                                            title="Minden modul csak olvasási joggal (Auditor / Betekintő)"
                                           >
-                                            Mind be
+                                            Csak olvasás (R+)
                                           </button>
                                           <button
                                             type="button"
                                             className="mgmt-btn"
                                             style={{ padding: "5px 10px", fontSize: "11.5px" }}
                                             onClick={() =>
-                                              handlePermSetGroupHrModules(
+                                              handlePermSetGroupHrMode(
                                                 activeCompId,
                                                 [...ALL_HR_MODULES],
-                                                false
+                                                "read_write"
+                                              )
+                                            }
+                                            title="Minden modul olvasási és írási joggal"
+                                          >
+                                            Teljes (W+)
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="mgmt-btn"
+                                            style={{ padding: "5px 10px", fontSize: "11.5px" }}
+                                            onClick={() =>
+                                              handlePermSetGroupHrMode(
+                                                activeCompId,
+                                                [...ALL_HR_MODULES],
+                                                "none"
                                               )
                                             }
                                           >
-                                            Mind ki
+                                            Tilt
                                           </button>
                                         </>
                                       )}
@@ -3968,10 +4262,8 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                     <thead>
                                       <tr>
                                         <th>Modul</th>
-                                        <th style={{ textAlign: "center", width: "150px" }}>Állapot</th>
-                                        <th style={{ textAlign: "center", width: "140px" }}>
-                                          Hozzáférés (Be / Ki)
-                                        </th>
+                                        <th style={{ textAlign: "center", width: "120px" }}>Olvasás</th>
+                                        <th style={{ textAlign: "center", width: "120px" }}>Írás</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -4004,10 +4296,29 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                                         cursor: "pointer",
                                                       }}
                                                       onClick={() =>
-                                                        handlePermSetGroupHrModules(activeCompId, grpKeys, true)
+                                                        handlePermSetGroupHrMode(activeCompId, grpKeys, "read_only")
                                                       }
+                                                      title="Csoport: Csak olvasás (Olvasás BE, Írás KI)"
                                                     >
-                                                      Mind be
+                                                      R+
+                                                    </button>
+                                                    <span style={{ color: "#cbd5e1" }}>|</span>
+                                                    <button
+                                                      type="button"
+                                                      style={{
+                                                        background: "transparent",
+                                                        border: "none",
+                                                        fontSize: "10.5px",
+                                                        fontWeight: 600,
+                                                        color: "#0d9488",
+                                                        cursor: "pointer",
+                                                      }}
+                                                      onClick={() =>
+                                                        handlePermSetGroupHrMode(activeCompId, grpKeys, "read_write")
+                                                      }
+                                                      title="Csoport: Teljes hozzáférés (Olvasás BE, Írás BE)"
+                                                    >
+                                                      W+
                                                     </button>
                                                     <span style={{ color: "#cbd5e1" }}>|</span>
                                                     <button
@@ -4021,8 +4332,9 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                                         cursor: "pointer",
                                                       }}
                                                       onClick={() =>
-                                                        handlePermSetGroupHrModules(activeCompId, grpKeys, false)
+                                                        handlePermSetGroupHrMode(activeCompId, grpKeys, "none")
                                                       }
+                                                      title="Csoport: Hozzáférés tiltása"
                                                     >
                                                       Tilt
                                                     </button>
@@ -4036,11 +4348,18 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                                         fontWeight: 600,
                                                         color: "#64748b",
                                                         cursor: "pointer",
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        gap: "4px",
                                                       }}
                                                       onClick={() => handlePermResetCompanyHr(activeCompId)}
                                                       title="Visszaállítás a mentett állapotra"
                                                     >
-                                                      Alaphelyzet
+                                                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                                        <path d="M3 3v5h5" />
+                                                      </svg>
+                                                      <span>Alaphelyzet</span>
                                                     </button>
                                                   </div>
                                                 ) : (
@@ -4052,10 +4371,16 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                             </tr>
 
                                             {grpDefs.map((mod) => {
-                                              const isEnabled =
+                                              const isReadEnabled =
                                                 isHrAdmin || activeDraft.hr_modulok.includes(mod.key)
-                                              const wasEnabled = origHrModsSet.has(mod.key)
-                                              const isModified = isEnabled !== wasEnabled
+                                              const isWriteEnabled =
+                                                isHrAdmin ||
+                                                (isReadEnabled && draftHrWriteMods.includes(mod.key))
+                                              const wasReadEnabled = origHrModsSet.has(mod.key)
+                                              const wasWriteEnabled = origHrWriteSet.has(mod.key)
+                                              const isModified =
+                                                isReadEnabled !== wasReadEnabled ||
+                                                isWriteEnabled !== wasWriteEnabled
 
                                               return (
                                                 <tr key={mod.key}>
@@ -4068,7 +4393,22 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                                       }}
                                                     >
                                                       <span style={{ fontWeight: 600 }}>{mod.label}</span>
-                                                      {!isHrAdmin && isEnabled && (
+                                                      {!isHrAdmin && isReadEnabled && !isWriteEnabled && (
+                                                        <span
+                                                          style={{
+                                                            fontSize: "10px",
+                                                            fontWeight: 600,
+                                                            color: "#0284c7",
+                                                            background: "rgba(14, 165, 233, 0.12)",
+                                                            border: "1px solid rgba(14, 165, 233, 0.28)",
+                                                            padding: "1px 6px",
+                                                            borderRadius: "4px",
+                                                          }}
+                                                        >
+                                                          csak olvasás
+                                                        </span>
+                                                      )}
+                                                      {!isHrAdmin && isReadEnabled && isWriteEnabled && (
                                                         <span
                                                           className="mgmt-module-badge docs"
                                                           style={{ fontSize: "10px", padding: "1px 6px" }}
@@ -4102,35 +4442,99 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                                     </div>
                                                   </td>
                                                   <td style={{ textAlign: "center" }}>
-                                                    <span
+                                                    <button
+                                                      type="button"
+                                                      disabled={isHrAdmin}
+                                                      onClick={() =>
+                                                        handlePermToggleHrReadModule(activeCompId, mod.key)
+                                                      }
+                                                      title={
+                                                        isHrAdmin
+                                                          ? "Admin szerepkör esetén minden modul olvasható"
+                                                          : isReadEnabled
+                                                          ? "Olvasás engedélyezve (kattints a tiltáshoz)"
+                                                          : "Olvasás tiltva (kattints az engedélyezéshez)"
+                                                      }
                                                       style={{
-                                                        fontSize: "11.5px",
-                                                        fontWeight: 600,
-                                                        color: isEnabled ? "#0d9488" : "#94a3b8",
+                                                        width: "32px",
+                                                        height: "32px",
+                                                        borderRadius: "6px",
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        cursor: isHrAdmin ? "not-allowed" : "pointer",
+                                                        transition: "all 0.15s ease",
+                                                        border: isReadEnabled
+                                                          ? "1px solid rgba(20, 184, 173, 0.55)"
+                                                          : "1px solid rgba(148, 163, 184, 0.35)",
+                                                        background: isReadEnabled
+                                                          ? "rgba(20, 184, 173, 0.14)"
+                                                          : "transparent",
+                                                        color: isReadEnabled ? "#0d9488" : "#94a3b8",
+                                                        opacity: isHrAdmin ? 0.75 : 1,
                                                       }}
                                                     >
-                                                      {isEnabled ? "Bekapcsolva" : "Kikapcsolva"}
-                                                    </span>
+                                                      <svg
+                                                        width="15"
+                                                        height="15"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="2"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                      >
+                                                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                                                        <circle cx="12" cy="12" r="3" />
+                                                      </svg>
+                                                    </button>
                                                   </td>
                                                   <td style={{ textAlign: "center" }}>
                                                     <button
                                                       type="button"
-                                                      role="switch"
-                                                      aria-checked={isEnabled}
                                                       disabled={isHrAdmin}
-                                                      className={`mgmt-switch ${isEnabled ? "checked" : ""}`}
                                                       onClick={() =>
-                                                        handlePermToggleHrModule(activeCompId, mod.key)
+                                                        handlePermToggleHrWriteModule(activeCompId, mod.key)
                                                       }
                                                       title={
                                                         isHrAdmin
-                                                          ? "Admin szerepkör esetén minden modul aktív"
-                                                          : isEnabled
-                                                          ? "Kattints a kikapcsoláshoz"
-                                                          : "Kattints a bekapcsoláshoz"
+                                                          ? "Admin szerepkör esetén minden modul írható"
+                                                          : isWriteEnabled
+                                                          ? "Írás engedélyezve (kattints a csak olvasás módhoz)"
+                                                          : "Írás tiltva (kattints az írási jog engedélyezéséhez)"
                                                       }
+                                                      style={{
+                                                        width: "32px",
+                                                        height: "32px",
+                                                        borderRadius: "6px",
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        cursor: isHrAdmin ? "not-allowed" : "pointer",
+                                                        transition: "all 0.15s ease",
+                                                        border: isWriteEnabled
+                                                          ? "1px solid rgba(20, 184, 173, 0.55)"
+                                                          : "1px solid rgba(148, 163, 184, 0.35)",
+                                                        background: isWriteEnabled
+                                                          ? "rgba(20, 184, 173, 0.14)"
+                                                          : "transparent",
+                                                        color: isWriteEnabled ? "#0d9488" : "#94a3b8",
+                                                        opacity: isHrAdmin ? 0.75 : 1,
+                                                      }}
                                                     >
-                                                      <span className="mgmt-switch-thumb" />
+                                                      <svg
+                                                        width="14"
+                                                        height="14"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="2"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                      >
+                                                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                                        <path d="m15 5 4 4" />
+                                                      </svg>
                                                     </button>
                                                   </td>
                                                 </tr>
@@ -4145,109 +4549,445 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                               )
                             }
 
-                            // ── B) EAISYDOCS CÉGSZINTŰ SZEREPKÖR BEÁLLÍTÁS ──
-                            const currentDocsRole = activeDraft.docs_szerepkor || "ugyintezo"
-                            const isDocsAdmin =
-                              currentDocsRole === "admin" || currentDocsRole === "rendszergazda"
-                            const isDocsManager = isDocsAdmin || currentDocsRole === "vezeto"
-                            const isDocsClerk =
-                              isDocsManager ||
-                              currentDocsRole === "iktato" ||
-                              currentDocsRole === "ugyintezo"
-                            const isDocsAudit = isDocsAdmin || currentDocsRole === "auditor"
+                            // ── B) EAISYDOCS MODUL-HOZZÁFÉRÉSI MÁTRIX (OLVASÁS / ÍRÁS KAPCSOLÓKKAL) ──
+                            const currentDocsRole: DocsCoreRole =
+                              activeDraft.docs_szerepkor === "admin" ||
+                              activeDraft.docs_szerepkor === "rendszergazda"
+                                ? "admin"
+                                : activeDraft.docs_szerepkor === "vezeto"
+                                ? "vezeto"
+                                : "munkavallalo"
+                            const isDocsAdmin = currentDocsRole === "admin"
+                            const origDocsRole: DocsCoreRole =
+                              activeMembership.docs_szerepkor === "admin" ||
+                              activeMembership.docs_szerepkor === "rendszergazda"
+                                ? "admin"
+                                : activeMembership.docs_szerepkor === "vezeto"
+                                ? "vezeto"
+                                : "munkavallalo"
+                            const origDocsModsArr =
+                              origDocsRole === "admin"
+                                ? ALL_DOCS_MODULES
+                                : Array.isArray(activeMembership.docs_modulok) &&
+                                  activeMembership.docs_modulok.length > 0
+                                ? activeMembership.docs_modulok
+                                : DEFAULT_DOCS_MODULES_FOR_ROLE[origDocsRole]
+                            const origDocsModsSet = new Set<string>(origDocsModsArr)
+                            const origDocsWriteSet = new Set<string>(
+                              origDocsRole === "admin"
+                                ? ALL_DOCS_MODULES
+                                : Array.isArray(activeMembership.docs_iras_modulok)
+                                ? activeMembership.docs_iras_modulok.filter((k) => origDocsModsSet.has(k))
+                                : origDocsModsArr
+                            )
+                            const draftDocsMods =
+                              activeDraft.docs_modulok || DEFAULT_DOCS_MODULES_FOR_ROLE[currentDocsRole]
+                            const draftDocsWriteMods =
+                              activeDraft.docs_iras_modulok || draftDocsMods
 
-                            const docsCapabilities = [
-                              {
-                                label: "Iratok és ügyiratok megtekintése, keresése",
-                                desc: "Hozzáférés a céges irattárhoz, ügyiratokhoz és dokumentum előnézethez",
-                                enabled: true,
-                              },
-                              {
-                                label: "Érkeztetés, iktatás és ügyiratkezelés",
-                                desc: "Új bejövő/kimenő iratok rögzítése, eaisyBill számlaátvétel és iktatószám generálás",
-                                enabled: isDocsClerk,
-                              },
-                              {
-                                label: "Vezetői szignálás, kiadmányozás és jóváhagyás",
-                                desc: "Ügyiratok szignálása ügyintézőkre, határidők és jóváhagyási munkafolyamatok irányítása",
-                                enabled: isDocsManager,
-                              },
-                              {
-                                label: "Eseménynapló és biztonsági audit hozzáférés",
-                                desc: "Teljes hozzáférés a céges eseménynaplóhoz és SHA-256 integritási adatokhoz",
-                                enabled: isDocsAudit,
-                              },
-                              {
-                                label: "Céges beállítások, csapattagok és irattári terv adminisztráció",
-                                desc: "Szervezeti egységek, irattári tételek, sablonok és céges tagok kezelése",
-                                enabled: isDocsAdmin,
-                              },
-                            ]
+                            const filteredDocsDefs = DOCS_MODULE_DEFINITIONS.filter((def) => {
+                              const q = permModSearch.trim().toLowerCase()
+                              if (!q) return true
+                              return (
+                                def.label.toLowerCase().includes(q) ||
+                                def.shortLabel.toLowerCase().includes(q) ||
+                                def.description.toLowerCase().includes(q) ||
+                                def.group.toLowerCase().includes(q)
+                              )
+                            })
+
+                            const docsGroups: Array<
+                              "Iratkezelési Munkaasztal" | "Automatizáció és Szervezet" | "Rendszer"
+                            > = ["Iratkezelési Munkaasztal", "Automatizáció és Szervezet", "Rendszer"]
 
                             return (
                               <div className="mgmt-table-wrapper">
                                 <div className="mgmt-table-header-bar">
-                                  <div>
-                                    <div style={{ fontSize: "14.5px", fontWeight: 600 }}>
-                                      {activeMembership.company_name}
+                                  <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                                    <div>
+                                      <div style={{ fontSize: "14.5px", fontWeight: 600 }}>
+                                        {activeMembership.company_name}
+                                      </div>
+                                      <div style={{ fontSize: "11.5px", color: "#64748b", marginTop: "2px" }}>
+                                        eaisyDocs Vállalati Modul-hozzáférési Mátrix
+                                      </div>
                                     </div>
-                                    <div style={{ fontSize: "11.5px", color: "#64748b", marginTop: "2px" }}>
-                                      eaisyDocs Cégszintű Szerepkör és Jogosultsági Szint
+
+                                    {/* Alapszerepkör választó (Munkavállaló / Vezető / Admin) */}
+                                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                      <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 500 }}>
+                                        Alapszerepkör:
+                                      </span>
+                                      <select
+                                        className="mgmt-form-select"
+                                        style={{ padding: "5px 10px", fontSize: "12px", fontWeight: 600, width: "auto" }}
+                                        value={currentDocsRole}
+                                        onChange={(e) =>
+                                          handlePermDocsRoleChange(
+                                            activeCompId,
+                                            e.target.value as DocsCoreRole
+                                          )
+                                        }
+                                      >
+                                        {DOCS_CORE_ROLES.map((r) => (
+                                          <option key={r.value} value={r.value}>
+                                            {r.label}
+                                          </option>
+                                        ))}
+                                      </select>
                                     </div>
                                   </div>
 
-                                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                    <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 500 }}>
-                                      eaisyDocs Szerepkör:
-                                    </span>
-                                    <select
-                                      className="mgmt-form-select"
-                                      style={{ padding: "6px 12px", fontSize: "12.5px", fontWeight: 600, width: "auto" }}
-                                      value={currentDocsRole}
-                                      onChange={(e) =>
-                                        handlePermDocsRoleChange(activeCompId, e.target.value)
-                                      }
-                                    >
-                                      {DOCS_ROLES.map((r) => (
-                                        <option key={r.value} value={r.value}>
-                                          {r.label}
-                                        </option>
-                                      ))}
-                                    </select>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                    {!isDocsAdmin && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="mgmt-btn"
+                                          style={{ padding: "5px 10px", fontSize: "11.5px" }}
+                                          onClick={() =>
+                                            handlePermSetGroupDocsMode(
+                                              activeCompId,
+                                              [...ALL_DOCS_MODULES],
+                                              "read_only"
+                                            )
+                                          }
+                                          title="Minden modul csak olvasási joggal (Auditor / Betekintő)"
+                                        >
+                                          Csak olvasás (R+)
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="mgmt-btn"
+                                          style={{ padding: "5px 10px", fontSize: "11.5px" }}
+                                          onClick={() =>
+                                            handlePermSetGroupDocsMode(
+                                              activeCompId,
+                                              [...ALL_DOCS_MODULES],
+                                              "read_write"
+                                            )
+                                          }
+                                          title="Minden modul olvasási és írási joggal"
+                                        >
+                                          Teljes (W+)
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="mgmt-btn"
+                                          style={{ padding: "5px 10px", fontSize: "11.5px" }}
+                                          onClick={() =>
+                                            handlePermSetGroupDocsMode(
+                                              activeCompId,
+                                              [...ALL_DOCS_MODULES],
+                                              "none"
+                                            )
+                                          }
+                                        >
+                                          Tilt
+                                        </button>
+                                      </>
+                                    )}
+                                    <input
+                                      type="text"
+                                      className="mgmt-filter-input"
+                                      style={{ padding: "6px 10px", fontSize: "12px", width: "200px" }}
+                                      placeholder="Modul szűrése..."
+                                      value={permModSearch}
+                                      onChange={(e) => setPermModSearch(e.target.value)}
+                                    />
                                   </div>
                                 </div>
 
                                 <table className="mgmt-table">
                                   <thead>
                                     <tr>
-                                      <th>Jogosultsági Terület (eaisyDocs)</th>
-                                      <th style={{ textAlign: "center", width: "160px" }}>
-                                        Állapot a szerepkör alapján
-                                      </th>
+                                      <th>Modul</th>
+                                      <th style={{ textAlign: "center", width: "120px" }}>Olvasás</th>
+                                      <th style={{ textAlign: "center", width: "120px" }}>Írás</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {docsCapabilities.map((cap, idx) => (
-                                      <tr key={idx}>
-                                        <td>
-                                          <div style={{ fontWeight: 600 }}>{cap.label}</div>
-                                          <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
-                                            {cap.desc}
-                                          </div>
-                                        </td>
-                                        <td style={{ textAlign: "center" }}>
-                                          <span
-                                            style={{
-                                              fontSize: "11.5px",
-                                              fontWeight: 600,
-                                              color: cap.enabled ? "#0d9488" : "#94a3b8",
-                                            }}
-                                          >
-                                            {cap.enabled ? "Engedélyezve" : "Nem elérhető"}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    ))}
+                                    {docsGroups.map((grpName) => {
+                                      const grpDefs = filteredDocsDefs.filter((d) => d.group === grpName)
+                                      if (grpDefs.length === 0) return null
+                                      const grpKeys = grpDefs.map((d) => d.key)
+
+                                      return (
+                                        <React.Fragment key={grpName}>
+                                          <tr className="mgmt-perms-group-row">
+                                            <td>{grpName}</td>
+                                            <td colSpan={2} style={{ textAlign: "right" }}>
+                                              {!isDocsAdmin ? (
+                                                <div
+                                                  style={{
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    gap: "8px",
+                                                  }}
+                                                >
+                                                  <button
+                                                    type="button"
+                                                    style={{
+                                                      background: "transparent",
+                                                      border: "none",
+                                                      fontSize: "10.5px",
+                                                      fontWeight: 600,
+                                                      color: "#0d9488",
+                                                      cursor: "pointer",
+                                                    }}
+                                                    onClick={() =>
+                                                      handlePermSetGroupDocsMode(activeCompId, grpKeys, "read_only")
+                                                    }
+                                                    title="Csoport: Csak olvasás (Olvasás BE, Írás KI)"
+                                                  >
+                                                    R+
+                                                  </button>
+                                                  <span style={{ color: "#cbd5e1" }}>|</span>
+                                                  <button
+                                                    type="button"
+                                                    style={{
+                                                      background: "transparent",
+                                                      border: "none",
+                                                      fontSize: "10.5px",
+                                                      fontWeight: 600,
+                                                      color: "#0d9488",
+                                                      cursor: "pointer",
+                                                    }}
+                                                    onClick={() =>
+                                                      handlePermSetGroupDocsMode(activeCompId, grpKeys, "read_write")
+                                                    }
+                                                    title="Csoport: Teljes hozzáférés (Olvasás BE, Írás BE)"
+                                                  >
+                                                    W+
+                                                  </button>
+                                                  <span style={{ color: "#cbd5e1" }}>|</span>
+                                                  <button
+                                                    type="button"
+                                                    style={{
+                                                      background: "transparent",
+                                                      border: "none",
+                                                      fontSize: "10.5px",
+                                                      fontWeight: 600,
+                                                      color: "#ef4444",
+                                                      cursor: "pointer",
+                                                    }}
+                                                    onClick={() =>
+                                                      handlePermSetGroupDocsMode(activeCompId, grpKeys, "none")
+                                                    }
+                                                    title="Csoport: Hozzáférés tiltása"
+                                                  >
+                                                    Tilt
+                                                  </button>
+                                                  <span style={{ color: "#cbd5e1" }}>|</span>
+                                                  <button
+                                                    type="button"
+                                                    style={{
+                                                      background: "transparent",
+                                                      border: "none",
+                                                      fontSize: "10.5px",
+                                                      fontWeight: 600,
+                                                      color: "#64748b",
+                                                      cursor: "pointer",
+                                                      display: "inline-flex",
+                                                      alignItems: "center",
+                                                      gap: "4px",
+                                                    }}
+                                                    onClick={() => handlePermResetCompanyDocs(activeCompId)}
+                                                    title="Visszaállítás a mentett állapotra"
+                                                  >
+                                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                                      <path d="M3 3v5h5" />
+                                                    </svg>
+                                                    <span>Alaphelyzet</span>
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <span style={{ fontSize: "10.5px", color: "#0d9488" }}>
+                                                  Admin szerepkör: Teljes hozzáférés
+                                                </span>
+                                              )}
+                                            </td>
+                                          </tr>
+
+                                          {grpDefs.map((mod) => {
+                                            const isReadEnabled =
+                                              isDocsAdmin || draftDocsMods.includes(mod.key)
+                                            const isWriteEnabled =
+                                              isDocsAdmin ||
+                                              (isReadEnabled && draftDocsWriteMods.includes(mod.key))
+                                            const wasReadEnabled = origDocsModsSet.has(mod.key)
+                                            const wasWriteEnabled = origDocsWriteSet.has(mod.key)
+                                            const isDefaultForRole =
+                                              DEFAULT_DOCS_MODULES_FOR_ROLE[currentDocsRole].includes(mod.key)
+                                            const isModified =
+                                              isReadEnabled !== wasReadEnabled ||
+                                              isWriteEnabled !== wasWriteEnabled
+
+                                            return (
+                                              <tr key={mod.key}>
+                                                <td>
+                                                  <div
+                                                    style={{
+                                                      display: "flex",
+                                                      alignItems: "center",
+                                                      gap: "8px",
+                                                    }}
+                                                  >
+                                                    <span style={{ fontWeight: 600 }}>{mod.label}</span>
+                                                    {!isDocsAdmin && isReadEnabled && !isWriteEnabled && (
+                                                      <span
+                                                        style={{
+                                                          fontSize: "10px",
+                                                          fontWeight: 600,
+                                                          color: "#0284c7",
+                                                          background: "rgba(14, 165, 233, 0.12)",
+                                                          border: "1px solid rgba(14, 165, 233, 0.28)",
+                                                          padding: "1px 6px",
+                                                          borderRadius: "4px",
+                                                        }}
+                                                      >
+                                                        csak olvasás
+                                                      </span>
+                                                    )}
+                                                    {!isDocsAdmin &&
+                                                      isReadEnabled &&
+                                                      isWriteEnabled &&
+                                                      !isDefaultForRole && (
+                                                        <span
+                                                          className="mgmt-module-badge docs"
+                                                          style={{ fontSize: "10px", padding: "1px 6px" }}
+                                                        >
+                                                          egyedi
+                                                        </span>
+                                                      )}
+                                                    {isModified && (
+                                                      <span
+                                                        style={{
+                                                          fontSize: "10px",
+                                                          fontWeight: 600,
+                                                          color: "#f97316",
+                                                          background: "rgba(249, 115, 22, 0.12)",
+                                                          padding: "1px 6px",
+                                                          borderRadius: "4px",
+                                                        }}
+                                                      >
+                                                        módosítva
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  <div
+                                                    style={{
+                                                      fontSize: "11px",
+                                                      color: "#64748b",
+                                                      marginTop: "2px",
+                                                    }}
+                                                  >
+                                                    {mod.description}
+                                                  </div>
+                                                </td>
+                                                <td style={{ textAlign: "center" }}>
+                                                  <button
+                                                    type="button"
+                                                    disabled={isDocsAdmin}
+                                                    onClick={() =>
+                                                      handlePermToggleDocsReadModule(activeCompId, mod.key)
+                                                    }
+                                                    title={
+                                                      isDocsAdmin
+                                                        ? "Admin szerepkör esetén minden modul olvasható"
+                                                        : isReadEnabled
+                                                        ? "Olvasás engedélyezve (kattints a tiltáshoz)"
+                                                        : "Olvasás tiltva (kattints az engedélyezéshez)"
+                                                    }
+                                                    style={{
+                                                      width: "32px",
+                                                      height: "32px",
+                                                      borderRadius: "6px",
+                                                      display: "inline-flex",
+                                                      alignItems: "center",
+                                                      justifyContent: "center",
+                                                      cursor: isDocsAdmin ? "not-allowed" : "pointer",
+                                                      transition: "all 0.15s ease",
+                                                      border: isReadEnabled
+                                                        ? "1px solid rgba(20, 184, 173, 0.55)"
+                                                        : "1px solid rgba(148, 163, 184, 0.35)",
+                                                      background: isReadEnabled
+                                                        ? "rgba(20, 184, 173, 0.14)"
+                                                        : "transparent",
+                                                      color: isReadEnabled ? "#0d9488" : "#94a3b8",
+                                                      opacity: isDocsAdmin ? 0.75 : 1,
+                                                    }}
+                                                  >
+                                                    <svg
+                                                      width="15"
+                                                      height="15"
+                                                      viewBox="0 0 24 24"
+                                                      fill="none"
+                                                      stroke="currentColor"
+                                                      strokeWidth="2"
+                                                      strokeLinecap="round"
+                                                      strokeLinejoin="round"
+                                                    >
+                                                      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                                                      <circle cx="12" cy="12" r="3" />
+                                                    </svg>
+                                                  </button>
+                                                </td>
+                                                <td style={{ textAlign: "center" }}>
+                                                  <button
+                                                    type="button"
+                                                    disabled={isDocsAdmin}
+                                                    onClick={() =>
+                                                      handlePermToggleDocsWriteModule(activeCompId, mod.key)
+                                                    }
+                                                    title={
+                                                      isDocsAdmin
+                                                        ? "Admin szerepkör esetén minden modul írható"
+                                                        : isWriteEnabled
+                                                        ? "Írás engedélyezve (kattints a csak olvasás módhoz)"
+                                                        : "Írás tiltva (kattints az írási jog engedélyezéséhez)"
+                                                    }
+                                                    style={{
+                                                      width: "32px",
+                                                      height: "32px",
+                                                      borderRadius: "6px",
+                                                      display: "inline-flex",
+                                                      alignItems: "center",
+                                                      justifyContent: "center",
+                                                      cursor: isDocsAdmin ? "not-allowed" : "pointer",
+                                                      transition: "all 0.15s ease",
+                                                      border: isWriteEnabled
+                                                        ? "1px solid rgba(20, 184, 173, 0.55)"
+                                                        : "1px solid rgba(148, 163, 184, 0.35)",
+                                                      background: isWriteEnabled
+                                                        ? "rgba(20, 184, 173, 0.14)"
+                                                        : "transparent",
+                                                      color: isWriteEnabled ? "#0d9488" : "#94a3b8",
+                                                      opacity: isDocsAdmin ? 0.75 : 1,
+                                                    }}
+                                                  >
+                                                    <svg
+                                                      width="14"
+                                                      height="14"
+                                                      viewBox="0 0 24 24"
+                                                      fill="none"
+                                                      stroke="currentColor"
+                                                      strokeWidth="2"
+                                                      strokeLinecap="round"
+                                                      strokeLinejoin="round"
+                                                    >
+                                                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                                      <path d="m15 5 4 4" />
+                                                    </svg>
+                                                  </button>
+                                                </td>
+                                              </tr>
+                                            )
+                                          })}
+                                        </React.Fragment>
+                                      )
+                                    })}
                                   </tbody>
                                 </table>
                               </div>
@@ -4695,7 +5435,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                     <select
                                       className="mgmt-form-select"
                                       style={{ padding: "6px 8px", fontSize: "12px", marginTop: "3px" }}
-                                      value={membership.docs_szerepkor || "ugyintezo"}
+                                      value={membership.docs_szerepkor || "munkavallalo"}
                                       onChange={(e) =>
                                         updateUserCompanyMembershipField(c.id, "docs_szerepkor", e.target.value)
                                       }
@@ -5277,7 +6017,7 @@ export function ManagementClient({ initialAuthenticated, initialUser }: Manageme
                                             [bc.localCompanyId!]: {
                                               company_id: bc.localCompanyId!,
                                               role: "member",
-                                              docs_szerepkor: "ugyintezo",
+                                              docs_szerepkor: "munkavallalo",
                                               hr_szerepkor: "munkavallalo",
                                             },
                                           }))

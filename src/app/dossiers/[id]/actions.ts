@@ -19,12 +19,15 @@ async function checkDossierWritePermission(supabase: any, user: any, ugyiratId: 
     return { error: "Ügyirat nem található vagy nincs hozzáférésed hozzá." }
   }
 
-  const auth = await requireDocsAuthServer(undefined, ugyirat.company_id || null)
+  const auth = await requireDocsAuthServer(
+    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "dossiers", "inbox", "archive"],
+    ugyirat.company_id || null
+  )
   if (!auth.authorized) {
-    return { error: auth.error || "Nincs hozzáférésed ehhez a vállalathoz." }
+    return { error: auth.error || "Nincs írási jogosultságod ehhez az ügyirathoz." }
   }
 
-  const userRole = auth.docsRole || "ugyintezo"
+  const userRole = auth.docsRole || "munkavallalo"
   const profile = {
     docs_szerepkor: userRole,
     szervezeti_egyseg_id: auth.szervezetiEgysegId,
@@ -44,16 +47,18 @@ async function checkDossierWritePermission(supabase: any, user: any, ugyiratId: 
     .maybeSingle()
 
   const hasExplicit = !!explicitAccess
+  const inDept =
+    !ugyirat.szervezeti_egyseg_id ||
+    (Boolean(profile.szervezeti_egyseg_id) && ugyirat.szervezeti_egyseg_id === profile.szervezeti_egyseg_id)
+  const isAssigned = (ugyirat.ugy as any)?.felelos_user_id === user.id
 
   if (userRole === "vezeto") {
-    const inDept = ugyirat.szervezeti_egyseg_id === profile.szervezeti_egyseg_id
-    if (!inDept && !hasExplicit) {
+    if (!inDept && !isAssigned && !hasExplicit) {
       return { error: "Nincs jogosultságod ehhez a művelethez a szervezeti egységeden kívül." }
     }
-  } else if (userRole === "ugyintezo") {
-    const isAssigned = (ugyirat.ugy as any)?.felelos_user_id === user.id
-    if (!isAssigned && !hasExplicit) {
-      return { error: "Nincs jogosultságod ehhez a művelethez, mivel nem vagy felelőse az ügyiratnak." }
+  } else if (userRole === "ugyintezo" || userRole === "munkavallalo") {
+    if (!inDept && !isAssigned && !hasExplicit) {
+      return { error: "Nincs jogosultságod ehhez a művelethez, mivel nem vagy felelőse az ügyiratnak és nem tartozik a szervezeti egységedhez." }
     }
   } else {
     return { error: "Nincs jogosultságod ehhez a művelethez." }
@@ -72,8 +77,8 @@ export async function closeDossier(ugyiratId: string) {
 
   const permCheck = await checkDossierWritePermission(supabase, user, ugyiratId)
   if (permCheck.error) return { error: permCheck.error }
-  if (permCheck.profile?.docs_szerepkor === "ugyintezo") {
-    return { error: "Ügyintéző nem zárhat le ügyiratot." }
+  if (permCheck.profile?.docs_szerepkor === "ugyintezo" || permCheck.profile?.docs_szerepkor === "munkavallalo") {
+    return { error: "Munkavállaló / Ügyintéző nem zárhat le véglegesen ügyiratot (kizárólag Vezető vagy Admin irattározhatja)." }
   }
 
   // Lekérjük az ügyiratot és az irattári tervet

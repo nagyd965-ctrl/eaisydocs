@@ -17,6 +17,7 @@ import {
   type HrCoreRole,
   type HrModuleKey,
 } from "@/utils/hr/company-role-resolver"
+import { Eye, Pencil } from "lucide-react"
 import { updateEmployeePermissionsAction } from "@/app/hr/permissions/actions"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -30,6 +31,7 @@ export interface PermissionMatrixEmployee {
   szervezeti_egyseg: string
   hrRole: HrCoreRole
   hrModules: HrModuleKey[]
+  hrWriteModules?: HrModuleKey[]
 }
 
 function getInitials(name: string) {
@@ -152,16 +154,26 @@ export function PermissionsMatrixView({
   const persistChange = async (
     employeeId: string,
     nextRole: HrCoreRole,
-    nextModules: HrModuleKey[]
+    nextModules: HrModuleKey[],
+    nextWriteModules?: HrModuleKey[]
   ) => {
     const previousState = employees
     const effectiveModules: HrModuleKey[] =
       nextRole === "admin" ? [...ALL_HR_MODULES] : nextModules
+    const effectiveWriteModules: HrModuleKey[] =
+      nextRole === "admin"
+        ? [...ALL_HR_MODULES]
+        : (nextWriteModules ?? effectiveModules).filter((m) => effectiveModules.includes(m))
 
     setEmployees((prev) =>
       prev.map((e) =>
         e.id === employeeId
-          ? { ...e, hrRole: nextRole, hrModules: effectiveModules }
+          ? {
+              ...e,
+              hrRole: nextRole,
+              hrModules: effectiveModules,
+              hrWriteModules: effectiveWriteModules,
+            }
           : e
       )
     )
@@ -171,6 +183,7 @@ export function PermissionsMatrixView({
       employeeId,
       hrRole: nextRole,
       hrModules: effectiveModules,
+      hrWriteModules: effectiveWriteModules,
     })
 
     setSavingId(null)
@@ -194,22 +207,51 @@ export function PermissionsMatrixView({
         : emp.hrRole === "admin"
         ? []
         : emp.hrModules
-    persistChange(emp.id, newRole, nextModules)
+    const nextWriteModules: HrModuleKey[] =
+      newRole === "admin"
+        ? [...ALL_HR_MODULES]
+        : emp.hrRole === "admin"
+        ? []
+        : (emp.hrWriteModules ?? emp.hrModules)
+    persistChange(emp.id, newRole, nextModules, nextWriteModules)
   }
 
-  const handleToggleModule = (emp: PermissionMatrixEmployee, modKey: HrModuleKey) => {
-    if (emp.hrRole === "admin") return // Adminnak minden modul fixen aktív
-    const hasMod = emp.hrModules.includes(modKey)
-    const nextModules = hasMod
+  const handleToggleModuleRead = (emp: PermissionMatrixEmployee, modKey: HrModuleKey) => {
+    if (emp.hrRole === "admin") return
+    const hasRead = emp.hrModules.includes(modKey)
+    const currentWrites = emp.hrWriteModules ?? emp.hrModules
+    const nextModules = hasRead
       ? emp.hrModules.filter((m) => m !== modKey)
       : [...emp.hrModules, modKey]
-    persistChange(emp.id, emp.hrRole, nextModules)
+    const nextWriteModules = hasRead
+      ? currentWrites.filter((m) => m !== modKey)
+      : currentWrites
+    persistChange(emp.id, emp.hrRole, nextModules, nextWriteModules)
   }
 
-  const handleSetAllModules = (emp: PermissionMatrixEmployee, enableAll: boolean) => {
+  const handleToggleModuleWrite = (emp: PermissionMatrixEmployee, modKey: HrModuleKey) => {
     if (emp.hrRole === "admin") return
-    const nextModules: HrModuleKey[] = enableAll ? [...ALL_HR_MODULES] : []
-    persistChange(emp.id, emp.hrRole, nextModules)
+    const currentWrites = emp.hrWriteModules ?? emp.hrModules
+    const hasWrite = currentWrites.includes(modKey)
+    const nextWriteModules = hasWrite
+      ? currentWrites.filter((m) => m !== modKey)
+      : [...currentWrites, modKey]
+    const nextModules = hasWrite
+      ? emp.hrModules
+      : emp.hrModules.includes(modKey)
+      ? emp.hrModules
+      : [...emp.hrModules, modKey]
+    persistChange(emp.id, emp.hrRole, nextModules, nextWriteModules)
+  }
+
+  const handleSetAllModules = (
+    emp: PermissionMatrixEmployee,
+    mode: "read_only" | "full" | "none"
+  ) => {
+    if (emp.hrRole === "admin") return
+    const nextModules: HrModuleKey[] = mode === "none" ? [] : [...ALL_HR_MODULES]
+    const nextWriteModules: HrModuleKey[] = mode === "full" ? [...ALL_HR_MODULES] : []
+    persistChange(emp.id, emp.hrRole, nextModules, nextWriteModules)
   }
 
   return (
@@ -387,38 +429,58 @@ export function PermissionsMatrixView({
 
                       {HR_MODULE_DEFINITIONS.map((mod) => {
                         if (!isColVisible(`mod_${mod.key}`)) return null
-                        const isEnabled =
+                        const empWrites = emp.hrWriteModules ?? emp.hrModules
+                        const isReadEnabled =
                           isAdmin || emp.hrModules.includes(mod.key)
+                        const isWriteEnabled =
+                          isAdmin || (isReadEnabled && empWrites.includes(mod.key))
 
                         return (
-                          <TableCell key={mod.key} className="text-center px-2 py-2.5">
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={isEnabled}
-                              aria-label={`${emp.nev} — ${mod.label}`}
-                              disabled={isAdmin || isSaving}
-                              onClick={() => handleToggleModule(emp, mod.key)}
-                              title={
-                                isAdmin
-                                  ? "Adminisztrátornak minden modul automatikusan engedélyezett"
-                                  : `${mod.label}: ${isEnabled ? "Bekapcsolva (kattints a kikapcsoláshoz)" : "Kikapcsolva (kattints a bekapcsoláshoz)"}`
-                              }
-                              className={cn(
-                                "inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border transition-colors focus-visible:outline-none",
-                                isEnabled
-                                  ? "bg-primary border-primary"
-                                  : "bg-muted border-border",
-                                (isAdmin || isSaving) && "cursor-not-allowed opacity-65"
-                              )}
-                            >
-                              <span
+                          <TableCell key={mod.key} className="text-center px-1.5 py-2.5">
+                            <div className="inline-flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                aria-pressed={isReadEnabled}
+                                aria-label={`${emp.nev} — ${mod.label} (Olvasás)`}
+                                disabled={isAdmin || isSaving}
+                                onClick={() => handleToggleModuleRead(emp, mod.key)}
+                                title={
+                                  isAdmin
+                                    ? "Adminisztrátornak minden modul automatikusan engedélyezett"
+                                    : `${mod.label} — Olvasás: ${isReadEnabled ? "Bekapcsolva" : "Kikapcsolva"}`
+                                }
                                 className={cn(
-                                  "pointer-events-none block h-3.5 w-3.5 rounded-full bg-background transition-transform",
-                                  isEnabled ? "translate-x-4" : "translate-x-0.5"
+                                  "inline-flex h-6 w-6 items-center justify-center rounded border transition-colors",
+                                  isReadEnabled
+                                    ? "bg-primary/10 border-primary/40 text-primary hover:bg-primary/15"
+                                    : "bg-muted/20 border-border text-muted-foreground/45 hover:bg-muted/40 hover:text-muted-foreground",
+                                  (isAdmin || isSaving) && "cursor-not-allowed opacity-65"
                                 )}
-                              />
-                            </button>
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                aria-pressed={isWriteEnabled}
+                                aria-label={`${emp.nev} — ${mod.label} (Írás)`}
+                                disabled={isAdmin || isSaving}
+                                onClick={() => handleToggleModuleWrite(emp, mod.key)}
+                                title={
+                                  isAdmin
+                                    ? "Adminisztrátornak minden modul automatikusan engedélyezett"
+                                    : `${mod.label} — Írás: ${isWriteEnabled ? "Bekapcsolva" : "Kikapcsolva"}`
+                                }
+                                className={cn(
+                                  "inline-flex h-6 w-6 items-center justify-center rounded border transition-colors",
+                                  isWriteEnabled
+                                    ? "bg-primary/10 border-primary/40 text-primary hover:bg-primary/15"
+                                    : "bg-muted/20 border-border text-muted-foreground/45 hover:bg-muted/40 hover:text-muted-foreground",
+                                  (isAdmin || isSaving) && "cursor-not-allowed opacity-65"
+                                )}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </TableCell>
                         )
                       })}
@@ -436,23 +498,33 @@ export function PermissionsMatrixView({
                                 variant="outline"
                                 size="sm"
                                 className="h-7 px-2 text-[11px]"
-                                disabled={
-                                  isSaving ||
-                                  emp.hrModules.length === ALL_HR_MODULES.length
-                                }
-                                onClick={() => handleSetAllModules(emp, true)}
+                                disabled={isSaving}
+                                title="Csak olvasás minden modulon"
+                                onClick={() => handleSetAllModules(emp, "read_only")}
                               >
-                                Mind be
+                                R+
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-[11px]"
+                                disabled={isSaving}
+                                title="Olvasás + Írás minden modulon"
+                                onClick={() => handleSetAllModules(emp, "full")}
+                              >
+                                W+
                               </Button>
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                                className="h-7 px-2 text-[11px] text-destructive hover:text-destructive"
                                 disabled={isSaving || emp.hrModules.length === 0}
-                                onClick={() => handleSetAllModules(emp, false)}
+                                title="Minden modul tiltása"
+                                onClick={() => handleSetAllModules(emp, "none")}
                               >
-                                Mind ki
+                                Tilt
                               </Button>
                             </div>
                           )}

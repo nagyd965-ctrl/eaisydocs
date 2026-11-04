@@ -209,7 +209,7 @@ export async function GET(request: Request) {
         for (const m of members || []) {
           if (
             m.role === 'admin' ||
-            ['iktato', 'admin', 'rendszergazda'].includes(m.docs_szerepkor || '')
+            ['iktato', 'admin', 'rendszergazda', 'vezeto', 'ugyintezo', 'munkavallalo'].includes(m.docs_szerepkor || '')
           ) {
             ids.add(m.user_id);
           }
@@ -219,7 +219,7 @@ export async function GET(request: Request) {
           .from('felhasznalo_profil')
           .select('id')
           .eq('company_id', companyId)
-          .or('docs_szerepkor.in.(iktato,admin,rendszergazda),szerepkor.in.(iktato,admin,rendszergazda)');
+          .or('docs_szerepkor.in.(iktato,admin,rendszergazda,vezeto,ugyintezo,munkavallalo),szerepkor.in.(iktato,admin,rendszergazda,vezeto,ugyintezo,munkavallalo)');
 
         for (const p of profiles || []) {
           ids.add(p.id);
@@ -230,7 +230,7 @@ export async function GET(request: Request) {
         const { data: globalIktatok } = await supabase
           .from('felhasznalo_profil')
           .select('id')
-          .or('docs_szerepkor.in.(iktato,admin,rendszergazda),szerepkor.in.(iktato,admin,rendszergazda)');
+          .or('docs_szerepkor.in.(iktato,admin,rendszergazda,vezeto,ugyintezo,munkavallalo),szerepkor.in.(iktato,admin,rendszergazda,vezeto,ugyintezo,munkavallalo)');
         for (const p of globalIktatok || []) {
           ids.add(p.id);
         }

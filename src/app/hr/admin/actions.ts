@@ -194,7 +194,7 @@ export async function onboardEmployee(data: {
 
   if (isNewAccountCreated) {
     updateData.elerheto_modulok = ["hr"]
-    updateData.docs_szerepkor = "betekinto"
+    updateData.docs_szerepkor = "munkavallalo"
   } else {
     const existingModules = Array.isArray(existingProf?.elerheto_modulok) ? existingProf.elerheto_modulok : []
     updateData.elerheto_modulok = Array.from(new Set([...existingModules, "hr"]))

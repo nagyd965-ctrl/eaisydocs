@@ -33,8 +33,12 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
   const params = await props.params
   const supabase = await createClient()
 
+  const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
   const { data: { user } } = await supabase.auth.getUser()
-  let docs_szerepkor = ""
+  let docs_szerepkor = scopedRoles.docsRole !== "none" ? scopedRoles.docsRole : ""
   let userProfile: any = null
   if (user) {
     const { data: profile } = await supabase
@@ -42,10 +46,17 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
       .select("docs_szerepkor, max_minosites")
       .eq("id", user.id)
       .single()
-    docs_szerepkor = profile?.docs_szerepkor || ""
+    if (!docs_szerepkor) {
+      docs_szerepkor = profile?.docs_szerepkor || "munkavallalo"
+    }
     userProfile = profile
   }
-  const permissions = getPermissions(docs_szerepkor)
+  const permissions = getPermissions(
+    docs_szerepkor,
+    scopedRoles.docsModules,
+    scopedRoles.docsWriteModules,
+    "partners"
+  )
 
   // 1. Partner törzsadat
   const { data: partner } = await supabase
@@ -421,7 +432,7 @@ export default async function PartnerDetailPage(props: { params: Promise<{ id: s
             documents={allDocs as any}
             partnerName={partner.nev}
             currentUserClearance={userProfile?.max_minosites || "nyilt"}
-            isAdmin={docs_szerepkor === "admin"}
+            isAdmin={docs_szerepkor === "admin" || docs_szerepkor === "rendszergazda" || scopedRoles.isCompanyAdmin}
           />
         </TabsContent>
 

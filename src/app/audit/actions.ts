@@ -232,9 +232,9 @@ export async function getDocsCentralAuditLogs(companyId?: string): Promise<{
       const hasDocsModule = Array.isArray((p as any).elerheto_modulok)
         ? (p as any).elerheto_modulok.includes("docs")
         : true
-      const scopedRole =
-        memberRoleMap.get(p.id) ||
-        (hasDocsModule ? p.docs_szerepkor || "ügyintéző" : "külső / HR")
+      const scopedRole = hasDocsModule
+        ? memberRoleMap.get(p.id) || p.docs_szerepkor || "munkavallalo"
+        : "külső / HR"
       const entry = {
         id: p.id,
         nev: p.nev || "Névtelen munkatárs",

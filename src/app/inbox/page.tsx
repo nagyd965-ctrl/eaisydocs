@@ -1,7 +1,7 @@
 import { NewIncomingDialog } from "@/components/new-incoming-dialog"
 import { BatchScannerDialog } from "@/components/batch-scanner-dialog"
 import { createClient } from "@/utils/supabase/server"
-import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 import { redirect } from "next/navigation"
 import { getPermissions } from "@/utils/permissions"
 import { getImportableEaisyBillInvoices } from "@/app/inbox/eaisybill-actions"
@@ -16,21 +16,27 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   
   const supabase = await createClient()
 
+  const activeCompanyId = await getActiveCompanyIdServer()
+  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
   const { data: { user } } = await supabase.auth.getUser()
-  let docs_szerepkor = ''
-  if (user) {
+  let docs_szerepkor = scopedRoles.docsRole !== "none" ? scopedRoles.docsRole : ""
+  if (user && !docs_szerepkor) {
     const { data: profile } = await supabase.from('felhasznalo_profil').select('docs_szerepkor').eq('id', user.id).single()
-    docs_szerepkor = profile?.docs_szerepkor || ''
+    docs_szerepkor = profile?.docs_szerepkor || 'munkavallalo'
   }
 
-  if (docs_szerepkor === 'betekinto') {
+  if (docs_szerepkor === 'betekinto' || (scopedRoles.docsModules.length > 0 && !scopedRoles.docsModules.includes('inbox') && docs_szerepkor !== 'admin' && docs_szerepkor !== 'rendszergazda')) {
     redirect("/dossiers")
   }
 
-  const permissions = getPermissions(docs_szerepkor)
-
-  const activeCompanyId = await getActiveCompanyIdServer()
-  const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+  const permissions = getPermissions(
+    docs_szerepkor,
+    scopedRoles.docsModules,
+    scopedRoles.docsWriteModules,
+    "inbox"
+  )
 
   // eaisyBill importálható számlák lekérése (csak iktató/admin látja)
   let billInvoices: Awaited<ReturnType<typeof getImportableEaisyBillInvoices>> = { invoices: [] }

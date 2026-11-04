@@ -148,11 +148,24 @@ export function DelegationFormAndList({
                     Nincs más eaisyDocs munkatárs a cégnél
                   </SelectItem>
                 ) : (
-                  eligibleMembers.map((m) => (
-                    <SelectItem key={m.id} value={m.id} className="text-xs">
-                      {m.nev} {m.docs_szerepkor ? `(${m.docs_szerepkor})` : ""}
-                    </SelectItem>
-                  ))
+                  eligibleMembers.map((m) => {
+                    const roleLabels: Record<string, string> = {
+                      admin: "Admin",
+                      rendszergazda: "Admin",
+                      vezeto: "Vezető",
+                      munkavallalo: "Munkavállaló",
+                      iktato: "Munkavállaló",
+                      ugyintezo: "Munkavállaló",
+                      betekinto: "Munkavállaló",
+                      auditor: "Munkavállaló",
+                    }
+                    const roleText = m.docs_szerepkor ? (roleLabels[m.docs_szerepkor] || m.docs_szerepkor) : ""
+                    return (
+                      <SelectItem key={m.id} value={m.id} className="text-xs">
+                        {m.nev} {roleText ? `(${roleText})` : ""}
+                      </SelectItem>
+                    )
+                  })
                 )}
               </SelectContent>
             </Select>

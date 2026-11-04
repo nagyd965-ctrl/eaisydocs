@@ -131,7 +131,7 @@ export default async function TasksPage({
     .filter(m => !isStealthSuperadmin(m))
     .map(m => ({
       ...m,
-      docs_szerepkor: memberDocsRolesMap.get(m.id) || m.docs_szerepkor || "ugyintezo"
+      docs_szerepkor: memberDocsRolesMap.get(m.id) || m.docs_szerepkor || "munkavallalo"
     }))
 
   // 1. Lekérdezzük a rám szignált iktatott ügyiratokat

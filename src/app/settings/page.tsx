@@ -7,8 +7,9 @@ import { SettingsClient } from "./settings-client"
 import { createClient } from "@/utils/supabase/server"
 
 export default async function SettingsPage() {
-  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
   const activeCompanyId = await getActiveCompanyIdServer()
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
   const { profile, email } = await getUserProfile()
   const { profiles: teamMembers } = await getTeamMembers(activeCompanyId)
@@ -71,7 +72,14 @@ export default async function SettingsPage() {
   }
   const { data: szabalyok } = await szabalyokQuery
 
-  const isAdmin = profile?.szerepkor === 'admin' || profile?.docs_szerepkor === 'admin' || profile?.szerepkor === 'rendszergazda' || profile?.docs_szerepkor === 'rendszergazda'
+  const isAdmin =
+    scopedRoles.docsRole === "admin" ||
+    scopedRoles.isCompanyAdmin ||
+    scopedRoles.docsWriteModules.includes("settings") ||
+    profile?.szerepkor === "admin" ||
+    profile?.docs_szerepkor === "admin" ||
+    profile?.szerepkor === "rendszergazda" ||
+    profile?.docs_szerepkor === "rendszergazda"
   const naplo: any[] = []
 
   const { data: userData } = await supabase.auth.getUser()

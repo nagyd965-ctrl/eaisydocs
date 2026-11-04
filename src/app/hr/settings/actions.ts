@@ -474,7 +474,7 @@ export async function removeEmployeeFromHR(employeeId: string) {
   if ((remainingMemberships || 0) <= 1) {
     await supabaseAdmin
       .from("felhasznalo_profil")
-      .update({ hr_szerepkor: "ugyintezo" })
+      .update({ hr_szerepkor: "munkavallalo" })
       .eq("id", employeeId)
   }
 

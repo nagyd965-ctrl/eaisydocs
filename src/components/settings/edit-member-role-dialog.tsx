@@ -39,24 +39,34 @@ const COMPANY_ROLE_LABELS: Record<string, string> = {
 
 const DOCS_ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
-  rendszergazda: "Rendszergazda",
-  vezeto: "Vezető (Osztályvezető)",
-  iktato: "Iratkezelő / Iktató",
-  ugyintezo: "Ügyintéző",
-  betekinto: "Betekintő",
-  auditor: "Auditor",
+  rendszergazda: "Admin",
+  vezeto: "Vezető",
+  munkavallalo: "Munkavállaló",
+  iktato: "Munkavállaló",
+  ugyintezo: "Munkavállaló",
+  betekinto: "Munkavállaló",
+  auditor: "Munkavállaló",
 }
 
 const HR_ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
-  hr_vezeto: "HR Vezető",
-  hr_munkatars: "HR Munkatárs",
+  hr_vezeto: "Admin",
+  hr_munkatars: "Munkavállaló",
   vezeto: "Vezető",
-  berugyi: "Bérügyi munkatárs",
-  toborzo: "Toborzó",
-  munkavedelmi: "Munkavédelmi felelős",
+  berugyi: "Munkavállaló",
+  toborzo: "Munkavállaló",
+  munkavedelmi: "Munkavállaló",
   munkavallalo: "Munkavállaló",
-  auditor: "Auditor",
+  auditor: "Munkavállaló",
+}
+
+function normalizeCoreRole(rawRole?: string | null, fallbackRole?: string): string {
+  const r = (rawRole || "").trim().toLowerCase()
+  if (r === "admin" || r === "rendszergazda" || r === "hr_vezeto") return "admin"
+  if (r === "vezeto") return "vezeto"
+  if (r === "munkavallalo") return "munkavallalo"
+  if (!r && fallbackRole === "admin") return "admin"
+  return "munkavallalo"
 }
 
 export function EditMemberRoleDialog({
@@ -68,15 +78,15 @@ export function EditMemberRoleDialog({
   onSuccess,
 }: EditMemberRoleDialogProps) {
   const [role, setRole] = React.useState<"admin" | "member">("member")
-  const [docsRole, setDocsRole] = React.useState<string>("ugyintezo")
+  const [docsRole, setDocsRole] = React.useState<string>("munkavallalo")
   const [hrRole, setHrRole] = React.useState<string>("munkavallalo")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   React.useEffect(() => {
     if (member) {
       setRole(member.role === "admin" ? "admin" : "member")
-      setDocsRole(member.docs_szerepkor || (member.role === "admin" ? "admin" : "ugyintezo"))
-      setHrRole(member.hr_szerepkor || (member.role === "admin" ? "admin" : "munkavallalo"))
+      setDocsRole(normalizeCoreRole(member.docs_szerepkor, member.role))
+      setHrRole(normalizeCoreRole(member.hr_szerepkor, member.role))
     }
   }, [member])
 
@@ -198,12 +208,8 @@ export function EditMemberRoleDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="rendszergazda">Rendszergazda</SelectItem>
-                    <SelectItem value="vezeto">Vezető (Osztályvezető)</SelectItem>
-                    <SelectItem value="iktato">Iratkezelő / Iktató</SelectItem>
-                    <SelectItem value="ugyintezo">Ügyintéző</SelectItem>
-                    <SelectItem value="betekinto">Betekintő</SelectItem>
-                    <SelectItem value="auditor">Auditor</SelectItem>
+                    <SelectItem value="vezeto">Vezető</SelectItem>
+                    <SelectItem value="munkavallalo">Munkavállaló</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -229,14 +235,8 @@ export function EditMemberRoleDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="hr_vezeto">HR Vezető</SelectItem>
-                    <SelectItem value="hr_munkatars">HR Munkatárs</SelectItem>
                     <SelectItem value="vezeto">Vezető</SelectItem>
-                    <SelectItem value="berugyi">Bérügyi munkatárs</SelectItem>
-                    <SelectItem value="toborzo">Toborzó</SelectItem>
-                    <SelectItem value="munkavedelmi">Munkavédelmi felelős</SelectItem>
                     <SelectItem value="munkavallalo">Munkavállaló</SelectItem>
-                    <SelectItem value="auditor">Auditor</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

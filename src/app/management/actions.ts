@@ -9,15 +9,22 @@ import { SELECTED_COMPANY_COOKIE } from "@/utils/company-server"
 import { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } from "@/utils/stealth-superadmin"
 import {
   ALL_HR_MODULES,
+  ALL_DOCS_MODULES,
   normalizeHrRoleAndModules,
+  normalizeDocsRoleAndModules,
+  DEFAULT_DOCS_MODULES_FOR_ROLE,
   HR_ROLE_LABELS as CANONICAL_HR_ROLE_LABELS,
+  DOCS_ROLE_LABELS as CANONICAL_DOCS_ROLE_LABELS,
   type HrCoreRole,
   type HrModuleKey,
+  type DocsCoreRole,
+  type DocsModuleKey,
 } from "@/utils/hr/company-role-resolver"
 
 const MGMT_SESSION_COOKIE = "eaisydocs_mgmt_session"
 
 const DEFAULT_HR_ADMIN_MODULES: string[] = [...ALL_HR_MODULES]
+const DEFAULT_DOCS_ADMIN_MODULES: string[] = [...ALL_DOCS_MODULES]
 
 function getAdminClient() {
   return createSupabaseClient(
@@ -69,8 +76,11 @@ export interface ManagementUserMembership {
   company_slug: string
   role: string
   docs_szerepkor: string | null
+  docs_modulok: string[]
+  docs_iras_modulok: string[]
   hr_szerepkor: string | null
   hr_modulok: string[]
+  hr_iras_modulok: string[]
 }
 
 export interface ManagementUserInfo {
@@ -511,13 +521,30 @@ export async function getManagementDashboardDataAction() {
             : Array.isArray(fp.hr_modulok)
             ? fp.hr_modulok
             : []
-        const normalizedHr = normalizeHrRoleAndModules(rawHrRole, rawHrMods)
-        const resolvedDocsRole =
+        const rawHrWriteMods = Array.isArray((m as any).hr_iras_modulok)
+          ? (m as any).hr_iras_modulok
+          : Array.isArray((fp as any).hr_iras_modulok)
+          ? (fp as any).hr_iras_modulok
+          : undefined
+        const normalizedHr = normalizeHrRoleAndModules(rawHrRole, rawHrMods, rawHrWriteMods)
+        const rawDocsRole =
           m.docs_szerepkor && m.docs_szerepkor.trim() !== ""
             ? m.docs_szerepkor
             : m.role === "admin" || m.role === "owner"
             ? "admin"
-            : fp.docs_szerepkor || fp.szerepkor || "ugyintezo"
+            : fp.docs_szerepkor || fp.szerepkor || "munkavallalo"
+        const rawDocsMods =
+          Array.isArray(m.docs_modulok) && m.docs_modulok.length > 0
+            ? m.docs_modulok
+            : Array.isArray(fp.docs_modulok)
+            ? fp.docs_modulok
+            : null
+        const rawDocsWriteMods = Array.isArray((m as any).docs_iras_modulok)
+          ? (m as any).docs_iras_modulok
+          : Array.isArray((fp as any).docs_iras_modulok)
+          ? (fp as any).docs_iras_modulok
+          : undefined
+        const normalizedDocs = normalizeDocsRoleAndModules(rawDocsRole, rawDocsMods, rawDocsWriteMods)
 
         return {
           id: m.id,
@@ -525,9 +552,12 @@ export async function getManagementDashboardDataAction() {
           company_name: comp?.name || "Ismeretlen cég",
           company_slug: comp?.slug || "-",
           role: m.role || "member",
-          docs_szerepkor: resolvedDocsRole,
+          docs_szerepkor: normalizedDocs.role,
+          docs_modulok: normalizedDocs.modules,
+          docs_iras_modulok: normalizedDocs.writeModules,
           hr_szerepkor: normalizedHr.role,
           hr_modulok: normalizedHr.modules,
+          hr_iras_modulok: normalizedHr.writeModules,
         }
       })
 
@@ -535,12 +565,17 @@ export async function getManagementDashboardDataAction() {
       ? fp.elerheto_modulok
       : ["docs"]
 
+    const normalizedProfileDocs = normalizeDocsRoleAndModules(
+      fp.docs_szerepkor || fp.szerepkor || "munkavallalo",
+      fp.docs_modulok
+    )
+
     return {
       id: fp.id,
       nev: fp.nev || au?.email?.split("@")[0] || "Névtelen felhasználó",
       email: fp.email || au?.email || "",
-      szerepkor: fp.szerepkor || "ugyintezo",
-      docs_szerepkor: fp.docs_szerepkor || fp.szerepkor || "ugyintezo",
+      szerepkor: normalizedProfileDocs.role,
+      docs_szerepkor: normalizedProfileDocs.role,
       hr_szerepkor: fp.hr_szerepkor || "munkavallalo",
       elerheto_modulok: mods,
       created_at: fp.created_at || au?.created_at || new Date().toISOString(),
@@ -892,9 +927,11 @@ export async function createManagementUserAction(input: {
     }
 
     // Derive primary global roles from first membership or defaults
-    const firstDocsRole =
+    const rawFirstDocsRole =
       input.memberships.find((m) => m.docs_szerepkor)?.docs_szerepkor ||
-      (validModules.includes("docs") ? "ugyintezo" : "betekinto")
+      (validModules.includes("docs") ? "munkavallalo" : "munkavallalo")
+    const normalizedFirstDocs = normalizeDocsRoleAndModules(rawFirstDocsRole)
+    const firstDocsRole = normalizedFirstDocs.role
     const firstHrRole =
       input.memberships.find((m) => m.hr_szerepkor)?.hr_szerepkor ||
       (validModules.includes("hr") ? "munkavallalo" : "munkavallalo")
@@ -902,12 +939,13 @@ export async function createManagementUserAction(input: {
     const globalSzerepkor =
       firstDocsRole === "admin" || firstHrRole === "admin"
         ? "admin"
-        : firstDocsRole === "rendszergazda" || firstHrRole === "rendszergazda"
-        ? "rendszergazda"
         : firstDocsRole
 
     const hasAnyHrAdmin = input.memberships.some(
       (m) => m.hr_szerepkor === "admin" || m.hr_szerepkor === "rendszergazda" || m.hr_szerepkor === "hr_vezeto"
+    )
+    const hasAnyDocsAdmin = input.memberships.some(
+      (m) => m.docs_szerepkor === "admin" || m.docs_szerepkor === "rendszergazda"
     )
 
     const { error: profileErr } = await admin.from("felhasznalo_profil").upsert(
@@ -917,9 +955,12 @@ export async function createManagementUserAction(input: {
         email: cleanEmail,
         szerepkor: globalSzerepkor,
         docs_szerepkor: firstDocsRole,
+        docs_modulok: hasAnyDocsAdmin ? DEFAULT_DOCS_ADMIN_MODULES : normalizedFirstDocs.modules,
+        docs_iras_modulok: hasAnyDocsAdmin ? DEFAULT_DOCS_ADMIN_MODULES : normalizedFirstDocs.writeModules,
         hr_szerepkor: firstHrRole,
         elerheto_modulok: validModules,
         hr_modulok: hasAnyHrAdmin ? DEFAULT_HR_ADMIN_MODULES : [],
+        hr_iras_modulok: hasAnyHrAdmin ? DEFAULT_HR_ADMIN_MODULES : [],
       },
       { onConflict: "id" }
     )
@@ -933,13 +974,15 @@ export async function createManagementUserAction(input: {
 
     for (const m of input.memberships) {
       if (!m.company_id) continue
-      const docsRole = validModules.includes("docs") ? m.docs_szerepkor || "ugyintezo" : null
+      const normalizedDocs = normalizeDocsRoleAndModules(m.docs_szerepkor || "munkavallalo")
+      const docsRole = validModules.includes("docs") ? normalizedDocs.role : null
+      const docsMods = validModules.includes("docs") ? normalizedDocs.modules : []
+      const docsWriteMods = validModules.includes("docs") ? normalizedDocs.writeModules : []
       const hrRole = validModules.includes("hr") ? m.hr_szerepkor || "munkavallalo" : null
       const isCompanyAdmin =
         m.role === "owner" ||
         m.role === "admin" ||
         docsRole === "admin" ||
-        docsRole === "rendszergazda" ||
         hrRole === "admin" ||
         hrRole === "rendszergazda"
 
@@ -953,8 +996,11 @@ export async function createManagementUserAction(input: {
         user_id: userId,
         role: m.role === "owner" ? "owner" : isCompanyAdmin ? "admin" : "member",
         docs_szerepkor: docsRole,
+        docs_modulok: docsMods,
+        docs_iras_modulok: docsWriteMods,
         hr_szerepkor: hrRole,
         hr_modulok: hrMods,
+        hr_iras_modulok: hrMods,
       })
     }
 
@@ -1015,9 +1061,11 @@ export async function updateManagementUserAction(input: {
     await admin.auth.admin.updateUserById(input.userId, authUpdate)
 
     // Derive primary profile roles from memberships
-    const firstDocsRole =
+    const rawFirstDocsRole =
       input.memberships.find((m) => m.docs_szerepkor)?.docs_szerepkor ||
-      (validModules.includes("docs") ? "ugyintezo" : "betekinto")
+      (validModules.includes("docs") ? "munkavallalo" : "munkavallalo")
+    const normalizedFirstDocs = normalizeDocsRoleAndModules(rawFirstDocsRole)
+    const firstDocsRole = normalizedFirstDocs.role
     const firstHrRole =
       input.memberships.find((m) => m.hr_szerepkor)?.hr_szerepkor ||
       (validModules.includes("hr") ? "munkavallalo" : "munkavallalo")
@@ -1025,12 +1073,13 @@ export async function updateManagementUserAction(input: {
     const globalSzerepkor =
       firstDocsRole === "admin" || firstHrRole === "admin"
         ? "admin"
-        : firstDocsRole === "rendszergazda" || firstHrRole === "rendszergazda"
-        ? "rendszergazda"
         : firstDocsRole
 
     const hasAnyHrAdmin = input.memberships.some(
       (m) => m.hr_szerepkor === "admin" || m.hr_szerepkor === "rendszergazda" || m.hr_szerepkor === "hr_vezeto"
+    )
+    const hasAnyDocsAdmin = input.memberships.some(
+      (m) => m.docs_szerepkor === "admin" || m.docs_szerepkor === "rendszergazda"
     )
 
     const { error: profileErr } = await admin
@@ -1040,9 +1089,12 @@ export async function updateManagementUserAction(input: {
         email: cleanEmail || undefined,
         szerepkor: globalSzerepkor,
         docs_szerepkor: firstDocsRole,
+        docs_modulok: hasAnyDocsAdmin ? DEFAULT_DOCS_ADMIN_MODULES : normalizedFirstDocs.modules,
+        docs_iras_modulok: hasAnyDocsAdmin ? DEFAULT_DOCS_ADMIN_MODULES : normalizedFirstDocs.writeModules,
         hr_szerepkor: firstHrRole,
         elerheto_modulok: validModules,
         hr_modulok: hasAnyHrAdmin ? DEFAULT_HR_ADMIN_MODULES : [],
+        hr_iras_modulok: hasAnyHrAdmin ? DEFAULT_HR_ADMIN_MODULES : [],
       })
       .eq("id", input.userId)
 
@@ -1050,34 +1102,74 @@ export async function updateManagementUserAction(input: {
       return { success: false, error: `Profil frissítési hiba: ${profileErr.message}` }
     }
 
+    // Megőrizzük a meglévő egyedi modul-beállításokat a company_members törlése előtt
+    const { data: prevMembers } = await admin
+      .from("company_members")
+      .select("company_id, docs_modulok, docs_iras_modulok, hr_modulok, hr_iras_modulok")
+      .eq("user_id", input.userId)
+    const prevMemberMap = new Map<
+      string,
+      {
+        docs_modulok?: string[]
+        docs_iras_modulok?: string[]
+        hr_modulok?: string[]
+        hr_iras_modulok?: string[]
+      }
+    >()
+    for (const pm of prevMembers || []) {
+      prevMemberMap.set(pm.company_id, pm)
+    }
+
     // Replace company_members for this user with the updated assignments
     await admin.from("company_members").delete().eq("user_id", input.userId)
 
     for (const m of input.memberships) {
       if (!m.company_id) continue
-      const docsRole = validModules.includes("docs") ? m.docs_szerepkor : null
+      const prev = prevMemberMap.get(m.company_id)
+      const normalizedDocs = normalizeDocsRoleAndModules(
+        m.docs_szerepkor || "munkavallalo",
+        prev?.docs_modulok,
+        prev?.docs_iras_modulok
+      )
+      const docsRole = validModules.includes("docs") ? normalizedDocs.role : null
+      const docsMods = validModules.includes("docs")
+        ? normalizedDocs.role === "admin"
+          ? DEFAULT_DOCS_ADMIN_MODULES
+          : normalizedDocs.modules
+        : []
+      const docsWriteMods = validModules.includes("docs")
+        ? normalizedDocs.role === "admin"
+          ? DEFAULT_DOCS_ADMIN_MODULES
+          : normalizedDocs.writeModules
+        : []
       const hrRole = validModules.includes("hr") ? m.hr_szerepkor : null
 
       const isCompanyAdmin =
         m.role === "owner" ||
         m.role === "admin" ||
         docsRole === "admin" ||
-        docsRole === "rendszergazda" ||
         hrRole === "admin" ||
         hrRole === "rendszergazda"
 
       const hrMods =
         hrRole === "admin" || hrRole === "rendszergazda" || hrRole === "hr_vezeto"
           ? DEFAULT_HR_ADMIN_MODULES
-          : []
+          : prev?.hr_modulok || []
+      const hrWriteMods =
+        hrRole === "admin" || hrRole === "rendszergazda" || hrRole === "hr_vezeto"
+          ? DEFAULT_HR_ADMIN_MODULES
+          : (prev?.hr_iras_modulok || hrMods).filter((mod) => hrMods.includes(mod))
 
       await admin.from("company_members").insert({
         company_id: m.company_id,
         user_id: input.userId,
         role: m.role === "owner" ? "owner" : isCompanyAdmin ? "admin" : "member",
         docs_szerepkor: docsRole,
+        docs_modulok: docsMods,
+        docs_iras_modulok: docsWriteMods,
         hr_szerepkor: hrRole,
         hr_modulok: hrMods,
+        hr_iras_modulok: hrWriteMods,
       })
     }
 
@@ -1094,17 +1186,19 @@ export async function updateManagementUserAction(input: {
 
 export interface ManagementCompanyPermissionUpdate {
   company_id: string
-  docs_szerepkor: string | null
+  docs_szerepkor: DocsCoreRole | string | null
+  docs_modulok?: DocsModuleKey[]
+  docs_iras_modulok?: DocsModuleKey[]
   hr_szerepkor: HrCoreRole
   hr_modulok: HrModuleKey[]
+  hr_iras_modulok?: HrModuleKey[]
 }
 
 /**
  * A Control Center -> Jogosultságok fülről érkező felhasználói jogosultságok mentése:
  * - Frissíti a felhasználó `elerheto_modulok` tömbjét (megőrizve az elsődleges modult, pl. ['hr', 'docs'] vagy ['docs', 'hr'])
- * - Cégenként frissíti az eaisyHR alapszerepkört (`hr_szerepkor`), a 10 szakmai HR modult (`hr_modulok`),
- *   valamint az eaisyDocs szerepkört (`docs_szerepkor`) a `company_members` táblában.
- * - Teljes szinkronban működik az eaisyHR Szervezeti Felépítés -> Jogosultságkezelő Mátrixszal.
+ * - Cégenként frissíti az eaisyHR alapszerepkört (`hr_szerepkor`), a 10 szakmai HR Olvasás (`hr_modulok`) és Írás (`hr_iras_modulok`) modult,
+ *   valamint az eaisyDocs alapszerepkört (`docs_szerepkor`: munkavallalo | vezeto | admin) és a 7 szakmai Docs Olvasás (`docs_modulok`) és Írás (`docs_iras_modulok`) modult a `company_members` táblában.
  */
 export async function saveUserPermissionsFromManagementAction(input: {
   userId: string
@@ -1134,6 +1228,7 @@ export async function saveUserPermissionsFromManagementAction(input: {
     }
 
     const validModSet = new Set<string>(ALL_HR_MODULES)
+    const validDocsModSet = new Set<string>(ALL_DOCS_MODULES)
 
     // 1. Cégenkénti tagságok frissítése
     for (const cp of input.companyPermissions || []) {
@@ -1147,7 +1242,48 @@ export async function saveUserPermissionsFromManagementAction(input: {
           ? [...ALL_HR_MODULES]
           : Array.from(new Set((cp.hr_modulok || []).filter((m): m is HrModuleKey => validModSet.has(m))))
 
-      const docsRole = cp.docs_szerepkor || "ugyintezo"
+      const hrReadSet = new Set<HrModuleKey>(sanitizedHrMods)
+      const sanitizedHrWriteMods: HrModuleKey[] =
+        normalizedRole === "admin"
+          ? [...ALL_HR_MODULES]
+          : Array.isArray(cp.hr_iras_modulok)
+          ? Array.from(
+              new Set(
+                cp.hr_iras_modulok.filter(
+                  (m): m is HrModuleKey => validModSet.has(m) && hrReadSet.has(m as HrModuleKey)
+                )
+              )
+            )
+          : [...sanitizedHrMods]
+
+      const normalizedDocsRole: DocsCoreRole =
+        cp.docs_szerepkor === "admin" || cp.docs_szerepkor === "rendszergazda"
+          ? "admin"
+          : cp.docs_szerepkor === "vezeto"
+          ? "vezeto"
+          : "munkavallalo"
+
+      const sanitizedDocsMods: DocsModuleKey[] =
+        normalizedDocsRole === "admin"
+          ? [...ALL_DOCS_MODULES]
+          : Array.isArray(cp.docs_modulok)
+          ? Array.from(new Set(cp.docs_modulok.filter((m): m is DocsModuleKey => validDocsModSet.has(m))))
+          : [...DEFAULT_DOCS_MODULES_FOR_ROLE[normalizedDocsRole]]
+
+      const docsReadSet = new Set<DocsModuleKey>(sanitizedDocsMods)
+      const sanitizedDocsWriteMods: DocsModuleKey[] =
+        normalizedDocsRole === "admin"
+          ? [...ALL_DOCS_MODULES]
+          : Array.isArray(cp.docs_iras_modulok)
+          ? Array.from(
+              new Set(
+                cp.docs_iras_modulok.filter(
+                  (m): m is DocsModuleKey =>
+                    validDocsModSet.has(m) && docsReadSet.has(m as DocsModuleKey)
+                )
+              )
+            )
+          : [...sanitizedDocsMods]
 
       // Meglévő sor lekérdezése a `role` ('owner' megőrzése) miatt
       const { data: existingMember } = await admin
@@ -1157,8 +1293,12 @@ export async function saveUserPermissionsFromManagementAction(input: {
         .eq("user_id", input.userId)
         .maybeSingle()
 
+      const hasDocsAccess = validModules.includes("docs")
+      const hasHrAccess = validModules.includes("hr")
+
       const isCompAdmin =
-        docsRole === "admin" || docsRole === "rendszergazda" || normalizedRole === "admin"
+        (hasDocsAccess && normalizedDocsRole === "admin") ||
+        (hasHrAccess && normalizedRole === "admin")
       const nextMemberRole =
         existingMember?.role === "owner" ? "owner" : isCompAdmin ? "admin" : "member"
 
@@ -1167,9 +1307,12 @@ export async function saveUserPermissionsFromManagementAction(input: {
           .from("company_members")
           .update({
             role: nextMemberRole,
-            docs_szerepkor: docsRole,
-            hr_szerepkor: normalizedRole,
-            hr_modulok: sanitizedHrMods,
+            docs_szerepkor: hasDocsAccess ? normalizedDocsRole : null,
+            docs_modulok: hasDocsAccess ? sanitizedDocsMods : [],
+            docs_iras_modulok: hasDocsAccess ? sanitizedDocsWriteMods : [],
+            hr_szerepkor: hasHrAccess ? normalizedRole : null,
+            hr_modulok: hasHrAccess ? sanitizedHrMods : [],
+            hr_iras_modulok: hasHrAccess ? sanitizedHrWriteMods : [],
           })
           .eq("id", existingMember.id)
 
@@ -1184,9 +1327,12 @@ export async function saveUserPermissionsFromManagementAction(input: {
           company_id: cp.company_id,
           user_id: input.userId,
           role: nextMemberRole,
-          docs_szerepkor: docsRole,
-          hr_szerepkor: normalizedRole,
-          hr_modulok: sanitizedHrMods,
+          docs_szerepkor: hasDocsAccess ? normalizedDocsRole : null,
+          docs_modulok: hasDocsAccess ? sanitizedDocsMods : [],
+          docs_iras_modulok: hasDocsAccess ? sanitizedDocsWriteMods : [],
+          hr_szerepkor: hasHrAccess ? normalizedRole : null,
+          hr_modulok: hasHrAccess ? sanitizedHrMods : [],
+          hr_iras_modulok: hasHrAccess ? sanitizedHrWriteMods : [],
         })
         if (insErr) {
           return {
@@ -1198,12 +1344,19 @@ export async function saveUserPermissionsFromManagementAction(input: {
 
       // Audit naplózás a hr_esemeny_naplo táblába
       const roleLabel = CANONICAL_HR_ROLE_LABELS[normalizedRole] || normalizedRole
+      const docsRoleLabel = CANONICAL_DOCS_ROLE_LABELS[normalizedDocsRole] || normalizedDocsRole
       const modulesDesc =
         normalizedRole === "admin"
           ? "Teljes hozzáférés (Admin)"
           : sanitizedHrMods.length > 0
-          ? sanitizedHrMods.join(", ")
+          ? `R:[${sanitizedHrMods.join(", ")}] W:[${sanitizedHrWriteMods.join(", ")}]`
           : "Csak alapértelmezett portál"
+      const docsModulesDesc =
+        normalizedDocsRole === "admin"
+          ? "Teljes hozzáférés (Admin)"
+          : sanitizedDocsMods.length > 0
+          ? `R:[${sanitizedDocsMods.join(", ")}] W:[${sanitizedDocsWriteMods.join(", ")}]`
+          : "Csak Saját feladataim"
 
       await admin.from("hr_esemeny_naplo").insert({
         felhasznalo_id: currentAdmin.id,
@@ -1211,7 +1364,7 @@ export async function saveUserPermissionsFromManagementAction(input: {
         entitas_tipus: "felhasznalo_profil",
         entitas_id: input.userId,
         esemeny_tipus: "jogosultsag_modositas",
-        megjegyzes: `Management Dashboard jogosultság módosítás: HR szerepkör = ${roleLabel}, HR modulok = [${modulesDesc}], Docs szerepkör = ${docsRole}`,
+        megjegyzes: `Management Dashboard jogosultság módosítás: HR szerepkör = ${roleLabel} [${modulesDesc}], Docs szerepkör = ${docsRoleLabel} [${docsModulesDesc}]`,
       })
     }
 
@@ -1233,12 +1386,54 @@ export async function saveUserPermissionsFromManagementAction(input: {
           : Array.from(
               new Set((single.hr_modulok || []).filter((m): m is HrModuleKey => validModSet.has(m)))
             )
+      const hrReadSet = new Set<HrModuleKey>(sanitizedHrMods)
+      const sanitizedHrWriteMods: HrModuleKey[] =
+        normalizedRole === "admin"
+          ? [...ALL_HR_MODULES]
+          : Array.isArray(single.hr_iras_modulok)
+          ? Array.from(
+              new Set(
+                single.hr_iras_modulok.filter(
+                  (m): m is HrModuleKey => validModSet.has(m) && hrReadSet.has(m as HrModuleKey)
+                )
+              )
+            )
+          : [...sanitizedHrMods]
+
+      const normalizedDocsRole: DocsCoreRole =
+        single.docs_szerepkor === "admin" || single.docs_szerepkor === "rendszergazda"
+          ? "admin"
+          : single.docs_szerepkor === "vezeto"
+          ? "vezeto"
+          : "munkavallalo"
+      const sanitizedDocsMods: DocsModuleKey[] =
+        normalizedDocsRole === "admin"
+          ? [...ALL_DOCS_MODULES]
+          : Array.isArray(single.docs_modulok)
+          ? Array.from(new Set(single.docs_modulok.filter((m): m is DocsModuleKey => validDocsModSet.has(m))))
+          : [...DEFAULT_DOCS_MODULES_FOR_ROLE[normalizedDocsRole]]
+      const docsReadSet = new Set<DocsModuleKey>(sanitizedDocsMods)
+      const sanitizedDocsWriteMods: DocsModuleKey[] =
+        normalizedDocsRole === "admin"
+          ? [...ALL_DOCS_MODULES]
+          : Array.isArray(single.docs_iras_modulok)
+          ? Array.from(
+              new Set(
+                single.docs_iras_modulok.filter(
+                  (m): m is DocsModuleKey =>
+                    validDocsModSet.has(m) && docsReadSet.has(m as DocsModuleKey)
+                )
+              )
+            )
+          : [...sanitizedDocsMods]
+
       profilePatch.hr_szerepkor = normalizedRole
       profilePatch.hr_modulok = sanitizedHrMods
-      if (single.docs_szerepkor) {
-        profilePatch.docs_szerepkor = single.docs_szerepkor
-        profilePatch.szerepkor = single.docs_szerepkor
-      }
+      profilePatch.hr_iras_modulok = sanitizedHrWriteMods
+      profilePatch.docs_szerepkor = normalizedDocsRole
+      profilePatch.docs_modulok = sanitizedDocsMods
+      profilePatch.docs_iras_modulok = sanitizedDocsWriteMods
+      profilePatch.szerepkor = normalizedDocsRole
     }
 
     const { error: profErr } = await admin

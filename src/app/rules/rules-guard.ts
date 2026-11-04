@@ -7,9 +7,9 @@ import { requireDocsAuthServer } from "@/utils/docs-auth-guard"
  * rendszergazdai szerepkörrel érhető el (`company_members.docs_szerepkor` / `role`).
  */
 export async function requireRulesAdminAccess(targetCompanyId?: string | null): Promise<string | null> {
-  const auth = await requireDocsAuthServer(["admin", "rendszergazda"], targetCompanyId)
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "rules"], targetCompanyId)
   if (!auth.authorized) {
-    return auth.error || "A Szabályok kezelése csak rendszergazdai vagy adminisztrátori szerepkörrel érhető el."
+    return auth.error || "A Szabályok kezelése csak engedélyezett Szabályok modullal vagy adminisztrátori szerepkörrel érhető el."
   }
   return null
 }

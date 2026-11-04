@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
-import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 import { DashboardOverview } from "@/components/dashboard-overview"
 import { redirect } from "next/navigation"
 
@@ -16,6 +16,7 @@ export default async function DashboardPage() {
 
   const activeCompanyId = await getActiveCompanyIdServer()
   const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
   const { data: userProfile } = await supabase
     .from("felhasznalo_profil")
@@ -31,7 +32,10 @@ export default async function DashboardPage() {
 
   const userId = authUser.user.id
   const userName = userProfile?.nev || "Felhasználó"
-  const userRole = userProfile?.docs_szerepkor || "ugyintezo"
+  const userRole =
+    scopedRoles.isMember && scopedRoles.docsRole && scopedRoles.docsRole !== "none"
+      ? scopedRoles.docsRole
+      : userProfile?.docs_szerepkor || "munkavallalo"
 
   const todayStr = new Date().toISOString().split("T")[0]
 

@@ -41,13 +41,14 @@ import {
 } from "@/app/settings/settings-actions"
 
 export const DOCS_ROLE_LABELS: Record<string, string> = {
-  admin: "Szuper Admin",
-  rendszergazda: "Rendszergazda",
-  iktato: "Iratkezelő / iktató",
-  vezeto: "Vezető / szignáló",
-  ugyintezo: "Ügyintéző",
-  betekinto: "Betekintő",
-  auditor: "Auditor"
+  admin: "Admin",
+  rendszergazda: "Admin",
+  vezeto: "Vezető",
+  munkavallalo: "Munkavállaló",
+  iktato: "Munkavállaló",
+  ugyintezo: "Munkavállaló",
+  betekinto: "Munkavállaló",
+  auditor: "Munkavállaló"
 }
 
 export const CLEARANCE_LABELS: Record<string, string> = {
@@ -225,7 +226,7 @@ function DocsOrgUnitCard({ node, depth }: { node: DocsOrgNode; depth: number }) 
                       </Badge>
                     )}
                     <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-muted/50 border text-muted-foreground">
-                      {DOCS_ROLE_LABELS[m.docs_szerepkor || "ugyintezo"] || m.docs_szerepkor}
+                      {DOCS_ROLE_LABELS[m.docs_szerepkor || "munkavallalo"] || m.docs_szerepkor}
                     </Badge>
                   </div>
                 </div>
@@ -731,7 +732,7 @@ export function DepartmentsTab({ departments, teamMembers, currentUserId }: Depa
                     <SelectItem value="__none__">Nincs kijelölt vezető</SelectItem>
                     {teamMembers.map((m) => (
                       <SelectItem key={m.id} value={m.id}>
-                        {m.nev} ({DOCS_ROLE_LABELS[m.docs_szerepkor || "ugyintezo"] || m.docs_szerepkor})
+                        {m.nev} ({DOCS_ROLE_LABELS[m.docs_szerepkor || "munkavallalo"] || m.docs_szerepkor})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -810,7 +811,7 @@ export function DepartmentsTab({ departments, teamMembers, currentUserId }: Depa
                       <SelectItem value="__none__">Nincs kijelölt vezető</SelectItem>
                       {teamMembers.map((m) => (
                         <SelectItem key={m.id} value={m.id}>
-                          {m.nev} ({DOCS_ROLE_LABELS[m.docs_szerepkor || "ugyintezo"] || m.docs_szerepkor})
+                          {m.nev} ({DOCS_ROLE_LABELS[m.docs_szerepkor || "munkavallalo"] || m.docs_szerepkor})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -907,7 +908,7 @@ export function DepartmentsTab({ departments, teamMembers, currentUserId }: Depa
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="text-right">
                         <Badge variant="outline" className="text-[10px] uppercase font-semibold bg-background">
-                          {DOCS_ROLE_LABELS[m.docs_szerepkor || "ugyintezo"] || m.docs_szerepkor}
+                          {DOCS_ROLE_LABELS[m.docs_szerepkor || "munkavallalo"] || m.docs_szerepkor}
                         </Badge>
                         {m.max_minosites && (
                           <div className="text-[10px] text-muted-foreground flex items-center justify-end gap-1 mt-0.5">
@@ -1004,7 +1005,7 @@ export function DepartmentsTab({ departments, teamMembers, currentUserId }: Depa
                     </div>
                     <div className="text-right">
                       <Badge variant="outline" className="text-[10px]">
-                        {DOCS_ROLE_LABELS[m.docs_szerepkor || "ugyintezo"] || m.docs_szerepkor}
+                        {DOCS_ROLE_LABELS[m.docs_szerepkor || "munkavallalo"] || m.docs_szerepkor}
                       </Badge>
                       {currentDept && (
                         <p className="text-[10px] text-muted-foreground mt-0.5">

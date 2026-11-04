@@ -55,24 +55,25 @@ interface ExistingUserOption {
 
 const DOCS_ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
-  rendszergazda: "Rendszergazda",
-  vezeto: "Vezető / Szignáló",
-  iktato: "Iratkezelő / Iktató",
-  ugyintezo: "Ügyintéző",
-  betekinto: "Betekintő",
-  auditor: "Auditor",
+  rendszergazda: "Admin",
+  vezeto: "Vezető",
+  munkavallalo: "Munkavállaló",
+  iktato: "Munkavállaló",
+  ugyintezo: "Munkavállaló",
+  betekinto: "Munkavállaló",
+  auditor: "Munkavállaló",
 }
 
 const HR_ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
-  hr_vezeto: "HR Vezető",
-  hr_munkatars: "HR Munkatárs",
-  vezeto: "Vezető (Közvetlen)",
-  berugyi: "Bérügyi / Bérszámfejtő",
-  toborzo: "Toborzó (ATS)",
-  munkavedelmi: "Munkavédelmi Felelős",
+  hr_vezeto: "Admin",
+  hr_munkatars: "Munkavállaló",
+  vezeto: "Vezető",
+  berugyi: "Munkavállaló",
+  toborzo: "Munkavállaló",
+  munkavedelmi: "Munkavállaló",
   munkavallalo: "Munkavállaló",
-  auditor: "Auditor",
+  auditor: "Munkavállaló",
 }
 
 export function InviteUserDialog({
@@ -102,7 +103,7 @@ export function InviteUserDialog({
   const [companySearch, setCompanySearch] = React.useState("")
 
   // Szerepkör
-  const [role, setRole] = React.useState(module === "docs" ? "ugyintezo" : "munkavallalo")
+  const [role, setRole] = React.useState("munkavallalo")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   const targetCompanyId = defaultCompanyId || selectedCompany?.id || (companies[0]?.id ?? "")
@@ -120,7 +121,7 @@ export function InviteUserDialog({
       if (targetCompanyId) {
         setSelectedCompanyIds([targetCompanyId])
       }
-      setRole(module === "docs" ? "ugyintezo" : "munkavallalo")
+      setRole("munkavallalo")
 
       if (targetCompanyId) {
         setIsLoadingUsers(true)
@@ -162,26 +163,16 @@ export function InviteUserDialog({
 
   // Szerepkör leírások eaisyDocs-hoz
   const docsRoleDescriptions: Record<string, string> = {
-    admin: "Teljes adminisztrátori jog a cég dokumentumai, csapata és beállításai felett.",
-    rendszergazda: "Rendszergazdai és IT konfigurációs jogosultságok.",
-    vezeto: "Ügyiratok szignálása, jóváhagyása és delegálása.",
-    iktato: "Érkeztetés, iktatás, postázás és selejtezési jogosultság.",
-    ugyintezo: "Általános hozzáférés az ügyiratokhoz és iratokhoz.",
-    betekinto: "Kizárólag olvasási jogosultság a közzétett iratokhoz.",
-    auditor: "Teljes betekintés és eseménynapló (audit) hozzáférés.",
+    admin: "Teljes adminisztrátori jog a cég dokumentumai, csapata, szabályai és beállításai felett.",
+    vezeto: "Ügyiratok szignálása, jóváhagyása és saját osztály iratainak irányítása.",
+    munkavallalo: "Általános munkavállalói hozzáférés a napi iratkezeléshez, érkeztetéshez és ügyiratokhoz.",
   }
 
   // Szerepkör leírások eaisyHR-hez
   const hrRoleDescriptions: Record<string, string> = {
     admin: "Teljes felügyeleti jog az eaisyHR rendszerben.",
-    hr_vezeto: "HR folyamatok és jóváhagyások teljes felügyelete.",
-    hr_munkatars: "Munkavállalói adatok, bérügy és jelenlét jóváhagyása.",
-    vezeto: "Közvetlen beosztottak jelenlétének és szabadságainak kezelése.",
-    berugyi: "Bérszámfejtési és juttatási adatok kezelése.",
-    toborzo: "Jelöltek és toborzási folyamatok (ATS) felügyelete.",
-    munkavedelmi: "Munkavédelmi és orvosi vizsgálatok kezelése.",
+    vezeto: "Közvetlen beosztottak jelenlétének, műszakbeosztásának és szabadságainak kezelése.",
     munkavallalo: "Saját adatok, szabadságkérelmek és jelenlét kezelése.",
-    auditor: "HR megfelelőségi és ellenőrzési betekintés.",
   }
 
   const roleDescription =
@@ -507,29 +498,9 @@ export function InviteUserDialog({
                         <SelectValue>{currentRoleLabel}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {module === "docs" ? (
-                          <>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="rendszergazda">Rendszergazda</SelectItem>
-                            <SelectItem value="vezeto">Vezető / Szignáló</SelectItem>
-                            <SelectItem value="iktato">Iratkezelő / Iktató</SelectItem>
-                            <SelectItem value="ugyintezo">Ügyintéző</SelectItem>
-                            <SelectItem value="betekinto">Betekintő</SelectItem>
-                            <SelectItem value="auditor">Auditor</SelectItem>
-                          </>
-                        ) : (
-                          <>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="hr_vezeto">HR Vezető</SelectItem>
-                            <SelectItem value="hr_munkatars">HR Munkatárs</SelectItem>
-                            <SelectItem value="vezeto">Vezető (Közvetlen)</SelectItem>
-                            <SelectItem value="berugyi">Bérügyi / Bérszámfejtő</SelectItem>
-                            <SelectItem value="toborzo">Toborzó (ATS)</SelectItem>
-                            <SelectItem value="munkavedelmi">Munkavédelmi Felelős</SelectItem>
-                            <SelectItem value="munkavallalo">Munkavállaló</SelectItem>
-                            <SelectItem value="auditor">Auditor</SelectItem>
-                          </>
-                        )}
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="vezeto">Vezető</SelectItem>
+                        <SelectItem value="munkavallalo">Munkavállaló</SelectItem>
                       </SelectContent>
                     </Select>
                     {roleDescription && (

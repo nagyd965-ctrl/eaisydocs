@@ -14,13 +14,14 @@ export async function updateEmployeePermissionsAction(params: {
   employeeId: string
   hrRole: HrCoreRole
   hrModules: string[]
+  hrWriteModules?: string[]
 }) {
   const auth = await requireHrAuthServer(["admin"], null)
   if (!auth.authorized || !auth.user) {
     return { error: "Nincs jogosultságod a jogosultságok módosításához (kizárólag Admin)." }
   }
 
-  const { employeeId, hrRole, hrModules } = params
+  const { employeeId, hrRole, hrModules, hrWriteModules } = params
   if (!employeeId) {
     return { error: "Hiányzó dolgozó azonosító." }
   }
@@ -33,6 +34,19 @@ export async function updateEmployeePermissionsAction(params: {
     normalizedRole === "admin"
       ? [...ALL_HR_MODULES]
       : Array.from(new Set(hrModules.filter((m): m is HrModuleKey => validModuleSet.has(m))))
+
+  const sanitizedWriteModules: HrModuleKey[] =
+    normalizedRole === "admin"
+      ? [...ALL_HR_MODULES]
+      : hrWriteModules !== undefined
+      ? Array.from(
+          new Set(
+            hrWriteModules.filter(
+              (m): m is HrModuleKey => validModuleSet.has(m) && sanitizedModules.includes(m as HrModuleKey)
+            )
+          )
+        )
+      : [...sanitizedModules]
 
   const supabaseAdmin = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -68,6 +82,7 @@ export async function updateEmployeePermissionsAction(params: {
       .update({
         hr_szerepkor: normalizedRole,
         hr_modulok: sanitizedModules,
+        hr_iras_modulok: sanitizedWriteModules,
       })
       .eq("company_id", auth.activeCompanyId)
       .eq("user_id", employeeId)
@@ -90,6 +105,7 @@ export async function updateEmployeePermissionsAction(params: {
       .update({
         hr_szerepkor: normalizedRole,
         hr_modulok: sanitizedModules,
+        hr_iras_modulok: sanitizedWriteModules,
       })
       .eq("id", employeeId)
       .select("nev")
@@ -115,7 +131,9 @@ export async function updateEmployeePermissionsAction(params: {
     normalizedRole === "admin"
       ? "Teljes hozzáférés (Admin)"
       : sanitizedModules.length > 0
-      ? sanitizedModules.join(", ")
+      ? sanitizedModules
+          .map((m) => `${m} (${sanitizedWriteModules.includes(m) ? "Írás" : "Olvasás"})`)
+          .join(", ")
       : "Csak alapértelmezett portál"
 
   await supabaseAdmin.from("hr_esemeny_naplo").insert({
@@ -136,5 +154,6 @@ export async function updateEmployeePermissionsAction(params: {
     success: true,
     hrRole: normalizedRole,
     hrModules: sanitizedModules,
+    hrWriteModules: sanitizedWriteModules,
   }
 }

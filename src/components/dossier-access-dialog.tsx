@@ -151,9 +151,21 @@ export function DossierAccessDialog({
                 <SelectContent className="max-h-56">
                   {availableUsers.map((u) => {
                     const deptName = u.szervezeti_egyseg?.nev || "Nincs beosztva"
+                    const roleLabels: Record<string, string> = {
+                      admin: "Admin",
+                      rendszergazda: "Admin",
+                      vezeto: "Vezető",
+                      munkavallalo: "Munkavállaló",
+                      iktato: "Munkavállaló",
+                      ugyintezo: "Munkavállaló",
+                      betekinto: "Munkavállaló",
+                      auditor: "Munkavállaló",
+                    }
+                    const rawRole = u.docs_szerepkor || u.szerepkor || "munkavallalo"
+                    const roleLabel = roleLabels[rawRole] || rawRole
                     return (
                       <SelectItem key={u.id} value={u.id} className="text-xs">
-                        {u.nev} ({deptName} • {u.docs_szerepkor || u.szerepkor})
+                        {u.nev} ({deptName} • {roleLabel})
                       </SelectItem>
                     )
                   })}
@@ -216,7 +228,18 @@ export function DossierAccessDialog({
                     <div>
                       <p className="font-semibold text-foreground">{u?.nev || "Ismeretlen"}</p>
                       <p className="text-[11px] text-muted-foreground">
-                        {u?.szervezeti_egyseg?.nev || "Nincs osztály"} • {u?.docs_szerepkor || u?.szerepkor || "Munkatárs"}
+                        {u?.szervezeti_egyseg?.nev || "Nincs osztály"} • {
+                          ({
+                            admin: "Admin",
+                            rendszergazda: "Admin",
+                            vezeto: "Vezető",
+                            munkavallalo: "Munkavállaló",
+                            iktato: "Munkavállaló",
+                            ugyintezo: "Munkavállaló",
+                            betekinto: "Munkavállaló",
+                            auditor: "Munkavállaló",
+                          } as Record<string, string>)[u?.docs_szerepkor || u?.szerepkor || ""] || u?.docs_szerepkor || u?.szerepkor || "Munkatárs"
+                        }
                       </p>
                     </div>
 

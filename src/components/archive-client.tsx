@@ -52,7 +52,7 @@ export function ArchiveClient({
   disposalBatches = [],
   cutoffDate,
   todayStr,
-  currentUserRole = "ugyintezo",
+  currentUserRole = "munkavallalo",
   currentUserId = "",
   fourEyesRequired = true,
 }: {
@@ -479,30 +479,36 @@ export function ArchiveClient({
               </div>
 
               {/* Műveletek */}
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs"
-                  onClick={async () => {
-                    await forceExpireAllDossiers()
-                    router.refresh()
-                  }}
-                  title="Minden lezárt ügyirat megőrzési idejének lejárttá tétele teszteléshez"
-                >
-                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                  Lejárt generálás
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="h-8 text-xs"
-                  disabled={selectedSuggestions.length === 0 || loading}
-                  onClick={handlePropose}
-                >
-                  Felterjesztés Selejtezésre ({selectedSuggestions.length})
-                </Button>
-              </div>
+              {currentUserRole !== "betekinto" && currentUserRole !== "auditor" ? (
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={async () => {
+                      await forceExpireAllDossiers()
+                      router.refresh()
+                    }}
+                    title="Minden lezárt ügyirat megőrzési idejének lejárttá tétele teszteléshez"
+                  >
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                    Lejárt generálás
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-8 text-xs"
+                    disabled={selectedSuggestions.length === 0 || loading}
+                    onClick={handlePropose}
+                  >
+                    Felterjesztés Selejtezésre ({selectedSuggestions.length})
+                  </Button>
+                </div>
+              ) : (
+                <Badge variant="outline" className="text-xs text-muted-foreground py-1 px-2.5">
+                  Csak olvasási jogosultság
+                </Badge>
+              )}
             </div>
 
             <div className="overflow-x-auto">
@@ -616,9 +622,13 @@ export function ArchiveClient({
                 Jóváhagyásra váró ügyiratok: <strong className="text-foreground">{filteredApprovals.length}</strong> db
               </span>
               <div className="flex items-center gap-2 shrink-0">
-                {currentUserRole === "ugyintezo" ? (
+                {currentUserRole === "betekinto" || currentUserRole === "auditor" ? (
+                  <Badge variant="outline" className="text-xs text-muted-foreground py-1 px-2.5">
+                    Csak olvasási jogosultság
+                  </Badge>
+                ) : currentUserRole === "ugyintezo" || currentUserRole === "munkavallalo" ? (
                   <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/30 py-1 px-2.5">
-                    Ügyintézőként nem hagyhatsz jóvá (kizárólag Vezető vagy Admin)
+                    Munkavállalóként nem hagyhatsz jóvá (kizárólag Vezető vagy Admin)
                   </Badge>
                 ) : (
                   <Button

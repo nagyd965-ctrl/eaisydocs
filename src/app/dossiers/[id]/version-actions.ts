@@ -20,13 +20,16 @@ export async function uploadDocumentNewVersion(iratId: string, ugyiratId: string
     return { error: "Ügyirat nem található." }
   }
 
-  const auth = await requireDocsAuthServer(undefined, ugyirat.company_id || null)
+  const auth = await requireDocsAuthServer(
+    ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "dossiers", "inbox"],
+    ugyirat.company_id || null
+  )
   if (!auth.authorized || !auth.user) {
-    return { error: auth.error || "Nincs bejelentkezve." }
+    return { error: auth.error || "Nincs jogosultsága új verzió feltöltéséhez." }
   }
   const user = auth.user
 
-  const userRole = auth.docsRole || "ugyintezo"
+  const userRole = auth.docsRole || "munkavallalo"
   if (userRole === "betekinto" || userRole === "auditor") {
     return { error: "Nincs jogosultsága új verzió feltöltéséhez (csak olvasási joggal rendelkezik)." }
   }
@@ -55,7 +58,9 @@ export async function uploadDocumentNewVersion(iratId: string, ugyiratId: string
       .eq("user_id", user.id)
       .maybeSingle()
 
-    const isSameDept = ugyirat.szervezeti_egyseg_id === auth.szervezetiEgysegId
+    const isSameDept =
+      !ugyirat.szervezeti_egyseg_id ||
+      (Boolean(auth.szervezetiEgysegId) && ugyirat.szervezeti_egyseg_id === auth.szervezetiEgysegId)
     const isAssigned = (ugyirat.ugy as any)?.felelos_user_id === user.id
 
     if (!isSameDept && !explicitAccess && !isAssigned) {

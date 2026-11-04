@@ -119,20 +119,26 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
   const [companyToDelete, setCompanyToDelete] = React.useState<Company | null>(null)
   const [isDeletingCompany, setIsDeletingCompany] = React.useState(false)
 
-  // Tagok betöltése
+  // Tagok betöltése (csak az adott modulhoz — eaisyDocs vagy eaisyHR — hozzáféréssel rendelkező tagok)
   const loadMembers = React.useCallback(async (companyId: string) => {
     setIsLoadingMembers(true)
     try {
       const res = await getCompanyMembersAction(companyId)
       if (res.success && res.members) {
-        setMembers(res.members)
+        const moduleFiltered = res.members.filter((m) => {
+          if (Array.isArray(m.elerheto_modulok) && m.elerheto_modulok.length > 0) {
+            return m.elerheto_modulok.includes(module)
+          }
+          return module === "docs" ? Boolean(m.docs_szerepkor) : Boolean(m.hr_szerepkor)
+        })
+        setMembers(moduleFiltered)
       }
     } catch (err) {
       console.error("Hiba tagok betöltésekor:", err)
     } finally {
       setIsLoadingMembers(false)
     }
-  }, [])
+  }, [module])
 
   // Összes cégtagság betöltése
   const loadAllMemberships = React.useCallback(async () => {
@@ -922,23 +928,24 @@ export function CompanySettingsTab({ module = "docs" }: CompanySettingsTabProps)
                     : "-"
 
                   const docsRoleLabels: Record<string, string> = {
-                    ugyintezo: "Ügyintéző",
-                    iktato: "Iktató",
+                    munkavallalo: "Munkavállaló",
+                    ugyintezo: "Munkavállaló",
+                    iktato: "Munkavállaló",
                     vezeto: "Vezető",
-                    betekinto: "Betekintő",
-                    auditor: "Auditor",
+                    betekinto: "Munkavállaló",
+                    auditor: "Munkavállaló",
                     admin: "Admin",
-                    rendszergazda: "Rendszergazda",
+                    rendszergazda: "Admin",
                   }
                   const hrRoleLabels: Record<string, string> = {
                     munkavallalo: "Munkavállaló",
-                    hr_munkatars: "HR Munkatárs",
-                    hr_vezeto: "HR Vezető",
+                    hr_munkatars: "Munkavállaló",
+                    hr_vezeto: "Admin",
                     vezeto: "Vezető",
-                    berugyi: "Bérügyi",
-                    toborzo: "Toborzó",
-                    munkavedelmi: "Munkavédelmi",
-                    auditor: "Auditor",
+                    berugyi: "Munkavállaló",
+                    toborzo: "Munkavállaló",
+                    munkavedelmi: "Munkavállaló",
+                    auditor: "Munkavállaló",
                     admin: "Admin",
                   }
 

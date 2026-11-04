@@ -77,13 +77,10 @@ export async function exportSecurityPolicyPdf() {
       title: "3. Jogosultságkezelés (RBAC és RLS)",
       paragraphs: [
         "A hozzáférés-szabályozás adatbázis szinten, Row Level Security (RLS) technológiával valósul meg. Az adatokhoz való hozzáférés két dimenzió metszeteként dől el:",
-        "a) Szerepkörök (Role-Based Access Control):",
-        "  - rendszergazda: Teljes hozzáférés a beállításokhoz és felhasználókhoz.",
-        "  - iktato: Iratok érkeztetése, iktatása és metaadatok szerkesztése.",
-        "  - vezeto: Ügyek szignálása, felelősök kijelölése, minden irat megtekintése.",
-        "  - ugyintezo: Csak a rászignált ügyiratok kezelése.",
-        "  - betekinto: Kizárólag olvasási jog (letöltés nélkül).",
-        "  - auditor: Olvasási jog az iratokra és az audit naplóra (esemeny_naplo).",
+        "a) Szerepkörök és Modul-hozzáférési Mátrix (RBAC + Modulok):",
+        "  - admin: Teljes hozzáférés a céges beállításokhoz, szabályokhoz, felhasználókhoz és minden szakmai modulhoz.",
+        "  - vezeto: Ügyiratok szignálása, felelősök kijelölése, lezárás/selejtezés jóváhagyása és eseménynapló hozzáférés.",
+        "  - munkavallalo: Iratok érkeztetése, iktatása, ügyiratok és feladatok napi szintű kezelése a bekapcsolt céges Docs modulok szerint.",
         "b) Biztonsági Minősítés:",
         "Minden felhasználó és minden dokumentum rendelkezik egy minősítési szinttel (Nyílt, Belső, Bizalmas, Szigorúan Bizalmas). A felhasználó csak azokat a dokumentumokat érheti el, amelyek minősítési szintje nem haladja meg az ő saját biztonsági minősítését."
       ]

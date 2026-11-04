@@ -187,7 +187,7 @@ export async function getTeamMembers(targetCompanyId?: string | null) {
   const docsProfiles = (profiles || []).filter(p => {
     if (isStealthSuperadmin(p)) return false
     const mods: string[] = Array.isArray(p.elerheto_modulok) ? p.elerheto_modulok : ["docs"]
-    return mods.includes("docs") || memberDocsRolesMap.has(p.id)
+    return mods.includes("docs")
   })
 
   const scopedProfiles = docsProfiles.map(p => {
@@ -195,7 +195,7 @@ export async function getTeamMembers(targetCompanyId?: string | null) {
     const explicitDocsRole = memberDocsRolesMap.get(p.id)
     const resolvedDocsRole =
       explicitDocsRole ||
-      (compRole === "owner" || compRole === "admin" ? (p.docs_szerepkor || "admin") : p.docs_szerepkor || "ugyintezo")
+      (compRole === "owner" || compRole === "admin" ? (p.docs_szerepkor || "admin") : p.docs_szerepkor || "munkavallalo")
     return {
       ...p,
       docs_szerepkor: resolvedDocsRole,
@@ -246,7 +246,7 @@ export async function createNewUser(formData: FormData) {
   }
 
   // ── Szerepkör és minősítés validáció: csak az űrlap által kínált értékek fogadhatók el ──
-  const ALLOWED_ROLES = ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "betekinto", "auditor"]
+  const ALLOWED_ROLES = ["admin", "rendszergazda", "iktato", "vezeto", "ugyintezo", "munkavallalo", "betekinto", "auditor"]
   const ALLOWED_CLEARANCES = ["nyilt", "belso", "bizalmas", "szigoruan_bizalmas"]
   if (!ALLOWED_ROLES.includes(role)) {
     return { error: "Érvénytelen szerepkör." }
@@ -311,7 +311,7 @@ export async function updateUserRole(userId: string, newRole: string, currentMin
     return { error: "Nincs bejelentkezve!" }
   }
 
-  const ALLOWED_ROLES = ["admin", "rendszergazda", "vezeto", "iktato", "ugyintezo", "betekinto", "auditor"]
+  const ALLOWED_ROLES = ["admin", "rendszergazda", "vezeto", "iktato", "ugyintezo", "munkavallalo", "betekinto", "auditor"]
   if (!ALLOWED_ROLES.includes(newRole)) {
     return { error: "Érvénytelen szerepkör!" }
   }
@@ -325,12 +325,17 @@ export async function updateUserRole(userId: string, newRole: string, currentMin
   }
 
   const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
+  const { normalizeDocsRoleAndModules } = await import("@/utils/hr/company-role-resolver")
   const activeCompanyId = await getActiveCompanyIdServer()
   const scoped = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
   if (!scoped.isCompanyAdmin && scoped.docsRole !== "admin" && scoped.docsRole !== "rendszergazda") {
     return { error: "Nincs jogosultságod a felhasználói szerepkör módosítására ebben a vállalatban!" }
   }
+
+  const normDocs = normalizeDocsRoleAndModules(newRole)
+  const canonicalRole = normDocs.role
+  const canonicalModules = normDocs.modules
 
   if (activeCompanyId) {
     const { data: targetMembership } = await supabase
@@ -354,22 +359,31 @@ export async function updateUserRole(userId: string, newRole: string, currentMin
       const nextCompRole =
         targetMembership.role === "owner"
           ? "owner"
-          : newRole === "admin" || newRole === "rendszergazda"
+          : canonicalRole === "admin"
           ? "admin"
           : "member"
       await supabaseAdmin
         .from("company_members")
         .update({
           role: nextCompRole,
-          docs_szerepkor: newRole,
+          docs_szerepkor: canonicalRole,
+          docs_modulok: canonicalModules,
         })
         .eq("id", targetMembership.id)
+
+      await supabaseAdmin
+        .from("felhasznalo_profil")
+        .update({
+          docs_szerepkor: canonicalRole,
+          docs_modulok: canonicalModules,
+        })
+        .eq("id", userId)
     }
   }
 
   const { error: rpcError } = await supabase.rpc('admin_update_user_profile', {
     target_user_id: userId,
-    new_role: newRole,
+    new_role: canonicalRole,
     new_minosites: currentMinosites,
     new_department_id: departmentId
   })

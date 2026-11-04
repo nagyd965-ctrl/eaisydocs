@@ -27,7 +27,8 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const supabase = await createClient();
-  let docsRole = "ugyintezo";
+  let docsRole = "munkavallalo";
+  let docsModules: string[] = [];
   let hrRole = "munkavallalo";
   let hrModules: string[] = [];
   let elerhetoModulok: string[] = [];
@@ -43,6 +44,7 @@ export default async function RootLayout({
       // Scoped (aktív cégre vonatkozó) szerepkörök és modul-engedélyek feloldása
       const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId);
       docsRole = scopedRoles.docsRole;
+      docsModules = scopedRoles.docsModules;
       hrRole = scopedRoles.hrRole;
       hrModules = scopedRoles.hrModules;
 
@@ -76,6 +78,7 @@ export default async function RootLayout({
             <CompanyProvider initialCompanies={companies} initialCompanyId={activeCompanyId}>
               <LayoutWrapper
                 docsRole={docsRole}
+                docsModules={docsModules}
                 hrRole={hrRole}
                 hrModules={hrModules}
                 elerhetoModulok={elerhetoModulok}

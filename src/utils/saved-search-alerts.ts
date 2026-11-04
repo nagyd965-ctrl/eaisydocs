@@ -165,7 +165,7 @@ export async function checkSavedSearchesForNewIrat(
       if (docCompanyId) {
         const { data: memberRow } = await supabase
           .from("company_members")
-          .select("role, docs_szerepkor, hr_szerepkor")
+          .select("role, docs_szerepkor, docs_modulok, hr_szerepkor")
           .eq("company_id", docCompanyId)
           .eq("user_id", item.user_id)
           .maybeSingle()
@@ -179,7 +179,7 @@ export async function checkSavedSearchesForNewIrat(
       // Check user profile for role, max_minosites, department and elerheto_modulok
       const { data: userProfile } = await supabase
         .from("felhasznalo_profil")
-        .select("id, szerepkor, docs_szerepkor, hr_szerepkor, szervezeti_egyseg_id, max_minosites, elerheto_modulok")
+        .select("id, szerepkor, docs_szerepkor, docs_modulok, hr_szerepkor, szervezeti_egyseg_id, max_minosites, elerheto_modulok")
         .eq("id", item.user_id)
         .single()
 
@@ -209,11 +209,11 @@ export async function checkSavedSearchesForNewIrat(
       const { resolveUserCompanyRoles } = await import("@/utils/hr/company-role-resolver")
       const resolvedRoles = resolveUserCompanyRoles(userProfile as any, membership)
       const role = resolvedRoles.docsRole
-      const isPrivileged = ["admin", "rendszergazda", "iktato", "auditor"].includes(role)
+      const isPrivileged = ["admin", "rendszergazda", "iktato", "auditor"].includes(role) || resolvedRoles.docsModules.includes("audit")
       let hasAccess = isPrivileged
 
-      // If document is in inbox (no ugyirat_id yet), managers and clerks are also authorized
-      if (!hasAccess && !irat.ugyirat_id && ["vezeto", "ugyintezo"].includes(role)) {
+      // If document is in inbox (no ugyirat_id yet), managers and employees with inbox access are also authorized
+      if (!hasAccess && !irat.ugyirat_id && ["vezeto", "ugyintezo", "munkavallalo"].includes(role) && resolvedRoles.docsModules.includes("inbox")) {
         hasAccess = true
       }
 

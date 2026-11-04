@@ -47,12 +47,10 @@ interface EaisyBillMemberImportDialogProps {
   onSuccess?: () => void
 }
 
-const DOCS_ROLES: { value: "admin" | "vezeto" | "iktato" | "ugyintezo" | "betekinto"; label: string }[] = [
+const DOCS_ROLES: { value: "admin" | "vezeto" | "munkavallalo"; label: string }[] = [
   { value: "admin", label: "Admin" },
   { value: "vezeto", label: "Vezető" },
-  { value: "iktato", label: "Iktató" },
-  { value: "ugyintezo", label: "Ügyintéző" },
-  { value: "betekinto", label: "Betekintő" },
+  { value: "munkavallalo", label: "Munkavállaló" },
 ]
 
 export function EaisyBillMemberImportDialog({
@@ -70,7 +68,7 @@ export function EaisyBillMemberImportDialog({
 
   // Kijelölt felhasználók és választott szerepkörök (email alapú kulcs)
   const [selectedEmails, setSelectedEmails] = React.useState<Set<string>>(new Set())
-  const [selectedRoles, setSelectedRoles] = React.useState<Record<string, "admin" | "vezeto" | "iktato" | "ugyintezo" | "betekinto">>({})
+  const [selectedRoles, setSelectedRoles] = React.useState<Record<string, "admin" | "vezeto" | "munkavallalo">>({})
 
   // Tagok betöltése amikor kinyílik a modál
   React.useEffect(() => {
@@ -86,7 +84,7 @@ export function EaisyBillMemberImportDialog({
         if (res.success && res.members) {
           setMembers(res.members)
           // Alapértelmezett szerepkörök beállítása
-          const initialRoles: Record<string, "admin" | "vezeto" | "iktato" | "ugyintezo" | "betekinto"> = {}
+          const initialRoles: Record<string, "admin" | "vezeto" | "munkavallalo"> = {}
           res.members.forEach((m) => {
             initialRoles[m.email] = m.suggestedDocsRole
           })
@@ -161,7 +159,7 @@ export function EaisyBillMemberImportDialog({
     })
   }
 
-  const handleRoleChange = (email: string, role: "admin" | "vezeto" | "iktato" | "ugyintezo" | "betekinto") => {
+  const handleRoleChange = (email: string, role: "admin" | "vezeto" | "munkavallalo") => {
     setSelectedRoles((prev) => ({
       ...prev,
       [email]: role,

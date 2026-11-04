@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
-import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 import { isStealthSuperadmin, STEALTH_SUPERADMIN_ID } from "@/utils/stealth-superadmin"
 import { getPermissions } from "@/utils/permissions"
 import { DossiersTableClient } from "./dossiers-table-client"
@@ -12,6 +12,7 @@ export default async function DossiersPage() {
 
   const activeCompanyId = await getActiveCompanyIdServer()
   const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
   const query = supabase
     .from("ugyirat")
@@ -45,27 +46,48 @@ export default async function DossiersPage() {
   const { data: rawDossiers } = await query
   const dossiers = rawDossiers || []
 
-  // Current user role check
+  // Current user role check (cég-hatókörrel)
   const { data: authUser } = await supabase.auth.getUser()
-  const { data: currentUserProfile } = await supabase
+  const { data: rawCurrentUserProfile } = await supabase
     .from("felhasznalo_profil")
     .select("docs_szerepkor, szervezeti_egyseg_id")
     .eq("id", authUser?.user?.id || "")
     .single()
 
-  const permissions = getPermissions(currentUserProfile?.docs_szerepkor)
+  const effectiveDocsRole =
+    scopedRoles.isMember && scopedRoles.docsRole && scopedRoles.docsRole !== "none"
+      ? scopedRoles.docsRole
+      : rawCurrentUserProfile?.docs_szerepkor || "munkavallalo"
+  const permissions = getPermissions(
+    effectiveDocsRole,
+    scopedRoles.docsModules,
+    scopedRoles.docsWriteModules,
+    "dossiers"
+  )
   const canAssign = permissions.canAssign
+  const displayDocsRole = permissions.canEdit ? effectiveDocsRole : "betekinto"
+  const currentUserProfile = rawCurrentUserProfile
+    ? { ...rawCurrentUserProfile, docs_szerepkor: displayDocsRole }
+    : { docs_szerepkor: displayDocsRole, szervezeti_egyseg_id: null }
 
   // Felhasználók: CSAK az aktív cég tagjai (cég-tagság ellenőrzéssel, rejtett rendszerfiók nélkül)
   let memberUserIds: string[] | null = null
+  const memberDocsRolesMap = new Map<string, string>()
   if (companyScope) {
     const { data: companyMembers } = await supabase
       .from("company_members")
-      .select("user_id")
+      .select("user_id, role, docs_szerepkor")
       .eq("company_id", companyScope)
     memberUserIds = (companyMembers || [])
       .map((m: any) => m.user_id)
       .filter((id: string) => id !== STEALTH_SUPERADMIN_ID)
+    for (const m of companyMembers || []) {
+      if (m.docs_szerepkor) {
+        memberDocsRolesMap.set(m.user_id, m.docs_szerepkor)
+      } else if (m.role === "owner" || m.role === "admin") {
+        memberDocsRolesMap.set(m.user_id, "admin")
+      }
+    }
   }
 
   let usersQuery = supabase
@@ -79,7 +101,12 @@ export default async function DossiersPage() {
     )
   }
   const { data: rawUsers } = await usersQuery
-  const users = (rawUsers || []).filter((u: any) => !isStealthSuperadmin(u))
+  const users = (rawUsers || [])
+    .filter((u: any) => !isStealthSuperadmin(u))
+    .map((u: any) => ({
+      ...u,
+      docs_szerepkor: memberDocsRolesMap.get(u.id) || u.docs_szerepkor || "munkavallalo",
+    }))
 
   const { data: depts } = await supabase
     .from("szervezeti_egyseg")

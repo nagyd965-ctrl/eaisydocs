@@ -22,12 +22,20 @@ interface TeamTabProps {
 
 const roleMap: Record<string, string> = {
   admin: "Admin",
-  rendszergazda: "Rendszergazda",
-  vezeto: "Vezető / Szignáló",
-  iktato: "Iratkezelő / Iktató",
-  ugyintezo: "Ügyintéző",
-  betekinto: "Betekintő",
-  auditor: "Auditor"
+  rendszergazda: "Admin",
+  vezeto: "Vezető",
+  munkavallalo: "Munkavállaló",
+  iktato: "Munkavállaló",
+  ugyintezo: "Munkavállaló",
+  betekinto: "Munkavállaló",
+  auditor: "Munkavállaló"
+}
+
+function normalizeToCoreDocsRole(rawRole?: string | null): string {
+  const r = (rawRole || "").trim().toLowerCase()
+  if (r === "admin" || r === "rendszergazda") return "admin"
+  if (r === "vezeto") return "vezeto"
+  return "munkavallalo"
 }
 
 const clearanceMap: Record<string, string> = {
@@ -81,7 +89,7 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
             className="flex items-center justify-between p-4 bg-card border rounded-xl hover:border-primary/50 hover:bg-muted/50 cursor-pointer transition-all group"
             onClick={() => {
               setSelectedMember(member)
-              setSelectedMemberRole(member.docs_szerepkor || "")
+              setSelectedMemberRole(normalizeToCoreDocsRole(member.docs_szerepkor))
               setSelectedMemberDepartment(member.szervezeti_egyseg_id || "none")
               setSelectedMemberClearance(member.max_minosites || "nyilt")
               setEditRoleDialogOpen(true)
@@ -101,7 +109,7 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {member.pozicio || member.docs_szerepkor || "Nincs megadva"}
+                  {member.pozicio || (member.docs_szerepkor ? roleMap[member.docs_szerepkor] || member.docs_szerepkor : "Nincs megadva")}
                   {departments?.find(d => d.id === member.szervezeti_egyseg_id) &&
                     ` • ${departments.find(d => d.id === member.szervezeti_egyseg_id)?.nev}`
                   }
@@ -113,7 +121,7 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
                 {member.max_minosites ? (clearanceMap[member.max_minosites] || member.max_minosites) : "Nyílt"}
               </Badge>
               <Badge variant="secondary" className="w-[120px] justify-center whitespace-nowrap uppercase font-semibold text-[10px] tracking-wider">
-                {member.docs_szerepkor}
+                {member.docs_szerepkor ? (roleMap[member.docs_szerepkor] || member.docs_szerepkor) : "Munkavállaló"}
               </Badge>
               <div className="flex items-center gap-1 shrink-0">
                 <Button
@@ -124,7 +132,7 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
                   onClick={(e) => {
                     e.stopPropagation()
                     setSelectedMember(member)
-                    setSelectedMemberRole(member.docs_szerepkor || "")
+                    setSelectedMemberRole(normalizeToCoreDocsRole(member.docs_szerepkor))
                     setSelectedMemberDepartment(member.szervezeti_egyseg_id || "none")
                     setSelectedMemberClearance(member.max_minosites || "nyilt")
                     setEditRoleDialogOpen(true)
@@ -196,14 +204,10 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Szerepkör</Label>
-                  <select id="role" name="role" defaultValue="ugyintezo" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                  <select id="role" name="role" defaultValue="munkavallalo" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                     <option value="admin">Admin</option>
-                    <option value="rendszergazda">Rendszergazda</option>
-                    <option value="vezeto">Vezető / Szignáló</option>
-                    <option value="iktato">Iratkezelő / Iktató</option>
-                    <option value="ugyintezo">Ügyintéző</option>
-                    <option value="betekinto">Betekintő</option>
-                    <option value="auditor">Auditor</option>
+                    <option value="vezeto">Vezető</option>
+                    <option value="munkavallalo">Munkavállaló</option>
                   </select>
                 </div>
                 <div className="space-y-2">
@@ -275,12 +279,8 @@ export function TeamTab({ teamMembers, departments, currentUserId }: TeamTabProp
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="rendszergazda">Rendszergazda</SelectItem>
-                          <SelectItem value="vezeto">Vezető / Szignáló</SelectItem>
-                          <SelectItem value="iktato">Iratkezelő / Iktató</SelectItem>
-                          <SelectItem value="ugyintezo">Ügyintéző</SelectItem>
-                          <SelectItem value="betekinto">Betekintő</SelectItem>
-                          <SelectItem value="auditor">Auditor</SelectItem>
+                          <SelectItem value="vezeto">Vezető</SelectItem>
+                          <SelectItem value="munkavallalo">Munkavállaló</SelectItem>
                         </SelectContent>
                       </Select>
                       {isSelfAdmin && (

@@ -26,11 +26,13 @@ export interface AvailableUserItem {
 
 const docsRoleMap: Record<string, string> = {
   "admin": "Adminisztrátor",
-  "iktato": "Iktató",
+  "rendszergazda": "Adminisztrátor",
   "vezeto": "Vezető",
-  "ugyintezo": "Ügyintéző",
-  "betekinto": "Betekintő",
-  "auditor": "Auditor"
+  "munkavallalo": "Munkavállaló",
+  "iktato": "Munkavállaló",
+  "ugyintezo": "Munkavállaló",
+  "betekinto": "Munkavállaló",
+  "auditor": "Munkavállaló"
 }
 
 export interface CandidateOptionItem {

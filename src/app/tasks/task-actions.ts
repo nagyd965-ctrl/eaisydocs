@@ -317,8 +317,8 @@ export async function deleteTask(taskId: string) {
   if (!currentTask) return { success: false, error: "A feladat nem található." }
 
   const auth = await requireDocsAuthServer(undefined, currentTask.company_id || null)
-  const role = auth.docsRole || "ugyintezo"
-  const isPrivileged = auth.authorized && ["admin", "iktato", "vezeto", "rendszergazda", "ugyintezo"].includes(role)
+  const role = auth.docsRole || "munkavallalo"
+  const isPrivileged = auth.authorized && ["admin", "iktato", "vezeto", "rendszergazda", "ugyintezo", "munkavallalo"].includes(role)
   const isAssignee = currentTask.felelos_user_id === user.id
 
   if (!isAssignee && !isPrivileged) {

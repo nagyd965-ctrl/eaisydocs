@@ -88,8 +88,8 @@ export async function grantDossierExplicitAccess(
 
   if (!ugyirat) return { error: "Ügyirat nem található." }
 
-  const auth = await requireDocsAuthServer(undefined, ugyirat.company_id || null)
-  if (!auth.authorized || !auth.user) return { error: auth.error || "Nincs bejelentkezve." }
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "vezeto", "dossiers"], ugyirat.company_id || null)
+  if (!auth.authorized || !auth.user) return { error: auth.error || "Nincs írási jogosultságod ehhez az ügyirathoz." }
   const user = auth.user
 
   const actorRole = auth.docsRole || "ugyintezo"
@@ -214,8 +214,8 @@ export async function revokeDossierExplicitAccess(ugyiratId: string, targetUserI
 
   if (!ugyirat) return { error: "Ügyirat nem található." }
 
-  const auth = await requireDocsAuthServer(undefined, ugyirat.company_id || null)
-  if (!auth.authorized || !auth.user) return { error: auth.error || "Nincs bejelentkezve." }
+  const auth = await requireDocsAuthServer(["admin", "rendszergazda", "vezeto", "dossiers"], ugyirat.company_id || null)
+  if (!auth.authorized || !auth.user) return { error: auth.error || "Nincs írási jogosultságod ehhez az ügyirathoz." }
   const user = auth.user
 
   const actorRole = auth.docsRole || "ugyintezo"

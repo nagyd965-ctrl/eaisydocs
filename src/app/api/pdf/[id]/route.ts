@@ -54,11 +54,12 @@ export async function GET(
       : docCompanyRoles.isCompanyAdmin
       ? "admin"
       : !irat.company_id || docCompanyRoles.isMember || profile?.docs_szerepkor === "rendszergazda"
-      ? profile?.docs_szerepkor || "ugyintezo"
+      ? profile?.docs_szerepkor || "munkavallalo"
       : "betekinto"
 
   const isBetekinto = effectiveDocsRole === "betekinto"
   const isAdmin = effectiveDocsRole === "admin" || effectiveDocsRole === "rendszergazda"
+  const hasAuditModule = Array.isArray(docCompanyRoles.docsModules) && docCompanyRoles.docsModules.includes("audit")
 
   // Segédfüggvény: ellenőrzi, hogy az irat HR dokumentum-e, és a hívó a dokumentum
   // tulajdonosa (dolgozó) vagy az adott cégben jogosult HR/cég-admin szereplő-e.
@@ -135,15 +136,18 @@ export async function GET(
     }
   }
 
-  // 2.2 Szervezeti egység / explicit hozzáférés ellenőrzése iktatott iratoknál
-  if (!isAdmin && effectiveDocsRole !== "iktato" && effectiveDocsRole !== "auditor" && irat.ugyirat_id) {
+  // 2.2 Szervezeti egység / felelős / explicit hozzáférés ellenőrzése iktatott iratoknál
+  if (!isAdmin && !hasAuditModule && effectiveDocsRole !== "iktato" && effectiveDocsRole !== "auditor" && irat.ugyirat_id) {
     const { data: ugyirat } = await supabase
       .from("ugyirat")
-      .select("szervezeti_egyseg_id")
+      .select("szervezeti_egyseg_id, ugy:ugy_id(felelos_user_id)")
       .eq("id", irat.ugyirat_id)
       .single()
 
-    const inDepartment = ugyirat?.szervezeti_egyseg_id === profile?.szervezeti_egyseg_id
+    const inDepartment =
+      !ugyirat?.szervezeti_egyseg_id ||
+      (Boolean(profile?.szervezeti_egyseg_id) && ugyirat?.szervezeti_egyseg_id === profile?.szervezeti_egyseg_id)
+    const isAssignee = (ugyirat?.ugy as any)?.felelos_user_id === user.id
     const { data: explicitAccess } = await supabase
       .from("ugyirat_hozzaferes")
       .select("id")
@@ -153,11 +157,11 @@ export async function GET(
 
     // HR hozzáférés: saját HR irat vagy jogosult HR / cég-admin
     let hasHrAccess = false
-    if (!inDepartment && !explicitAccess) {
+    if (!inDepartment && !isAssignee && !explicitAccess) {
       hasHrAccess = await checkHrDocumentAccess()
     }
 
-    if (!inDepartment && !explicitAccess && !hasHrAccess) {
+    if (!inDepartment && !isAssignee && !explicitAccess && !hasHrAccess) {
       return new NextResponse("Hozzáférés megtagadva: Nincs jogosultsága ehhez az ügyirathoz.", { status: 403 })
     }
   }

@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
-import { getActiveCompanyIdServer } from "@/utils/company-server"
+import { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } from "@/utils/company-server"
 import { getPermissions } from "@/utils/permissions"
 import { PartnersTableClient } from "./partners-table-client"
 import { redirect } from "next/navigation"
@@ -17,15 +17,23 @@ export default async function PartnersPage() {
 
   const activeCompanyId = await getActiveCompanyIdServer()
   const companyScope = activeCompanyId || "00000000-0000-0000-0000-000000000000"
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
 
-  let docs_szerepkor = ""
-  const { data: profile } = await supabase
-    .from("felhasznalo_profil")
-    .select("docs_szerepkor")
-    .eq("id", user.id)
-    .single()
-  docs_szerepkor = profile?.docs_szerepkor || ""
-  const permissions = getPermissions(docs_szerepkor)
+  let docs_szerepkor = scopedRoles.docsRole !== "none" ? scopedRoles.docsRole : ""
+  if (!docs_szerepkor) {
+    const { data: profile } = await supabase
+      .from("felhasznalo_profil")
+      .select("docs_szerepkor")
+      .eq("id", user.id)
+      .single()
+    docs_szerepkor = profile?.docs_szerepkor || "munkavallalo"
+  }
+  const permissions = getPermissions(
+    docs_szerepkor,
+    scopedRoles.docsModules,
+    scopedRoles.docsWriteModules,
+    "partners"
+  )
 
   // 1. Partnerek lekérése a kapcsolattartókkal együtt az aktív céghez
   const { data: realPartners } = await supabase

@@ -46,14 +46,11 @@ export default function SecurityPolicyPage() {
         </p>
         <ol>
           <li>
-            <strong>Szerepkörök (Role-Based Access Control):</strong>
+            <strong>Szerepkörök és Modul-hozzáférési Mátrix (RBAC + Modulok):</strong>
             <ul>
-              <li><code>rendszergazda</code>: Teljes hozzáférés a beállításokhoz és felhasználókhoz.</li>
-              <li><code>iktato</code>: Iratok érkeztetése, iktatása és metaadatok szerkesztése.</li>
-              <li><code>vezeto</code>: Ügyek szignálása, felelősök kijelölése, minden irat megtekintése.</li>
-              <li><code>ugyintezo</code>: Csak a rászignált ügyiratok kezelése.</li>
-              <li><code>betekinto</code>: Kizárólag olvasási jog (letöltés nélkül).</li>
-              <li><code>auditor</code>: Olvasási jog az iratokra és az audit naplóra (esemeny_naplo).</li>
+              <li><code>admin</code>: Teljes hozzáférés a céges beállításokhoz, szabályokhoz, felhasználókhoz és minden szakmai modulhoz.</li>
+              <li><code>vezeto</code>: Ügyiratok szignálása, felelősök kijelölése, lezárás/selejtezés jóváhagyása és eseménynapló hozzáférés.</li>
+              <li><code>munkavallalo</code>: Iratok érkeztetése, iktatása, ügyiratok és feladatok napi szintű kezelése a bekapcsolt céges Docs modulok szerint.</li>
             </ul>
           </li>
           <li>

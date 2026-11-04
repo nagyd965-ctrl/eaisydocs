@@ -8,20 +8,33 @@ export default async function InboxItemPage({ params, searchParams }: { params: 
   const initialMode = resolvedSearch.mode === "new" ? "new" : undefined
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  let docs_szerepkor = 'ugyintezo'
-  if (user) {
-    const { data: profile } = await supabase.from('felhasznalo_profil').select('docs_szerepkor').eq('id', user.id).single()
-    docs_szerepkor = profile?.docs_szerepkor || 'ugyintezo'
-  }
-
-  if (docs_szerepkor === 'betekinto') {
-    redirect("/dossiers")
-  }
-
-  const { getActiveCompanyIdServer } = await import("@/utils/company-server")
+  const { getActiveCompanyIdServer, getActiveCompanyMemberRolesServer } = await import("@/utils/company-server")
   const activeCompanyId = await getActiveCompanyIdServer()
   const companyScope = activeCompanyId || null
+  const scopedRoles = await getActiveCompanyMemberRolesServer(activeCompanyId)
+
+  const { data: { user } } = await supabase.auth.getUser()
+  let docs_szerepkor = scopedRoles.docsRole !== "none" ? scopedRoles.docsRole : 'munkavallalo'
+  if (user && (!scopedRoles.docsRole || scopedRoles.docsRole === "none")) {
+    const { data: profile } = await supabase.from('felhasznalo_profil').select('docs_szerepkor').eq('id', user.id).single()
+    docs_szerepkor = profile?.docs_szerepkor || 'munkavallalo'
+  }
+
+  const { getPermissions } = await import("@/utils/permissions")
+  const inboxPerms = getPermissions(
+    docs_szerepkor,
+    scopedRoles.docsModules,
+    scopedRoles.docsWriteModules,
+    "inbox"
+  )
+
+  if (
+    docs_szerepkor === 'betekinto' ||
+    !inboxPerms.canEdit ||
+    (scopedRoles.docsModules.length > 0 && !scopedRoles.docsModules.includes('inbox') && docs_szerepkor !== 'admin' && docs_szerepkor !== 'rendszergazda')
+  ) {
+    redirect("/inbox")
+  }
 
   // 1. Fetch the irat details
   const { data: irat } = await supabase

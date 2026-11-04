@@ -4,13 +4,19 @@ import {
   resolveUserCompanyRoles,
   validateEmployeeCompanyAccess,
   isUserAuthorizedForHrView,
+  isUserAuthorizedForDocsView,
+  normalizeDocsRoleAndModules,
+  normalizeHrRoleAndModules,
+  hasDocsModuleAccess,
+  hasDocsWriteAccess,
+  hasHrWriteAccess,
   type CompanyMembershipRoleInput,
   type UserProfileRoleInput,
 } from "../hr/company-role-resolver"
 
 test("eaisyHR Multi-Tenancy & Scoped Role Resolver Engine", async (t) => {
   // --- TEST 1: Cég-specifikus HR szerepkör felülbírálás ---
-  await t.test("TEST 1: Cég-specifikus HR szerepkör felülbírálás a tagságból", () => {
+  await t.test("TEST 1: Cég-specifikus HR és Docs szerepkör felülbírálás és kanonikus normalizálás", () => {
     const membership: CompanyMembershipRoleInput = {
       companyId: "comp-1111",
       role: "member",
@@ -26,7 +32,8 @@ test("eaisyHR Multi-Tenancy & Scoped Role Resolver Engine", async (t) => {
     const resolved = resolveUserCompanyRoles(membership, profile)
     assert.strictEqual(resolved.hrRole, "munkavallalo", "A legacy hr_munkatars a kanonikus munkavallalo alapszerepkörre normalizálódik")
     assert.strictEqual(resolved.hrModules.includes("admin"), true, "A legacy hr_munkatars megkapja a HR modulokat")
-    assert.strictEqual(resolved.docsRole, "iktato", "A tagságban lévő docs_szerepkor felül kell bírálja a globális profilt")
+    assert.strictEqual(resolved.docsRole, "munkavallalo", "A legacy iktato a kanonikus munkavallalo Docs alapszerepkörre normalizálódik")
+    assert.deepStrictEqual(resolved.docsModules, ["inbox", "dossiers", "archive", "partners"])
     assert.strictEqual(resolved.isMember, true)
   })
 
@@ -146,5 +153,57 @@ test("eaisyHR Multi-Tenancy & Scoped Role Resolver Engine", async (t) => {
       false,
       "Aktív cég kontextus nélkül nincs hozzáférés"
     )
+  })
+
+  // --- TEST 7: eaisyDocs 3-szintű alapszerepkör és Vállalati Modul-hozzáférési Mátrix ---
+  await t.test("TEST 7: eaisyDocs 3-szintű alapszerepkör és modul-hozzáférési mátrix", () => {
+    const normWorker = normalizeDocsRoleAndModules("munkavallalo", ["inbox", "dossiers", "audit"])
+    assert.strictEqual(normWorker.role, "munkavallalo")
+    assert.deepStrictEqual(normWorker.modules, ["inbox", "dossiers", "audit"])
+    assert.strictEqual(hasDocsModuleAccess(normWorker.role, normWorker.modules, "audit"), true)
+    assert.strictEqual(hasDocsModuleAccess(normWorker.role, normWorker.modules, "settings"), false)
+    assert.strictEqual(isUserAuthorizedForDocsView(normWorker.role, ["auditor"], normWorker.modules), true)
+    assert.strictEqual(isUserAuthorizedForDocsView(normWorker.role, ["admin", "rendszergazda"], normWorker.modules), false)
+
+    const normAdmin = normalizeDocsRoleAndModules("admin", [])
+    assert.strictEqual(normAdmin.role, "admin")
+    assert.strictEqual(hasDocsModuleAccess(normAdmin.role, normAdmin.modules, "settings"), true)
+    assert.strictEqual(hasDocsModuleAccess(normAdmin.role, normAdmin.modules, "audit"), true)
+    assert.strictEqual(isUserAuthorizedForDocsView(normAdmin.role, ["admin", "rendszergazda"], normAdmin.modules), true)
+  })
+
+  // --- TEST 8: Olvasás (Read) vs. Írás (Write) mátrix (Auditor / Betekintő támogatás) ---
+  await t.test("TEST 8: Olvasás (Read) vs. Írás (Write) mátrix eaisyDocs és eaisyHR modulokban", () => {
+    // 1. Auditor / Betekintő konfiguráció: Olvasás aktív, Írás üres tömb []
+    const auditorDocs = normalizeDocsRoleAndModules(
+      "munkavallalo",
+      ["inbox", "dossiers", "archive", "partners", "audit"],
+      []
+    )
+    assert.deepStrictEqual(auditorDocs.modules, ["inbox", "dossiers", "archive", "partners", "audit"])
+    assert.deepStrictEqual(auditorDocs.writeModules, [])
+    assert.strictEqual(hasDocsModuleAccess(auditorDocs.role, auditorDocs.modules, "dossiers"), true)
+    assert.strictEqual(
+      hasDocsWriteAccess(auditorDocs.role, auditorDocs.modules, auditorDocs.writeModules, "dossiers"),
+      false,
+      "Read-only auditor nem írhat az Iktatókönyvbe"
+    )
+
+    // 2. Vegyes jogosultság: Iktatókönyv írható, Irattár csak olvasható
+    const mixedDocs = normalizeDocsRoleAndModules(
+      "munkavallalo",
+      ["dossiers", "archive"],
+      ["dossiers", "inbox"] // 'inbox' nincs az olvasási modulokban -> automatikusan kiszűrődik!
+    )
+    assert.deepStrictEqual(mixedDocs.writeModules, ["dossiers"], "Az írási jog kizárólag az olvasási jog részhalmaza lehet")
+    assert.strictEqual(hasDocsWriteAccess(mixedDocs.role, mixedDocs.modules, mixedDocs.writeModules, "dossiers"), true)
+    assert.strictEqual(hasDocsWriteAccess(mixedDocs.role, mixedDocs.modules, mixedDocs.writeModules, "archive"), false)
+
+    // 3. eaisyHR Olvasás vs Írás
+    const hrReadOnly = normalizeHrRoleAndModules("munkavallalo", ["admin", "reports", "audit"], ["reports"])
+    assert.deepStrictEqual(hrReadOnly.modules, ["admin", "reports", "audit"])
+    assert.deepStrictEqual(hrReadOnly.writeModules, ["reports"])
+    assert.strictEqual(hasHrWriteAccess(hrReadOnly.role, hrReadOnly.modules, hrReadOnly.writeModules, "admin"), false)
+    assert.strictEqual(hasHrWriteAccess(hrReadOnly.role, hrReadOnly.modules, hrReadOnly.writeModules, "reports"), true)
   })
 })
